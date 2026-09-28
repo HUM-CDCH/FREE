@@ -1,6 +1,13 @@
 # Modular extraction ablation — execution record
 
-Status: **implementation merged; R1 and R3 execution complete; small grounding pilot prioritized; full matrix deferred**.
+Status: **implementation merged; R1 and R3 execution complete; six-cell grounding pilot complete; full matrix deferred**.
+
+The [pilot report](2026-09-28-grounding-pilot.md) records all six completed and
+exactly replayed outcomes. Span IDs plus policy and unresolved scheduling used
+10 calls versus 40 and 89,770 input tokens versus 222,156, with 35 linked paths
+versus 30. Two baseline paths were lost; semantic accuracy is unmeasured.
+Routing added cost and lost two links relative to that combined arm. This is one
+selected development document without structured table cells, not the full study.
 
 At 2026-09-28 07:12 UTC the user chose faster pilot feedback. The
 [pilot plan](../plans/2026-09-28-grounding-pilot.md) supersedes the earlier execution

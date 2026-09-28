@@ -1,6 +1,11 @@
 # Modular extraction and controlled ablation study — 2026-09-27
 
 Status: active; implementation merged, controlled study unfinished. This is the durable execution plan.
+Pilot checkpoint, 2026-09-28 07:55 UTC: all six prioritized grounding cells and
+their offline reports are complete. The [results](../validation/2026-09-28-grounding-pilot.md)
+retain the one-document boundary, changed links and 84 pending cells. R4 and
+the full matrix remain deferred; completion of the pilot does not close this plan.
+
 Priority change, 2026-09-28 07:12 UTC: the user chose a [small grounding pilot](2026-09-28-grounding-pilot.md)
 and deferred the full matrix. R4 admission is held while its current workers
 finish; six existing R5 cells will use the freed slots. The full-R5 scheduler and

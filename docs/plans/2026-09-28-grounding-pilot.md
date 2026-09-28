@@ -1,7 +1,8 @@
 # Prioritized grounding pilot — 2026-09-28
 
-Status at 07:12 UTC: supervisor live; active R4 workers draining; pilot results
-pending. This decision supersedes the earlier instruction to wait for all original
+Status at 07:55 UTC: all six cells completed; exact offline replay, reports and
+terminal audit passed. See the [pilot results](../validation/2026-09-28-grounding-pilot.md).
+The full matrix remains deferred. This decision supersedes the earlier instruction to wait for all original
 collection before R5. It does not complete or cancel the full study.
 
 The user selected “Prioritize a small pilot; defer the full matrix” after the
