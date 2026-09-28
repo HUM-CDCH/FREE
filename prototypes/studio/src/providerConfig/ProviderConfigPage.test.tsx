@@ -99,6 +99,7 @@ function config(overrides: Partial<ModelConfig> = {}): ModelConfig {
     routes: { schemaSuggestion: null, interaction: null },
     extractionModels: {},
     ingestionModels: {},
+    extractionSettings: {},
     ...overrides,
   }
 }
@@ -438,6 +439,7 @@ describe('ProviderConfigPage', () => {
       routes: { schemaSuggestion: null, interaction: { connectionId: OLLAMA_ID, modelId: 'llama3.3' } },
       extractionModels: { fields: 'instruct' },
       ingestionModels: {},
+      extractionSettings: {},
     })
     await waitFor(() => expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()

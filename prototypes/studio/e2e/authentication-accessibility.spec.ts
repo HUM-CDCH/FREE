@@ -207,6 +207,7 @@ test('the provider dialog remains keyboard-operable across required viewports @d
           routes: { schemaSuggestion: null, interaction: null },
           extractionModels: {},
           ingestionModels: {},
+          extractionSettings: {},
         },
         providers: [],
         deployment: { connections: [], defaultRoute: null },

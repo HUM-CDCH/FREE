@@ -402,7 +402,7 @@ test.describe('with a mocked configuration', () => {
   }
 
   function config(overrides: Partial<ModelConfig> = {}): ModelConfig {
-    return { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {}, ...overrides }
+    return { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {}, extractionSettings: {}, ...overrides }
   }
 
   /**

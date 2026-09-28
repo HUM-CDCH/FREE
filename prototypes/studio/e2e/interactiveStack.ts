@@ -92,6 +92,7 @@ export async function prepareInteractiveDocument(
       },
       extractionModels: {},
       ingestionModels: {},
+      extractionSettings: {},
     },
   })
   await db.orm.public.ProjectContext.create({ id: projectContextId, researcherAccountId: accountId, name: 'Interactive reload E2E' })

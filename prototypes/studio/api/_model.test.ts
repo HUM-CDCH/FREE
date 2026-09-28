@@ -331,6 +331,7 @@ describe("a model call reads its caller's configuration", () => {
     routes: { schemaSuggestion: null, interaction: { connectionId, modelId: 'caller-model' } },
     extractionModels: {},
     ingestionModels: {},
+    extractionSettings: {},
   }
   // Key cache, deployment and provider stay fakes: resolution must not reach the process cache or the environment.
   const isolated = {

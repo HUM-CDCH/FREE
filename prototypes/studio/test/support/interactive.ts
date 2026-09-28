@@ -76,6 +76,7 @@ export async function configureOwnerRoute(
       },
       extractionModels: {},
       ingestionModels: {},
+      extractionSettings: {},
     },
   }, { researcherAccountId: accountId, ...(keys ? { keys } : {}) })
   return { connectionId }

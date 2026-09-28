@@ -48,6 +48,7 @@ function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
     },
     extractionModels: {},
     ingestionModels: {},
+    extractionSettings: {},
     ...overrides,
   }
 }
@@ -971,6 +972,7 @@ describe('resolveCapabilityRoute', () => {
         },
         extractionModels: {},
         ingestionModels: {},
+        extractionSettings: {},
       }),
       modelFactories: { ollama: extractionFactory, vllm: interactionFactory },
     })

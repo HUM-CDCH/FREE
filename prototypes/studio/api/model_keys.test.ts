@@ -18,7 +18,7 @@ function connection(id: string, overrides: Partial<ModelConnection> = {}): Model
 }
 
 function configOf(connections: ModelConnection[]): ModelConfig {
-  return { connections, routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {} }
+  return { connections, routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {}, extractionSettings: {} }
 }
 
 const accountConfig = configOf([

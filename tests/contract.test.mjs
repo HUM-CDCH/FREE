@@ -171,6 +171,7 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
         },
         extractionModels: {},
         ingestionModels: {},
+        extractionSettings: {},
       },
     }),
   })

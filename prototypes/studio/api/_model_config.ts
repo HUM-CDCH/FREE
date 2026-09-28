@@ -1,4 +1,5 @@
 import { createModelConfigurationStore, type ModelConfigurationStore } from 'db'
+import { canonicalExtractionSettings, extractionSettingsIssues } from 'extraction/extraction-method'
 import { z } from 'zod'
 import {
   apiBaseIssue,
@@ -23,6 +24,7 @@ function emptyModelConfig(): ModelConfig {
     routes: { schemaSuggestion: null, interaction: null },
     extractionModels: {},
     ingestionModels: {},
+    extractionSettings: {},
   }
 }
 
@@ -83,6 +85,10 @@ function semanticIssues(config: ModelConfig): ValidationIssue[] {
       issues.push({ path: `routes.${key}.connectionId`, message: 'Route must reference an existing connection.' })
     }
   }
+
+  // The method rules the Parsing Service applies, addressed to the field that breaks them (design §3).
+  for (const issue of extractionSettingsIssues(config.extractionSettings))
+    issues.push({ path: `extractionSettings.${issue.path}`, message: issue.message })
 
   return issues
 }
@@ -192,7 +198,9 @@ export async function applyAccountModelConfig(
   value: unknown,
   options: Readonly<{ researcherAccountId: string; store?: ModelConfigurationStore; keys?: Pick<ModelKeyCache, 'retain'> }>,
 ): Promise<ModelConfig> {
-  const { config } = parseModelConfigUpdate(value)
+  const { config: submitted } = parseModelConfigUpdate(value)
+  // Stored as the page and admission compare it: no nulls, no empty Catalog members, an explicit Article in full.
+  const config: ModelConfig = { ...submitted, extractionSettings: canonicalExtractionSettings(submitted.extractionSettings) }
   await (options.store ?? modelConfigurations()).apply(options.researcherAccountId, (stored) => {
     const previous = stored === null ? emptyModelConfig() : storedModelConfig(stored)
     const issues = providerChangeIssues(previous, config)

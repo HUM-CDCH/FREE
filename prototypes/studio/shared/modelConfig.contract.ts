@@ -1,4 +1,4 @@
-import { extractionModelChoiceSchema } from 'extraction/extraction-method'
+import { extractionModelChoiceSchema, extractionSettingsSchema } from 'extraction/extraction-method'
 import { CANONICAL_UUID } from 'studio-configuration'
 import { z } from 'zod'
 
@@ -39,6 +39,7 @@ export type Route = z.infer<typeof routeSchema>
 
 export { extractionModelChoiceSchema, extractionModelKeySchema } from 'extraction/extraction-method'
 export type ExtractionModelChoice = z.infer<typeof extractionModelChoiceSchema>
+export { extractionSettingsSchema, type ExtractionSettings } from 'extraction/extraction-method'
 
 /** The roles of kei's `GET /api/ingestion-models`: the model that reads a scanned page, and the detector that finds
  *  its layout. */
@@ -68,6 +69,9 @@ export const modelConfigSchema = z
       .strict(),
     extractionModels: extractionModelChoiceSchema,
     ingestionModels: ingestionModelChoiceSchema,
+    /** Saved method settings for future Extractions, per strategy (the Advanced tab). `{}` keeps every service default;
+     *  an Extraction pins the member its strategy uses when it is admitted. */
+    extractionSettings: extractionSettingsSchema,
   })
   .strict()
 export type ModelConfig = z.infer<typeof modelConfigSchema>

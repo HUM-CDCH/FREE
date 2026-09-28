@@ -46,6 +46,7 @@ const config: ModelConfig = {
   },
   extractionModels: {},
   ingestionModels: {},
+  extractionSettings: {},
 }
 
 const otherConfig: ModelConfig = {
@@ -64,6 +65,7 @@ const otherConfig: ModelConfig = {
   },
   extractionModels: { fields: 'instruct' },
   ingestionModels: {},
+  extractionSettings: {},
 }
 
 const EMPTY_CONFIG: ModelConfig = {
@@ -71,6 +73,7 @@ const EMPTY_CONFIG: ModelConfig = {
   routes: { schemaSuggestion: null, interaction: null },
   extractionModels: {},
   ingestionModels: {},
+  extractionSettings: {},
 }
 
 type ProviderFetch = (

@@ -43,13 +43,14 @@ describe('model configuration runtime contract', () => {
     ])
     expect(uuidSchema.safeParse('11111111-1111-4111-8111-111111111111').success).toBe(true)
     expect(uuidSchema.safeParse('11111111-1111-4111-8111-11111111111A').success).toBe(false)
-    expect(modelConfigSchema.safeParse({ connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {}, version: 1 }).success).toBe(false)
+    expect(modelConfigSchema.safeParse({ connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {}, extractionSettings: {}, version: 1 }).success).toBe(false)
   })
 
   it('parses the empty configuration with an empty Ingestion Model Choice, and nothing without one', () => {
-    const empty = { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {} }
+    const empty = { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {}, extractionSettings: {} }
     expect(modelConfigSchema.parse(empty)).toEqual(empty)
     expect(modelConfigSchema.safeParse({ ...empty, ingestionModels: undefined }).success).toBe(false)
+    expect(modelConfigSchema.safeParse({ ...empty, extractionSettings: undefined }).success).toBe(false)
   })
 
   it('a connection records only whether it uses a key, never the key', () => {
@@ -58,7 +59,7 @@ describe('model configuration runtime contract', () => {
     expect(modelConnectionSchema.safeParse({ ...connection, hasKey: undefined }).success).toBe(false)
     for (const secret of [{ key: 'sk-test-contract' }, { credential: 'sk-test-contract' }])
       expect(modelConnectionSchema.safeParse({ ...connection, ...secret }).success).toBe(false)
-    const config = { connections: [connection], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {} }
+    const config = { connections: [connection], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {}, extractionSettings: {} }
     expect(modelConfigUpdateSchema.safeParse({ config }).success).toBe(true)
     expect(modelConfigUpdateSchema.safeParse({ config, credentials: { [connection.id]: 'sk-test-contract' } }).success).toBe(false)
     // What Studio answers about a configuration is the configuration alone.
@@ -83,7 +84,7 @@ describe('model configuration runtime contract', () => {
 
   it('stores no NuExtract protocol on a route', () => {
     const route = { connectionId: '11111111-1111-4111-8111-111111111111', modelId: 'numind/NuExtract3-FP8' }
-    const config = { connections: [], routes: { schemaSuggestion: route, interaction: null }, extractionModels: {}, ingestionModels: {} }
+    const config = { connections: [], routes: { schemaSuggestion: route, interaction: null }, extractionModels: {}, ingestionModels: {}, extractionSettings: {} }
     expect(modelConfigSchema.parse(config)).toEqual(config)
     expect(modelConfigSchema.safeParse({
       ...config, routes: { ...config.routes, schemaSuggestion: { ...route, protocol: RETIRED_PROTOCOL } },
