@@ -341,6 +341,62 @@ The earlier `*-six-gold-pairs` files remain unchanged historical checkpoints.
 Completion of this conditional selection comparison does not complete R1,
 R3/R4 or the full study.
 
+## R3 complete execution: preliminary rendering effects
+
+All twelve R3 results are sealed. The corrected analyzer and table renderer run
+offline against those results; their outputs and pins are preserved under
+`artifacts/extraction-ablation/r3-terminal-preview-20260928/`. Final exact replay
+and comparison with collector-owned final reports remain pending. This is a
+separate registered rendering comparison with grounding disabled in both arms;
+do not attribute its effects to verification or compare across study revisions
+as though only one setting changed.
+
+Structured rendering's mean populated-field score is 24.12 percentage points
+below plain rendering across the six development papers, with a descriptive
+document-bootstrap interval of [-49.79, -3.93] points. Harvey's refused inventory
+remains in the denominator. Its failure does not account for every score decline:
+
+| Paper | Plain score | Structured score | Plain records | Structured records |
+| --- | ---: | ---: | ---: | ---: |
+| Akita | 154/187 | 154/187 | 11 | 11 |
+| Harvey | 7/9 | 0/9 | 5 | 0 |
+| Mizuta | 63/66 | 66/66 | 6 | 6 |
+| Sousa | 47/52 | 30/52 | 4 | 4 |
+| Wang | 47/49 | 28/49 | 5 | 2 |
+| Zelechowska | 10/11 | 10/11 | 1 | 1 |
+
+The saved request/reply audit `identity-diagnosis.json` distinguishes two
+inventory-stage changes. For Wang, both requests contain the raw skin, scale
+and bone prose/table passages (`p2_s18`, `p2_s21`), including their table rows.
+The plain raw reply enumerates those three records plus two collagen fractions;
+the structured raw reply contains only the two collagen fractions. Its inventory
+request grows from 11,916 to 20,814 reported input tokens. These particular
+source rows were offered to the model; they were not lost during rendering.
+
+For Sousa, both replies contain the same four fraction labels. The structured
+reply changes the two skin fractions from `comparison_collagen` to
+`isolated_collagen`, leaving two gold identities unmatched. In both cases, raw
+saved replies equal the retained inventories and finish normally without
+provider-format fallback. The differences therefore precede field extraction
+and are not introduced by later inventory deduplication. This identifies where
+the discrepancy enters the pipeline, not the model's internal cause or an
+independent adjudication of every extracted value.
+
+Across six papers, plain rendering makes 44 artifact call entries and structured
+rendering makes 36, of which one is Harvey's pre-inference inventory refusal.
+All 79 actual replies are fresh. Reported input tokens rise from 643,902 to
+672,759; output tokens fall from 21,746 to 16,081. The eight fewer call entries
+correspond to Harvey's failed inventory and Wang's three omitted records, so
+they do not demonstrate an efficiency improvement at preserved coverage.
+The accounting separately retains the refused call's unavailable usage fields.
+
+These are single executions on six development documents, with non-exhaustive
+gold and identity-gated scoring. Mizuta's improved sample score does not establish
+complete document correctness. The result does not reproduce a trained layout
+model or establish that structural information is generally harmful. It tests
+this particular renderer and prompt; R4 separately tests grouping. No default
+change is supported by this preview alone.
+
 ## Grounding workload: diagnostic fields
 
 A read-only capture audit at the 60-cell R1 checkpoint separates grounding
