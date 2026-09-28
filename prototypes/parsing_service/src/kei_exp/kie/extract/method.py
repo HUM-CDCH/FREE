@@ -14,7 +14,8 @@ class ArticleOptions(BaseModel):
     identity: Literal["reference", "conservative"] = "reference"
     identity_fields: tuple[str, ...] = ()
     prompt: Literal["reference", "schema"] = "reference"
-    grounding: Literal["semantic", "quoted", "off"] = "semantic"
+    grounding: Literal["semantic", "quoted", "spans", "off"] = "semantic"
+    grounding_schedule: Literal["unresolved"] | None = None
     selection: Literal["supported"] | None = None
     rendering: Literal["structured"] | None = None
     grouping: Literal["structural"] | None = None
@@ -22,6 +23,8 @@ class ArticleOptions(BaseModel):
     @model_serializer(mode="wrap")
     def serialized(self, handler):
         result = handler(self)
+        if self.grounding_schedule is None:
+            result.pop("grounding_schedule")
         if self.selection is None:
             result.pop("selection")  # preserve the registered all-unit reference serialization
         if self.rendering is None:
@@ -32,6 +35,8 @@ class ArticleOptions(BaseModel):
 
     @model_validator(mode="after")
     def coherent(self):
+        if self.grounding_schedule is not None and self.grounding == "off":
+            raise ValueError("grounding scheduling requires verification")
         if self.identity == "conservative" and not self.identity_fields:
             raise ValueError("conservative reconciliation requires explicit identity_fields")
         if len(set(self.identity_fields)) != len(self.identity_fields):

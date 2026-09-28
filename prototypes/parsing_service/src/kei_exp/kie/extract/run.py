@@ -37,6 +37,7 @@ from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.rendering import RENDERING_VERSION
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
+from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.stages import (
     Call,
     Issue,
@@ -127,6 +128,8 @@ def fingerprint(result: dict, request: ExtractRequest, model: dict) -> str:
            and request.options.article.grouping is not None else {}),
         **({"selection_version": SELECTION_VERSION}
            if request.options.article is not None and request.options.article.selection is not None else {}),
+        **({"span_grounding_version": SPAN_GROUNDING_VERSION}
+           if request.options.article is not None and request.options.article.grounding == "spans" else {}),
     })).hexdigest()
 
 
@@ -220,7 +223,10 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
                 record=number, budget=options.record_chars, counter=counter["reasoning"] if article else None,
                 record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
                     ensure_ascii=False)) if article else None,
-                before_call=check, quoted=method is not None and method.grounding == "quoted", proofs=proofs)
+                before_call=check, quoted=method is not None and method.grounding == "quoted", proofs=proofs,
+                span_ids=method is not None and method.grounding == "spans",
+                skip_paths=frozenset(link.path for link in links)
+                    if method is not None and method.grounding_schedule == "unresolved" else frozenset())
             # Retain the first support in canonical order for each path; all calls remain auditable.
             known = {link.path for link in links}
             links += [link for link in found_links if link.path not in known]
@@ -254,6 +260,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
         result["contexts"] = [context.dumped() for context in contexts]
         result["value_contexts"] = [[context.dumped() for context in group] for group in extracted.value_contexts]
         result["quoted_support"] = proofs
+        if method.grounding == "spans":
+            result["span_grounding_version"] = SPAN_GROUNDING_VERSION
         if method.rendering is not None:
             result["rendering_version"] = RENDERING_VERSION
         if method.grouping is not None:

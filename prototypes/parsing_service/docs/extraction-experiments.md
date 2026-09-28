@@ -22,6 +22,7 @@ flowchart LR
 | --- | --- |
 | `evidence.py` | Verify canonical files and expose stable passages/tables. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
+| `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
@@ -81,12 +82,34 @@ Studio does not expose these controls.
 - `overlap_passages=0..2`: preceding context that never changes primary
   ownership. Tables are indivisible passages. An oversized passage is explicitly
   refused; it is never clipped or reconstructed under its original identity.
-- `grounding=semantic|quoted|off`: source-label verification; verification with
+- `grounding=semantic|quoted|spans|off`: source-label verification; verification with
   exact source-substring checks and model-attested attribution; or no links.
   Quoted verification uses four claims per batch and at most 500 characters per
   quote. Matching preserves case and whitespace; normalization cannot manufacture
   a source substring. Quoted support is retained in the artifact. A valid substring and a
   model's attribution are **not independent proof of semantic correctness**.
+- `grounding=spans` reconstructs quotes from offered canonical ranges instead of
+  asking the model to generate source text. Replies select a span ID and attest
+  support for the field and record; negative attribution creates no link. Prose
+  ranges cover every character and are at most 500 code points, preferring sentence
+  or whitespace boundaries. Existing table cells stay intact, including longer
+  cells. Complete parent text and eligible cell/header context remain available.
+  `quoted_support` retains exact start/end offsets, source text and cell identity;
+  geometry remains at the parent's precision unless a measured cell box exists.
+  Batches start at 32 claims, then split under actual input-token admission with
+  a 2,048-token output reserve. Missing/unknown decisions and truncation remain
+  failures. The setting and `span_grounding_version` change the fingerprint.
+- `grounding_schedule=unresolved` independently removes supported full record paths
+  from later source-unit calls. NONE, missing decisions and failed calls stay
+  unresolved. Omission keeps the exhaustive all-claim schedule and its previous
+  fingerprint. Early exit searches for support; it does not establish absence of
+  contradictions elsewhere. It can amplify false-positive support and needs
+  independently reviewed attribution evidence before production adoption.
+
+The span method and unresolved schedule are opt-in prototypes. Schema evidence
+policy, origin/retrieval routing and their controlled live comparison remain in
+the [follow-up plan](../../../docs/plans/2026-09-28-span-grounding.md). These do
+not alter the running frozen R1/R2a/R3/R4 study.
 
 The shared decoder accepts literal control characters only inside strings and
 preserves their values exactly, like escaped JSON spellings. It still rejects

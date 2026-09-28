@@ -24,6 +24,7 @@ from kei_exp.kie.extract.llm import Chat, ModelOutputError, parse_json
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.rendering import structured_source
 from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes
+from kei_exp.kie.extract.spans import SourceSpan, source_spans
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter
 from kei_exp.pagefile import TableCell
 
@@ -79,6 +80,14 @@ QUOTED_GROUNDING = (
     "Do not paraphrase or normalize source text. Escape control characters in JSON strings, for example "
     "a source tab as \\t. " + _GROUNDING_RULES)
 NONE = "NONE"
+SPAN_GROUNDING = (
+    'Ground every claim under "### Claims" in the offered canonical source spans. Return one object per claim '
+    'with "label" (exactly an offered span ID or NONE) and "attribution" (a boolean). Select a span and set '
+    'attribution true ONLY when its text, read with the supplied context, supports this field for the specified '
+    'record and sibling attributes. A matching number or valid ID alone is insufficient. Use NONE and false '
+    'when support is absent or uncertain. Do not return quote text; the server reconstructs it. All claim '
+    'keys are required. Read adjacent ranges together; their boundaries are not semantic boundaries. '
+    + _GROUNDING_RULES)
 ARTICLE = ("Extract only the specified record, combining its evidence across the complete source. Keep its final "
            "preparation or fraction distinct from the starting material, bulk preparation, other fractions and "
            "comparison controls. Collect ALL observations requested by the schema, including the same analyte "
@@ -395,7 +404,7 @@ class _Candidate:
         return f"Cell {self.passage.id}/{self.cell.cell_id}: {self.text!r}"
 
 
-def _grounding_evidence(labelled: Sequence[tuple[str, _Candidate]]) -> str:
+def _grounding_evidence(labelled: Sequence[tuple[str, _Candidate | SourceSpan]]) -> str:
     """Selectable evidence, then shared table context. Each context cell is printed at most once."""
     lines = [f"{label}: {candidate.shown()}" for label, candidate in labelled]
     tables: dict[str, Passage] = {}
@@ -424,7 +433,7 @@ def _candidates(passages: Sequence[Passage]) -> list[_Candidate]:
     return candidates
 
 
-def _hits(candidates: Sequence[_Candidate], value: Any) -> list[_Candidate]:
+def _hits(candidates: Sequence[_Candidate | SourceSpan], value: Any) -> list[_Candidate | SourceSpan]:
     found = [candidate for candidate in candidates if contains(candidate.text, value)]
     cell_parents = {candidate.passage.id for candidate in found if candidate.cell is not None}
     return [candidate for candidate in found if candidate.cell is not None or candidate.passage.id not in cell_parents]
@@ -443,7 +452,8 @@ def _siblings(fields: dict, path: tuple[str | int, ...]) -> str:
 def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
            budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
            before_call: Callable[[], None] | None = None, quoted: bool = False,
-           proofs: list[dict] | None = None) -> tuple[
+           proofs: list[dict] | None = None, span_ids: bool = False,
+           skip_paths: frozenset[tuple[str | int, ...]] = frozenset()) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """Ground claims in complete evidence, splitting claim batches to fit the request budget.
 
@@ -454,28 +464,34 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     `before_call`, when given, runs before each grounding batch; its error ends verification (cancellation).
     """
     prefix: tuple[str | int, ...] = ("records", record)
-    instruction = QUOTED_GROUNDING if quoted else GROUNDING
+    if quoted and span_ids:
+        raise ValueError("choose quoted or span-ID verification, not both")
+    instruction = SPAN_GROUNDING if span_ids else QUOTED_GROUNDING if quoted else GROUNDING
     if not passages:
         return [], [], [Issue("no_evidence", "the record has no passages to verify against", record)]
     links: list[Link] = []
-    candidates = _candidates(passages)
+    candidates = source_spans(passages) if span_ids else _candidates(passages)
     pending: list[tuple[tuple[str | int, ...], Any, int]] = []
     for path, value in leaves(fields):
+        if (*prefix, *path) in skip_paths:
+            continue
         hits = _hits(candidates, value)
-        if len(hits) == 1 and record_context is None and not quoted:
+        if len(hits) == 1 and record_context is None and not quoted and not span_ids:
             links.append(_link((*prefix, *path), hits[0], True, 1, "lexical"))
         else:
             pending.append(((*prefix, *path), value, len(hits)))
     if not pending:
         return links, [], []
-    labelled = {f"E{n}": candidate for n, candidate in enumerate(candidates, 1)}
+    labelled = ({candidate.id: candidate for candidate in candidates} if span_ids else
+                {f"E{n}": candidate for n, candidate in enumerate(candidates, 1)})
     claims = {f"C{n}": claim for n, claim in enumerate(pending, 1)}
     eligible = {claim: [label for label, candidate in labelled.items()
                         if candidate.cell is None or contains(candidate.text, value)]
                 for claim, (_, value, _) in claims.items()}
     claim_ids = list(claims)
     # Quotes have substantially larger replies than labels; keep their output bounded too.
-    batches = [claim_ids[n:n + 4] for n in range(0, len(claim_ids), 4)] if quoted else [claim_ids]
+    batch_size = 4 if quoted else 32 if span_ids else len(claim_ids)
+    batches = [claim_ids[n:n + batch_size] for n in range(0, len(claim_ids), batch_size)]
     calls: list[Call] = []
     issues: list[Issue] = []
     while batches:
@@ -502,6 +518,11 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 "quote": {"type": "string", "maxLength": 500},
                 "attribution": {"type": "boolean"}}, "required": ["label", "quote", "attribution"],
                 "additionalProperties": False} for claim in batch}
+        elif span_ids:
+            reply_schema["properties"] = {claim: {"type": "object", "properties": {
+                "label": {"type": "string", "enum": [*eligible[claim], NONE]},
+                "attribution": {"type": "boolean"}}, "required": ["label", "attribution"],
+                "additionalProperties": False} for claim in batch}
         size = len(instruction) + len(user) + len(json.dumps(reply_schema, ensure_ascii=False))
         if before_call is not None:
             before_call()
@@ -527,6 +548,12 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         for claim in batch:
             path, value, hits = claims[claim]
             label = given.get(claim)
+            if span_ids:
+                candidate_reply = label if isinstance(label, dict) else {}
+                label = candidate_reply.get("label")
+                if label in eligible[claim] and candidate_reply.get("attribution") is not True:
+                    issues.append(Issue("unsupported_attribution", f"{claim}: source support was not attested", record, path))
+                    continue
             if quoted:
                 candidate_reply = label if isinstance(label, dict) else {}
                 label = candidate_reply.get("label")
@@ -550,10 +577,15 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                     proofs.append({"path": list(path), "segment": candidate.passage.id,
                                    "cell": candidate.cell.cell_id if candidate.cell else None,
                                    "quote": candidate_reply["quote"], "attribution": "model_attested"})
+                elif span_ids and proofs is not None:
+                    proofs.append({"path": list(path), "segment": candidate.passage.id,
+                                   "cell": candidate.cell.cell_id if candidate.cell else None,
+                                   "span": candidate.id, "start": candidate.start, "end": candidate.end,
+                                   "quote": candidate.text, "attribution": "model_attested"})
     return links, calls, issues
 
 
-def _link(path: tuple[str | int, ...], candidate: _Candidate, verbatim: bool, hits: int, linked_by: str) -> Link:
+def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, hits: int, linked_by: str) -> Link:
     passage, cell = candidate.passage, candidate.cell
     precise = cell is not None and cell.bbox_pt is not None
     return Link(path, passage.id, passage.page, cell.bbox_pt if precise else passage.bbox_pt,
