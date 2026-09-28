@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import policySchema from '../../parsing_service/tests/fixtures/contracts/evidence-policy.schema.json'
 import {
   countSchemaMetadata,
   duplicateFieldKeys,
@@ -20,6 +21,13 @@ const invalidClosedSetNode: SchemaNode = { id: 'count', name: 'count', type: 'nu
 void invalidClosedSetNode
 
 describe('SchemaNode conversion', () => {
+  it('preserves explicit evidence policy using the same fixture as the Python service', () => {
+    expect(parseSchemaDefinition(policySchema)).toEqual(policySchema)
+    for (const evidencePolicy of [null, 'inferred', true, {}]) {
+      expect(() => parseSchemaNodes([{ id: 'x', name: 'x', type: 'string', evidencePolicy }])).toThrow()
+    }
+  })
+
   it('retains a generated bare array label as a repeating string field', () => {
     const nodes = templateToNodes({ literature_references: 'array' })
     expect(nodes[0]).toMatchObject({ name: 'literature_references', type: 'array', itemType: 'string' })

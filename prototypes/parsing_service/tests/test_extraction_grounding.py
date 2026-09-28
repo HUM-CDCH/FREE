@@ -9,14 +9,14 @@ from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
 @pytest.mark.parametrize("choice,expected", [(None, grounding.semantic), ("semantic", grounding.semantic),
-                                             ("quoted", grounding.quoted), ("off", grounding.off)])
+                                             ("quoted", grounding.quoted), ("spans", grounding.spans), ("off", grounding.off)])
 def test_every_article_grounding_choice_and_the_reference_name_a_technique(choice, expected):
     assert grounding.technique(choice) is expected
 
 
 def recording(received):
     """A substitute technique: it records what it was given and links each record's year to its first passage."""
-    def ground(passages, fields, schema, chat, *, record, budget, counter, record_context, before_call, proofs):
+    def ground(passages, fields, schema, chat, *, record, budget, counter, record_context, before_call, proofs, skip_paths):
         received.append({"record": record, "passages": [p.id for p in passages], "counter": counter,
                          "record_context": record_context})
         first = passages[0]

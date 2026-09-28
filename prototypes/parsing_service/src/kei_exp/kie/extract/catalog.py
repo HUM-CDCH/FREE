@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from kei_exp.kie.extract.assembly import artifact, document_values, ground, unchecked
+from kei_exp.kie.extract.assembly import artifact, document_values, ground_records, unchecked
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.models import Router
@@ -84,11 +84,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         calls += record_calls
         issues += record_issues
         slices.append((group, fields))
-    links, _, grounding_calls, grounding_issues = ground([([group], fields, None) for group, fields in slices],
-                                                         schema, chat, choice=None, budget=options.record_chars,
-                                                         check=check)
+    support = ground_records(slices, schema, chat, budget=options.record_chars, check=check)
     return artifact(evidence, request, chat, started=started, clock=clock, fields=[fields for _, fields in slices],
-                    document=document, links=links, calls=calls + grounding_calls, issues=issues + grounding_issues)
+                    document=document, links=support.links, calls=calls + support.calls, issues=issues + support.issues)
 
 
 def _chunks(passages: Sequence[Passage], budget: int) -> list[tuple[int, int]]:
