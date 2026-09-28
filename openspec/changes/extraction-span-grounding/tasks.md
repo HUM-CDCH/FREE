@@ -20,7 +20,7 @@
 
 ## 4. Controlled grounding experiment
 
-- [ ] 4.1 Register fixed-upstream span, scheduling, policy and routing contrasts plus labelled cumulative variants; validate pins and single-factor differences before inference.
+- [x] 4.1 Register fixed-upstream span, scheduling, policy and routing contrasts plus labelled cumulative variants; validate pins and single-factor differences before inference.
 - [ ] 4.2 Run the registered comparison after existing generation settles, verify captures and preserve failures; do not call replay fresh inference.
 - [ ] 4.3 Report per-document cost, source validity, coverage and independently reviewed semantic metrics when available; retain unavailable labels as an explicit gate.
 

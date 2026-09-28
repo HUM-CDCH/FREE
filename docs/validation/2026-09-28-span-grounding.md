@@ -2,10 +2,10 @@
 
 Status: source-span verification, unresolved-path scheduling, schema evidence policy
 and origin/lexical routing implemented and tested in `feat/extraction-span-grounding`;
-registration and live evaluation remain unfinished. See the [plan](../plans/2026-09-28-span-grounding.md).
+R5 is registered and fresh evaluation remains unfinished. See the [plan](../plans/2026-09-28-span-grounding.md).
 Existing frozen study runs and production defaults are unchanged.
 Review: [draft PR #145](https://github.com/HUM-CDCH/FREE/pull/145), based on the
-reporting branch. The comparison runner and fresh-evaluation gates remain open.
+reporting branch. Fresh execution and scientific reporting remain open.
 
 ## Implemented behavior
 
@@ -140,3 +140,19 @@ grounding cost from pinned upstream provenance and fingerprints the upstream has
 
 Registration and frozen execution receipts establish the concrete R5 state; the
 tests and prepared inputs alone do not establish a completed fresh comparison.
+
+R5 registration completed with HTTP disabled and validates **90 cells / 15 sources**
+from its frozen 80-file runtime. Manifest SHA-256:
+`46c3b73183a496f6f8d55ccc7c08cfc2030efad22f5136eb87b6d0d708bdeeee`.
+The [plan](../plans/2026-09-28-span-grounding.md) records archive and operational paths.
+The separate replay helper `docs/validation/extraction_grounding_replay.py` uses only
+saved replies and tokenizer probes, checks seals and rejects missing probes. Its
+focused suite has **10 passes**, including exact successful and budget-ended replay
+with HTTP blocked. This additional check does not modify the registered runtime.
+
+Denominator audit: **79 populated boolean leaves** are retained in fixed upstream
+values but excluded by the historical `leaves()` claim enumerator. The 2,959 claims
+and their policy-eligible subsets comprise nonblank strings and numbers, not every
+scalar. This is an explicit coverage limitation, preserved across all R5 arms and
+recorded in `claim-denominator-audit.json` before any fresh R5 inference. No claim
+that those booleans are supported or semantically correct follows from this study.

@@ -2,6 +2,7 @@
 from copy import deepcopy
 from dataclasses import replace
 import json
+import runpy
 from pathlib import Path
 
 import pytest
@@ -166,24 +167,47 @@ def test_time_budget_counts_replayed_replies_and_retains_the_inflight_overrun(tm
     assert len(chat.calls) == 1 and replay.reused == 1 and replay.fresh == 0
 
 
-def test_runner_dispatch_records_only_fresh_grounding_and_retains_completed_cell(frozen, tmp_path, monkeypatch):
+@pytest.mark.parametrize("budget", [10800, 0.01])
+def test_runner_dispatch_and_offline_replay_preserve_completed_and_budget_outcomes(frozen, tmp_path, monkeypatch, budget):
     configured, source, output, _, provider = registered(frozen, tmp_path)
+    configured["grounding_study"]["model_seconds_per_cell"] = budget
+    (output / "manifest.json").write_text(json.dumps(configured))
     cell = manifest.validate(configured, Path(__file__).resolve().parents[1])[0]
     generated = []
     def reason(system, user, schema):
         assert "### Claims" in user
         generated.append(user)
         return {claim: {"label": "NONE", "quote": "", "attribution": False} for claim in schema["properties"]}
-    monkeypatch.setattr(study, "OpenAIChat", lambda **_: CountingChat(reason))
+    class Timed(CountingChat):
+        def complete(self, **request):
+            return replace(super().complete(**request), seconds=1)
+    monkeypatch.setattr(study, "OpenAIChat", lambda **_: Timed(reason))
     monkeypatch.setattr(study, "counter_for", lambda _: WordCounter())
     class Models:
         def raise_for_status(self): pass
         def json(self): return {"data": [{"id": provider["model"], "max_model_len": provider["context_tokens"]}]}
     monkeypatch.setattr(study.requests, "get", lambda *_args, **_kwargs: Models())
     study_hash = pin(output / "manifest.json")["sha256"]
-    assert study.execute(configured, study_hash, cell, output) == "completed"
-    saved = read(output / "cells" / cell["id"] / "result.json")
-    assert saved["execution"]["fresh_calls"] == len(generated) > 0
-    assert all(call["stage"] == "grounding" for call in saved["artifact"]["calls"])
-    assert study.execute(configured, study_hash, cell, output) == "retained_completed"
-    assert len(generated) == saved["execution"]["fresh_calls"]
+    assert study.execute(configured, study_hash, cell, output) == ("completed" if budget == 10800 else "failed")
+    directory = output / "cells" / cell["id"]
+    terminal = read(directory / "attempt-001.finished.json")
+    assert terminal["fresh_calls"] == len(generated) > 0
+    if budget == 10800:
+        saved = read(directory / "result.json")
+        assert all(call["stage"] == "grounding" for call in saved["artifact"]["calls"])
+        assert study.execute(configured, study_hash, cell, output) == "retained_completed"
+        assert len(generated) == saved["execution"]["fresh_calls"]
+    else:
+        assert not (directory / "result.json").exists() and terminal["error_type"] == "TimeoutError"
+    helper = Path(__file__).resolve().parents[3] / "docs/validation/extraction_grounding_replay.py"
+    replay_cell = runpy.run_path(str(helper))["replay_cell"]
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("offline replay made an HTTP request")
+    monkeypatch.setattr(study.requests.Session, "request", forbidden)
+    replayed = replay_cell(configured, cell, output)
+    assert replayed["exact_replay"] and replayed["calls"] == len(generated)
+    assert replayed["fresh_model_calls"] == replayed["fresh_tokenizer_probes"] == 0
+    probes = list((output / "token-counts" / cell["id"]).glob("*.json"))
+    probes[0].unlink()
+    with pytest.raises(AssertionError, match="missing saved grounding token probe"):
+        replay_cell(configured, cell, output)

@@ -1,6 +1,7 @@
 # Span selection and selective grounding — 2026-09-28
 
-Status: active follow-up to the user's grounding-cost proposal; no new live arm has run.
+Status: R5 registered and queued after the original study's verified collection;
+tokenizer-only preflight is active, and no fresh R5 model arm has run.
 Branch/worktree: `feat/extraction-span-grounding` in
 `/home/gennaro/projects/FREE-worktrees/extraction-span-grounding`, based on `d74dc17c`.
 Tasks and implementation decisions: `openspec/changes/extraction-span-grounding/`.
@@ -12,13 +13,29 @@ and independently supervised; its frozen source and registered matrix are unchan
 Implemented: span-ID verification, independent unresolved-path scheduling, schema
 evidence policy, per-value origin hints and lexical routing with unresolved fallback.
 [Validation](../validation/2026-09-28-span-grounding.md) records focused and full suites,
-a real PostgreSQL policy round trip and exact old-method regression. Fixed-upstream
-registration, fresh comparison and semantic-quality evaluation remain open.
-The [execution design](../../prototypes/parsing_service/experiments/extraction/grounding-protocol.md)
-defines the six-method fixed-upstream matrix and its validation gates; it is not
-yet a registered manifest or a completed experiment.
-Eleven of fourteen implementation/delivery tasks are complete. The three open
-tasks are fixed-upstream registration, fresh execution and scientific reporting.
+a real PostgreSQL policy round trip and exact old-method regression. Fresh execution
+of the fixed-upstream comparison and semantic-quality evaluation remain open. The
+[R5 protocol](../../prototypes/parsing_service/experiments/extraction/grounding-protocol.md)
+defines the six-method fixed-upstream matrix and its validation gates.
+Twelve of fourteen implementation/delivery tasks are complete. Fresh execution
+and scientific reporting remain open.
+
+R5 output: `/home/gennaro/projects/FREE/artifacts/extraction-ablation/20260928-r5-grounding`.
+It registers 90 cells over 15 Articles and the same 81 records / 2,959 enumerated
+claims, with all upstream values reproduced from 266 captured replies offline.
+Manifest SHA-256 `46c3b73183a496f6f8d55ccc7c08cfc2030efad22f5136eb87b6d0d708bdeeee`;
+80-file code archive SHA-256 `58c75abeffdcf6e49b368c8632b6a9bad65eeac4d6abade6c583aa1ef655f109`.
+Runtime is frozen at `artifacts/extraction-ablation/frozen-execution/r5`, from
+commit `f848568f`. The R5 supervisor waits for original collection and successful
+preflight, then admits at most two cells, one attempt each, with a 5 GiB free-space
+gate. Inspect `execution-plan.json` and live identities before resuming; do not
+launch duplicate cells. The original study's completion remains independent.
+
+The preserved historical claim enumerator excludes booleans. R5 contains 79
+populated boolean leaves outside its 2,959-claim denominator, documented in
+`claim-denominator-audit.json`. Report this coverage limitation explicitly;
+schema policy applies to enumerated claims, and this is not all-scalar coverage.
+Do not silently add boolean claims to a frozen study or claim they were verified.
 
 ## Evidence and research boundary
 
