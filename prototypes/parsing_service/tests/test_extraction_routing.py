@@ -57,11 +57,11 @@ def test_origin_and_lexical_order_retain_every_unit_including_normalized_late_su
 def test_routing_batches_shared_candidates_and_finds_support_in_exhaustive_fallback():
     source, contexts, fields, origins = fixture()
     def reason(system, user, schema):
-        first = "p1_s0@" in user
-        late = "p1_s2@" in user
-        return {claim: {"label": (f"{source[0].id}@0:{len(source[0].text)}"
+        first = "E1: p1_s0 " in user
+        late = "E1: p1_s2 " in user
+        return {claim: {"label": ("E1"
                        if first and f"{claim} (site)" in user else
-                       f"{source[2].id}@0:{len(source[2].text)}" if late else "NONE"), "attribution": True}
+                       "E1" if late else "NONE"), "attribution": True}
                 for claim in schema["properties"]}
     chat = CountingChat(reason)
     links, calls, issues, routes = verify_routed(contexts, fields, SCHEMA, chat,
@@ -83,7 +83,7 @@ def test_unsuccessful_decisions_never_stop_fallback(outcome):
         if outcome == "missing":
             return {}
         return {claim: {"label": "absent" if outcome == "invalid" else
-                       f"{source[0].id}@0:{len(source[0].text)}" if outcome == "negative" else "NONE",
+                       "E1" if outcome == "negative" else "NONE",
                        "attribution": outcome != "negative"} for claim in schema["properties"]}
     class ReplyChat(CountingChat):
         def complete(self, **kwargs):
@@ -102,7 +102,7 @@ def test_refused_units_are_distinct_from_attempts_and_cancellation_is_retained()
     _, contexts, _, origins = fixture()
     class Counter(WordCounter):
         def request_tokens(self, system, user, schema=None):
-            return self.context_tokens if "p1_s0@" in user else super().request_tokens(system, user, schema)
+            return self.context_tokens if "E1: p1_s0 " in user else super().request_tokens(system, user, schema)
     chat = CountingChat(lambda s, u, schema: {claim: {"label": "NONE", "attribution": False}
                                             for claim in schema["properties"]})
     _, calls, issues, routes = verify_routed(contexts, {"year": 1827}, SCHEMA, chat,
@@ -127,7 +127,7 @@ def test_routing_preserves_table_header_and_qualifier_context_and_skips_policy_p
     fields = {"year": 37, "site": "A"}
     origins = value_origins([fields], fields, {}, [])
     proofs = []
-    chat = CountingChat(lambda s, u, schema: {claim: {"label": "p1_s0/r2_c0", "attribution": True}
+    chat = CountingChat(lambda s, u, schema: {claim: {"label": "E5", "attribution": True}
                                             for claim in schema["properties"]})
     links, _, issues, routes = verify_routed([context], fields, SCHEMA, chat,
         origins=origins, value_contexts=[context], record=0, counter=WordCounter(),

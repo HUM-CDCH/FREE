@@ -47,7 +47,7 @@ def test_duplicate_parent_ids_are_refused():
         source_spans([p, p])
 
 
-def span_chat(label="p1_s0@0:9", attribution=True):
+def span_chat(label="E1", attribution=True):
     return CountingChat(lambda s, u, schema: {
         c: {"label": label, "attribution": attribution} for c in schema["properties"]})
 
@@ -66,7 +66,7 @@ def test_quotes_are_reconstructed_with_controls_and_no_model_quote_field():
 
 
 @pytest.mark.parametrize("label,attribution,code", [("p9_s9@0:9", True, "unknown_label"),
-    ("p1_s0@0:9", False, "unsupported_attribution"), (None, True, "missing_claim")])
+    ("E1", False, "unsupported_attribution"), ("p1_s0@0:9", True, "unknown_label"), (None, True, "missing_claim")])
 def test_valid_location_does_not_override_missing_or_negative_support(label, attribution, code):
     links, _, issues = verify(passages(["Hill 1827"]), {"year": 1827}, SCHEMA,
         span_chat(label, attribution), record=0, counter=WordCounter(), record_context="Hill", span_ids=True)
@@ -76,7 +76,7 @@ def test_valid_location_does_not_override_missing_or_negative_support(label, att
 def test_cell_keeps_parent_geometry_without_inventing_a_measured_cell_box():
     passage = table_passage()
     proofs = []
-    chat = span_chat("p1_s0/r2_c0")
+    chat = span_chat("E5")
     links, _, issues = verify([passage], {"year": 37}, SCHEMA, chat, record=0,
         counter=WordCounter(), record_context="A", span_ids=True, proofs=proofs)
     assert not issues and links[0].bbox_pt == passage.bbox_pt and links[0].precision == "segment"
@@ -93,7 +93,7 @@ def test_long_cell_is_indivisible_and_uses_its_measured_box():
     offered = [s for s in source_spans([passage]) if s.cell]
     assert len(offered) == 1 and offered[0].text == text and len(text) > MAX_PROSE_CHARS
     proofs = []
-    links, _, issues = verify([passage], {"site": "Hill"}, SCHEMA, span_chat("p1_s0/r0_c0"),
+    links, _, issues = verify([passage], {"site": "Hill"}, SCHEMA, span_chat("E3"),
         record=0, counter=WordCounter(), record_context="Hill", span_ids=True, proofs=proofs)
     assert not issues and links[0].precision == "cell" and links[0].cell == "r0_c0"
     assert links[0].bbox_pt == (1, 2, 3, 4) and proofs[0]["quote"] == text
@@ -102,14 +102,14 @@ def test_long_cell_is_indivisible_and_uses_its_measured_box():
 def test_repeated_text_resolves_to_selected_occurrence_not_first_string_match():
     proofs = []
     links, _, issues = verify(passages(["Hill 1827", "Hill 1827"]), {"year": 1827}, SCHEMA,
-        span_chat("p1_s1@0:9"), record=0, counter=WordCounter(), record_context="Hill",
+        span_chat("E2"), record=0, counter=WordCounter(), record_context="Hill",
         span_ids=True, proofs=proofs)
     assert not issues and links[0].segment == "p1_s1" and proofs[0]["segment"] == "p1_s1"
 
 
 def test_larger_batches_retain_every_claim_and_refuse_oversized_source():
     fields = {"finds": ["Hill"] * 65}
-    chat = span_chat("p1_s0@0:4")
+    chat = span_chat("E1")
     links, calls, issues = verify(passages(["Hill"]), fields, SCHEMA, chat, record=0,
         counter=WordCounter(), record_context="Hill", span_ids=True)
     assert len(links) == 65 and len(calls) == 3 and not issues
@@ -127,7 +127,7 @@ def test_truncation_and_cancellation_do_not_accept_span_decisions():
     class CutChat(CountingChat):
         def complete(self, **kwargs):
             return replace(super().complete(**kwargs), finish="length")
-    chat = CutChat(lambda *_: {"C1": {"label": "p1_s0@0:9", "attribution": True}})
+    chat = CutChat(lambda *_: {"C1": {"label": "E1", "attribution": True}})
     links, calls, issues = verify(passages(["Hill 1827"]), {"year": 1827}, SCHEMA, chat,
         record=0, counter=WordCounter(), record_context="Hill", span_ids=True)
     assert not links and not calls[-1].ok and issues[0].code == "call_failed"
@@ -141,7 +141,7 @@ def test_truncation_and_cancellation_do_not_accept_span_decisions():
 
 
 def test_skip_paths_distinguish_records_and_array_positions():
-    chat = span_chat("p1_s0@0:4")
+    chat = span_chat("E1")
     links, _, _ = verify(passages(["Hill"]), {"finds": ["Hill", "Hill"]}, SCHEMA, chat,
         record=1, counter=WordCounter(), record_context="Hill", span_ids=True,
         skip_paths=frozenset({("records", 0, "finds", 1), ("records", 1, "finds", 0)}))
@@ -156,9 +156,9 @@ def test_assembled_schedule_retries_unresolved_claims_only(monkeypatch, schedule
     def reasoning(system, user, schema):
         if "records" in schema["properties"]:
             return {"records": [{"label": "Hill", "identity": {"site": "Hill"}, "passages": [source[0].id]}]}
-        first = "p1_s0@" in user
-        return {claim: {"label": "p1_s0@0:4" if first and "site" in user.split(f"{claim} (")[1].split("):")[0]
-                       else "NONE" if first else "p1_s1@0:4", "attribution": True}
+        first = "E1: p1_s0 " in user
+        return {claim: {"label": "E1" if first and "site" in user.split(f"{claim} (")[1].split("):")[0]
+                       else "NONE" if first else "E1", "attribution": True}
                 for claim in schema["properties"]}
     chat = CountingChat(reasoning)
     request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
@@ -168,7 +168,7 @@ def test_assembled_schedule_retries_unresolved_claims_only(monkeypatch, schedule
         counter={role: WordCounter() for role in ("fields", "reasoning")})
     grounding = [c for c in chat.calls if "### Claims" in c["user"]]
     assert [len(c["schema"]["required"]) for c in grounding] == expected
-    assert result["span_grounding_version"] == 1 and result["quoted_support"]
+    assert result["span_grounding_version"] == 2 and result["quoted_support"]
     assert {tuple(link["path"]) for link in result["evidence"]} == {
         ("records", 0, "site"), ("records", 0, "year")}
 
@@ -181,3 +181,36 @@ def test_factors_are_independent_and_old_serialization_omits_new_defaults():
                 for settings in [{"grounding": "quoted"}, {"grounding": "spans"},
                                  {"grounding": "spans", "grounding_schedule": "unresolved"}]]
     assert len({assembly.fingerprint({"generation": "g", "digest": "d"}, r, {}) for r in requests}) == 3
+
+
+def test_filtered_cell_labels_stay_stable_across_budget_splits():
+    class SplitCounter(WordCounter):
+        def request_tokens(self, system, user, schema=None):
+            return (self.context_tokens if len(schema["required"]) > 1
+                    else super().request_tokens(system, user, schema))
+
+    passage = table_passage()
+    proofs = []
+    chat = CountingChat(lambda s, u, schema: {
+        claim: {"label": "E5" if claim == "C1" else "E6", "attribution": True}
+        for claim in schema["properties"]})
+    links, _, issues = verify([passage], {"finds": [37, 42]}, SCHEMA, chat, record=0,
+        counter=SplitCounter(), record_context="A and B", span_ids=True, proofs=proofs)
+    assert not issues and len(links) == 2
+    assert [p["span"] for p in proofs] == ["p1_s0/r2_c0", "p1_s0/r2_c1"]
+    assert [p["quote"] for p in proofs] == ["37", "42"]
+    for call, claim, label in zip(chat.calls, ("C1", "C2"), ("E5", "E6")):
+        assert call["schema"]["properties"][claim]["properties"]["label"]["enum"] == ["E1", label, "NONE"]
+        assert f"{label}: p1_s0 Table" in call["user"]
+        assert "row/header context" in call["user"] and "Group α" in call["user"]
+
+
+def test_span_version_invalidates_only_span_fingerprints(monkeypatch):
+    metadata = {"generation": "g", "digest": "d"}
+    requests = [run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
+        "grounding": mode}}) for mode in ("semantic", "quoted", "spans")]
+    current = [assembly.fingerprint(metadata, request, {}) for request in requests]
+    monkeypatch.setattr(assembly, "SPAN_GROUNDING_VERSION", 1)
+    previous = [assembly.fingerprint(metadata, request, {}) for request in requests]
+    assert current[:2] == previous[:2]
+    assert current[2] != previous[2]

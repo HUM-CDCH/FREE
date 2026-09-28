@@ -44,3 +44,16 @@ label admission results do not establish independent semantic quality. Span v2
 needs a fresh, separately pinned comparison including a previously refused source
 and canonical tables before a default change. The original study and final report
 remain separate obligations; no collector is restarted by this integration.
+
+## Compact-label integration (#146)
+
+Moved the existing compact-label patch into `grounding.py`, preserving the v2
+span fingerprint and canonical proof reconstruction. Updated the fingerprint test
+to patch `assembly`, its current owner. Reviewed the full delta against integrated
+#145: no blocker, new option, compatibility path, dependency or duplicate verifier.
+
+330 focused extraction/grounding/reporting/dependency tests pass, with 18 excluded
+process/database/live cases. All six scripted methods exactly match original #146
+head `ae29cfee` requests/artifacts except clocks. Reference, semantic, quoted and
+off methods are also unchanged between integrated #145 and #146. Fresh version-2
+model quality remains unmeasured; the tokenizer-only evidence is not reclassified.

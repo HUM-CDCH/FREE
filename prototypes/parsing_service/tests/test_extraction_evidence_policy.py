@@ -49,7 +49,7 @@ def assembled(monkeypatch, *, enabled, name="diagnostic"):
     def reason(system, user, schema):
         if "records" in schema["properties"]:
             return {"records": [{"label": "Hill", "identity": {"site": "Hill"}, "passages": ["p1_s0"]}]}
-        return {claim: {"label": f"p1_s0@0:{len(source[0].text)}", "attribution": True}
+        return {claim: {"label": "E1", "attribution": True}
                 for claim in schema["properties"]}
     fields = CountingChat(lambda *_: {name: [{"status": "reported", "observation": "Source observation"}],
                                      "review": "check later"})

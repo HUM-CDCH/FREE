@@ -147,3 +147,13 @@ not a forecast of the new verifier's performance.
 The existing study remains a completion obligation. The prototype, current development
 ablation, fresh grounding study and independently reviewed semantic evaluation must each
 be reported with their actual status; none substitutes for the others.
+
+## Compact-label follow-up — 2026-09-28
+
+Version 2 uses short transport labels while preserving canonical proof identities.
+The separate [change plan](../../openspec/changes/compact-span-labels/tasks.md) and
+[admission report](../validation/2026-09-28-compact-span-labels.md) record 304 passing
+tests and ten tokenizer-only checks with exact offline replay. Hvissinge and Harvey
+no longer refuse comparisons; Age and Hamburg retain budget gaps. Fresh version 2
+quality is unmeasured. Original R5 remains frozen at version 1 and the full matrix
+remains deferred; these checks do not complete pending inference cells.

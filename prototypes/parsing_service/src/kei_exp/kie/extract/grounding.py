@@ -50,7 +50,7 @@ QUOTED_GROUNDING = (
 NONE = "NONE"
 SPAN_GROUNDING = (
     'Ground every claim under "### Claims" in the offered canonical source spans. Return one object per claim '
-    'with "label" (exactly an offered span ID or NONE) and "attribution" (a boolean). Select a span and set '
+    'with "label" (exactly an offered evidence label or NONE) and "attribution" (a boolean). Select a span and set '
     'attribution true ONLY when its text, read with the supplied context, supports this field for the specified '
     'record and sibling attributes. A matching number or valid ID alone is insufficient. Use NONE and false '
     'when support is absent or uncertain. Do not return quote text; the server reconstructs it. All claim '
@@ -151,8 +151,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             pending.append(((*prefix, *path), value, len(hits)))
     if not pending:
         return links, [], []
-    labelled = ({candidate.id: candidate for candidate in candidates} if span_ids else
-                {f"E{n}": candidate for n, candidate in enumerate(candidates, 1)})
+    # Labels are local to this catalogue; saved proofs retain canonical source identities.
+    labelled = {f"E{n}": candidate for n, candidate in enumerate(candidates, 1)}
     claims = {f"C{n}": claim for n, claim in enumerate(pending, 1)}
     eligible = {claim: [label for label, candidate in labelled.items()
                         if candidate.cell is None or contains(candidate.text, value)]

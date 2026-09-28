@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from kei_exp.kie.passages import Passage
 from kei_exp.pagefile import TableCell
 
-VERSION = 1
+VERSION = 2
 MAX_PROSE_CHARS = 500
 
 
