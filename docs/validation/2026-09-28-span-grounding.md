@@ -4,6 +4,8 @@ Status: source-span verification, unresolved-path scheduling, schema evidence po
 and origin/lexical routing implemented and tested in `feat/extraction-span-grounding`;
 registration and live evaluation remain unfinished. See the [plan](../plans/2026-09-28-span-grounding.md).
 Existing frozen study runs and production defaults are unchanged.
+Review: [draft PR #145](https://github.com/HUM-CDCH/FREE/pull/145), based on the
+reporting branch. The comparison runner and fresh-evaluation gates remain open.
 
 ## Implemented behavior
 

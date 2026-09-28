@@ -4,6 +4,8 @@ Status: active follow-up to the user's grounding-cost proposal; no new live arm 
 Branch/worktree: `feat/extraction-span-grounding` in
 `/home/gennaro/projects/FREE-worktrees/extraction-span-grounding`, based on `d74dc17c`.
 Tasks and implementation decisions: `openspec/changes/extraction-span-grounding/`.
+Draft implementation: [PR #145](https://github.com/HUM-CDCH/FREE/pull/145), stacked
+on `docs/extraction-ablation-report`; no merge or deployment has occurred.
 The [original study](2026-09-27-modular-extraction-ablation-study.md) remains unfinished
 and independently supervised; its frozen source and registered matrix are unchanged.
 
@@ -15,6 +17,8 @@ registration, fresh comparison and semantic-quality evaluation remain open.
 The [execution design](../../prototypes/parsing_service/experiments/extraction/grounding-protocol.md)
 defines the six-method fixed-upstream matrix and its validation gates; it is not
 yet a registered manifest or a completed experiment.
+Eleven of fourteen implementation/delivery tasks are complete. The three open
+tasks are fixed-upstream registration, fresh execution and scientific reporting.
 
 ## Evidence and research boundary
 

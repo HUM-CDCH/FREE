@@ -27,4 +27,4 @@
 ## 5. Integration and delivery
 
 - [x] 5.1 Verify schema/adapter contracts, reference behavior, cancellation and applicable full suites; complete bloat audit and record scoped evidence.
-- [ ] 5.2 Push a reviewable implementation and draft PR with remaining gates; reconcile this change with the still-active original study without rewriting frozen evidence.
+- [x] 5.2 Push a reviewable implementation and draft PR with remaining gates; reconcile this change with the still-active original study without rewriting frozen evidence.
