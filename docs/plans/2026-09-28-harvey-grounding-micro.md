@@ -38,10 +38,9 @@ The latter two differ only by label transport/prompt version. Quoted changes the
 proof representation too. Use two independent fresh repeats of each case/arm:
 12 cells, 48 selected claim–unit decisions including explicit refusals.
 
-Both runtimes precede the #145/#146 architecture integration (since merged as
-`2ce78e4c`); their complete 80-file maps remain pinned. This tests those frozen
-implementations, not the merged code; see the
-[merged replay](../validation/2026-09-28-merged-grounding-replay.md). Repeats are intentionally fresh, never captured-response
+Both runtimes precede the concurrent architecture integration; their complete
+80-file maps remain pinned. This tests those frozen implementations, not the
+latest remote PR heads. Repeats are intentionally fresh, never captured-response
 reuse. Within each case/arm, their complete requests must match.
 
 Provider: existing Qwen/Qwen3.8-27B-FP8 endpoint at loopback port 18012, temperature
@@ -73,7 +72,9 @@ structured output, if triggered, consumes the same HTTP-call cap and is reported
 
 Clarification, 2026-09-28 (after generation; the registered protocol above is
 unchanged): the 120-second value is a client timeout, not a hard backend
-termination deadline.
+termination deadline. The "concurrent architecture integration" above is
+#145/#146, since merged as `2ce78e4c`; see the
+[merged replay](../validation/2026-09-28-merged-grounding-replay.md).
 
 ## Artifacts and acceptance
 
