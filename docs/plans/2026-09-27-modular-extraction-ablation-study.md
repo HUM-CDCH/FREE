@@ -219,8 +219,8 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
   The archive complements the existing frozen code and capture artifacts.
 
 - Final report collection is now supervised by
-  `free-ablation-final-collection-20260928`, with controls under
-  `artifacts/extraction-ablation/final-collection-20260928/`. It waits for the
+  `free-ablation-final-collection-20260928-v2`, with controls under
+  `artifacts/extraction-ablation/final-collection-20260928-v2/`. It waits for the
   exact R3/R4 scheduler, requires all R1/R3/R4 seals, replays captures and
   generates corrected final analysis/accounting/tables plus grounding workload.
   Reporting code is frozen separately; acceptance reproduces the completed
@@ -228,6 +228,12 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
   commands. No fresh model replies are permitted. The collector owns the
   reserved `*-final` report paths for R1/R3/R4; do not duplicate it. Actual
   generation remains active, and final scientific review remains necessary.
+  The v2 handoff at 2026-09-28 05:58 UTC corrected unavailable-token table
+  formatting after the complete R1 preview exposed it. Eighteen reporting tests
+  pass and all 79 real cells render offline. Only idle downstream services were
+  replaced; generation, manifests, cell order and registered code remain unchanged.
+  R5's current controls are `launch-collection-v2.py`,
+  `execution-plan-collection-v2.json` and `reporting-v2/` in its study directory.
 
 - Latest checkpoint, 2026-09-28 01:57 CEST: R1 has 60/79 sealed cells, all
   replay-verified from 1,945 saved replies with HTTP disabled. R2a is complete

@@ -52,8 +52,8 @@ requires all 79 seals. The new parent also waits for the earlier Akita launcher
 and selection follower to exit. No inference worker was stopped or duplicated.
 
 Final collection is scheduled separately under
-`artifacts/extraction-ablation/final-collection-20260928/`, owned by user service
-`free-ablation-final-collection-20260928`. It waits for the exact replacement
+`artifacts/extraction-ablation/final-collection-20260928-v2/`, owned by user service
+`free-ablation-final-collection-20260928-v2`. It waits for the exact replacement
 R3/R4 scheduler, then requires every R1/R3/R4 artifact seal and execution receipt.
 It never launches fresh model generation. It replays the captures with separately
 cached tokenizer probes, repeats acceptance with HTTP disabled, and generates
@@ -64,16 +64,36 @@ final paths in parallel with the collector.
 
 Reporting is also frozen: 75 source files, the corrected analyzer and four helper
 scripts are preserved in `reporting-code.zip`, SHA-256
-`43058e46665ae3b69e8f8ce7d709f368702f867b834992a8e6e23b29a2a8d426`.
+`a4e96b0e0cc0d27fb0585820fb326eedd047c6c22a698abcf0d33d6081d46d65`.
 The replay cache retains 1,455 previously observed tokenizer probes. Acceptance
-checks regenerated all 30 R2a metrics/accounting/table contents identically,
+checks for the original reporting freeze regenerated all 30 R2a metrics/accounting/table contents identically,
 apart from provenance paths and dependent hashes, and replayed Herredsvejen
 bounded with HTTP and fresh generation disabled. Absent-parent and incomplete-
-study checks refuse collection before launching commands. Receipts are under
-`acceptance-r2a/`; `waiting-verification.json` confirms the collector is waiting
-with no child commands. `collection-complete.json`, when present and validated,
+study checks refuse collection before launching commands. Those historical
+receipts remain under the original collector's `acceptance-r2a/`.
+`collection-complete.json`, when present and validated,
 will establish generated reports, not reviewed scientific conclusions or goal
 completion. A missing cell or failed command stops collection without retry.
+
+At 05:58 UTC, the complete 79-cell preview exposed a table-rendering failure:
+Age's schema-to-bounded pair has no input-token delta because its control refused
+inference. The old formatter incorrectly required that metric and would also
+reject null cell totals. The corrected formatter displays unavailable costs as
+`—`, retains every observed pair, and shows a separate token-effect denominator
+(14/15 for that comparison). Eighteen table/accounting tests pass, including
+all-missing costs, a known zero delta and a mixed known/missing pair. The real
+79-cell preview now renders with network access disabled. Its outputs and pins
+are under `r1-terminal-preview-20260928/`; final exact replay remains pending.
+
+The original collector, R5 scheduler and R5 collector were all verified live
+with no child processes before an ordered replacement. No inference process was
+stopped. The v2 archive changes only the table helper; its 75 source files,
+corrected analyzer and other three helpers are unchanged. The tokenizer cache
+is byte-identical. `idle-chain-stop-audit.json` and `chain-start-audit.json` under
+the v2 control directory record the handoff. R5 now uses
+`launch-collection-v2.py`, `execution-plan-collection-v2.json` and `reporting-v2/`
+inside its existing study directory. Its manifest, frozen runtime, cell order,
+two-worker limit and outputs are unchanged. Old controls and receipts are retained.
 
 The following paragraphs retain the earlier checkout-recovery record; their
 counts and scheduler identities are historical.

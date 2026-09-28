@@ -278,9 +278,16 @@ do not increase the context limit, truncate sources or remove hard documents.
 
 R5 starts only after the original R1→R3→R4 chain and its verified final collection.
 Its own collector waits for its exact scheduler and owns its final replay/report
-paths. Inspect `20260928-r5-grounding/execution-plan.json` and `reporting/` plus live
+paths. Inspect `20260928-r5-grounding/execution-plan-collection-v2.json` and `reporting-v2/` plus live
 process identities before doing anything. Do not launch duplicate generation or
 manual final reporting alongside those owners.
+
+At the 2026-09-28 05:58 UTC handoff, the idle downstream chain was replaced after
+a complete R1 preview exposed missing-token handling in the table formatter.
+Original collection now uses `final-collection-20260928-v2/`; R5 generation uses
+`launch-collection-v2.py`. Old controls are historical. This changes reporting and
+dependency identities only; every registered runtime, manifest and cell order is
+unchanged. Read `INTEGRATION-POINTER.md` for any later handoff before acting.
 
 ## 6. Freeze executable source and inputs
 
@@ -437,7 +444,8 @@ coverage ledger so no sealed cell is silently omitted from replay acceptance.
 
 R5 has a different fixed-upstream entrypoint and two dedicated helpers:
 `extraction_grounding_replay.py` and `extraction_grounding_report.py`. Registered
-copies and their hashes live in `20260928-r5-grounding/reporting/`. Run them from
+copies remain in `20260928-r5-grounding/reporting/`; the active `reporting-v2/config.json`
+pins those unchanged helpers. Run them from
 the frozen R5 source, with its existing per-cell `token-counts/` caches and HTTP
 disabled. They take `STUDY_DIR NEW_REPLAY_JSON` and
 `STUDY_DIR REPLAY_JSON NEW_REPORT_JSON`, respectively; there is no tokenizer-cache
@@ -448,7 +456,7 @@ Keep completed, budget-ended, infrastructure-failed and pending cells distinct.
 The R5 reporter retains failed captured costs and unknown usage, independently
 checks source ranges/cells/geometry and route coverage, and prepares unadjudicated
 link differences. Pending or failed cells do not receive invented zero-quality
-measurements. Its `reporting/collection-finished.json` proves only its stated
+measurements. Its `reporting-v2/collection-finished.json` proves only its stated
 scope; inspect statuses, value-score invariance and final interpretation before
 declaring the study complete. The earlier original-study collector remains separate.
 
