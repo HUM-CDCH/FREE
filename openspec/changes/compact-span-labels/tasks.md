@@ -12,4 +12,8 @@
 
 ## 3. Review
 
-- [ ] 3.1 Review the final diff for unnecessary branches/options, run OpenSpec validation and push a reviewable change with its evidence.
+- [x] 3.1 Review the final diff for unnecessary branches/options, run OpenSpec validation and push a reviewable change with its evidence.
+
+Outcome: [draft PR #146](https://github.com/HUM-CDCH/FREE/pull/146), stacked on #145.
+The tokenizer-only change is complete; fresh version 2 quality and the original
+full study remain open in the parent plan.
