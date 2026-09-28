@@ -10,6 +10,15 @@ Implementation merged through PRs [#142](https://github.com/HUM-CDCH/FREE/pull/1
 For a future agent session, use the [reproduction prompt](2026-09-27-extraction-ablation-reproduction-prompt.md).
 It distinguishes resuming a frozen study from registering a fresh revision.
 
+The subsequent grounding-cost work is a separate registered **R5** study, tracked
+in [PR #145](https://github.com/HUM-CDCH/FREE/pull/145) and its
+[span-grounding plan](https://github.com/HUM-CDCH/FREE/blob/feat/extraction-span-grounding/docs/plans/2026-09-28-span-grounding.md).
+Its implementation checkout is `/home/gennaro/projects/FREE-worktrees/extraction-span-grounding`.
+It freezes the same upstream records before comparing span selection, unresolved
+scheduling, schema evidence policy and origin/lexical routing. R5 does not replace
+the unfinished R1/R2a/R3/R4 obligations below. Read the integration pointer for
+both generation and final-collection owners before resuming either study family.
+
 ## Goal and authorization
 
 Implement the researched extraction techniques as understandable, independently testable
@@ -182,6 +191,20 @@ unavailable human labels, provider, compute or integration gate stays explicitly
 do not mark the goal complete merely because a plan or synthetic test suite is finished.
 
 ## Progress and resume
+
+- Grounding follow-up R5 is registered at
+  `artifacts/extraction-ablation/20260928-r5-grounding`: 15 Articles × six methods,
+  with 81 fixed records reproduced from 266 captured upstream replies. Its frozen
+  runtime is `frozen-execution/r5`, separate from the advanced implementation
+  checkout. At the 2026-09-28 02:48 UTC checkpoint, R1 has 69/79 sealed cells,
+  R2a has 30/30, and R3/R4/R5 remain queued. Both final collectors are supervised.
+  PR145 implementation head `361fa6b4` passed CI; no new merge or deployment occurred.
+  The 90-cell R5 preflight and exact offline reproduction are complete, with no
+  model generation. Span-only refuses 1,742/8,359 claim–unit comparisons (20.8%),
+  versus zero for quoted verification; smaller call counts cannot alone establish
+  savings. R5's 2,959-claim denominator also excludes 79 boolean values. Preserve
+  these limitations in the final report. Fresh outcomes and interpretation remain
+  unfinished; a queued job, prepared reporter or passing CI does not close them.
 
 - Registered input bytes are preserved in
   `artifacts/extraction-ablation/input-preservation-20260928.zip` with a matching

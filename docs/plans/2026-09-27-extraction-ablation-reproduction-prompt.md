@@ -1,6 +1,7 @@
 # Prompt: run and report the extraction ablation study
 
-Status: reusable execution prompt, written 2026-09-27. Copy the prompt below into
+Status: reusable execution prompt, written 2026-09-27 and extended for R5 on
+2026-09-28. Copy the prompt below into
 a future coding-agent session. Paths are starting points, not proof of current
 state. Completion counts, process IDs and branch heads must be discovered live.
 
@@ -42,6 +43,7 @@ Start from these locations, resolving replacements if paths moved:
 ```text
 Repository: /home/gennaro/projects/FREE
 Isolated reporting checkout: /home/gennaro/projects/FREE-worktrees/extraction-current-stack
+Grounding implementation checkout: /home/gennaro/projects/FREE-worktrees/extraction-span-grounding
 Historical diagnosis: /home/gennaro/Documents/Codex/2026-09-26/kei-article-diagnosis
 Study artifacts: /home/gennaro/projects/FREE/artifacts/extraction-ablation
 ```
@@ -61,6 +63,10 @@ Read these authoritative study documents:
 - `docs/validation/2026-09-27-extraction-stack-integration.md`.
 - The selection, rendering and grouping protocols in
   `prototypes/parsing_service/experiments/extraction/`.
+- In the grounding checkout: `docs/plans/2026-09-28-span-grounding.md`,
+  `openspec/changes/extraction-span-grounding/`,
+  `docs/validation/2026-09-28-span-grounding.md` and
+  `prototypes/parsing_service/experiments/extraction/grounding-protocol.md`.
 - `artifacts/extraction-ablation/INTEGRATION-POINTER.md`, then the referenced
   manifests, execution plans, receipts, logs and actual processes.
 
@@ -227,6 +233,55 @@ hold protocol/decoder implementation constant within every paired comparison.
 Do not expand the matrix after seeing results without registering a distinct
 follow-up hypothesis and explaining why it is needed.
 
+### R5: fresh grounding on fixed upstream records
+
+90 cells: the same 15 Article sources × `quoted`, `spans`, `spans_unresolved`,
+`spans_policy`, `spans_unresolved_policy` and `spans_routed`. Read the registered
+`20260928-r5-grounding/manifest.json` and its private protocol copy; execute from
+`frozen-execution/r5`. The implementation checkout has advanced beyond that
+registered runtime. Do not substitute its current code or recreate existing cells.
+
+Every method receives identical records, inventory, contexts, conflicts and schema
+from that source's sealed R1 bounded result. Per-value origin hints were recovered
+from exact saved upstream replies. All 81 records reproduce offline from 266
+upstream replies. Only grounding replies are fresh; keep upstream replay costs
+separate and require unchanged extracted values and their original gold scores.
+
+The schema copy includes an explicit derived policy on `collagen.field_statuses`;
+only policy-enabled methods apply it. Policy is inherited metadata, not field-name
+matching. Retain skipped paths and both all-enumerated and eligible denominators.
+Derived classifies evidence eligibility; it does not prove deterministic derivation
+or correctness of a value.
+The preserved enumerator omits booleans: 79 boolean values are outside the 2,959
+string/number claim denominator. Do not claim all-scalar verification.
+
+The matrix includes separate scheduling and policy contrasts, their interaction,
+and a routing contrast. Quoted→spans bundles prompt, source granularity, output
+representation and initial batch cap; it does not isolate ID spelling alone.
+Routing uses origin hints and lexical/BM25 ordering of whole contexts, followed by
+remaining units for unresolved claims. It is not learned dense retrieval and does
+not establish exhaustive contradiction search. A canonical ID establishes literal
+location; the attribution decision remains model-attested.
+
+Registered execution uses seed 20260928, at most two concurrent cells, one greedy
+execution per cell, a 12,288-token context ceiling and 2,048-token output reserve.
+Stop new call admission after 10,800 accumulated captured model seconds per cell;
+an in-flight reply may exceed that bound. Reused replies count toward it. Budget
+exhaustion is a retained terminal failure, not a retry opportunity. This is neither
+a wall-time SLA nor the product's three-hour deadline.
+
+Tokenizer preflight is an all-NONE scripted scenario, not measured model savings.
+The registered preflight exposed 1,742/8,359 refused span comparisons (20.8%);
+Hvissinge has no admitted span comparison. Preserve those outcomes and interpret
+cost beside coverage. A compact-rendering correction needs a new frozen revision;
+do not increase the context limit, truncate sources or remove hard documents.
+
+R5 starts only after the original R1→R3→R4 chain and its verified final collection.
+Its own collector waits for its exact scheduler and owns its final replay/report
+paths. Inspect `20260928-r5-grounding/execution-plan.json` and `reporting/` plus live
+process identities before doing anything. Do not launch duplicate generation or
+manual final reporting alongside those owners.
+
 ## 6. Freeze executable source and inputs
 
 Preserve verified byte copies of the registered PDFs, canonical representations,
@@ -297,6 +352,9 @@ sequence to run blindly alongside an active batch:
 "$PYTHON_BIN" -m experiments.extraction.selection_replay register R1_DIR NEW_R2A_DIR
 "$PYTHON_BIN" -m experiments.extraction.selection_replay run R2A_DIR SOURCE_ID
 "$PYTHON_BIN" -m experiments.extraction.register_rendering R1_MANIFEST NEW_R3_MANIFEST
+# New fixed-grounding revision only, from an implementation containing these modules:
+"$PYTHON_BIN" -m experiments.extraction.fixed_upstream R1_DIR SOURCE_ID REPLAY_RECEIPT NEW_BUNDLE_JSON
+"$PYTHON_BIN" -m experiments.extraction.grounding_study R1_DIR BUNDLE_DIRECTORY NEW_R5_DIR
 ```
 
 The existing registrars contain dated study identifiers. For a new revision,
@@ -377,6 +435,23 @@ Then replay again without that flag, with HTTP disabled, to prove offline
 reproduction. R2a uses its own original-control/subsequence checks. Keep a
 coverage ledger so no sealed cell is silently omitted from replay acceptance.
 
+R5 has a different fixed-upstream entrypoint and two dedicated helpers:
+`extraction_grounding_replay.py` and `extraction_grounding_report.py`. Registered
+copies and their hashes live in `20260928-r5-grounding/reporting/`. Run them from
+the frozen R5 source, with its existing per-cell `token-counts/` caches and HTTP
+disabled. They take `STUDY_DIR NEW_REPLAY_JSON` and
+`STUDY_DIR REPLAY_JSON NEW_REPORT_JSON`, respectively; there is no tokenizer-cache
+argument or `--allow-tokenize` flag. Missing admission probes are an explicit gap,
+not permission to call the model or silently obtain replacement counts.
+
+Keep completed, budget-ended, infrastructure-failed and pending cells distinct.
+The R5 reporter retains failed captured costs and unknown usage, independently
+checks source ranges/cells/geometry and route coverage, and prepares unadjudicated
+link differences. Pending or failed cells do not receive invented zero-quality
+measurements. Its `reporting/collection-finished.json` proves only its stated
+scope; inspect statuses, value-score invariance and final interpretation before
+declaring the study complete. The earlier original-study collector remains separate.
+
 The replay helper takes a study directory, a new report path and a tokenizer
 cache directory. For example, with `SERVICE_SOURCE` still pointing to the
 registered inference archive:
@@ -426,6 +501,15 @@ control effect. Use the registered document bootstrap: 10,000 draws, seed 202609
 Fields are not independent document replicates. Do not add post-hoc p-values;
 a zero-width interval is not proof of equivalence.
 
+For R5, extracted-value scores are an invariance check, not the treatment outcome.
+Report grounding calls/tokens, recorded model and wall time, refused comparisons,
+policy skips, supported-path coverage, route attempts/remaining units and exact
+source validity per document before aggregates. Include the scheduling × policy
+interaction and all unavailable pairs. Review changed/dropped/added links for
+subject, table row/header, unit and qualifier attribution. Semantic precision,
+unsupported-link rate and evidence recall remain unavailable until independently
+reviewed labels exist; valid IDs and exact quotes cannot supply those labels.
+
 Also report:
 
 - Populated versus empty-field correctness, pending semantic review, and
@@ -451,7 +535,7 @@ notes, diagnostic statuses or unscored measurements. Do not interpret removed
 `field_statuses` leaves as lost scientific measurements. Retain an adjudication
 queue rather than silently assigning truth labels to extras.
 
-Grounding-arm comparisons may regenerate different upstream records. Verify
+R1 grounding-arm comparisons may regenerate different upstream records. Verify
 whether those records match before attributing value-score differences to the
 verifier. Rendering and grouping change prompts and require fresh paired runs;
 old replies cannot evaluate new prompts.
