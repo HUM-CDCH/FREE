@@ -12,6 +12,9 @@ evidence policy, per-value origin hints and lexical routing with unresolved fall
 [Validation](../validation/2026-09-28-span-grounding.md) records focused and full suites,
 a real PostgreSQL policy round trip and exact old-method regression. Fixed-upstream
 registration, fresh comparison and semantic-quality evaluation remain open.
+The [execution design](../../prototypes/parsing_service/experiments/extraction/grounding-protocol.md)
+defines the six-method fixed-upstream matrix and its validation gates; it is not
+yet a registered manifest or a completed experiment.
 
 ## Evidence and research boundary
 
