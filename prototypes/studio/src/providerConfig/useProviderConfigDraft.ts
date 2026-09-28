@@ -1,4 +1,14 @@
 import { useState } from 'react'
+import {
+  extractionSettingsIssues,
+  extractionSettingsSchema,
+  METHOD_MESSAGES,
+  REFERENCE_ARTICLE,
+  REFERENCE_CATALOG,
+  settingsShapeIssues,
+  type ArticleSettings,
+  type MethodIssue,
+} from 'extraction/extraction-method'
 import type { ExtractionModelRole } from '../../shared/extraction.contract'
 import {
   modelKeyIssue,
@@ -11,6 +21,15 @@ import {
   type RouteKey,
 } from '../../shared/modelConfig.contract'
 import { modelKeyFor, removeModelKey, retainModelKeys, saveModelKey } from '../modelKeys/modelKeyStore'
+import {
+  NUMBER_MESSAGES,
+  orderedArticle,
+  orderedCatalog,
+  type AdvancedStrategy,
+  type ArticleKey,
+  type CatalogFactor,
+  type NumberPath,
+} from './advancedSettings'
 import { probesDiffer } from './useProbeLifecycle'
 
 /** A key typed in this draft, or `null`: this browser's key is removed on Apply. */
@@ -29,6 +48,8 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
   const [saved, setSaved] = useState<ModelConfig | null>(null)
   const [draft, setDraft] = useState<ModelConfig | null>(null)
   const [keyEdits, setKeyEdits] = useState<Readonly<Record<string, KeyEdit>>>({})
+  /** Number text that is not a whole number, by path: kept as typed, never clamped, and it blocks Apply. */
+  const [numberEdits, setNumberEdits] = useState<Readonly<Partial<Record<NumberPath, string>>>>({})
   const descriptor = (connection: Pick<ModelConnection, 'provider'>) => providers.find(({ kind }) => kind === connection.provider)
   const withoutEdit = (id: string) => setKeyEdits((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)))
   const connectionOf = (id: string) => draft?.connections.find((connection) => connection.id === id)
@@ -49,6 +70,7 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     setSaved(config)
     setDraft(config)
     setKeyEdits({})
+    setNumberEdits({})
   }
 
   /** The single route setter: a route is {connectionId, modelId}, or null (the deployment default; for Schema
@@ -155,6 +177,80 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     disposeProbe(id)
   }
 
+  /** An absent member is service defaults. Members stay in the saved order (Article, then Catalog), so a strategy
+   *  removed and customized again is not an unsaved change. */
+  function setSettings(change: (settings: ModelConfig['extractionSettings']) => ModelConfig['extractionSettings']): void {
+    setDraft((current) => {
+      if (!current) return current
+      const { article, catalog } = change(current.extractionSettings)
+      return { ...current, extractionSettings: { ...(article ? { article } : {}), ...(catalog ? { catalog } : {}) } }
+    })
+  }
+
+  /** Customize: that strategy's override starts from the documented reference settings. */
+  function customize(strategy: AdvancedStrategy): void {
+    setSettings((settings) => ({ ...settings, [strategy]: strategy === 'article' ? REFERENCE_ARTICLE : REFERENCE_CATALOG }))
+  }
+
+  /** Use service defaults: removes only that strategy's override; Models, Connections and the other strategy stay. */
+  function useServiceDefaults(strategy: AdvancedStrategy): void {
+    setSettings((settings) => ({ ...settings, [strategy]: undefined }))
+    setNumberEdits((edits) => Object.fromEntries(Object.entries(edits).filter(([path]) => !path.startsWith(`${strategy}.`))))
+  }
+
+  /** `undefined` switches an optional factor off (omitted, never null). A parent change keeps its children as they are. */
+  function setArticle<K extends ArticleKey>(key: K, value: ArticleSettings[K] | undefined): void {
+    setSettings((settings) => settings.article ? { ...settings, article: orderedArticle({ ...settings.article, [key]: value }) } : settings)
+  }
+
+  /** A starting point, and its Undo: the whole Article override, or none. */
+  function replaceArticle(article: ArticleSettings | undefined): void {
+    setSettings((settings) => ({ ...settings, article: article && orderedArticle(article) }))
+  }
+
+  /** Returns the refusal shown beside the input, or null once the trimmed, exact-case name is added. */
+  function addIdentityField(text: string): string | null {
+    const name = text.trim()
+    const fields = draft?.extractionSettings.article?.identity_fields ?? []
+    if (name === '' || fields.includes(name)) return METHOD_MESSAGES.identityNames
+    setArticle('identity_fields', [...fields, name])
+    return null
+  }
+
+  function removeIdentityField(name: string): void {
+    setArticle('identity_fields', (draft?.extractionSettings.article?.identity_fields ?? []).filter((field) => field !== name))
+  }
+
+  function setCatalogFactor(key: CatalogFactor, on: boolean): void {
+    setSettings((settings) => {
+      const recipe = settings.catalog?.recipe ?? {}
+      const factors = { ...REFERENCE_CATALOG.recipe!.factors!, ...recipe.factors, [key]: on }
+      return { ...settings, catalog: orderedCatalog({ ...settings.catalog, recipe: { ...recipe, factors } }) }
+    })
+  }
+
+  /** Digits only: a whole number reaches the draft (its minimum is then the contract's to report); any other text
+   *  stays in the input, marked invalid, and blocks Apply. Nothing is clamped or rounded. */
+  function setNumber(path: NumberPath, text: string): void {
+    if (!/^\d+$/.test(text)) {
+      setNumberEdits((edits) => ({ ...edits, [path]: text }))
+      return
+    }
+    setNumberEdits((edits) => {
+      const rest = { ...edits }
+      delete rest[path]
+      return rest
+    })
+    const value = Number(text)
+    const [scope, member, key] = path.split('.') as [AdvancedStrategy, string, string]
+    if (scope === 'article') setArticle(member as ArticleKey, value as never)
+    else setSettings((settings) => {
+      const catalog = (settings.catalog ?? {}) as Record<string, Record<string, unknown> | undefined>
+      // Never parsed here: a value below its minimum must stay in the draft, visible and reported.
+      return { ...settings, catalog: orderedCatalog({ ...catalog, [member]: { ...catalog[member], [key]: value } }) }
+    })
+  }
+
   /** After Apply: the committed configuration is the new baseline and this browser's keys follow it. Returns the IDs
    *  whose key this browser dropped, for the handoff to remove from Studio too. */
   function commit(config: ModelConfig): string[] {
@@ -177,7 +273,18 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
   }
 
   const dirty = draft !== null && saved !== null &&
-    (JSON.stringify(draft) !== JSON.stringify(saved) || Object.keys(keyEdits).length > 0)
+    (JSON.stringify(draft) !== JSON.stringify(saved) || Object.keys(keyEdits).length > 0 || Object.keys(numberEdits).length > 0)
+
+  /** Every Advanced issue the page shows and Apply waits for: shape (minimums, names), cross-field rules, and number
+   *  text that is not a whole number. Paths are relative to `extractionSettings`. A draft is never parsed into the
+   *  draft itself: parsing would fill defaults and could not hold a below-minimum value. */
+  const settingsIssues: readonly MethodIssue[] = (() => {
+    if (!draft) return []
+    const parsed = extractionSettingsSchema.safeParse(draft.extractionSettings)
+    const found = parsed.success ? extractionSettingsIssues(parsed.data) : settingsShapeIssues(parsed.error)
+    const typed = (Object.keys(numberEdits) as NumberPath[]).map((path) => ({ path, message: NUMBER_MESSAGES[path] }))
+    return [...typed, ...found.filter((issue) => !typed.some((edit) => edit.path === issue.path))]
+  })()
 
   /** Typed keys Studio would refuse, by connection ID: this browser would not save them, so Apply waits. */
   const keyIssues: Readonly<Record<string, string>> = Object.fromEntries(
@@ -192,6 +299,8 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     saved,
     keyEdits,
     keyIssues,
+    numberEdits,
+    settingsIssues,
     dirty,
     descriptor,
     credentialFor,
@@ -205,6 +314,14 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     removeKey,
     connectWithoutKey,
     removeConnection,
+    customize,
+    useServiceDefaults,
+    setArticle,
+    replaceArticle,
+    addIdentityField,
+    removeIdentityField,
+    setCatalogFactor,
+    setNumber,
     commit,
     discard,
   }
