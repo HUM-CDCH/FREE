@@ -13,11 +13,15 @@ from pathlib import Path
 import kei_exp
 import requests
 
-from experiments.extraction.analyze import diagnostic
+from experiments.extraction.analyze import diagnostic, paired_interval
 from experiments.extraction.manifest import checked, pin, read, validate, write_new
 from kei_exp.kie.extract.evidence import load
 from kei_exp.kie.extract.schema import Schema, evidence_policy
 from kei_exp.kie.extract.stages import leaves
+
+
+EFFECT_METRICS = ("linked_claims", "refused_claim_unit_pairs", "captured_requests",
+                  "input_tokens_total", "output_tokens_total", "recorded_call_seconds")
 
 
 def capture_cost(directory: Path, terminal: dict) -> dict:
@@ -145,6 +149,29 @@ def completed_metrics(row: dict) -> dict:
         "recorded_call_seconds": row["cost"]["recorded_call_seconds"] if row["cost"]["call_seconds_complete"] else None}
 
 
+def document_effects(documents: list[dict], value_key: str) -> dict:
+    """Resample paired documents, retaining metric-specific missingness explicitly."""
+    effects = {}
+    for metric in EFFECT_METRICS:
+        included, excluded, values = [], [], []
+        for document in documents:
+            value = document.get(value_key, {}).get(metric)
+            if value is None:
+                excluded.append({"source": document["source"], "reason":
+                    "incomplete_pair" if value_key not in document else "unknown_metric"})
+            else:
+                included.append(document["source"])
+                values.append(value)
+        interval = paired_interval(values) if len(values) > 1 else {
+            "documents": len(values), "mean": values[0] if values else None,
+            "percentile_95": None, "unit": "document"}
+        effects[metric] = {**interval, "included_sources": included, "excluded_documents": excluded,
+            "status": "available" if len(values) > 1 else "insufficient_documents" if values else "unavailable"}
+    return {"registered_documents": len(documents), "metrics": effects,
+        "scope": "Unweighted paired-document means, conditional on completed artifacts and known metrics; "
+                 "not a full-cohort success or efficiency estimate. Read coverage and failures alongside costs."}
+
+
 def comparison_rows(study: dict, rows: dict, proof_sets: dict, bundles: dict) -> tuple[list, list]:
     comparisons, queue = [], []
     for comparison in study["comparisons"]:
@@ -178,7 +205,8 @@ def comparison_rows(study: dict, rows: dict, proof_sets: dict, bundles: dict) ->
                     "review_axes": ["entailment", "subject", "table row/header", "unit", "qualifier"]})
             pair["link_changes"] = dict(changes)
             pairs.append(pair)
-        comparisons.append({**comparison, "documents": pairs})
+        comparisons.append({**comparison, "documents": pairs,
+            "document_effects": document_effects(pairs, "deltas_treatment_minus_control")})
     return comparisons, queue
 
 
@@ -197,7 +225,8 @@ def interaction_rows(study: dict, rows: dict) -> list:
             else:
                 item["comparison"] = "unavailable: interaction needs four verified completed artifacts"
             documents.append(item)
-        results.append({**interaction, "documents": documents})
+        results.append({**interaction, "documents": documents,
+            "document_effects": document_effects(documents, "difference_of_differences")})
     return results
 
 
@@ -272,6 +301,9 @@ def report(study: dict, cells: list[dict], output: Path, verification_path: Path
             "Claim denominators exclude booleans and blank/null values; policy-eligible denominators remain separate.",
             "Literal source validity and changed links do not establish entailment, evidence recall or unsupported-link rate.",
             "Comparison deltas require two completed artifacts; failed/pending pairs remain explicitly unavailable.",
+            "Percentile intervals resample paired documents with equal weight; exclusions are metric-specific. "
+            "Fewer than two observed documents yield no interval. Small development-corpus intervals do not "
+            "measure generalization, serving variability or uncertainty from missing/failed cells.",
             "Single greedy execution per cell; no estimate of serving variability. No production-default recommendation."]}
 
 

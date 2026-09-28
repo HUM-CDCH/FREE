@@ -115,6 +115,41 @@ def test_comparisons_leave_failed_pairs_unavailable_and_differences_unadjudicate
     comparisons, queue = reporter["comparison_rows"](study, rows, proofs, bundles)
     assert "unavailable" in comparisons[0]["documents"][0]["comparison"]
     assert "deltas_treatment_minus_control" not in comparisons[0]["documents"][0] and not queue
+    effect = comparisons[0]["document_effects"]["metrics"]["captured_requests"]
+    assert effect["documents"] == 0 and effect["mean"] is None and effect["percentile_95"] is None
+    assert effect["excluded_documents"] == [{"source": "Doc", "reason": "incomplete_pair"}]
+
+
+def test_document_effects_use_equal_document_weights_and_metric_specific_denominators():
+    documents = [
+        {"source": "A", "deltas": {"captured_requests": -1, "input_tokens_total": None}},
+        {"source": "B", "deltas": {"captured_requests": 3, "input_tokens_total": 0}},
+        {"source": "Failed", "statuses": ["completed", "failed"]},
+    ]
+    result = reporter["document_effects"](documents, "deltas")
+    calls = result["metrics"]["captured_requests"]
+    # Two equally weighted documents yield bootstrap means -1, 1, 3.
+    assert calls["documents"] == 2 and calls["mean"] == 1 and calls["percentile_95"] == [-1, 3]
+    assert calls["unit"] == "document" and calls["draws"] == 10000
+    assert calls["included_sources"] == ["A", "B"]
+    assert calls["excluded_documents"] == [{"source": "Failed", "reason": "incomplete_pair"}]
+    tokens = result["metrics"]["input_tokens_total"]
+    assert tokens["documents"] == 1 and tokens["mean"] == 0 and tokens["percentile_95"] is None
+    assert tokens["status"] == "insufficient_documents"
+    assert tokens["excluded_documents"] == [
+        {"source": "A", "reason": "unknown_metric"}, {"source": "Failed", "reason": "incomplete_pair"}]
+    assert result["registered_documents"] == 3
+    assert reporter["document_effects"](documents, "deltas") == result
+
+
+def test_all_pending_document_effects_are_unavailable_for_every_metric():
+    result = reporter["document_effects"]([{"source": "Pending"}], "deltas")
+    assert len(result["metrics"]) == 6
+    for effect in result["metrics"].values():
+        assert effect["status"] == "unavailable" and effect["documents"] == 0
+        assert effect["mean"] is None and effect["percentile_95"] is None
+        assert effect["included_sources"] == []
+        assert effect["excluded_documents"] == [{"source": "Pending", "reason": "incomplete_pair"}]
 
 
 def test_complete_six_arm_report_checks_captures_locations_routes_and_changed_links(frozen, tmp_path, monkeypatch):
@@ -149,6 +184,9 @@ def test_complete_six_arm_report_checks_captures_locations_routes_and_changed_li
     assert routed["route_coverage"]["stopped_after_support"] == 2
     assert result["comparisons"][0]["documents"][0]["link_changes"] == {"added": 2}
     assert all(value == 0 for value in result["interactions"][0]["documents"][0]["difference_of_differences"].values())
+    interaction = result["interactions"][0]["document_effects"]["metrics"]["captured_requests"]
+    assert interaction["documents"] == 1 and interaction["mean"] == 0 and interaction["percentile_95"] is None
+    assert result["comparisons"][0]["document_effects"]["registered_documents"] == 1
     assert all(item["status"] == "unadjudicated" for item in result["link_review_queue"])
     # A valid old replay receipt cannot bless captures changed after verification.
     reply = next((output / "cells" / cells[0]["id"] / "calls").glob("*.reply.json"))

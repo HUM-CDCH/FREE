@@ -245,3 +245,32 @@ PYTHONPATH=src:. python /path/to/extraction_grounding_report.py R5_OUTPUT REPLAY
 The helpers and report inputs must be pinned for final collection. A prepared
 reporter does not close task 4.3: final data, interpretation and limitations still
 need to be checked after the registered runs finish.
+
+## Document-level uncertainty
+
+The reporting helper now uses the existing paired-document bootstrap for request
+counts, input/output tokens, recorded call time, linked claims and refused
+claim–unit comparisons. It reports unweighted mean differences and 95% percentile
+intervals for the six registered contrasts and the scheduling × policy interaction.
+Each metric lists included documents and exclusions for incomplete pairs or unknown
+usage. Zero is an observed value; missing work is not zero. Fewer than two observed
+documents yield no interval. These conditional summaries cannot estimate full-cohort
+efficiency when cells fail, nor model variability, generalization or missing outcomes.
+
+- Focused report/runner suite: **22 passed**, including the six-arm scripted
+  capture→replay→report flow, hand-calculated two-document bootstrap bounds,
+  metric-specific exclusions and all-pending output.
+- The actual frozen 90-cell CLI acceptance runs with HTTP disabled. All six
+  contrasts and the interaction correctly retain 15 pending documents and no
+  numerical estimates. Removing the new summaries, added limitation and reporter
+  pin reproduces every prior report field exactly.
+- Manual bloat audit and the tracked-diff scanner found no blocker. No serving
+  source, registered protocol, study manifest or active collector changed.
+
+Acceptance and the read-only helper copy are in the primary workspace under
+`artifacts/extraction-ablation/span-grounding-20260928/reporting-uncertainty/`.
+Helper SHA-256: `32827ff2d06f4718f247b90dc36447abeab3a232b378723db127510274d99239`.
+The receipt `acceptance.json` records the exact supplementary command to run after
+R5 collection, writing `grounding-report-uncertainty-final.json`. Its output must
+preserve the collector report's existing metrics; retain both reports. This final
+step has not run, and the original collector keeps its pinned helper version.

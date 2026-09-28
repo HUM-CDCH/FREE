@@ -22,6 +22,16 @@ defines the six-method fixed-upstream matrix and its validation gates.
 Twelve of fourteen implementation/delivery tasks are complete. Fresh execution
 and scientific reporting remain open.
 
+The report helper now also computes paired document-level intervals for costs,
+linked claims and refusals, including the scheduling × policy interaction. This
+reporting-only extension is separately frozen under the primary artifact directory
+`span-grounding-20260928/reporting-uncertainty/`; `acceptance.json` pins the helper
+and records the final command. After the existing R5 collector finishes, run that
+command to create `grounding-report-uncertainty-final.json` and compare its prior
+fields with the collector's report. Do not replace the active collector's frozen
+helpers or outputs. Intervals remain unavailable before results; incomplete pairs
+and unknown metrics retain explicit source-specific exclusions.
+
 R5 output: `/home/gennaro/projects/FREE/artifacts/extraction-ablation/20260928-r5-grounding`.
 It registers 90 cells over 15 Articles and the same 81 records / 2,959 enumerated
 claims, with all upstream values reproduced from 266 captured replies offline.
