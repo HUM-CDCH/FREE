@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { useRef, useState } from 'react'
 import ModalDialog from './ModalDialog'
 
@@ -51,4 +51,19 @@ it('shares initial focus, Escape dismissal, and exact opener restoration', async
 
   await waitFor(() => expect(dialog).not.toBeInTheDocument())
   expect(opener).toHaveFocus()
+})
+
+it('Escape in a dialog opened from another dismisses only the inner one', () => {
+  const outer = vi.fn()
+  const inner = vi.fn()
+  render(
+    <ModalDialog className="" ariaLabel="Outer dialog" onDismiss={outer}>
+      <ModalDialog className="" ariaLabel="Inner dialog" onDismiss={inner}>
+        <p>Inner</p>
+      </ModalDialog>
+    </ModalDialog>,
+  )
+  fireEvent(screen.getByRole('dialog', { name: 'Inner dialog' }), new Event('cancel', { cancelable: true }))
+  expect(inner).toHaveBeenCalledTimes(1)
+  expect(outer).not.toHaveBeenCalled()
 })

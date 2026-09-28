@@ -67,6 +67,8 @@ export default function ModalDialog({
       aria-describedby={describedBy}
       onCancel={(event) => {
         event.preventDefault()
+        // React passes `cancel` up its tree: Escape in a dialog opened from another would dismiss both.
+        event.stopPropagation()
         if (!dismissDisabled) onDismiss()
       }}
       onClick={(event) => {
