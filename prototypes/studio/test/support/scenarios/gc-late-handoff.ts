@@ -2,8 +2,9 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { setTimeout as delay } from 'node:timers/promises'
 import { DBOS } from '@dbos-inc/dbos-sdk'
-import { canonicalPackageStore, createResearcherProjectStore } from 'db'
+import { canonicalPackageStore, createModelConfigurationStore, createResearcherProjectStore } from 'db'
 import { createExtractions, registerExtractionWorkflow } from 'extraction'
+import { accountMethod } from 'extraction/extraction-method'
 import { keiConvertWorkflowId, keiExtractWorkflowId } from 'extraction/kei-handoff'
 import { garbagePorts, registerGarbageWorkflow, type GarbageSummary } from '../../../api/_garbage_workflow.js'
 import { extractionExecution, extractionWorkflowPorts } from '../../../api/_extractions.js'
@@ -82,6 +83,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
     await createExtractions(owner, extractionExecution()).runSingle({
       kind: 'fresh', extractionId, sourceRepresentationRevisionId: sourceRepresentationId,
       schemaRevisionId: required(env, 'FREE_TEST_SCHEMA_REVISION'), strategy: 'ARTICLE',
+      method: accountMethod(await createModelConfigurationStore().read(owner), 'ARTICLE', null),
     })
     await until(() => existsSync(entered), 'the extraction handoff')
     const deletion = await store.deleteSourceDocument(project, sourceDocumentId)

@@ -1,5 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises'
+import { createModelConfigurationStore } from 'db'
 import { createExtractions, createExtractionStore, registerExtractionWorkflow, type ExtractionStore } from 'extraction'
+import { accountMethod } from 'extraction/extraction-method'
 import { keiExtractWorkflowId } from 'extraction/kei-handoff'
 import { createCanonicalPackageStore } from '../../../../../packages/db/src/artifact-store.js'
 import { extractionExecution, extractionWorkflowPorts } from '../../../api/_extractions.js'
@@ -44,12 +46,15 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
       })),
   })
   if (firstRun) {
-    await createExtractions(required(env, 'FREE_TEST_ACCOUNT'), extractionExecution()).runSingle({
+    const account = required(env, 'FREE_TEST_ACCOUNT')
+    await createExtractions(account, extractionExecution()).runSingle({
       kind: 'fresh',
       extractionId,
       sourceRepresentationRevisionId: required(env, 'FREE_TEST_REVISION'),
       schemaRevisionId: required(env, 'FREE_TEST_SCHEMA_REVISION'),
       strategy: 'ARTICLE',
+      // What a start view would submit: the account's saved method.
+      method: accountMethod(await createModelConfigurationStore().read(account), 'ARTICLE', null),
     })
     if (mode === 'kill-while-held') {
       // kei has dequeued the child and holds its decision: Studio is polling it.

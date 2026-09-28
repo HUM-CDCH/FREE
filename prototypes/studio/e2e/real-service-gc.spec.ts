@@ -42,6 +42,7 @@ async function extract(page: Page, projectId: string, sourceDocumentId: string):
   const id = randomUUID()
   const response = await page.request.post('/api/extractions', { headers, data: {
     id, strategy: 'ARTICLE', schemaRevisionId: await revision(page, projectId), sourceRepresentationRevisionId,
+    method: { models: null, settings: { article: null } },
   } })
   expect(response.status(), await response.text()).toBe(201)
   return id

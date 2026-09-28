@@ -184,6 +184,8 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
       sourceRepresentationRevisionId: state.sourceRepresentationRevisionId,
       schemaRevisionId: state.schemaRevisionId,
       strategy: 'ARTICLE',
+      // The method the account saved just above: no Extraction Model Choice, service-default settings.
+      method: { models: null, settings: { article: null } },
     }),
   })
   assert.equal(extraction.status, 201, JSON.stringify(extraction.body))

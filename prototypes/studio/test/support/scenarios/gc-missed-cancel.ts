@@ -2,8 +2,9 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { setTimeout as delay } from 'node:timers/promises'
 import { DBOS } from '@dbos-inc/dbos-sdk'
-import { createResearcherProjectStore, db } from 'db'
+import { createModelConfigurationStore, createResearcherProjectStore, db } from 'db'
 import { createExtractions } from 'extraction'
+import { accountMethod } from 'extraction/extraction-method'
 import { keiExtractWorkflowId } from 'extraction/kei-handoff'
 import { extractionExecution } from '../../../api/_extractions.js'
 import { uploadedDocument } from '../upload.js'
@@ -45,6 +46,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
     await createExtractions(owner, extractionExecution()).runSingle({
       kind: 'fresh', extractionId, sourceRepresentationRevisionId: sourceRepresentationId,
       schemaRevisionId: required(env, 'FREE_TEST_SCHEMA_REVISION'), strategy: 'ARTICLE',
+      method: accountMethod(await createModelConfigurationStore().read(owner), 'ARTICLE', null),
     })
     const childId = keiExtractWorkflowId(extractionId)
     await until(async () => (await studioDbos().kei.listWorkflows({ workflowIDs: [childId],

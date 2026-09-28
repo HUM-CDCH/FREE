@@ -17,6 +17,7 @@ import {
   admitBatchMember,
   admitInteractiveExtraction,
   JUST_ADMITTED,
+  METHOD_CHANGED_MESSAGE,
   SUGGESTED_BATCH_KEYS,
 } from './postgres-admission.js'
 import {
@@ -174,6 +175,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
       throw new ExtractionError('extraction_id_conflict', 'That Extraction ID is already bound to different inputs.')
     if (disposition === 'superseded')
       throw new ExtractionError('source_representation_superseded', SUPERSEDED_MESSAGE)
+    if (disposition === 'method-changed') throw new ExtractionError('method_changed', METHOD_CHANGED_MESSAGE)
     const { orm } = this.database
     const [row] = await readAttemptRows(orm, [input.extractionId])
     if (!row) return null

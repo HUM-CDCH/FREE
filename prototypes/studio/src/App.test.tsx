@@ -36,6 +36,24 @@ const {
   }
 })
 
+// The account keeps every service default: each run submits `{ models: null, settings: <its slot>: null }`.
+const saved = vi.hoisted(() => ({
+  state: {
+    status: 'ready' as const,
+    config: {
+      connections: [],
+      routes: { schemaSuggestion: null, interaction: null },
+      extractionModels: {},
+      ingestionModels: {},
+      extractionSettings: {},
+    },
+  },
+  refresh: vi.fn(),
+}))
+vi.mock('./savedMethod', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./savedMethod')>()),
+  useSavedMethod: () => saved,
+}))
 vi.mock('pdfjs-dist/build/pdf.worker.mjs?url', () => ({ default: 'pdf.worker.mjs' }))
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: {},
@@ -1268,6 +1286,11 @@ describe('reopened Source Document workspace', () => {
       schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
       strategy,
       ...(catalogRecipe ? { catalogRecipe } : {}),
+      // The saved method of the run's own settings slot: the account keeps every service default.
+      method: {
+        models: null,
+        settings: strategy === 'ARTICLE' ? { article: null } : catalogRecipe ? { recipe: null } : { generic: null },
+      },
     })
 
     /** Answers every run with a terminal attempt of the posted strategy and keeps each request body. */
@@ -1460,6 +1483,7 @@ describe('reopened Source Document workspace', () => {
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
         strategy: 'CATALOG',
         catalogRecipe: recipe,
+        method: { models: null, settings: { recipe: null } },
       })
     })
 

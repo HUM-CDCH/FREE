@@ -22,6 +22,8 @@ vi.mock('./api', async (importOriginal) => ({
   saveExtractionReviewDraft: vi.fn(),
 }))
 
+/** The saved method of an account that keeps every service default, as an Article start view submits it. */
+const SERVICE_DEFAULTS = { models: null, settings: { article: null } } as const
 const representationId = '22222222-2222-4222-8222-222222222222'
 const schemaRevisionId = '33333333-3333-4333-8333-333333333333'
 
@@ -183,7 +185,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const { result } = renderHook(() => useExtraction(input))
 
     let run!: Promise<ExtractionAttempt | null | undefined>
-    act(() => { run = result.current.runExtraction() })
+    act(() => { run = result.current.runExtraction(SERVICE_DEFAULTS) })
     await act(() => vi.advanceTimersByTimeAsync(2_000))
     // The state alone also fits the initial QUEUED attempt; the status proves the first read was applied.
     expect(result.current.attempt?.executionStatus).toBe('RUNNING')
@@ -304,7 +306,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 
-    await act(() => result.current.runExtraction())
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
 
     expect(api.requestExtraction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -333,7 +335,7 @@ describe('useExtraction server-owned lifecycle', () => {
     )
     const { result } = renderHook(() => useExtraction(options()))
 
-    await act(() => result.current.runExtraction(undefined, 'CATALOG'))
+    await act(() => result.current.runExtraction({ models: null, settings: { generic: null } }, undefined, 'CATALOG'))
 
     expect(api.requestExtraction).toHaveBeenCalledWith(
       expect.objectContaining({ strategy: 'CATALOG' }),
@@ -342,12 +344,16 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.attempt?.strategy).toBe('CATALOG')
   })
 
-  it('sends no Extraction Model Choice: the server applies the configured one', async () => {
+  it('sends the saved method it is given, and no Extraction Model Choice beside it', async () => {
     vi.mocked(api.requestExtraction).mockResolvedValue(attempt({ requestedModels: { reasoning: 'instruct' } }))
     const { result } = renderHook(() => useExtraction(options()))
 
-    await act(() => result.current.runExtraction(undefined, 'ARTICLE', null))
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS, undefined, 'ARTICLE', null))
 
+    expect(api.requestExtraction).toHaveBeenCalledWith(
+      expect.objectContaining({ method: SERVICE_DEFAULTS }),
+      expect.any(AbortSignal),
+    )
     expect(vi.mocked(api.requestExtraction).mock.calls[0]![0]).not.toHaveProperty('models')
     expect(result.current.attempt?.requestedModels).toEqual({ reasoning: 'instruct' })
   })
@@ -363,7 +369,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const input = { ...options(), reviewTarget: null }
     const { result } = renderHook(() => useExtraction(input))
 
-    await act(() => result.current.runExtraction(acknowledgedTarget))
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS, acknowledgedTarget))
 
     expect(api.requestExtraction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -382,8 +388,8 @@ describe('useExtraction server-owned lifecycle', () => {
     const { result } = renderHook(() => useExtraction(options()))
 
     act(() => {
-      void result.current.runExtraction()
-      void result.current.runExtraction()
+      void result.current.runExtraction(SERVICE_DEFAULTS)
+      void result.current.runExtraction(SERVICE_DEFAULTS)
     })
 
     expect(api.requestExtraction).toHaveBeenCalledOnce()
@@ -411,7 +417,7 @@ describe('useExtraction server-owned lifecycle', () => {
       { initialProps: { revision: schemaRevisionId as string | null } },
     )
 
-    await act(() => result.current.runExtraction())
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
     expect(result.current.state.status).toBe('running')
 
     // Unsaved edits (null) and a newer saved revision both leave the run alone.
@@ -530,7 +536,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 
-    await act(() => result.current.runExtraction())
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
     const posted = vi.mocked(api.requestExtraction).mock.calls[0]![0].id
     expect(api.readExtraction).toHaveBeenCalledWith(posted, expect.any(AbortSignal))
     expect(result.current.attempt?.executionStatus).toBe('QUEUED')
@@ -548,7 +554,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 
-    await act(() => result.current.runExtraction())
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
 
     expect(result.current.monitorError).toBe(EXTRACTION_UNAVAILABLE)
     expect(result.current.state.status).toBe('running')
@@ -561,7 +567,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 
-    await act(() => result.current.runExtraction())
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
 
     expect(result.current.state).toEqual({ status: 'error', message: 'conflict' })
     expect(input.onError).toHaveBeenCalledWith('conflict')
@@ -582,7 +588,7 @@ describe('useExtraction server-owned lifecycle', () => {
       const { result } = renderHook(() => useExtraction(input))
       const shown = result.current.state
 
-      await act(() => result.current.runExtraction())
+      await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
 
       expect(result.current.attempt).toBe(earlier)
       expect(result.current.state).toEqual(shown)
@@ -605,14 +611,14 @@ describe('useExtraction server-owned lifecycle', () => {
     const input = { ...options(earlier), onSuperseded: vi.fn() }
     const { result } = renderHook(() => useExtraction(input))
 
-    await act(() => result.current.runExtraction())
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
     expect(result.current.monitorError).toBe(MONITOR_DISCONNECTED)
     expect(result.current.state.status).toBe('running')
 
     vi.mocked(api.requestExtraction).mockRejectedValueOnce(
       new ApiRequestError('source_representation_superseded: Reprocessed.', 409, 'source_representation_superseded'),
     )
-    await act(() => result.current.runExtraction())
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
 
     expect(input.onSuperseded).toHaveBeenCalledOnce()
     expect(result.current.attempt).toBe(earlier)
@@ -627,7 +633,7 @@ describe('useExtraction server-owned lifecycle', () => {
     vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
     const { result } = renderHook(() => useExtraction(options(attempt())))
 
-    act(() => void result.current.runExtraction())
+    act(() => void result.current.runExtraction(SERVICE_DEFAULTS))
     expect(result.current.state.status).toBe('running')
     await act(() => result.current.requestCancellation())
     expect(api.cancelExtraction).not.toHaveBeenCalled()
@@ -1042,7 +1048,7 @@ describe('useExtraction server-owned lifecycle', () => {
 
     expect(result.current.review.available).toBe(false)
     expect(result.current.review.canAccept).toBe(false)
-    await act(() => result.current.runExtraction())
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
 
     expect(api.requestExtraction).toHaveBeenCalledWith(
       expect.objectContaining({

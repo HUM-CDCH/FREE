@@ -7,7 +7,7 @@ import {
 } from 'extraction'
 import { createResearcherApiHandlers } from './extractions.js'
 import type * as ExtractionsModule from './_extractions.js'
-import { extractionAttemptSchema, extractionReadResponseSchema, type ExtractionModelChoice } from '../shared/extraction.contract.js'
+import { extractionAttemptSchema, extractionReadResponseSchema } from '../shared/extraction.contract.js'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
@@ -20,12 +20,6 @@ vi.mock('./_extractions.js', async (importOriginal) => {
     createResearcherExtractions: runtime.createResearcherExtractions,
   }
 })
-
-const modelConfig = vi.hoisted(() => ({ configuredExtractionModels: vi.fn() }))
-vi.mock('./_model_config.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./_model_config.js')>()),
-  configuredExtractionModels: modelConfig.configuredExtractionModels,
-}))
 
 const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const EXTRACTION = '51000000-0000-4000-8006-000000000001'
@@ -139,11 +133,9 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
   }
   return module
 }
-function handlerFor(module: ExtractionModule, configured: ExtractionModelChoice | null = null) {
+function handlerFor(module: ExtractionModule) {
   runtime.createResearcherExtractions.mockReturnValue(module)
-  return createResearcherApiHandlers({
-    researcherAccountId: ACCOUNT,
-  } as ResearcherProjectStore, { extractionModels: async () => configured }).POST
+  return createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore).POST
 }
 
 const request = (body: unknown) =>
@@ -158,6 +150,7 @@ const fresh = {
   sourceRepresentationRevisionId: REPRESENTATION,
   schemaRevisionId: REVISION,
   strategy: 'ARTICLE',
+  method: { models: null, settings: { article: null } },
 }
 
 describe('/api/extractions transport', () => {
@@ -218,6 +211,7 @@ describe('/api/extractions transport', () => {
         sourceRepresentationRevisionId: REPRESENTATION,
         schemaRevisionId: REVISION,
         strategy: 'ARTICLE',
+        method: { models: null, settings: { article: null } },
       },
     )
     expect(await created.json()).toMatchObject({
@@ -254,28 +248,59 @@ describe('/api/extractions transport', () => {
     vi.mocked(console.error).mockRestore()
   })
 
-  it("reads the account's configured Extraction Model Choice by default", async () => {
+  it('hands the submitted method to admission unchanged; the handler never reads the account', async () => {
     const module = extractionModule()
-    runtime.createResearcherExtractions.mockReturnValue(module)
-    modelConfig.configuredExtractionModels.mockResolvedValueOnce({ fields: 'nuextract' })
-    const post = createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore).POST
+    const method = { models: { fields: 'instruct' }, settings: { article: null } }
+    expect((await handlerFor(module)(request({ ...fresh, method }))).status).toBe(201)
+    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ method }))
+  })
 
-    expect((await post(request(fresh))).status).toBe(201)
-    expect(modelConfig.configuredExtractionModels).toHaveBeenCalledWith(ACCOUNT)
-    expect(module.runSingle).toHaveBeenCalledWith(
-      expect.objectContaining({ models: { fields: 'nuextract' } }),
-    )
+  it.each([
+    ['method_changed', 409],
+    ['invalid_identity_fields', 422],
+    ['invalid_model_config', 500],
+  ] as const)('answers %s with %i', async (code, status) => {
+    const module = extractionModule({
+      runSingle: vi.fn<ExtractionModule['runSingle']>().mockRejectedValue(new ExtractionError(code, 'Refused for a reason the researcher can read.')),
+    })
+    const response = await handlerFor(module)(request(fresh))
+    expect(response.status).toBe(status)
+    expect(await response.json()).toMatchObject({ error: { code } })
+  })
+
+  it('refuses an incompatible method field by field, before admission', async () => {
+    const module = extractionModule()
+    const article = { context: 'full', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+      prompt: 'reference', grounding: 'semantic', grounding_schedule: 'unresolved', grounding_routing: 'origin_lexical' }
+    const response = await handlerFor(module)(request({ ...fresh, method: { models: null, settings: { article } } }))
+    expect(response.status).toBe(422)
+    expect((await response.json()).error.details.issues).toContainEqual({
+      path: 'method.settings.article.grounding_routing', message: 'Use generated quotes or source spans, and stop after support.',
+    })
+    expect(module.runSingle).not.toHaveBeenCalled()
+  })
+
+  it("refuses a request without the method, or with another strategy's settings, before admission", async () => {
+    const module = extractionModule()
+    const missing: Partial<typeof fresh> = { ...fresh }
+    delete missing.method
+    expect((await handlerFor(module)(request(missing))).status).toBe(422)
+    expect((await handlerFor(module)(request({ ...fresh, method: { models: null, settings: { generic: null } } }))).status).toBe(422)
+    expect(module.runSingle).not.toHaveBeenCalled()
   })
 
   it('passes the Catalog recipe chosen for an Extraction to runSingle', async () => {
     const module = extractionModule()
-    await handlerFor(module)(request({ ...fresh, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1' }))
+    await handlerFor(module)(request({
+      ...fresh, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', method: { models: null, settings: { recipe: null } },
+    }))
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'fresh', strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1',
+      method: { models: null, settings: { recipe: null } },
     }))
   })
 
-  it('runs a fresh Extraction on the configured Extraction Model Choice and echoes it beside the models each role ran on', async () => {
+  it('runs a fresh Extraction on the submitted Extraction Model Choice and echoes it beside the models each role ran on', async () => {
     const models = { fields: 'nuextract', reasoning: 'instruct' }
     const used = { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' }
     const module = extractionModule({
@@ -289,16 +314,17 @@ describe('/api/extractions transport', () => {
         },
       })),
     })
-    const response = await handlerFor(module, models)(request(fresh))
+    const method = { models, settings: { article: null } }
+    const response = await handlerFor(module)(request({ ...fresh, method }))
     expect(response.status).toBe(201)
-    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fresh', models }))
+    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fresh', method }))
     const body = extractionAttemptSchema.parse(await response.json())
     expect(body.requestedModels).toEqual(models)
     expect(body.diagnostics?.models).toEqual(used)
     expect(body.modelAttribution).toEqual({ provider: 'kei-exp', modelId: used.fields })
   })
 
-  it('refuses a client-sent model choice before the module runs: the configuration owns it', async () => {
+  it('refuses a model choice outside the method before the module runs', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)
     for (const body of [{ ...fresh, models: { fields: 'instruct' } }, { ...fresh, models: {} }, { ...fresh, model: 'instruct' }])
@@ -337,7 +363,7 @@ describe('/api/extractions transport', () => {
       })),
     })
     const response = await handlerFor(module)(
-      request({ ...fresh, strategy: 'CATALOG' }),
+      request({ ...fresh, strategy: 'CATALOG', method: { models: null, settings: { generic: null } } }),
     )
     const body = extractionAttemptSchema.parse(await response.json())
 

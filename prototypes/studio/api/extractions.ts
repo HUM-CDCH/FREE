@@ -12,6 +12,7 @@ import {
 } from '../shared/extraction.contract.js'
 import {
   ApiError,
+  boundedValidationDetails,
   json,
   noStore,
   noStoreError,
@@ -22,7 +23,6 @@ import {
   createResearcherExtractions,
   extractionAttemptDto,
 } from './_extractions.js'
-import { configuredExtractionModels } from './_model_config.js'
 
 export type ExtractionHandlerDependencies = {
   /** The deployment-wide Extraction Model Choice a fresh run is requested on. */
@@ -66,6 +66,12 @@ function asTransportError(error: unknown): unknown {
     case 'invalid_request':
     case 'invalid_review':
       return new ApiError(422, error.code, error.message, { cause: error })
+    case 'method_changed':
+      return new ApiError(409, 'method_changed', error.message, { cause: error })
+    case 'invalid_identity_fields':
+      return new ApiError(422, 'invalid_identity_fields', error.message, { cause: error })
+    case 'invalid_model_config':
+      return new ApiError(500, 'invalid_model_config', 'The saved model configuration is invalid.', { cause: error })
     default:
       return error
   }
@@ -73,23 +79,22 @@ function asTransportError(error: unknown): unknown {
 
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
-  dependencies: ExtractionHandlerDependencies = {},
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
   const module = createResearcherExtractions(store.researcherAccountId)
-  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels(store.researcherAccountId))
   async function create(request: Request): Promise<Response> {
     const parsed = extractionRequestSchema.safeParse(
       await parseJsonRequest(request),
     )
     if (!parsed.success)
-      throw new ApiError(
-        422,
-        'invalid_request',
-        'The Extraction request is invalid.',
-      )
-    const models = await extractionModels()
+      throw new ApiError(422, 'invalid_request', 'The Extraction request is invalid.', {
+        details: boundedValidationDetails('request', parsed.error.issues.map((issue) => ({
+          path: issue.path.map(String).join('.'),
+          message: issue.message,
+        }))),
+      })
+    // Admission compares the submitted method with the account's saved one; this handler never reads the account.
     const input = {
       kind: 'fresh' as const,
       extractionId: parsed.data.id,
@@ -97,7 +102,7 @@ export function createResearcherApiHandlers(
       schemaRevisionId: parsed.data.schemaRevisionId,
       strategy: parsed.data.strategy,
       ...(parsed.data.catalogRecipe ? { catalogRecipe: parsed.data.catalogRecipe } : {}),
-      ...(models ? { models } : {}),
+      method: parsed.data.method,
     }
     const completed = await module.runSingle(input).catch(unavailableUnlessDomain)
     return json(extractionAttemptDto(completed.extraction), {

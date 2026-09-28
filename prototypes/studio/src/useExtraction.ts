@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import {
   ApiRequestError,
@@ -30,6 +31,8 @@ type ExtractionRunRequest = Readonly<{
   schemaRevisionId: string
   strategy: ExtractionStrategy
   catalogRecipe?: string
+  /** The saved method the start view showed; admission refuses it if the account's changed since. */
+  method: ExtractionMethodIntent
 }>
 
 export type ReviewTarget = {
@@ -396,7 +399,8 @@ export function useExtraction({
    * Resolves with the persisted attempt once the server has acknowledged it,
    * or null when the request was definitely rejected. An uncertain outcome
    * (network failure, gateway error) is reconciled by reading the same
-   * identity rather than by posting again.
+   * identity rather than by posting again, so the admitted run keeps the
+   * method it was requested with (design §7).
    */
   async function runRequest(isRerun: boolean, request: ExtractionRunRequest) {
     const running = monitorRef.current
@@ -450,6 +454,7 @@ export function useExtraction({
   }
 
   async function runExtraction(
+    method: ExtractionMethodIntent,
     target: ReviewTarget | null = reviewTarget,
     strategy: ExtractionStrategy = 'ARTICLE',
     catalogRecipe: string | null = null,
@@ -460,6 +465,7 @@ export function useExtraction({
       schemaRevisionId: target.schemaRevisionId,
       strategy,
       ...(strategy === 'CATALOG' && catalogRecipe ? { catalogRecipe } : {}),
+      method,
     })
   }
 

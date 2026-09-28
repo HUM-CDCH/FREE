@@ -12,6 +12,7 @@ import { after } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import type { ExtractionExecution, TerminalExtraction } from '../dependencies.js'
 import { ExtractionError } from '../errors.js'
+import type { ExtractionMethodIntent } from '../extraction-method.js'
 import { keiExpArtifact, keiExpEvidence } from '../kei-exp-fixture.js'
 import {
   keiExtractWorkflowId, type KeiExtractInput, type KeiFailureCode, type KeiHandoff, type KeiPoll, type KeiSubmission,
@@ -56,7 +57,7 @@ async function setup(disposableDatabaseUrl: string) {
   process.env.DATABASE_URL = disposableDatabaseUrl
 
   const [
-    { db, pool, stableJson, stableUuid },
+    { createModelConfigurationStore, db, pool, stableJson, stableUuid },
     { createCanonicalPackageStore },
     { createResearcherProjectStore },
     { createResearcherExtractionPersistence },
@@ -547,6 +548,46 @@ async function setup(disposableDatabaseUrl: string) {
     }
   }
 
+  /**
+   * Resolves once a statement matching `statement` (a LIKE pattern) waits for a lock, held by backend `blocker` when
+   * one is named. Rejects when `operation`, the call that should be waiting, settles first, or after 10 s: an ordering
+   * test observes the wait in PostgreSQL rather than sleeping and hoping it began.
+   */
+  async function untilLockWait(operation: Promise<unknown>, statement: string, blocker: number | null = null) {
+    let settled = false
+    const settlement = operation.then(() => { settled = true }, () => { settled = true })
+    const deadline = Date.now() + 10_000
+    for (;;) {
+      const { rows: [row] } = await pool.query<{ waiting: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM pg_stat_activity
+           WHERE datname = current_database() AND query LIKE $1 AND cardinality(pg_blocking_pids(pid)) > 0
+             AND ($2::int IS NULL OR $2::int = ANY(pg_blocking_pids(pid)))
+         ) AS waiting`,
+        [statement, blocker],
+      )
+      if (row!.waiting) return
+      if (settled) throw new Error(`The operation settled without waiting for a lock (${statement}).`)
+      if (Date.now() >= deadline) throw new Error(`Timed out waiting for a lock wait (${statement}).`)
+      await Promise.race([delay(10), settlement])
+    }
+  }
+
+  /** Resolves with `signal`, which a concurrent `operation` gives once it holds a lock; rejects when `operation`
+   *  settles first or after 10 s, so a test never waits on a signal that cannot come. */
+  async function untilSignalled<T>(signal: Promise<T>, operation: Promise<unknown>, what: string): Promise<T> {
+    const stop = new AbortController()
+    try {
+      return await Promise.race([
+        signal,
+        operation.then(() => { throw new Error(`The operation settled before ${what}.`) }),
+        delay(10_000, undefined, { signal: stop.signal }).then(() => { throw new Error(`Timed out waiting until ${what}.`) }),
+      ])
+    } finally {
+      stop.abort()
+    }
+  }
+
   async function waitForAttempt(
     module: ExtractionModule,
     extractionId: string,
@@ -572,9 +613,28 @@ async function setup(disposableDatabaseUrl: string) {
     return { module, scheduled }
   }
 
+  /** The accounts' Model Configuration documents, through the store Studio's Apply uses. */
+  const modelConfigurations = createModelConfigurationStore(db)
+
+  /** Saves a Researcher Account's whole Model Configuration document as Studio's Apply would, under its row lock. */
+  async function configureAccount(
+    researcherAccountId: string,
+    members: Readonly<{ extractionModels?: Record<string, string>; extractionSettings?: unknown }> = {},
+  ): Promise<void> {
+    await modelConfigurations.apply(researcherAccountId, () => ({
+      connections: [],
+      routes: { schemaSuggestion: null, interaction: null },
+      extractionModels: members.extractionModels ?? {},
+      ingestionModels: {},
+      extractionSettings: members.extractionSettings ?? {},
+    }))
+  }
+
+  /** A fresh Article request carrying the method its start view showed: service defaults unless `method` says otherwise. */
   const freshInput = (
     project: SeededProject,
     extractionId: string = randomUUID(),
+    method: ExtractionMethodIntent = { models: null, settings: { article: null } },
   ): RunSingleInput => ({
     kind: 'fresh' as const,
     extractionId,
@@ -582,6 +642,7 @@ async function setup(disposableDatabaseUrl: string) {
       project.documents[0]!.sourceRepresentationRevisionId,
     schemaRevisionId: project.schemaRevisionId,
     strategy: 'ARTICLE' as const,
+    method,
   })
 
   function rejectsWithCode(code: string) {
@@ -622,7 +683,8 @@ async function setup(disposableDatabaseUrl: string) {
 
   async function extractionRow(extractionId: string) {
     return db.orm.public.Extraction.select(
-      'id', 'outcome', 'failure', 'catalogRecipe', 'requestedModels', 'resultPayload', 'batchExtractionId',
+      'id', 'outcome', 'failure', 'catalogRecipe', 'requestedModels', 'requestedSettings', 'resultPayload',
+      'batchExtractionId',
     ).first({ id: extractionId })
   }
 
@@ -682,8 +744,9 @@ async function setup(disposableDatabaseUrl: string) {
     stableUuid, createResearcherProjectStore, createResearcherExtractionPersistence, createExtractionStore, settleExtraction,
     packages, kei, scriptedPorts, ports, app,
     execution, executionCancels, deterministicArtifact, seedProject, addRepresentation,
-    raceRevision, scheduler, eventually, waitForAttempt, createRuntime,
+    raceRevision, scheduler, eventually, untilLockWait, untilSignalled, waitForAttempt, createRuntime,
     freshInput, rejectsWithCode, waitForBatch, studioWorkflow, heldByKei,
     extractionRow, succeeded, cleanup, disposableDatabaseUrl, spawnKeiStandIn,
+    modelConfigurations, configureAccount,
   }
 }

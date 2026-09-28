@@ -9,6 +9,11 @@ import {
 const id = (digit: string) =>
   `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`
 
+/** The saved method a start view submits when the account keeps every service default, per settings slot. */
+const ARTICLE_DEFAULTS = { models: null, settings: { article: null } } as const
+const GENERIC_DEFAULTS = { models: null, settings: { generic: null } } as const
+const RECIPE_DEFAULTS = { models: null, settings: { recipe: null } } as const
+
 const completed = {
   extractionId: id('1'),
   sourceDocumentId: id('2'),
@@ -85,6 +90,7 @@ describe('Article lifecycle contracts', () => {
         sourceRepresentationRevisionId: id('3'),
         schemaRevisionId: id('4'),
         strategy: 'ARTICLE',
+        method: ARTICLE_DEFAULTS,
         result: {},
       }).success,
     ).toBe(false)
@@ -201,6 +207,7 @@ describe('Article lifecycle contracts', () => {
         sourceRepresentationRevisionId: id('3'),
         schemaRevisionId: id('4'),
         strategy: 'CATALOG',
+        method: GENERIC_DEFAULTS,
       }).success,
     ).toBe(true)
 
@@ -258,6 +265,7 @@ describe('Article lifecycle contracts', () => {
       sourceRepresentationRevisionId: 'BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB',
       schemaRevisionId: 'CCCCCCCC-CCCC-4CCC-8CCC-CCCCCCCCCCCC',
       strategy: 'ARTICLE',
+      method: ARTICLE_DEFAULTS,
     })
     expect(normalized.id).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
     expect(normalized.sourceRepresentationRevisionId)
@@ -269,6 +277,7 @@ describe('Article lifecycle contracts', () => {
         sourceRepresentationRevisionId: id('3'),
         schemaRevisionId: id('4'),
         strategy: 'ARTICLE',
+        method: ARTICLE_DEFAULTS,
         retryOfId: id('5'),
       }).success,
     ).toBe(false)
@@ -287,12 +296,43 @@ describe('numbered-catalogue recipe contracts', () => {
   const fresh = { id: id('1'), sourceRepresentationRevisionId: id('3'), schemaRevisionId: id('4') }
 
   it('accepts a recipe only on a Catalog request, and only in the id@version form', () => {
-    expect(extractionRequestSchema.parse({ ...fresh, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1' }))
-      .toMatchObject({ catalogRecipe: 'numbered-catalogue-de@1' })
-    expect(extractionRequestSchema.parse({ ...fresh, strategy: 'CATALOG' })).not.toHaveProperty('catalogRecipe')
-    expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'ARTICLE', catalogRecipe: 'numbered-catalogue-de@1' }).success)
-      .toBe(false)
-    expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'CATALOG', catalogRecipe: '../etc' }).success).toBe(false)
+    expect(extractionRequestSchema.parse({
+      ...fresh, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', method: RECIPE_DEFAULTS,
+    })).toMatchObject({ catalogRecipe: 'numbered-catalogue-de@1' })
+    expect(extractionRequestSchema.parse({ ...fresh, strategy: 'CATALOG', method: GENERIC_DEFAULTS }))
+      .not.toHaveProperty('catalogRecipe')
+    expect(extractionRequestSchema.safeParse({
+      ...fresh, strategy: 'ARTICLE', catalogRecipe: 'numbered-catalogue-de@1', method: ARTICLE_DEFAULTS,
+    }).success).toBe(false)
+    expect(extractionRequestSchema.safeParse({
+      ...fresh, strategy: 'CATALOG', catalogRecipe: '../etc', method: RECIPE_DEFAULTS,
+    }).success).toBe(false)
+  })
+
+  it("requires the saved method, with only the settings of the request's strategy", () => {
+    for (const [strategy, catalogRecipe, method] of [
+      ['ARTICLE', undefined, ARTICLE_DEFAULTS],
+      ['CATALOG', undefined, GENERIC_DEFAULTS],
+      ['CATALOG', 'numbered-catalogue-de@1', RECIPE_DEFAULTS],
+    ] as const) {
+      const request = { ...fresh, strategy, ...(catalogRecipe ? { catalogRecipe } : {}) }
+      expect(extractionRequestSchema.parse({ ...request, method }).method).toEqual(method)
+      expect(extractionRequestSchema.safeParse(request).success).toBe(false)
+    }
+    expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'ARTICLE', method: GENERIC_DEFAULTS }).success).toBe(false)
+    expect(extractionRequestSchema.safeParse({
+      ...fresh, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', method: ARTICLE_DEFAULTS,
+    }).success).toBe(false)
+  })
+
+  it('refuses a method that breaks a rule of the method contract at the field that breaks it', () => {
+    const article = { context: 'full', grounding: 'semantic', grounding_schedule: 'unresolved', grounding_routing: 'origin_lexical' }
+    const parsed = extractionRequestSchema.safeParse({ ...fresh, strategy: 'ARTICLE', method: { models: null, settings: { article } } })
+    expect(parsed.success).toBe(false)
+    expect(parsed.error?.issues).toContainEqual(expect.objectContaining({
+      path: ['method', 'settings', 'article', 'grounding_routing'],
+      message: 'Use generated quotes or source spans, and stop after support.',
+    }))
   })
 
   it('carries version 2 review material: span evidence, proposals, rejections, coverage and completeness', () => {
@@ -330,10 +370,14 @@ describe('numbered-catalogue recipe contracts', () => {
 })
 
 describe('Extraction Model Choice contracts', () => {
-  const fresh = { id: id('1'), sourceRepresentationRevisionId: id('3'), schemaRevisionId: id('4'), strategy: 'ARTICLE' }
+  const fresh = {
+    id: id('1'), sourceRepresentationRevisionId: id('3'), schemaRevisionId: id('4'), strategy: 'ARTICLE', method: ARTICLE_DEFAULTS,
+  }
 
-  it('never takes a model choice from the client: the server applies the configured one', () => {
+  it('takes a model choice only inside the saved method', () => {
     expect(extractionRequestSchema.parse(fresh)).not.toHaveProperty('models')
+    expect(extractionRequestSchema.parse({ ...fresh, method: { ...ARTICLE_DEFAULTS, models: { fields: 'nuextract' } } }).method)
+      .toEqual({ models: { fields: 'nuextract' }, settings: { article: null } })
     for (const models of [{ fields: 'nuextract', reasoning: 'instruct' }, {}, 'instruct'])
       expect(extractionRequestSchema.safeParse({ ...fresh, models }).success).toBe(false)
     expect(extractionRequestSchema.safeParse({ ...fresh, model: 'instruct' }).success).toBe(false)

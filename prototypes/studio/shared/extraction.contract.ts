@@ -1,5 +1,11 @@
 import { z } from 'zod'
 import {
+  articleSettingsIssues,
+  extractionMethodIntentSchema,
+  settingsSlot,
+  type ArticleSettings,
+} from 'extraction/extraction-method'
+import {
   evidenceLinkSchema,
   evidenceLinksHaveUniqueScalarPaths,
   resultPathSchema,
@@ -61,14 +67,29 @@ export const extractionRequestSchema = z
     schemaRevisionId: requestUuid,
     strategy: extractionStrategySchema,
     catalogRecipe: catalogRecipeSchema.optional(),
-    // The server applies the configured Extraction Model Choice.
-    models: z.never().optional(),
+    /** The saved method the start view showed: the Extraction Model Choice and this strategy's settings. Admission
+     *  refuses it when the account's saved method changed since, and pins it otherwise. */
+    method: extractionMethodIntentSchema,
   })
   .strict()
   .refine((request) => request.catalogRecipe === undefined || request.strategy === 'CATALOG', {
     path: ['catalogRecipe'],
     message: 'A recipe applies to a Catalog Extraction only.',
   })
+  .refine((request) => settingsSlot(request.strategy, request.catalogRecipe ?? null) in request.method.settings, {
+    path: ['method', 'settings'],
+    message: 'The saved settings do not match this Extraction Strategy.',
+  })
+  .superRefine(methodRuleIssues)
+
+/** A direct request gets the same field-addressed refusals as the Advanced tab (design §3): the contract's own rules. */
+export function methodRuleIssues(request: { method: z.output<typeof extractionMethodIntentSchema> }, context: z.RefinementCtx): void {
+  const settings = request.method.settings
+  const article: ArticleSettings | null = 'article' in settings ? settings.article : null
+  if (!article) return
+  for (const issue of articleSettingsIssues(article))
+    context.addIssue({ code: 'custom', path: ['method', 'settings', 'article', issue.path], message: issue.message })
+}
 
 export type ExtractionRequest = z.infer<typeof extractionRequestSchema>
 export type ExtractionRequestInput = z.input<typeof extractionRequestSchema>

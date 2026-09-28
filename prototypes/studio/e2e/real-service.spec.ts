@@ -38,6 +38,7 @@ async function extract(page: Page, revision: string, representationId: string) {
   const id = randomUUID()
   const response = await page.request.post('/api/extractions', { headers, data: {
     id, strategy: 'ARTICLE', schemaRevisionId: revision, sourceRepresentationRevisionId: representationId,
+    method: { models: null, settings: { article: null } },
   } })
   expect(response.status(), await response.text()).toBe(201)
   return id
@@ -97,6 +98,7 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
       const admitted = await page.request.post('/api/extractions', { headers, data: {
         id, strategy, schemaRevisionId: revision.schemaRevisionId,
         sourceRepresentationRevisionId: reopen.sourceRepresentation.sourceRepresentationId,
+        method: { models: null, settings: strategy === 'CATALOG' ? { generic: null } : { article: null } },
       } })
       expect(admitted.status(), await admitted.text()).toBe(201)
       await expect.poll(async () => {
@@ -193,6 +195,7 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
     const admitted = await page.request.post('/api/extractions', { headers, data: {
       id, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', schemaRevisionId: revision.schemaRevisionId,
       sourceRepresentationRevisionId: reopen.sourceRepresentation.sourceRepresentationId,
+      method: { models: null, settings: { recipe: null } },
     } })
     expect(admitted.status(), await admitted.text()).toBe(201)
     await expect.poll(async () => {

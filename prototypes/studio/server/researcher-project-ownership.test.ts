@@ -800,10 +800,8 @@ function ownershipRegistry(fixture: TwoAccountStores) {
     '../api/document_reopen.ts': researcherModule(
       createDocumentReopenHandlers,
     ),
+    '../api/extractions.ts': researcherModule(createExtractionHandlers),
     // Every account runs on kei-exp's default models; the process configuration store is never read.
-    '../api/extractions.ts': researcherModule((store) =>
-      createExtractionHandlers(store, { extractionModels: defaultExtractionModels }),
-    ),
     '../api/batch_extractions.ts': researcherModule((store) =>
       createBatchExtractionHandlers(store, { extractionModels: defaultExtractionModels }),
     ),
@@ -1322,6 +1320,7 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
             sourceRepresentationRevisionId,
             schemaRevisionId,
             strategy: 'ARTICLE',
+            method: { models: null, settings: { article: null } },
           }),
         ),
         forbiddenB,

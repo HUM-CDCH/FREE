@@ -193,6 +193,9 @@ export type ExtractionSnapshot = Readonly<{
   catalogRecipe: string | null
   /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
   requestedModels?: ExtractionModelChoice | null
+  /** The settings admitted with the run (`{article}`, `{generic}` or `{recipe}`, each null for service defaults);
+   *  null or absent when the run predates recorded settings ("Not recorded"). */
+  requestedSettings?: ActiveSettings | null
   /** Only a published Extraction has a result snapshot. */
   outcome: 'SUCCEEDED'
   complete: boolean | null
@@ -221,6 +224,9 @@ export type ExtractionAttemptSnapshot = Readonly<{
   catalogRecipe: string | null
   /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
   requestedModels?: ExtractionModelChoice | null
+  /** The settings admitted with the run (`{article}`, `{generic}` or `{recipe}`, each null for service defaults);
+   *  null or absent when the run predates recorded settings ("Not recorded"). */
+  requestedSettings?: ActiveSettings | null
   executionStatus: ProjectOperationStatus
   /** SUCCEEDED once published; a failed, cancelled or interrupted attempt is FAILED with its failure instead. */
   outcome: 'SUCCEEDED' | null
@@ -245,8 +251,8 @@ export type FreshExtractionInput = Readonly<{
   strategy: ExtractionStrategy
   /** The numbered-catalogue recipe chosen for this Catalog Extraction; null or absent for generic Catalog. */
   catalogRecipe?: string | null
-  /** The Extraction Model Choice for this run; null, absent or empty keeps kei-exp's defaults for every role. */
-  models?: ExtractionModelChoice | null
+  /** The saved method the researcher saw at start: admission refuses it unless it is still the account's, then pins it. */
+  method: ExtractionMethodIntent
 }>
 
 export type RunSingleInput = FreshExtractionInput
@@ -381,6 +387,7 @@ export interface ExtractionModule {
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults>
 }
 import type { ScalarFieldType as SchemaScalarFieldType } from './allowed-values.js'
+import type { ActiveSettings, ExtractionMethodIntent } from './extraction-method.js'
 type CatalogBoundary = {
   startBlockId: string
   startContentIndex: number

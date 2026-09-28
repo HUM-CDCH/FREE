@@ -207,6 +207,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       extractionSettings: {},
     },
   })
+  // What this account's start view submits with each run: the saved field model and service-default settings.
+  const savedMethod = { models: { fields: 'instruct' }, settings: strategy === 'CATALOG' ? { generic: null } : { article: null } }
   await db.orm.public.ProjectContext.create({
     id: projectContextId,
     researcherAccountId,
@@ -499,6 +501,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       sourceRepresentationRevisionId: secondRepresentationId,
       schemaRevisionId: secondSchemaRevisionId,
       strategy,
+      method: savedMethod,
     },
   })
   expect(created.status()).toBe(201)
@@ -637,6 +640,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       sourceRepresentationRevisionId: otherRepresentationId,
       schemaRevisionId: secondSchemaRevisionId,
       strategy,
+      method: savedMethod,
     },
   })).status()).toBe(201)
   await expect.poll(() => valuesGate.release !== null).toBe(true)
@@ -657,8 +661,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     sourceRepresentationRevisionId: firstRepresentationId,
     schemaRevisionId: firstSchemaRevisionId,
     strategy,
+    method: savedMethod,
   }
-  // The configured field model is part of the first run's identity, and a client cannot choose another.
+  // The saved field model is part of the first run's identity; a model choice outside the method is refused.
   expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
     headers: { Origin: E2E_ORIGIN },
     data: replayPins,
@@ -690,6 +695,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       sourceRepresentationRevisionId: secondRepresentationId,
       schemaRevisionId: secondSchemaRevisionId,
       strategy,
+      method: savedMethod,
     },
   })).status()).toBe(201)
   await expect.poll(() => valuesGate.release !== null).toBe(true)
@@ -804,6 +810,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       sourceRepresentationRevisionId: batchMember!.sourceRepresentationRevisionId,
       schemaRevisionId: batchMember!.schemaRevisionId,
       strategy: batchMember!.strategy,
+      method: savedMethod,
     },
   })).status()).toBe(409)
   // A batch member is read on its own once published.

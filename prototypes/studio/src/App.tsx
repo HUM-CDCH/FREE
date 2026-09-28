@@ -19,6 +19,7 @@ import {
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 import { useExtraction } from './useExtraction'
+import { savedMethodFor, useSavedMethod } from './savedMethod'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
 import ExtractionFinishedDialog from './ExtractionFinishedDialog'
 import { Button, Spinner } from './ui'
@@ -544,6 +545,8 @@ export function DocumentWorkspace({
   const effectiveRailOpen = railOpen
   const effectiveRailWidth = effectiveRailOpen ? railWidth : COLLAPSED_WIDTH
 
+  // The account's saved method: a run submits what it saw, and admission refuses it if an Apply changed it since.
+  const saved = useSavedMethod()
   const extraction = useExtraction({
     schemaReady,
     indexing,
@@ -672,7 +675,8 @@ export function DocumentWorkspace({
   })
 
   async function runExtraction() {
-    if (savingForRun || running || !sourceRepresentationCurrent) return
+    if (savingForRun || running || !sourceRepresentationCurrent || saved.state.status !== 'ready') return
+    const savedConfig = saved.state.config
     setSavingForRun(true)
     const targetSourceRepresentationId = sourceRepresentationId
     try {
@@ -686,6 +690,7 @@ export function DocumentWorkspace({
         throw new Error('Save the Current Schema Revision before extraction.')
       const strategy = nextExtractionStrategy
       const catalogRecipe = nextCatalogRecipe || null
+      const method = savedMethodFor(savedConfig, strategy, catalogRecipe)
       // The researcher asked for this run, so it is what they now inspect;
       // its schema is known before the server acknowledges the attempt.
       setSelectedInspectionId(null)
@@ -699,6 +704,7 @@ export function DocumentWorkspace({
         },
       }))
       const acknowledged = await extraction.runExtraction(
+        method,
         {
           sourceRepresentationId: targetSourceRepresentationId,
           schemaRevisionId: revision.schemaRevisionId,
@@ -725,6 +731,7 @@ export function DocumentWorkspace({
   }
 
   const runExtractionUnavailable =
+    saved.state.status !== 'ready' ||
     savingForRun ||
     running ||
     !sourceRepresentationId ||

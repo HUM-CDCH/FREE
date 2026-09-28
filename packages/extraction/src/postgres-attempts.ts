@@ -11,7 +11,7 @@ import {
   type WorkflowStatuses,
 } from 'db'
 import { extractWorkflowId } from './kei-handoff.js'
-import { modelChoice } from './extraction-method.js'
+import { modelChoice, storedSettings } from './extraction-method.js'
 import type {
   DocumentExtractionsSnapshot,
   ExtractionAttemptSnapshot,
@@ -52,8 +52,8 @@ export function readAttemptRows(orm: DatabaseOrm, extractionIds: readonly string
   return orm.public.Extraction.where((row) => row.id.in([...extractionIds]))
     .select(
       'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
-      'requestedModels', 'outcome', 'complete', 'modelAttribution', 'diagnostics', 'failure', 'resultPayload',
-      'evidenceLinks',
+      'requestedModels', 'requestedSettings', 'outcome', 'complete', 'modelAttribution', 'diagnostics', 'failure',
+      'resultPayload', 'evidenceLinks',
       'reviewable', 'batchExtractionId', 'createdAt', 'reviewedAt',
     )
     .all()
@@ -134,6 +134,7 @@ async function pinsOf(orm: DatabaseOrm, row: AttemptRow) {
     strategy: row.strategy as ExtractionStrategy,
     catalogRecipe: row.catalogRecipe,
     requestedModels: modelChoice(row.requestedModels),
+    requestedSettings: storedSettings(row.requestedSettings, row.strategy as ExtractionStrategy, row.catalogRecipe),
     batchExtractionId: row.batchExtractionId,
     createdAt: row.createdAt,
   }

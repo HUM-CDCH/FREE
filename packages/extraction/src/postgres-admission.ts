@@ -10,6 +10,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk'
 import {
   isUniqueViolation,
+  lockModelConfiguration,
   lockSourceDocumentRow,
   stableJson,
   stableUuid,
@@ -23,9 +24,18 @@ import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type { ExtractionExecution } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { extractWorkflowId } from './kei-handoff.js'
-import { extractionMethod, modelChoice } from './extraction-method.js'
+import {
+  accountMethod,
+  canonicalIntent,
+  identityFieldIssues,
+  identityFieldsMessage,
+  modelChoice,
+  type ActiveSettings,
+  type ExtractionMethodIntent,
+} from './extraction-method.js'
 import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
+import { parseExtractionSchema } from './schema.js'
 import {
   EXTRACTION_QUEUE,
   extractionAttributes,
@@ -41,6 +51,36 @@ import type {
 
 const EXTRACTION_KEY = 'extraction_pkey'
 const BATCH_KEY = 'batchExtraction_pkey'
+
+export const METHOD_CHANGED_MESSAGE =
+  'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
+
+/** Whether the account's saved method, read under its configuration row's lock, is still the one the researcher saw.
+ *  The comparison and the snapshot write share one transaction, so an Apply commits wholly before or after it. */
+export async function savedMethodStillCurrent(
+  client: Parameters<typeof lockModelConfiguration>[0],
+  owner: string,
+  strategy: ExtractionStrategy,
+  catalogRecipe: string | null,
+  method: ExtractionMethodIntent,
+): Promise<boolean> {
+  return isDeepStrictEqual(accountMethod(await lockModelConfiguration(client, owner), strategy, catalogRecipe), method)
+}
+
+/** Identity fields the pinned schema cannot key records by refuse the Extraction before anything is enqueued; the
+ *  Parsing Service checks the same again when it runs (`ExtractRequest._identity_fields_exist`). */
+export function refuseUnusableIdentityFields(settings: ActiveSettings, schemaTree: unknown): void {
+  const article = 'article' in settings ? settings.article : null
+  if (!article || article.identity_fields.length === 0) return
+  let nodes
+  try {
+    nodes = parseExtractionSchema(schemaTree).schemaNodes
+  } catch {
+    throw new ExtractionError('invalid_extraction_pins', 'The selected Schema Revision is invalid.')
+  }
+  const issues = identityFieldIssues(nodes, article.identity_fields)
+  if (issues.length > 0) throw new ExtractionError('invalid_identity_fields', identityFieldsMessage(issues))
+}
 
 /**
  * The statuses of work admitted just now: each workflow was enqueued in the transaction that committed its row, so it
@@ -81,6 +121,8 @@ type AdmissionPins = Readonly<{
   strategy: ExtractionStrategy
   catalogRecipe: string | null
   requestedModels: ExtractionModelChoice | null
+  requestedSettings: ActiveSettings
+  schemaTree: unknown
   preprocessId: string
 }>
 
@@ -97,7 +139,7 @@ async function resolveAdmission(
   const document = representation
     ? await orm.public.SourceDocument.select('projectContextId').first({ id: representation.sourceDocumentId })
     : null
-  const schema = await orm.public.SchemaRevision.select('extractionSchemaId').first({ id: input.schemaRevisionId })
+  const schema = await orm.public.SchemaRevision.select('extractionSchemaId', 'schemaTree').first({ id: input.schemaRevisionId })
   const schemaOwner = schema
     ? await orm.public.ExtractionSchema.select('projectContextId').first({ id: schema.extractionSchemaId })
     : null
@@ -108,6 +150,9 @@ async function resolveAdmission(
       schemaOwner.projectContextId !== document.projectContextId ||
       !project || project.researcherAccountId !== researcherAccountId)
     return null
+  const catalogRecipe = input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null
+  const method = canonicalIntent(input.method, input.strategy, catalogRecipe)
+  if (method === null) throw new ExtractionError('invalid_request', 'The saved method does not fit this Extraction Strategy.')
   return {
     owner: researcherAccountId,
     projectContextId: document.projectContextId,
@@ -115,7 +160,11 @@ async function resolveAdmission(
     sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
     schemaRevisionId: input.schemaRevisionId,
     extractionSchemaId: schema.extractionSchemaId,
-    ...extractionMethod(input.strategy, input.catalogRecipe, input.models),
+    strategy: input.strategy,
+    catalogRecipe,
+    requestedModels: method.models,
+    requestedSettings: method.settings,
+    schemaTree: schema.schemaTree,
     preprocessId: representation.preprocessId,
   }
 }
@@ -127,6 +176,7 @@ type AdmittedIdentity = Readonly<{
   strategy: string
   catalogRecipe: string | null
   requestedModels: unknown
+  requestedSettings: unknown
   batchExtractionId: string | null
 }>
 
@@ -138,7 +188,9 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
     row.schemaRevisionId === pins.schemaRevisionId &&
     row.strategy === pins.strategy &&
     row.catalogRecipe === pins.catalogRecipe &&
-    isDeepStrictEqual(modelChoice(row.requestedModels), pins.requestedModels)
+    isDeepStrictEqual(modelChoice(row.requestedModels), pins.requestedModels) &&
+    // A NULL (historical) row was admitted before settings were recorded, so it never equals a recorded method.
+    isDeepStrictEqual(row.requestedSettings ?? null, pins.requestedSettings)
 }
 
 /** DBOS refused the workflow ID (workflowIDReusePolicy 'reject'): its Extraction is gone, so the ID is spent. */
@@ -155,14 +207,14 @@ export async function admitInteractiveExtraction(
   researcherAccountId: string,
   input: RunSingleInput,
   attempt = 0,
-): Promise<'created' | 'replayed' | 'conflict' | 'superseded' | 'missing'> {
+): Promise<'created' | 'replayed' | 'conflict' | 'superseded' | 'method-changed' | 'missing'> {
   try {
     return await withPoolClientTransaction(async (transaction, client) => {
       const pins = await resolveAdmission(transaction, researcherAccountId, input)
       if (pins === null) return 'missing'
       const identity = () => transaction.orm.public.Extraction.select(
         'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
-        'requestedModels', 'batchExtractionId',
+        'requestedModels', 'requestedSettings', 'batchExtractionId',
       ).first({ id: input.extractionId })
       // Another researcher's Extraction under this ID is concealed behind the same missing answer.
       const replay = async (row: AdmittedIdentity) =>
@@ -186,6 +238,11 @@ export async function admitInteractiveExtraction(
       // No revision left means the document vanished while this waited for the lock.
       if (!current) return 'missing'
       if (current.id !== pins.sourceRepresentationRevisionId) return 'superseded'
+      // After the replay checks: an identical repeat replays even when the account's settings changed since (design §7).
+      if (!(await savedMethodStillCurrent(client, pins.owner, pins.strategy, pins.catalogRecipe,
+        { models: pins.requestedModels, settings: pins.requestedSettings })))
+        return 'method-changed'
+      refuseUnusableIdentityFields(pins.requestedSettings, pins.schemaTree)
       await transaction.orm.public.Extraction.create({
         id: input.extractionId,
         sourceDocumentId: pins.sourceDocumentId,
@@ -194,6 +251,7 @@ export async function admitInteractiveExtraction(
         strategy: pins.strategy,
         catalogRecipe: pins.catalogRecipe,
         requestedModels: pins.requestedModels,
+        requestedSettings: pins.requestedSettings,
         batchExtractionId: null,
       })
       await execution.enqueue(client, {

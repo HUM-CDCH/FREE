@@ -110,18 +110,20 @@ describe('Article extraction lifecycle client', () => {
       }),
     )
 
+    const method = { models: null, settings: { article: null } }
     await requestExtraction({
       id: extractionId,
       sourceRepresentationRevisionId: representationId,
       schemaRevisionId,
       strategy: 'ARTICLE',
+      method,
     })
     await finalizeExtractionReview(extractionId, [])
 
     expect(submitted).toEqual([
       {
         url: '/api/extractions',
-        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE' },
+        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE', method },
       },
       {
         url: `/api/extractions/${extractionId}/review`,

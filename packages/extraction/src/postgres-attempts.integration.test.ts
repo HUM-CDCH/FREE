@@ -264,7 +264,7 @@ it('persists and reopens a partial remote Catalog result without local stage dia
     const project = await seedProject()
     kei.respond = (request) => ({ artifact: { ...deterministicArtifact(request), complete: false } })
     const { module } = createRuntime(project.researcherAccountId)
-    const input = { ...freshInput(project), strategy: 'CATALOG' as const }
+    const input = { ...freshInput(project), strategy: 'CATALOG' as const, method: { models: null, settings: { generic: null } } }
     const created = await module.runSingle(input)
     assert.equal(created.extraction.complete, false)
     assert.equal(created.extraction.outcome, 'SUCCEEDED')
@@ -293,7 +293,10 @@ it('persists and reopens a version 2 recipe result with its span evidence and re
       }),
     })
     const { module } = createRuntime(project.researcherAccountId)
-    const input = { ...freshInput(project), strategy: 'CATALOG' as const, catalogRecipe: 'numbered-catalogue-de@1' }
+    const input = {
+      ...freshInput(project), strategy: 'CATALOG' as const, catalogRecipe: 'numbered-catalogue-de@1',
+      method: { models: null, settings: { recipe: null } },
+    }
     const created = await module.runSingle(input)
     assert.deepEqual((kei.submissions[0]!.request as KeiExtractInput).request.options.catalog, { recipe: 'numbered-catalogue-de@1' })
     const reopened = await module.readDocumentExtractions({ sourceDocumentId: project.documents[0]!.sourceDocumentId })

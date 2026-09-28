@@ -173,7 +173,8 @@ it('replays an identical request after a reprocess instead of refusing it', asyn
     const again = await module.runSingle(input)
     assert.equal(again.disposition, 'replayed')
     assert.equal(again.extraction.extractionId, first.extraction.extractionId)
-    await assert.rejects(module.runSingle({ ...input, strategy: 'CATALOG' }), rejectsWithCode('extraction_id_conflict'))
+    await assert.rejects(module.runSingle({ ...input, strategy: 'CATALOG', method: { models: null, settings: { generic: null } } }),
+      rejectsWithCode('extraction_id_conflict'))
   })
 
 it('keeps a run admitted before a reprocess and executes it on its original revision', async (t) => {
@@ -235,6 +236,8 @@ it('an identical request that waited behind a reprocess replays the Extraction a
           strategy: 'ARTICLE',
           catalogRecipe: null,
           requestedModels: null,
+          // Request A admitted the same method: service defaults.
+          requestedSettings: input.method.settings,
           batchExtractionId: null,
         })
         await run(...raceRevision(document.sourceDocumentId))
