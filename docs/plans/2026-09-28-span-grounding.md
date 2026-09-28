@@ -1,9 +1,10 @@
 # Span selection and selective grounding — 2026-09-28
 
-Status: R5 registered and queued after the original study's verified collection;
-tokenizer-only preflight and its exact offline replay are complete. No fresh R5
-model arm has run. Preflight exposed coverage refusals that prohibit interpreting
-the lower request count alone as an efficiency gain.
+Status: six user-prioritized Zelechowska R5 cells completed with exact offline
+replay; the remaining 84 cells and original collection are deferred. The
+[pilot report](https://github.com/HUM-CDCH/FREE/blob/docs/extraction-ablation-report/docs/validation/2026-09-28-grounding-pilot.md)
+records costs, changed links and semantic limits. The full preflight's coverage
+refusals remain unresolved; this small pilot does not complete the study.
 Branch/worktree: `feat/extraction-span-grounding` in
 `/home/gennaro/projects/FREE-worktrees/extraction-span-grounding`, based on `d74dc17c`.
 Tasks and implementation decisions: `openspec/changes/extraction-span-grounding/`.
@@ -32,16 +33,24 @@ fields with the collector's report. Do not replace the active collector's frozen
 helpers or outputs. Intervals remain unavailable before results; incomplete pairs
 and unknown metrics retain explicit source-specific exclusions.
 
+The user later prioritized a small pilot and deferred the full matrix. Its
+supervisor completed at 07:50 UTC and generated both report versions under
+`20260928-r5-grounding/pilot-zele-20260928/`, preserving prior report fields.
+The full-matrix collector is stopped; do not run its reserved final command
+against the 84 pending cells or restart the old scheduler against existing pilot
+cells. Follow the pilot report and current integration pointer for resumption.
+
 R5 output: `/home/gennaro/projects/FREE/artifacts/extraction-ablation/20260928-r5-grounding`.
 It registers 90 cells over 15 Articles and the same 81 records / 2,959 enumerated
 claims, with all upstream values reproduced from 266 captured replies offline.
 Manifest SHA-256 `46c3b73183a496f6f8d55ccc7c08cfc2030efad22f5136eb87b6d0d708bdeeee`;
 80-file code archive SHA-256 `58c75abeffdcf6e49b368c8632b6a9bad65eeac4d6abade6c583aa1ef655f109`.
 Runtime is frozen at `artifacts/extraction-ablation/frozen-execution/r5`, from
-commit `f848568f`. The R5 supervisor waits for original collection and successful
-preflight, then admits at most two cells, one attempt each, with a 5 GiB free-space
-gate. Inspect `execution-plan-collection-v2.json` and live identities before resuming; do not
-launch duplicate cells. The original study's completion remains independent.
+commit `f848568f`. The original full-matrix supervisor required original collection
+and successful preflight, then admitted at most two cells, one attempt each, with
+a 5 GiB free-space gate. It is now stopped for the user-prioritized pilot. Future
+resumption must audit the retained six cells and schedule only remaining work;
+do not restart the old launcher. The original study's completion remains independent.
 
 The idle dependency chain was replaced at 2026-09-28 05:58 UTC after the complete
 R1 preview exposed a table-renderer bug for unavailable token costs. Original

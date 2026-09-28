@@ -7,6 +7,16 @@ Existing frozen study runs and production defaults are unchanged.
 Review: [draft PR #145](https://github.com/HUM-CDCH/FREE/pull/145), based on the
 reporting branch. Fresh execution and scientific reporting remain open.
 
+Pilot update, 2026-09-28 07:55 UTC: all six user-prioritized Zelechowska cells
+completed and passed exact offline replay. The
+[results](https://github.com/HUM-CDCH/FREE/blob/docs/extraction-ablation-report/docs/validation/2026-09-28-grounding-pilot.md)
+show 10 calls / 89,770 input tokens for spans plus policy and unresolved scheduling,
+versus 40 / 222,156 for generated quotes. Linked paths are 35 versus 30, with two
+baseline paths lost; independent semantic accuracy is unavailable. Routing adds
+cost and loses two links relative to the combined arm. This one selected document
+has no structured table cells. The other 84 R5 cells and original final collection
+remain deferred; no full-study or production-default claim follows.
+
 ## Implemented behavior
 
 `grounding=spans` offers deterministic ranges over complete canonical passage
