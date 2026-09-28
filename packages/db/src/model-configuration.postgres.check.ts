@@ -243,24 +243,64 @@ test('PostgreSQL keeps one Model Configuration per Researcher Account and serial
     }
   })
 
+  /**
+   * Resolves once PostgreSQL reports the lock wait `blocked` asks about (a boolean over `pg_blocking_pids`, for the
+   * backend `pid`), so the checks observe lock order instead of assuming it from a sleep. An `operation` that settles
+   * without ever waiting ends the wait, so the check's own assertions report it.
+   */
+  async function untilBlocked(blocked: string, pid: number, operation: Promise<unknown>) {
+    let settled = false
+    const settlement = operation.then(() => { settled = true }, () => { settled = true })
+    const deadline = Date.now() + 10_000
+    while (!settled) {
+      if ((await pool.query<{ blocked: boolean }>(blocked, [pid])).rows[0]!.blocked) return
+      if (Date.now() >= deadline) throw new Error('Timed out waiting for a configuration row lock wait.')
+      await Promise.race([setTimeout(10), settlement])
+    }
+  }
+
   await t.test('an admission lock waits for an apply in flight and then reads what it committed', async () => {
     const account = await createAccount('Locked read')
     await store.apply(account.id, () => ({ version: 1 }))
-    let release!: () => void
-    const held = new Promise<void>((resolve) => { release = resolve })
-    const applying = store.apply(account.id, async () => { await held; return { version: 2 } })
-    await setTimeout(100)
+    const locked = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    // `next` runs once the apply's upsert holds the row lock, so entering it establishes that the apply locked first.
+    const applying = store.apply(account.id, async () => {
+      locked.resolve()
+      await release.promise
+      return { version: 2 }
+    })
+    void applying.catch(() => {})
     const client = new Client({ connectionString: databaseUrl })
     await client.connect()
     try {
+      const stop = new AbortController()
+      try {
+        await Promise.race([
+          locked.promise,
+          applying.then(() => {
+            throw new Error('The apply settled without entering its next.')
+          }),
+          setTimeout(10_000, undefined, { signal: stop.signal }).then(() => {
+            throw new Error('The apply did not enter its next within 10 s.')
+          }),
+        ])
+      } finally {
+        stop.abort()
+      }
       await client.query('BEGIN')
+      const { rows: [backend] } = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
       const reading = lockModelConfiguration(client, account.id)
-      await setTimeout(100)
-      release()
+      void reading.catch(() => {})
+      await untilBlocked('SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked', backend!.pid, reading)
+      release.resolve()
       await applying
       assert.deepEqual(await reading, { version: 2 })
       await client.query('COMMIT')
     } finally {
+      // A failed assertion must not leave the apply's transaction open: the apply holds the lock, so it commits.
+      release.resolve()
+      await applying.catch(() => {})
       await client.end()
     }
   })
@@ -270,18 +310,28 @@ test('PostgreSQL keeps one Model Configuration per Researcher Account and serial
     await store.apply(account.id, () => ({ version: 1 }))
     const client = new Client({ connectionString: databaseUrl })
     await client.connect()
+    let applying: Promise<void> | undefined
     try {
       await client.query('BEGIN')
+      const { rows: [backend] } = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
       assert.deepEqual(await lockModelConfiguration(client, account.id), { version: 1 })
       let applied = false
-      const applying = store.apply(account.id, () => ({ version: 2 })).then(() => { applied = true })
-      await setTimeout(200)
+      applying = store.apply(account.id, () => ({ version: 2 })).then(() => { applied = true })
+      void applying.catch(() => {})
+      await untilBlocked(
+        'SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))) AS blocked',
+        backend!.pid,
+        applying,
+      )
       assert.equal(applied, false)
       await client.query('COMMIT')
       await applying
       assert.equal(applied, true)
+      assert.deepEqual(await store.read(account.id), { version: 2 })
     } finally {
+      // Ending the connection ends its transaction too, so a failed assertion cannot leave the apply waiting.
       await client.end()
+      await applying?.catch(() => {})
     }
   })
 
