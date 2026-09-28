@@ -183,6 +183,13 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Registered input bytes are preserved in
+  `artifacts/extraction-ablation/input-preservation-20260928.zip` with a matching
+  verification receipt. All four manifests and their 276 referenced paths are
+  recoverable through the archive index; every member's registered SHA-256 and
+  archive CRC passed. Active paths, source generations and manifests are unchanged.
+  The archive complements the existing frozen code and capture artifacts.
+
 - Final report collection is now supervised by
   `free-ablation-final-collection-20260928`, with controls under
   `artifacts/extraction-ablation/final-collection-20260928/`. It waits for the

@@ -127,6 +127,16 @@ No new OCR is mixed into a method comparison. The existing final canonical revis
 pinned, including repaired Akita, Hamburg and Katrinesminde conversions. Model requests
 receive source, schema and method settings; gold and scorer are read only by analysis.
 
+The exact registered inputs are also preserved in
+`artifacts/extraction-ablation/input-preservation-20260928.zip`, SHA-256
+`04b23eb27142aca009c7c1fb6f91ab9119403a0cd2348d25cced3295af32b957`.
+It contains all four manifests and an index mapping 276 referenced paths to
+274 distinct content objects, including PDFs, canonical files, schemas and
+evaluation inputs. Every archived member passed CRC and registered SHA-256
+verification; the original files remain unchanged. The matching JSON receipt
+records these checks. This is a local recovery copy; model weights and the
+Python environment are outside it, and source-code archives remain separate.
+
 ## Estimands and limits
 
 The primary accuracy unit is a document: correct populated sample fields divided by eligible

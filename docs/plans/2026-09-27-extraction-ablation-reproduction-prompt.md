@@ -229,6 +229,14 @@ follow-up hypothesis and explaining why it is needed.
 
 ## 6. Freeze executable source and inputs
 
+Preserve verified byte copies of the registered PDFs, canonical representations,
+schemas, evaluation inputs and manifests alongside their hashes. Include an
+index of original paths and archive members, and verify each archived member
+against its registered hash. For this existing study, the local input recovery
+copy is `artifacts/extraction-ablation/input-preservation-20260928.zip`, with its
+verification receipt beside it. Restore only after checking destination ownership;
+keep active inputs unchanged.
+
 Before generation, pin and save:
 
 - Every source PDF and canonical file, generation and digest.
