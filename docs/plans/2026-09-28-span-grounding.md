@@ -1,7 +1,9 @@
 # Span selection and selective grounding — 2026-09-28
 
 Status: R5 registered and queued after the original study's verified collection;
-tokenizer-only preflight is active, and no fresh R5 model arm has run.
+tokenizer-only preflight and its exact offline replay are complete. No fresh R5
+model arm has run. Preflight exposed coverage refusals that prohibit interpreting
+the lower request count alone as an efficiency gain.
 Branch/worktree: `feat/extraction-span-grounding` in
 `/home/gennaro/projects/FREE-worktrees/extraction-span-grounding`, based on `d74dc17c`.
 Tasks and implementation decisions: `openspec/changes/extraction-span-grounding/`.
@@ -36,6 +38,15 @@ populated boolean leaves outside its 2,959-claim denominator, documented in
 `claim-denominator-audit.json`. Report this coverage limitation explicitly;
 schema policy applies to enumerated claims, and this is not all-scalar coverage.
 Do not silently add boolean claims to a frozen study or claim they were verified.
+
+Preflight admitted 8,359/8,359 quoted claim–unit comparisons, versus 6,617/8,359
+for spans: 1,742 span comparisons (20.8%) were refused. Hvissinge has no admitted
+span comparison; its smallest one-claim request already exceeds the input budget.
+The [validation report](../validation/2026-09-28-span-grounding.md#tokenizer-preflight)
+records all six methods. Preserve these failures in R5 and report coverage beside
+cost. This prototype is not ready for a default change based on request counts.
+Any compact-label/rendering correction must have separately pinned inputs and
+code; do not mutate R5, increase its context ceiling, or silently omit documents.
 
 ## Evidence and research boundary
 

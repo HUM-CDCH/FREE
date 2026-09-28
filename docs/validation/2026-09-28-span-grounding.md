@@ -156,3 +156,53 @@ and their policy-eligible subsets comprise nonblank strings and numbers, not eve
 scalar. This is an explicit coverage limitation, preserved across all R5 arms and
 recorded in `claim-denominator-audit.json` before any fresh R5 inference. No claim
 that those booleans are supported or semantically correct follows from this study.
+
+## Tokenizer preflight
+
+Completed at **2026-09-28 02:09:20 UTC**: all 90 registered cells, 23,077 tokenizer
+requests, **zero fresh model calls**. HTTP-disabled replay reproduces the entire
+scripted all-NONE report exactly, with no additional tokenizer requests. Every
+cell's attempted plus refused claim–unit comparisons reconciles to its eligible
+claims multiplied by its fixed context count.
+
+| Method | Scripted requests | Input tokens | Attempted claim–unit pairs | Refused pairs | Eligible pairs |
+|---|---:|---:|---:|---:|---:|
+| quoted | 2,154 | 14,344,454 | 8,359 | 0 | 8,359 |
+| spans | 764 | 7,087,230 | 6,617 | 1,742 | 8,359 |
+| spans_unresolved | 764 | 7,087,230 | 6,617 | 1,742 | 8,359 |
+| spans_policy | 568 | 5,224,004 | 4,514 | 1,535 | 6,049 |
+| spans_unresolved_policy | 568 | 5,224,004 | 4,514 | 1,535 | 6,049 |
+| spans_routed | 644 | 5,776,123 | 4,514 | 1,535 | 6,049 |
+
+These are admission scenarios, not measured inference savings. Span-only refuses
+**20.8%** of the potential comparisons; schema policy skips 792 of 2,959 enumerated
+claims, leaving 2,167 eligible claims. Unresolved scheduling cannot save calls when
+every scripted answer is NONE. Routing increases calls in that scenario because
+different preferred units fragment shared batches; actual support may alter this.
+
+Refusals occur on ten of fifteen documents. The largest span-only gaps are Harvey
+472/1,296 pairs, Age 376/470, Hamburg 345/460 and Hvissinge **285/285**. Akita,
+Mizuta, Zelechowska, 1790-06-17-1 and Brondbylund have no preflight refusal. Report
+per-document results and coverage before aggregate cost or a deployment decision.
+
+Hvissinge demonstrates the failure without inference: its single-claim span
+requests need at least **10,605 input tokens**, above the **10,240-token** input
+allowance (12,288 minus 2,048 output reserve). Four-claim quoted requests require
+8,233–8,577 tokens. Splitting the claim batch cannot fix a one-claim overflow.
+Complete span rendering and its identifiers add prompt overhead; exact canonical
+IDs do not by themselves make the input compact. A future rendering correction
+needs a separate registration, preserving complete source/table context and
+server-side identity. No change to frozen R5 or its admission limit is implied.
+
+Receipts live in the primary workspace's
+`artifacts/extraction-ablation/20260928-r5-grounding/`: `preflight-finished.json`,
+`preflight-summary.json`, `summarize_preflight.py`,
+`preflight-offline-verification.json` and `replay-preflight.py`. Preflight report
+SHA-256: `02ef658d20935ace0663cd4d690edcf5975093acc134a2ff16d6678c610b0597`.
+Per-request counts and exact rendered requests remain in `token-counts/`.
+
+At 02:12 UTC the verified R5 supervisor has no child and no generation-started
+receipt; it waits for the original final collector. R1 has 68/79 sealed cells,
+R2a has 30/30, and R3/R4 remain queued. The original Akita quoted run has finished;
+its absence from the process list is not a reason to restart it. This state is a
+checkpoint, not an experiment-completion claim.
