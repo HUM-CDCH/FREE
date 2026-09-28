@@ -60,6 +60,7 @@ export function summarizeSchemaRevision(
     renamed: 0,
     retyped: 0,
     described: 0,
+    policyChanged: 0,
     moved: 0,
   }
   for (const [id, position] of after) {
@@ -71,6 +72,7 @@ export function summarizeSchemaRevision(
     if (old.node.name !== position.node.name) counts.renamed++
     if (old.node.type !== position.node.type) counts.retyped++
     if (old.node.description !== position.node.description) counts.described++
+    if (old.node.evidencePolicy !== position.node.evidencePolicy) counts.policyChanged++
     if (old.parentId !== position.parentId || old.index !== position.index)
       counts.moved++
   }
@@ -85,6 +87,7 @@ export function summarizeSchemaRevision(
     [counts.renamed, 'renamed'],
     [counts.retyped, 'retyped'],
     [counts.described, `description${counts.described === 1 ? '' : 's'} updated`],
+    [counts.policyChanged, `evidence ${counts.policyChanged === 1 ? 'policy' : 'policies'} updated`],
     [counts.moved, 'moved'],
   ] as const
   return parts
@@ -456,6 +459,7 @@ function changeNodeType(node: SchemaNode, edit: FieldEdit): SchemaNode {
     id: node.id,
     name: edit.name,
     ...(description && { description }),
+    ...(node.evidencePolicy && { evidencePolicy: node.evidencePolicy }),
   }
 
   if (edit.type === 'object') {
@@ -517,6 +521,7 @@ function sameOwnState(left: SchemaNode, right: SchemaNode): boolean {
     left.type === right.type &&
     left.itemType === right.itemType &&
     left.description === right.description &&
+    left.evidencePolicy === right.evidencePolicy &&
     JSON.stringify(left.allowedValues) === JSON.stringify(right.allowedValues) &&
     (left.children === undefined) === (right.children === undefined)
   )

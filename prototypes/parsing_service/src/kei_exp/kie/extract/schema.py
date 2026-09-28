@@ -10,9 +10,10 @@ from __future__ import annotations
 from collections.abc import Iterator, Sequence
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Scalar = Literal["verbatim-string", "string", "date", "number", "integer", "boolean"]
+EvidencePolicy = Literal["quoted", "derived", "unverified"]
 SCALAR_JSON: dict[str, str] = {"verbatim-string": "string", "string": "string", "date": "string",
                                "number": "number", "integer": "integer", "boolean": "boolean"}
 # FREE's FIELD_TYPES: an allowedValues member equal to one of these reads as a type marker, not a value.
@@ -26,10 +27,18 @@ class Node(BaseModel):
     name: str = Field(min_length=1)
     description: str | None = Field(default=None, min_length=1)
     value_source: Literal["document", "source-filename"] | None = Field(default=None, alias="valueSource")
+    evidence_policy: EvidencePolicy | None = Field(default=None, alias="evidencePolicy")
     type: Literal["verbatim-string", "string", "date", "number", "integer", "boolean", "object", "array"]
     allowed_values: list[str] | None = Field(default=None, alias="allowedValues")
     item_type: Scalar | None = Field(default=None, alias="itemType")
     children: list[Node] | None = None
+
+    @field_validator("evidence_policy")
+    @classmethod
+    def _explicit_policy_is_not_null(cls, value):
+        if value is None:
+            raise ValueError("omit evidencePolicy to inherit; explicit null is not a policy")
+        return value
 
     @model_validator(mode="after")
     def _one_shape(self) -> Self:
@@ -156,6 +165,25 @@ def describe(nodes: Sequence[Node], path: Sequence[str | int]) -> str:
         current = found.children or []
     dotted = ".".join(names) or ".".join(str(step) for step in path)
     return f"{dotted}: {found.description}" if found is not None and found.description else dotted
+
+
+def evidence_policy(nodes: Sequence[Node], path: Sequence[str | int]) -> EvidencePolicy:
+    """Resolve explicit subtree policy, allowing a descendant to override its parent.
+
+    Missing policy requires source support. This classifies eligibility only;
+    `derived` does not attest that a value was computed or that it is correct.
+    """
+    policy: EvidencePolicy = "quoted"
+    current = nodes
+    for step in path:
+        if isinstance(step, int):
+            continue
+        node = next((node for node in current if node.name == step), None)
+        if node is None:
+            raise ValueError(f"evidence policy path leaves schema: {path!r}")
+        policy = node.evidence_policy or policy
+        current = node.children or []
+    return policy
 
 
 def conform(value: Any, nodes: Sequence[Node]) -> dict:

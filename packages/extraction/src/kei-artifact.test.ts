@@ -64,6 +64,24 @@ const refused = (run: () => unknown, code = 'invalid_model_output') =>
   assert.throws(run, (error: unknown) => error instanceof ExtractionError && error.code === code)
 
 describe('kei artifact acceptance', () => {
+  it('retains policy-skipped paths and reasons without manufacturing evidence', () => {
+    const policySchema = { ...schema, schemaNodes: schema.schemaNodes.map(node => ({
+      ...node, evidencePolicy: 'derived',
+    })) }
+    const skipped = { code: 'evidence_policy_skipped', detail: 'derived: source verification not requested',
+      record: 0, path: ['records', 0, 'title'] }
+    const raw = artifact({ schema: policySchema, records: [{ title: 'reported' }],
+      evidence: [], ungrounded: [skipped.path], issues: [skipped] })
+    const input = request()
+    input.request.schema = policySchema
+    const { pins } = accept(artifact())
+    const result = acceptKeiArtifact(pins, document, raw, input)
+    assert.equal(result.complete, false)
+    assert.deepEqual(result.evidence, [])
+    assert.deepEqual(result.diagnostics?.ungroundedPaths, [skipped.path])
+    assert.deepEqual(result.diagnostics?.groundingIssues, [skipped])
+  })
+
   it('maps artifact evidence, completeness, diagnostics and attribution onto the pinned Extraction', () => {
     const { pins, extraction: result } = accept(artifact())
     assert.equal(result.extractionId, pins.extractionId)

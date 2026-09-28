@@ -35,7 +35,7 @@ from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.models import Router, as_router, chats_for
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.rendering import RENDERING_VERSION
-from kei_exp.kie.extract.schema import Schema
+from kei_exp.kie.extract.schema import Schema, evidence_policy
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.stages import (
@@ -213,8 +213,20 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     records: list[dict] = []
     links: list[Link] = []
     proofs: list[dict] = []
+    policy_enabled = method is not None and method.evidence_policy == "schema"
+    policy_skipped = []
     for number, (group, fields) in enumerate(slices):
         check()
+        skipped_paths = set()
+        if policy_enabled:
+            for path, _ in leaves(fields):
+                policy = evidence_policy(schema.record_nodes, path)
+                if policy != "quoted":
+                    full_path = ("records", number, *path)
+                    skipped_paths.add(full_path)
+                    policy_skipped.append({"path": list(full_path), "policy": policy})
+                    issues.append(Issue("evidence_policy_skipped", f"{policy}: source verification not requested",
+                                        number, full_path))
         verification_groups = [c.passages for c in contexts] if article else [group]
         if method is not None and method.grounding == "off":
             verification_groups = []
@@ -225,8 +237,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
                     ensure_ascii=False)) if article else None,
                 before_call=check, quoted=method is not None and method.grounding == "quoted", proofs=proofs,
                 span_ids=method is not None and method.grounding == "spans",
-                skip_paths=frozenset(link.path for link in links)
-                    if method is not None and method.grounding_schedule == "unresolved" else frozenset())
+                skip_paths=frozenset(skipped_paths | ({link.path for link in links}
+                    if method is not None and method.grounding_schedule == "unresolved" else set())))
             # Retain the first support in canonical order for each path; all calls remain auditable.
             known = {link.path for link in links}
             links += [link for link in found_links if link.path not in known]
@@ -275,6 +287,14 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
             "source_coverage": "attempted" if all(call.ok for call in calls if call.stage == "inventory") else "partial",
             "grounding": "disabled" if method.grounding == "off" else ("complete" if not ungrounded else "partial"),
             "record_recall": "unmeasured", "document_fields": "unverified" if schema.document_nodes else "not_applicable"}
+        if policy_enabled:
+            all_paths = {("records", number, *path) for number, (_, fields) in enumerate(slices)
+                         for path, _ in leaves(fields)}
+            eligible = all_paths - {tuple(item["path"]) for item in policy_skipped}
+            result["grounding_eligibility"] = {"all_record_leaves": len(all_paths),
+                "eligible_record_leaves": len(eligible), "skipped": policy_skipped}
+            result["completion"]["eligible_grounding"] = (
+                "not_applicable" if not eligible else "complete" if eligible <= grounded else "partial")
         # Successful calls and linked returned fields cannot establish inventory recall.
         result["complete"] = False
     return result

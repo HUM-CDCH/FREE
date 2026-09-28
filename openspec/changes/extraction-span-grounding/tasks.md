@@ -10,8 +10,8 @@
 ## 2. Claim eligibility and scheduling
 
 - [x] 2.1 Add an independent unresolved-path schedule, retain full record/array path identity, and verify only supported claims disappear from later calls.
-- [ ] 2.2 Add schema evidence policy with matching Python/TypeScript validation and revision/transport round-trip tests; retain skipped paths and reasons in results.
-- [ ] 2.3 Add an independent policy factor, preserve all-leaf metrics beside eligible denominators, and test renamed diagnostic fields and child overrides; document semantics.
+- [x] 2.2 Add schema evidence policy with matching Python/TypeScript validation and revision/transport round-trip tests; retain skipped paths and reasons in results.
+- [x] 2.3 Add an independent policy factor, preserve all-leaf metrics beside eligible denominators, and test renamed diagnostic fields and child overrides; document semantics.
 
 ## 3. Candidate routing
 

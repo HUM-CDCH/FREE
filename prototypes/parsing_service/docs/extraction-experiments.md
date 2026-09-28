@@ -106,10 +106,24 @@ Studio does not expose these controls.
   contradictions elsewhere. It can amplify false-positive support and needs
   independently reviewed attribution evidence before production adoption.
 
-The span method and unresolved schedule are opt-in prototypes. Schema evidence
-policy, origin/retrieval routing and their controlled live comparison remain in
-the [follow-up plan](../../../docs/plans/2026-09-28-span-grounding.md). These do
-not alter the running frozen R1/R2a/R3/R4 study.
+- `evidence_policy=schema` independently enables node `evidencePolicy` metadata
+  with quoted or span grounding. Policies are `quoted`, `derived` or `unverified`.
+  Omitted metadata inherits the closest parent's policy, defaulting to `quoted`;
+  explicit child metadata overrides its parent. Explicit null is rejected.
+  For example, a diagnostic array node can declare `"evidencePolicy": "derived"`
+  while an observation child declares `"evidencePolicy": "quoted"`. Renaming the
+  array does not change eligibility. Derived describes eligibility, not a verified
+  calculation. Both skipped policies retain values, full paths in `ungrounded`,
+  and `evidence_policy_skipped` reasons in the result and Studio adapter.
+  `grounding_eligibility` records all/eligible leaf counts and skipped paths/policies;
+  `completion.eligible_grounding` reports only the eligible set (or `not_applicable`
+  when empty). Existing all-leaf grounding and link-rate metrics remain unchanged.
+  The analyzer checks the ledger against the schema and rejects links on skipped
+  fields. Without this method factor, metadata does not prune verification.
+
+These methods are opt-in prototypes. Origin/retrieval routing and their controlled
+live comparison remain in the [follow-up plan](../../../docs/plans/2026-09-28-span-grounding.md).
+They do not alter the running frozen R1/R2a/R3/R4 study.
 
 The shared decoder accepts literal control characters only inside strings and
 preserves their values exactly, like escaped JSON spellings. It still rejects

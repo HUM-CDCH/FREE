@@ -13,9 +13,11 @@ type SchemaNodeBase = {
   name: string
   description?: string
   valueSource?: ValueSource
+  evidencePolicy?: EvidencePolicy
 }
 
 export type ValueSource = 'document' | 'source-filename'
+export type EvidencePolicy = 'quoted' | 'derived' | 'unverified'
 
 export type SchemaNode =
   | (SchemaNodeBase & { type: 'string'; allowedValues?: string[]; itemType?: never; children?: never })
@@ -28,6 +30,7 @@ const schemaNodeBaseShape = {
   name: z.string().trim().min(1),
   description: z.string().min(1).optional(),
   valueSource: z.enum(['document', 'source-filename']).optional(),
+  evidencePolicy: z.enum(['quoted', 'derived', 'unverified']).optional(),
 }
 
 export const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() =>

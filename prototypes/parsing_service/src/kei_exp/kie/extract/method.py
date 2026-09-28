@@ -16,6 +16,7 @@ class ArticleOptions(BaseModel):
     prompt: Literal["reference", "schema"] = "reference"
     grounding: Literal["semantic", "quoted", "spans", "off"] = "semantic"
     grounding_schedule: Literal["unresolved"] | None = None
+    evidence_policy: Literal["schema"] | None = None
     selection: Literal["supported"] | None = None
     rendering: Literal["structured"] | None = None
     grouping: Literal["structural"] | None = None
@@ -25,6 +26,8 @@ class ArticleOptions(BaseModel):
         result = handler(self)
         if self.grounding_schedule is None:
             result.pop("grounding_schedule")
+        if self.evidence_policy is None:
+            result.pop("evidence_policy")
         if self.selection is None:
             result.pop("selection")  # preserve the registered all-unit reference serialization
         if self.rendering is None:
@@ -35,6 +38,8 @@ class ArticleOptions(BaseModel):
 
     @model_validator(mode="after")
     def coherent(self):
+        if self.evidence_policy is not None and self.grounding not in {"quoted", "spans"}:
+            raise ValueError("schema evidence policy requires quoted or span grounding")
         if self.grounding_schedule is not None and self.grounding == "off":
             raise ValueError("grounding scheduling requires verification")
         if self.identity == "conservative" and not self.identity_fields:

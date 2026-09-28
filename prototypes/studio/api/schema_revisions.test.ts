@@ -8,6 +8,7 @@ import {
   schemaRevisionResponseSchema,
 } from '../shared/schemaRevision.contract.js'
 import { createSchemaRevisionHandlers } from './schema_revisions.js'
+import policySchema from '../../parsing_service/tests/fixtures/contracts/evidence-policy.schema.json'
 
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const SCHEMA = '51000000-0000-4000-8003-000000000001'
@@ -34,6 +35,26 @@ function store(overrides: Partial<Pick<ResearcherProjectStore, 'initializeSchema
 }
 
 describe('Schema Revision routes', () => {
+  it('transports evidence policy through a revision write and exact revision read', async () => {
+    const saved = { ...revisions[0], schemaTree: policySchema }
+    const fixture = store({
+      appendSchemaRevision: vi.fn(async () => ({ status: 'created' as const, revision: saved })),
+      getSchemaRevision: vi.fn(async () => saved),
+    })
+    const { POST, GET } = createSchemaRevisionHandlers(fixture)
+    const response = await POST(new Request('http://test/api/schema-revisions', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ projectContextId: PROJECT, extractionSchemaId: SCHEMA,
+        expectedRevisionNumber: 1, ...policySchema }),
+    }))
+    expect(response.status).toBe(201)
+    expect(fixture.appendSchemaRevision).toHaveBeenCalledWith(PROJECT, SCHEMA, 1, policySchema)
+    expect(schemaRevisionResponseSchema.parse(await response.json()).revision.schemaNodes).toEqual(policySchema.schemaNodes)
+    const reopened = await GET(new Request(`http://test/api/schema-revisions/${REVISION_2}?projectContextId=${PROJECT}&extractionSchemaId=${SCHEMA}`))
+    expect(reopened.status).toBe(200)
+    expect(schemaRevisionResponseSchema.parse(await reopened.json()).revision.schemaNodes).toEqual(policySchema.schemaNodes)
+  })
+
   it('creates the initial durable suggestion revision', async () => {
     const fixture = store()
     const { POST } = createSchemaRevisionHandlers(fixture)

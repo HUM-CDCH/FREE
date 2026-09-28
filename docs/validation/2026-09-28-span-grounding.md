@@ -1,7 +1,7 @@
 # Span grounding prototype — 2026-09-28
 
-Status: source-span verification and unresolved-path scheduling implemented and
-tested in `feat/extraction-span-grounding`; schema policy, retrieval and live
+Status: source-span verification, unresolved-path scheduling and schema evidence
+policy implemented and tested in `feat/extraction-span-grounding`; retrieval and live
 evaluation remain unfinished. See the [plan](../plans/2026-09-28-span-grounding.md).
 Existing frozen study runs and production defaults are unchanged.
 
@@ -17,8 +17,16 @@ unknown, negatively attributed and truncated decisions cannot create support.
 `grounding_schedule=unresolved` independently carries full supported record
 paths across units. Unsupported and unanswered claims remain eligible. This
 avoids repeated verification after support, but does not search exhaustively
-for contradictions. Schema diagnostic fields are still verified like other
-populated leaves until the separately planned policy implementation lands.
+for contradictions.
+
+`evidence_policy=schema` enables inherited `evidencePolicy` node metadata with
+explicit child overrides. Matching Python/TypeScript validators accept `quoted`,
+`derived` and `unverified`; omission inherits, explicit null is rejected. Derived
+and unverified leaves retain their values, ungrounded paths and policy reasons.
+The artifact and analyzer keep eligible counts alongside the original all-leaf
+denominator. Empty eligibility is `not_applicable`, never complete grounding.
+Policy metadata survives schema revisions, renames/retyping and PostgreSQL storage.
+It does not change field extraction or imply correctness of a derived value.
 
 ## Verification
 
@@ -54,3 +62,24 @@ measure fresh model savings, claim entailment, retrieval recall, independently
 reviewed table attribution, or authenticated product performance. The new
 comparison must freeze identical upstream records before inference. All existing
 R1/R2a/R3/R4 completion and final-report obligations remain open.
+
+## Schema-policy verification
+
+- Full fast Python suite: **1,104 passed, 72 skipped, 74 deselected**; focused
+  schema/policy/span/study checks: **59 passed**. The final policy-only run has
+  **14 passed**, including two subsequent checks for empty eligibility and
+  rejection of links on skipped fields. No serving code changed between runs.
+- Full Studio suite: **1,560 passed in 131 files**; extraction package:
+  **73 passed**. Shared fixtures exercise both schema validators, revision POST/GET,
+  schema changes and retention of policy reasons in the result adapter.
+- Typechecks for db, extraction, extraction-result-export and Studio pass.
+  Studio lint has zero errors and three pre-existing hook-dependency warnings.
+- A real PostgreSQL test used the guarded disposable database
+  `free_test_span_policy_264b0165`. Migrations and all **4 store checks** passed,
+  including schema-policy write/read; the owned database was removed afterward.
+  The existing server and databases were not reset. Receipt and redacted logs:
+  `artifacts/extraction-ablation/span-grounding-20260928/policy-postgres-receipt.json`
+  in the primary workspace.
+- All six old-method scripted comparisons remain byte-identical after policy
+  implementation (`reference-after-policy.json`, same SHA-256 above). The frozen
+  study analyzer and collector remain untouched.
