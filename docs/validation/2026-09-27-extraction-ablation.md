@@ -247,6 +247,14 @@ grounding calls concern diagnostic fields only. Harvey quoted has 56 such calls
 among 143 saved grounding replies. Neither partial snapshot is pooled with the
 completed-cell totals or represented as its final cost.
 
+There is also a product execution boundary: at 00:27 UTC on September 28,
+Akita quoted was still receiving replies more than four hours and fifty minutes
+after its 19:36 UTC attempt start. The direct study harness does not apply
+Studio/Parsing Service's documented three-hour extraction deadline. A terminal
+research artifact therefore would not establish that this arm can finish within
+the application's execution budget. Keep that distinction in the final cost and
+adoption discussion; the frozen research attempt remains unchanged.
+
 Evidence and the executable audit are in
 `artifacts/extraction-ablation/grounding-cost-audit-20260928/`. Run `audit.py`
 from the primary checkout with the study directory and a new output JSON path.
