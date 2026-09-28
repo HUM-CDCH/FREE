@@ -33,7 +33,7 @@ def supported(passage, label, value=1827):
 @pytest.mark.parametrize("change", ["offset", "identity", "geometry", "attribution", "foreign_claim"])
 def test_source_audit_rejects_changed_location_even_with_an_exact_quote(change):
     passage = passages(["Hill\t1827\nHill\t1827"])[0]
-    artifact = supported(passage, f"p1_s0@0:{len(passage.text)}")
+    artifact = supported(passage, "E1")
     claims = {("records", 0, "year"): 1827}
     result, proofs = reporter["source_validity"](artifact, evidence([passage]), claims)
     assert result["all_literal_locations_valid"] and result["semantic_precision"] is None
@@ -54,7 +54,7 @@ def test_source_audit_rejects_changed_location_even_with_an_exact_quote(change):
 
 def test_source_audit_preserves_coarse_cell_identity_and_multiple_proofs():
     passage = table_passage()
-    artifact = supported(passage, "p1_s0/r2_c0", value=37)
+    artifact = supported(passage, "E5", value=37)
     artifact["quoted_support"] *= 2  # two units may attest the same retained claim
     result, proofs = reporter["source_validity"](artifact, evidence([passage]), {("records", 0, "year"): 37})
     assert result["proofs_checked"] == 2 and result["retained_links_checked"] == 1
