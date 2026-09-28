@@ -1,6 +1,6 @@
 # Modular extraction ablation — execution record
 
-Status: **implementation merged; R1 execution complete; R3 running; final replay and results pending**.
+Status: **implementation merged; R1 and R3 execution complete; R4 running; final replay and results pending**.
 
 The [execution plan](../plans/2026-09-27-modular-extraction-ablation-study.md) and
 [stage documentation](../../prototypes/parsing_service/docs/extraction-experiments.md)
@@ -9,13 +9,24 @@ the old reference accuracy below is a scorer regression check, not a new study r
 
 ## Current execution recovery
 
-Latest checkpoint, 2026-09-28 07:47 CEST (05:47 UTC): R1 has all **79/79 sealed
+Latest checkpoint, 2026-09-28 08:33 CEST (06:33 UTC): R1 has all **79/79 sealed
 results**. Its recovery parent exited normally, and full frozen-input validation
 passed for all 79 cells and 16 sources. Eight cells retain partial processing;
-their failures remain in the study. The existing supervisor validated frozen R3
-and started the rendering comparison, which now has three of twelve seals.
-R4 remains queued. R2a has all 30/30 results and a complete offline acceptance
+their failures remain in the study. R3 now has all **12/12 sealed results** and
+79 fresh saved replies, retaining one partial-processing outcome. The existing
+supervisor validated frozen R4 and started the grouping comparison with two
+workers. R2a has all 30/30 results and a complete offline acceptance
 check, described below. R5 remains separately queued after original collection.
+
+The R3 terminal audit verifies every artifact hash, manifest pin and finished
+receipt. Harvey structured retains an inventory refusal: 28,974 input tokens
+plus a 4,096-token output allowance exceeds the 32,768 served context by 302.
+Its earlier document call completed, but no records were produced. Keep this
+outcome in the rendering comparison. All other R3 cells report processing
+complete; grounding is disabled and recall remains unmeasured. The receipt
+`span-grounding-20260928/r3-complete-r4-handoff.json` also verifies the initial
+R4 workers' process identities, working directories and import paths against
+the frozen source. Final R3 replay and corrected analysis remain pending.
 
 Sixty R1 cells have earlier exact replay acceptance from 1,945 saved replies with
 HTTP disabled. Increment `replay-verification-20260927/increment-60-offline.json`
