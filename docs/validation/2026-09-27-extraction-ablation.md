@@ -173,6 +173,8 @@ the thirty receipts match the exact reused request subsequences, totaling 500
 saved replies and zero fresh model or tokenizer calls during acceptance.
 The [complete result tables](2026-09-28-extraction-selection-results.md) include
 per-document scores, request budgets, stage totals and issues.
+Grounding is disabled in both R2a arms. Their budgets exclude verification calls
+and do not estimate savings for the full grounded pipeline.
 
 No annotated paper's primary gold score changes under selection; the paired mean effect is 0
 percentage points across six documents. The zero-width descriptive bootstrap
