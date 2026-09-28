@@ -50,7 +50,7 @@ PYTHONPATH=src:. PYTHONDONTWRITEBYTECODE=1 \
 ```
 
 The merged compact-label PR head `0843d247` has a successful GitHub `verify`
-check. At inspection, no separate check was reported on this merge SHA; the local captured-response
+check. At inspection (2026-09-28, about 09:35 UTC), no separate check was reported on this merge SHA; the local captured-response
 check above is the evidence added for that exact merged revision. Other CI/test
 claims remain scoped to their reported heads.
 

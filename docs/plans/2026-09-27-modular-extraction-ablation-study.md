@@ -1,12 +1,14 @@
 # Modular extraction and controlled ablation study — 2026-09-27
 
 Status: active; implementation merged, controlled study unfinished. This is the durable execution plan.
+
 Merged-grounding acceptance, 2026-09-28: merge `2ce78e4c` reproduces nine
 selected real-capture cases and all 52 requests with network blocked; see the
 [regression report](../validation/2026-09-28-merged-grounding-replay.md).
 This checks the refactored dispatch/grounding assembly, not independent accuracy.
 `artifacts/extraction-ablation/development-exposure-20260928.json` records all 16
 known study PDFs as development-exposed, including the unannotated examples.
+
 Completed-cell acceptance, 2026-09-28 09:16 UTC: all 79 R1 cells, 12 R3 cells and
 four completed R4 controls exactly replay with HTTP disabled. Corrected reports
 and 9,603 pinned-file checks are preserved in
@@ -14,6 +16,7 @@ and 9,603 pinned-file checks are preserved in
 [consolidated development report](../validation/2026-09-28-completed-development-study.md).
 R2a's existing 30-cell acceptance is rechecked. No generation resumed. R4 has
 zero completed treatment pairs; eight R4 and 84 R5 cells remain deferred.
+
 Evaluation decision, 2026-09-28: repeated inspection makes the existing corpus
 development data. The completed [Harvey diagnostic](../validation/2026-09-28-harvey-grounding-micro.md)
 and [Opus repeat audit](../validation/2026-09-28-grounding-pilot-audit.md) do not
@@ -21,6 +24,7 @@ change that status. Finish reporting the agreed development scope; the full
 matrix remains deferred. Freeze a candidate and baseline before a separate
 document-family holdout evaluation. The acceptance gates below are explicit;
 no independent accuracy improvement has been established.
+
 Pilot checkpoint, 2026-09-28 07:55 UTC: all six prioritized grounding cells and
 their offline reports are complete. The [results](../validation/2026-09-28-grounding-pilot.md)
 retain the one-document boundary, changed links and 84 pending cells. R4 and
@@ -47,9 +51,9 @@ Implementation merged through PRs [#142](https://github.com/HUM-CDCH/FREE/pull/1
 For a future agent session, use the [reproduction prompt](2026-09-27-extraction-ablation-reproduction-prompt.md).
 It distinguishes resuming a frozen study from registering a fresh revision.
 
-The subsequent grounding-cost work is a separate registered **R5** study, tracked
-in [PR #145](https://github.com/HUM-CDCH/FREE/pull/145) and its
-[span-grounding plan](https://github.com/HUM-CDCH/FREE/blob/feat/extraction-span-grounding/docs/plans/2026-09-28-span-grounding.md).
+The subsequent grounding-cost work is a separate registered **R5** study, merged
+via [PR #145](https://github.com/HUM-CDCH/FREE/pull/145); see its
+[span-grounding plan](2026-09-28-span-grounding.md).
 Its implementation checkout is `/home/gennaro/projects/FREE-worktrees/extraction-span-grounding`.
 It freezes the same upstream records before comparing span selection, unresolved
 scheduling, schema evidence policy and origin/lexical routing. R5 does not replace

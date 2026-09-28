@@ -90,8 +90,9 @@ Recheck without inference, using a new output filename:
 python3 /home/gennaro/projects/FREE/artifacts/extraction-ablation/harvey-grounding-micro-20260928/analyze.py /tmp/harvey-micro-check-new.json
 ```
 
-The frozen v1 and v2 runtimes precede concurrent PR architecture integration;
-this is not a live evaluation of the latest remote heads. Source-unit selection
+The frozen v1 and v2 runtimes precede the #145/#146 architecture integration,
+since merged as `2ce78e4c`; this is not a live evaluation of the merged code (see
+the [merged replay](2026-09-28-merged-grounding-replay.md)). Source-unit selection
 is diagnostic, so no whole-document recall, independent accuracy or v2 semantic
 equivalence claim follows. Original R5 remains six completed cells and 84 deferred;
 this separate diagnostic does not complete additional registered R5 cells.

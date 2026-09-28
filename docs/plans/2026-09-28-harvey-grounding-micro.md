@@ -38,9 +38,10 @@ The latter two differ only by label transport/prompt version. Quoted changes the
 proof representation too. Use two independent fresh repeats of each case/arm:
 12 cells, 48 selected claim–unit decisions including explicit refusals.
 
-Both runtimes precede the concurrent architecture integration; their complete
-80-file maps remain pinned. This tests those frozen implementations, not the
-latest remote PR heads. Repeats are intentionally fresh, never captured-response
+Both runtimes precede the #145/#146 architecture integration (since merged as
+`2ce78e4c`); their complete 80-file maps remain pinned. This tests those frozen
+implementations, not the merged code; see the
+[merged replay](../validation/2026-09-28-merged-grounding-replay.md). Repeats are intentionally fresh, never captured-response
 reuse. Within each case/arm, their complete requests must match.
 
 Provider: existing Qwen/Qwen3.8-27B-FP8 endpoint at loopback port 18012, temperature
@@ -65,10 +66,14 @@ quotes for this selected table batch; the experiment does not assume cost saving
 
 Use a fixed seed 20260928 for cell order and at most two workers. Stop admitting
 generation HTTP calls after 600 wall seconds or 24 calls, whichever comes first.
-An admitted request uses the configured 120-second client timeout; this is not a
-hard backend termination deadline. Preserve timeouts/missing replies as failures and
+An admitted request can run for at most the configured 120-second client timeout
+beyond the admission deadline. Preserve timeouts/missing replies as failures and
 do not retry a cell automatically. Existing adapter fallback for unsupported
 structured output, if triggered, consumes the same HTTP-call cap and is reported.
+
+Clarification, 2026-09-28 (after generation; the registered protocol above is
+unchanged): the 120-second value is a client timeout, not a hard backend
+termination deadline.
 
 ## Artifacts and acceptance
 

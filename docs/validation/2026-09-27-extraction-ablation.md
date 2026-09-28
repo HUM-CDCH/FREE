@@ -237,6 +237,9 @@ latency, or deployment validation. No deployment was performed.
 
 ## R1 complete execution: preliminary effects awaiting final replay
 
+Superseded by the [completed-development report](2026-09-28-completed-development-study.md),
+which records the final exact replay; this section is kept as history.
+
 The corrected analyzer covers all 79 sealed R1 cells, including the eight
 partial-processing outcomes. This is a **descriptive preview**, not final replay
 acceptance. Its network-disabled reporting outputs and result pins are preserved
@@ -365,6 +368,9 @@ Completion of this conditional selection comparison does not complete R1,
 R3/R4 or the full study.
 
 ## R3 complete execution: preliminary rendering effects
+
+Superseded by the [completed-development report](2026-09-28-completed-development-study.md),
+which records the final exact replay; this section is kept as history.
 
 All twelve R3 results are sealed. The corrected analyzer and table renderer run
 offline against those results; their outputs and pins are preserved under

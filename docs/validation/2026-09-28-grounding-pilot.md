@@ -146,14 +146,15 @@ Earlier two-arm checkpoints agree with the final reports.
 
 The manifest still has **6 completed and 84 pending cells**. All six comparisons
 and the interaction have one observed document and 14 explicitly excluded pending
-documents; unavailable costs are not zero. The original R4 comparison and final
-R1/R3/R4 collection also remain unfinished. Keep their admission deferred as the
+documents; unavailable costs are not zero. The original R4 comparison remains
+unfinished (4/12 cells); R1 and R3 are complete and exactly replayed in the
+[completed-development report](2026-09-28-completed-development-study.md). Keep their admission deferred as the
 user requested; do not restart old supervisors or duplicate these six cells.
 
 The subsequent compact-label revision addresses part of the catalogue overhead:
 the full preflight refused 20.8% of span-only claim–unit pairs, including every
 pair for Hvissinge. This pilot was selected outside that failure case. A compact
-label version 2 is separately pinned in PR #146 and passes ten tokenizer-only
+label version 2 was merged in PR #146 and passes ten tokenizer-only
 checks; Age/Hamburg still have singleton overflows. It has no fresh quality result.
 Before further fresh comparisons, retain identical-request disagreement as a
 diagnostic and include actual table evidence. Preserve this pilot and its inputs.

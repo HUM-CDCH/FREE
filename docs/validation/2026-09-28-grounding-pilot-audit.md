@@ -31,7 +31,8 @@ an immutable model-weights digest and server execution state are unavailable.
 The captures establish repeat disagreement; they do not identify its infrastructure
 cause or justify claiming that greedy decoding is deterministic.
 
-Observed cost savings remain valid. Small link changes and the linked-claim
+The observed call/token reductions on this one development document remain as
+recorded; they are not a general cost-saving claim. Small link changes and the linked-claim
 interaction cannot establish policy/scheduling effects. The repeated-call
 addendum supersedes the initial interpretation of one routed loss; it does not
 establish semantic equivalence or routing's general effect.
