@@ -23,10 +23,12 @@ test('PostgreSQL keeps one Model Configuration per Researcher Account and serial
     { db, pool },
     { createModelConfigurationStore },
     { createInternalProjectWorkerStore, createResearcherProjectStore },
+    { lockModelConfiguration },
   ] = await Promise.all([
     import('./prisma/db.js'),
     import('./model-configuration-store.js'),
     import('./project-store.js'),
+    import('./row-lock.js'),
   ])
   const accountIds: string[] = []
   after(async () => {
@@ -239,5 +241,61 @@ test('PostgreSQL keeps one Model Configuration per Researcher Account and serial
     } finally {
       assert.equal(await projects.deleteProjectContext(project.projectContextId), true)
     }
+  })
+
+  await t.test('an admission lock waits for an apply in flight and then reads what it committed', async () => {
+    const account = await createAccount('Locked read')
+    await store.apply(account.id, () => ({ version: 1 }))
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const applying = store.apply(account.id, async () => { await held; return { version: 2 } })
+    await setTimeout(100)
+    const client = new Client({ connectionString: databaseUrl })
+    await client.connect()
+    try {
+      await client.query('BEGIN')
+      const reading = lockModelConfiguration(client, account.id)
+      await setTimeout(100)
+      release()
+      await applying
+      assert.deepEqual(await reading, { version: 2 })
+      await client.query('COMMIT')
+    } finally {
+      await client.end()
+    }
+  })
+
+  await t.test('an apply waits for a transaction holding the admission lock', async () => {
+    const account = await createAccount('Locked apply')
+    await store.apply(account.id, () => ({ version: 1 }))
+    const client = new Client({ connectionString: databaseUrl })
+    await client.connect()
+    try {
+      await client.query('BEGIN')
+      assert.deepEqual(await lockModelConfiguration(client, account.id), { version: 1 })
+      let applied = false
+      const applying = store.apply(account.id, () => ({ version: 2 })).then(() => { applied = true })
+      await setTimeout(200)
+      assert.equal(applied, false)
+      await client.query('COMMIT')
+      await applying
+      assert.equal(applied, true)
+    } finally {
+      await client.end()
+    }
+  })
+
+  await t.test('an account that never applied is read as null and gets no row', async () => {
+    const account = await createAccount('Never locked')
+    const client = new Client({ connectionString: databaseUrl })
+    await client.connect()
+    try {
+      await client.query('BEGIN')
+      assert.equal(await lockModelConfiguration(client, account.id), null)
+      await client.query('COMMIT')
+    } finally {
+      await client.end()
+    }
+    assert.equal(await db.orm.public.ModelConfiguration.select('researcherAccountId').first({ researcherAccountId: account.id }), null)
   })
 })

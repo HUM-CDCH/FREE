@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg'
 import type { DatabaseTransaction } from './prisma/db.js'
 
 /**
@@ -27,4 +28,26 @@ export async function lockSourceDocumentRow(
       id: sourceDocumentId,
     }).update({ originalName: document.originalName })) !== null
   )
+}
+
+/**
+ * Orders an admission against its Researcher Account's configuration applies for the rest of the admission's
+ * transaction, and returns the committed document (null before the account's first apply). `client` is the pooled
+ * client withPoolClientTransaction hands its work, so the lock belongs to that transaction.
+ *
+ * FOR SHARE conflicts with the lock `ModelConfigurationStore.apply` holds (its upsert's ON CONFLICT DO UPDATE): an
+ * apply in flight commits first and this reads what it committed, and an apply that starts later waits for this
+ * transaction. Admissions do not block one another. An account that never applied has no row: nothing is locked or
+ * created, and a first apply racing this transaction is ordered after it, since nothing it writes was read here.
+ * Callers lock Source Document rows first; `apply` takes no other lock, so the order has no cycle.
+ */
+export async function lockModelConfiguration(
+  client: Pick<PoolClient, 'query'>,
+  researcherAccountId: string,
+): Promise<unknown | null> {
+  const { rows } = await client.query<{ document: unknown }>(
+    'SELECT "document" FROM "public"."modelConfiguration" WHERE "researcherAccountId" = $1 FOR SHARE',
+    [researcherAccountId],
+  )
+  return rows[0]?.document ?? null
 }

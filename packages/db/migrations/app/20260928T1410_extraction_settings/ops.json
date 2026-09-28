@@ -1,0 +1,157 @@
+[
+  {
+    "id": "column.public.batchExtraction.requestedModels",
+    "label": "Add column \"requestedModels\" to \"batchExtraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requestedModels",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requestedModels\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "requestedModels"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"requestedModels\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" ADD COLUMN \"requestedModels\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requestedModels\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "requestedModels"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.batchExtraction.requestedSettings",
+    "label": "Add column \"requestedSettings\" to \"batchExtraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requestedSettings",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requestedSettings\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "requestedSettings"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"requestedSettings\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" ADD COLUMN \"requestedSettings\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requestedSettings\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "requestedSettings"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.requestedSettings",
+    "label": "Add column \"requestedSettings\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requestedSettings",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requestedSettings\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedSettings"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"requestedSettings\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"requestedSettings\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requestedSettings\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedSettings"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "data_migration.empty-extraction-settings",
+    "label": "Data transform: empty-extraction-settings",
+    "operationClass": "data",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [
+      {
+        "description": "Check empty-extraction-settings has work to do",
+        "sql": "SELECT EXISTS (SELECT \"researcherAccountId\" AS \"researcherAccountId\" FROM \"public\".\"modelConfiguration\" WHERE jsonb_typeof(\"document\") = 'object' AND (\"document\" -> 'extractionSettings') IS NULL LIMIT 1) AS ok",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "Run empty-extraction-settings",
+        "sql": "UPDATE \"public\".\"modelConfiguration\" SET \"document\" = \"document\" || '{\"extractionSettings\": {}}'::jsonb WHERE jsonb_typeof(\"document\") = 'object' AND (\"document\" -> 'extractionSettings') IS NULL",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "Verify empty-extraction-settings resolved all violations",
+        "sql": "SELECT NOT EXISTS (SELECT \"researcherAccountId\" AS \"researcherAccountId\" FROM \"public\".\"modelConfiguration\" WHERE jsonb_typeof(\"document\") = 'object' AND (\"document\" -> 'extractionSettings') IS NULL LIMIT 1) AS ok",
+        "params": []
+      }
+    ]
+  }
+]

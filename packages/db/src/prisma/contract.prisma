@@ -144,14 +144,17 @@ model SchemaRevision {
 // Extraction Strategy applied to a chosen set of Source Documents. Its member
 // Extractions, admitted with it, are the intended selection.
 model BatchExtraction {
-  id               Uuid                    @id @default(uuid())
-  projectContextId Uuid
-  schemaRevisionId Uuid
-  strategy         String
-  createdAt        Timestamptz6            @default(now())
-  projectContext   ProjectContext          @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
-  schemaRevision   SchemaRevision          @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
-  extractions      Extraction[]
+  id                Uuid                    @id @default(uuid())
+  projectContextId  Uuid
+  schemaRevisionId  Uuid
+  strategy          String
+  // The one method every member was admitted with (members carry the same values). Null before this was recorded.
+  requestedModels   Json?
+  requestedSettings Json?
+  createdAt         Timestamptz6            @default(now())
+  projectContext    ProjectContext          @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
+  schemaRevision    SchemaRevision          @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
+  extractions       Extraction[]
 
   @@unique([id, schemaRevisionId, strategy], map: "batch_extraction_pin_key")
   @@index([projectContextId, createdAt])
@@ -210,6 +213,10 @@ model Extraction {
   // The Extraction Model Choice requested at admission; null keeps kei-exp's defaults. The models each role ran on are
   // in `diagnostics.models`; `modelAttribution` names the fields model.
   requestedModels                Json?
+  // The Extraction's admitted method settings (`ActiveSettings`: `{article}`, `{generic}` or `{recipe}`, each null for
+  // service defaults), frozen at admission with `requestedModels`; execution reads only these. Null: admitted before
+  // settings were recorded ("Not recorded"), never inferred from today's account configuration.
+  requestedSettings              Json?
   outcome                        ExtractionOutcome?
   complete                       Boolean?
   modelAttribution               Json?

@@ -3,7 +3,8 @@ import { db, type Database } from './prisma/db.js'
 /**
  * One Researcher Account's Model Configuration document. Studio validates it before every write; keys never enter
  * it. The store only guarantees that one account's applies run one at a time, each reading the document the
- * previous one committed.
+ * previous one committed. Admission reads the committed document under the same row lock (`lockModelConfiguration`),
+ * so an Extraction is admitted either before an apply or with what it committed.
  */
 export type ModelConfigurationStore = {
   /** The account's document, or null before its first apply. */
