@@ -5,6 +5,11 @@ Status: reusable execution prompt, written 2026-09-27 and extended for R5 on
 a future coding-agent session. Paths are starting points, not proof of current
 state. Completion counts, process IDs and branch heads must be discovered live.
 
+On 2026-09-28 the user prioritized a six-cell grounding pilot and deferred the
+full matrix. Read [that decision](2026-09-28-grounding-pilot.md) before applying
+this general prompt. Preserve pilot outcomes; do not restart the old full-R5
+scheduler or resume held admission from the historical instructions below.
+
 ---
 
 You are working on FREE's document extraction pipeline. Run a reproducible,

@@ -1,6 +1,13 @@
 # Modular extraction ablation — execution record
 
-Status: **implementation merged; R1 and R3 execution complete; R4 running; final replay and results pending**.
+Status: **implementation merged; R1 and R3 execution complete; small grounding pilot prioritized; full matrix deferred**.
+
+At 2026-09-28 07:12 UTC the user chose faster pilot feedback. The
+[pilot plan](../plans/2026-09-28-grounding-pilot.md) supersedes the earlier execution
+order: current R4 workers finish normally, further R4 admission is held, and
+six registered Zelechowska R5 cells take their slots. Full R5 is deferred.
+Final replay and scientific reporting remain unfinished. Historical checkpoints
+below do not authorize restarting the old full-matrix scheduler.
 
 The [execution plan](../plans/2026-09-27-modular-extraction-ablation-study.md) and
 [stage documentation](../../prototypes/parsing_service/docs/extraction-experiments.md)

@@ -1,7 +1,13 @@
 # Modular extraction and controlled ablation study — 2026-09-27
 
 Status: active; implementation merged, controlled study unfinished. This is the durable execution plan.
-Execution checkpoint, 2026-09-28 06:33 UTC: R1 has all 79 sealed results, including
+Priority change, 2026-09-28 07:12 UTC: the user chose a [small grounding pilot](2026-09-28-grounding-pilot.md)
+and deferred the full matrix. R4 admission is held while its current workers
+finish; six existing R5 cells will use the freed slots. The full-R5 scheduler and
+collector are stopped. Read the pilot plan and integration pointer before any
+resumption; the older dependency chain below is historical.
+
+Earlier checkpoint, 2026-09-28 06:33 UTC: R1 has all 79 sealed results, including
 eight partial-processing outcomes; final all-cell replay and corrected analysis
 remain pending. R2a is complete. R3 has all 12 sealed results, including one
 retained context refusal; R4 is running from its frozen archive,
