@@ -35,7 +35,7 @@ def _install(control: Path, crash_after: str | None) -> contextlib.AbstractConte
     """Patches the doubles in; returns the `fake` record's registration, which the caller holds open (an entered but
     unreferenced registration would be closed, and the record removed, by the garbage collector)."""
     from kei_exp import runtime
-    from kei_exp.kie.extract import run as extraction
+    from kei_exp.kie.extract import tokens
     from kei_exp.kie.stages import ocr
     from kei_exp.workflows import extract as extract_workflow
     from tests.helpers.fake import FakeTranscriber, registered
@@ -51,7 +51,7 @@ def _install(control: Path, crash_after: str | None) -> contextlib.AbstractConte
 
     runtime.loaded_model = lambda url: (True, "fake/model")
     extract_workflow.chats_for = lambda options: CountingChat(honest)
-    extraction.counter_for = lambda client: WordCounter()
+    tokens.counter_for = lambda client: WordCounter()
 
     def crashing(module, name, kind):
         original = getattr(module, name)

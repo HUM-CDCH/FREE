@@ -12,6 +12,7 @@ so a failed read deletes nothing and ends the workflow ERROR; Studio's next sche
 """
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 import time
@@ -69,7 +70,7 @@ def _still_converting(boot_ms: int) -> set[str]:
 
 def _writers(directory: Path) -> list[str]:
     """The kei workflows that wrote this run: its conversion (params.json) and every published extraction."""
-    params = runs.read_json(directory / "params.json")
+    params = json.loads((directory / "params.json").read_text(encoding="utf-8"))
     if not isinstance(params, dict):
         raise ValueError("params.json holds no object")  # noqa: TRY004 - bad file content, as for bad JSON
     workflow_id = params.get("workflow_id")

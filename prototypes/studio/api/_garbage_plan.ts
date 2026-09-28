@@ -1,6 +1,8 @@
 import { LIVE_WORKFLOW_STATUSES, type CanonicalPackageDescriptor, type ScopeIds, type ScopeSnapshot } from 'db'
-import { GC_PREFIX, keiConvertOkSchema, type KeiDeleteRunsInput } from 'extraction/kei-handoff'
-import { keiRunOf } from 'extraction/workflows'
+import {
+  extractionIdOfWorkflow, extractWorkflowId, GC_PREFIX, keiConvertOkSchema, keiRunOf, STUDIO_EXTRACT_PREFIX,
+  type KeiDeleteRunsInput,
+} from 'extraction/kei-handoff'
 import { CANONICAL_UUID } from 'studio-configuration'
 import type { StagedSource } from './_source_inbox.js'
 
@@ -34,7 +36,7 @@ export const GC_POLICY: GarbagePolicy = {
   historyBatch: 1000,
 }
 export const TERMINAL_STATUSES = ['SUCCESS', 'ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'] as const
-export const STUDIO_WORKFLOW_PREFIXES = ['extract:', 'suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:'] as const
+export const STUDIO_WORKFLOW_PREFIXES = [STUDIO_EXTRACT_PREFIX, 'suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:'] as const
 export const SWEEP_PREFIX = 'sched-collectGarbage-'
 const INTERACTIVE_PREFIXES = ['suggestion:', 'edit:']
 const KEI_CONVERT = 'kei-convert:'
@@ -43,7 +45,6 @@ const LIVE = LIVE_WORKFLOW_STATUSES
 const TERMINAL = new Set<string>(TERMINAL_STATUSES)
 const ENDED = new Set(['SUCCESS', 'ERROR'])
 const STOPPED = new Set(['CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'])
-const EXTRACT = /^extract:([^:]+)$/
 const SUGGEST = /^suggest:([^:]+):(\d+)$/
 
 /** Whether a Studio workflow can run no more steps: gone, ended, or stopped (both stamped from the database clock)
@@ -55,7 +56,7 @@ export function quiescent(row: WorkflowRow | undefined, bootTimestampMs: number)
 }
 
 export function keiParentOf(keiWorkflowId: string): string | null {
-  if (keiWorkflowId.startsWith(KEI_EXTRACT)) return `extract:${keiWorkflowId.slice(KEI_EXTRACT.length)}`
+  if (keiWorkflowId.startsWith(KEI_EXTRACT)) return extractWorkflowId(keiWorkflowId.slice(KEI_EXTRACT.length))
   if (keiWorkflowId.startsWith(KEI_CONVERT)) return keiWorkflowId.slice(KEI_CONVERT.length) || null
   return null
 }
@@ -85,18 +86,18 @@ function scopeGone(row: WorkflowRow, scopes: ScopeSnapshot): boolean {
 
 /** The row a row-backed workflow publishes into is gone. */
 function rowGone(row: WorkflowRow, scopes: ScopeSnapshot): boolean {
-  const extraction = EXTRACT.exec(row.workflowID)
+  const extraction = extractionIdOfWorkflow(row.workflowID)
   const suggestion = SUGGEST.exec(row.workflowID)
-  if (extraction) return missing(scopes.extractions, extraction[1])
+  if (extraction !== null) return missing(scopes.extractions, extraction)
   if (suggestion) return missing(scopes.suggestions, suggestion[1])
   return false
 }
 
 /** The domain already holds this attempt's outcome, or never will (spec, *Propagation is retried*). */
 function settled(row: WorkflowRow, scopes: ScopeSnapshot): boolean {
-  const extraction = EXTRACT.exec(row.workflowID)
+  const extraction = extractionIdOfWorkflow(row.workflowID)
   const suggestion = SUGGEST.exec(row.workflowID)
-  if (extraction) return canonical(extraction[1]) && (scopes.extractions.get(extraction[1])?.settled ?? true)
+  if (extraction !== null) return canonical(extraction) && (scopes.extractions.get(extraction)?.settled ?? true)
   if (suggestion) {
     if (!canonical(suggestion[1])) return false
     const current = scopes.suggestions.get(suggestion[1])
@@ -123,7 +124,7 @@ export function scopeIdsOf(rows: readonly WorkflowRow[]): ScopeIds {
     add(revisions, attributes.sourceRepresentationRevisionId)
     add(schemas, attributes.extractionSchemaId)
     add(suggestions, attributes.batchSchemaSuggestionId)
-    add(extractions, EXTRACT.exec(row.workflowID)?.[1])
+    add(extractions, extractionIdOfWorkflow(row.workflowID))
     add(suggestions, SUGGEST.exec(row.workflowID)?.[1])
   }
   const sorted = (set: Set<string>) => [...set].sort()

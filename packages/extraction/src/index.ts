@@ -3,13 +3,11 @@ export type { ExtractionErrorCode } from './errors.js'
 export type { ExtractionExecution } from './dependencies.js'
 export { createKeiExpClient } from './kei-exp.js'
 export type { KeiExpClient, KeiExpArtifact, KeiExpIngestionModelListing, KeiExpModelListing } from './kei-exp.js'
+export { createExtractions } from './extractions.js'
+export { createResearcherExtractionPersistence } from './postgres-persistence.js'
+export { createExtractionStore } from './postgres-workflow-store.js'
+export { dbosSteps } from './workflow-steps.js'
 export {
-  createExtractions,
-  createExtractionStore,
-  createResearcherExtractionPersistence,
-} from './postgres-persistence.js'
-export {
-  dbosSteps,
   EXTRACTION_QUEUE,
   registerExtractionWorkflow,
   RUN_EXTRACTION,

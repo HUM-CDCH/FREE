@@ -7,15 +7,38 @@ import {
   type Database,
 } from 'db'
 import type { ExtractionExecution } from './dependencies.js'
-import { modelChoice } from './model-choice.js'
+import { modelChoice } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
-import type { AdmitBatchMember, DurableBatchExtraction } from './postgres-persistence.js'
+import type { AdmitBatchMember } from './postgres-admission.js'
+import type { DurableBatchExtraction } from './postgres-batches.js'
 import { parseBatchSuggestionDefinition } from './schema.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type {
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
 } from './types.js'
+
+function withoutNodeIds(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const node = { ...(value as Record<string, unknown>) }
+  const children = node.children
+  delete node.id
+  delete node.children
+  return {
+    ...node,
+    ...(Array.isArray(children)
+      ? { children: children.map(withoutNodeIds) }
+      : children === undefined ? {} : { children }),
+  }
+}
+export function semanticSuggestionTree(tree: unknown): unknown {
+  if (Array.isArray(tree)) return tree.map(withoutNodeIds)
+  if (!tree || typeof tree !== 'object') return tree
+  const { schemaNodes, ...definition } = tree as Record<string, unknown>
+  return Array.isArray(schemaNodes)
+    ? { ...definition, schemaNodes: schemaNodes.map(withoutNodeIds) }
+    : tree
+}
 
 /**
  * Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff: the confirmed schema, the batch, one pending

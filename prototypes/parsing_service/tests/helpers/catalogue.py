@@ -5,7 +5,7 @@ A fixture lists pages, their units (0 for a native PDF page, else book pages of 
 about is spelled out: a segment is a string or `{"text", "label", "status", "bbox_pt"}`, a crop may carry its own
 `bbox_pt` (to make two crops overlap); everything else is laid out here. A segment's `unit` or `crop` may be forced to
 name something its page does not have, which is how the reader's referential checks are exercised. The files are
-written with the models, hashes and digest the service's reader verifies, so `kie.extract.evidence.load` accepts them.
+written with the models, hashes and digest the service's reader verifies, so `kie.passages.load` accepts them.
 """
 from __future__ import annotations
 

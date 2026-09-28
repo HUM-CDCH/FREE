@@ -9,7 +9,7 @@ import { DBOS, DBOSClient } from '@dbos-inc/dbos-sdk'
 import pg from 'pg'
 import { LIVE_WORKFLOW_STATUSES, workflowStatusesOf } from 'db'
 import type { ExtractionExecution } from '../dependencies.js'
-import { keiExtractWorkflowId } from '../kei-handoff.js'
+import { extractWorkflowId, keiExtractWorkflowId } from '../kei-handoff.js'
 import { EXTRACTION_QUEUE, registerExtractionWorkflow, type ExtractionWorkflowPorts } from '../workflows.js'
 
 export type DbosTestApp = Readonly<{
@@ -63,7 +63,7 @@ export async function launchDbosTestApp(options: {
     },
     statuses: workflowStatusesOf((input) => client.listWorkflows(input)),
     async cancel(extractionId) {
-      const studioId = `extract:${extractionId}`
+      const studioId = extractWorkflowId(extractionId)
       const [studio] = await client.listWorkflows({ workflowIDs: [studioId], loadInput: false, loadOutput: false })
       if (studio && LIVE_WORKFLOW_STATUSES.has(studio.status)) await client.cancelWorkflow(studioId)
       await options.ports().kei.cancel(keiExtractWorkflowId(extractionId))

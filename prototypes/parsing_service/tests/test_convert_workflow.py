@@ -12,10 +12,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 from kei_exp import api, runs, runtime
-from kei_exp.cut import DEFAULT_LAYOUT_MODEL
 from kei_exp.failures import KeiFailure
 from kei_exp.kie import runner
 from kei_exp.models import DEFAULT_OCR_MODEL
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL
 from kei_exp.workflows import cancel, config, contracts
 from kei_exp.workflows import convert as workflow
 from tests.helpers import kei as kei_helper
@@ -167,7 +167,7 @@ def test_a_cancel_stops_the_ingest_at_its_next_spread(tmp_path, monkeypatch):
             on_spread(spread, 200)
             seen.append(spread)
         raise AssertionError("the ingest read every spread of a cancelled conversion")
-    monkeypatch.setattr(runner, "ingest_step", ingesting)
+    monkeypatch.setattr(runner.ingest_cache, "ingest_step", ingesting)
     execution = SimpleNamespace(page_source="ingest", ingest_dir=tmp_path, pdf=tmp_path / "input.pdf", ingest=None)
     check = cancel.CancelCheck(WID, min_interval=0.0)
     with pytest.raises(KeiFailure) as stopped:

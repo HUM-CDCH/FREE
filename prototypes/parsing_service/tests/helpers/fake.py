@@ -4,9 +4,9 @@ under the kind `fake` with a model record of its own for the duration of a test.
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from kei_exp.cut import region_info
 from kei_exp.kie.stages.ocr import TRANSCRIBERS
 from kei_exp.models import MODELS, Model
+from kei_exp.regions import region_info
 from kei_exp.transcription.types import PageRecord, Transcription
 
 HEADER = {"prompt": "P", "scale": 2.0, "max_size": 1200, "max_output_tokens": 8192,

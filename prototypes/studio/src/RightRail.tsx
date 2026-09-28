@@ -1,10 +1,5 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
-// The Annotation tab (highlight-set list) was retired and is left in place, commented out.
-// The document Chat tab was deleted (DBOS M5): the schema panel's own instruction
-// and edit chats replace it.
-// import AnnotationSetTab from './AnnotationSidebar'
-// import type { AnnotationSetItem } from './AnnotationSidebar'
 import SchemaPanel from './SchemaPanel'
 import { useSyncExternalStore } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
@@ -178,16 +173,6 @@ function RightRail({
       </div>
 
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
-      {/* The Annotation tab (highlight-set list) was retired and is left in place,
-          commented out. The document Chat tab was deleted (DBOS M5).
-      <div id="rail-panel-annot" aria-labelledby="rail-tab-annot" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'annot'}>
-        <AnnotationSetTab
-          items={annotationItems}
-          onSelectItem={onSelectAnnotation}
-          onRemoveItem={onRemoveAnnotation}
-        />
-      </div>
-      */}
       {showDeveloperUi && (
         <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'evidence'}>
           <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />

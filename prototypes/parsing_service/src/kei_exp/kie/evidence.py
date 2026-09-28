@@ -10,7 +10,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kei_exp.geometry import clamp, unit_pixels
-from kei_exp.kie.model import EvidenceRef, EvidenceReport, IngestArtifact, Rejected, Segment
+from kei_exp.kie.document import EvidenceRef, Segment
+from kei_exp.kie.ingest_model import IngestArtifact
+from kei_exp.kie.run_model import EvidenceReport, Rejected
 from kei_exp.pagefile import CropResult, PageResult, load_result, page_path
 
 

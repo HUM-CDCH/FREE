@@ -18,14 +18,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from kei_exp import runs
-from kei_exp.cut import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 from kei_exp.files import load_dotenv
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.models import ROLES
-from kei_exp.kie.stages.ocr import TRANSCRIBERS
 from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 from kei_exp.runtime import loaded_model
-from kei_exp.transcription.types import DEFAULT_URL
+from kei_exp.transcription.types import DEFAULT_URL, TRANSCRIBER_KNOBS
 
 load_dotenv()
 VLLM_URL = os.environ.get("KEI_VLLM_URL", DEFAULT_URL)
@@ -45,7 +44,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http
 @app.get("/api/models")
 def list_models() -> list[dict]:
     return [{"key": key, "repo": record.repo, "vlm": record.vlm, "context": record.context,
-             "max_new_tokens": record.max_new_tokens, "knobs": sorted(TRANSCRIBERS[record.kind].knobs)}
+             "max_new_tokens": record.max_new_tokens, "knobs": sorted(TRANSCRIBER_KNOBS[record.kind])}
             for key, record in MODELS.items()]
 
 
@@ -87,7 +86,7 @@ def run_dir(run_id: str) -> Path:
 
 @app.get("/api/runs/{run_id}/result")
 def run_result(run_id: str) -> FileResponse:
-    """The manifest of the accepted result (kei_exp.result.Result), published once the run has an outcome."""
+    """The manifest of the accepted result (kei_exp.pagefile.Result), published once the run has an outcome."""
     path = run_dir(run_id) / "result" / "result.json"
     if not path.exists():
         raise HTTPException(404, "no result yet")
@@ -96,7 +95,7 @@ def run_result(run_id: str) -> FileResponse:
 
 @app.get("/api/runs/{run_id}/pages/{number}")
 def run_page_result(run_id: str, number: int) -> FileResponse:
-    """The accepted result of one PDF page (kei_exp.result.PageResult): its units, crops and segments."""
+    """The accepted result of one PDF page (kei_exp.pagefile.PageResult): its units, crops and segments."""
     path = run_dir(run_id) / "result" / "pages" / f"{number}.json"
     if not path.exists():
         raise HTTPException(404, "no result for this page yet")

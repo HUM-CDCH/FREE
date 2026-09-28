@@ -7,8 +7,8 @@ import pytest
 from PIL import Image
 
 from kei_exp.geometry import CropTransform, clamp, ordered_box, unit_pixels
-from kei_exp.kie.model import Page as IngestPage
-from kei_exp.kie.model import Placement
+from kei_exp.kie.ingest_model import Page as IngestPage
+from kei_exp.kie.ingest_model import Placement
 from kei_exp.pages import BookPage, PdfPages
 
 # A crop's native rectangle, 220 x 240 pixels, rendered to 110 x 80: a scale of 2 across and 3 down.

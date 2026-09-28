@@ -12,9 +12,9 @@ from typing import Protocol
 
 from PIL import Image
 
-from kei_exp.cut import DEFAULT_LAYOUT_MODEL, Crop
 from kei_exp.files import load_dotenv
 from kei_exp.progress import Emit
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, Crop
 
 load_dotenv()
 DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/completions")
@@ -22,6 +22,13 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # kind, recorded in the recipe: a change here writes other text for the same PDF, so it must not share a fingerprint.
 # native 2: a list item publishes its source text with the printed marker (Docling strips it from `text`).
 TEXT_RULES: dict[str, int] = {"native": 2}
+# The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
+# debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
+TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
+    "vlm": frozenset({"stream", "max_output_tokens", "max_image_size"}),
+    "surya": frozenset({"stream"}),  # live tokens per page; the image and token budgets are Surya's own
+    "native": frozenset(),
+}
 
 
 @dataclass(frozen=True)
@@ -132,7 +139,7 @@ class Transcription:
 class Transcriber(Protocol):
     """One backend behind the OCR stage: registered under kind, honouring only its knobs."""
     kind: str                      # registry key: the value of Model.kind that selects it, or "native"
-    knobs: frozenset[str]          # RunParams fields honoured beyond pdf, model, url, cut, layout_model, crop_dpi, pages, debug_dir
+    knobs: frozenset[str]          # RunParams fields honoured: its kind's row of TRANSCRIBER_KNOBS
 
     def transcribe(self, execution: Execution, crops: list[Crop] | None, emit: Emit) -> Transcription: ...
 

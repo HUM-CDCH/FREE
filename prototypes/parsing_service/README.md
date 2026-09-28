@@ -163,13 +163,19 @@ disk. `workflows/` is kei's DBOS application: its configuration and lanes
 (`slot.py`) and the `kei-worker` CLI (`cli.py`); `failures.py` classifies what a
 step raised into a retry or a portable failure code. The OCR runner
 lives in `kie/stages/ocr.py`, with native/Surya/VLM adapters in `transcription/`.
+`models.py` holds lightweight OCR records for the API; `transcription/specs.py`
+owns their Docling specifications. `kie/runner.py` orchestrates ingest and OCR;
+`kie/ingest_cache.py` owns ingest generation reuse, recovery and publication.
 `result.py` publishes canonical pages and manifests; `pagefile.py` validates
-their identities and hashes. `kie/extract/` reads those artifacts and performs
-record discovery, structured extraction, grounding and result publication.
+their identities and hashes. `kie/passages.py` reads those artifacts as the
+`Evidence`/`Passage` view shared by the recipe stages and extraction; it imports
+neither. `kie/extract/` performs record discovery, structured extraction,
+grounding and result publication.
 The recipe path is split across these files:
 - `kie/recipe.py` and `kie/recipes/` hold the recipes;
 - `kie/stages/{layout,route,segment}.py` produce lines, roles and blocks;
 - `kie/segmentation.py` holds the artifact;
+- `kie/segmentation_run.py` reuses a validated artifact or computes and publishes it;
 - `kie/extract/{grounded,tokens,locate}.py` do bounded extraction, token
   counting and span location;
 - `kie/boundaries.py` handles boundary labels and block-F1

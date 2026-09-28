@@ -13,8 +13,9 @@ and in the current service implementation. The terms below name the ingest
 model and its artifacts.
 
 In the ingest model, `crop` and `region` belong to the OCR stage's layout cut.
-The extraction module (`kie/extract`) uses `Passage` for canonical parser
-segments and `record` for an extracted occurrence under an Extraction Schema.
+The canonical passage view (`kie/passages.py`), shared by the recipe stages and
+extraction, uses `Passage` for canonical parser segments; the extraction module
+(`kie/extract`) uses `record` for an extracted occurrence under an Extraction Schema.
 
 ## The document and its images
 

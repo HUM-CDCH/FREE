@@ -305,21 +305,6 @@ function WorkingIndicator({ onStop }: { onStop: () => void }) {
 const genBtnCls =
   'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-accent bg-accent px-3 py-1.5 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-50 disabled:hover:brightness-100'
 
-// Superseded by the pre-generation doc chat (see below) — schema generation no
-// longer takes a highlights hints/fields mode. Left in place, commented out,
-// rather than deleted.
-//
-// function AnnotationsModeToggle({ mode, onChange }: { mode: AnnotationsMode; onChange: (mode: AnnotationsMode) => void }) {
-//   const seg = (active: boolean) =>
-//     `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
-//   return (
-//     <div className="flex shrink-0 overflow-hidden rounded-md border border-line" role="group" aria-label="How highlights shape the schema">
-//       <button className={seg(mode === 'hints')} type="button" aria-pressed={mode === 'hints'} onClick={() => onChange('hints')}>Hints</button>
-//       <button className={seg(mode === 'fields')} type="button" aria-pressed={mode === 'fields'} onClick={() => onChange('fields')}>Fields</button>
-//     </div>
-//   )
-// }
-
 // Field editing uses stable ids, not paths.
 function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
   editing: FieldEditing

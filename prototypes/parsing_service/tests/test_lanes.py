@@ -11,7 +11,7 @@ from dbos import DBOS
 from kei_exp import runs, runtime
 from kei_exp.failures import KeiFailure
 from kei_exp.kie import runner
-from kei_exp.kie.extract import run as extraction
+from kei_exp.kie.extract import tokens
 from kei_exp.models import MODELS, Model
 from kei_exp.transcription.surya import settings_for
 from kei_exp.transcription.types import DEFAULT_URL
@@ -53,7 +53,7 @@ def lanes(kei, monkeypatch):
     gate = kei_helper.Gate()
     monkeypatch.setattr(runtime, "loaded_model", lambda url: (True, "fake/model"))
     monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(lambda *a: gate() or honest(*a)))
-    monkeypatch.setattr(extraction, "counter_for", lambda client: WordCounter())
+    monkeypatch.setattr(tokens, "counter_for", lambda client: WordCounter())
     still_converting = gc._still_converting
     monkeypatch.setattr(gc, "_still_converting", lambda boot_ms: gate() or still_converting(boot_ms))
     run_id = kei_helper.converted_run(kei.runs, "kei-convert:ingest:fixture:run")

@@ -8,17 +8,15 @@ import pytest
 from PIL import Image
 
 from kei_exp.cut import (
-    DEFAULT_LAYOUT_MODEL,
-    LAYOUT_MODELS,
     Box,
     CutError,
-    Region,
     _Page,
     cut_pages,
     find_regions,
     render_region,
 )
 from kei_exp.pages import PdfPages
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, Region
 
 
 @pytest.fixture(scope="module")

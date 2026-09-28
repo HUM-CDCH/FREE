@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from kei_exp.kie.extract.evidence import Evidence
-from kei_exp.kie.model import Diagnostic, GlossaryEntry, HeadingEvent, Span
+from kei_exp.kie.blocks import Diagnostic, GlossaryEntry, HeadingEvent, Span
+from kei_exp.kie.passages import Evidence
 from kei_exp.kie.recipe import Recipe, pattern
 from kei_exp.kie.stages.layout import Line, duplicate_observations, lines
 

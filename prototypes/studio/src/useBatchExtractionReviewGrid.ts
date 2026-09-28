@@ -128,7 +128,8 @@ export function useBatchExtractionReviewGrid(
     draftConflicts.current = new Set()
     setDraftSaving(0)
     setDraftError(null)
-    setMembers(() => new Map())
+    membersRef.current = new Map()
+    renderMembers(membersRef.current)
     return () => { scopeRef.current = null }
   }, [batch.batchExtractionId])
 
