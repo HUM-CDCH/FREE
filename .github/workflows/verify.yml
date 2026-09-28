@@ -53,20 +53,34 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Install Docker Compose
-        uses: docker/setup-compose-action@v2
-        with:
-          version: v2.40.0
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          docker pull ghcr.io/navikt/mock-oauth2-server:2.2.1 &
+          pnpm install --frozen-lockfile
+          wait
 
       - name: Create the extraction integration database
         run: |
           docker exec "${{ job.services.postgres.id }}" createdb --username postgres free_test_extraction
 
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(pnpm --filter studio exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter studio exec playwright install --with-deps chromium
+
+      - name: Ensure Playwright Chromium system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter studio exec playwright install-deps chromium
 
       - name: Run deterministic verification
         run: pnpm test:ci

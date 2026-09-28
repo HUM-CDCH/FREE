@@ -32,7 +32,12 @@ export default defineConfig({
   fullyParallel: true,
   // The mock OIDC and Studio hosts are shared by this suite; 12 default workers on a 24-core host intermittently
   // fail sign-in while many tests start together. Bound browser concurrency for a reproducible full gate.
-  workers: 4,
+  // In CI on 2-core runners, bound workers to 2 to prevent CPU oversubscription against Vite, OIDC, and PostgreSQL.
+  workers: process.env.PLAYWRIGHT_WORKERS
+    ? Number(process.env.PLAYWRIGHT_WORKERS)
+    : process.env.CI
+      ? 2
+      : 4,
   globalTeardown: './e2e/globalTeardown.ts',
   use: { baseURL: e2eOrigin },
   webServer: {

@@ -28,7 +28,7 @@
     "test:all:node": "pnpm typecheck && pnpm lint && pnpm test:unit:node && pnpm test:safety && pnpm test:postgres:node && pnpm test:e2e",
     "test:ci": "node scripts/test-ci.mjs",
     "lint": "pnpm --filter studio lint",
-    "typecheck": "pnpm --filter studio typecheck && pnpm --filter db typecheck && pnpm --filter extraction typecheck && pnpm --filter extraction-result-export typecheck",
+    "typecheck": "pnpm -r typecheck",
     "architecture:dev": "likec4 dev docs/architecture",
     "architecture:check": "likec4 validate docs/architecture",
     "architecture:build": "likec4 build docs/architecture -o artifacts/architecture/site --use-hash-history"
