@@ -22,6 +22,7 @@ import {
   createResearcherExtractions,
   extractionAttemptDto,
 } from './_extractions.js'
+import { methodRefusal } from './_method_refusals.js'
 
 const COLLECTION_ROUTE = '/api/extractions'
 const ITEM_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)$/
@@ -39,6 +40,8 @@ function unavailableUnlessDomain(error: unknown): never {
 
 function asTransportError(error: unknown): unknown {
   if (!(error instanceof ExtractionError)) return error
+  const refused = methodRefusal(error)
+  if (refused) return refused
   switch (error.code) {
     case 'not_found':
       return new ApiError(404, 'not_found', error.message, { cause: error })
@@ -60,12 +63,6 @@ function asTransportError(error: unknown): unknown {
     case 'invalid_request':
     case 'invalid_review':
       return new ApiError(422, error.code, error.message, { cause: error })
-    case 'method_changed':
-      return new ApiError(409, 'method_changed', error.message, { cause: error })
-    case 'invalid_identity_fields':
-      return new ApiError(422, 'invalid_identity_fields', error.message, { cause: error })
-    case 'invalid_model_config':
-      return new ApiError(500, 'invalid_model_config', 'The saved model configuration is invalid.', { cause: error })
     default:
       return error
   }

@@ -24,6 +24,7 @@ import {
   persistenceUnavailable,
 } from './_http.js'
 import { createResearcherExtractions } from './_extractions.js'
+import { methodRefusal } from './_method_refusals.js'
 
 const COLLECTION_ROUTE = '/api/batch-extractions'
 const ITEM_ROUTE = /^\/api\/batch-extractions\/([0-9a-f-]+)$/
@@ -93,13 +94,11 @@ export function createResearcherApiHandlers(
         repetition: force ? 'create-new' : 'reuse-equal-selection',
       })
     } catch (error) {
-      // Admission's method refusals answer as a single start's do.
-      if (error instanceof ExtractionError && error.code === 'method_changed')
-        throw new ApiError(409, 'method_changed', error.message, { cause: error })
-      if (error instanceof ExtractionError && (error.code === 'invalid_identity_fields' || error.code === 'invalid_request'))
-        throw new ApiError(422, error.code, error.message, { cause: error })
-      if (error instanceof ExtractionError && error.code === 'invalid_model_config')
-        throw new ApiError(500, 'invalid_model_config', 'The saved model configuration is invalid.', { cause: error })
+      const refused = methodRefusal(error)
+      if (refused) throw refused
+      // A submitted method that does not fit the strategy.
+      if (error instanceof ExtractionError && error.code === 'invalid_request')
+        throw new ApiError(422, 'invalid_request', error.message, { cause: error })
       if (
         error instanceof ExtractionError &&
         (error.code === 'invalid_extraction_pins' ||

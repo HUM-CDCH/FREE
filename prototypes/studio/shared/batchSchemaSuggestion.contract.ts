@@ -6,6 +6,7 @@ import {
   projectOperationStatusSchema,
 } from './batchExtraction.contract.js'
 import { extractionStrategySchema, methodRuleIssues } from './extraction.contract.js'
+import { validationDetailsSchema } from './modelConfig.contract.js'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 import { schemaDefinitionSchema } from 'extraction/schema'
 
@@ -116,6 +117,8 @@ export const batchSchemaSuggestionErrorSchema = z
       'invalid_model_config',
     ]),
     message: z.string(),
+    /** A refused request's field-addressed issues (`boundedValidationDetails`), e.g. a Run's rule-breaking method. */
+    details: validationDetailsSchema.optional(),
   })
   .strict()
 

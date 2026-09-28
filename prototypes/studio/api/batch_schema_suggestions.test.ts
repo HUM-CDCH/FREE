@@ -5,6 +5,7 @@ import type {
 } from 'db'
 import { ExtractionError, type ExtractionModule } from 'extraction'
 import { createResearcherApiHandlers } from './batch_schema_suggestions.js'
+import { batchSchemaSuggestionErrorResponseSchema } from '../shared/batchSchemaSuggestion.contract.js'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
@@ -164,7 +165,8 @@ describe('Batch Schema Suggestion APIs', () => {
     const response = await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion) }, module)(runRequest())
 
     expect(response.status).toBe(status)
-    expect(await response.json()).toMatchObject({ error: { code } })
+    // The browser reads the refusal through the exported contract, so it can offer a refresh rather than a failure.
+    expect(batchSchemaSuggestionErrorResponseSchema.parse(await response.json()).error.code).toBe(code)
   })
 
   it("refuses a Run without the method, or with a recipe's settings, before admission", async () => {
@@ -175,6 +177,22 @@ describe('Batch Schema Suggestion APIs', () => {
     // A batch has no recipe, so recipe settings fit neither strategy.
     for (const strategy of ['ARTICLE', 'CATALOG'])
       expect((await handler(runRequest({ strategy, method: { models: null, settings: { recipe: null } } }))).status).toBe(422)
+    expect(module.scheduleSuggestedBatch).not.toHaveBeenCalled()
+  })
+
+  it('refuses a rule-breaking Run field by field, in a body the exported error contract reads', async () => {
+    const module = moduleForSuggestedBatch()
+    const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, identity: 'reference', identity_fields: [],
+      prompt: 'reference', grounding: 'semantic' }
+    const response = await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion) }, module)(
+      runRequest({ strategy: 'ARTICLE', method: { models: null, settings: { article } } }))
+
+    expect(response.status).toBe(422)
+    const { error } = batchSchemaSuggestionErrorResponseSchema.parse(await response.json())
+    expect(error.code).toBe('invalid_request')
+    expect(error.details?.issues).toContainEqual({
+      path: 'method.settings.article.overlap_passages', message: 'This choice requires bounded source units.',
+    })
     expect(module.scheduleSuggestedBatch).not.toHaveBeenCalled()
   })
 

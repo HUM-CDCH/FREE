@@ -23,6 +23,7 @@ import {
 } from './_http.js'
 import { validateEditableSuggestion } from './_batch_schema_suggestions.js'
 import { createResearcherExtractions } from './_extractions.js'
+import { methodRefusal } from './_method_refusals.js'
 
 const ROUTE = '/api/batch-schema-suggestions'
 const ITEM_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)$/
@@ -213,13 +214,11 @@ export function createResearcherApiHandlers(
         method: parsed.data.method,
       })
     } catch (error) {
-      // Admission's method refusals answer as a single start's do.
-      if (error instanceof ExtractionError && error.code === 'method_changed')
-        throw new ApiError(409, 'method_changed', error.message, { cause: error })
-      if (error instanceof ExtractionError && (error.code === 'invalid_identity_fields' || error.code === 'invalid_request'))
-        throw new ApiError(422, error.code, error.message, { cause: error })
-      if (error instanceof ExtractionError && error.code === 'invalid_model_config')
-        throw new ApiError(500, 'invalid_model_config', 'The saved model configuration is invalid.', { cause: error })
+      const refused = methodRefusal(error)
+      if (refused) throw refused
+      // A submitted method that does not fit the strategy.
+      if (error instanceof ExtractionError && error.code === 'invalid_request')
+        throw new ApiError(422, 'invalid_request', error.message, { cause: error })
       if (error instanceof ExtractionError && error.code === 'not_found')
         throw new ApiError(
           404,
