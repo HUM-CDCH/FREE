@@ -80,6 +80,7 @@ export const catalogFactorsSchema = z.object({
   overlap: z.boolean().default(true),
   verification: z.boolean().default(true),
 }).strict()
+type CatalogFactors = z.output<typeof catalogFactorsSchema>
 export const recipeCatalogSettingsSchema = z.object({
   input_tokens: wholeNumber(METHOD_MESSAGES.budgetTokens, 64).optional(),
   output_tokens: wholeNumber(METHOD_MESSAGES.budgetTokens, 64).optional(),
@@ -163,17 +164,31 @@ export function canonicalArticle(article: ArticleSettings): ArticleSettings {
   return canonical as ArticleSettings
 }
 
-/** A Catalog member without any value is service defaults, i.e. absent: the service dumps its defaults alike. */
-function present<T extends object>(value: T | null | undefined): T | undefined {
+/** Catalog key orders (`Options`, `CatalogOptions`, `CatalogFactors`): like Article's, so equal settings serialize alike. */
+const GENERIC_KEYS = ['discovery_chars', 'record_chars'] as const satisfies readonly (keyof GenericCatalogSettings)[]
+const RECIPE_KEYS = ['input_tokens', 'output_tokens', 'factors'] as const satisfies readonly (keyof RecipeCatalogSettings)[]
+const FACTOR_KEYS = ['glossary', 'headings', 'overlap', 'verification'] as const satisfies readonly (keyof CatalogFactors)[]
+
+/** The set values of `keys`, in that order; none is service defaults, i.e. absent: the service dumps its defaults alike. */
+function present<T extends object>(value: T | null | undefined, keys: readonly (keyof T)[]): T | undefined {
   if (value === null || value === undefined) return undefined
-  const kept = Object.entries(value).filter(([, item]) => item !== null && item !== undefined)
+  const kept = keys.flatMap((key) => (value[key] === null || value[key] === undefined ? [] : [[key, value[key]] as const]))
   return kept.length === 0 ? undefined : (Object.fromEntries(kept) as T)
+}
+
+function canonicalGeneric(generic: GenericCatalogSettings | null | undefined): GenericCatalogSettings | undefined {
+  return present(generic, GENERIC_KEYS)
+}
+
+function canonicalRecipe(recipe: RecipeCatalogSettings | null | undefined): RecipeCatalogSettings | undefined {
+  if (recipe === null || recipe === undefined) return undefined
+  return present({ ...recipe, factors: present(recipe.factors, FACTOR_KEYS) }, RECIPE_KEYS)
 }
 
 /** Saved settings as stored: an explicit Article in full, Catalog members only when they carry a value. */
 export function canonicalExtractionSettings(settings: ExtractionSettings): ExtractionSettings {
-  const generic = present(settings.catalog?.generic)
-  const recipe = present(settings.catalog?.recipe)
+  const generic = canonicalGeneric(settings.catalog?.generic)
+  const recipe = canonicalRecipe(settings.catalog?.recipe)
   return {
     ...(settings.article ? { article: canonicalArticle(settings.article) } : {}),
     ...(generic || recipe ? { catalog: { ...(generic ? { generic } : {}), ...(recipe ? { recipe } : {}) } } : {}),
@@ -244,8 +259,12 @@ export function canonicalIntent(value: unknown, strategy: ExtractionStrategy, ca
     if (article === null) return { models, settings: { article: null } }
     return articleSettingsIssues(article).length > 0 ? null : { models, settings: { article: canonicalArticle(article) } }
   }
-  const member = present(settings[slot] as object | null) ?? null
-  return { models, settings: slot === 'recipe' ? { recipe: member as RecipeCatalogSettings | null } : { generic: member as GenericCatalogSettings | null } }
+  return {
+    models,
+    settings: slot === 'recipe'
+      ? { recipe: canonicalRecipe(settings.recipe as RecipeCatalogSettings | null) ?? null }
+      : { generic: canonicalGeneric(settings.generic as GenericCatalogSettings | null) ?? null },
+  }
 }
 
 /** An Extraction's recorded settings: null for one admitted before they were recorded (it ran on service defaults). */
@@ -303,8 +322,8 @@ export function keiMethodOptions(method: ExtractionMethod): Record<string, unkno
     strategy: method.strategy === 'CATALOG' ? 'catalog' : 'article',
     ...(method.requestedModels === null ? {} : { models: method.requestedModels }),
     ...(method.strategy === 'ARTICLE' && article ? { article: canonicalArticle(article) } : {}),
-    ...(method.strategy === 'CATALOG' && method.catalogRecipe === null && generic ? present(generic) : {}),
-    ...(method.catalogRecipe === null ? {} : { catalog: { recipe: method.catalogRecipe, ...(present(recipe) ?? {}) } }),
+    ...(method.strategy === 'CATALOG' && method.catalogRecipe === null && generic ? canonicalGeneric(generic) : {}),
+    ...(method.catalogRecipe === null ? {} : { catalog: { recipe: method.catalogRecipe, ...(canonicalRecipe(recipe) ?? {}) } }),
   }
 }
 

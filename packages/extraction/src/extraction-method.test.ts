@@ -5,7 +5,7 @@ import {
   activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, canonicalArticle,
   canonicalExtractionSettings, canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
   identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG,
-  storedSettings, validateArticleOptions, type ArticleSettings,
+  storedSettings, validateArticleOptions, type ActiveSettings, type ArticleSettings, type ExtractionSettings,
 } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
 import { parseSchemaDefinition } from './schema.js'
@@ -108,6 +108,28 @@ test('canonical settings: full Article, no nulls, the unused ceiling restored, e
   assert.deepEqual(canonicalExtractionSettings(extractionSettingsSchema.parse({ catalog: {} })), {})
   // An explicit Article is never an omission: it changes the service's artifact.
   assert.deepEqual(canonicalExtractionSettings(extractionSettingsSchema.parse({ article: {} })), { article: REFERENCE_ARTICLE })
+})
+
+test('canonical Catalog settings keep schema key order, whatever order equal settings arrive in', () => {
+  const serialized = (catalog: Record<string, unknown>) => JSON.stringify(canonicalExtractionSettings(catalog as ExtractionSettings))
+  const inOrder = {
+    generic: { discovery_chars: 30000, record_chars: 20000 },
+    recipe: { input_tokens: 2048, output_tokens: 512, factors: { glossary: true, headings: false, overlap: true, verification: false } },
+  }
+  const reordered = {
+    recipe: { factors: { verification: false, overlap: true, headings: false, glossary: true }, output_tokens: 512, input_tokens: 2048 },
+    generic: { record_chars: 20000, discovery_chars: 30000 },
+  }
+  assert.equal(serialized({ catalog: reordered }), serialized({ catalog: inOrder }))
+  assert.equal(JSON.stringify(canonicalExtractionSettings(extractionSettingsSchema.parse({ catalog: reordered }))), serialized({ catalog: inOrder }))
+  const intent = (settings: Record<string, unknown>, recipe: string | null) =>
+    JSON.stringify(canonicalIntent({ models: null, settings }, 'CATALOG', recipe))
+  assert.equal(intent({ generic: reordered.generic }, null), intent({ generic: inOrder.generic }, null))
+  assert.equal(intent({ recipe: reordered.recipe }, 'numbered-catalogue-de@1'), intent({ recipe: inOrder.recipe }, 'numbered-catalogue-de@1'))
+  const wire = (settings: ActiveSettings, recipe: string | null) =>
+    JSON.stringify(keiMethodOptions(extractionMethod('CATALOG', recipe, null, settings)))
+  assert.equal(wire({ generic: reordered.generic }, null), wire({ generic: inOrder.generic }, null))
+  assert.equal(wire({ recipe: reordered.recipe }, 'numbered-catalogue-de@1'), wire({ recipe: inOrder.recipe }, 'numbered-catalogue-de@1'))
 })
 
 const EXPLORE: ArticleSettings = {
