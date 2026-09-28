@@ -5,6 +5,7 @@ import { readExtractionModels, readIngestionModels } from '../api'
 import { ResearcherSessionContext } from '../auth/sessionContext'
 import { sendModelKeys } from '../modelKeys/modelKeyHandoff'
 import { Button } from '../ui'
+import { AdvancedTab } from './AdvancedTab'
 import { ConnectionsTab } from './ConnectionsTab'
 import { ModelsTab } from './ModelsTab'
 import { apiErrorText, getModelConfig, putModelConfig } from './providerConfig.data'
@@ -16,8 +17,8 @@ type PageProps = {
   initialFocusRef?: RefObject<HTMLButtonElement | null>
 }
 
-type Tab = 'models' | 'connections'
-const TABS: readonly Tab[] = ['models', 'connections']
+type Tab = 'models' | 'connections' | 'advanced'
+const TABS: readonly Tab[] = ['models', 'connections', 'advanced']
 
 /** Keys are kept per Researcher Account, so the page needs the signed-in one. */
 function ProviderConfigPage(props: PageProps) {
@@ -40,8 +41,10 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
   const [probeRequest, setProbeRequest] = useState<{ ids: ReadonlySet<string> } | null>(null)
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
+  // Set by the footer's issue summary until the Advanced tab has focused the first invalid control.
+  const [focusIssue, setFocusIssue] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const tabIds = { models: useId(), connections: useId() }
+  const tabIds = { models: useId(), connections: useId(), advanced: useId() }
   const panelId = useId()
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({})
 
@@ -160,7 +163,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
 
   const routable = [...deployment.connections, ...draft.connections]
   const current = routable.find(({ id }) => id === selected) ?? routable[0] ?? null
-  const blocked = Object.keys(keyIssues).length > 0
+  const blocked = Object.keys(keyIssues).length > 0 || editor.settingsIssues.length > 0
 
   return (
     <fieldset disabled={applying} className="mx-auto flex min-w-0 max-w-4xl flex-col rounded-2xl border border-line bg-surface shadow-page">
@@ -185,7 +188,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
                 tab === key ? 'border-accent text-accent' : 'border-transparent text-ink-faint hover:text-ink'
               }`}
             >
-              {key === 'models' ? 'Models' : `Connections · ${routable.length}`}
+              {key === 'models' ? 'Models' : key === 'connections' ? `Connections · ${routable.length}` : 'Advanced'}
             </button>
           ))}
         </div>
@@ -220,6 +223,14 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
             setExtractionModel={editor.setExtractionModel}
             setIngestionModel={editor.setIngestionModel}
           />
+        ) : tab === 'advanced' ? (
+          <AdvancedTab
+            draft={draft}
+            saved={saved ?? draft}
+            editor={editor}
+            focusIssue={focusIssue}
+            onIssueFocused={() => setFocusIssue(false)}
+          />
         ) : (
           <ConnectionsTab
             accountId={accountId}
@@ -243,8 +254,22 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
         )}
       </div>
 
-      <footer className="flex items-center justify-between gap-3 rounded-b-2xl border-t border-line bg-surface px-5 py-3">
-        <span className="text-[11.5px] text-ink-faint">{dirty ? 'Unsaved changes' : 'Everything saved'}</span>
+      <footer className="flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-line bg-surface px-5 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-[11.5px] text-ink-faint">{dirty ? 'Unsaved changes' : 'Everything saved'}</span>
+          {editor.settingsIssues.length > 0 && (
+            <button
+              type="button"
+              className="text-[11.5px] font-semibold text-danger underline"
+              onClick={() => {
+                setTab('advanced')
+                setFocusIssue(true)
+              }}
+            >
+              {editor.settingsIssues.length === 1 ? '1 issue blocks Apply' : `${editor.settingsIssues.length} issues block Apply`}
+            </button>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="md" disabled={!dirty} onClick={discard}>Discard</Button>
           <Button variant="primary" size="md" disabled={applying || !dirty || blocked} onClick={() => void apply()}>
