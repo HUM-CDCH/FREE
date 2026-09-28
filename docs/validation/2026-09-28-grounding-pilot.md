@@ -12,7 +12,9 @@ Those counts do not establish higher semantic accuracy: two baseline paths were
 lost, and exact source locations do not prove that a quote supports every part
 of a claim. The routed run used one extra call and retained two fewer links, but
 identical requests also returned different labels. Those link differences cannot
-be attributed to routing from this single execution. The later
+be attributed to routing from this single execution. A later repeated-call
+check does reproduce one loss under routing's changed batch and claim numbering;
+it does not establish a general routing effect. The
 [model audit and capture recheck](2026-09-28-grounding-pilot-audit.md) supersede
 the initial causal interpretation and incomplete control-character diagnosis.
 
@@ -69,7 +71,9 @@ The separate factors matter:
 - The routed run uses one extra call and 4,871 extra input tokens and has two
   fewer links. One loss is an identical-request difference; the other uses a
   different batch for a claim that also varies under identical requests.
-  Routing's semantic effect is unresolved on this two-context document.
+  A later five-repeat check reproduces that second loss for the routed request
+  form (6/6 NONE versus 7/7 linked including originals). See the audit addendum;
+  retained links can still be partial, and general routing effects remain unmeasured.
 - The scheduling × policy interaction is not additive: the document-level
   difference of differences is +2 calls and +8,772 input tokens. There is only
   one document, so the report correctly provides no bootstrap interval.

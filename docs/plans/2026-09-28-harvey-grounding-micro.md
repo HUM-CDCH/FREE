@@ -1,6 +1,9 @@
 # Harvey grounding micro-pilot — 2026-09-28
 
-Status: selected cases and code pinned; preflight complete; generation pending.
+Status: complete; 12 cells sealed and exactly replayed offline, including four
+cells with explicit budget refusals. Generation took 103.53 seconds and 12 calls.
+See the [report](../validation/2026-09-28-harvey-grounding-micro.md). The registered
+pre-generation protocol remains unchanged in the artifact directory.
 This is a bounded follow-up to the user's small-pilot preference. The full R4/R5
 matrix remains deferred. No existing cell is rerun or overwritten.
 
@@ -62,8 +65,8 @@ quotes for this selected table batch; the experiment does not assume cost saving
 
 Use a fixed seed 20260928 for cell order and at most two workers. Stop admitting
 generation HTTP calls after 600 wall seconds or 24 calls, whichever comes first.
-An admitted request can run for at most the configured 120-second client timeout
-beyond the admission deadline. Preserve timeouts/missing replies as failures and
+An admitted request uses the configured 120-second client timeout; this is not a
+hard backend termination deadline. Preserve timeouts/missing replies as failures and
 do not retry a cell automatically. Existing adapter fallback for unsupported
 structured output, if triggered, consumes the same HTTP-call cap and is reported.
 

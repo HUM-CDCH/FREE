@@ -1,7 +1,8 @@
 # Grounding pilot: model audit and capture recheck
 
 Status: independent model review received and its mechanical findings verified
-2026-09-28. No additional model inference was run. This updates interpretation
+2026-09-28. The initial integration used saved captures only; the addendum below
+incorporates Opus's separately authorized 35 fresh calls. This updates interpretation
 of the [completed pilot](2026-09-28-grounding-pilot.md), not its frozen results.
 
 ## Identical requests vary
@@ -31,9 +32,46 @@ The captures establish repeat disagreement; they do not identify its infrastruct
 cause or justify claiming that greedy decoding is deterministic.
 
 Observed cost savings remain valid. Small link changes and the linked-claim
-interaction cannot establish policy/scheduling/routing effects. The routed loss
-of record 1's notes uses a different batch, but that claim also varies under
-identical requests. No semantic equivalence or harm conclusion follows.
+interaction cannot establish policy/scheduling effects. The repeated-call
+addendum supersedes the initial interpretation of one routed loss; it does not
+establish semantic equivalence or routing's general effect.
+
+## Addendum: repeated requests expose one batch-sensitive loss
+
+Opus separately ran seven saved requests five times each: 35 fresh calls,
+353,095 input tokens and 6,995 output tokens. The run's source request hashes,
+runner, replies and reported label counts were checked without new inference.
+All replies stopped normally and matched their originals' input-token counts.
+The runner passes the saved system, user, schema and output budget unchanged;
+equal token counts alone would not establish request identity.
+
+The record 0 notes and basis claims continue to vary. For record 1's compound
+notes, the policy/combined request selects the incomplete dialysis paragraph
+in 6/7 samples; the fuller results proof occurs only in the original combined
+reply. That better proof is not an established method advantage.
+
+The routed request returns NONE for record 1's notes in 6/6 samples, whereas
+the policy/combined request links it in 7/7. These counts include the original
+pilot replies plus five new replies per request. The prompt comparison preserves
+system, record prefix, evidence and output budget, but changes the other claims,
+claim numbering and corresponding schema. This is a repeatable difference
+between these two request forms; composition and renumbering were not separately
+isolated. It corrects the earlier claim that both routed losses were within the
+observed identical-request variation. It does not show routing is generally harmful,
+nor does retaining a partial proof establish better semantic grounding.
+
+Four of 38 eligible claim slots differ across originals and fresh replies; three
+differ among the five fresh replies alone. Both controls, covering 11 claims,
+remain stable. The divergent requests were deliberately selected from known
+failures, so these numbers cannot estimate a population disagreement rate.
+
+The updated audit is archived separately as
+`pilot-audit-integration-20260928/flip-addendum/opus-audit-updated.zip`
+(SHA-256 `ecc0d07aed3ec0bab4d6853bf4d1fad56da9eb4f0ed51e51626fcc2b7db3aab2`).
+Its sibling `recheck.json` verifies 73 pins and the per-claim labels
+(SHA-256 `7ce5cebe24280d77d7c4bd79d7c0615cbe6a7dfa4922fd433115a1aee492f028`).
+The original snapshot and pilot results remain unchanged. Fresh repeat artifacts
+are in `artifacts/extraction-ablation/flip-rate-20260928/`.
 
 ## Corrected quote failure accounting
 
@@ -113,7 +151,7 @@ The helper records input hashes and fails instead of replacing an existing outpu
 Tests cover all unordered pairs, missing decisions, JSON formatting, changed output
 budgets and incomplete/truncated replies. No network or model client is used.
 
-## Next experiment
+## Development scope and next acceptance gate
 
 Keep the full matrix deferred. A larger repeat-only experiment is not necessary
 to establish that disagreement exists: the saved captures already show it. Future
@@ -126,7 +164,16 @@ prose would test version 2 more directly than another full six-arm Zelechowska r
 Choose claims from the fixed schema/source structure before inspecting new answers;
 include ambiguous subjects and missing support, not only easy positive matches.
 Such a micro-pilot would measure those selected claims, not whole-document recall.
-No new generation has been registered or scheduled by this audit integration.
+That separately registered [Harvey micro-pilot](2026-09-28-harvey-grounding-micro.md)
+is now complete. Compact spans remove its selected budget refusals but cost more
+input tokens than quotes, and both methods accept one incompletely supported
+compound claim. Neither pilot establishes generalization.
+
+The [durable study plan](../plans/2026-09-27-modular-extraction-ablation-study.md#m7--independent-evaluation-after-policy-freeze)
+now states the independent gate: freeze baseline/candidate and evaluation rules,
+then evaluate untouched document families with human-adjudicated labels. Tuning
+on that set would make it development data. General contract repairs and empirical
+policy choices require different evidence; model agreement is not human gold.
 
 The separate [singleton diagnosis](2026-09-28-grounding-singleton-overflows.md)
 shows why another label-only optimization cannot fully resolve Age/Hamburg.
