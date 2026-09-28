@@ -271,6 +271,30 @@ assertions need different evidence requirements. Any change must preserve the
 researcher's approved schema and separately measure value coverage, status
 usefulness and cost. It is not part of the current frozen comparison.
 
+## Failure accounting: 60-cell checkpoint
+
+The sealed R1 artifacts contain 1,947 recorded calls, including 37 failures:
+33 grounding replies rejected for literal control characters in JSON strings,
+two output-truncated record replies (Akita overlap and Sousa unverified), and
+two context refusals before inference (Age document and inventory). Each of
+the 35 failed replies was independently matched to its saved capture by exact
+finish reason, usage and duration. All 33 control-character replies end with
+`stop` and satisfy the requested schema only when diagnostic decoding permits
+literal controls. Frozen extraction outcomes remain unchanged.
+
+The same artifacts contain 96 `unsupported_quote` diagnostics. These are
+model-attribution or literal-substring rejections, not independently reviewed
+false values. Active cells and interrupted attempts are excluded from this
+sealed-cell summary; the infrastructure recovery receipts account for them
+separately.
+
+Reproduction: run `failure-audit-20260928/audit.py STUDY_DIR NEW_OUTPUT.json`
+under `artifacts/extraction-ablation/`. The script pins the manifest and every
+sealed result, checks artifact seals and finished receipts, and retains missing
+cells and uncategorized failures. `r1-sealed-60.json` and
+`independent-capture-check.json` preserve this checkpoint. Recompute after the
+final collector finishes; this audit does not own its reserved report paths.
+
 ## Verification before inference
 
 | Check | Evidence |
