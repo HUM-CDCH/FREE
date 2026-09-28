@@ -19,11 +19,13 @@ def client(tmp_path, monkeypatch):
         yield served
 
 
-def test_the_api_process_loads_no_database_client():
-    """Neither a driver nor kei's DBOS application: the API can never grow a database import silently."""
-    code = ("import sys, kei_exp.api\n"
+@pytest.mark.parametrize("module", ["kei_exp.models", "kei_exp.api"])
+def test_api_and_model_records_load_no_database_or_model_stack(module):
+    """Check a fresh process: test collection may already have loaded the worker's dependencies."""
+    code = (f"import sys, {module}\n"
             "loaded = {name.split('.')[0] for name in sys.modules} | set(sys.modules)\n"
-            "print(sorted(loaded & {'psycopg', 'psycopg_pool', 'procrastinate', 'dbos', 'kei_exp.workflows'}))")
+            "print(sorted(loaded & {'psycopg', 'psycopg_pool', 'procrastinate', 'dbos', 'kei_exp.workflows', "
+            "'docling', 'torch', 'surya'}))")
     loaded = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
     assert loaded.strip() == "[]"
 

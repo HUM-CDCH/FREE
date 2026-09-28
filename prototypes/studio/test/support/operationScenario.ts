@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { createInternalProjectWorkerStore, db } from 'db'
 import { dbosSteps } from 'extraction'
-import type { WorkflowSteps } from 'extraction/workflows'
+import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { createCanonicalPackageStore } from '../../../../packages/db/src/artifact-store.js'
 import { deploymentModels } from '../../api/_deployment_models.js'
 import { generateSchemaEditJson, generateSchemaWithModel } from '../../api/_model.js'

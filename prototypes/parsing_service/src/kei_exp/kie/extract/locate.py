@@ -12,7 +12,7 @@ import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal
 
-from kei_exp.kie.model import Span
+from kei_exp.kie.blocks import Span
 
 SEPARATOR = "\n"
 SOFT_HYPHEN = "­"

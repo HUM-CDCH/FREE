@@ -4,8 +4,8 @@ A block's text is its primary spans in order, joined by separators that belong t
 normalised view (NFKC, case folded, whitespace collapsed, soft hyphens dropped, a line-end hyphen joined) that keeps
 a map to raw offsets, so every match comes back as spans of canonical segment text and never covers a separator.
 """
+from kei_exp.kie.blocks import Span
 from kei_exp.kie.extract.locate import BlockText, forms, locate
-from kei_exp.kie.model import Span
 
 TEXT = "9. Großenhain. Fdpl. Mühle. Mbl. 2457 (4335). FA: G. Groß-\nsteingrab mit ﬂacher Schale."
 SECOND = "Mus. Halle 12. Mbl. 2457 steht auch hier."

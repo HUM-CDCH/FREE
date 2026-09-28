@@ -1,12 +1,12 @@
 """Experimental switches preserve source ownership and make uncertainty observable."""
 import pytest
 
-from kei_exp.kie.extract import run
+from kei_exp.kie.extract import assembly, run
 from kei_exp.kie.extract.article import inventory, reconcile_identities
 from kei_exp.kie.extract.contexts import partition, reconcile_values
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
-from kei_exp.kie.extract.stages import verify
+from kei_exp.kie.extract.grounding import verify
 from tests.test_extract_grounded import CountingChat, GLOSSED, WordCounter, run as catalog_run
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
@@ -58,7 +58,7 @@ def test_options_validate_schema_identity_fields_and_change_fingerprint():
     base = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article"})
     selected = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"grounding": "off"}})
     assert "article" not in base.options.dumped()
-    assert run.fingerprint({"generation": "g", "digest": "d"}, base, {}) != run.fingerprint(
+    assert assembly.fingerprint({"generation": "g", "digest": "d"}, base, {}) != assembly.fingerprint(
         {"generation": "g", "digest": "d"}, selected, {})
 
 

@@ -133,7 +133,7 @@ python -m experiments.extraction.study run R5_OUTPUT/manifest.json R5_OUTPUT --c
 ```
 
 Freeze the registered code before preflight and generation. The serving entrypoint
-and experiment both call `kie.extract.grounding.ground_records`; policy and scheduling
+and experiment both call `kie.extract.assembly.ground_records`; policy and scheduling
 must not have a separate benchmark implementation. Registration replays every
 bundle's upstream again and rejects changed values, origins, requests or diagnostics.
 Only the four declared grounding options may differ from the frozen upstream options.

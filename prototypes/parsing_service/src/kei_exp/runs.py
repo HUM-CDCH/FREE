@@ -34,10 +34,6 @@ def now() -> str:
     return datetime.now(UTC).isoformat()  # microseconds keep runs of one second ordered
 
 
-def read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-
-
 def write_json(path: Path, data: dict) -> None:
     with publish(path) as part:
         part.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

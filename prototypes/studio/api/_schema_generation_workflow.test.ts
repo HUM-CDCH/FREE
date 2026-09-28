@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { WorkflowSteps } from 'extraction/workflows'
+import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { holdsKey, plantedKey } from '../test/support/plantedKey.js'
 import { ApiError } from './_http.js'
 import { ModelKeyRequiredError } from './_model_keys.js'

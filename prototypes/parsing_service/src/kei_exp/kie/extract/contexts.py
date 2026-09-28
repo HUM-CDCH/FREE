@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from kei_exp.kie.extract.evidence import Passage
+from kei_exp.kie.passages import Passage
 
 GROUPING_VERSION = 1
 HEADINGS = {"Title", "SectionHeader"}

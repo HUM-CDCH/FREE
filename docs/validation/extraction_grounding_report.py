@@ -15,7 +15,7 @@ import requests
 
 from experiments.extraction.analyze import diagnostic, paired_interval
 from experiments.extraction.manifest import checked, pin, read, validate, write_new
-from kei_exp.kie.extract.evidence import load
+from kei_exp.kie.passages import load
 from kei_exp.kie.extract.schema import Schema, evidence_policy
 from kei_exp.kie.extract.stages import leaves
 

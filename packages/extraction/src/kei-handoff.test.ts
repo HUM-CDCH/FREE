@@ -284,6 +284,22 @@ test('requestDeleteRuns enqueues deleteRuns portably on kei-gc as kei under the 
   assert.equal(calls.enqueued.length, 1)
 })
 
+test('keiRunOf reads kei-exp:<run>:<generation> and nothing else', () => {
+  assert.deepEqual(handoff.keiRunOf('kei-exp:run-1:g1'), { runId: 'run-1', generation: 'g1' })
+  assert.deepEqual(handoff.keiRunOf('kei-exp:a.b_c-d:20260926'), { runId: 'a.b_c-d', generation: '20260926' })
+  for (const id of ['kei-exp:run/x:g', 'kei-exp:run:', 'other:run:g', 'kei-exp::g', 'kei-exp:.run:g', 'kei-exp:run:g\n', 'kei-exp:run:g h', 'kei-exp:run'])
+    assert.equal(handoff.keiRunOf(id), null, JSON.stringify(id))
+})
+
+test('an Extraction\'s Studio workflow is extract:<id>, and only such an ID names an Extraction', () => {
+  const id = '51000000-0000-4000-8000-000000000001'
+  assert.equal(handoff.STUDIO_EXTRACT_PREFIX, 'extract:')
+  assert.equal(handoff.extractWorkflowId(id), `extract:${id}`)
+  assert.equal(handoff.extractionIdOfWorkflow(handoff.extractWorkflowId(id)), id)
+  for (const other of [`kei-extract:${id}`, `suggest:${id}:1`, `reprocess:${id}:k`, 'extract:', `extract:${id}:1`, `xextract:${id}`])
+    assert.equal(handoff.extractionIdOfWorkflow(other), null, other)
+})
+
 test('keiGcWorkflowId names the schedule\'s instant', () => {
   assert.equal(handoff.keiGcWorkflowId(new Date('2026-09-26T12:00:00Z')), 'kei-gc:2026-09-26T12:00:00.000Z')
   assert.equal(handoff.keiGcWorkflowId(new Date('2026-09-26T12:00:00Z')), fixture('deleteRuns.input').enqueue.workflow_id)

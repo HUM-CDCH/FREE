@@ -8,7 +8,7 @@ from typing import Any
 
 from kei_exp.canonical import canonical_json
 from kei_exp.kie.artifacts import seal
-from kei_exp.kie.model import IngestArtifact
+from kei_exp.kie.ingest_model import IngestArtifact
 from kei_exp.pagefile import RESULT_VERSION, result_digest
 
 SPREAD_W, SPREAD_H = 400, 300

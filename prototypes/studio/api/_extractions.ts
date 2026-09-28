@@ -9,7 +9,7 @@ import {
   type ExtractionModule,
   type ExtractionWorkflowPorts,
 } from 'extraction'
-import { createKeiHandoff, keiExtractWorkflowId } from 'extraction/kei-handoff'
+import { createKeiHandoff, extractWorkflowId, keiExtractWorkflowId } from 'extraction/kei-handoff'
 import { studioDbos } from '../server/dbos.js'
 import { extractionAttemptSchema } from '../shared/extraction.contract.js'
 
@@ -39,7 +39,7 @@ export function extractionExecution(): ExtractionExecution {
       workflowStatusesOf((input) => studioDbos().admission.listWorkflows(input))(workflowIds),
     async cancel(extractionId) {
       const { admission, kei } = studioDbos()
-      const studioId = `extract:${extractionId}`
+      const studioId = extractWorkflowId(extractionId)
       const [studio] = await admission.listWorkflows({ workflowIDs: [studioId], loadInput: false, loadOutput: false })
       // A repeated cancel of a cancelled workflow would move its updated_at (M0R 4): live workflows only.
       if (studio && LIVE_WORKFLOW_STATUSES.has(studio.status)) await admission.cancelWorkflow(studioId)

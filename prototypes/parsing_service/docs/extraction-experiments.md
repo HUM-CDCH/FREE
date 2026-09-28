@@ -20,18 +20,23 @@ flowchart LR
 
 | Module | Responsibility |
 | --- | --- |
-| `evidence.py` | Verify canonical files and expose stable passages/tables. |
+| `kie/passages.py` | Verify canonical files and expose stable passages/tables; shared with the recipe stages, outside `kie/extract/`. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
 | `routing.py` | Map reconciled values to reply origins and order whole verification units with exhaustive unresolved fallback. |
-| `grounding.py` | Apply policy and scheduling to fixed record values; shared by serving and grounding-only experiments. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
-| `article.py` | Enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
-| `stages.py` | Shared model admission, schema prompts, generic Catalog discovery, values, grounding and record assembly. |
-| `grounded.py` | Recipe Catalog entry extraction, candidate verification, conflict arbitration and normalization. |
-| `run.py` | Select the strategy and assemble the pinned artifact. |
+| `article.py` | The Article implementation: enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
+| `catalog.py` | The version 1 Catalog implementation: generic record discovery and one call per record slice. |
+| `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
+| `stages.py` | Shared model admission, schema prompts, document and record values, and the record merge. |
+| `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted`, `spans` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
+| `grounded.py` | The recipe Catalog implementation: entry extraction under the token budget, the merge of an entry's windows and conflict arbitration. |
+| `acceptance.py` | Decide, without a model, whether a recipe Catalog candidate is accepted, proposed or rejected: its value typed, its quote in the entry, a recipe key introducing it; the candidate reply schemas. |
+| `windows.py` | Cut an oversized recipe Catalog entry into consecutive windows whose request fits the budget, with optional one-line overlap. |
+| `catalog_result.py` | Shape recipe Catalog outcomes into records, evidence links (table cells, glossary normalization) and review items. |
+| `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; all three share one call shape. Publish the artifact. |
 | `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. Never imported by serving code. |
 
 These are ordinary Python functions. There is no plugin graph or separate

@@ -5,7 +5,7 @@ from xml.etree import ElementTree
 
 import pytest
 
-from kei_exp.kie.extract import run
+from kei_exp.kie.extract import assembly, run
 from kei_exp.kie.extract.article import inventory_request
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
@@ -106,7 +106,7 @@ def test_plain_reference_request_and_serialization_are_preserved():
     base = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {}})
     structured = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
         "rendering": "structured"}})
-    assert run.fingerprint({"generation": "g", "digest": "d"}, base, {}) != run.fingerprint(
+    assert assembly.fingerprint({"generation": "g", "digest": "d"}, base, {}) != assembly.fingerprint(
         {"generation": "g", "digest": "d"}, structured, {})
 
 

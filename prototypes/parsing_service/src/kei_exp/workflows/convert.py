@@ -18,7 +18,6 @@ from dbos import DBOS, WorkflowSerializationFormat
 from pydantic import ValidationError
 
 from kei_exp import runs, runtime
-from kei_exp.cut import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 from kei_exp.failures import STEP_RETRY, KeiFailure, TransientBackendError
 from kei_exp.kie import runner
 from kei_exp.kie.stages.ocr import check_ingest, check_knobs
@@ -26,6 +25,7 @@ from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
 from kei_exp.pagefile import read_manifest
 from kei_exp.pages import PdfPages
 from kei_exp.progress import Event
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 from kei_exp.transcription.types import DEFAULT_URL, ConversionError, RunParams
 from kei_exp.workflows import config
 from kei_exp.workflows.cancel import CancelCheck

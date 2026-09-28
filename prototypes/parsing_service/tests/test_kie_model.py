@@ -8,23 +8,11 @@ import hashlib
 import pytest
 from pydantic import ValidationError
 
-from kei_exp.kie.model import (
-    Block,
-    Document,
-    EvidenceReport,
-    HeadingEvent,
-    IngestArtifact,
-    IngestConfig,
-    IngestError,
-    IngestReport,
-    Page,
-    PipelineConfig,
-    Placement,
-    RunReport,
-    Segment,
-    Source,
-    Span,
-)
+from kei_exp.kie.blocks import Block, HeadingEvent, Span
+from kei_exp.kie.document import Document, Segment
+from kei_exp.kie.ingest_model import IngestArtifact, IngestConfig, IngestReport, Page, Placement, Source
+from kei_exp.kie.primitives import IngestError
+from kei_exp.kie.run_model import EvidenceReport, PipelineConfig, RunReport
 
 SPREAD_W, SPREAD_H = 1000, 700
 PAGE_PT = (500.0, 350.0)

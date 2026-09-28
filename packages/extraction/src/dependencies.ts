@@ -13,7 +13,6 @@ import type {
   ExtractionStrategy,
   ReadBatchInput,
   ReadDocumentExtractionsInput,
-  ReviewDecisionInput,
   ReviewDraft,
   RunSingleInput,
   RunSingleResult,
@@ -21,6 +20,7 @@ import type {
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
 } from './types.js'
+import type { ReviewAuthority } from './review-rules.js'
 
 export type LoadedExtractionInputs = Readonly<{
   sourceDocumentId: string
@@ -46,13 +46,6 @@ export type TerminalExtraction = Readonly<{
   evidence: readonly EvidenceLink[] | null
   reviewable: boolean
   batchExtractionId: string | null
-}>
-
-export type ReviewAuthority = Readonly<{
-  expectedDraftVersion?: number
-  reviewDecisions: readonly ReviewDecisionInput[]
-  occurrenceIdsByAnchor: ReadonlyMap<string, ReadonlySet<string>>
-  evidenceResultPathKeys: ReadonlySet<string>
 }>
 
 export type PersistedReviewResult =

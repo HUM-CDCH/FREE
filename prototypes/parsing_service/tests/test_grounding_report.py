@@ -10,7 +10,7 @@ import pytest
 from experiments.extraction import manifest, study
 from experiments.extraction.manifest import pin, write_new
 from kei_exp.kie.extract import run
-from kei_exp.kie.extract.stages import verify
+from kei_exp.kie.extract.grounding import verify
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_extraction_rendering import table_passage

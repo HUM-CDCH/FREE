@@ -1,140 +1,42 @@
-"""Domain, config, artifact and report types for the KIE pipeline, with their validation rules.
+"""The ingest artifact and its parts: the source, the book pages cut from its spreads with their placement and
+gutter evidence, the ingest configuration, the envelope and the ingest report.
 
-Vocabulary: `CONTEXT.md`. Contracts: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md`
-(sections are cited as "spec 3.8" below) and, for the evidence types, the canonical evidence design
-(`docs/superpowers/specs/2026-09-21-canonical-evidence-design.md`, cited as "design §6"). Validation happens at
-two levels: an artifact type checks what one stage file can know on its own, and `Document` checks what only the
-assembled document can know. Nothing here reads a file, parses HTML, segments entries or hashes bytes.
+Vocabulary: `CONTEXT.md`. Contract: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md`
+(sections are cited as "spec 3.8" below). An artifact type checks what one stage file can know on its own; what only
+the assembled document can know is `kie.document`'s. Nothing here reads a file, renders a spread or hashes bytes:
+`kie/stages/ingest.py` produces the artifact and `kie/artifacts.py` hashes it and reads it back.
 """
 
 import math
-import re
-from collections.abc import Hashable, Iterable
-from datetime import datetime
 from pathlib import PurePosixPath
-from typing import Annotated, Any, Literal, Self
+from typing import Any, Literal, Self
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    ConfigDict,
-    Field,
-    SerializerFunctionWrapHandler,
-    model_serializer,
-    model_validator,
+from pydantic import Field, SerializerFunctionWrapHandler, model_serializer, model_validator
+
+from kei_exp.kie.primitives import (
+    MIN_AXIS_PT,
+    Bbox,
+    ColumnRun,
+    Count,
+    Extent,
+    Fraction,
+    FractionPair,
+    GutterMethod,
+    GutterReason,
+    Index,
+    IndexKey,
+    IngestError,
+    Name,
+    OpenFraction,
+    PageSizePt,
+    Pixel,
+    Seconds,
+    Sha256,
+    Side,
+    Timestamp,
+    _Base,
+    _unique,
 )
-
-from kei_exp.geometry import ordered_box
-from kei_exp.pagefile import segment_id as canonical_segment_id
-
-# An image axis under a point is not a scan of a page, whatever the raster claims (spec 4.1).
-MIN_AXIS_PT = 1.0
-
-# Only this form of entry label has a meaning: leading decimal digits, then the suffix (`31`, `31a`).
-# `\Z`, not `$`: a trailing newline is OCR noise in the label, not an empty suffix.
-_ENTRY_LABEL = re.compile(r"(?a)^(\d+)(.*)\Z", re.DOTALL)
-
-
-class IngestError(Exception):
-    """Input or configuration that ingest refuses, rather than guessing a reading of (spec 4.1, 4.3)."""
-
-
-def _positive_interval(bounds: tuple[int, int]) -> tuple[int, int]:
-    """Pixel intervals are half-open, so `start == end` is empty and never a one-pixel range (spec 3.1)."""
-    start, end = bounds
-    if start >= end:
-        raise ValueError(f"interval [{start}, {end}) is empty")
-    return bounds
-
-
-def _ordered_fractions(bounds: tuple[float, float]) -> tuple[float, float]:
-    """A fractional pair whose interval is empty is a configuration error, never silently widened (spec 3.1)."""
-    start, end = bounds
-    if start >= end:
-        raise ValueError(f"fraction pair [{start}, {end}] is not ordered")
-    return bounds
-
-
-def _positive_size(size: tuple[float, float]) -> tuple[float, float]:
-    width_pt, height_pt = size
-    if width_pt <= 0 or height_pt <= 0:
-        raise ValueError(f"page size {list(size)} pt is not positive")
-    return size
-
-
-def _timestamp(value: str) -> str:
-    """Envelope times are compared across runs and machines, so a naive timestamp is ambiguous evidence."""
-    try:
-        moment = datetime.fromisoformat(value)
-    except ValueError as error:
-        raise ValueError(f"{value!r} is not an ISO 8601 timestamp") from error
-    if moment.tzinfo is None:
-        raise ValueError(f"{value!r} has no time zone")
-    return value
-
-
-# Strict integers: a coordinate of 3.0 or True is a unit error upstream, not a value to coerce (brief).
-Pixel = Annotated[int, Field(strict=True, ge=0)]
-Extent = Annotated[int, Field(strict=True, gt=0)]
-Index = Annotated[int, Field(strict=True, gt=0)]
-Count = Annotated[int, Field(strict=True, ge=0)]
-Offset = Annotated[int, Field(strict=True, ge=0)]  # code points, not pixels
-# Dict keys survive a JSON round trip as decimal strings, so a key is the one integer parsed leniently (spec 5).
-IndexKey = Annotated[int, Field(gt=0)]
-Seconds = Annotated[float, Field(ge=0.0)]
-Fraction = Annotated[float, Field(ge=0.0, le=1.0)]
-OpenFraction = Annotated[float, Field(gt=0.0, lt=1.0)]
-Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-Timestamp = Annotated[str, AfterValidator(_timestamp)]
-Name = Annotated[str, Field(min_length=1)]
-
-# Fixed-length tuples are how coordinate arrays are spelled here; a list would admit a fifth coordinate.
-Bbox = Annotated[tuple[Pixel, Pixel, Pixel, Pixel], AfterValidator(ordered_box)]
-ColumnRun = Annotated[tuple[Pixel, Pixel], AfterValidator(_positive_interval)]
-FractionPair = Annotated[tuple[Fraction, Fraction], AfterValidator(_ordered_fractions)]
-PageSizePt = Annotated[tuple[float, float], AfterValidator(_positive_size)]
-
-Side = Literal["left", "right", "single"]
-GutterMethod = Literal["shadow", "blank", "midline", "override", "none"]
-GutterReason = Literal["no_candidate", "ambiguous_candidates", "config"]
-PageType = Literal["glossary", "catalogue", "figures", "bibliography", "prose", "cover"]
-
-
-def _unique(values: Iterable[Hashable], what: str) -> None:
-    seen: set[Hashable] = set()
-    for value in values:
-        if value in seen:
-            raise ValueError(f"duplicate {what}: {value!r}")
-        seen.add(value)
-
-
-def _check_inside(box: tuple[int, int, int, int], width: int, height: int, what: str) -> None:
-    _, _, right, bottom = box
-    if right > width or bottom > height:
-        raise ValueError(f"{what} {list(box)} lies outside its {width}x{height} page image")
-
-
-class _Base(BaseModel):
-    """Unknown fields are a contract mismatch, and a non-finite float cannot survive canonical JSON (spec 5)."""
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
-
-class Span(_Base):
-    """A half-open character range inside one segment's text, counted in code points (spec 3.5).
-
-    Spans are positive, so an empty segment text is representable while no span can point into it.
-    """
-
-    segment_id: Name
-    start: Offset
-    end: Offset
-
-    @model_validator(mode="after")
-    def _positive(self) -> Self:
-        if self.start >= self.end:
-            raise ValueError(f"span [{self.start}, {self.end}) in {self.segment_id} is empty")
-        return self
 
 
 class Placement(_Base):
@@ -280,204 +182,6 @@ class Page(_Base):
             raise ValueError(f"method {self.gutter_method!r} on page {self.index} states no reason")
 
 
-class EvidenceRef(_Base):
-    """Where a segment came from in the OCR stage's accepted result (design §3.4): the result generation, the PDF
-    page whose file holds it, and its position in that file's `segments` list. Resolvable for as long as that
-    generation exists; a rerun is another generation, and a reference into it is another reference."""
-
-    generation: Name
-    page: Index  # the PDF page, which names the page file `pages/<page>.json`
-    index: Count  # the 0-based position in that page file's `segments` list; the id's `n` counts per unit instead
-
-    @property
-    def segment_id(self) -> str:
-        """The canonical id FREE and extraction evidence use. The one resolver from a book-page `Segment.id`: the two
-        strings may look alike (`p2_s1` can be `p1_s5`) and are never compared."""
-        return canonical_segment_id(self.page, self.index)
-
-
-class Segment(_Base):
-    """One immutable piece of OCR evidence: text, plus a bbox on its page (spec 3.3).
-
-    Frozen because every span in the document indexes this text; rewriting it would move every span. Never
-    persisted by KIE: it is projected from the page file its reference names (design §6).
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    id: Name  # `p{page}_s{n}`, unique per document; not stable across OCR reruns
-    page: Index
-    bbox: Bbox  # page pixels
-    text: str  # may be empty, and then nothing can point into it
-    conf: float | None  # as the engine reported it
-    label: Name  # the OCR label, an OCR fact and not a domain role
-    status: Literal["ok", "error", "skipped"]
-    crop: Index  # the OCR stage's crop ordinal the segment was read in, unique across the OCR run
-    source: EvidenceRef
-
-
-class HeadingEvent(_Base):
-    """A heading anchored to the spans that are its evidence (spec 3.6, amended 2026-09-23 by the grounded catalogue
-    design §10): `kind` is the recipe's name for its level (the German recipe keeps `bezirk` and `kreis`), `level` its
-    depth, 1 the outermost. A heading clears every deeper level, which is invariant 6 in general form."""
-
-    id: Name
-    kind: Name
-    level: Index
-    text: str
-    spans: list[Span] = Field(min_length=1)  # the inherited value's evidence; its position is its first span
-
-
-class GlossaryEntry(_Base):
-    """One abbreviation of the document's own glossary, with the spans of its key and its expansion."""
-
-    key: Name
-    expansion: Name
-    key_span: Span
-    expansion_span: Span
-
-
-class Diagnostic(_Base):
-    """Something a stage noticed and reports rather than corrects, with the source spans it concerns."""
-
-    code: Name
-    detail: str
-    spans: list[Span] = Field(default_factory=list)
-    block: str | None = None
-
-
-class Block(_Base):
-    """An entry block: the unit of extraction, one per entry (spec 3.6)."""
-
-    id: Name
-    entry_label: Name  # the number as printed: `31`, `31a`
-    entry_no: Count  # the leading digits
-    entry_suffix: str  # the rest: "" for `31`, "a" for `31a`
-    primary_spans: list[Span] = Field(min_length=1)  # text the block owns; a block with no text is not evidence
-    context_spans: list[Span] = Field(default_factory=list)  # text it only sees, and which may overlap anything
-    continuation: bool  # crosses a column or a page boundary, and nothing else
-    heading_events: list[str] = Field(default_factory=list)  # the ids in force at this block
-
-    @model_validator(mode="after")
-    def _label_matches_identity(self) -> Self:
-        # The identity is the pair (CONTEXT.md invariant 7); the label is what makes it auditable against the book.
-        match = _ENTRY_LABEL.match(self.entry_label)
-        if match is None:
-            raise ValueError(f"entry label {self.entry_label!r} does not start with decimal digits")
-        digits, rest = match.groups()
-        if int(digits) != self.entry_no or rest != self.entry_suffix:
-            raise ValueError(f"entry label {self.entry_label!r} is not ({self.entry_no}, {self.entry_suffix!r})")
-        return self
-
-
-class Document(_Base):
-    """The whole document as the pipeline sees it, assembled from the ingest artifact and the evidence read over
-    it, and never persisted (spec 3.7)."""
-
-    source: Source
-    pages: list[Page] = Field(default_factory=list)
-    segments: list[Segment] = Field(default_factory=list)
-    blocks: list[Block] = Field(default_factory=list)
-    heading_events: list[HeadingEvent] = Field(default_factory=list)
-    # Optional namespaces, each None until the stage that owns it has been loaded.
-    reading_order: dict[IndexKey, list[str]] | None = None  # segment ids, keyed by every page that has any
-    columns: dict[IndexKey, list[Bbox]] | None = None  # page pixels
-    page_types: dict[IndexKey, PageType] | None = None
-    glossary_pages: list[Index] | None = None
-    page_labels: dict[IndexKey, str] | None = None  # the number printed on the book page, which is not Page.index
-
-    @model_validator(mode="after")
-    def _assembled(self) -> Self:
-        _unique((page.index for page in self.pages), "page index")
-        _unique((segment.id for segment in self.segments), "segment id")
-        _unique((block.id for block in self.blocks), "block id")
-        _unique((heading.id for heading in self.heading_events), "heading event id")
-        _unique(((block.entry_no, block.entry_suffix) for block in self.blocks), "entry identity")
-        pages = {page.index: page for page in self.pages}
-        segments = {segment.id: segment for segment in self.segments}
-        headings = {heading.id: heading for heading in self.heading_events}
-        for segment in self.segments:
-            page = pages.get(segment.page)
-            if page is None:
-                raise ValueError(f"segment {segment.id} names page {segment.page}, which the document has not")
-            _check_inside(segment.bbox, page.width_px, page.height_px, f"segment {segment.id} bbox")
-        for heading in self.heading_events:
-            _check_spans(heading.spans, segments, f"heading event {heading.id}")
-        for block in self.blocks:
-            _check_spans(block.primary_spans, segments, f"block {block.id} primary span")
-            _check_spans(block.context_spans, segments, f"block {block.id} context span")
-            for heading_id in block.heading_events:
-                if heading_id not in headings:
-                    raise ValueError(f"block {block.id} names heading event {heading_id}, which the document has not")
-        _check_primary_ownership(self.blocks)
-        self._check_optional_namespaces(pages)
-        return self
-
-    def _check_optional_namespaces(self, pages: dict[int, Page]) -> None:
-        for name, namespace in (
-            ("reading_order", self.reading_order),
-            ("columns", self.columns),
-            ("page_types", self.page_types),
-            ("page_labels", self.page_labels),
-            ("glossary_pages", self.glossary_pages),
-        ):
-            for index in namespace or ():
-                if index not in pages:
-                    raise ValueError(f"{name} names page {index}, which the document has not")
-        for index, boxes in (self.columns or {}).items():
-            for box in boxes:
-                _check_inside(box, pages[index].width_px, pages[index].height_px, f"column on page {index}")
-        if self.reading_order is None:
-            return
-        on_page: dict[int, list[str]] = {index: [] for index in pages}
-        for segment in self.segments:
-            on_page[segment.page].append(segment.id)
-        # The namespace keys exactly the pages that hold evidence: a page left out is a missing order rather
-        # than an empty one, and nothing downstream could tell the two apart.
-        ordered = {index for index, ids in on_page.items() if ids}
-        if set(self.reading_order) != ordered:
-            raise ValueError(
-                f"reading_order keys {sorted(self.reading_order)}, not the pages with segments {sorted(ordered)}"
-            )
-        for index, ids in self.reading_order.items():
-            # A reading order that drops or repeats a segment is not an order of that page's evidence.
-            if sorted(ids) != sorted(on_page[index]):
-                raise ValueError(
-                    f"reading_order for page {index} is not a permutation of its {len(on_page[index])} segments"
-                )
-
-
-def _check_spans(spans: Iterable[Span], segments: dict[str, Segment], what: str) -> None:
-    for span in spans:
-        segment = segments.get(span.segment_id)
-        if segment is None:
-            raise ValueError(f"{what} names segment {span.segment_id}, which the document has not")
-        if span.end > len(segment.text):
-            raise ValueError(f"{what} [{span.start}, {span.end}) runs past {span.segment_id} ({len(segment.text)})")
-
-
-def _check_primary_ownership(blocks: Iterable[Block]) -> None:
-    """The primary spans of two different blocks never overlap (CONTEXT.md invariant 2, spec 3.8 rule 7).
-
-    Grouping by segment and carrying the furthest end reached keeps this near-linear; an all-pairs scan over
-    a 30k-segment document would make assembly quadratic in the number of spans.
-    """
-    owned: dict[str, list[tuple[int, int, str]]] = {}
-    for block in blocks:
-        for span in block.primary_spans:
-            owned.setdefault(span.segment_id, []).append((span.start, span.end, block.id))
-    for segment_id, spans in owned.items():
-        spans.sort()
-        reach, owner = 0, ""
-        for start, end, block_id in spans:
-            # Half-open: [0, 10) and [10, 20) are adjacent, which is what two consecutive entries inside one
-            # OCR segment look like, and is not an overlap.
-            if start < reach and block_id != owner:
-                raise ValueError(f"blocks {owner} and {block_id} both own characters of {segment_id}")
-            if end > reach:
-                reach, owner = end, block_id
-
-
 class IngestConfig(_Base):
     """What ingest was told to do (spec 4.3). Shape and value checks happen here, at parse time.
 
@@ -571,24 +275,6 @@ class IngestConfig(_Base):
 def _distance_px(fraction: float, width: int) -> int:
     """A fractional distance is a length, not a place, so it rounds to the nearest pixel (spec 4.3)."""
     return max(1, math.floor(fraction * width + 0.5))
-
-
-class OcrConfig(_Base):
-    """Surya execution over the book pages produced by ingest."""
-
-    url: str | None = None  # None uses KEI_VLLM_URL, or the local server
-    cut: Literal["auto", "none"] = "auto"
-    layout_model: str = "layout_heron_101"
-    crop_dpi: Extent = 250
-    max_image_size: Extent | None = None
-    pages: tuple[Index, Index] | None = None  # inclusive PDF spread range
-
-
-class PipelineConfig(_Base):
-    """Ingest, then OCR. Set `ocr: null` to stop after ingest."""
-
-    ingest: IngestConfig = Field(default_factory=IngestConfig)
-    ocr: OcrConfig | None = Field(default_factory=OcrConfig)
 
 
 class Envelope(_Base):
@@ -719,61 +405,3 @@ def _check_spread_pages(spread: int, pages: list[Page], split: str, page_size_pt
         raise ValueError(f"the pages of spread {spread} do not cover its raster")
     if (first.placement.page_width_pt, first.placement.page_height_pt) != page_size_pt:
         raise ValueError(f"spread {spread} is {list(page_size_pt)} pt in the source but not in its placement")
-
-
-class Rejected(_Base):
-    """A page segment that could not become a segment, with its locator and the reason (design §6). It keeps its
-    number in the id sequence of its unit, so ids stay positional; it is recorded, never dropped (CONTEXT.md
-    invariant 5)."""
-
-    page: Index  # the PDF page, which names the page file `pages/<page>.json`
-    unit: Index
-    crop: Index
-    index: Count  # the position in the page file's `segments` list, as `EvidenceRef.index`
-    bbox_px: tuple[float, float, float, float] | None
-    reason: Literal["no_box", "empty_after_clamp"]
-
-
-class EvidenceReport(_Base):
-    """What the evidence loader read and produced (design §6): the generation, its content digest, the counts, and
-    what could not be placed. Part of the run report; nothing else of the evidence is persisted by KIE."""
-
-    generation: Name
-    digest: Sha256
-    pages_read: Count
-    spreads_without_pages: list[Index]  # a page-range result: the spreads the manifest does not cover
-    segments: Count
-    rejected: list[Rejected]
-    clamped: Count  # segments whose box the placement moved into its crop
-    by_label: dict[str, Count]
-    by_status: dict[str, Count]
-    empty_text: Count
-    overlaps: dict[IndexKey, list[tuple[Index, Index]]]  # unit -> pairs of crop ordinals whose rectangles overlap
-    seconds: Seconds
-
-    @model_validator(mode="after")
-    def _consistent(self) -> Self:
-        _unique(self.spreads_without_pages, "spread without pages")
-        if sum(self.by_label.values()) != self.segments or sum(self.by_status.values()) != self.segments:
-            raise ValueError(f"by_label and by_status must each count the {self.segments} segments")
-        return self
-
-
-class IngestStep(_Base):
-    """The ingest's line in the run report (spec 5): whether the accepted artifact was reused, this invocation's
-    seconds, and the stage's own report (on a skip, the one stored when it last ran)."""
-
-    skipped: bool
-    seconds: Seconds  # this invocation, the skip check included
-    report: IngestReport
-
-
-class RunReport(_Base):
-    """What one execution of the pipeline did (spec 5, design §7). `run_id` and `run_dir` name it; `Run` is
-    ingest's type."""
-
-    run_id: Name
-    doc_id: Name
-    seconds: Seconds
-    ingest: IngestStep
-    ocr: EvidenceReport | None = None  # None for an ingest-only run

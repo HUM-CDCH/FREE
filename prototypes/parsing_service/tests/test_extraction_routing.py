@@ -7,6 +7,7 @@ from kei_exp.kie.extract import run
 from kei_exp.kie.extract.contexts import Context, reconcile_values
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.grounding import spans
 from kei_exp.kie.extract.routing import rank_units, value_origins, verify_routed
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
@@ -65,7 +66,7 @@ def test_routing_batches_shared_candidates_and_finds_support_in_exhaustive_fallb
     chat = CountingChat(reason)
     links, calls, issues, routes = verify_routed(contexts, fields, SCHEMA, chat,
         origins=origins, value_contexts=[contexts[0]], record=3, counter=WordCounter(),
-        span_ids=True, record_context="Hill")
+        verifier=spans, record_context="Hill")
     assert not issues and len(calls) == 3
     assert [len(call["schema"]["required"]) for call in chat.calls] == [2, 1, 1]
     assert [(link.path, link.segment) for link in links] == [
@@ -91,7 +92,7 @@ def test_unsuccessful_decisions_never_stop_fallback(outcome):
     chat = ReplyChat(reason)
     links, calls, issues, routes = verify_routed(contexts, {"year": 1827}, SCHEMA, chat,
         origins=origins, value_contexts=[contexts[0]], record=0, counter=WordCounter(),
-        span_ids=True, record_context="Hill")
+        verifier=spans, record_context="Hill")
     assert not links and len(calls) == 3 and bool(issues) == (outcome != "NONE")
     assert routes[0]["attempted"] == [0, 1, 2] and routes[0]["remaining"] == []
     assert routes[0]["coverage"] == "attempted_all" and not routes[0]["supported"]
@@ -106,7 +107,7 @@ def test_refused_units_are_distinct_from_attempts_and_cancellation_is_retained()
                                             for claim in schema["properties"]})
     _, calls, issues, routes = verify_routed(contexts, {"year": 1827}, SCHEMA, chat,
         origins=origins, value_contexts=[contexts[0]], record=0, counter=Counter(),
-        span_ids=True, record_context="Hill")
+        verifier=spans, record_context="Hill")
     assert len(calls) == 2 and issues[0].code == "grounding_exceeds_budget"
     assert routes[0]["refused"] == [0] and routes[0]["attempted"] == [1, 2]
     assert routes[0]["remaining"] == [] and routes[0]["coverage"] == "partial"
@@ -114,7 +115,7 @@ def test_refused_units_are_distinct_from_attempts_and_cancellation_is_retained()
         raise RuntimeError("cancelled")
     with pytest.raises(RuntimeError, match="cancelled"):
         verify_routed(contexts, {"year": 1827}, SCHEMA, chat, origins=origins,
-            value_contexts=[contexts[0]], record=0, counter=Counter(), span_ids=True,
+            value_contexts=[contexts[0]], record=0, counter=Counter(), verifier=spans,
             record_context="Hill", before_call=cancel)
     assert len(chat.calls) == 2
 
@@ -130,7 +131,7 @@ def test_routing_preserves_table_header_and_qualifier_context_and_skips_policy_p
                                             for claim in schema["properties"]})
     links, _, issues, routes = verify_routed([context], fields, SCHEMA, chat,
         origins=origins, value_contexts=[context], record=0, counter=WordCounter(),
-        span_ids=True, record_context="A", proofs=proofs, skip_paths=frozenset({("records", 0, "site")}))
+        verifier=spans, record_context="A", proofs=proofs, skip_paths=frozenset({("records", 0, "site")}))
     assert not issues and [link.path for link in links] == [("records", 0, "year")]
     assert len(routes) == 1 and "Measurements in water" in chat.calls[0]["user"]
     assert "colspan=2" in chat.calls[0]["user"] and "in water" in chat.calls[0]["user"]
@@ -141,7 +142,7 @@ def test_assembled_routing_changes_only_grounding_and_publishes_origin_paths(mon
     source = passages(["Hill background", "Hill year 1827"])
     contexts = [Context((p,)) for p in source]
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
-    monkeypatch.setattr(run, "source_contexts", lambda *_: contexts)
+    monkeypatch.setattr("kei_exp.kie.extract.article.source_contexts", lambda *_: contexts)
     monkeypatch.setattr("kei_exp.kie.extract.article.partition", lambda *_args, **_kwargs: contexts)
     def reason(system, user, schema):
         if "records" in schema["properties"]:

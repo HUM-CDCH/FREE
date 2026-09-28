@@ -33,7 +33,7 @@ class ConvertInput(_Contract):
     page_source: Literal["pdf", "ingest"] = "pdf"
     ingest: dict | None = None         # spread settings; page_source ingest only
     model: str | None = None           # the Ingestion Model Choice's ocr role: a kei_exp.models.MODELS key
-    layout_model: str | None = None    # its layout role: a kei_exp.cut.LAYOUT_MODELS key
+    layout_model: str | None = None    # its layout role: a kei_exp.regions.LAYOUT_MODELS key
     cut: Literal["auto", "none"] = "auto"
     debug: bool = False
 

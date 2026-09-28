@@ -24,7 +24,7 @@ def frozen(tmp_path, monkeypatch):
     for module in (run, fixed_upstream, grounding_study, manifest):
         monkeypatch.setattr(module, "load", lambda _: canonical)
     contexts = [Context((p,)) for p in source]
-    monkeypatch.setattr(run, "source_contexts", lambda *_: contexts)
+    monkeypatch.setattr("kei_exp.kie.extract.article.source_contexts", lambda *_: contexts)
     monkeypatch.setattr("kei_exp.kie.extract.article.partition", lambda *_args, **_kwargs: contexts)
     def reasoning(system, user, schema):
         if "records" in schema["properties"]:

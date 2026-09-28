@@ -6,7 +6,7 @@ running head, glossary or bibliography material); which candidates become entrie
 """
 import pytest
 
-from kei_exp.kie.extract.evidence import load
+from kei_exp.kie.passages import load
 from kei_exp.kie.recipe import Recipe, RecipeError, load_recipe
 from kei_exp.kie.stages.layout import Duplicates, duplicate_observations, lines
 from kei_exp.kie.stages.route import route

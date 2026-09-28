@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   conversionTimeoutMs, keiConvertWorkflowId, type KeiPoll, type KeiSubmission,
 } from 'extraction/kei-handoff'
-import type { WorkflowSteps } from 'extraction/workflows'
+import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { keiReadApi } from '../test/support/keiReadApi.js'
 import { stageSource, uploadSourcePath } from './_source_inbox.js'
 import {

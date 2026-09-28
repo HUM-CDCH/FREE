@@ -7,8 +7,8 @@ from pydantic import ValidationError
 from kei_exp.pagefile import PageTable
 from kei_exp.transcription.tables import table_of_html
 from kei_exp.transcription.types import html_to_text
-from kei_exp.kie.extract.evidence import Passage
-from kei_exp.kie.extract.stages import verify
+from kei_exp.kie.passages import Passage
+from kei_exp.kie.extract.grounding import verify
 from tests.helpers.chat import FakeChat
 from tests.test_extract_stages import SCHEMA
 
@@ -66,15 +66,16 @@ def test_missing_geometry_stays_coarse_and_wrong_cell_is_rejected():
 
 
 def test_grounded_catalog_uses_only_spans_wholly_inside_one_cell():
-    from kei_exp.kie.extract.grounded import _Outcome, _link
-    from kei_exp.kie.model import Span
+    from kei_exp.kie.blocks import Span
+    from kei_exp.kie.extract.acceptance import Outcome
+    from kei_exp.kie.extract.catalog_result import evidence_link
     item = passage()
     cell = item.table.cells[2]
     span = Span(segment_id=item.id, start=cell.start, end=cell.end)
-    outcome = _Outcome('accepted', ('records', 0, 'entry_no'), '24-8', spans=[span], linked_by='key')
-    assert _link(outcome, {item.id: item}, {})['cell'] == cell.cell_id
+    outcome = Outcome('accepted', ('records', 0, 'entry_no'), '24-8', spans=[span], linked_by='key')
+    assert evidence_link(outcome, {item.id: item}, {})['cell'] == cell.cell_id
     outcome.alternatives = [[span]]
-    assert _link(outcome, {item.id: item}, {})['precision'] == 'segment'
+    assert evidence_link(outcome, {item.id: item}, {})['precision'] == 'segment'
     outcome.alternatives = []
     outcome.spans = [Span(segment_id=item.id, start=cell.start, end=item.table.cells[3].end)]
-    assert _link(outcome, {item.id: item}, {})['cell'] is None
+    assert evidence_link(outcome, {item.id: item}, {})['cell'] is None

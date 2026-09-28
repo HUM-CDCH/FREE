@@ -4,12 +4,12 @@ from dataclasses import replace
 
 import pytest
 
-from kei_exp.kie.extract import run
+from kei_exp.kie.extract import assembly, run
 from kei_exp.kie.extract.contexts import partition
 from kei_exp.kie.extract.llm import ModelOutputError, parse_json
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
-from kei_exp.kie.extract.stages import verify
+from kei_exp.kie.extract.grounding import verify
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
@@ -96,7 +96,7 @@ def test_structural_grouping_is_explicit_validated_and_fingerprinted():
     grouped = base.model_copy(update={'options': base.options.model_copy(update={
         'article': ArticleOptions(context='bounded', grouping='structural')})})
     assert 'grouping' not in base.options.dumped()['article']
-    assert run.fingerprint({'generation': 'g', 'digest': 'd'}, base, {}) != run.fingerprint(
+    assert assembly.fingerprint({'generation': 'g', 'digest': 'd'}, base, {}) != assembly.fingerprint(
         {'generation': 'g', 'digest': 'd'}, grouped, {})
 
 

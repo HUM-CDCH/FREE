@@ -13,7 +13,7 @@ from collections.abc import Sequence
 
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.schema import Schema, describe
-from kei_exp.kie.extract.stages import contains, leaves, verify
+from kei_exp.kie.extract.stages import contains, leaves
 
 VERSION = 1
 
@@ -92,7 +92,7 @@ def rank_units(contexts: Sequence[Context], value_contexts: Sequence[Context], o
 
 def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, chat, *,
                   origins: Sequence[dict], value_contexts: Sequence[Context], record: int,
-                  skip_paths: frozenset = frozenset(), **verification):
+                  verifier, skip_paths: frozenset = frozenset(), **verification):
     """Batch claims sharing their next preferred unit; keep unresolved fallback exhaustive.
 
     A refusal is recorded separately from an attempted comparison. Missing/invalid
@@ -117,7 +117,7 @@ def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, cha
         if not batches:
             break
         for unit, paths in batches.items():
-            found, attempts, problems = verify(contexts[unit].passages, fields, schema, chat,
+            found, attempts, problems = verifier(contexts[unit].passages, fields, schema, chat,
                 record=record, skip_paths=frozenset(all_paths - paths), **verification)
             supported = {link.path for link in found}
             refused = {issue.path for issue in problems if issue.code == "grounding_exceeds_budget"}

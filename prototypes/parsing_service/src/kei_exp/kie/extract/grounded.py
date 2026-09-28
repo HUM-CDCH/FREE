@@ -7,6 +7,12 @@ and conform to its field, and the field must be tied to the value by an explicit
 in-force heading (never asked of the model), or a recipe key that introduces the value. A quote-supported value
 without such a rule is proposed for review; a failed check is rejected; neither enters the accepted record. Every
 request is counted with the served model's tokenizer before it is sent and must fit the input budget.
+
+`extract` is the recipe Catalog's implementation: it obtains the recipe's segmentation and the counters, and adds the
+run's identity and fingerprint to the body `extract_grounded` returns. This module runs the calls, merges an entry's
+windows and arbitrates between their disagreeing values; what needs no model lives beside it: candidate acceptance in
+`acceptance.py`, the windows of an oversized entry in `windows.py`, and the records, evidence links and review items
+the artifact is shaped from in `catalog_result.py`.
 """
 from __future__ import annotations
 
@@ -18,27 +24,39 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from kei_exp.canonical import canonical_json
-from kei_exp.kie.extract.evidence import Evidence, text_of
+from kei_exp.kie.blocks import Block, Span
+from kei_exp.kie.extract.acceptance import Outcome, assess, bounded, candidates_schema, typed_value
+from kei_exp.kie.extract.catalog_result import (
+    NORMALIZATION_VERSION,
+    conformed_record,
+    evidence_link,
+    glossary_expansions,
+    place,
+    review_item,
+    spans_json,
+)
 from kei_exp.kie.extract.llm import Chat
-from kei_exp.kie.extract.locate import BlockText, forms, locate, normalise, raw_range
-from kei_exp.kie.extract.models import ROLE, ROLES, Router, as_router
+from kei_exp.kie.extract.locate import BlockText
 from kei_exp.kie.extract.method import CatalogFactors
+from kei_exp.kie.extract.models import ROLE, ROLES, Router, as_router
 from kei_exp.kie.extract.schema import Node, Schema, conform, json_schema, notes
 from kei_exp.kie.extract.stages import Call, _complete, merge
-from kei_exp.kie.model import Block, GlossaryEntry, Span
-from kei_exp.kie.recipe import Recipe
+from kei_exp.kie.extract.tokens import counters_for
+from kei_exp.kie.extract.windows import units_of, windows_of
+from kei_exp.kie.passages import Evidence, text_of
+from kei_exp.kie.recipe import Recipe, load_recipe
 from kei_exp.kie.segmentation import Segmentation
+from kei_exp.kie.segmentation_run import obtain
 
 EXTRACTION_VERSION = 2
 PROMPT_VERSION = 5  # Shared decoder preserves literal source control characters.
 BUDGET_VERSION = 1
-NORMALIZATION_VERSION = 1        # verified glossary expansions beside accepted raw values; a change invalidates results
-KEY_GAP = 3                      # at most this many non-alphanumeric characters between a key and its value
 GLOSSARY_LINES = 40              # the glossary allowance: at most this many entries the block's text uses
 
 GUARDRAIL = (
@@ -99,23 +117,6 @@ def bindings_for(schema: Schema, recipe: Recipe) -> _Bindings:
 
 
 @dataclass
-class _Outcome:
-    kind: str                                    # accepted | proposed | rejected
-    path: tuple
-    value: Any
-    spans: list[Span] = field(default_factory=list)
-    alternatives: list[list[Span]] = field(default_factory=list)
-    key_spans: list[Span] = field(default_factory=list)
-    reason: str | None = None
-    quote: str | None = None
-    key: str | None = None
-    provenance: str | None = None
-    linked_by: str | None = None
-    heading: str | None = None
-    window: int = 0
-
-
-@dataclass
 class _Run:
     """What one extraction accumulates."""
     evidence: Evidence
@@ -163,6 +164,31 @@ class _Run:
         return answer
 
 
+def extract(run_dir: Path, evidence: Evidence, request, chat: Router, *,
+            counter: Counter | dict[str, Counter] | None = None, chunks: int = 1,
+            before_entry: Callable[[], None] | None = None) -> dict:
+    """The recipe Catalog artifact for `request` (the validated `run.ExtractRequest`) over `evidence`: the proven
+    segmentation (computed and published under `run_dir` when absent), a verified token counter for each serving
+    endpoint (one per distinct chat) unless `counter` is given, and the version 2 artifact.
+
+    `before_entry` is called before every entry, and what it raises ends the extraction; the entries run in `chunks`
+    parallel contiguous chunks."""
+    options = request.options
+    recipe = load_recipe(options.catalog.recipe)
+    segmentation = obtain(run_dir, evidence, recipe)
+    if counter is None:
+        counter = counters_for(chat)
+    body = extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter,
+                            chunks=chunks, before_entry=before_entry)
+    result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
+              "model": chat.model, "models": chat.models,
+              "schema": request.schema_.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
+              **body}
+    result["fingerprint"] = fingerprint(body, evidence.generation, evidence.digest, request.schema_,
+                                        options.dumped(), chat.models)
+    return result
+
+
 def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options: CatalogOptions,
                      segmentation: Segmentation, chat: Chat | Router, counter: Counter | dict[str, Counter], *,
                      chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
@@ -194,7 +220,7 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
             run.refused = True
     headings = {event.id: event for event in segmentation.heading_events}
     records: list[dict] = []
-    outcomes: list[_Outcome] = []
+    outcomes: list[Outcome] = []
     competitors: list[dict] = []
     if not run.refused and segmentation.blocks and _schema_alone(run, schema) > options.input_tokens:
         run.issue("schema_exceeds_budget", f"the instructions and schema alone count {_schema_alone(run, schema)} "
@@ -219,7 +245,7 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
         run.issue("no_records", "the segmentation resolved no entry")
     accepted = [outcome for outcome in outcomes if outcome.kind == "accepted"]
     texts = {passage.id: passage for passage in (*evidence.passages, *evidence.withheld)}
-    expansions = _expansions(segmentation.glossary) if options.enabled("glossary") else {}
+    expansions = glossary_expansions(segmentation.glossary) if options.enabled("glossary") else {}
     coverage = segmentation.coverage
     processing = (not run.refused and all(call.ok for call in run.calls) and not coverage.withheld_failures
                   and not any(issue["code"] in UNPROCESSED for issue in run.issues))
@@ -238,8 +264,8 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
                          # alternative field names the recipe binds that this schema does not use: informational
                          "bindings_unmatched": bindings.inactive,
                          # what segmentation could not settle (reading order, numbering, glossary...), for review
-                         "diagnostics": [{"code": d.code, "detail": d.detail, "block": d.block, "spans": _spans(d.spans)}
-                                         for d in segmentation.diagnostics]},
+                         "diagnostics": [{"code": d.code, "detail": d.detail, "block": d.block,
+                                          "spans": spans_json(d.spans)} for d in segmentation.diagnostics]},
         "budget": {"version": BUDGET_VERSION, "input_tokens": options.input_tokens,
                    "output_tokens": options.output_tokens, "tokenizer": counters["fields"].identity(),
                    "tokenizers": {role: each.identity() for role, each in counters.items()}},
@@ -247,9 +273,9 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
         **({"method_version": 1, "raw_candidates": run.candidates} if options.factors is not None else {}),
         "records": records,
         "record_blocks": [{"block": block.id, "entry_label": block.entry_label} for block in segmentation.blocks],
-        "evidence": [_link(outcome, texts, expansions) for outcome in accepted if outcome.spans],
-        "proposed": [_item(outcome, texts) for outcome in outcomes if outcome.kind == "proposed"],
-        "rejected": [_item(outcome, texts) for outcome in outcomes if outcome.kind == "rejected"],
+        "evidence": [evidence_link(outcome, texts, expansions) for outcome in accepted if outcome.spans],
+        "proposed": [review_item(outcome, texts) for outcome in outcomes if outcome.kind == "proposed"],
+        "rejected": [review_item(outcome, texts) for outcome in outcomes if outcome.kind == "rejected"],
         "competitors": competitors,
         "ungrounded": [], "unverified": [node.name for node in schema.document_nodes],
         "coverage": coverage.model_dump(mode="json"),
@@ -337,86 +363,18 @@ def _user(headings: list[str], glossary: list[str], before: list[str], entry: st
 def _schema_alone(run: _Run, schema: Schema) -> int:
     nodes = schema.record_nodes
     return run.count("entry", _system(schema, nodes, bindings_for(schema, run.recipe).keys), _user([], [], [], "", []),
-                     _candidates_schema(nodes))
-
-
-@dataclass(frozen=True)
-class _Unit:
-    segment: str
-    start: int
-    end: int
-
-
-def _units(block: Block, texts: dict[str, str]) -> list[_Unit]:
-    """The block's primary text as source lines, each with its raw range."""
-    units = []
-    for span in block.primary_spans:
-        position = span.start
-        for raw in texts[span.segment_id][span.start:span.end].split("\n"):
-            start, end = position + len(raw) - len(raw.lstrip()), position + len(raw.rstrip())
-            if end > start:
-                units.append(_Unit(span.segment_id, start, end))
-            position += len(raw) + 1
-    return units
-
-
-def _windows(run: _Run, units: list[_Unit], texts: dict[str, str], fits) -> list[list[_Unit]] | None:
-    """Consecutive units per window, each window's request within budget, one unit of overlap; a unit too long for
-    any window is cut at whitespace, then at code points. None when not even one code point fits."""
-    pieces: list[_Unit] = []
-    for unit in units:
-        pieces += _cut(unit, texts, fits)
-    if any(piece is None for piece in pieces):
-        return None
-    windows: list[list[_Unit]] = []
-    index = 0
-    while index < len(pieces):
-        window = [pieces[index]]
-        while index + len(window) < len(pieces) and fits(window + [pieces[index + len(window)]]):
-            window.append(pieces[index + len(window)])
-        windows.append(window)
-        index += len(window)
-        if (run.options.enabled("overlap") and index < len(pieces) and len(window) > 1
-                and fits([window[-1], pieces[index]])):
-            index -= 1  # the last unit is seen again as the start of the next window
-    return windows
-
-
-def _cut(unit: _Unit, texts: dict[str, str], fits) -> list[_Unit | None]:
-    if fits([unit]):
-        return [unit]
-    text = texts[unit.segment]
-    pieces: list[_Unit | None] = []
-    start = unit.start
-    while start < unit.end:
-        low, high, best = start + 1, unit.end, None
-        while low <= high:  # the longest prefix from `start` that fits
-            middle = (low + high) // 2
-            if fits([_Unit(unit.segment, start, middle)]):
-                best, low = middle, middle + 1
-            else:
-                high = middle - 1
-        if best is None:
-            return [None]
-        end = best
-        if best < unit.end and (space := text.rfind(" ", start + 1, best)) > start:
-            end = space  # prefer a whitespace boundary
-        pieces.append(_Unit(unit.segment, start, end))
-        start = end
-        while start < unit.end and text[start].isspace():
-            start += 1
-    return pieces
+                     candidates_schema(nodes))
 
 
 # --- one block -----------------------------------------------------------------------------------------------------
 
 def _block(run: _Run, number: int, block: Block, headings: dict, bindings: _Bindings,
-           segmentation: Segmentation) -> tuple[dict, list[_Outcome], list[dict]]:
+           segmentation: Segmentation) -> tuple[dict, list[Outcome], list[dict]]:
     schema = run.schema
     texts = {p.id: p.text for p in (*run.evidence.passages, *run.evidence.withheld)}
     in_force = [headings[heading] for heading in block.heading_events] if run.options.enabled("headings") else []
     kinds = {event.kind: event for event in in_force}
-    outcomes: list[_Outcome] = []
+    outcomes: list[Outcome] = []
     record: dict[str, Any] = {}
     structural: set[str] = set()
     for node in bindings.entry_label:
@@ -428,7 +386,7 @@ def _block(run: _Run, number: int, block: Block, headings: dict, bindings: _Bind
             if event is not None:
                 span = event.spans[0]
                 value = texts[span.segment_id][span.start:span.end]
-                outcomes.append(_fitted(run, number, node, _Outcome(
+                outcomes.append(_fitted(run, number, node, Outcome(
                     "accepted", ("records", number, node.name), value, spans=[span], provenance="inherited",
                     linked_by="structure", heading=event.id)))
                 structural.add(node.name)
@@ -437,13 +395,13 @@ def _block(run: _Run, number: int, block: Block, headings: dict, bindings: _Bind
             record[outcome.path[2]] = outcome.value
     nodes = [node for node in schema.record_nodes if node.name not in structural]
     if not nodes:
-        return _record(schema, record), outcomes, []
+        return conformed_record(schema, record), outcomes, []
     system = _system(schema, nodes, bindings.keys)
-    reply_schema = _candidates_schema(nodes)
-    units = _units(block, texts)
+    reply_schema = candidates_schema(nodes)
+    units = units_of(block, texts)
     entry_text = "\n".join(texts[u.segment][u.start:u.end] for u in units)
     glossary = [f"{entry.key} — {entry.expansion}" for entry in segmentation.glossary
-                if run.options.enabled("glossary") and _bounded(entry.key, entry_text)][:GLOSSARY_LINES]
+                if run.options.enabled("glossary") and bounded(entry.key, entry_text)][:GLOSSARY_LINES]
     heading_lines = [event.text for event in in_force]
     before, after = _context(block, texts, {p.id: n for n, p in enumerate(run.evidence.passages)})
     if not run.options.enabled("overlap"):
@@ -457,16 +415,16 @@ def _block(run: _Run, number: int, block: Block, headings: dict, bindings: _Bind
     if fits(units, with_extras=True):
         windows, extras = [units], True
     else:
-        windows, extras = _windows(run, units, texts, fits), False
+        windows, extras = windows_of(units, texts, fits, overlap=run.options.enabled("overlap")), False
         if windows is None:
             run.issue("window_refused", f"entry {block.entry_label} cannot be cut into windows that fit the budget",
                       number)
             run.refused = True
-            return _record(schema, record), outcomes, []
+            return conformed_record(schema, record), outcomes, []
     # Candidates are verified against the whole entry, never a window, so a cut cannot make a boundary the source lacks.
     view = BlockText.of([(u.segment, texts[u.segment], Span(segment_id=u.segment, start=u.start, end=u.end))
                          for u in units])
-    found: list[_Outcome] = []
+    found: list[Outcome] = []
     for window_number, window in enumerate(windows):
         user = _user(heading_lines, glossary if extras else [], before if extras else [],
                      "\n".join(texts[u.segment][u.start:u.end] for u in window), after if extras else [])
@@ -476,22 +434,22 @@ def _block(run: _Run, number: int, block: Block, headings: dict, bindings: _Bind
         if run.options.factors is not None:
             run.candidates.append({"record": number, "window": window_number, "fields": answer})
         for node in nodes:
-            for outcome in _verify(("records", number, node.name), node, answer.get(node.name), view,
-                                   bindings.keys.get(node.name), verify=run.options.enabled("verification")):
+            for outcome in assess(("records", number, node.name), node, answer.get(node.name), view,
+                                  bindings.keys.get(node.name), verify=run.options.enabled("verification")):
                 outcome.window = window_number
                 found.append(outcome)
     merged, contest = _merge(run, number, found, texts)
     outcomes += merged
     for outcome in merged:
         if outcome.kind == "accepted":
-            _place(record, outcome.path[2:], outcome.value)
-    return _record(schema, record), outcomes, contest
+            place(record, outcome.path[2:], outcome.value)
+    return conformed_record(schema, record), outcomes, contest
 
 
-def _fitted(run: _Run, number: int, node: Node, outcome: _Outcome) -> _Outcome:
+def _fitted(run: _Run, number: int, node: Node, outcome: Outcome) -> Outcome:
     """A structural value conformed to its field; one its type or allowed values refuse is rejected and reported,
     because the source has a value the schema cannot hold (the model is not asked instead: structure owns it)."""
-    typed = _typed(outcome.value, node)
+    typed = typed_value(outcome.value, node)
     if typed is None:
         outcome.kind, outcome.reason = "rejected", "type_mismatch"
         run.issue("binding_type_mismatch", f"{node.name}: the {outcome.provenance} value {outcome.value!r} does not "
@@ -501,16 +459,16 @@ def _fitted(run: _Run, number: int, node: Node, outcome: _Outcome) -> _Outcome:
     return outcome
 
 
-def _label(number: int, node: Node, block: Block) -> _Outcome:
+def _label(number: int, node: Node, block: Block) -> Outcome:
     first = block.primary_spans[0]
     digits = re.match(r"\d+", block.entry_label)[0]
     numeric = node.type in ("integer", "number")
     shown = digits if numeric else block.entry_label
     value = block.entry_no if node.type == "integer" else float(block.entry_no) if numeric else block.entry_label
     # `_fitted` conforms it to the field, or rejects it
-    return _Outcome("accepted", ("records", number, node.name), value,
-                    spans=[Span(segment_id=first.segment_id, start=first.start, end=first.start + len(shown))],
-                    provenance="positional", linked_by="structure")
+    return Outcome("accepted", ("records", number, node.name), value,
+                   spans=[Span(segment_id=first.segment_id, start=first.start, end=first.start + len(shown))],
+                   provenance="positional", linked_by="structure")
 
 
 def _context(block: Block, texts: dict[str, str], order: dict[str, int]) -> tuple[list[str], list[str]]:
@@ -523,156 +481,13 @@ def _context(block: Block, texts: dict[str, str], order: dict[str, int]) -> tupl
     return before, after
 
 
-def _bounded(key: str, text: str) -> list[int]:
-    hay, needle = normalise(text).text, normalise(key).text
-    return [m.start() for m in re.finditer(re.escape(needle), hay)
-            if (m.start() == 0 or not hay[m.start() - 1].isalnum())
-            and (m.end() == len(hay) or not hay[m.end()].isalnum() or not needle[-1].isalnum())]
-
-
-def _candidates_schema(nodes: Sequence[Node]) -> dict:
-    return {"type": "object", "properties": {node.name: _candidate_schema(node) for node in nodes},
-            "required": [node.name for node in nodes], "additionalProperties": False}
-
-
-def _leaf(node: Node) -> dict:
-    value = json_schema([node])["properties"][node.name]
-    return {"type": ["object", "null"], "properties": {
-        "value": value, "quote": {"type": "string"}, "key": {"type": ["string", "null"]},
-        "provenance": {"type": "string", "enum": ["token", "positional"]}},
-        "required": ["value", "quote", "key", "provenance"], "additionalProperties": False}
-
-
-def _candidate_schema(node: Node) -> dict:
-    if node.type == "array" and node.item_type is not None:
-        item = Node(id=f"{node.id}-item", name=node.name, type=node.item_type)
-        return {"type": ["array", "null"], "items": _leaf(item)}
-    if node.type == "array":
-        return {"type": ["array", "null"], "items": _candidates_schema(node.children or [])}
-    if node.type == "object":
-        return {**_candidates_schema(node.children or []), "type": ["object", "null"]}
-    return _leaf(node)
-
-
-# --- verification --------------------------------------------------------------------------------------------------
-
-def _typed(value: Any, node: Node) -> Any:
-    """The value conformed to its field's type, or None when it cannot be."""
-    kind = node.type if node.type != "array" else node.item_type
-    if kind == "boolean" or isinstance(value, bool) or value is None:
-        return value if kind == "boolean" and isinstance(value, bool) else None
-    if kind == "integer":
-        if isinstance(value, int):
-            return value
-        if isinstance(value, float) and value.is_integer():
-            return int(value)
-        return int(value) if isinstance(value, str) and value.strip().isdigit() else None
-    if kind == "number":
-        if isinstance(value, (int, float)):
-            return value
-        try:
-            return float(str(value).replace(",", "."))
-        except ValueError:
-            return None
-    text = str(value).strip() if isinstance(value, (str, int, float)) else ""
-    if not text:
-        return None
-    if node.allowed_values is not None and text not in node.allowed_values:
-        return None
-    return text
-
-
-def _verify(path: tuple, node: Node, answer: Any, view: BlockText, keys: list[str] | None, *,
-            verify: bool = True) -> list[_Outcome]:
-    if answer is None:
-        return []
-    if node.type == "object":
-        if not isinstance(answer, dict):
-            return [_Outcome("rejected", path, answer, reason="malformed_candidate")]
-        return [outcome for child in node.children or []
-                for outcome in _verify((*path, child.name), child, answer.get(child.name), view, None, verify=verify)]
-    if node.type == "array":
-        if not isinstance(answer, list):
-            return [_Outcome("rejected", path, answer, reason="malformed_candidate")]
-        if node.item_type is not None:
-            item = Node(id=f"{node.id}-item", name=node.name, type=node.item_type)
-            return [outcome for index, entry in enumerate(answer)
-                    for outcome in _verify((*path, index), item, entry, view, None, verify=verify)]
-        child = Node(id=f"{node.id}-object", name=node.name, type="object", children=node.children)
-        return [outcome for index, entry in enumerate(answer)
-                for outcome in _verify((*path, index), child, entry, view, None, verify=verify)]
-    return [_scalar(path, node, answer, view, keys, verify=verify)]
-
-
-def _scalar(path: tuple, node: Node, candidate: Any, view: BlockText, keys: list[str] | None, *,
-            verify: bool = True) -> _Outcome:
-    if not isinstance(candidate, dict):
-        return _Outcome("rejected", path, candidate, reason="malformed_candidate")
-    value, quote, key, provenance = (candidate.get(name) for name in ("value", "quote", "key", "provenance"))
-    outcome = _Outcome("rejected", path, value, quote=quote if isinstance(quote, str) else None,
-                       key=key if isinstance(key, str) else None,
-                       provenance=provenance if provenance in ("token", "positional") else None)
-    typed = _typed(value, node)
-    if typed is None:
-        outcome.reason = "type_mismatch"
-        return outcome
-    outcome.value = typed
-    if not verify:
-        outcome.kind, outcome.reason = "proposed", "verification_disabled"
-        return outcome
-    if not isinstance(quote, str) or not quote.strip():
-        outcome.reason = "no_quote"
-        return outcome
-    quoted = locate(view, quote)
-    if not quoted:
-        outcome.reason = "quote_not_in_entry"
-        return outcome
-    if isinstance(typed, bool):  # a yes/no is read off its quote, never off a span, and no rule ties it to a field
-        outcome.kind, outcome.spans, outcome.alternatives = "proposed", quoted[0], quoted[1:]
-        return outcome
-    numeric = isinstance(typed, (int, float))
-    values = [found for spans in quoted for text in forms(typed)
-              for found in locate(view, text, within=raw_range(view, spans), numeric=numeric)]
-    if not values:
-        outcome.reason = "value_not_in_quote"
-        return outcome
-    if keys:
-        keyed = _after_keys(view, typed, keys)
-        if not keyed:
-            outcome.reason, outcome.spans = "key_context_missing", values[0]
-            return outcome
-        outcome.kind, outcome.linked_by, outcome.provenance = "accepted", "key", "token"  # a key introduces it
-        outcome.spans, outcome.key_spans = keyed[0]
-        outcome.alternatives = [spans for spans, _ in keyed[1:]]
-        return outcome
-    outcome.kind, outcome.spans, outcome.alternatives = "proposed", values[0], values[1:]
-    return outcome
-
-
-def _after_keys(view: BlockText, value: Any, keys: list[str]) -> list[tuple[list[Span], list[Span]]]:
-    """Every place where one of the field's keys introduces the value, found in the entry itself rather than taken
-    from the model's quote: (value spans, key spans)."""
-    found = []
-    for key in keys:
-        for key_spans in locate(view, key):
-            _, key_end = raw_range(view, key_spans)
-            numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
-            for text in forms(value):
-                for spans in locate(view, text, within=(key_end, min(len(view.text), key_end + len(text) + KEY_GAP)),
-                                    numeric=numeric):
-                    start, _ = raw_range(view, spans)
-                    if not any(char.isalnum() for char in view.text[key_end:start]):
-                        found.append((spans, key_spans))
-    return found
-
-
-def _merge(run: _Run, number: int, found: list[_Outcome], texts: dict) -> tuple[list[_Outcome], list[dict]]:
+def _merge(run: _Run, number: int, found: list[Outcome], texts: dict) -> tuple[list[Outcome], list[dict]]:
     """One record's outcomes across windows: a value seen twice at one place is one value; accepted singular values
     that disagree are competitors, resolved only by an arbitration call over those candidates; array items are
     concatenated in window order without repeating a located item."""
-    merged: list[_Outcome] = []
+    merged: list[Outcome] = []
     contest: list[dict] = []
-    singular: dict[tuple, list[_Outcome]] = {}
+    singular: dict[tuple, list[Outcome]] = {}
     seen_items: set[tuple] = set()
     counters: dict[tuple, int] = {}
     for outcome in found:
@@ -696,7 +511,7 @@ def _merge(run: _Run, number: int, found: list[_Outcome], texts: dict) -> tuple[
         outcome.path = (*base, counters[key], *outcome.path[array_at + 1:])
         merged.append(outcome)
     for path, candidates in singular.items():
-        values: dict[str, list[_Outcome]] = {}
+        values: dict[str, list[Outcome]] = {}
         for candidate in candidates:
             values.setdefault(repr(candidate.value), []).append(candidate)
         if len(values) == 1:
@@ -707,7 +522,8 @@ def _merge(run: _Run, number: int, found: list[_Outcome], texts: dict) -> tuple[
             merged.append(first)
             continue
         chosen = _arbitrate(run, number, path, [group[0] for group in values.values()], texts)
-        contest.append({"path": list(path), "candidates": [{"value": group[0].value, "spans": _spans(group[0].spans),
+        contest.append({"path": list(path), "candidates": [{"value": group[0].value,
+                                                            "spans": spans_json(group[0].spans),
                                                             "window": group[0].window} for group in values.values()],
                         "outcome": "arbitrated" if chosen is not None else "unresolved"})
         if chosen is not None:
@@ -717,7 +533,7 @@ def _merge(run: _Run, number: int, found: list[_Outcome], texts: dict) -> tuple[
     return merged, contest
 
 
-def _arbitrate(run: _Run, number: int, path: tuple, candidates: list[_Outcome], texts: dict) -> _Outcome | None:
+def _arbitrate(run: _Run, number: int, path: tuple, candidates: list[Outcome], texts: dict) -> Outcome | None:
     labels = [f"C{index}" for index in range(1, len(candidates) + 1)]
     lines = []
     for label, candidate in zip(labels, candidates, strict=True):
@@ -733,28 +549,7 @@ def _arbitrate(run: _Run, number: int, path: tuple, candidates: list[_Outcome], 
     return candidates[labels.index(choice)] if choice in labels else None
 
 
-def _place(record: dict, path: tuple, value: Any) -> None:
-    target: Any = record
-    for step, following in zip(path, (*path[1:], None), strict=True):
-        if following is None:
-            if isinstance(target, list):
-                target.extend([None] * (step + 1 - len(target)))
-            target[step] = value
-            return
-        container = [] if isinstance(following, int) else {}
-        if isinstance(target, list):
-            target.extend([None] * (step + 1 - len(target)))
-            target[step] = target[step] if target[step] is not None else container
-        else:
-            target.setdefault(step, container)
-        target = target[step]
-
-
-def _record(schema: Schema, record: dict) -> dict:
-    return conform(record, schema.record_nodes)
-
-
-# --- document fields, artifact shapes ------------------------------------------------------------------------------
+# --- document fields -----------------------------------------------------------------------------------------------
 
 def _document(run: _Run) -> dict:
     """The document-level fields from one call over as much of the source as the budget allows; unverified, as in
@@ -780,61 +575,6 @@ def _document(run: _Run) -> dict:
     answer = run.call("document", None, system, f"### Source document\n{text_of(passages[:low])}\n\nReturn the JSON "
                       "object now.", json_schema(nodes))
     return conform(answer, nodes)
-
-
-def _spans(spans: list[Span]) -> list[dict]:
-    return [{"segment": span.segment_id, "start": span.start, "end": span.end} for span in spans]
-
-
-def _raw(spans: list[Span], texts: dict) -> str:
-    return "".join(texts[span.segment_id].text[span.start:span.end] for span in spans)
-
-
-def _expansions(glossary: Sequence[GlossaryEntry]) -> dict[str, GlossaryEntry]:
-    """The document's glossary by key without its closing period, since `G.` may be quoted as `G`; a key that the
-    period's removal makes expand two ways is dropped, as the segmentation drops a key printed twice."""
-    found: dict[str, list[GlossaryEntry]] = {}
-    for entry in glossary:
-        found.setdefault(entry.key.rstrip("."), []).append(entry)
-    return {key: entries[0] for key, entries in found.items() if key and len({e.expansion for e in entries}) == 1}
-
-
-def _normalized(outcome: _Outcome, texts: dict, expansions: dict[str, GlossaryEntry]) -> dict | None:
-    """An accepted string whose source text is a glossary key, expanded as the glossary prints it; the record keeps
-    the raw value, and both glossary spans are the expansion's evidence."""
-    if not isinstance(outcome.value, str):
-        return None
-    entry = expansions.get(_raw(outcome.spans, texts).rstrip("."))
-    if entry is None:
-        return None
-    return {"value": entry.expansion, "rule": "glossary", "key_span": _spans([entry.key_span])[0],
-            "expansion_span": _spans([entry.expansion_span])[0]}
-
-
-def _link(outcome: _Outcome, texts: dict, expansions: dict[str, GlossaryEntry]) -> dict:
-    first = texts[outcome.spans[0].segment_id]
-    cells = [cell for cell in first.table.cells if cell.bbox_pt is not None
-             and all(span.segment_id == first.id and cell.start <= span.start < span.end <= cell.end
-                     for span in outcome.spans)] if first.table and not outcome.alternatives else []
-    cell = cells[0] if len(cells) == 1 else None
-    return {"path": list(outcome.path), "segment": first.id, "page": first.page,
-            "bbox_pt": list(cell.bbox_pt if cell else first.bbox_pt), "cell": cell.cell_id if cell else None,
-            "verbatim": True, "hits": 1 + len(outcome.alternatives), "linked_by": outcome.linked_by,
-            "spans": _spans(outcome.spans), "alternatives": [_spans(spans) for spans in outcome.alternatives],
-            "provenance": outcome.provenance, "key_spans": _spans(outcome.key_spans), "heading": outcome.heading,
-            "precision": "cell" if cell else first.precision, "raw": _raw(outcome.spans, texts),
-            "normalized": _normalized(outcome, texts, expansions)}
-
-
-def _item(outcome: _Outcome, texts: dict) -> dict:
-    item = {"path": list(outcome.path), "value": outcome.value, "quote": outcome.quote, "key": outcome.key,
-            "provenance": outcome.provenance, "spans": _spans(outcome.spans),
-            "alternatives": [_spans(spans) for spans in outcome.alternatives], "window": outcome.window}
-    if outcome.reason is not None:
-        item["reason"] = outcome.reason
-    if outcome.spans:
-        item["raw"] = _raw(outcome.spans, texts)
-    return item
 
 
 def _total(values) -> int | None:
