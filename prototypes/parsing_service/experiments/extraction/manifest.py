@@ -90,6 +90,15 @@ def validate(study: dict, service: Path, *, verify_files=True) -> list[dict]:
             raise ValueError("implementation changed since registration; register a new study revision")
         for item in study.get("evaluation", {}).values():
             checked(item)
+        if "grounding_study" in study:
+            from .grounding_study import validate_bundle
+            for name in ("parent", "protocol"):
+                checked(study["grounding_study"][name])
+            limit = study["grounding_study"]["model_seconds_per_cell"]
+            if type(limit) not in (int, float) or not 0 < limit <= 10800:
+                raise ValueError("fixed grounding requires a positive model-time budget of at most three hours")
+            for source in study["sources"]:
+                validate_bundle(source, study["grounding_study"]["parent"])
     cells = []
     for source in study["sources"]:
         if source["exposure"] not in ("development", "unannotated"):
@@ -105,6 +114,9 @@ def validate(study: dict, service: Path, *, verify_files=True) -> list[dict]:
                 raise ValueError(f"canonical generation changed for {source['id']}")
         for method in source["methods"]:
             configured = request(source, study["methods"][method]) if verify_files else None
+            if verify_files and "grounding_study" in study:
+                from .grounding_study import validate_fixed_options
+                validate_fixed_options(configured.options.dumped(), read(checked(source["fixed_upstream"]))["upstream_options"])
             for repeat in range(study["repeats"]):
                 cells.append({"id": f"{source['id']}--{method}--{repeat}", "source": source["id"],
                               "method": method, "repeat": repeat, "request": configured})

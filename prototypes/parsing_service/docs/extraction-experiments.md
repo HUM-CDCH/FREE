@@ -22,14 +22,16 @@ flowchart LR
 | --- | --- |
 | `kie/passages.py` | Verify canonical files and expose stable passages/tables; shared with the recipe stages, outside `kie/extract/`. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
+| `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
+| `routing.py` | Map reconciled values to reply origins and order whole verification units with exhaustive unresolved fallback. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
 | `article.py` | The Article implementation: enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
 | `catalog.py` | The version 1 Catalog implementation: generic record discovery and one call per record slice. |
-| `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, grounding each record through `grounding.technique`, and the version 1 artifact with its fingerprint and prompt version. |
+| `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
 | `stages.py` | Shared model admission, schema prompts, document and record values, and the record merge. |
-| `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
+| `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted`, `spans` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
 | `grounded.py` | The recipe Catalog implementation: entry extraction under the token budget, the merge of an entry's windows and conflict arbitration. |
 | `acceptance.py` | Decide, without a model, whether a recipe Catalog candidate is accepted, proposed or rejected: its value typed, its quote in the entry, a recipe key introducing it; the candidate reply schemas. |
 | `windows.py` | Cut an oversized recipe Catalog entry into consecutive windows whose request fits the budget, with optional one-line overlap. |
@@ -87,12 +89,74 @@ Studio does not expose these controls.
 - `overlap_passages=0..2`: preceding context that never changes primary
   ownership. Tables are indivisible passages. An oversized passage is explicitly
   refused; it is never clipped or reconstructed under its original identity.
-- `grounding=semantic|quoted|off`: source-label verification; verification with
+- `grounding=semantic|quoted|spans|off`: source-label verification; verification with
   exact source-substring checks and model-attested attribution; or no links.
   Quoted verification uses four claims per batch and at most 500 characters per
   quote. Matching preserves case and whitespace; normalization cannot manufacture
   a source substring. Quoted support is retained in the artifact. A valid substring and a
   model's attribution are **not independent proof of semantic correctness**.
+- `grounding=spans` reconstructs quotes from offered canonical ranges instead of
+  asking the model to generate source text. Replies select a span ID and attest
+  support for the field and record; negative attribution creates no link. Prose
+  ranges cover every character and are at most 500 code points, preferring sentence
+  or whitespace boundaries. Existing table cells stay intact, including longer
+  cells. Complete parent text and eligible cell/header context remain available.
+  `quoted_support` retains exact start/end offsets, source text and cell identity;
+  geometry remains at the parent's precision unless a measured cell box exists.
+  Batches start at 32 claims, then split under actual input-token admission with
+  a 2,048-token output reserve. Missing/unknown decisions and truncation remain
+  failures. The setting and `span_grounding_version` change the fingerprint.
+- `grounding_schedule=unresolved` independently removes supported full record paths
+  from later source-unit calls. NONE, missing decisions and failed calls stay
+  unresolved. Omission keeps the exhaustive all-claim schedule and its previous
+  fingerprint. Early exit searches for support; it does not establish absence of
+  contradictions elsewhere. It can amplify false-positive support and needs
+  independently reviewed attribution evidence before production adoption.
+
+- `evidence_policy=schema` independently enables node `evidencePolicy` metadata
+  with quoted or span grounding. Policies are `quoted`, `derived` or `unverified`.
+  Omitted metadata inherits the closest parent's policy, defaulting to `quoted`;
+  explicit child metadata overrides its parent. Explicit null is rejected.
+  For example, a diagnostic array node can declare `"evidencePolicy": "derived"`
+  while an observation child declares `"evidencePolicy": "quoted"`. Renaming the
+  array does not change eligibility. Derived describes eligibility, not a verified
+  calculation. Both skipped policies retain values, full paths in `ungrounded`,
+  and `evidence_policy_skipped` reasons in the result and Studio adapter.
+  `grounding_eligibility` records all/eligible leaf counts and skipped paths/policies;
+  `completion.eligible_grounding` reports only the eligible set (or `not_applicable`
+  when empty). Existing all-leaf grounding and link-rate metrics remain unchanged.
+  The analyzer checks the ledger against the schema and rejects links on skipped
+  fields. Without this method factor, metadata does not prune verification.
+- `grounding_routing=origin_lexical` requires `grounding_schedule=unresolved` and
+  quoted or span grounding. It orders whole source units per claim: units owning
+  extraction-origin passages first, then bounded lexical value matches and BM25
+  field/value relevance, with canonical index as the final tie-breaker. No source
+  unit is excluded; unresolved claims continue through every remaining unit.
+  Claims sharing their next unit are verified in one batch where budgets allow.
+  Failed, missing and invalid decisions do not stop search; refusals remain gaps.
+  Table cells, headers, qualifiers and structural context are not cut by routing.
+  This is deterministic lexical retrieval, without a dense model or service.
+
+With routing enabled, `value_origins` retains each full record leaf path and its
+contributing value-call unit/index path. Array unions may change output indexes;
+the mapping requires an exact whole-item match to an original reply. Scalar
+conflicts remain null and acquire no origin. Identity fields bound by the inventory
+retain `kind=inventory` and its model-supplied citations instead of pretending they
+were extracted again in each value call. Value units refer to `value_contexts`;
+routing prefers their primary ownership, not duplicated heading/overlap text.
+These are extraction hints, not canonical evidence or proof of support.
+
+`grounding_routes` retains full claim paths, ordered unit indexes, origin/value
+match hints, lexical scores, attempted/refused/remaining units and supported status.
+An attempted unit can still have a failed model reply; the existing calls/issues
+ledger retains those failures. `attempted_all` means every unit was submitted,
+not that every reply was usable or no contradiction exists. `partial` retains
+budget/no-evidence refusals; `stopped_after_support` retains unvisited units.
+The separately recorded `grounding_routing_version` participates in fingerprints.
+
+These methods are opt-in prototypes. Their controlled live comparison remains in
+the [follow-up plan](../../../docs/plans/2026-09-28-span-grounding.md).
+They do not alter the running frozen R1/R2a/R3/R4 study.
 
 The shared decoder accepts literal control characters only inside strings and
 preserves their values exactly, like escaped JSON spellings. It still rejects

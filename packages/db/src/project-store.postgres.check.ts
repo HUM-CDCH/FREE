@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
 import { validateDisposableTestDatabaseTarget } from './database-url.js'
 import { withBlockedUpdates } from './postgres-test-helpers.js'
+import policySchema from '../../../prototypes/parsing_service/tests/fixtures/contracts/evidence-policy.schema.json' with { type: 'json' }
 
 /**
  * The cascade is a PostgreSQL behaviour, so only PostgreSQL can prove it. This
@@ -225,8 +226,10 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     extractionSchemaId: schema.id,
     revisionNumber: 2,
     origin: 'MODEL_EDIT',
-    schemaTree: [],
+    schemaTree: policySchema,
   })
+  assert.deepEqual((await store.getSchemaRevision(project.projectContextId, schema.id, appliedRevision.id))?.schemaTree,
+    policySchema, 'schema evidence policies must survive the PostgreSQL revision round trip')
   const extraction = await db.orm.public.Extraction.create({
     sourceDocumentId: document.id,
     schemaRevisionId: appliedRevision.id,
