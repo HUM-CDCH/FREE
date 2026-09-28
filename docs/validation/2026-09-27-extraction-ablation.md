@@ -201,6 +201,75 @@ Timing is direct extraction through shared model endpoints and includes possible
 contention. It is not isolated model throughput, DBOS queue latency, authenticated API
 latency, or deployment validation. No deployment was performed.
 
+## R1 complete execution: preliminary effects awaiting final replay
+
+The corrected analyzer covers all 79 sealed R1 cells, including the eight
+partial-processing outcomes. This is a **descriptive preview**, not final replay
+acceptance. Its network-disabled reporting outputs and result pins are preserved
+under `artifacts/extraction-ablation/r1-terminal-preview-20260928/`; `receipt.json`
+pins the analyzer, renderer and four reports. Before promoting these findings,
+compare them with the collector's final outputs and resolve any discrepancy.
+
+In the registered full-source schema-to-bounded comparison, the bounded arm's
+mean populated-field score is 33.35 percentage points lower across the six development papers.
+Its document bootstrap interval is [-49.06, -16.40] points. The observed documents
+are few and already used during development; this interval does not establish
+performance on unseen papers. Correct/eligible populated sample fields and raw
+record counts are:
+
+| Paper | Full-source schema score | Bounded score | Full-source records | Bounded records |
+| --- | ---: | ---: | ---: | ---: |
+| Akita | 154/187 | 125/187 | 11 | 20 |
+| Harvey | 7/9 | 3/9 | 5 | 5 |
+| Mizuta | 63/66 | 39/66 | 6 | 12 |
+| Sousa | 47/52 | 27/52 | 4 | 4 |
+| Wang | 47/49 | 15/49 | 5 | 7 |
+| Zelechowska | 10/11 | 10/11 | 1 | 2 |
+
+More raw records do not establish improved recall. The frozen scorer's identity
+alignment and non-exhaustive gold projection still apply; extra records need
+review. This result does not isolate a specific missing table header, grouping
+decision or identity merge as the cause. R3 and R4 address representation and
+grouping separately. The registered bounded method has not demonstrated an
+accuracy or cost advantage on this cohort.
+
+All registered R1 paired effects are shown below. Accuracy uses six annotated
+document pairs where available. Costs include every observed registered pair;
+token effects use only pairs with known totals. Call counts are artifact entries,
+including refusals, and these differences do not include unknown interrupted work.
+
+| Comparison | Accuracy change, pp | Calls: pairs / expected | Mean call change | Input tokens: pairs / expected | Mean input-token change |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| reference → identity | -0.18 | 6/6 | +0.33 | 6/6 | +10,512 |
+| identity → schema | -0.76 | 6/6 | -2.00 | 6/6 | -30,295 |
+| schema → bounded | -33.35 | 15/15 | +25.47 | 14/15 | +115,340 |
+| bounded → quoted | -1.52 | 6/6 | +229.83 | 6/6 | +1,419,450 |
+| schema → full quoted | +0.00 | 6/6 | +32.67 | 6/6 | +489,396 |
+| bounded → overlap | +3.55 | 6/6 | +1.00 | 6/6 | +10,611 |
+| bounded → unverified | -0.82 | 6/6 | -26.33 | 6/6 | -220,258 |
+| catalog → no overlap | unavailable | 1/1 | +0.00 | 1/1 | -440 |
+| catalog → unverified | unavailable | 1/1 | +0.00 | 1/1 | +0 |
+
+Age remains in the context comparison's 15 observed pairs; its full-source
+refusals make its token delta unavailable. The Catalog comparison has one
+unannotated document, so no accuracy effect is estimated. Remaining descriptive
+intervals and the registered context-by-grounding interaction are in the preview's
+`analysis.json` and `tables.md`; no significance or equivalence claim is made.
+
+Grounding does not rewrite raw values. The regenerated upstream records and
+inventory differ in the grounding comparisons, so their accuracy changes cannot
+be attributed to the verifier. The zero normalized score change for full-source
+quoted grounding also does not establish identical upstream records or better
+evidence. R5 freezes upstream records to isolate those grounding factors.
+
+Across the complete R1 snapshot, 2,318 saved Article grounding replies account
+for 18,824,247 reported input tokens and 77,237 recorded call seconds. Of these,
+508 requests concern only diagnostic status fields and use 3,374,319 input tokens.
+Those are observed workload counts across methods, including invalid replies;
+they are not unique claims, counterfactual pruning savings or fresh end-to-end
+latency. Mixed batches and reused-reply durations remain distinguishable in
+`grounding-workload.json` and the accounting report.
+
 ## Selection replay: complete registered cohort
 
 R2a has all 30 sealed cells across fifteen paired documents. All fifteen
