@@ -207,6 +207,24 @@ def test_runner_dispatch_and_offline_replay_preserve_completed_and_budget_outcom
     replayed = replay_cell(configured, cell, output)
     assert replayed["exact_replay"] and replayed["calls"] == len(generated)
     assert replayed["fresh_model_calls"] == replayed["fresh_tokenizer_probes"] == 0
+    all_cells = manifest.validate(configured, Path(__file__).resolve().parents[1])
+    verification = {"manifest": pin(output / "manifest.json"), "cells": [
+        replayed if other["id"] == cell["id"] else {"cell": other["id"], "status": "pending", "exact_replay": False}
+        for other in all_cells]}
+    write_new(output / "verified.json", verification)
+    report_path = helper.with_name("extraction_grounding_report.py")
+    report = runpy.run_path(str(report_path))["report"]
+    monkeypatch.setitem(report.__globals__, "load", lambda _: run.load(tmp_path))
+    reported = report(configured, all_cells, output, output / "verified.json")
+    assert reported["cell_statuses"] == {terminal["status"]: 1, "pending": 5}
+    row = next(row for row in reported["cells"] if row["id"] == cell["id"])
+    assert row["cost"]["saved_replies"] == len(generated)
+    assert row["cost"]["recorded_call_seconds"] == len(generated)
+    assert not reported["link_review_queue"]
+    if budget == 10800:
+        assert row["upstream_records_unchanged"] and row["literal_validity"]["semantic_precision"] is None
+    else:
+        assert "diagnostics" not in row  # an exhausted cell has cost, not zero-quality measurements
     probes = list((output / "token-counts" / cell["id"]).glob("*.json"))
     probes[0].unlink()
     with pytest.raises(AssertionError, match="missing saved grounding token probe"):

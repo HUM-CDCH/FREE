@@ -206,3 +206,42 @@ receipt; it waits for the original final collector. R1 has 68/79 sealed cells,
 R2a has 30/30, and R3/R4 remain queued. The original Akita quoted run has finished;
 its absence from the process list is not a reason to restart it. This state is a
 checkpoint, not an experiment-completion claim.
+
+## Grounding report acceptance
+
+`extraction_grounding_report.py` consumes an exact replay receipt and the pinned
+source from the frozen R5 runtime. It retains every registered cell, including
+budget-ended and infrastructure failures. Missing replies and missing token usage
+stay unknown; pending cells have unavailable metrics. Failed cells retain captured
+costs without acquiring invented zero-quality measurements.
+
+For completed cells it checks upstream invariance, literal quotes, code-point
+offsets, cell identity, canonical geometry, policy denominators and route coverage.
+No-proof results have unavailable literal-validity success, not a vacuous 100%.
+Per-document contrasts and the scheduling × policy interaction retain incomplete
+pairs. Added, dropped and changed support enters an unadjudicated review queue;
+semantic precision and evidence recall remain unavailable without independent labels.
+
+- `tests/test_grounding_report.py tests/test_grounding_study.py`: **20 passed**.
+  These include a complete six-arm scripted capture→offline replay→report flow,
+  budget-ended cost retention, changed-capture rejection, exact quote/offset and
+  geometry checks, missing usage and unknown prior calls, route reconciliation,
+  incomplete comparisons and unadjudicated link differences.
+- The report CLI runs with HTTP disabled against the actual frozen 90-cell R5
+  registration. Before generation it reports all 90 as pending, with unavailable
+  cost/quality, and reproduces 2,959 enumerated claims and 79 excluded booleans per
+  method. This validates report plumbing and denominators, not model outcomes.
+- Manual bloat review found no blocker: one offline report entrypoint owns these
+  checks, reusing the existing diagnostic and manifest readers. No serving code,
+  frozen runtime, dependency, service or experiment factor changed.
+
+After generation, use the frozen source and a newly generated exact replay receipt:
+
+```sh
+PYTHONPATH=src:. python /path/to/extraction_grounding_replay.py R5_OUTPUT REPLAY_JSON
+PYTHONPATH=src:. python /path/to/extraction_grounding_report.py R5_OUTPUT REPLAY_JSON REPORT_JSON
+```
+
+The helpers and report inputs must be pinned for final collection. A prepared
+reporter does not close task 4.3: final data, interpretation and limitations still
+need to be checked after the registered runs finish.
