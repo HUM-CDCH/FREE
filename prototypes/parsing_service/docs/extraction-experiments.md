@@ -24,6 +24,7 @@ flowchart LR
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
 | `routing.py` | Map reconciled values to reply origins and order whole verification units with exhaustive unresolved fallback. |
+| `grounding.py` | Apply policy and scheduling to fixed record values; shared by serving and grounding-only experiments. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |

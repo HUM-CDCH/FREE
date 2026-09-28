@@ -28,10 +28,15 @@ from kei_exp.kie.extract.tokens import counter_for
 from .manifest import digest, read, validate, write_new
 
 
-def preflight(study: dict, cells: list[dict]) -> list[dict]:
+def preflight(study: dict, cells: list[dict], *, output: Path | None = None) -> list[dict]:
     """Count the real inventory prompts, without generating answers or looking at gold."""
     provider = study["providers"]["reasoning"]
     counter = counter_for(OpenAIChat(url=provider["base_url"] + "/v1/chat/completions", model=provider["model"]))
+    if "grounding_study" in study:
+        from .grounding_study import preflight_fixed
+        if output is None:
+            raise ValueError("fixed grounding preflight needs an output directory for tokenizer probes")
+        return preflight_fixed(study, cells, output, counter)
     report = []
     for cell in cells:
         method = cell["request"].options.article
@@ -112,10 +117,19 @@ def execute(study: dict, study_hash: str, cell: dict, output: Path) -> str:
                 clients[role] = OpenAIChat(url=provider["base_url"] + "/v1/chat/completions", model=provider["model"])
                 counters[role] = counter_for(clients[role])
                 captures[role] = Capture(clients[role], directory / "calls", role)
+            if "grounding_study" in study:
+                from .grounding_study import RecordedCounts
+                counters["reasoning"] = RecordedCounts(counters["reasoning"], output / "token-counts" / cell["id"],
+                                                       study["providers"]["reasoning"])
             write_new(prefix.with_suffix(".providers.json"), providers)
             source = next(s for s in study["sources"] if s["id"] == cell["source"])
-            result = extract(Path(source["run"]), cell["request"], Router(**captures),
-                             counter=counters, generation=source["generation"])
+            if "grounding_study" in study:
+                from .grounding_study import fixed_grounding
+                result = fixed_grounding(source, cell["request"], Router(**captures), counters,
+                    model_seconds=study["grounding_study"]["model_seconds_per_cell"])
+            else:
+                result = extract(Path(source["run"]), cell["request"], Router(**captures),
+                                 counter=counters, generation=source["generation"])
             for capture in captures.values():
                 if len(list((directory / "calls").glob(f"{capture.role}-*.reply.json"))) != capture.index:
                     raise ValueError("resume left unconsumed captured calls")
@@ -152,7 +166,7 @@ def main():
     if args.command == "validate":
         return
     if args.command == "preflight":
-        write_new(args.output / "preflight.json", preflight(study, cells))
+        write_new(args.output / "preflight.json", preflight(study, cells, output=args.output))
         return
     study_hash = digest(args.manifest.read_bytes())
     if (args.output / "manifest.json").exists():

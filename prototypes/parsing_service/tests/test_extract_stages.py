@@ -255,7 +255,7 @@ def test_extract_passes_its_check_to_verification(monkeypatch):
     def before_entry():
         pass
     monkeypatch.setattr(run_module, "load", lambda run_dir: evidence())
-    monkeypatch.setattr(run_module, "verify", spy)
+    monkeypatch.setattr("kei_exp.kie.extract.grounding.verify", spy)
     def script(system, user, schema):
         if "records" in schema["properties"]:
             return one_identity(schema)

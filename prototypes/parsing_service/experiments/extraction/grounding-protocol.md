@@ -1,9 +1,9 @@
-# Fixed-upstream grounding comparison — execution design, 2026-09-28
+# Fixed-upstream grounding comparison — R5 protocol, 2026-09-28
 
-Status: implementation is tested; the new manifest is **not registered** and no
-fresh grounding arm has run. The runner, immutable upstream bundles and registered
-pins remain task 4.1 in `openspec/changes/extraction-span-grounding/tasks.md`.
-This follow-up does not change or replace frozen R1/R2a/R3/R4.
+This protocol governs registration of a separate grounding study. The concrete
+manifest, source archive and result receipts establish its actual execution state.
+It does not change or replace frozen R1/R2a/R3/R4. Tasks and completion gates are
+tracked in `openspec/changes/extraction-span-grounding/tasks.md`.
 
 ## Question and corpus
 
@@ -77,9 +77,21 @@ contradiction. No dense retriever or separately trained verifier is included.
 
 Before generation, pin all bundles, source code/archive, protocol, schemas,
 provider/model/context and decoding settings. Register 90 cells (15 sources × six
-methods), one greedy execution each, and a reproducible randomized order. Pin the
-admission/time budget and interrupted-cell recovery policy. Preflight actual
-rendered requests and preserve output reserves; preflight is not a model outcome.
+methods), one greedy execution each, randomized with seed 20260928, with at most
+two concurrent cells. Preserve the 12,288-token context ceiling and 2,048-token
+grounding output reserve. Stop admission of new calls once a cell has accumulated
+10,800 seconds of reported grounding model time. Reused replies count toward the
+same budget; an in-flight reply can exceed it. Budget exhaustion is a retained
+terminal failure, not a successful partial result or an automatic retry. This
+model-time bound sums captured request durations, including provider queuing and
+network time. It is not a wall-clock SLA or the product's execution deadline;
+report actual wall time and any overshoot separately.
+
+Preflight evaluates an explicit scripted all-NONE scenario with actual rendered
+token counts; it is neither a fresh model outcome nor guaranteed eventual cost.
+Save every tokenizer probe, including split/refused batches, in the cell's cache
+with the provider identity. Serving drift, missing offline probes or changed
+requests must fail replay visibly. No upstream generation is permitted.
 
 Begin fresh inference only after the existing R1→R3→R4 chain settles and its
 supervisor has been audited. Do not change the provider, run competing generation
@@ -106,3 +118,22 @@ Recompute records and their existing value scores to prove invariance; a changed
 score indicates broken input isolation. Use document-level uncertainty, not scalar
 leaves as independent samples. A single greedy run does not measure serving or
 model variability. Report this development study and the original study separately.
+
+## Commands
+
+From the implementation's Parsing Service directory, create each bundle using
+the source's successful original HTTP-disabled replay receipt:
+
+```sh
+python -m experiments.extraction.fixed_upstream R1_OUTPUT SOURCE REPLAY_RECEIPT BUNDLE_JSON
+python -m experiments.extraction.grounding_study R1_OUTPUT BUNDLE_DIRECTORY R5_OUTPUT
+python -m experiments.extraction.study validate R5_OUTPUT/manifest.json R5_OUTPUT
+python -m experiments.extraction.study preflight R5_OUTPUT/manifest.json R5_OUTPUT
+python -m experiments.extraction.study run R5_OUTPUT/manifest.json R5_OUTPUT --cell CELL_ID
+```
+
+Freeze the registered code before preflight and generation. The serving entrypoint
+and experiment both call `kie.extract.grounding.ground_records`; policy and scheduling
+must not have a separate benchmark implementation. Registration replays every
+bundle's upstream again and rejects changed values, origins, requests or diagnostics.
+Only the four declared grounding options may differ from the frozen upstream options.

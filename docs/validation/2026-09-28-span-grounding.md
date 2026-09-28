@@ -113,3 +113,30 @@ that path, with unvisited contexts retained. Nothing claims contradiction recall
 Fresh cost, retrieval adequacy and semantic attribution remain unmeasured. An
 origin is a reply provenance hint, not support; BM25 and value matching only order
 work. Existing R1/R2a/R3/R4 source, collector and generation jobs are unchanged.
+
+## Fixed-upstream runner verification
+
+`grounding.ground_records` now owns the serving policy/scheduling loop independently
+of record extraction. The R5 experiment calls that same function with frozen values;
+it cannot generate document, inventory or record replies. Its artifact separates
+grounding cost from pinned upstream provenance and fingerprints the upstream hash.
+
+- All **15 Article sources / 81 records / 2,959 claim leaves** reproduce from
+  **266 saved upstream replies** with HTTP disabled. Inventories, values, contexts,
+  conflicts, call accounting and diagnostics match the original bounded artifacts.
+  Origins retain exact original reply paths; bundles are in the primary workspace's
+  `artifacts/extraction-ablation/grounding-preparation-20260928/`.
+- Nine focused study tests cover unchanged values across all six methods, rejection
+  of changed values/origins/options before registration, no upstream generation,
+  exclusive result retention, cached admission probes and budget accounting on
+  resumed captured replies. Full fast suite: **1,130 passed, 72 skipped,
+  74 deselected**, with the same three dependency warnings.
+- The six scripted reference comparisons remain byte-identical after moving the
+  serving boundary (`reference-after-grounding-boundary.json`, same SHA-256 above).
+- Every admission probe is saved, including split/refused batches. Preflight uses
+  an explicit all-NONE scripted scenario; these are token counts, not inference
+  outcomes or a promised speedup. The registered cumulative call-time admission
+  limit retains exhausted cells as terminal failures and counts reused replies.
+
+Registration and frozen execution receipts establish the concrete R5 state; the
+tests and prepared inputs alone do not establish a completed fresh comparison.
