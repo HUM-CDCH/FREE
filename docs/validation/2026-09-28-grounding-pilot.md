@@ -10,7 +10,11 @@ used **75% fewer calls, 59.6% fewer input tokens and 68.6% fewer claim–source
 decisions** than generated quotes. It retained 35 linked claim paths versus 30.
 Those counts do not establish higher semantic accuracy: two baseline paths were
 lost, and exact source locations do not prove that a quote supports every part
-of a claim. Routing added cost and lost two links relative to the combined arm.
+of a claim. The routed run used one extra call and retained two fewer links, but
+identical requests also returned different labels. Those link differences cannot
+be attributed to routing from this single execution. The later
+[model audit and capture recheck](2026-09-28-grounding-pilot-audit.md) supersede
+the initial causal interpretation and incomplete control-character diagnosis.
 
 ## Controlled scope
 
@@ -58,11 +62,14 @@ The separate factors matter:
 
 - Schema policy reduces span-only calls from 16 to 10 and preserves all 35
   linked paths, although one selected proof changes.
-- Unresolved scheduling alone saves two calls but loses one notes-field link.
+- The unresolved run uses two fewer calls and has one fewer notes-field link;
+  that link differs between byte-identical requests, not a changed prompt.
   With policy, it reduces decisions from 84 to 49 and output tokens from 2,518
   to 1,617 while retaining the same 35 paths. Calls remain at 10; two proofs change.
-- Routing adds one call and 4,871 input tokens over the combined arm and drops
-  two links. It provides no observed benefit on this two-context document.
+- The routed run uses one extra call and 4,871 extra input tokens and has two
+  fewer links. One loss is an identical-request difference; the other uses a
+  different batch for a claim that also varies under identical requests.
+  Routing's semantic effect is unresolved on this two-context document.
 - The scheduling × policy interaction is not additive: the document-level
   difference of differences is +2 calls and +8,772 input tokens. There is only
   one document, so the report correctly provides no bootstrap interval.
@@ -75,33 +82,41 @@ retain the same canonical passage, cell, page, geometry and precision. The two
 other links move the analyte evidence to the results paragraph. Prose spans
 retain coarse segment geometry; they do not invent word boxes or table cells.
 
-The quoted control records six rejected-quote diagnostics. Three saved replies
+The quoted control records six rejected-quote diagnostics. Five saved decisions
 omit canonical control character `U+000E` near temperature units, making otherwise
-matching text fail the exact-substring test. Those three paths later receive
-links from another context, so they are not three missing final claims.
+matching text fail the exact-substring test. Three paths later receive links
+from another context; both records' thermal-condition paths remain unlinked.
+The original checkpoint inspected only one response and missed these two cases.
+The sixth rejected quote normalized the unit instead of copying a substring.
 Span-only reconstructs 16 proofs containing that character without asking the
 model to copy it. This preserves the canonical text; it does not repair OCR.
 
 Assistant inspection of changed links found these review cases:
 
 - Span-only adds seven paths and loses two relative to quoted verification.
-  The lost ASC link quotes acetic-acid extraction and may represent lost support.
+  The lost ASC link quotes acetic-acid extraction, but the record leaves its
+  preparation arm unspecified; the model audit rates this proof partial with
+  unclear attribution. It is not an established recall loss.
   The lost NaOH-P baseline link quotes pepsin addition, which does not establish
   NaOH pretreatment on its own. Neither link counts nor exact substrings resolve
   these attribution questions.
 - The thermal-condition span contains the solution concentration, heating
   schedule and denaturation criterion in one 461-character source paragraph.
-- Policy-only changes a compound notes proof to a dialysis-method paragraph
+- The policy-only run selects a compound notes proof from a dialysis-method paragraph
   that does not contain the claimed conversion factor **15.7**. The combined arm
   instead selects the results paragraph containing that number. Equal linked-path
-  counts therefore do not establish equally complete support.
-- Unresolved scheduling alone drops record 0's hydroxyproline notes link.
-  Routing drops record 0's composition-basis link and record 1's notes link;
-  it also changes sample-scope evidence from the title to a section heading.
+  counts therefore do not establish equally complete support. The two requests
+  were byte-identical, so the difference cannot be attributed to policy.
+- The unresolved run lacks record 0's hydroxyproline notes link, and the routed
+  run lacks record 0's composition-basis and record 1's notes links. Sample-scope
+  evidence also differs between a title and section heading. See the recheck
+  for identical-request groups and the one re-batched routing comparison.
 
 These are diagnostic inspections of saved source excerpts, not independent human
-annotations. The 46-entry change queue remains explicitly unadjudicated. Semantic
-precision, evidence recall and unsupported-link rate remain unavailable.
+annotations. An external Opus primary review and a second model pass now cover
+all 69 distinct claim–evidence pairs, including the 46-entry change queue.
+Human adjudication, semantic precision, evidence recall and independently
+validated unsupported-link rates remain unavailable.
 
 Upstream values and their existing identity-gated scores are unchanged in every
 arm: 10 of 11 populated projected values are correct, with one requiring review.
@@ -131,10 +146,12 @@ documents; unavailable costs are not zero. The original R4 comparison and final
 R1/R3/R4 collection also remain unfinished. Keep their admission deferred as the
 user requested; do not restart old supervisors or duplicate these six cells.
 
-The useful next engineering target is the span catalogue's input overhead:
+The subsequent compact-label revision addresses part of the catalogue overhead:
 the full preflight refused 20.8% of span-only claim–unit pairs, including every
 pair for Hvissinge. This pilot was selected outside that failure case. A compact
-rendering revision needs new code/input pins and tokenizer checks before further
-fresh comparisons. Preserve this pilot and the original registered evidence.
+label version 2 is separately pinned in PR #146 and passes ten tokenizer-only
+checks; Age/Hamburg still have singleton overflows. It has no fresh quality result.
+Before further fresh comparisons, retain identical-request disagreement as a
+diagnostic and include actual table evidence. Preserve this pilot and its inputs.
 The present result supports further evaluation of span IDs plus policy and
 unresolved scheduling, not automatic adoption or a claim that the study is complete.

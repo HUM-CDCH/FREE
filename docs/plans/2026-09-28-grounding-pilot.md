@@ -80,3 +80,18 @@ Future resumption must audit the six retained outcomes, schedule only remaining
 cells and rebuild the final collection dependency with the new scheduler identity.
 Never rerun or discard the pilot to restore the old order. The original full-study
 replay, complete matrix, final analysis and delivery gates remain open.
+
+## Audit follow-up — 2026-09-28
+
+The [model audit and mechanical recheck](../validation/2026-09-28-grounding-pilot-audit.md)
+cover all changed evidence and establish differing replies to identical requests.
+Use the new captured-request variation helper before attributing small link changes
+to a factor. Five of six rejected quotes omitted U+000E; two became missing final
+thermal-condition links. Earlier three-case accounting was incomplete.
+
+Human semantic adjudication remains open. Both model passes prefer the observed
+span proofs, but disagree on 26/69 record-attribution judgments. Do not treat the
+model audit as human gold or proof of method equivalence. A next micro-pilot should
+include real table cells and repeated identical controls; Harvey has one canonical
+table with 48 cells. Pin selected claims and source units before any new generation.
+The full matrix remains deferred; no new inference is scheduled here.
