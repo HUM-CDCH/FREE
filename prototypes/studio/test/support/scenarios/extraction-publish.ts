@@ -2,7 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { createModelConfigurationStore } from 'db'
 import { createExtractions, createExtractionStore, registerExtractionWorkflow, type ExtractionStore } from 'extraction'
 import { accountMethod } from 'extraction/extraction-method'
-import { keiExtractWorkflowId } from 'extraction/kei-handoff'
+import { keiExtractWorkflowId, type KeiHandoff } from 'extraction/kei-handoff'
 import { createCanonicalPackageStore } from '../../../../../packages/db/src/artifact-store.js'
 import { extractionExecution, extractionWorkflowPorts } from '../../../api/_extractions.js'
 import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
@@ -25,10 +25,22 @@ function killAfterSettle(store: ExtractionStore, firstRun: boolean): ExtractionS
   }
 }
 
+/** Dies (SIGKILL) as the first run is about to hand its Extraction to kei: loadAdmitted is checkpointed, submitToKei is not. */
+function killBeforeSubmit(kei: KeiHandoff, firstRun: boolean): KeiHandoff {
+  return {
+    ...kei,
+    async submit(submission) {
+      if (firstRun) process.kill(process.pid, 'SIGKILL')
+      return kei.submit(submission)
+    },
+  }
+}
+
 /**
  * Studio with runExtraction on its own DBOS schemas, talking to the kei stand-in the parent spawned (FREE_TEST_KEI_SCHEMA,
  * KEI_EXP_URL). The first run admits one Extraction and dies: in `kill-after-settle` mode right after its publication
- * commits, in `kill-while-held` mode once kei holds its child. A later run recovers the workflow and waits for it.
+ * commits, in `kill-while-held` mode once kei holds its child, in `kill-before-submit` mode as it is about to submit
+ * the child. A later run recovers the workflow and waits for it.
  */
 export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.ProcessEnv }): Promise<void> {
   const mode = required(env, 'FREE_TEST_EXTRACTION_MODE')
@@ -40,10 +52,14 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
     keiSchema: required(env, 'FREE_TEST_KEI_SCHEMA'),
     executorId: required(env, 'FREE_TEST_EXECUTOR'),
     register: () =>
-      registerExtractionWorkflow(() => ({
-        ...extractionWorkflowPorts(),
-        store: killAfterSettle(createExtractionStore({ packages }), firstRun && mode === 'kill-after-settle'),
-      })),
+      registerExtractionWorkflow(() => {
+        const ports = extractionWorkflowPorts()
+        return {
+          ...ports,
+          kei: killBeforeSubmit(ports.kei, firstRun && mode === 'kill-before-submit'),
+          store: killAfterSettle(createExtractionStore({ packages }), firstRun && mode === 'kill-after-settle'),
+        }
+      }),
   })
   if (firstRun) {
     const account = required(env, 'FREE_TEST_ACCOUNT')

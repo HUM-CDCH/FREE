@@ -332,4 +332,17 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
       .extractionSettings, { article: QUOTES })
     await heldByKei(input.extractionId)
   })
+
+  it('kei receives the admitted method byte for value: strategy, models and every active option', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    kei.holding = true
+    const models = { fields: 'instruct', reasoning: 'instruct' }
+    await configureAccount(project.researcherAccountId, { extractionModels: models, extractionSettings: { article: SPANS } })
+    const input = freshInput(project, randomUUID(), intent(SPANS, models))
+    await scheduler(project.researcherAccountId).runSingle(input)
+    await heldByKei(input.extractionId)
+    const submitted = kei.submissions.find((submission) => submission.workflowId === keiExtractWorkflowId(input.extractionId))!
+    assert.deepEqual((submitted.request as KeiExtractInput).request.options, { strategy: 'article', models, article: SPANS })
+  })
 })

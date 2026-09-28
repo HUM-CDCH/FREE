@@ -37,9 +37,11 @@ type Run = {
   generation?: string
   document?: ParsedDocument
   batchExtractionId?: string | null
+  /** Method options the request adds: an explicit `article`, generic Catalog limits. */
+  settings?: Record<string, unknown>
 }
 /** kei's extract request as runExtraction builds it: `models` and `catalog` only when chosen. */
-function request({ strategy = 'ARTICLE', recipe = null, models = null, generation = 'g1' }: Run = {}): KeiExtractInput {
+function request({ strategy = 'ARTICLE', recipe = null, models = null, generation = 'g1', settings = {} }: Run = {}): KeiExtractInput {
   return {
     run_id: runId, generation,
     request: {
@@ -48,6 +50,7 @@ function request({ strategy = 'ARTICLE', recipe = null, models = null, generatio
         strategy: strategy === 'CATALOG' ? 'catalog' : 'article',
         ...(models === null ? {} : { models }),
         ...(recipe === null ? {} : { catalog: { recipe } }),
+        ...settings,
       },
     },
   }
@@ -215,6 +218,19 @@ describe('kei artifact acceptance', () => {
       refused(() => accept(value, { models: { fields: 'nuextract' } }))
     }
     refused(() => accept(artifact({ options: { strategy: 'article', model: null, models: { fields: 'nuextract' } } })))
+  })
+
+  it('refuses an artifact that does not record every requested method option', () => {
+    const article = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+      prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
+    const withArticle = (recorded: unknown) => artifact({ options: { strategy: 'article', model: 'selected-model', discovery_chars: 48_000, record_chars: 24_000, ...(recorded ? { article: recorded } : {}) } })
+    assert.doesNotThrow(() => accept(withArticle(article), { settings: { article } }))
+    refused(() => accept(withArticle({ ...article, grounding: 'quoted' }), { settings: { article } }))
+    refused(() => accept(withArticle(null), { settings: { article } }))
+    // An explicit Article the request never asked for is another request's artifact.
+    refused(() => accept(withArticle(article)))
+    refused(() => accept(artifact({ options: { strategy: 'catalog', model: null, discovery_chars: 48_000, record_chars: 24_000 }, strategy: 'catalog' }),
+      { strategy: 'CATALOG', settings: { record_chars: 30_000 } }))
   })
 
   it('rejects an artifact that does not name the model of each role', () => {

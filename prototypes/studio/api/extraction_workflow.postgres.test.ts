@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DBOSClient } from '@dbos-inc/dbos-sdk'
 import pg from 'pg'
-import { afterAll, afterEach, describe, expect, it } from 'vitest'
-import { db, pool } from 'db'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
+import { createModelConfigurationStore, db, pool } from 'db'
 import { keiExpArtifact } from 'extraction/kei-exp-fixture'
 import { KEI_APPLICATION, keiExtractWorkflowId, type KeiExtractInput } from 'extraction/kei-handoff'
 import { spawnKeiStandIn, type KeiStandInProcess } from 'extraction/kei-stand-in-client'
@@ -34,7 +34,7 @@ async function sql<T extends pg.QueryResultRow>(text: string, values: unknown[])
 }
 
 /** One Studio process's DBOS schemas and its own kei stand-in (a kei schema of its own). */
-async function studioWithKei(mode: 'kill-after-settle' | 'kill-while-held') {
+async function studioWithKei(mode: 'kill-after-settle' | 'kill-while-held' | 'kill-before-submit') {
   const names = testSchemas()
   schemas.push(names.schema, names.keiSchema)
   standIn = await spawnKeiStandIn({ databaseUrl: url, schema: names.keiSchema })
@@ -150,5 +150,49 @@ describe('runExtraction across Studio restarts', () => {
     expect(row?.outcome).toBe('SUCCEEDED')
     expect(row?.resultPayload).toEqual({ records })
     expect((await keiChildren()).map((child) => child.workflowID)).toEqual([keiExtractWorkflowId(extractionId)])
+  })
+
+  it('an admitted Extraction recovered after the account saves another method runs the one it was admitted with', async () => {
+    const { research, extractionId, env, keiChildren } = await studioWithKei('kill-before-submit')
+    const store = createModelConfigurationStore(db)
+    const document = (article: unknown) => ({
+      connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {},
+      extractionSettings: { article },
+    })
+    const spans = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+      prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
+    await store.apply(research.researcherAccountId, () => document(spans))
+    await standIn!.policy({ extract: 'hold' })
+
+    const killed = await runWorkflowChild('extraction-publish', env)
+    expect(killed.signal, killed.output).toBe('SIGKILL')
+    // It died before kei was asked for anything.
+    expect(await keiChildren()).toEqual([])
+    await store.apply(research.researcherAccountId, () => document({ ...spans, grounding: 'quoted' }))
+
+    const recovering = runWorkflowChild('extraction-publish', env)
+    // kei holds the child once the recovered workflow submits it; a run that exits first fails here instead of waiting.
+    const [held] = await Promise.race([
+      vi.waitFor(async () => {
+        const work = await standIn!.held()
+        expect(work).toHaveLength(1)
+        return work
+      }, { timeout: 60_000, interval: 50 }),
+      recovering.then((exit) => Promise.reject(new Error(`The recovered run exited before kei held its child.\n${exit.output}`))),
+    ])
+    const request = held!.request as KeiExtractInput
+    expect(request.request.options).toEqual({ strategy: 'article', article: spans })
+    await standIn!.answer(held!.workflowId, {
+      artifact: keiExpArtifact({
+        run_id: request.run_id, generation: request.generation, strategy: 'article',
+        schema: request.request.schema as { recordDescription: string; schemaNodes: unknown[] },
+        options: { model: null, models: null, ...request.request.options } as never,
+        model: 'fixture/instruct', models: { fields: 'fixture/instruct', reasoning: 'fixture/instruct' },
+        complete: true, records: [{ title: 'Recovered' }], evidence: [], ungrounded: [['records', 0, 'title']],
+      }),
+    })
+    const recovered = await recovering
+    expect(recovered.code, recovered.output).toBe(0)
+    expect((await extractionRow(extractionId))?.outcome).toBe('SUCCEEDED')
   })
 })

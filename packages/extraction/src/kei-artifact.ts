@@ -138,6 +138,18 @@ export type KeiExpAnyArtifact = z.infer<typeof anyArtifactSchema>
 export type KeiExpCall = z.infer<typeof callSchema>
 export type KeiExpEvidence = z.infer<typeof evidenceSchema>
 
+/** kei-exp records the options it ran under (`Options.dumped()`): every method option Studio sent must be there with
+ *  the same value, and an explicit Article method on one side only is another Extraction's artifact. Options Studio
+ *  left to the service may be recorded with their defaults. */
+function honorsRequestedOptions(recorded: Readonly<Record<string, unknown>>, requested: Readonly<Record<string, unknown>>): boolean {
+  if (!isDeepStrictEqual(recorded.article ?? null, requested.article ?? null)) return false
+  const { strategy: _strategy, models: _models, article: _article, catalog, ...limits } = requested
+  if (!Object.entries(limits).every(([key, value]) => isDeepStrictEqual(recorded[key], value))) return false
+  if (catalog === null || typeof catalog !== 'object') return true
+  const recordedCatalog = (recorded.catalog ?? {}) as Record<string, unknown>
+  return Object.entries(catalog).every(([key, value]) => key === 'recipe' || isDeepStrictEqual(recordedCatalog[key], value))
+}
+
 /** The admitted identity an accepted artifact is published under. */
 export type ArtifactPins = Readonly<{
   extractionId: string
@@ -170,7 +182,8 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
   if (
     artifact.run_id !== request.run_id || artifact.generation !== request.generation ||
     artifact.strategy !== options.strategy || !isDeepStrictEqual(artifact.schema, request.request.schema) ||
-    producedRecipe !== requestedRecipe || !isDeepStrictEqual(artifact.options.models ?? null, options.models ?? null)
+    producedRecipe !== requestedRecipe || !isDeepStrictEqual(artifact.options.models ?? null, options.models ?? null) ||
+    !honorsRequestedOptions(artifact.options, options)
   )
     throw new ExtractionError('invalid_model_output', 'kei-exp returned an artifact for different extraction inputs.')
   const grounded = artifact.extraction_version === 2 ? artifact : null

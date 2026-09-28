@@ -106,8 +106,8 @@ async function setup(disposableDatabaseUrl: string) {
     return keiExpArtifact({
       run_id: request.run_id, generation: request.generation, strategy, model: 'deterministic',
       schema: schema as { recordDescription: string; schemaNodes: unknown[] },
-      // As kei dumps the options it ran under: the run's model choice, null when it chose no role.
-      options: { strategy, model: 'deterministic', models: (options.models as Record<string, string> | undefined) ?? null },
+      // As kei dumps the options it ran under: every option it was sent, `models` null when it chose no role.
+      options: { model: 'deterministic', ...options, strategy, models: (options.models as Record<string, string> | undefined) ?? null },
       started: new Date().toISOString(), seconds: 0.001,
       complete: true,
       records: [{ title: 'Alpha', ...(nodes.some((node) => node.name === 'filename') ? { filename: 'article.pdf' } : {}) }],

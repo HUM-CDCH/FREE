@@ -586,4 +586,20 @@ it('counts a member kei cancelled as cancelled and an interrupted one as failed'
       ...batchInput(project, { models: null, settings: { recipe: null } }), strategy: 'CATALOG',
     }), rejectsWithCode('invalid_request'))
   })
+
+  it('queued batch members keep the batch method after the account saves another one', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['a.pdf', 'b.pdf'])
+    kei.holding = true
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
+    const opened = await scheduler(project.researcherAccountId).scheduleBatch(batchInput(project, { models: null, settings: { article: SPANS } }))
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: QUOTES } })
+    const members = await db.orm.public.Extraction.where({ batchExtractionId: opened.batch.batchExtractionId }).select('id').all()
+    assert.equal(members.length, 2)
+    for (const member of members) await heldByKei(member.id)
+    for (const member of members) {
+      const submitted = kei.submissions.find((submission) => submission.workflowId === keiExtractWorkflowId(member.id))!
+      assert.deepEqual(((submitted.request as KeiExtractInput).request.options as { article: unknown }).article, SPANS)
+    }
+  })
 })

@@ -4,9 +4,9 @@ import { describe, it } from 'node:test'
 import { Error as DBOSErrors, type StepConfig } from '@dbos-inc/dbos-sdk'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import { ExtractionError } from './errors.js'
-import { extractionMethod } from './extraction-method.js'
+import { extractionMethod, keiMethodOptions, settingsSlot } from './extraction-method.js'
 import { keiExpArtifact, keiExpEvidence } from './kei-exp-fixture.js'
-import { SUBMIT_TO_KEI_RETRY, type KeiHandoff, type KeiPoll, type KeiSubmission } from './kei-handoff.js'
+import { SUBMIT_TO_KEI_RETRY, type KeiExtractInput, type KeiHandoff, type KeiPoll, type KeiSubmission } from './kei-handoff.js'
 import type { ExtractionStrategy } from './types.js'
 import { ARTIFACT_READ_RETRY } from './workflow-steps.js'
 import {
@@ -16,19 +16,23 @@ import {
 const RUN = 'run-1'
 const schema = { recordDescription: 'Article records.', schemaNodes: [{ id: 'title', name: 'title', type: 'string' }] }
 
+/** Admitted on service defaults unless `overrides` pins settings: the strategy's own slot, recorded as null. */
 function admittedExtraction(overrides: Partial<AdmittedExtraction> = {}): AdmittedExtraction {
+  const slot = settingsSlot(overrides.strategy ?? 'ARTICLE', overrides.catalogRecipe ?? null)
   return {
     extractionId: randomUUID(), owner: 'researcher@example.test', projectContextId: randomUUID(),
     sourceDocumentId: randomUUID(), sourceRepresentationRevisionId: randomUUID(), schemaRevisionId: randomUUID(),
     extractionSchemaId: randomUUID(), strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null,
-    batchExtractionId: null, preprocessId: `kei-exp:${RUN}:g1`, schemaTree: schema, ...overrides,
+    requestedSettings: { [slot]: null }, batchExtractionId: null, preprocessId: `kei-exp:${RUN}:g1`, schemaTree: schema,
+    ...overrides,
   }
 }
 const strategyOf = (strategy: ExtractionStrategy) => (strategy === 'CATALOG' ? 'catalog' : 'article')
 const artifactFor = (admitted: AdmittedExtraction, overrides: Parameters<typeof keiExpArtifact>[0] = {}) =>
   keiExpArtifact({
     run_id: RUN, generation: 'g1', strategy: strategyOf(admitted.strategy), model: 'fields-model', schema,
-    options: { strategy: strategyOf(admitted.strategy), model: null, models: admitted.requestedModels },
+    options: { model: null, ...keiMethodOptions(extractionMethod(admitted.strategy, admitted.catalogRecipe,
+      admitted.requestedModels, admitted.requestedSettings)), models: admitted.requestedModels },
     records: [{ title: 'Alpha' }], evidence: [keiExpEvidence()], ...overrides,
   })
 const bytesOf = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
@@ -444,5 +448,51 @@ describe('runExtraction', () => {
     const h = harness({ polls: [{ state: 'live' }, { state: 'CANCELLED', deadlinePassed: false }] })
     await h.run()
     assert.deepEqual(h.pollSignals, [h.signal, h.signal])
+  })
+})
+
+const SPANS = {
+  context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+  prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema',
+} as const
+
+describe('the admitted method', () => {
+  it('is the only method kei is asked to run: the exact wire example', async () => {
+    const admitted = admittedExtraction({ requestedModels: { fields: 'instruct', reasoning: 'instruct' }, requestedSettings: { article: SPANS } })
+    const run = harness({ admitted })
+    await run.run()
+    assert.deepEqual((run.submissions[0]!.request as KeiExtractInput).request.options, {
+      strategy: 'article', models: { fields: 'instruct', reasoning: 'instruct' }, article: SPANS,
+    })
+    assert.deepEqual(run.submissions[0]!.attributes, extractionAttributes(admitted))
+  })
+
+  it('a checkpoint written before settings were recorded builds the reference request', async () => {
+    const { requestedSettings: _absent, ...older } = admittedExtraction()
+    const run = harness({ admitted: older as AdmittedExtraction })
+    await run.run()
+    assert.deepEqual((run.submissions[0]!.request as KeiExtractInput).request.options, { strategy: 'article' })
+    // The step sequence it was checkpointed under replays unchanged.
+    assert.deepEqual(run.names(), ['loadAdmitted', 'submitToKei', 'pollKei', 'publishResult'])
+    assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')
+  })
+
+  it('an unreadable admitted method fails the Extraction, not the workflow, and asks kei for nothing', async () => {
+    // No artifact is ever read: the default one is built from the admitted method, which does not read.
+    const run = harness({ admitted: admittedExtraction({ requestedSettings: { generic: null } }), artifact: {} })
+    await run.run()
+    assert.equal(run.submissions.length, 0)
+    assert.deepEqual(run.names(), ['loadAdmitted', 'publishFailure'])
+    assert.deepEqual(run.settles, [{ outcome: 'FAILED', failure: {
+      code: 'invalid_extraction_method', message: 'The admitted extraction method is invalid.', phase: 'loading' } }])
+  })
+
+  it('an artifact that ran another method is refused', async () => {
+    const admitted = admittedExtraction({ requestedSettings: { article: SPANS } })
+    const other = artifactFor(admittedExtraction({ requestedSettings: { article: { ...SPANS, grounding: 'quoted' } } }))
+    const run = harness({ admitted, artifact: other })
+    await run.run()
+    assert.equal(run.settles[0]!.outcome, 'FAILED')
+    assert.equal((run.settles[0] as { failure: { code: string } }).failure.code, 'invalid_model_output')
   })
 })

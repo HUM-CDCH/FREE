@@ -70,7 +70,7 @@ export function createExtractionStore(
     async loadAdmitted(extractionId): Promise<AdmittedExtraction | null> {
       const row = await orm.public.Extraction.select(
         'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
-        'requestedModels', 'batchExtractionId',
+        'requestedModels', 'requestedSettings', 'batchExtractionId',
       ).first({ id: extractionId, outcome: null })
       if (!row) return null
       const document = await orm.public.SourceDocument.select('projectContextId').first({ id: row.sourceDocumentId })
@@ -93,6 +93,8 @@ export function createExtractionStore(
         strategy: row.strategy as ExtractionStrategy,
         catalogRecipe: row.catalogRecipe,
         requestedModels: modelChoice(row.requestedModels),
+        // Raw: the request built from it validates it, so a row that no longer reads fails its Extraction, not this step.
+        requestedSettings: row.requestedSettings,
         batchExtractionId: row.batchExtractionId,
         preprocessId: revision.preprocessId,
         schemaTree: schema.schemaTree,

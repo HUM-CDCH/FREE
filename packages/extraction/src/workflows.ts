@@ -7,7 +7,7 @@ import {
   EXTRACTION_TIMEOUT_MS, KEI_PRIORITY, KEI_QUEUE, keiExtractOkSchema, keiExtractWorkflowId, keiRunOf, settleKei,
   SUBMIT_TO_KEI_RETRY, type KeiExtractInput, type KeiHandoff, type KeiOutcome, type KeiPoll,
 } from './kei-handoff.js'
-import { extractionMethod, keiMethodOptions } from './extraction-method.js'
+import { extractionMethod, keiMethodOptions, type ExtractionMethod } from './extraction-method.js'
 import { decodePinnedDocument } from './parsed-document.js'
 import { parseExtractionSchema } from './schema.js'
 import type { ExtractionFailure, ExtractionModelChoice, ExtractionStrategy } from './types.js'
@@ -29,6 +29,9 @@ export type AdmittedExtraction = Readonly<{
   strategy: ExtractionStrategy
   catalogRecipe: string | null
   requestedModels: ExtractionModelChoice | null
+  /** The settings admission pinned (`Extraction.requestedSettings`); never today's account configuration. Absent in a
+   *  `loadAdmitted` checkpoint written before settings were recorded, which ran on service defaults. */
+  requestedSettings?: unknown
   batchExtractionId: string | null
   /** The pinned revision's `preprocessId`: `kei-exp:<run>:<generation>` for a representation kei made. */
   preprocessId: string
@@ -75,13 +78,14 @@ function keiExtractRequest(admitted: AdmittedExtraction): KeiExtractInput | Extr
   // Admission validated the tree; a pinned tree that no longer parses fails this Extraction rather than its workflow.
   try { schema = parseExtractionSchema(admitted.schemaTree) as unknown as Record<string, unknown> }
   catch { return { code: 'invalid_schema_revision', message: 'The pinned Schema Revision is invalid.', phase: 'loading' } }
+  let method: ExtractionMethod
+  // Admission validated the method; one that no longer reads fails this Extraction rather than its workflow.
+  try { method = extractionMethod(admitted.strategy, admitted.catalogRecipe, admitted.requestedModels, admitted.requestedSettings) }
+  catch { return { code: 'invalid_extraction_method', message: 'The admitted extraction method is invalid.', phase: 'loading' } }
   return {
     run_id: run.runId,
     generation: run.generation,
-    request: {
-      schema,
-      options: keiMethodOptions(extractionMethod(admitted.strategy, admitted.catalogRecipe, admitted.requestedModels)),
-    },
+    request: { schema, options: keiMethodOptions(method) },
   }
 }
 
@@ -103,7 +107,8 @@ export function extractionFailureOf(outcome: Extract<KeiOutcome<unknown>, { ok: 
  * `runExtraction(extractionId)` (spec, *Background work*): load the admitted pins, submit to kei-extract, poll in
  * bounded steps, then fetch, validate and publish the artifact in one step. Every terminal write is `store.settle`,
  * which writes only while the row has no outcome: a replayed step, a cancel that won, or a deleted row makes it a
- * no-op, never a second result and never a failure of surviving batch members.
+ * no-op, never a second result and never a failure of surviving batch members. It runs the method admission pinned on
+ * the row; it never reads the account's saved settings, on recovery or for batch members.
  */
 export async function runExtractionWorkflow(extractionId: string, ports: ExtractionWorkflowPorts): Promise<void> {
   const { steps, store, kei } = ports
