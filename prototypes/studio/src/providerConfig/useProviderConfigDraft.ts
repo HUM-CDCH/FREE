@@ -288,12 +288,18 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     (JSON.stringify(draft) !== JSON.stringify(saved) || Object.keys(keyEdits).length > 0 || Object.keys(numberEdits).length > 0)
 
   /** Every Advanced issue the page shows and Apply waits for: shape (minimums, names), cross-field rules, and number
-   *  text that is not a whole number. Paths are relative to `extractionSettings`. A draft is never parsed into the
-   *  draft itself: parsing would fill defaults and could not hold a below-minimum value. */
+   *  text that is not a whole number. Paths are relative to `extractionSettings`. Each strategy's member is checked on
+   *  its own, so a shape issue in one never hides the other's cross-field issues (only Article has cross-field rules).
+   *  A draft is never parsed into the draft itself: parsing would fill defaults and could not hold a below-minimum value. */
   const settingsIssues: readonly MethodIssue[] = (() => {
     if (!draft) return []
-    const parsed = extractionSettingsSchema.safeParse(draft.extractionSettings)
-    const found = parsed.success ? extractionSettingsIssues(parsed.data) : settingsShapeIssues(parsed.error)
+    const { article, catalog } = draft.extractionSettings
+    const member = (name: AdvancedStrategy, value: unknown): MethodIssue[] => {
+      if (value === undefined) return []
+      const parsed = extractionSettingsSchema.safeParse({ [name]: value })
+      return parsed.success ? extractionSettingsIssues(parsed.data) : settingsShapeIssues(parsed.error)
+    }
+    const found = [...member('article', article), ...member('catalog', catalog)]
     const typed = (Object.keys(numberEdits) as NumberPath[]).map((path) => ({ path, message: NUMBER_MESSAGES[path] }))
     return [...typed, ...found.filter((issue) => !typed.some((edit) => edit.path === issue.path))]
   })()

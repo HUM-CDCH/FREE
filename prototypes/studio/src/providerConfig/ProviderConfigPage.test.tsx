@@ -1048,6 +1048,27 @@ describe('Advanced', () => {
     expect(screen.getByText(METHOD_MESSAGES.characters, { selector: 'p' })).toBeVisible()
   })
 
+  it('a Catalog shape issue does not hide an Article cross-field issue: both count, the Article section opens, no preview', async () => {
+    studio(config())
+    await renderPage()
+    openAdvanced()
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
+    openSection('Source context')
+    fireEvent.click(radio('Scope', 'Bounded source units'))
+    fireEvent.click(radio('Previous passages', '1'))
+    fireEvent.click(radio('Scope', 'Full source'))
+    fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
+    openSection('Generic Catalog')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Discovery text limit' }), { target: { value: '999' } })
+    fireEvent.click(screen.getByRole('button', { name: '2 issues block Apply' }))
+    await waitFor(() => expect(radio('Previous passages', '1')).toHaveFocus())
+    expect(screen.getByText(METHOD_MESSAGES.bounded, { selector: 'p' })).toBeVisible()
+    openSection('Effective settings')
+    expect(screen.getByText('Fix the issues above to preview the request.')).toBeInTheDocument()
+    expect(screen.queryByText(/"strategy"/)).not.toBeInTheDocument()
+  })
+
   it('the tablist keeps arrow-key navigation across three tabs', async () => {
     studio(config())
     await renderPage()

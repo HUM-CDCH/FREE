@@ -97,6 +97,19 @@ describe('the Advanced draft', () => {
     expect(result.current.settingsIssues).toEqual([])
   })
 
+  it('a Catalog shape issue does not hide an Article cross-field issue', () => {
+    const { result } = draftHook()
+    act(() => result.current.customize('article'))
+    act(() => result.current.setArticle('context', 'bounded'))
+    act(() => result.current.setArticle('overlap_passages', 1))
+    act(() => result.current.setArticle('context', 'full'))
+    act(() => result.current.setNumber('catalog.generic.discovery_chars', '999'))
+    expect(result.current.settingsIssues).toEqual([
+      { path: 'article.overlap_passages', message: METHOD_MESSAGES.bounded },
+      { path: 'catalog.generic.discovery_chars', message: METHOD_MESSAGES.characters },
+    ])
+  })
+
   it('number text is never clamped: invalid text is kept, reported and blocks; Discard clears it', () => {
     const { result } = draftHook()
     act(() => result.current.customize('article'))
