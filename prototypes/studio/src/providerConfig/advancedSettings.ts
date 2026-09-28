@@ -1,5 +1,6 @@
 import {
-  ARTICLE_KEYS, articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings, type CatalogSettings,
+  ARTICLE_KEYS, articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG, type ArticleSettings,
+  type CatalogSettings,
 } from 'extraction/extraction-method'
 
 /** The Advanced tab's labels, one-line hints, summaries and availability. Local data and pure functions: the method
@@ -212,4 +213,21 @@ export function orderedCatalog(catalog: Readonly<{ generic?: Record<string, unkn
   const generic = pick(catalog.generic, GENERIC_KEYS)
   const recipe = pick(catalog.recipe, RECIPE_KEYS)
   return { ...(generic ? { generic } : {}), ...(recipe ? { recipe } : {}) } as CatalogSettings
+}
+
+/** A Catalog edit that returns a value the saved override omits to the value shown for it (the service default)
+ *  omits it again, and a member left empty that way goes too: toggling or typing back is not an unsaved change. Values
+ *  the saved override sets stay explicit; without a saved override (Customize), nothing is omitted. */
+export function keepSavedOmissions(catalog: CatalogSettings, saved: CatalogSettings | undefined): CatalogSettings {
+  if (!saved) return catalog
+  const member = (name: 'generic' | 'recipe') => {
+    const edited = catalog[name] as Record<string, unknown> | undefined
+    const before = saved[name] as Record<string, unknown> | undefined
+    const shown = REFERENCE_CATALOG[name] as Record<string, unknown>
+    if (!edited) return undefined
+    const kept = Object.fromEntries(Object.entries(edited).filter(([key, value]) =>
+      before?.[key] !== undefined || JSON.stringify(value) !== JSON.stringify(shown[key])))
+    return Object.keys(kept).length === 0 && before === undefined ? undefined : kept
+  }
+  return orderedCatalog({ generic: member('generic'), recipe: member('recipe') })
 }

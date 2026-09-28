@@ -22,6 +22,7 @@ import {
 } from '../../shared/modelConfig.contract'
 import { modelKeyFor, removeModelKey, retainModelKeys, saveModelKey } from '../modelKeys/modelKeyStore'
 import {
+  keepSavedOmissions,
   NUMBER_MESSAGES,
   orderedArticle,
   orderedCatalog,
@@ -203,9 +204,15 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     setSettings((settings) => settings.article ? { ...settings, article: orderedArticle({ ...settings.article, [key]: value }) } : settings)
   }
 
-  /** A starting point, and its Undo: the whole Article override, or none. */
-  function replaceArticle(article: ArticleSettings | undefined): void {
+  /** A starting point, and its Undo: the whole Article override, or none, with the Article number text that goes with
+   *  it (none by default; Undo passes the `numberEdits` it kept, and only their Article paths are restored). */
+  function replaceArticle(article: ArticleSettings | undefined, articleEdits: Readonly<Partial<Record<NumberPath, string>>> = {}): void {
     setSettings((settings) => ({ ...settings, article: article && orderedArticle(article) }))
+    const isArticle = ([path]: [string, unknown]) => path.startsWith('article.')
+    setNumberEdits((edits) => ({
+      ...Object.fromEntries(Object.entries(edits).filter((entry) => !isArticle(entry))),
+      ...(article ? Object.fromEntries(Object.entries(articleEdits).filter(isArticle)) : {}),
+    }))
   }
 
   /** Returns the refusal shown beside the input, or null once the trimmed, exact-case name is added. */
@@ -221,11 +228,19 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     setArticle('identity_fields', (draft?.extractionSettings.article?.identity_fields ?? []).filter((field) => field !== name))
   }
 
+  /** Catalog edits keep what the saved override omits omitted once an edit returns to the value shown for it. */
+  function setCatalog(change: (catalog: Record<string, Record<string, unknown> | undefined>) => Parameters<typeof orderedCatalog>[0]): void {
+    setSettings((settings) => ({
+      ...settings,
+      catalog: keepSavedOmissions(orderedCatalog(change({ ...settings.catalog })), saved?.extractionSettings.catalog),
+    }))
+  }
+
   function setCatalogFactor(key: CatalogFactor, on: boolean): void {
-    setSettings((settings) => {
-      const recipe = settings.catalog?.recipe ?? {}
-      const factors = { ...REFERENCE_CATALOG.recipe!.factors!, ...recipe.factors, [key]: on }
-      return { ...settings, catalog: orderedCatalog({ ...settings.catalog, recipe: { ...recipe, factors } }) }
+    setCatalog((catalog) => {
+      const recipe = catalog.recipe ?? {}
+      const factors = { ...REFERENCE_CATALOG.recipe!.factors!, ...(recipe.factors as object | undefined), [key]: on }
+      return { ...catalog, recipe: { ...recipe, factors } }
     })
   }
 
@@ -244,11 +259,8 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     const value = Number(text)
     const [scope, member, key] = path.split('.') as [AdvancedStrategy, string, string]
     if (scope === 'article') setArticle(member as ArticleKey, value as never)
-    else setSettings((settings) => {
-      const catalog = (settings.catalog ?? {}) as Record<string, Record<string, unknown> | undefined>
-      // Never parsed here: a value below its minimum must stay in the draft, visible and reported.
-      return { ...settings, catalog: orderedCatalog({ ...catalog, [member]: { ...catalog[member], [key]: value } }) }
-    })
+    // Never parsed here: a value below its minimum must stay in the draft, visible and reported.
+    else setCatalog((catalog) => ({ ...catalog, [member]: { ...catalog[member], [key]: value } }))
   }
 
   /** After Apply: the committed configuration is the new baseline and this browser's keys follow it. Returns the IDs
