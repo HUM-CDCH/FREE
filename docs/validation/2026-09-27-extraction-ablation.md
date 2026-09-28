@@ -9,6 +9,35 @@ the old reference accuracy below is a scorer regression check, not a new study r
 
 ## Current execution recovery
 
+Latest checkpoint, 2026-09-28 01:57 CEST (2026-09-27 23:57 UTC): R1 has
+60/79 sealed results, all reproduced exactly from 1,945 saved replies with HTTP
+disabled. Increment `replay-verification-20260927/increment-60-offline.json`
+adds thirteen cells to the disjoint earlier verification sets. R2a has all
+30/30 results and a complete offline acceptance check, described below.
+R3/R4 remain queued; they have not generated study results.
+
+Disk exhaustion at 21:28–21:29 UTC interrupted Harvey's quoted and reference
+attempts. Their logs explicitly record `ENOSPC`; sixteen immediately following
+commands exited 120 with empty logs and no cell artifacts. Those sixteen are
+unexecuted infrastructure gaps, not extraction outcomes. At recovery inspection,
+22.8 GiB was available without this recovery deleting files. The two interrupted
+attempts retain 136 replies and two requests with no saved reply; their prior
+completion is unknown and must remain in cost accounting.
+
+`resume-20260928-3/disk-interruption-audit.json` pins the retained files, failed
+command logs, process identities and available disk space. The explicitly audited
+recovery resumes only these eighteen ended commands, in original order, with one
+worker beside the still-live Akita quoted worker. It validates all frozen pins,
+preserves saved replies and refuses to admit another cell below 5 GiB free.
+The waiting R3/R4 scheduler was stopped before it had any children or generated
+results, then replaced by `free-ablation-followups-resume-3`, whose controls are
+under `followups-resume-20260928-3/`. It waits for the new recovery parent and
+requires all 79 seals. The new parent also waits for the earlier Akita launcher
+and selection follower to exit. No inference worker was stopped or duplicated.
+
+The following paragraphs retain the earlier checkout-recovery record; their
+counts and scheduler identities are historical.
+
 The implementation stack merged into `feat/kei-exp-parser` at `377cd050` after
 all three pre-merge heads passed CI. Its tree matches tested full-stack `a6c5612`.
 This does not change the frozen methods or complete their evaluation.
@@ -102,11 +131,16 @@ Timing is direct extraction through shared model endpoints and includes possible
 contention. It is not isolated model throughput, DBOS queue latency, authenticated API
 latency, or deployment validation. No deployment was performed.
 
-## Selection replay: all six annotated pairs available
+## Selection replay: complete registered cohort
 
-The R2a checkpoint has 24 of 30 sealed cells: all six annotated development
-papers have both arms, while three unannotated pairs remain pending. No paper's
-primary gold score changes under selection; the paired mean effect is 0
+R2a has all 30 sealed cells across fifteen paired documents. All fifteen
+original bounded controls and both selection arms reproduce with HTTP disabled;
+the thirty receipts match the exact reused request subsequences, totaling 500
+saved replies and zero fresh model or tokenizer calls during acceptance.
+The [complete result tables](2026-09-28-extraction-selection-results.md) include
+per-document scores, request budgets, stage totals and issues.
+
+No annotated paper's primary gold score changes under selection; the paired mean effect is 0
 percentage points across six documents. The zero-width descriptive bootstrap
 interval does not establish equivalence or unseen-document accuracy.
 
@@ -116,8 +150,9 @@ interval does not establish equivalence or unseen-document accuracy.
 | Input tokens | 1,012,730 | 978,115 | 34,615 (3.4%) |
 | Output tokens | 72,222 | 66,910 | 5,312 (7.4%) |
 
-Only Akita and Harvey omit calls (nine and five respectively); four papers
-show no budget reduction. All record fields remain identical except diagnostic
+Among the six annotated papers, only Akita and Harvey omit calls (nine and five
+respectively); four papers show no budget reduction. In this annotated cohort,
+all record fields remain identical except diagnostic
 `field_statuses` in Akita and Harvey and free-text `notes` in four Akita records.
 The notes are outside the primary score; their changes are not adjudicated as
 improvements. Thus unchanged gold scores do not imply that every output is equal.
@@ -125,14 +160,34 @@ improvements. Thus unchanged gold scores do not imply that every output is equal
 This is a fixed-reply subsequence comparison with no fresh model generation.
 The budgets describe included captured requests, and their saved durations are
 historical. They are not measured fresh-model savings or replay execution latency.
-The complete unannotated cohort remains necessary for final operational effects.
+The full registered cohort gives these operational effects:
+
+| Fifteen-document captured request budget | All units | Selected units | Reduction |
+| --- | ---: | ---: | ---: |
+| Calls | 266 | 234 | 32 (12.0%) |
+| Input tokens | 1,614,448 | 1,485,099 | 129,349 (8.0%) |
+| Output tokens | 97,316 | 88,430 | 8,886 (9.1%) |
+
+Eight documents omit calls; seven have no budget reduction. Both arms contain
+81 records, but record count does not establish value coverage. Besides the
+annotated differences above, selection changes substantive fields in five
+unannotated documents: Age, Hamburg, Herredsvejen, Hvissinge and Katrinesminde.
+These include shorter findings/methods lists, omitted grave-count observations,
+and a previously conflicting/null research question becoming populated in Age.
+For example, Katrinesminde's first record retains two of seven grave-count
+observations. These differences have no independent semantic labels: they could
+include lost evidence, removed duplication or resolved attribution conflicts.
+They are retained in `selection-change-review-queue.json`; unchanged collagen
+scores must not be described as lossless selection or corpus-wide equivalence.
 
 Evidence is under the primary checkout's
-`artifacts/extraction-ablation/20260927-r2a-selection/`: `analysis-six-gold-pairs.json`
-(SHA-256 `8a6495ce45f9ba701c157ad6cd019d5b44e43ec262196de600aa5c86a43d1768`),
-matching `accounting-six-gold-pairs.json`, `tables-six-gold-pairs.md`, and the
-raw-field comparison in `audit-six-gold-pairs.json`. This checkpoint uses the
-corrected analyzer; it does not replace the final full-cohort report.
+`artifacts/extraction-ablation/20260927-r2a-selection/`: `analysis-final.json`
+(SHA-256 `23f591d3c43d16ed2d5a3f773dcb02619f3c43d6ecbf15ff244ce26b9b89ef26`),
+matching `accounting-final.json`, `tables-final.md`, `audit-final-pairs.json`,
+and `verification-final-offline.json`. These use the corrected analyzer.
+The earlier `*-six-gold-pairs` files remain unchanged historical checkpoints.
+Completion of this conditional selection comparison does not complete R1,
+R3/R4 or the full study.
 
 ## Verification before inference
 

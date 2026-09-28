@@ -183,6 +183,26 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Latest checkpoint, 2026-09-28 01:57 CEST: R1 has 60/79 sealed cells, all
+  replay-verified from 1,945 saved replies with HTTP disabled. R2a is complete
+  at 30/30, including offline control/subsequence verification, corrected final
+  analysis, accounting and [result tables](../validation/2026-09-28-extraction-selection-results.md).
+  Captured request budgets fall from 266 to 234 calls, with unchanged scores on
+  six gold papers; substantive fields change on five unannotated documents and
+  require review. This does not establish lossless selection or fresh-model
+  savings. R3/R4 and final full-study reporting remain unfinished.
+
+- Disk exhaustion interrupted two R1 attempts and sixteen subsequent commands
+  at 21:28–21:29 UTC on September 27. Recovery is recorded under
+  `artifacts/extraction-ablation/resume-20260928-3/`; it resumes only those
+  eighteen ended commands with one worker beside the healthy Akita quoted
+  worker. All 136 saved replies are retained; two requests have unknown prior
+  completion. At inspection 22.8 GiB was available, and admission now requires
+  5 GiB free. The waiting scheduler was replaced before generating R3/R4;
+  `followups-resume-20260928-3/` requires the recovery parent to exit and all
+  79 R1 seals. Earlier checkpoints below are historical. Use the latest
+  `INTEGRATION-POINTER.md` and live processes before resuming.
+
 - The user authorized merging the review stack. All three pre-merge heads passed
   CI; full-stack `a6c5612` passed run `36337864288`, attempt 2. Merged `377cd050`
   has the same Git tree as that verified full-stack head. No production deployment

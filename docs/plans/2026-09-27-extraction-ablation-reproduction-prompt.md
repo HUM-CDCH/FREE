@@ -321,7 +321,9 @@ counters; report stage transitions, completed comparisons and actionable failure
 
 For a real interruption:
 
-1. Establish that the prior process and its workers have exited or are absent.
+1. For each interrupted cell, establish that its owning worker has exited or is
+   absent and that its launcher will not dispatch it again. Other healthy cells
+   can continue if recovery excludes them and respects the total concurrency.
 2. Preserve requests, replies, attempt receipts and completed results.
 3. Revalidate the original frozen code and input pins.
 4. Resume only missing work. Reuse a saved reply only when its complete request
@@ -335,6 +337,13 @@ If a checkout changed, restore the registered archive into a separate frozen
 directory; do not reset someone else's checkout or relabel current code as the
 old revision. A pre-execution pin rejection is an infrastructure gap to recover,
 not an observed model failure or a completed experimental cell.
+
+Check free disk space before launch and between cells. Disk exhaustion can
+prevent even the failure receipt from being written. Retain the original logs,
+validate saved JSON and request/reply pairs, audit missing receipts, and document
+unknown prior completions before resuming. Do not fabricate a successful or
+failed extraction artifact to fill an infrastructure gap. Retire only a verified
+waiting scheduler when reconnecting dependencies; preserve healthy workers.
 
 Do not rerun a scientifically poor result until it looks better. Retain invalid
 JSON, truncation, unsupported evidence, context refusal and partial processing
