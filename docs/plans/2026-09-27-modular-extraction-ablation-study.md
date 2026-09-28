@@ -1,6 +1,13 @@
 # Modular extraction and controlled ablation study — 2026-09-27
 
 Status: active; implementation merged, controlled study unfinished. This is the durable execution plan.
+Completed-cell acceptance, 2026-09-28 09:16 UTC: all 79 R1 cells, 12 R3 cells and
+four completed R4 controls exactly replay with HTTP disabled. Corrected reports
+and 9,603 pinned-file checks are preserved in
+`artifacts/extraction-ablation/completed-development-20260928/`; see the
+[consolidated development report](../validation/2026-09-28-completed-development-study.md).
+R2a's existing 30-cell acceptance is rechecked. No generation resumed. R4 has
+zero completed treatment pairs; eight R4 and 84 R5 cells remain deferred.
 Evaluation decision, 2026-09-28: repeated inspection makes the existing corpus
 development data. The completed [Harvey diagnostic](../validation/2026-09-28-harvey-grounding-micro.md)
 and [Opus repeat audit](../validation/2026-09-28-grounding-pilot-audit.md) do not
