@@ -96,6 +96,11 @@ is diagnostic, so no whole-document recall, independent accuracy or v2 semantic
 equivalence claim follows. Original R5 remains six completed cells and 84 deferred;
 this separate diagnostic does not complete additional registered R5 cells.
 
+A later [merged-code regression check](2026-09-28-merged-grounding-replay.md)
+reproduces all eight quoted/v2 cells exactly on merge `2ce78e4c`, with network
+blocked. It checks the refactor against those recorded results without adding fresh
+inference or changing the semantic limits above.
+
 The [study plan's independent evaluation gate](../plans/2026-09-27-modular-extraction-ablation-study.md#m7--independent-evaluation-after-policy-freeze)
 requires frozen policies and untouched document families. Existing examples and
 validation documents remain development data. The full study is still unfinished.

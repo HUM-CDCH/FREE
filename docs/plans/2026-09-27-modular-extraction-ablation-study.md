@@ -1,6 +1,12 @@
 # Modular extraction and controlled ablation study — 2026-09-27
 
 Status: active; implementation merged, controlled study unfinished. This is the durable execution plan.
+Merged-grounding acceptance, 2026-09-28: merge `2ce78e4c` reproduces nine
+selected real-capture cases and all 52 requests with network blocked; see the
+[regression report](../validation/2026-09-28-merged-grounding-replay.md).
+This checks the refactored dispatch/grounding assembly, not independent accuracy.
+`artifacts/extraction-ablation/development-exposure-20260928.json` records all 16
+known study PDFs as development-exposed, including the unannotated examples.
 Completed-cell acceptance, 2026-09-28 09:16 UTC: all 79 R1 cells, 12 R3 cells and
 four completed R4 controls exactly replay with HTTP disabled. Corrected reports
 and 9,603 pinned-file checks are preserved in
