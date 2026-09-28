@@ -40,8 +40,15 @@ Manifest SHA-256 `46c3b73183a496f6f8d55ccc7c08cfc2030efad22f5136eb87b6d0d708bdee
 Runtime is frozen at `artifacts/extraction-ablation/frozen-execution/r5`, from
 commit `f848568f`. The R5 supervisor waits for original collection and successful
 preflight, then admits at most two cells, one attempt each, with a 5 GiB free-space
-gate. Inspect `execution-plan.json` and live identities before resuming; do not
+gate. Inspect `execution-plan-collection-v2.json` and live identities before resuming; do not
 launch duplicate cells. The original study's completion remains independent.
+
+The idle dependency chain was replaced at 2026-09-28 05:58 UTC after the complete
+R1 preview exposed a table-renderer bug for unavailable token costs. Original
+collection now uses `final-collection-20260928-v2/`; R5 uses
+`launch-collection-v2.py` and `reporting-v2/`. Its runtime, manifest, cell order,
+worker limit and final output paths are unchanged. Old controls are retained;
+refresh the primary artifact directory's integration pointer before resuming.
 
 The preserved historical claim enumerator excludes booleans. R5 contains 79
 populated boolean leaves outside its 2,959-claim denominator, documented in
