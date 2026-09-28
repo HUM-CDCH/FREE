@@ -8,7 +8,7 @@ not XML: source text can contain control characters that XML 1.0 cannot represen
 from collections.abc import Sequence
 from html import escape
 
-from kei_exp.kie.extract.evidence import Passage
+from kei_exp.kie.passages import Passage
 
 RENDERING_VERSION = 1
 

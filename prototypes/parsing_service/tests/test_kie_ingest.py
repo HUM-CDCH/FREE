@@ -34,7 +34,8 @@ from PIL import Image
 from kei_exp.canonical import sha256_file
 from kei_exp.kie import cli, runner
 from kei_exp.kie.artifacts import PAGE_IMAGE_MODE, load_ingest
-from kei_exp.kie.model import GutterEvidence, IngestArtifact, IngestConfig, IngestError, Placement
+from kei_exp.kie.ingest_model import GutterEvidence, IngestArtifact, IngestConfig, Placement
+from kei_exp.kie.primitives import IngestError
 from kei_exp.kie.stages.ingest import (
     GutterChoice,
     Profile,

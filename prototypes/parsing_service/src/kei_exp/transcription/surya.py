@@ -14,10 +14,17 @@ from docling.document_converter import DocumentConverter, HTMLFormatOption
 from PIL import Image
 
 from kei_exp._pdfium import pdfium_lock
-from kei_exp.cut import Crop, region_info
 from kei_exp.models import MODELS
 from kei_exp.progress import STOP_REASONS, Emit
-from kei_exp.transcription.types import ConversionError, Execution, PageRecord, Transcription, html_to_text
+from kei_exp.regions import Crop, region_info
+from kei_exp.transcription.types import (
+    TRANSCRIBER_KNOBS,
+    ConversionError,
+    Execution,
+    PageRecord,
+    Transcription,
+    html_to_text,
+)
 
 
 class _CompletionClient:
@@ -280,7 +287,7 @@ def _markdown(converter: DocumentConverter, html: str, name: str) -> tuple[str, 
 class SuryaOcr:
     """Transcriber over the surya-ocr client: full-page OCR per image, Markdown through Docling's HTML backend."""
     kind = "surya"
-    knobs = frozenset({"stream"})  # live tokens per page; the image and token budgets are Surya's own
+    knobs = TRANSCRIBER_KNOBS[kind]
 
     def transcribe(self, execution: Execution, crops: list[Crop] | None, emit: Emit) -> Transcription:
         assert execution.model is not None and execution.url is not None  # resolve() gives a surya execution both

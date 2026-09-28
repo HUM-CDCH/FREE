@@ -1,7 +1,7 @@
 import { DBOS, type StepConfig } from '@dbos-inc/dbos-sdk'
 import { MODEL_OPERATION_TIMEOUT_MS } from './_model_operation.js'
 import type { InternalProjectWorkerStore } from 'db'
-import type { WorkflowSteps } from 'extraction/workflows'
+import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { SchemaDefinition } from 'extraction/schema'
 import {
   modelSuggestedDefinition,

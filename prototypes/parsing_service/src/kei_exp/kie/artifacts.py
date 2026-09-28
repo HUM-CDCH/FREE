@@ -16,7 +16,8 @@ from typing import Final
 from pydantic import ValidationError
 
 from kei_exp.canonical import CHUNK, Serializable, canonical_json
-from kei_exp.kie.model import IngestArtifact, IngestConfig, Page, Sha256
+from kei_exp.kie.ingest_model import IngestArtifact, IngestConfig, Page
+from kei_exp.kie.primitives import Sha256
 
 # Page images are bilevel (spec 3.2); a mode `L` copy of the same pixels is not the raster a bbox is on.
 PAGE_IMAGE_MODE: Final = "1"

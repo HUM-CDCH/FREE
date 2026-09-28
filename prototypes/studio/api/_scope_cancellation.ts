@@ -1,6 +1,6 @@
 import type { DBOSClient } from '@dbos-inc/dbos-sdk'
 import { LIVE_WORKFLOW_STATUSES } from 'db'
-import { createKeiHandoff, keiConvertWorkflowId, keiExtractWorkflowId } from 'extraction/kei-handoff'
+import { createKeiHandoff, extractionIdOfWorkflow, keiConvertWorkflowId, keiExtractWorkflowId } from 'extraction/kei-handoff'
 import { studioDbos } from '../server/dbos.js'
 
 type Clients = {
@@ -38,7 +38,8 @@ export async function cancelScopeWork(
     } catch {
       console.warn(`Could not cancel Studio workflow ${id} after deletion.`)
     }
-    if (id.startsWith('extract:')) childIds.add(keiExtractWorkflowId(id.slice('extract:'.length)))
+    const extractionId = extractionIdOfWorkflow(id)
+    if (extractionId !== null) childIds.add(keiExtractWorkflowId(extractionId))
     else if (id.startsWith('ingest:') || id.startsWith('reprocess:')) childIds.add(keiConvertWorkflowId(id))
   }
   try {

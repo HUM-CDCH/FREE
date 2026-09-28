@@ -1,6 +1,8 @@
 """Article record discovery across noncontiguous source evidence.
 
-Inventory owns identity validation and reconciliation. Shared model calls, schema rendering,
+`extract` is the Article implementation: identities inventoried in each source context, each record's values
+extracted and then verified in every source context, and the artifact assembled in `assembly.py`, as the version 1
+Catalog's is. Inventory owns identity validation and reconciliation. Shared model calls, schema rendering,
 value extraction and grounding remain in their stage modules. The complete-source reference
 is preserved for reproducible comparisons while bounded variants are developed.
 """
@@ -8,18 +10,24 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 
-from kei_exp.kie.extract.contexts import Context, partition, reconcile_values
-from kei_exp.kie.extract.evidence import Passage, text_of
+from kei_exp.kie.extract.assembly import artifact, document_values, ground, unchecked
+from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, partition, reconcile_values
 from kei_exp.kie.extract.llm import Chat
-from kei_exp.kie.extract.method import ArticleOptions
-from kei_exp.kie.extract.rendering import structured_source
+from kei_exp.kie.extract.method import REFERENCE, ArticleOptions, LimitedCounter
+from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.rendering import RENDERING_VERSION, structured_source
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
+from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.selection import select_contexts
 from kei_exp.kie.extract.stages import Call, Issue, _complete, _instruction, _labelled, extract_record, normal, record_request
-from kei_exp.kie.extract.tokens import TokenCounter
+from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter, counters_for
+from kei_exp.kie.passages import Evidence, Passage, text_of
 
 
 @dataclass
@@ -33,12 +41,80 @@ class Records:
     selections: list[dict]
 
 
+def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter: dict | None = None,
+            chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+    """The Article artifact for `request` (the validated `run.ExtractRequest`) over `evidence`.
+
+    Both roles need a served context size: `counter` is one counter per role, by default the counter of each role's
+    endpoint. `before_entry` is called before each context's document-level and inventory calls, each record call,
+    each record's verification and each grounding batch, and, with bounded contexts, before each count that sizes a
+    context and each selection; what it raises ends the extraction. `run_dir` and `chunks` are not used: Article
+    reads only the evidence and runs unsplit."""
+    check = before_entry or unchecked
+    started = datetime.now(UTC).isoformat()
+    clock = time.monotonic()
+    schema = request.schema_
+    options = request.options
+    method = options.article or REFERENCE
+    contexts = [Context(evidence.passages)]
+    if counter is None:
+        counter = counters_for(chat)
+    for role in ("fields", "reasoning"):
+        if type(counter[role].context_tokens) is not int or counter[role].context_tokens <= 0:
+            raise BudgetUnavailable(f"Article requires the {role} endpoint's context size")
+    if method.context == "bounded":
+        counter = {role: LimitedCounter(each, method.context_tokens) for role, each in counter.items()}
+        contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"], check)
+    document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
+        budget=options.record_chars, check=check, counter=counter["fields"],
+        structured=method.rendering == "structured")
+    extracted = extract_records(evidence.passages, schema, chat, counters=counter,
+                                record_chars=options.record_chars, check=check, method=method, contexts=contexts)
+    calls += extracted.calls
+    issues += extracted.issues
+    # Every record is verified in every context, with its identity as the record context.
+    everywhere = [context.passages for context in contexts]
+    links, proofs, grounding_calls, grounding_issues = ground(
+        [(everywhere, fields, item["label"] + "\n" + json.dumps(item["identity"], ensure_ascii=False))
+         for (_, fields), item in zip(extracted.slices, extracted.identities, strict=True)],
+        schema, chat, choice=method.grounding, budget=options.record_chars,
+        check=check, counter=counter["reasoning"])
+    calls += grounding_calls
+    issues += grounding_issues
+    result = artifact(evidence, request, chat, started=started, clock=clock,
+                      fields=[fields for _, fields in extracted.slices], document=document, links=links,
+                      calls=calls, issues=issues)
+    result["inventory"] = extracted.identities
+    if options.article is not None:  # the reference artifact carries no method fields
+        result["method_version"] = 1
+        result["contexts"] = [context.dumped() for context in contexts]
+        result["value_contexts"] = [[context.dumped() for context in group] for group in extracted.value_contexts]
+        result["quoted_support"] = proofs
+        if method.rendering is not None:
+            result["rendering_version"] = RENDERING_VERSION
+        if method.grouping is not None:
+            result["grouping_version"] = GROUPING_VERSION
+        if method.selection is not None:
+            result["selection_version"] = SELECTION_VERSION
+            result["selections"] = extracted.selections
+        result["conflicts"] = {"document": document_conflicts, "records": extracted.conflicts}
+        result["completion"] = {
+            "processing": all(call.ok for call in calls),
+            "source_coverage": "attempted" if all(call.ok for call in calls if call.stage == "inventory") else "partial",
+            "grounding": "disabled" if method.grounding == "off" else (
+                "complete" if not result["ungrounded"] else "partial"),
+            "record_recall": "unmeasured", "document_fields": "unverified" if schema.document_nodes else "not_applicable"}
+        # Successful calls and linked returned fields cannot establish inventory recall.
+        result["complete"] = False
+    return result
+
+
 def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
-                    record_chars: int, check: Callable[[], None], method: ArticleOptions | None = None,
+                    record_chars: int, check: Callable[[], None], method: ArticleOptions = REFERENCE,
                     contexts: list[Context] | None = None) -> Records:
     """Discover identities, then extract their values; grounding belongs to the shared result path."""
     groups = contexts if contexts is not None else [Context(tuple(passages))]
-    structured = method is not None and method.rendering == "structured"
+    structured = method.rendering == "structured"
     identities, calls, issues = [], [], []
     for group in groups:
         check()
@@ -60,8 +136,8 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
     for number, item in enumerate(identities):
         candidates = []
         record_groups = groups
-        neutral = method is not None and method.prompt == "schema"
-        if method is not None and method.context == "bounded":
+        neutral = method.prompt == "schema"
+        if method.context == "bounded":
             def fits(group):
                 check()
                 source = structured_source(group) if structured else text_of(group)
@@ -70,7 +146,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
                 return counters["fields"].request_tokens(system, user, reply_schema) + 4096 <= counters["fields"].context_tokens
             record_groups = partition(passages, fits, overlap=method.overlap_passages,
                                       structural=method.grouping == "structural")
-        if method is not None and method.selection is not None:
+        if method.selection is not None:
             check()
             record_groups, selection = select_contexts(record_groups, passages, item["passages"], schema)
             selections.append({"record": number, **selection})
@@ -91,10 +167,10 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
     return Records(identities, slices, calls, issues, conflicts, value_contexts, selections)
 
 
-def inventory_request(passages: Sequence[Passage], schema: Schema, method: ArticleOptions | None = None):
+def inventory_request(passages: Sequence[Passage], schema: Schema, method: ArticleOptions = REFERENCE):
     labels = [p.id for p in passages]
     identity_nodes = {node.name: node for node in schema.record_nodes if node.type in SCALAR_JSON}
-    if method is not None and method.identity == "conservative":
+    if method.identity == "conservative":
         identity_nodes = {name: identity_nodes[name] for name in method.identity_fields}
     properties = json_schema(list(identity_nodes.values()))["properties"]
     item = {"type": "object", "properties": {
@@ -122,9 +198,8 @@ def inventory_request(passages: Sequence[Passage], schema: Schema, method: Artic
               "(a scope code and a preparation label can differ). "
               "Resolve abbreviations from the source. Never use an expected count or a "
               "validation list. Return JSON.\n" + _instruction(schema, schema.record_nodes))
-    user = (structured_source(passages) if method is not None and method.rendering == "structured"
-            else _labelled(passages, labels))
-    if method is not None and method.prompt == "schema":
+    user = structured_source(passages) if method.rendering == "structured" else _labelled(passages, labels)
+    if method.prompt == "schema":
         system = ("Enumerate every distinct record supported by the supplied source unit under the schema's record "
                   "definition. Records may recur across other units. Return an unambiguous label, source-supported "
                   "identity attributes using only offered field names, and IDs of passages establishing the identity "
@@ -134,7 +209,8 @@ def inventory_request(passages: Sequence[Passage], schema: Schema, method: Artic
     return system, user, reply_schema, identity_nodes
 
 
-def source_contexts(passages, schema, method, counter, check):
+def source_contexts(passages: Sequence[Passage], schema: Schema, method: ArticleOptions, counter: TokenCounter,
+                    check: Callable[[], None]) -> list[Context]:
     def fits(group):
         check()
         system, user, reply_schema, _ = inventory_request(group, schema, method)
@@ -144,7 +220,7 @@ def source_contexts(passages, schema, method, counter, check):
 
 
 def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counter: TokenCounter,
-              method: ArticleOptions | None = None) -> tuple[list[dict], list[Call], list[Issue]]:
+              method: ArticleOptions = REFERENCE) -> tuple[list[dict], list[Call], list[Issue]]:
     """Article identities recur across sections; they are not contiguous Catalog slices."""
     issues: list[Issue] = []
     if not passages:
@@ -154,7 +230,7 @@ def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counte
     available = (counter.context_tokens or 0) - counter.request_tokens(system, user, reply_schema)
     # Enumeration can be larger than one record. Keep at least 4096 output tokens or refuse the input;
     # otherwise use the available context up to the adapters' ordinary 8192-token output allowance.
-    output_tokens = 4096 if method is not None and method.context == "bounded" else max(4096, min(8192, available))
+    output_tokens = 4096 if method.context == "bounded" else max(4096, min(8192, available))
     answer, attempts = _complete(chat, stage="inventory", record=None, system=system,
         user=user, schema=reply_schema, counter=counter, max_tokens=output_tokens)
     if not attempts[-1].ok:
@@ -190,7 +266,7 @@ def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counte
             continue
         key = json.dumps({name: normal(value) if isinstance(value, str) else value for name, value in identity.items()},
                          sort_keys=True) if identity else normal(label)
-        if method is not None and method.identity == "conservative":
+        if method.identity == "conservative":
             key = identity_key({"label": label, "identity": identity, "passages": support}, method)
             if not all(name in identity for name in method.identity_fields):
                 issues.append(Issue("partial_identity", f"unresolved identity dimensions for {label}"))
@@ -208,7 +284,7 @@ def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counte
     return records, attempts, issues
 
 
-def identity_key(item: dict, method: ArticleOptions) -> str:
+def identity_key(item: dict, method: ArticleOptions = REFERENCE) -> str:
     identity = {key: normal(value) if isinstance(value, str) else value for key, value in item["identity"].items()}
     # A complete explicitly declared key permits cross-unit reconciliation. Partial keys
     # never erase distinct labels or mentions; uncertainty is visible as separate records.
@@ -218,7 +294,7 @@ def identity_key(item: dict, method: ArticleOptions) -> str:
     return json.dumps(key, sort_keys=True, ensure_ascii=False)
 
 
-def reconcile_identities(items: list[dict], method: ArticleOptions) -> tuple[list[dict], list[Issue]]:
+def reconcile_identities(items: list[dict], method: ArticleOptions = REFERENCE) -> tuple[list[dict], list[Issue]]:
     records, seen, issues = [], {}, []
     for item in items:
         if method.identity == "conservative":

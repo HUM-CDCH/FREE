@@ -13,8 +13,8 @@ from collections import Counter
 from collections.abc import Sequence
 
 from kei_exp.kie.extract.contexts import Context
-from kei_exp.kie.extract.evidence import Passage
 from kei_exp.kie.extract.schema import Schema, notes
+from kei_exp.kie.passages import Passage
 
 VERSION = 1
 STOP = frozenset("the and for from with that this those these only into over under are was were has have not "

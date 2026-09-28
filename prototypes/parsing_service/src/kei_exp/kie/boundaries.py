@@ -24,7 +24,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from kei_exp.kie.extract.evidence import Evidence, Passage, load
+from kei_exp.kie.passages import Evidence, Passage, load
 from kei_exp.kie.recipe import load_recipe
 from kei_exp.kie.segmentation import Segmentation, SegmentationInvalid, load_segmentation
 from kei_exp.kie.stages.layout import Line, lines

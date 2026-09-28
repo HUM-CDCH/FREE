@@ -18,6 +18,7 @@ from kei_exp.convert import main
 from kei_exp.kie.runner import convert
 from kei_exp.kie.stages.ocr import resolve
 from kei_exp.models import MODELS
+from kei_exp.transcription.specs import VLM_SPECS
 from kei_exp.transcription.surya import KeptOutputs, _InferenceManager, where
 from kei_exp.transcription.types import ConversionError, RunParams
 from kei_exp.transcription.vlm import vlm_options
@@ -160,8 +161,8 @@ def test_an_output_override_leaves_the_presets_pristine(fake):
     vlm_options(MODELS["nanonets_ocr2"], fake.url, 1200, max_output_tokens=128)
     assert vlm_options(MODELS["nanonets_ocr2"], fake.url, 1200).model_spec.max_new_tokens == 15000  # Presets stay pristine.
     vlm_options(MODELS["infinity_parser"], fake.url, 1200, max_output_tokens=128)
-    spec = MODELS["infinity_parser"].spec
-    assert spec is not None and spec.max_new_tokens == 16384  # The record's spec stays pristine too.
+    spec = VLM_SPECS["infinity_parser"]
+    assert spec.max_new_tokens == 16384  # The custom spec stays pristine too.
 
 
 # --- The Surya adapter over a patched RecognitionPredictor ----------------------------------------------------------

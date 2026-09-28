@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
+GroundingChoice = Literal["semantic", "quoted", "off"]
+
 
 class ArticleOptions(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -14,7 +16,7 @@ class ArticleOptions(BaseModel):
     identity: Literal["reference", "conservative"] = "reference"
     identity_fields: tuple[str, ...] = ()
     prompt: Literal["reference", "schema"] = "reference"
-    grounding: Literal["semantic", "quoted", "off"] = "semantic"
+    grounding: GroundingChoice = "semantic"
     selection: Literal["supported"] | None = None
     rendering: Literal["structured"] | None = None
     grouping: Literal["structural"] | None = None
@@ -43,6 +45,9 @@ class ArticleOptions(BaseModel):
         if self.grouping is not None and self.context != "bounded":
             raise ValueError("structural grouping requires bounded contexts")
         return self
+
+
+REFERENCE = ArticleOptions()  # the production reference: what an omitted `article` option runs
 
 
 class CatalogFactors(BaseModel):

@@ -97,11 +97,11 @@ TypeScript/Python boundary.
 7. **Authentication and session gating** — `server/auth.ts`, `server/sessionGate.ts` (mock OIDC locally, Entra in production, same code path).
 8. **API dispatch and handlers** — `server/api-dispatcher.ts`, `api/_http.ts` (most-imported file: `ApiError`, body parsing, error mapping), `api/extractions.ts`, `api/batch_extractions.ts`, `api/_provider.ts`.
 9. **Durable state in PostgreSQL** — `packages/db/src/prisma/contract.prisma`, `project-store.ts`, `artifact-store.ts`.
-10. **The extraction runtime package** — `packages/extraction/src/runtime.ts`, `module.ts`, `types.ts`, `postgres-persistence.ts`, `job-worker.ts`.
+10. **The extraction runtime package** — `packages/extraction/src/runtime.ts`, `module.ts`, `types.ts`, `postgres-persistence.ts` (composition over `postgres-{admission,attempts,batches,reviews,ownership,workflow-store}.ts`), `job-worker.ts`.
 11. **Crossing to the parsing service** — `packages/extraction/src/kei-exp.ts` (submit + poll with Retry-After) and `studio/api/_kei_exp.ts` (parse run → `parsed_document.v2`).
 12. **kei_exp API and durable jobs** — `kei_exp/api.py` (highest fan-out in the graph), `jobs/app.py`, `jobs/tasks.py`.
 13. **Parsing: layout, OCR, segments** — `kie/runner.py`, `kie/segmentation.py`, `kie/evidence.py`, `canonical.py`.
-14. **Grounded extraction and CI** — `kie/extract/evidence.py`, `kie/extract/grounded.py`, `.github/workflows/verify.yml`.
+14. **Grounded extraction and CI** — `kie/passages.py`, `kie/extract/grounded.py`, `.github/workflows/verify.yml`.
 
 ## 5. File map (key files by layer)
 
@@ -127,7 +127,7 @@ TypeScript/Python boundary.
 
 **Persistence** — `db/src/prisma/contract.prisma`, `project-store.ts`, `artifact-store.ts`, `researcher-account-store.ts`, `database-url.ts`, `index.ts`
 
-**Parsing service** — `kei_exp/api.py`, `jobs/{app,tasks,store,worker}.py`, `kie/runner.py`, `kie/stages/{ingest,ocr,layout,route,segment}.py`, `kie/model.py`, `kie/extract/{run,stages,grounded,evidence,locate,llm}.py`, `transcription/{native,surya}.py`, `cut.py`, `result.py`, `pagefile.py`, `canonical.py`, `kie/recipes/numbered-catalogue-de.json`
+**Parsing service** — `kei_exp/api.py`, `jobs/{app,tasks,store,worker}.py`, `kie/runner.py`, `kie/stages/{ingest,ocr,layout,route,segment}.py`, `kie/{primitives,blocks,ingest_model,document,run_model}.py`, `kie/evidence.py`, `kie/extract/{run,stages,assembly,grounding,grounded,locate,llm}.py`, `transcription/{native,surya}.py`, `cut.py`, `result.py`, `pagefile.py`, `canonical.py`, `kie/recipes/numbered-catalogue-de.json`
 
 **Deployment & ops** — `scripts/free.mjs`, `compose.yaml` + `compose.{override,prod,gpu,nginx,entra}.yaml`, both Dockerfiles, `docker/nginx/*.template`, `docker/studio-entrypoint.sh`, `.github/workflows/verify.yml`
 
@@ -138,12 +138,12 @@ TypeScript/Python boundary.
 | File | Lines | In | Out | Why careful |
 |---|---:|---:|---:|---|
 | `packages/db/src/project-store.ts` | 2292 | 12 | 2 | God-store for projects, sources, schemas, revisions, batches — every ownership rule lives here |
-| `packages/extraction/src/postgres-persistence.ts` | 1904 | 2 | 7 | Scheduling/replay, drafts, finalize; in an import cycle with `postgres-suggested-batch.ts` |
+| `packages/extraction/src/postgres-admission.ts` | 422 | — | — | Admission and replay under document row locks; persistence is split by concern (`postgres-{attempts,batches,reviews,ownership}.ts`), composed in `postgres-persistence.ts` (320) |
 | `prototypes/studio/src/SchemaPanel.tsx` | 1813 | 2 | 11 | Tree editor + DnD + AI-proposal review in one component |
 | `prototypes/studio/src/projectContexts/BatchExtractionsPanel.tsx` | 1386 | 1 | 18 | Highest UI fan-out; orchestrates selection, suggestion, runs, history |
 | `prototypes/studio/src/ResultsTab.tsx` | 1122 | 1 | 12 | Review decisions, drafts, diagnostics, retry |
 | `prototypes/studio/src/App.tsx` | 958 | 0 | 13 | Per-document workspace composition |
-| `prototypes/parsing_service/src/kei_exp/kie/model.py` | 779 | 12 | 2 | Pydantic core types for the whole KIE pipeline — wide blast radius |
+| `prototypes/parsing_service/src/kei_exp/kie/ingest_model.py` | 407 | — | — | Largest of the KIE core type modules (split by layer: `primitives`, `blocks`, `ingest_model`, `document`, `run_model`) |
 | `prototypes/parsing_service/src/kei_exp/kie/extract/grounded.py` | 767 | 1 | 10 | The evidence-verification heart of the product promise |
 | `prototypes/studio/api/source_documents.ts` | 742 | 1 | 6 | Upload → submit → poll with retry → publish representation |
 | `prototypes/studio/api/_provider.ts` | 732 | 7 | 4 | Eight provider kinds behind one runtime |

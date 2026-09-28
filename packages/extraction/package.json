@@ -13,11 +13,12 @@
     "./kei-stand-in-client": "./src/testing/kei-stand-in-client.ts",
     "./parsed-document": "./src/parsed-document.ts",
     "./schema": "./src/schema.ts",
+    "./workflow-steps": "./src/workflow-steps.ts",
     "./workflows": "./src/workflows.ts"
   },
   "scripts": {
-    "test": "tsx --test src/module.test.ts src/parsed-document.test.ts src/kei-handoff.test.ts src/kei-artifact.test.ts src/workflows.test.ts",
-    "test:postgres": "tsx --test src/extraction-module.integration.test.ts src/kei-handoff.postgres.test.ts",
+    "test": "tsx --test src/module.test.ts src/parsed-document.test.ts src/kei-handoff.test.ts src/kei-artifact.test.ts src/workflows.test.ts src/review-rules.test.ts",
+    "test:postgres": "tsx --test --test-concurrency=1 src/*.integration.test.ts src/kei-handoff.postgres.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
