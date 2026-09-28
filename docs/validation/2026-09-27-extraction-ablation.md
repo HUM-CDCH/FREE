@@ -1,6 +1,6 @@
 # Modular extraction ablation — execution record
 
-Status: **implementation merged; live study and frozen-code recovery running; final results pending**.
+Status: **implementation merged; R1 execution complete; R3 running; final replay and results pending**.
 
 The [execution plan](../plans/2026-09-27-modular-extraction-ablation-study.md) and
 [stage documentation](../../prototypes/parsing_service/docs/extraction-experiments.md)
@@ -9,12 +9,28 @@ the old reference accuracy below is a scorer regression check, not a new study r
 
 ## Current execution recovery
 
-Latest checkpoint, 2026-09-28 01:57 CEST (2026-09-27 23:57 UTC): R1 has
-60/79 sealed results, all reproduced exactly from 1,945 saved replies with HTTP
-disabled. Increment `replay-verification-20260927/increment-60-offline.json`
-adds thirteen cells to the disjoint earlier verification sets. R2a has all
-30/30 results and a complete offline acceptance check, described below.
-R3/R4 remain queued; they have not generated study results.
+Latest checkpoint, 2026-09-28 07:47 CEST (05:47 UTC): R1 has all **79/79 sealed
+results**. Its recovery parent exited normally, and full frozen-input validation
+passed for all 79 cells and 16 sources. Eight cells retain partial processing;
+their failures remain in the study. The existing supervisor validated frozen R3
+and started the rendering comparison, which now has three of twelve seals.
+R4 remains queued. R2a has all 30/30 results and a complete offline acceptance
+check, described below. R5 remains separately queued after original collection.
+
+Sixty R1 cells have earlier exact replay acceptance from 1,945 saved replies with
+HTTP disabled. Increment `replay-verification-20260927/increment-60-offline.json`
+adds thirteen cells to the disjoint earlier verification sets. The final collector
+below still owns all-cell replay and corrected analysis. Sealed execution does
+not establish that final acceptance or semantic correctness. The handoff receipt
+is `span-grounding-20260928/r1-complete-r3-handoff.json`; live process identities
+must be refreshed from the integration pointer and `/proc` before any action.
+
+The [complete R1 failure audit](2026-09-27-extraction-failure-cases.md#complete-r1-failure-audit)
+retains 71 failures among 3,355 artifact call entries: 64 literal-control JSON
+failures, three truncated replies and four refusals before inference. Saved-capture
+inspection independently confirms those categories; it does not repair predictions
+or replace final replay. Interrupted attempts and unknown prior work remain separate
+in the final cost accounting.
 
 Disk exhaustion at 21:28–21:29 UTC interrupted Harvey's quoted and reference
 attempts. Their logs explicitly record `ENOSPC`; sixteen immediately following

@@ -1,6 +1,11 @@
 # Modular extraction and controlled ablation study — 2026-09-27
 
 Status: active; implementation merged, controlled study unfinished. This is the durable execution plan.
+Execution checkpoint, 2026-09-28 05:47 UTC: R1 has all 79 sealed results, including
+eight partial-processing outcomes; final all-cell replay and corrected analysis
+remain pending. R2a is complete. R3 is running from its frozen archive, R4 is queued,
+and R5 waits for the original collector. See the [execution record](../validation/2026-09-27-extraction-ablation.md)
+and refresh `artifacts/extraction-ablation/INTEGRATION-POINTER.md` before resuming.
 Task status and evolving design live in `openspec/changes/modular-extraction-ablation-study/`.
 Original study branch: `feat/modular-extraction-ablation`, based on `6e641b6c11bdf8073f10e824176532885f28484d`.
 Implementation merged through PRs [#142](https://github.com/HUM-CDCH/FREE/pull/142),
