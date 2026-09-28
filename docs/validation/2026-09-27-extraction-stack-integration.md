@@ -1,6 +1,17 @@
 # Extraction stack integration — 2026-09-27
 
-Status: locally verified; live ablation study and its final report remain open.
+Status: merged and verified; live ablation study and its final report remain open.
+
+PRs [#142](https://github.com/HUM-CDCH/FREE/pull/142),
+[#143](https://github.com/HUM-CDCH/FREE/pull/143) and
+[#141](https://github.com/HUM-CDCH/FREE/pull/141) merged in that order into
+`feat/kei-exp-parser` at `377cd0507fec98373fbdf4aa7dd220aaa35e5007` on explicit
+user instruction. Git tree `c1eed3b37fd7d68e54a6f3a45293aa64aa210dce` matches the
+verified full-stack head `a6c5612`. Its [CI run](https://github.com/HUM-CDCH/FREE/actions/runs/36337864288)
+passed on attempt 2; the first attempt lost an auth-session GET with ECONNRESET
+after 54 browser passes. Repair `a163ff4` and study `b33bede` also passed their
+latest checks. `merge-20260927.json` and `ci-a6c5612-success.json` in the artifact
+directory below preserve the exact receipt and heads. No deployment occurred.
 
 Tested full stack: `88eed7ce42bf597728c631947de2ccea86d44e84`, whose tree is
 identical to tested merge `9fcb6841621606319052f259fcb907d28961f962`.
@@ -10,8 +21,11 @@ integration `7c3e5249111e46137f3d06bf10dd2ac9065d2eba`.
 
 Worktree: `/home/gennaro/projects/FREE-worktrees/extraction-current-stack`.
 Logs and the disposable-database driver are in `artifacts/extraction-integration/`
-there. The primary FREE checkout remains at its pinned R1 runtime; no source,
-manifest, captured reply or frozen follow-up archive was changed by integration.
+there. Integration preserved the study's registered source and artifacts.
+The primary checkout was subsequently switched at 18:23–18:27 UTC; the study's
+code-pin guard stopped later launches. The [execution record](2026-09-27-extraction-ablation.md)
+documents recovery from frozen code without resetting that checkout or changing
+the protocol.
 
 ## Resolutions
 
@@ -146,5 +160,6 @@ inference captures. Remaining cells still require final verification.
 
 The registered R1, R2a, R3 and R4 studies still require all terminal cells,
 final capture replay, paired effects and the final development-corpus report.
-Their independent-annotation limitation remains unchanged. PRs remain drafts
-and are not merged or deployed. Historical validation snapshots remain intact.
+Their independent-annotation limitation remains unchanged. The implementation
+PRs are merged as recorded above; no deployment or completed-study claim follows
+from that merge. Historical validation snapshots remain intact.

@@ -275,6 +275,46 @@ malformed JSON despite a constrained request remains unestablished. R3 changes
 upstream rendering with grounding disabled and therefore does not test this
 grounding-protocol issue.
 
+## Complete R1 failure audit
+
+At 2026-09-28 05:39 UTC, all 79 R1 cells are sealed. Read-only inspection of
+their saved artifacts finds 3,355 call entries and 71 failures across eight
+partial-processing cells:
+
+| Cell | Literal-control JSON failures | Truncated replies | Refusals before inference |
+| --- | ---: | ---: | ---: |
+| Age reference | 0 | 0 | 2 |
+| Age schema | 0 | 0 | 2 |
+| Akita full quoted | 24 | 0 | 0 |
+| Akita overlap | 0 | 1 | 0 |
+| Akita quoted | 31 | 1 | 0 |
+| Sousa unverified | 0 | 1 | 0 |
+| Zelechowska full quoted | 2 | 0 | 0 |
+| Zelechowska quoted | 7 | 0 | 0 |
+| **Total** | **64** | **3** | **4** |
+
+All 64 JSON failures occur in grounding; the three truncated replies occur in
+record extraction. The four Age refusals are document and inventory requests.
+A second saved-capture inspection matches all 71 classifications. Permissive
+decoding makes the 64 control-character replies schema-valid, with no schema
+violations found. This is diagnostic inspection, not a repaired result or proof
+of entailment. The registered artifacts and captured replies remain unchanged.
+
+The sealed artifacts also retain 205 `unsupported_quote` diagnostics. These
+record quote-support rejection, not independently adjudicated false scientific
+values. Likewise, a model-grounding completion flag does not measure
+record recall or correct subject attribution.
+
+Audit: `artifacts/extraction-ablation/failure-audit-20260928/r1-sealed-79.json`,
+SHA-256 `12d8b469fed594336bb5df476dc4f31c23d76ad9155ce7d3a561127f82ca6b92`.
+Independent inspection: `independent-capture-check-79.json` in the same directory,
+SHA-256 `f90950849d5c22116e9f90541027b0906d89ee492fc50ed5e9150d92bf6d7c8c`.
+Both receipts pin their audit code and input evidence. These counts cover sealed
+artifact entries, including pre-inference refusals; they are not a total of fresh
+provider calls. Interrupted attempts, reused replies and unknown prior completions
+must still be reconciled by final cost accounting. Final exact replay and corrected
+analysis remain pending under the original collector.
+
 ## Sousa: completed process with an incomplete extraction
 
 R1 `Sousa--unverified--0` has a valid sealed result and process exit code zero,

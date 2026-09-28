@@ -1,9 +1,40 @@
 # Modular extraction and controlled ablation study — 2026-09-27
 
-Status: active; implementation and study authorized. This is the durable execution plan.
+Status: active; implementation merged, controlled study unfinished. This is the durable execution plan.
+Pilot checkpoint, 2026-09-28 07:55 UTC: all six prioritized grounding cells and
+their offline reports are complete. The [results](../validation/2026-09-28-grounding-pilot.md)
+retain the one-document boundary, changed links and 84 pending cells. R4 and
+the full matrix remain deferred; completion of the pilot does not close this plan.
+
+Priority change, 2026-09-28 07:12 UTC: the user chose a [small grounding pilot](2026-09-28-grounding-pilot.md)
+and deferred the full matrix. R4 admission is held while its current workers
+finish; six existing R5 cells will use the freed slots. The full-R5 scheduler and
+collector are stopped. Read the pilot plan and integration pointer before any
+resumption; the older dependency chain below is historical.
+
+Earlier checkpoint, 2026-09-28 06:33 UTC: R1 has all 79 sealed results, including
+eight partial-processing outcomes; final all-cell replay and corrected analysis
+remain pending. R2a is complete. R3 has all 12 sealed results, including one
+retained context refusal; R4 is running from its frozen archive,
+and R5 waits for the original collector. See the [execution record](../validation/2026-09-27-extraction-ablation.md)
+and refresh `artifacts/extraction-ablation/INTEGRATION-POINTER.md` before resuming.
 Task status and evolving design live in `openspec/changes/modular-extraction-ablation-study/`.
-Study branch: `feat/modular-extraction-ablation`, based on `6e641b6c11bdf8073f10e824176532885f28484d`.
-Integrated fixes: `fix/extraction-structure-and-grounding`, [draft PR #141](https://github.com/HUM-CDCH/FREE/pull/141).
+Original study branch: `feat/modular-extraction-ablation`, based on `6e641b6c11bdf8073f10e824176532885f28484d`.
+Implementation merged through PRs [#142](https://github.com/HUM-CDCH/FREE/pull/142),
+[#143](https://github.com/HUM-CDCH/FREE/pull/143) and
+[#141](https://github.com/HUM-CDCH/FREE/pull/141) into `feat/kei-exp-parser` at `377cd050`.
+
+For a future agent session, use the [reproduction prompt](2026-09-27-extraction-ablation-reproduction-prompt.md).
+It distinguishes resuming a frozen study from registering a fresh revision.
+
+The subsequent grounding-cost work is a separate registered **R5** study, tracked
+in [PR #145](https://github.com/HUM-CDCH/FREE/pull/145) and its
+[span-grounding plan](https://github.com/HUM-CDCH/FREE/blob/feat/extraction-span-grounding/docs/plans/2026-09-28-span-grounding.md).
+Its implementation checkout is `/home/gennaro/projects/FREE-worktrees/extraction-span-grounding`.
+It freezes the same upstream records before comparing span selection, unresolved
+scheduling, schema evidence policy and origin/lexical routing. R5 does not replace
+the unfinished R1/R2a/R3/R4 obligations below. Read the integration pointer for
+both generation and final-collection owners before resuming either study family.
 
 ## Goal and authorization
 
@@ -177,6 +208,94 @@ unavailable human labels, provider, compute or integration gate stays explicitly
 do not mark the goal complete merely because a plan or synthetic test suite is finished.
 
 ## Progress and resume
+
+- Grounding follow-up R5 is registered at
+  `artifacts/extraction-ablation/20260928-r5-grounding`: 15 Articles × six methods,
+  with 81 fixed records reproduced from 266 captured upstream replies. Its frozen
+  runtime is `frozen-execution/r5`, separate from the advanced implementation
+  checkout. At the 2026-09-28 02:48 UTC checkpoint, R1 has 69/79 sealed cells,
+  R2a has 30/30, and R3/R4/R5 remain queued. Both final collectors are supervised.
+  PR145 implementation head `361fa6b4` passed CI; no new merge or deployment occurred.
+  The 90-cell R5 preflight and exact offline reproduction are complete, with no
+  model generation. Span-only refuses 1,742/8,359 claim–unit comparisons (20.8%),
+  versus zero for quoted verification; smaller call counts cannot alone establish
+  savings. R5's 2,959-claim denominator also excludes 79 boolean values. Preserve
+  these limitations in the final report. Fresh outcomes and interpretation remain
+  unfinished; a queued job, prepared reporter or passing CI does not close them.
+
+- Registered input bytes are preserved in
+  `artifacts/extraction-ablation/input-preservation-20260928.zip` with a matching
+  verification receipt. All four manifests and their 276 referenced paths are
+  recoverable through the archive index; every member's registered SHA-256 and
+  archive CRC passed. Active paths, source generations and manifests are unchanged.
+  The archive complements the existing frozen code and capture artifacts.
+
+- Final report collection is now supervised by
+  `free-ablation-final-collection-20260928-v2`, with controls under
+  `artifacts/extraction-ablation/final-collection-20260928-v2/`. It waits for the
+  exact R3/R4 scheduler, requires all R1/R3/R4 seals, replays captures and
+  generates corrected final analysis/accounting/tables plus grounding workload.
+  Reporting code is frozen separately; acceptance reproduces the completed
+  30-cell R2a report and refuses absent-parent/missing-cell cases before any
+  commands. No fresh model replies are permitted. The collector owns the
+  reserved `*-final` report paths for R1/R3/R4; do not duplicate it. Actual
+  generation remains active, and final scientific review remains necessary.
+  The v2 handoff at 2026-09-28 05:58 UTC corrected unavailable-token table
+  formatting after the complete R1 preview exposed it. Eighteen reporting tests
+  pass and all 79 real cells render offline. Only idle downstream services were
+  replaced; generation, manifests, cell order and registered code remain unchanged.
+  R5's current controls are `launch-collection-v2.py`,
+  `execution-plan-collection-v2.json` and `reporting-v2/` in its study directory.
+
+- Latest checkpoint, 2026-09-28 01:57 CEST: R1 has 60/79 sealed cells, all
+  replay-verified from 1,945 saved replies with HTTP disabled. R2a is complete
+  at 30/30, including offline control/subsequence verification, corrected final
+  analysis, accounting and [result tables](../validation/2026-09-28-extraction-selection-results.md).
+  Captured request budgets fall from 266 to 234 calls, with unchanged scores on
+  six gold papers; substantive fields change on five unannotated documents and
+  require review. This does not establish lossless selection or fresh-model
+  savings. R3/R4 and final full-study reporting remain unfinished.
+
+- Disk exhaustion interrupted two R1 attempts and sixteen subsequent commands
+  at 21:28–21:29 UTC on September 27. Recovery is recorded under
+  `artifacts/extraction-ablation/resume-20260928-3/`; it resumes only those
+  eighteen ended commands with one worker beside the healthy Akita quoted
+  worker. All 136 saved replies are retained; two requests have unknown prior
+  completion. At inspection 22.8 GiB was available, and admission now requires
+  5 GiB free. The waiting scheduler was replaced before generating R3/R4;
+  `followups-resume-20260928-3/` requires the recovery parent to exit and all
+  79 R1 seals. Earlier checkpoints below are historical. Use the latest
+  `INTEGRATION-POINTER.md` and live processes before resuming.
+
+- The user authorized merging the review stack. All three pre-merge heads passed
+  CI; full-stack `a6c5612` passed run `36337864288`, attempt 2. Merged `377cd050`
+  has the same Git tree as that verified full-stack head. No production deployment
+  was performed. The isolated reporting checkout is now based on this merged
+  commit; the live study remains a separate completion obligation.
+
+- The primary checkout was switched away from R1's registered code at
+  18:23–18:27 UTC. Its pin guard rejected 35 queued commands before execution.
+  Do not reset that checkout or change the study manifest to bypass the guard.
+  Registered source is restored under `artifacts/extraction-ablation/frozen-execution/`
+  in `r1` and `r2a`; their complete code/input checks pass. R3 and R4 already use
+  frozen archives. Recovery controls are in `resume-20260927-2/` and
+  `followups-resume-20260927-2/`, under the same artifact root. The new R1 service
+  waits for the exact original launcher and followers to settle, retains sealed
+  results, then resumes missing cells in original order with two workers.
+  Inspect their saved process identities and live services before acting.
+  The latest operational pointer is `artifacts/extraction-ablation/INTEGRATION-POINTER.md`.
+
+- At this recovery checkpoint, all 43 sealed R1 cells replay exactly from 1611
+  saved calls; R2a has 22 of 30 results. Incremental replay reports through
+  `increment-43-offline.json` cover disjoint cell sets with HTTP disabled.
+  Akita unverified and Sousa bounded add 89 saved calls; the first verification
+  used 306 separately cached tokenizer probes. The primary checkout changed
+  during Sousa's execution, so its exact replay under registered code is retained
+  as explicit evidence. The still-running Akita bounded result needs the same
+  check when it finishes. Final analysis must use the corrected reporting analyzer.
+
+The entries below preserve earlier checkpoints. Their checkout and draft-PR
+instructions are superseded by the merged state and frozen recovery above.
 
 - Reporting correction `e1d5c2a` / `d70c2db` fixes repeated document-field
   aggregation and distinguishes exact projected representations from the frozen
