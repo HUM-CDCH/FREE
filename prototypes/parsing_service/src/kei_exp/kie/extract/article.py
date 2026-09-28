@@ -16,16 +16,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kei_exp.kie.extract.assembly import artifact, document_values, ground, unchecked
+from kei_exp.kie.extract.assembly import artifact, document_values, ground_records, unchecked
 from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, partition, reconcile_values
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import REFERENCE, ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.rendering import RENDERING_VERSION, structured_source
+from kei_exp.kie.extract.routing import VERSION as GROUNDING_ROUTING_VERSION, value_origins
+from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.selection import select_contexts
-from kei_exp.kie.extract.stages import Call, Issue, _complete, _instruction, _labelled, extract_record, normal, record_request
+from kei_exp.kie.extract.stages import Call, Issue, _complete, _instruction, _labelled, extract_record, normal, record_request, leaves
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter, counters_for
 from kei_exp.kie.passages import Evidence, Passage, text_of
 
@@ -39,6 +41,7 @@ class Records:
     conflicts: list[dict]
     value_contexts: list[list[Context]]
     selections: list[dict]
+    origins: list[list[dict]]
 
 
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter: dict | None = None,
@@ -72,15 +75,12 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                                 record_chars=options.record_chars, check=check, method=method, contexts=contexts)
     calls += extracted.calls
     issues += extracted.issues
-    # Every record is verified in every context, with its identity as the record context.
-    everywhere = [context.passages for context in contexts]
-    links, proofs, grounding_calls, grounding_issues = ground(
-        [(everywhere, fields, item["label"] + "\n" + json.dumps(item["identity"], ensure_ascii=False))
-         for (_, fields), item in zip(extracted.slices, extracted.identities, strict=True)],
-        schema, chat, choice=method.grounding, budget=options.record_chars,
-        check=check, counter=counter["reasoning"])
-    calls += grounding_calls
-    issues += grounding_issues
+    support = ground_records(extracted.slices, schema, chat, check=check, budget=options.record_chars,
+        counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,
+        value_contexts=extracted.value_contexts, origins=extracted.origins)
+    links = support.links
+    calls += support.calls
+    issues += support.issues
     result = artifact(evidence, request, chat, started=started, clock=clock,
                       fields=[fields for _, fields in extracted.slices], document=document, links=links,
                       calls=calls, issues=issues)
@@ -89,7 +89,14 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         result["method_version"] = 1
         result["contexts"] = [context.dumped() for context in contexts]
         result["value_contexts"] = [[context.dumped() for context in group] for group in extracted.value_contexts]
-        result["quoted_support"] = proofs
+        result["quoted_support"] = support.proofs
+        if method.grounding == "spans":
+            result["span_grounding_version"] = SPAN_GROUNDING_VERSION
+        if method.grounding_routing is not None:
+            result["grounding_routing_version"] = GROUNDING_ROUTING_VERSION
+            result["value_origins"] = [{**item, "path": ["records", number, *item["path"]]}
+                for number, origins in enumerate(extracted.origins) for item in origins]
+            result["grounding_routes"] = support.routes
         if method.rendering is not None:
             result["rendering_version"] = RENDERING_VERSION
         if method.grouping is not None:
@@ -104,6 +111,14 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             "grounding": "disabled" if method.grounding == "off" else (
                 "complete" if not result["ungrounded"] else "partial"),
             "record_recall": "unmeasured", "document_fields": "unverified" if schema.document_nodes else "not_applicable"}
+        if method.evidence_policy == "schema":
+            all_paths = {("records", number, *path) for number, (_, fields) in enumerate(extracted.slices)
+                         for path, _ in leaves(fields)}
+            eligible = all_paths - {tuple(item["path"]) for item in support.skipped}
+            result["grounding_eligibility"] = {"all_record_leaves": len(all_paths),
+                "eligible_record_leaves": len(eligible), "skipped": support.skipped}
+            result["completion"]["eligible_grounding"] = (
+                "not_applicable" if not eligible else "complete" if eligible <= {link.path for link in links} else "partial")
         # Successful calls and linked returned fields cannot establish inventory recall.
         result["complete"] = False
     return result
@@ -133,6 +148,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
     conflicts = []
     value_contexts = []
     selections = []
+    origins = []
     for number, item in enumerate(identities):
         candidates = []
         record_groups = groups
@@ -160,11 +176,13 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
             issues += problems
             candidates.append(fields)
         fields, contested = reconcile_values(candidates) if len(record_groups) != 1 else (candidates[0], [])
+        if method.grounding_routing is not None:
+            origins.append(value_origins(candidates, fields, item["identity"], item["passages"]))
         conflicts += [{"record": number, **conflict} for conflict in contested]
         issues += [Issue("conflicting_values", json.dumps(conflict, ensure_ascii=False), number)
                    for conflict in contested]
         slices.append((list(passages), fields))
-    return Records(identities, slices, calls, issues, conflicts, value_contexts, selections)
+    return Records(identities, slices, calls, issues, conflicts, value_contexts, selections, origins)
 
 
 def inventory_request(passages: Sequence[Passage], schema: Schema, method: ArticleOptions = REFERENCE):

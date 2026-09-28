@@ -73,7 +73,8 @@ def render(manifest: dict, analysis: dict, accounting: dict, gold_sources: set[s
                 for r in rows if "accuracy" in r]), "",
             "## Paired effects", "",
             "Effects are treatment minus control. Accuracy uses annotated document pairs; call/token effects "
-            "use all available registered document pairs. These denominators can differ. Intervals resample "
+            "use available registered document pairs. Input-token effects exclude pairs whose cost is unavailable; "
+            "their separate denominator is shown, and missing costs are never imputed as zero. Intervals resample "
             "documents and are descriptive with this small corpus; a zero-width interval does not establish equivalence. "
             "No interval is displayed with fewer than two documents.", ""]
     effects = []
@@ -90,6 +91,7 @@ def render(manifest: dict, analysis: dict, accounting: dict, gold_sources: set[s
         observed_pairs = observed["paired"]
         if {p["source"] for p in observed_pairs} != paired or len(observed_pairs) != len(paired):
             raise ValueError("paired document coverage disagrees")
+        token_pairs = [p for p in observed_pairs if p.get("input_tokens") is not None]
         effect = observed["accuracy_effect"]
         if effect["documents"] != len(paired & gold_sources):
             raise ValueError("accuracy denominator disagrees")
@@ -100,17 +102,21 @@ def render(manifest: dict, analysis: dict, accounting: dict, gold_sources: set[s
                         f"[{100 * interval[0]:+.2f}, {100 * interval[1]:+.2f}]" if effect["documents"] >= 2 else "—",
                         f"{len(paired)}/{len(eligible)}",
                         f"{statistics.mean(p['calls'] for p in observed_pairs):+.2f}" if paired else "—",
-                        f"{statistics.mean(p['input_tokens'] for p in observed_pairs):+,.0f}" if paired else "—"])
+                        f"{len(token_pairs)}/{len(eligible)}",
+                        f"{statistics.mean(p['input_tokens'] for p in token_pairs):+,.0f}" if token_pairs else "—"])
     text += [table(["Comparison", "Factor", "Gold pairs / expected", "Accuracy Δ pp", "95% interval pp",
-                    "All pairs / expected", "Mean calls Δ", "Mean input tokens Δ"], effects), "",
+                    "All pairs / expected", "Mean calls Δ", "Input-token pairs / expected", "Mean input tokens Δ"], effects), "",
              "## Cell diagnostics and costs", "",
              "Linked/populated leaves measure source-link coverage, not semantic correctness. "
              "The denominator includes status/diagnostic fields requested by the schema. "
              "Inspect per-field accounting before interpreting a change as lost measurements. "
-             "Call totals are artifact call records, including pre-inference refusals.", "",
+             "Call totals are artifact call records, including pre-inference refusals. "
+             "Unavailable token totals are shown as —.", "",
              table(["Cell", "Records", "Linked/populated", "Calls", "Failed calls", "Input tokens", "Output tokens"], [
                  [r["id"], r["records"], f"{r['linked_record_leaves']}/{r['populated_record_leaves']}",
-                  r["calls"], r["failed_calls"], f"{r['input_tokens']:,}", f"{r['output_tokens']:,}"] for r in rows]), ""]
+                  r["calls"], r["failed_calls"],
+                  *[f"{r[key]:,}" if r[key] is not None else "—" for key in ("input_tokens", "output_tokens")]]
+                 for r in rows]), ""]
     stages = {}
     for cell in accounting["stage_costs"].values():
         for stage, values in cell["stages"].items():

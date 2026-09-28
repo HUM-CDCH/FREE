@@ -10,6 +10,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from kei_exp.kie.extract.stages import leaves
+from kei_exp.kie.extract.schema import Schema, evidence_policy
 from .manifest import checked, digest, pin, read, validate, write_new
 
 
@@ -48,7 +49,7 @@ def diagnostic(artifact: dict) -> dict:
                                     if n.get("valueSource") == "source-filename"}}
     grounded = {tuple(link["path"]) for link in artifact["evidence"]}
     calls = artifact["calls"]
-    return {"records": len(artifact["records"]), "populated_record_leaves": len(populated),
+    result = {"records": len(artifact["records"]), "populated_record_leaves": len(populated),
             "linked_record_leaves": len(populated & grounded),
             "link_rate": len(populated & grounded) / len(populated) if populated else None,
             "calls": len(calls), "failed_calls": sum(not call["ok"] for call in calls),
@@ -59,6 +60,24 @@ def diagnostic(artifact: dict) -> dict:
             "proposed": len(artifact.get("proposed", [])), "rejected": len(artifact.get("rejected", [])),
             "completion": artifact.get("completion", artifact.get("completeness")),
             "interpretation": "Links and quoted substrings are diagnostics, not independent semantic correctness."}
+    if "grounding_eligibility" in artifact:
+        schema = Schema.model_validate(artifact["schema"])
+        skipped = {path: evidence_policy(schema.record_nodes, path[2:]) for path in populated
+                   if evidence_policy(schema.record_nodes, path[2:]) != "quoted"}
+        saved = artifact["grounding_eligibility"]
+        if (saved["all_record_leaves"] != len(populated)
+                or saved["eligible_record_leaves"] != len(populated) - len(skipped)
+                or len(saved["skipped"]) != len(skipped)
+                or {tuple(item["path"]): item["policy"] for item in saved["skipped"]} != skipped):
+            raise ValueError("grounding eligibility disagrees with schema and populated records")
+        eligible = populated - skipped.keys()
+        if grounded & skipped.keys():
+            raise ValueError("policy-skipped fields must not have grounding links")
+        result["grounding_eligibility"] = {
+            "eligible_record_leaves": len(eligible), "linked_eligible_record_leaves": len(eligible & grounded),
+            "eligible_link_rate": len(eligible & grounded) / len(eligible) if eligible else None,
+            "skipped_record_leaves": len(skipped), "skipped_by_policy": dict(Counter(skipped.values()))}
+    return result
 
 
 def analyze(study: dict, output: Path) -> dict:

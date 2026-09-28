@@ -1,11 +1,180 @@
 # Modular extraction ablation — execution record
 
-Status: **implementation verified; live study running; results pending**.
+Status: **implementation merged; R1 and R3 execution complete; six-cell grounding pilot complete; full matrix deferred**.
+
+Current acceptance, 2026-09-28 09:16 UTC: the
+[completed-development report](2026-09-28-completed-development-study.md) now
+verifies all 95 completed R1/R3/R4 cells by exact offline replay from 3,552 saved
+replies. R1 is 79/79, R3 is 12/12 and R4 is 4/12; R4 has only controls and no
+paired treatment estimate. Corrected analysis, cost/failure accounting, extra-output
+queues and full tables are regenerated in a separate directory. R2a's existing
+30-cell acceptance/report pins also match. The historical pending-replay statements
+below are superseded for completed cells, while the full matrix remains deferred.
+
+The [pilot report](2026-09-28-grounding-pilot.md) records all six completed and
+exactly replayed outcomes. Span IDs plus policy and unresolved scheduling used
+10 calls versus 40 and 89,770 input tokens versus 222,156, with 35 linked paths
+versus 30. Two baseline paths were lost; semantic accuracy is unmeasured.
+Routing added cost and lost two links relative to that combined arm. This is one
+selected development document without structured table cells, not the full study.
+
+At 2026-09-28 07:12 UTC the user chose faster pilot feedback. The
+[pilot plan](../plans/2026-09-28-grounding-pilot.md) supersedes the earlier execution
+order: current R4 workers finish normally, further R4 admission is held, and
+six registered Zelechowska R5 cells take their slots. Full R5 is deferred.
+Full-study execution and final scientific reporting remain unfinished. Historical checkpoints
+below do not authorize restarting the old full-matrix scheduler.
 
 The [execution plan](../plans/2026-09-27-modular-extraction-ablation-study.md) and
 [stage documentation](../../prototypes/parsing_service/docs/extraction-experiments.md)
 describe the implementation. This record must be completed from terminal study artifacts;
 the old reference accuracy below is a scorer regression check, not a new study result.
+
+## Historical execution recovery
+
+Latest checkpoint, 2026-09-28 08:33 CEST (06:33 UTC): R1 has all **79/79 sealed
+results**. Its recovery parent exited normally, and full frozen-input validation
+passed for all 79 cells and 16 sources. Eight cells retain partial processing;
+their failures remain in the study. R3 now has all **12/12 sealed results** and
+79 fresh saved replies, retaining one partial-processing outcome. The existing
+supervisor validated frozen R4 and started the grouping comparison with two
+workers. R2a has all 30/30 results and a complete offline acceptance
+check, described below. R5 remains separately queued after original collection.
+
+The R3 terminal audit verifies every artifact hash, manifest pin and finished
+receipt. Harvey structured retains an inventory refusal: 28,974 input tokens
+plus a 4,096-token output allowance exceeds the 32,768 served context by 302.
+Its earlier document call completed, but no records were produced. Keep this
+outcome in the rendering comparison. All other R3 cells report processing
+complete; grounding is disabled and recall remains unmeasured. The receipt
+`span-grounding-20260928/r3-complete-r4-handoff.json` also verifies the initial
+R4 workers' process identities, working directories and import paths against
+the frozen source. Final R3 replay and corrected analysis remain pending.
+
+Sixty R1 cells have earlier exact replay acceptance from 1,945 saved replies with
+HTTP disabled. Increment `replay-verification-20260927/increment-60-offline.json`
+adds thirteen cells to the disjoint earlier verification sets. The final collector
+below still owns all-cell replay and corrected analysis. Sealed execution does
+not establish that final acceptance or semantic correctness. The handoff receipt
+is `span-grounding-20260928/r1-complete-r3-handoff.json`; live process identities
+must be refreshed from the integration pointer and `/proc` before any action.
+
+The [complete R1 failure audit](2026-09-27-extraction-failure-cases.md#complete-r1-failure-audit)
+retains 71 failures among 3,355 artifact call entries: 64 literal-control JSON
+failures, three truncated replies and four refusals before inference. Saved-capture
+inspection independently confirms those categories; it does not repair predictions
+or replace final replay. Interrupted attempts and unknown prior work remain separate
+in the final cost accounting.
+
+Disk exhaustion at 21:28–21:29 UTC interrupted Harvey's quoted and reference
+attempts. Their logs explicitly record `ENOSPC`; sixteen immediately following
+commands exited 120 with empty logs and no cell artifacts. Those sixteen are
+unexecuted infrastructure gaps, not extraction outcomes. At recovery inspection,
+22.8 GiB was available without this recovery deleting files. The two interrupted
+attempts retain 136 replies and two requests with no saved reply; their prior
+completion is unknown and must remain in cost accounting.
+
+`resume-20260928-3/disk-interruption-audit.json` pins the retained files, failed
+command logs, process identities and available disk space. The explicitly audited
+recovery resumes only these eighteen ended commands, in original order, with one
+worker beside the still-live Akita quoted worker. It validates all frozen pins,
+preserves saved replies and refuses to admit another cell below 5 GiB free.
+The waiting R3/R4 scheduler was stopped before it had any children or generated
+results, then replaced by `free-ablation-followups-resume-3`, whose controls are
+under `followups-resume-20260928-3/`. It waits for the new recovery parent and
+requires all 79 seals. The new parent also waits for the earlier Akita launcher
+and selection follower to exit. No inference worker was stopped or duplicated.
+
+Final collection is scheduled separately under
+`artifacts/extraction-ablation/final-collection-20260928-v2/`, owned by user service
+`free-ablation-final-collection-20260928-v2`. It waits for the exact replacement
+R3/R4 scheduler, then requires every R1/R3/R4 artifact seal and execution receipt.
+It never launches fresh model generation. It replays the captures with separately
+cached tokenizer probes, repeats acceptance with HTTP disabled, and generates
+corrected `analysis-final.json`, `accounting-final.json`, `tables-final.md` and
+`grounding-workload-final.json` for those three studies. R2a's existing final
+verification and reports are retained and checked. Do not write these reserved
+final paths in parallel with the collector.
+
+Reporting is also frozen: 75 source files, the corrected analyzer and four helper
+scripts are preserved in `reporting-code.zip`, SHA-256
+`a4e96b0e0cc0d27fb0585820fb326eedd047c6c22a698abcf0d33d6081d46d65`.
+The replay cache retains 1,455 previously observed tokenizer probes. Acceptance
+checks for the original reporting freeze regenerated all 30 R2a metrics/accounting/table contents identically,
+apart from provenance paths and dependent hashes, and replayed Herredsvejen
+bounded with HTTP and fresh generation disabled. Absent-parent and incomplete-
+study checks refuse collection before launching commands. Those historical
+receipts remain under the original collector's `acceptance-r2a/`.
+`collection-complete.json`, when present and validated,
+will establish generated reports, not reviewed scientific conclusions or goal
+completion. A missing cell or failed command stops collection without retry.
+
+At 05:58 UTC, the complete 79-cell preview exposed a table-rendering failure:
+Age's schema-to-bounded pair has no input-token delta because its control refused
+inference. The old formatter incorrectly required that metric and would also
+reject null cell totals. The corrected formatter displays unavailable costs as
+`—`, retains every observed pair, and shows a separate token-effect denominator
+(14/15 for that comparison). Eighteen table/accounting tests pass, including
+all-missing costs, a known zero delta and a mixed known/missing pair. The real
+79-cell preview now renders with network access disabled. Its outputs and pins
+are under `r1-terminal-preview-20260928/`; final exact replay remains pending.
+
+The original collector, R5 scheduler and R5 collector were all verified live
+with no child processes before an ordered replacement. No inference process was
+stopped. The v2 archive changes only the table helper; its 75 source files,
+corrected analyzer and other three helpers are unchanged. The tokenizer cache
+is byte-identical. `idle-chain-stop-audit.json` and `chain-start-audit.json` under
+the v2 control directory record the handoff. R5 now uses
+`launch-collection-v2.py`, `execution-plan-collection-v2.json` and `reporting-v2/`
+inside its existing study directory. Its manifest, frozen runtime, cell order,
+two-worker limit and outputs are unchanged. Old controls and receipts are retained.
+
+The following paragraphs retain the earlier checkout-recovery record; their
+counts and scheduler identities are historical.
+
+The implementation stack merged into `feat/kei-exp-parser` at `377cd050` after
+all three pre-merge heads passed CI. Its tree matches tested full-stack `a6c5612`.
+This does not change the frozen methods or complete their evaluation.
+
+The primary checkout moved away from the registered R1 source at 18:23–18:27 UTC.
+Thirty-five queued commands failed their code-pin check before execution; they
+are missing results, not measured model failures. The original worker and its
+captures are retained. `artifacts/extraction-ablation/resume-20260927-2/checkout-drift-audit.json`
+records the reflog evidence, rejected commands and recovery policy.
+
+R1's original 71-file archive is restored at
+`artifacts/extraction-ablation/frozen-execution/r1`; it validates all 79 cells and
+16 sources. R2a's 73 registered files are frozen at the sibling `r2a` directory
+and validate all 30 cells and 15 sources. Its recovery archive is
+`resume-20260927-2/r2a-code.zip`, SHA-256
+`b00cde1b7fcb4b2c151220969c2ad97c76557b27b6af01f26c6149c2ab2200ad`.
+No manifest, result or captured response was rewritten.
+
+The `free-ablation-r1-resume-2` user service waited for the recorded original
+launcher and follower identities to disappear, then audited seals and resumed
+35 missing cells with two workers in registered order, retaining all 44 existing
+results. The first two workers' `/proc` working directories and `PYTHONPATH`
+pointed to frozen R1, and both passed all input/code pins. Their receipt is
+`resume-20260927-2/handoff-verification.json`. Its saved waiting and
+execution plans are under `resume-20260927-2/`. The corresponding selection
+follower uses frozen R2a; the scheduler under `followups-resume-20260927-2/`
+requires all 79 R1 results before running frozen R3, then R4. These are scheduled
+dependencies, not completed study results. Consult the artifact root's
+`INTEGRATION-POINTER.md` and actual processes for current state.
+
+At the next verification checkpoint, 45 R1 results and 24 R2a results are sealed.
+All 45 R1 cells replay exactly from 1751 saved calls with HTTP disabled. The
+incremental reports through `replay-verification-20260927/increment-45-offline.json` cover disjoint
+cell sets. Akita unverified and Sousa bounded contribute
+89 calls; initial verification obtained 306 separate tokenizer probes before
+the offline check. Sousa crossed the checkout-change interval but still replays
+exactly under registered code. Akita bounded subsequently finished in 9087
+seconds with 126 calls and partial grounding; it also replays exactly, using
+253 separate tokenizer probes before its HTTP-disabled check. Ellekilde's
+generic Catalog result adds 14 calls, with no extra tokenizer probes required.
+The replay coverage proves reproducibility, not independent semantic correctness.
+Frozen launchers still use their historical
+analyzers; final reports must be regenerated with the corrected analyzer below.
 
 ## Frozen protocol
 
@@ -27,6 +196,16 @@ the old reference accuracy below is a scorer regression check, not a new study r
 No new OCR is mixed into a method comparison. The existing final canonical revisions are
 pinned, including repaired Akita, Hamburg and Katrinesminde conversions. Model requests
 receive source, schema and method settings; gold and scorer are read only by analysis.
+
+The exact registered inputs are also preserved in
+`artifacts/extraction-ablation/input-preservation-20260928.zip`, SHA-256
+`04b23eb27142aca009c7c1fb6f91ab9119403a0cd2348d25cced3295af32b957`.
+It contains all four manifests and an index mapping 276 referenced paths to
+274 distinct content objects, including PDFs, canonical files, schemas and
+evaluation inputs. Every archived member passed CRC and registered SHA-256
+verification; the original files remain unchanged. The matching JSON receipt
+records these checks. This is a local recovery copy; model weights and the
+Python environment are outside it, and source-code archives remain separate.
 
 ## Estimands and limits
 
@@ -55,6 +234,267 @@ stochastic voting and VLM crop rereading are outside this matrix.
 Timing is direct extraction through shared model endpoints and includes possible serving
 contention. It is not isolated model throughput, DBOS queue latency, authenticated API
 latency, or deployment validation. No deployment was performed.
+
+## R1 complete execution: preliminary effects awaiting final replay
+
+Superseded by the [completed-development report](2026-09-28-completed-development-study.md),
+which records the final exact replay; this section is kept as history.
+
+The corrected analyzer covers all 79 sealed R1 cells, including the eight
+partial-processing outcomes. This is a **descriptive preview**, not final replay
+acceptance. Its network-disabled reporting outputs and result pins are preserved
+under `artifacts/extraction-ablation/r1-terminal-preview-20260928/`; `receipt.json`
+pins the analyzer, renderer and four reports. Before promoting these findings,
+compare them with the collector's final outputs and resolve any discrepancy.
+
+In the registered full-source schema-to-bounded comparison, the bounded arm's
+mean populated-field score is 33.35 percentage points lower across the six development papers.
+Its document bootstrap interval is [-49.06, -16.40] points. The observed documents
+are few and already used during development; this interval does not establish
+performance on unseen papers. Correct/eligible populated sample fields and raw
+record counts are:
+
+| Paper | Full-source schema score | Bounded score | Full-source records | Bounded records |
+| --- | ---: | ---: | ---: | ---: |
+| Akita | 154/187 | 125/187 | 11 | 20 |
+| Harvey | 7/9 | 3/9 | 5 | 5 |
+| Mizuta | 63/66 | 39/66 | 6 | 12 |
+| Sousa | 47/52 | 27/52 | 4 | 4 |
+| Wang | 47/49 | 15/49 | 5 | 7 |
+| Zelechowska | 10/11 | 10/11 | 1 | 2 |
+
+More raw records do not establish improved recall. The frozen scorer's identity
+alignment and non-exhaustive gold projection still apply; extra records need
+review. This result does not isolate a specific missing table header, grouping
+decision or identity merge as the cause. R3 and R4 address representation and
+grouping separately. The registered bounded method has not demonstrated an
+accuracy or cost advantage on this cohort.
+
+All registered R1 paired effects are shown below. Accuracy uses six annotated
+document pairs where available. Costs include every observed registered pair;
+token effects use only pairs with known totals. Call counts are artifact entries,
+including refusals, and these differences do not include unknown interrupted work.
+
+| Comparison | Accuracy change, pp | Calls: pairs / expected | Mean call change | Input tokens: pairs / expected | Mean input-token change |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| reference → identity | -0.18 | 6/6 | +0.33 | 6/6 | +10,512 |
+| identity → schema | -0.76 | 6/6 | -2.00 | 6/6 | -30,295 |
+| schema → bounded | -33.35 | 15/15 | +25.47 | 14/15 | +115,340 |
+| bounded → quoted | -1.52 | 6/6 | +229.83 | 6/6 | +1,419,450 |
+| schema → full quoted | +0.00 | 6/6 | +32.67 | 6/6 | +489,396 |
+| bounded → overlap | +3.55 | 6/6 | +1.00 | 6/6 | +10,611 |
+| bounded → unverified | -0.82 | 6/6 | -26.33 | 6/6 | -220,258 |
+| catalog → no overlap | unavailable | 1/1 | +0.00 | 1/1 | -440 |
+| catalog → unverified | unavailable | 1/1 | +0.00 | 1/1 | +0 |
+
+Age remains in the context comparison's 15 observed pairs; its full-source
+refusals make its token delta unavailable. The Catalog comparison has one
+unannotated document, so no accuracy effect is estimated. Remaining descriptive
+intervals and the registered context-by-grounding interaction are in the preview's
+`analysis.json` and `tables.md`; no significance or equivalence claim is made.
+
+Grounding does not rewrite raw values. The regenerated upstream records and
+inventory differ in the grounding comparisons, so their accuracy changes cannot
+be attributed to the verifier. The zero normalized score change for full-source
+quoted grounding also does not establish identical upstream records or better
+evidence. R5 freezes upstream records to isolate those grounding factors.
+
+Across the complete R1 snapshot, 2,318 saved Article grounding replies account
+for 18,824,247 reported input tokens and 77,237 recorded call seconds. Of these,
+508 requests concern only diagnostic status fields and use 3,374,319 input tokens.
+Those are observed workload counts across methods, including invalid replies;
+they are not unique claims, counterfactual pruning savings or fresh end-to-end
+latency. Mixed batches and reused-reply durations remain distinguishable in
+`grounding-workload.json` and the accounting report.
+
+## Selection replay: complete registered cohort
+
+R2a has all 30 sealed cells across fifteen paired documents. All fifteen
+original bounded controls and both selection arms reproduce with HTTP disabled;
+the thirty receipts match the exact reused request subsequences, totaling 500
+saved replies and zero fresh model or tokenizer calls during acceptance.
+The [complete result tables](2026-09-28-extraction-selection-results.md) include
+per-document scores, request budgets, stage totals and issues.
+Grounding is disabled in both R2a arms. Their budgets exclude verification calls
+and do not estimate savings for the full grounded pipeline.
+
+No annotated paper's primary gold score changes under selection; the paired mean effect is 0
+percentage points across six documents. The zero-width descriptive bootstrap
+interval does not establish equivalence or unseen-document accuracy.
+
+| Six-paper captured request budget | All units | Selected units | Reduction |
+| --- | ---: | ---: | ---: |
+| Calls | 162 | 148 | 14 (8.6%) |
+| Input tokens | 1,012,730 | 978,115 | 34,615 (3.4%) |
+| Output tokens | 72,222 | 66,910 | 5,312 (7.4%) |
+
+Among the six annotated papers, only Akita and Harvey omit calls (nine and five
+respectively); four papers show no budget reduction. In this annotated cohort,
+all record fields remain identical except diagnostic
+`field_statuses` in Akita and Harvey and free-text `notes` in four Akita records.
+The notes are outside the primary score; their changes are not adjudicated as
+improvements. Thus unchanged gold scores do not imply that every output is equal.
+
+This is a fixed-reply subsequence comparison with no fresh model generation.
+The budgets describe included captured requests, and their saved durations are
+historical. They are not measured fresh-model savings or replay execution latency.
+The full registered cohort gives these operational effects:
+
+| Fifteen-document captured request budget | All units | Selected units | Reduction |
+| --- | ---: | ---: | ---: |
+| Calls | 266 | 234 | 32 (12.0%) |
+| Input tokens | 1,614,448 | 1,485,099 | 129,349 (8.0%) |
+| Output tokens | 97,316 | 88,430 | 8,886 (9.1%) |
+
+Eight documents omit calls; seven have no budget reduction. Both arms contain
+81 records, but record count does not establish value coverage. Besides the
+annotated differences above, selection changes substantive fields in five
+unannotated documents: Age, Hamburg, Herredsvejen, Hvissinge and Katrinesminde.
+These include shorter findings/methods lists, omitted grave-count observations,
+and a previously conflicting/null research question becoming populated in Age.
+For example, Katrinesminde's first record retains two of seven grave-count
+observations. These differences have no independent semantic labels: they could
+include lost evidence, removed duplication or resolved attribution conflicts.
+They are retained in `selection-change-review-queue.json`; unchanged collagen
+scores must not be described as lossless selection or corpus-wide equivalence.
+
+Evidence is under the primary checkout's
+`artifacts/extraction-ablation/20260927-r2a-selection/`: `analysis-final.json`
+(SHA-256 `23f591d3c43d16ed2d5a3f773dcb02619f3c43d6ecbf15ff244ce26b9b89ef26`),
+matching `accounting-final.json`, `tables-final.md`, `audit-final-pairs.json`,
+and `verification-final-offline.json`. These use the corrected analyzer.
+The earlier `*-six-gold-pairs` files remain unchanged historical checkpoints.
+Completion of this conditional selection comparison does not complete R1,
+R3/R4 or the full study.
+
+## R3 complete execution: preliminary rendering effects
+
+Superseded by the [completed-development report](2026-09-28-completed-development-study.md),
+which records the final exact replay; this section is kept as history.
+
+All twelve R3 results are sealed. The corrected analyzer and table renderer run
+offline against those results; their outputs and pins are preserved under
+`artifacts/extraction-ablation/r3-terminal-preview-20260928/`. Final exact replay
+and comparison with collector-owned final reports remain pending. This is a
+separate registered rendering comparison with grounding disabled in both arms;
+do not attribute its effects to verification or compare across study revisions
+as though only one setting changed.
+
+Structured rendering's mean populated-field score is 24.12 percentage points
+below plain rendering across the six development papers, with a descriptive
+document-bootstrap interval of [-49.79, -3.93] points. Harvey's refused inventory
+remains in the denominator. Its failure does not account for every score decline:
+
+| Paper | Plain score | Structured score | Plain records | Structured records |
+| --- | ---: | ---: | ---: | ---: |
+| Akita | 154/187 | 154/187 | 11 | 11 |
+| Harvey | 7/9 | 0/9 | 5 | 0 |
+| Mizuta | 63/66 | 66/66 | 6 | 6 |
+| Sousa | 47/52 | 30/52 | 4 | 4 |
+| Wang | 47/49 | 28/49 | 5 | 2 |
+| Zelechowska | 10/11 | 10/11 | 1 | 1 |
+
+The saved request/reply audit `identity-diagnosis.json` distinguishes two
+inventory-stage changes. For Wang, both requests contain the raw skin, scale
+and bone prose/table passages (`p2_s18`, `p2_s21`), including their table rows.
+The plain raw reply enumerates those three records plus two collagen fractions;
+the structured raw reply contains only the two collagen fractions. Its inventory
+request grows from 11,916 to 20,814 reported input tokens. These particular
+source rows were offered to the model; they were not lost during rendering.
+
+For Sousa, both replies contain the same four fraction labels. The structured
+reply changes the two skin fractions from `comparison_collagen` to
+`isolated_collagen`, leaving two gold identities unmatched. In both cases, raw
+saved replies equal the retained inventories and finish normally without
+provider-format fallback. The differences therefore precede field extraction
+and are not introduced by later inventory deduplication. This identifies where
+the discrepancy enters the pipeline, not the model's internal cause or an
+independent adjudication of every extracted value.
+
+Across six papers, plain rendering makes 44 artifact call entries and structured
+rendering makes 36, of which one is Harvey's pre-inference inventory refusal.
+All 79 actual replies are fresh. Reported input tokens rise from 643,902 to
+672,759; output tokens fall from 21,746 to 16,081. The eight fewer call entries
+correspond to Harvey's failed inventory and Wang's three omitted records, so
+they do not demonstrate an efficiency improvement at preserved coverage.
+The accounting separately retains the refused call's unavailable usage fields.
+
+These are single executions on six development documents, with non-exhaustive
+gold and identity-gated scoring. Mizuta's improved sample score does not establish
+complete document correctness. The result does not reproduce a trained layout
+model or establish that structural information is generally harmful. It tests
+this particular renderer and prompt; R4 separately tests grouping. No default
+change is supported by this preview alone.
+
+## Grounding workload: diagnostic fields
+
+A read-only capture audit at the 60-cell R1 checkpoint separates grounding
+requests concerning `field_statuses` from other requested record fields. The
+Article verifier visits every populated leaf for each source unit; quoted mode
+starts with four claims per batch, then splits further if admission requires it.
+It therefore asks the model to ground diagnostic assertions as well as source
+measurements. This accounting describes the frozen implementation; no request,
+schema, reply or method was changed.
+
+Among the completed cells, Article grounding has 1,162 requests with saved
+replies and 18,600 claim decisions. Of those decisions, 4,935 (26.5%) concern
+`field_statuses`. There are 137 diagnostic-only calls (11.8% of these grounding
+calls), using 832,883 input tokens (8.2%) and 17,751 output tokens. Another 367
+calls mix diagnostic and other fields. These totals include unsuccessful model
+outputs; they measure attempted verification, not correct or unique facts.
+Claims recur across source units. Token attribution excludes mixed batches and
+does not estimate the savings of an unrun alternative implementation.
+
+The unfinished Akita quoted cell is a separate snapshot: 135 of its 447 saved
+grounding calls concern diagnostic fields only. Harvey quoted has 56 such calls
+among 143 saved grounding replies. Neither partial snapshot is pooled with the
+completed-cell totals or represented as its final cost.
+
+There is also a product execution boundary: at 00:27 UTC on September 28,
+Akita quoted was still receiving replies more than four hours and fifty minutes
+after its 19:36 UTC attempt start. The direct study harness does not apply
+Studio/Parsing Service's documented three-hour extraction deadline. A terminal
+research artifact therefore would not establish that this arm can finish within
+the application's execution budget. Keep that distinction in the final cost and
+adoption discussion; the frozen research attempt remains unchanged.
+
+Evidence and the executable audit are in
+`artifacts/extraction-ablation/grounding-cost-audit-20260928/`. Run `audit.py`
+from the primary checkout with the study directory and a new output JSON path.
+`snapshot.json` pins its script, manifest and all inspected request/reply files.
+It maps each captured claim identifier to the exact embedded record's leaf
+order. A second check parsed the displayed claim descriptions directly: both
+methods found 20,886 decisions and 5,690 diagnostic decisions across all 1,752
+inspected requests, including the two explicitly partial cells.
+
+This exposes a follow-up design question: source values and extraction-status
+assertions need different evidence requirements. Any change must preserve the
+researcher's approved schema and separately measure value coverage, status
+usefulness and cost. It is not part of the current frozen comparison.
+
+## Failure accounting: 60-cell checkpoint
+
+The sealed R1 artifacts contain 1,947 recorded calls, including 37 failures:
+33 grounding replies rejected for literal control characters in JSON strings,
+two output-truncated record replies (Akita overlap and Sousa unverified), and
+two context refusals before inference (Age document and inventory). Each of
+the 35 failed replies was independently matched to its saved capture by exact
+finish reason, usage and duration. All 33 control-character replies end with
+`stop` and satisfy the requested schema only when diagnostic decoding permits
+literal controls. Frozen extraction outcomes remain unchanged.
+
+The same artifacts contain 96 `unsupported_quote` diagnostics. These are
+model-attribution or literal-substring rejections, not independently reviewed
+false values. Active cells and interrupted attempts are excluded from this
+sealed-cell summary; the infrastructure recovery receipts account for them
+separately.
+
+Reproduction: run `failure-audit-20260928/audit.py STUDY_DIR NEW_OUTPUT.json`
+under `artifacts/extraction-ablation/`. The script pins the manifest and every
+sealed result, checks artifact seals and finished receipts, and retains missing
+cells and uncategorized failures. `r1-sealed-60.json` and
+`independent-capture-check.json` preserve this checkpoint. Recompute after the
+final collector finishes; this audit does not own its reserved report paths.
 
 ## Verification before inference
 

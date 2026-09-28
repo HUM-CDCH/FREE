@@ -13,6 +13,16 @@ function proposed(fields: ProposedSchemaEdit['fields'], additions: ProposedSchem
 }
 
 describe('summarizeSchemaRevision', () => {
+  it('reports an evidence policy change without calling the schema unchanged', () => {
+    const previous = { recordDescription: 'One record.', schemaNodes: [
+      { id: 'a', name: 'status', type: 'string' as const, evidencePolicy: 'quoted' as const },
+    ] }
+    const current = { ...previous, schemaNodes: [
+      { ...previous.schemaNodes[0], evidencePolicy: 'derived' as const },
+    ] }
+    expect(summarizeSchemaRevision(previous, current)).toBe('1 evidence policy updated')
+  })
+
   it('derives structural changes from stable ids and order', () => {
     const previous: SchemaNode[] = [
       { id: 'a', name: 'site', type: 'string' },
@@ -54,6 +64,17 @@ describe('summarizeSchemaRevision', () => {
 })
 
 describe('deriveSchemaProposal', () => {
+  it('preserves evidence policy across a rename and type edit and its review replay', () => {
+    const original: SchemaNode[] = [{ id: 'a', name: 'status', type: 'string', evidencePolicy: 'derived' }]
+    const result = deriveSchemaProposal(original, proposed({
+      a: { name: 'count', type: 'integer', removed: false },
+    }))
+    expect(result.nodes).toEqual([{ id: 'a', name: 'count', type: 'integer', evidencePolicy: 'derived' }])
+    expect(result.changes[0].before?.evidencePolicy).toBe('derived')
+    expect(result.changes[0].after?.evidencePolicy).toBe('derived')
+    expect(replaySchemaChanges(original, result.changes, new Set(['a'])).nodes).toEqual(result.nodes)
+  })
+
   it('leaves an unchanged repeating scalar field untouched', () => {
     const original = templateToNodes({ dates: ['date'] })
 
