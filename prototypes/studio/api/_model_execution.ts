@@ -5,14 +5,11 @@ import {
   generateText,
 } from 'ai'
 import { z } from 'zod'
-import type { DocumentInput } from './_document.js'
-import { documentFileParts, type DocumentFilePart } from './_pdf.js'
-import { schemaPrompt, schemaSourceExcerpts } from './_schema.js'
+import type { DocumentFilePart } from './_pdf.js'
 import {
   ApiError,
   asModelOperationError,
 } from './_http.js'
-import { parseTemplate } from './_model_output.js'
 import { withStepCancellation } from './_model_keys.js'
 import { readAccountModelConfig } from './_model_config.js'
 import type { ModelConfig } from '../shared/modelConfig.contract.js'
@@ -27,59 +24,20 @@ import {
   type RouteResolverDependencies,
 } from './_provider.js'
 
-export { parseInstruction, parseDocument } from './_document.js'
-export { json, parseTemperature, type FormValue } from './_http.js'
-
 const NON_THINKING_TEMPERATURE = 0.2
 
-export type ModelGenerationMetadata = {
-  readonly finishReason: string | null
-  readonly inputTokens: number | null
-  readonly outputTokens: number | null
-  readonly durationMs: number
-}
-
-type GeneratedText = {
-  readonly response: string
-  readonly metadata: ModelGenerationMetadata
-}
-
-export type SchemaModelInput = {
-  readonly document: DocumentInput
-  readonly instruction: string
-  readonly temperature?: number
-  readonly signal?: AbortSignal
-}
-
-type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
+export type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
 type NuExtractMode = 'template-generation'
 /** Whose configuration and keys a model call uses: the Project Context's owner. Background and (from M4/M5) workflow
  *  calls carry only this ID and resolve the rest when the call runs. */
 export type ModelCaller = Readonly<{ researcherAccountId: string }>
 /** The resolver's seams, less the account: that is always the caller's, so no call can name another account's keys. */
-type ModelDependencies = Omit<RouteResolverDependencies, 'readConfig' | 'researcherAccountId'> & {
+export type ModelDependencies = Omit<RouteResolverDependencies, 'readConfig' | 'researcherAccountId'> & {
   readConfig?: () => Promise<ModelConfig>
   fetch?: typeof fetch
 }
 
-async function documentContentParts(document: DocumentInput): Promise<{
-  readonly parts: readonly DocumentContentPart[]
-  readonly pages: number | null
-}> {
-  if (document.markdown) {
-    return {
-      parts: [{ type: 'text', text: document.markdown }],
-      pages: document.pages,
-    }
-  }
-  if (!document.file) {
-    throw new ApiError(400, 'invalid_request', "No document content: provide a 'file' or 'document_markdown'")
-  }
-  const fileParts = await documentFileParts(document.file)
-  return { parts: fileParts.parts, pages: fileParts.pages }
-}
-
-async function operationTarget(
+export async function resolveModelTarget(
   operation: ModelOperation,
   temperature: number | undefined,
   target: ExecutionTarget | undefined,
@@ -91,56 +49,6 @@ async function operationTarget(
     researcherAccountId: caller.researcherAccountId,
     readConfig: dependencies.readConfig ?? (() => readAccountModelConfig(caller.researcherAccountId)),
   })
-}
-
-export async function generateSchemaWithModel(
-  caller: ModelCaller,
-  { document, instruction, temperature, signal }: SchemaModelInput,
-  target?: ExecutionTarget,
-  dependencies: ModelDependencies = {},
-): Promise<{
-  readonly template: Record<string, unknown>
-  readonly raw: string
-  readonly pages: number | null
-}> {
-  const resolved = await operationTarget('schema-suggestion', temperature, target, caller, dependencies)
-  const documentParts = await documentContentParts({
-    ...document,
-    markdown: document.markdown ? schemaSourceExcerpts(document.markdown) : document.markdown,
-  })
-  const guidance = schemaPrompt(instruction)
-  const generated =
-    resolved.profile === 'general'
-      ? await generateWithGenericJsonPrompt(resolved, {
-          instructions:
-            'Propose a compact extraction schema grounded in the supplied source document. ' +
-            'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
-          request: guidance,
-          documentParts: documentParts.parts,
-          temperature,
-          signal,
-        })
-      : await generateWithNuExtract(resolved, {
-          mode: 'template-generation',
-          documentParts: [{ type: 'text', text: guidance }, ...documentParts.parts],
-          temperature,
-          signal,
-        }, dependencies.fetch)
-  const parsed = await parseTemplate(generated.response)
-  if (
-    typeof parsed._description !== 'string' ||
-    parsed._description.trim().length === 0
-  )
-    throw new ApiError(
-      502,
-      'invalid_model_output',
-      'The generated Extraction Schema has no root record description.',
-    )
-  return {
-    template: parsed,
-    raw: generated.response,
-    pages: documentParts.pages ?? document.pages,
-  }
 }
 
 // ponytail: remember at most 256 routes per process; persist only if restart retries matter.
@@ -162,6 +70,34 @@ async function generateWithRouteOutput(target: GeneralExecutionTarget, options: 
   }
 }
 
+/** Protocol selection and guidance placement live with execution, not the durable caller. */
+export async function executeSchemaSuggestion(
+  target: ExecutionTarget,
+  input: {
+    readonly instructions: string
+    readonly guidance: string
+    readonly documentParts: readonly DocumentContentPart[]
+    readonly temperature?: number
+    readonly signal?: AbortSignal
+  },
+  requestFetch?: typeof fetch,
+): Promise<{ response: string }> {
+  return target.profile === 'general'
+    ? generateWithGenericJsonPrompt(target, {
+        instructions: input.instructions,
+        request: input.guidance,
+        documentParts: input.documentParts,
+        temperature: input.temperature,
+        signal: input.signal,
+      })
+    : generateWithNuExtract(target, {
+        mode: 'template-generation',
+        documentParts: [{ type: 'text', text: input.guidance }, ...input.documentParts],
+        temperature: input.temperature,
+        signal: input.signal,
+      }, requestFetch)
+}
+
 async function generateWithGenericJsonPrompt(
   target: GeneralExecutionTarget,
   input: {
@@ -171,8 +107,7 @@ async function generateWithGenericJsonPrompt(
     readonly temperature?: number
     readonly signal?: AbortSignal
   },
-): Promise<GeneratedText> {
-  const startedAt = performance.now()
+): Promise<{ response: string }> {
   // Schema-free JSON mode where the route has one; otherwise the prompt asks for JSON.
   const structuredOutput = target.jsonOutput === 'native' ? Output.json() : undefined
   try {
@@ -194,26 +129,10 @@ async function generateWithGenericJsonPrompt(
       abortSignal: input.signal,
       ...(target.temperatureSupported ? { temperature: input.temperature ?? 0 } : {}),
     })
-    return {
-      response: generated.text,
-      metadata: {
-        finishReason: generated.finishReason ?? null,
-        inputTokens: generated.usage?.inputTokens ?? null,
-        outputTokens: generated.usage?.outputTokens ?? null,
-        durationMs: Math.round(performance.now() - startedAt),
-      },
-    }
+    return { response: generated.text }
   } catch (error) {
     if (structuredOutput && NoObjectGeneratedError.isInstance(error)) {
-      return {
-        response: error.text ?? '',
-        metadata: {
-          finishReason: error.finishReason ?? null,
-          inputTokens: error.usage?.inputTokens ?? null,
-          outputTokens: error.usage?.outputTokens ?? null,
-          durationMs: Math.round(performance.now() - startedAt),
-        },
-      }
+      return { response: error.text ?? '' }
     }
     throw asModelOperationError(error)
   }
@@ -234,8 +153,7 @@ async function generateWithNuExtract(
     readonly signal?: AbortSignal
   },
   requestFetch: typeof fetch = fetch,
-): Promise<GeneratedText> {
-  const startedAt = performance.now()
+): Promise<{ response: string }> {
   // The attempt's signal carries the step's cancel signal (Task 2): a cancelled workflow ends the key wait or the fetch.
   const signal = withStepCancellation(input.signal)
   // The key is read inside the attempt, so a missing one waits for a page to resend it; nothing is sent after an abort.
@@ -288,15 +206,7 @@ async function generateWithNuExtract(
     })
   }
   const [choice] = parsed.data.choices
-  return {
-    response: choice.message.content,
-    metadata: {
-      finishReason: choice.finish_reason ?? null,
-      inputTokens: parsed.data.usage?.prompt_tokens ?? null,
-      outputTokens: parsed.data.usage?.completion_tokens ?? null,
-      durationMs: Math.round(performance.now() - startedAt),
-    },
-  }
+  return { response: choice.message.content }
 }
 
 function chatContentPart(part: DocumentContentPart) {
@@ -318,16 +228,16 @@ const chatCompletionSchema = z.object({
   }).optional(),
 })
 
-/** `signal` is the browser's request: when it goes away the call, and any wait for a key, ends. */
-export async function generateSchemaEditJson(
+/** The request signal and DBOS cancellation are composed at the provider/key boundary. */
+export async function executeEditPrompt(
   caller: ModelCaller,
   prompt: string,
   temperature?: number,
   signal?: AbortSignal,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
-): Promise<{ text: string }> {
-  const resolved = await operationTarget('schema-edit', temperature, target, caller, dependencies)
+): Promise<{ text: string; finishReason: string }> {
+  const resolved = await resolveModelTarget('schema-edit', temperature, target, caller, dependencies)
   if (resolved.profile !== 'general') {
     throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
   }
@@ -340,10 +250,7 @@ export async function generateSchemaEditJson(
       ...(temperature === undefined ? {} : { temperature }),
       abortSignal: signal,
     })
-    if (result.finishReason === 'length') {
-      throw new ApiError(502, 'invalid_model_output', 'Schema edit model output was truncated.')
-    }
-    return { text: result.text.replace(/```(?:json)?|```/g, '').trim() }
+    return { text: result.text, finishReason: result.finishReason }
   } catch (error) {
     throw asModelOperationError(error)
   }

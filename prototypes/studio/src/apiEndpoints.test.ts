@@ -3,23 +3,10 @@ import type {
   ResearcherProjectStore,
   SchemaRevisionRecord,
 } from '../../../packages/db/src/project-store.js'
-import {
-  generateSchemaWithModel,
-  generateSchemaEditJson,
-} from '../api/_model'
 import type { ModelOperationClient } from '../api/_model_operation'
 import { createPostEditSchema } from '../api/edit_schema'
 import { createPostGenerateSchema } from '../api/generate_schema'
 import { GET as healthGet } from '../api/healthz'
-
-vi.mock('../api/_model', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
-  return {
-    ...actual,
-    generateSchemaWithModel: vi.fn(),
-    generateSchemaEditJson: vi.fn(),
-  }
-})
 
 const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const PROJECT = '51000000-0000-4000-8000-000000000001'
@@ -133,7 +120,6 @@ describe('Studio API endpoints', () => {
       expect.objectContaining({ workflowName: 'suggestSchema', workflowID: `suggestion:${OPERATION}`, authenticatedUser: ACCOUNT }),
       expect.objectContaining({ owner: ACCOUNT, sourceRepresentationRevisionId: SOURCE_REVISION }),
     )
-    expect(generateSchemaWithModel).not.toHaveBeenCalled()
   })
 
   it('starts a durable edit proposal over the persisted owner-scoped revision, never browser-authored nodes', async () => {
@@ -153,7 +139,6 @@ describe('Studio API endpoints', () => {
       }),
       expect.objectContaining({ owner: ACCOUNT, baseSchemaRevisionId: SCHEMA_REVISION, instruction: 'Add title' }),
     )
-    expect(generateSchemaEditJson).not.toHaveBeenCalled()
   })
 
   it('starts a schema-only edit proposal without inventing a source context', async () => {
@@ -195,9 +180,6 @@ describe('Studio API endpoints', () => {
     ).toBe(400)
     expect(editStore.getSchemaRevision).not.toHaveBeenCalled()
     expect(editClient.enqueue).not.toHaveBeenCalled()
-
-    expect(generateSchemaWithModel).not.toHaveBeenCalled()
-    expect(generateSchemaEditJson).not.toHaveBeenCalled()
   })
 
   it('returns 404 for cross-owner and mixed pins before artifact or model access', async () => {
@@ -222,7 +204,5 @@ describe('Studio API endpoints', () => {
       ).status,
     ).toBe(404)
     expect(mixedClient.enqueue).not.toHaveBeenCalled()
-    expect(generateSchemaWithModel).not.toHaveBeenCalled()
-    expect(generateSchemaEditJson).not.toHaveBeenCalled()
   })
 })

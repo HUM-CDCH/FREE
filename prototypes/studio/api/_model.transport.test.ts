@@ -1,7 +1,7 @@
 import { inspect } from 'node:util'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { generateSchemaWithModel } from './_model.js'
+import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { ApiError } from './_http.js'
 import { withThinkingOff } from './_provider.js'
 

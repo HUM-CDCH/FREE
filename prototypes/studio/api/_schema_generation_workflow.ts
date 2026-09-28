@@ -1,6 +1,6 @@
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
-import type { generateSchemaWithModel } from './_model.js'
+import type { generateSchemaWithModel } from './_schema_suggestion.js'
 import { persistenceUnavailable } from './_http.js'
 import { MODEL_OPERATION_TIMEOUT_MS, operationFailureOf, type OperationResult } from './_model_operation.js'
 
@@ -31,7 +31,7 @@ export type SchemaGenerationPorts = Readonly<{
   generate: typeof generateSchemaWithModel
 }>
 
-/** `suggestSchema(input)`: one step wraps generateSchemaWithModel; its typed result is the operation's outcome. */
+/** `suggestSchema(input)`: one step wraps Schema Suggestion; its typed result is the operation's outcome. */
 export async function suggestSchemaWorkflow(
   input: SchemaGenerationInput,
   ports: SchemaGenerationPorts,

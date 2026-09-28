@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  generateSchemaEditJson,
-  generateSchemaWithModel,
-} from './_model.js'
+import { generateSchemaEditJson } from './_schema_edit.js'
+import { generateSchemaWithModel } from './_schema_suggestion.js'
 import type { ExecutionTarget, NuExtractExecutionTarget } from './_provider.js'
 import { readAccountModelConfig } from './_model_config.js'
 import { ModelKeyRequiredError, createModelKeyCache } from './_model_keys.js'

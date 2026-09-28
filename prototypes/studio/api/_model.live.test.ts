@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generateSchemaWithModel } from './_model.js'
+import { generateSchemaWithModel } from './_schema_suggestion.js'
 import {
   providerTable,
   probeConnection,

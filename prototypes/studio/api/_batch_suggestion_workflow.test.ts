@@ -1,6 +1,6 @@
 import type { StepConfig } from '@dbos-inc/dbos-sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SchemaModelInput } from './_model.js'
+import type { SchemaModelInput } from './_schema_suggestion.js'
 import { ApiError } from './_http.js'
 import { ModelKeyRequiredError } from './_model_keys.js'
 import {
