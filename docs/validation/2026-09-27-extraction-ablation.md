@@ -189,6 +189,44 @@ The earlier `*-six-gold-pairs` files remain unchanged historical checkpoints.
 Completion of this conditional selection comparison does not complete R1,
 R3/R4 or the full study.
 
+## Grounding workload: diagnostic fields
+
+A read-only capture audit at the 60-cell R1 checkpoint separates grounding
+requests concerning `field_statuses` from other requested record fields. The
+Article verifier visits every populated leaf for each source unit; quoted mode
+starts with four claims per batch, then splits further if admission requires it.
+It therefore asks the model to ground diagnostic assertions as well as source
+measurements. This accounting describes the frozen implementation; no request,
+schema, reply or method was changed.
+
+Among the completed cells, Article grounding has 1,162 requests with saved
+replies and 18,600 claim decisions. Of those decisions, 4,935 (26.5%) concern
+`field_statuses`. There are 137 diagnostic-only calls (11.8% of these grounding
+calls), using 832,883 input tokens (8.2%) and 17,751 output tokens. Another 367
+calls mix diagnostic and other fields. These totals include unsuccessful model
+outputs; they measure attempted verification, not correct or unique facts.
+Claims recur across source units. Token attribution excludes mixed batches and
+does not estimate the savings of an unrun alternative implementation.
+
+The unfinished Akita quoted cell is a separate snapshot: 135 of its 447 saved
+grounding calls concern diagnostic fields only. Harvey quoted has 56 such calls
+among 143 saved grounding replies. Neither partial snapshot is pooled with the
+completed-cell totals or represented as its final cost.
+
+Evidence and the executable audit are in
+`artifacts/extraction-ablation/grounding-cost-audit-20260928/`. Run `audit.py`
+from the primary checkout with the study directory and a new output JSON path.
+`snapshot.json` pins its script, manifest and all inspected request/reply files.
+It maps each captured claim identifier to the exact embedded record's leaf
+order. A second check parsed the displayed claim descriptions directly: both
+methods found 20,886 decisions and 5,690 diagnostic decisions across all 1,752
+inspected requests, including the two explicitly partial cells.
+
+This exposes a follow-up design question: source values and extraction-status
+assertions need different evidence requirements. Any change must preserve the
+researcher's approved schema and separately measure value coverage, status
+usefulness and cost. It is not part of the current frozen comparison.
+
 ## Verification before inference
 
 | Check | Evidence |
