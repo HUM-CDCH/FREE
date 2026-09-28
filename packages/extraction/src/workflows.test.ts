@@ -133,10 +133,10 @@ describe('runExtraction', () => {
   it('pins absent, null and empty model choices identically at admission', () => {
     for (const models of [undefined, null, {}, { fields: '' }, { fields: null }, { other: 'model' }])
       assert.deepEqual(extractionMethod('ARTICLE', undefined, models), {
-        strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null,
+        strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: null,
       })
     assert.deepEqual(extractionMethod('CATALOG', '', { fields: ' field-model ' }), {
-      strategy: 'CATALOG', catalogRecipe: '', requestedModels: { fields: ' field-model ' },
+      strategy: 'CATALOG', catalogRecipe: '', requestedModels: { fields: ' field-model ' }, requestedSettings: null,
     })
   })
 

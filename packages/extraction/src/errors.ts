@@ -19,6 +19,10 @@ export type ExtractionErrorCode =
   | 'catalog_discovery_failed'
   | 'catalog_no_records'
   | 'cancelled'
+  | 'method_changed'
+  | 'invalid_identity_fields'
+  | 'invalid_model_config'
+  | 'invalid_extraction_method'
 
 export class ExtractionError extends Error {
   readonly code: ExtractionErrorCode

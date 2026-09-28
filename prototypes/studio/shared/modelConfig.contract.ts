@@ -1,3 +1,4 @@
+import { extractionModelChoiceSchema } from 'extraction/extraction-method'
 import { CANONICAL_UUID } from 'studio-configuration'
 import { z } from 'zod'
 
@@ -36,15 +37,7 @@ export const routeSchema = z
   .strict()
 export type Route = z.infer<typeof routeSchema>
 
-/** A kei-exp extraction model key (`instruct`, `nuextract`, ...): a registry key of the kei-exp deployment, never a
- *  repo id and never a FREE Model Connection's model. */
-export const extractionModelKeySchema = z.string().min(1).max(128)
-
-/** An Extraction Model Choice: per role, the kei-exp model key extractions are requested on. An omitted role keeps
- *  kei-exp's deployment default; kei-exp refuses a key it does not serve, or one that cannot take the role. */
-export const extractionModelChoiceSchema = z
-  .object({ fields: extractionModelKeySchema.optional(), reasoning: extractionModelKeySchema.optional() })
-  .strict()
+export { extractionModelChoiceSchema, extractionModelKeySchema } from 'extraction/extraction-method'
 export type ExtractionModelChoice = z.infer<typeof extractionModelChoiceSchema>
 
 /** The roles of kei's `GET /api/ingestion-models`: the model that reads a scanned page, and the detector that finds

@@ -7,6 +7,8 @@ from kei_exp.kie.extract.contexts import partition, reconcile_values
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.grounding import verify
+from tests.helpers import article_options
+from tests.helpers.contracts import fixture
 from tests.test_extract_grounded import CountingChat, GLOSSED, WordCounter, run as catalog_run
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
@@ -141,3 +143,31 @@ def test_catalog_overlap_factor_removes_neighbors_without_changing_primary_entri
     assert enabled["coverage"] == disabled["coverage"]
     assert enabled["records"] == disabled["records"]
     assert on.calls[0]["user"] != off.calls[0]["user"]
+
+
+def test_contract_cases_and_their_dumps_match_the_shared_fixture():
+    shared = fixture("article-options")
+    for case in shared["cases"]:
+        assert article_options.accepted(case["input"]) is case["accepted"], case["id"]
+        if case["accepted"]:
+            assert ArticleOptions.model_validate(case["input"]).model_dump(mode="json") == case["canonical"], case["id"]
+    assert len(shared["cases"]) == 19
+
+
+def test_categorical_inventory_verdicts_match_the_shared_fixture():
+    inventory = fixture("article-options")["inventory"]
+    assert article_options.verdicts(inventory) == inventory["verdicts"]
+    # The specification's receipt (contract-check.json) pins these counts at one ceiling and key set.
+    assert (inventory["accepted"], inventory["rejected"]) == (1560, 4584)
+
+
+def test_identity_fields_are_checked_against_the_schema_as_the_shared_fixture_says():
+    shared = fixture("identity-fields")
+    for case in shared["cases"]:
+        options = {"strategy": "article", "article": {"identity_fields": case["fields"]}}
+        if not case["issues"]:
+            run.ExtractRequest(schema=shared["schema"], options=options)
+            continue
+        with pytest.raises(ValueError) as refused:
+            run.ExtractRequest(schema=shared["schema"], options=options)
+        assert str(sorted(issue["name"] for issue in case["issues"])) in str(refused.value)
