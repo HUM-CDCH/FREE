@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { canonicalPackageStore } from './artifact-store.js'
+import { createGarbageReferences } from './garbage-references.js'
 import {
   createInternalProjectWorkerStore,
   createResearcherProjectStore,
@@ -826,7 +827,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
-  it('counts an unsettled batch member as running when no DBOS status is available', async () => {
+  it('requires workflow status for an unsettled batch member but lists settled batches without it', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     const batchId = '51000000-0000-4000-8007-000000000001'
@@ -837,11 +838,26 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       { id: '51000000-0000-4000-8006-000000000101', batchExtractionId: batchId, sourceDocumentId: DOCUMENT, outcome: 'CANCELLED' },
       { id: '51000000-0000-4000-8006-000000000102', batchExtractionId: batchId, sourceDocumentId: OTHER_DOCUMENT, outcome: null },
     ]
+    await assert.rejects(store.listProjectContexts(20), /given no workflowStatuses/)
+    database.tables.Extraction[1]!.outcome = 'SUCCEEDED'
     const listed = await store.listProjectContexts(20)
-    assert.deepEqual(
-      listed.find((item) => item.projectContextId === PROJECT)?.summary.runningBatch,
-      { completedMemberCount: 1, memberCount: 2 },
-    )
+    assert.equal(listed.find((item) => item.projectContextId === PROJECT)?.summary.runningBatch, null)
+  })
+
+  it('requires workflow status only while a Batch Schema Suggestion is unsettled', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const suggestionId = '51000000-0000-4000-8005-000000000001'
+    database.tables.BatchSchemaSuggestion = [{
+      id: suggestionId, projectContextId: PROJECT, selectionKey: 'selection', attempt: 1,
+      outcome: null, failure: null, phase: 'READY', proposal: null, coverage: null,
+      draft: null, draftVersion: 1, confirmedSchemaRevisionId: null, batchExtractionId: null,
+      createdAt: new Date('2026-08-02T09:00:00Z'),
+    }]
+    await assert.rejects(store.getBatchSchemaSuggestion(PROJECT, suggestionId), /given no workflowStatuses/)
+    database.tables.BatchSchemaSuggestion[0]!.outcome = 'FAILED'
+    const settled = await store.getBatchSchemaSuggestion(PROJECT, suggestionId)
+    assert.equal(settled?.executionStatus, 'FAILED')
   })
 
   it('lists persisted activity newest first, bounded, across owned projects only', async () => {
@@ -1013,17 +1029,17 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
 
   it('reports whether any surviving revision pins a content-addressed package', async () => {
     const database = fakeDatabase()
-    const store = createInternalProjectWorkerStore(database as never)
+    const references = createGarbageReferences(database as never)
 
-    assert.equal(await store.isPackageReferenced(SHARED_PACKAGE), true)
-    assert.equal(await store.isPackageReferenced('f'.repeat(64)), false)
+    assert.equal(await references.packageIsReferenced(SHARED_PACKAGE), true)
+    assert.equal(await references.packageIsReferenced('f'.repeat(64)), false)
 
     database.tables.SourceRepresentationRevision =
       database.tables.SourceRepresentationRevision.filter(
         (row) => row.artifactReference !== OWN_PACKAGE,
       )
 
-    assert.equal(await store.isPackageReferenced(OWN_PACKAGE), false)
+    assert.equal(await references.packageIsReferenced(OWN_PACKAGE), false)
   })
 
   it('refuses to delete an unknown Project Context', async () => {

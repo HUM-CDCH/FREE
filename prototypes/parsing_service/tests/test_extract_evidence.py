@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from kei_exp.kie.extract.evidence import Evidence, EvidenceUnavailable, load, text_of
+from kei_exp.kie.passages import Evidence, EvidenceUnavailable, load, text_of
 from kei_exp.pagefile import load_result
 from kei_exp.result import write_result
 from tests.helpers.synthetic import cases
@@ -138,7 +138,7 @@ def test_duplicate_crop_ordinals_on_a_page_are_refused(tmp_path):
 
 
 def test_reading_order_disagreeing_with_the_cut_order_is_reported():
-    from kei_exp.kie.extract.evidence import Passage, order_issues
+    from kei_exp.kie.passages import Passage, order_issues
     def passage(index, unit, crop, order):
         return Passage(id=f"p1_s{index}", page=1, index=index, text="x", label="Text", bbox_pt=(0, 0, 1, 1),
                        extent="block", unit=unit, crop=crop, crop_order=order, crop_bbox_pt=(0, 0, 1, 1))

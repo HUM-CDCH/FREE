@@ -4,10 +4,10 @@ import {
   type CanonicalPackageStore, type GarbageReferences,
 } from 'db'
 import {
-  createKeiHandoff, keiConvertWorkflowId, keiGcWorkflowId,
+  createKeiHandoff, keiConvertWorkflowId, keiGcWorkflowId, STUDIO_EXTRACT_PREFIX,
   type KeiDeleteRunsInput, type KeiHandoff,
 } from 'extraction/kei-handoff'
-import { dbosSteps, isWorkflowCancellation, type WorkflowSteps } from 'extraction/workflows'
+import { dbosSteps, isWorkflowCancellation, type WorkflowSteps } from 'extraction/workflow-steps'
 import { databaseClockMs, studioDbos } from '../server/dbos.js'
 import {
   GC_POLICY, STUDIO_WORKFLOW_PREFIXES, SWEEP_PREFIX, TERMINAL_STATUSES, keiParentOf,
@@ -104,7 +104,7 @@ export async function collectKei(ports: GarbagePorts, nowMs: number, workflowId:
   // The parent must be quiescent before its reference read; that read then sees any final publication.
   const parents = byId(await listed(ports.studio, unique(kei.map((row) => keiParentOf(row.workflowID)))))
   const runHolders = rows(await ports.studio.listWorkflows({
-    workflow_id_prefix: 'extract:',
+    workflow_id_prefix: STUDIO_EXTRACT_PREFIX,
     status: [...LIVE_STATUSES, 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'], ...NO_DATA,
   }))
   const referencedPreprocessIds = await ports.references.referencedPreprocessIds()

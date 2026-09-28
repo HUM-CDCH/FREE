@@ -5,7 +5,7 @@ import re
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
-from kei_exp.kie.extract.evidence import Passage
+from kei_exp.kie.passages import Passage
 from kei_exp.pagefile import TableCell
 
 VERSION = 1

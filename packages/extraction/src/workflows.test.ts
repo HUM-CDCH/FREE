@@ -4,12 +4,13 @@ import { describe, it } from 'node:test'
 import { Error as DBOSErrors, type StepConfig } from '@dbos-inc/dbos-sdk'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import { ExtractionError } from './errors.js'
+import { extractionMethod } from './extraction-method.js'
 import { keiExpArtifact, keiExpEvidence } from './kei-exp-fixture.js'
 import { SUBMIT_TO_KEI_RETRY, type KeiHandoff, type KeiPoll, type KeiSubmission } from './kei-handoff.js'
 import type { ExtractionStrategy } from './types.js'
+import { ARTIFACT_READ_RETRY } from './workflow-steps.js'
 import {
-  ARTIFACT_READ_RETRY, extractionAttributes, extractionFailureOf, keiRunOf, runExtractionWorkflow,
-  type AdmittedExtraction, type SettledExtraction,
+  extractionAttributes, extractionFailureOf, runExtractionWorkflow, type AdmittedExtraction, type SettledExtraction,
 } from './workflows.js'
 
 const RUN = 'run-1'
@@ -129,6 +130,16 @@ const failureOf = (h: ReturnType<typeof harness>) => {
 }
 
 describe('runExtraction', () => {
+  it('pins absent, null and empty model choices identically at admission', () => {
+    for (const models of [undefined, null, {}, { fields: '' }, { fields: null }, { other: 'model' }])
+      assert.deepEqual(extractionMethod('ARTICLE', undefined, models), {
+        strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null,
+      })
+    assert.deepEqual(extractionMethod('CATALOG', '', { fields: ' field-model ' }), {
+      strategy: 'CATALOG', catalogRecipe: '', requestedModels: { fields: ' field-model ' },
+    })
+  })
+
   it('submits an interactive Extraction to kei-extract at priority 1 and a batch member at 10, each with its strategy\'s deadline', async () => {
     const interactive = harness()
     await interactive.run()
@@ -164,21 +175,35 @@ describe('runExtraction', () => {
     assert.equal('keiRunId' in attributes, false)
   })
 
-  it('builds kei\'s extract request from the admitted pins, recipe and model choice', async () => {
-    const catalog = harness({ admitted: admittedExtraction({
-      strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', requestedModels: { fields: 'x' },
-      preprocessId: `kei-exp:${RUN}:gen-7`,
-    }) })
-    await catalog.run()
-    assert.deepEqual(catalog.submissions[0]!.request, {
-      run_id: RUN, generation: 'gen-7',
-      request: { schema, options: { strategy: 'catalog', models: { fields: 'x' }, catalog: { recipe: 'numbered-catalogue-de@1' } } },
-    })
-    // No `models` key when the choice is null or chooses no role; no `catalog` key for Article.
-    for (const requestedModels of [null, {}]) {
-      const article = harness({ admitted: admittedExtraction({ catalogRecipe: 'numbered-catalogue-de@1', requestedModels }) })
-      await article.run()
-      assert.deepEqual(article.submissions[0]!.request, { run_id: RUN, generation: 'g1', request: { schema, options: { strategy: 'article' } } })
+  it('maps every admitted extraction method to the existing kei request shape', async () => {
+    const recipe = 'numbered-catalogue-de@1'
+    const cases: Array<{
+      name: string
+      strategy: ExtractionStrategy
+      catalogRecipe: string | null
+      requestedModels: AdmittedExtraction['requestedModels']
+      options: Record<string, unknown>
+    }> = [
+      { name: 'Article without choices', strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, options: { strategy: 'article' } },
+      { name: 'Article ignores a stored recipe', strategy: 'ARTICLE', catalogRecipe: recipe, requestedModels: null, options: { strategy: 'article' } },
+      { name: 'Article empty roles', strategy: 'ARTICLE', catalogRecipe: null, requestedModels: {}, options: { strategy: 'article' } },
+      { name: 'Article empty field role', strategy: 'ARTICLE', catalogRecipe: null, requestedModels: { fields: '' }, options: { strategy: 'article' } },
+      { name: 'Article field role', strategy: 'ARTICLE', catalogRecipe: null, requestedModels: { fields: 'field-model' }, options: { strategy: 'article', models: { fields: 'field-model' } } },
+      { name: 'Article ignores unknown role', strategy: 'ARTICLE', catalogRecipe: null, requestedModels: { other: 'other-model' } as AdmittedExtraction['requestedModels'], options: { strategy: 'article' } },
+      { name: 'Catalog generic', strategy: 'CATALOG', catalogRecipe: null, requestedModels: null, options: { strategy: 'catalog' } },
+      { name: 'Catalog empty recipe is retained', strategy: 'CATALOG', catalogRecipe: '', requestedModels: null, options: { strategy: 'catalog', catalog: { recipe: '' } } },
+      { name: 'Catalog recipe and reasoning role', strategy: 'CATALOG', catalogRecipe: recipe, requestedModels: { reasoning: 'reasoning-model' }, options: { strategy: 'catalog', models: { reasoning: 'reasoning-model' }, catalog: { recipe } } },
+      { name: 'Catalog both roles', strategy: 'CATALOG', catalogRecipe: recipe, requestedModels: { fields: 'field-model', reasoning: 'reasoning-model' }, options: { strategy: 'catalog', models: { fields: 'field-model', reasoning: 'reasoning-model' }, catalog: { recipe } } },
+    ]
+    for (const entry of cases) {
+      const h = harness({ admitted: admittedExtraction({
+        strategy: entry.strategy, catalogRecipe: entry.catalogRecipe, requestedModels: entry.requestedModels,
+        preprocessId: `kei-exp:${RUN}:gen-7`,
+      }) })
+      await h.run()
+      assert.deepEqual(h.submissions[0]!.request, {
+        run_id: RUN, generation: 'gen-7', request: { schema, options: entry.options },
+      }, entry.name)
     }
   })
 
@@ -419,12 +444,5 @@ describe('runExtraction', () => {
     const h = harness({ polls: [{ state: 'live' }, { state: 'CANCELLED', deadlinePassed: false }] })
     await h.run()
     assert.deepEqual(h.pollSignals, [h.signal, h.signal])
-  })
-
-  it('keiRunOf reads kei-exp:<run>:<generation> and nothing else', () => {
-    assert.deepEqual(keiRunOf('kei-exp:run-1:g1'), { runId: 'run-1', generation: 'g1' })
-    assert.deepEqual(keiRunOf('kei-exp:a.b_c-d:20260926'), { runId: 'a.b_c-d', generation: '20260926' })
-    for (const id of ['kei-exp:run/x:g', 'kei-exp:run:', 'other:run:g', 'kei-exp::g', 'kei-exp:.run:g', 'kei-exp:run:g\n', 'kei-exp:run:g h', 'kei-exp:run'])
-      assert.equal(keiRunOf(id), null, JSON.stringify(id))
   })
 })

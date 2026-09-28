@@ -8,8 +8,8 @@ import re
 import tempfile
 from pathlib import Path
 
-from kei_exp.kie.extract.evidence import load
 from kei_exp.kie.extract.run import ExtractRequest
+from kei_exp.kie.passages import load
 
 
 def digest(data: bytes) -> str:

@@ -67,8 +67,8 @@ def clamp(box: PixelBox, within: PixelBox) -> PixelBox | None:
 
 
 class Placed(Protocol):
-    """A spread's placement on its PDF page as the ingest records it (`kie.model.Placement`): the six coefficients
-    of the image matrix, the visible page's lower-left corner in user space, and the page height."""
+    """A spread's placement on its PDF page as the ingest records it (`kie.ingest_model.Placement`): the six
+    coefficients of the image matrix, the visible page's lower-left corner in user space, and the page height."""
     a: float
     b: float
     c: float

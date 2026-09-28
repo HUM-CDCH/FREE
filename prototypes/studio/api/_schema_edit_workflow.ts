@@ -1,6 +1,6 @@
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import { parseSchemaDefinition } from 'extraction/schema'
-import type { WorkflowSteps } from 'extraction/workflows'
+import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract.js'
 import type { generateSchemaEditJson } from './_model.js'
 import { persistenceUnavailable } from './_http.js'

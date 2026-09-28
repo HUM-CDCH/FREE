@@ -8,7 +8,7 @@ from pathlib import Path
 
 from kei_exp.kie.extract.article import extract_records
 from kei_exp.kie.extract.contexts import Context, reconcile_values
-from kei_exp.kie.extract.evidence import load
+from kei_exp.kie.passages import load
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema

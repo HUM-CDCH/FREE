@@ -1,5 +1,5 @@
 import { db, type Database } from './prisma/db.js'
-import { uniqueConstraint } from './project-store.js'
+import { isUniqueViolation } from './pool-client-transaction.js'
 
 export type ResearcherAccountRecord = {
   id: string
@@ -66,7 +66,7 @@ export function createResearcherAccountStore(
           accountIdentity,
         )) as ResearcherAccountRecord
       } catch (error) {
-        if (!uniqueConstraint(error)) throw error
+        if (!isUniqueViolation(error)) throw error
         const winner = await findByIdentity(identity.tenantId, identity.objectId)
         if (!winner) throw error
         return refreshDisplayName(winner, identity.displayName)

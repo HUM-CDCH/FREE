@@ -11,8 +11,8 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kei_exp.kie.extract.evidence import load
 from kei_exp.kie.extract.method import ArticleOptions, CatalogFactors
+from kei_exp.kie.passages import load
 from .manifest import code_pin, pin, read, validate, write_new
 
 

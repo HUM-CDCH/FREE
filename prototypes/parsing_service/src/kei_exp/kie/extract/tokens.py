@@ -10,9 +10,12 @@ server-reported prompt count is compared with the count afterwards; a mismatch i
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import requests
+
+if TYPE_CHECKING:
+    from kei_exp.kie.extract.models import Router
 
 SOURCE = "vllm:/tokenize"
 # The reply schema of the request that reads the served context: a template extractor renders no request without one.
@@ -74,3 +77,9 @@ def counter_for(chat: Countable, *, http: Http = requests) -> TokenCounter:
         raise BudgetUnavailable(f"no /tokenize route counted a request for {chat.model!r} at {base}")
     counter.context_tokens = answer.get("max_model_len")
     return counter
+
+
+def counters_for(chat: Router) -> dict[str, TokenCounter]:
+    """The counter of the endpoint each role's calls go to; roles one chat serves share one counter."""
+    counters = {id(client): counter_for(client) for client in chat.chats().values()}
+    return {role: counters[id(client)] for role, client in chat.chats().items()}

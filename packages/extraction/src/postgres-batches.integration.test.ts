@@ -1,0 +1,489 @@
+import { DBOS } from '@dbos-inc/dbos-sdk'
+import type { Database } from 'db'
+import { strToU8 } from 'fflate'
+import assert from 'node:assert/strict'
+import { createHash, randomUUID } from 'node:crypto'
+import { describe, it } from 'node:test'
+import pg from 'pg'
+import type { ExtractionExecution } from './dependencies.js'
+import { keiExtractWorkflowId, type KeiExtractInput } from './kei-handoff.js'
+import { createExtractionModule } from './module.js'
+import { fixture, type SeededDocument } from './testing/extraction-fixture.js'
+import { RUN_EXTRACTION } from './workflows.js'
+
+describe('Extraction batches on disposable PostgreSQL', { skip: !fixture && 'set EXTRACTION_TEST_DATABASE_URL (or DATABASE_URL) to a migrated disposable free_test_* database' }, () => {
+  if (!fixture) return
+  const {
+    sha256, disposableDatabaseUrl, ARTICLE_SCHEMA, db, stableJson,
+    stableUuid, createResearcherProjectStore, createResearcherExtractionPersistence, packages, kei,
+    app, execution, seedProject, addRepresentation, scheduler,
+    eventually, createRuntime, freshInput, rejectsWithCode, waitForBatch,
+    heldByKei, extractionRow, cleanup,
+  } = fixture
+
+  it('batch admission locks members in sorted order and creates one pending Extraction per member with a deterministic ID', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['b.pdf', 'a.pdf', 'c.pdf'])
+    const module = scheduler(project.researcherAccountId)
+    kei.holding = true
+    const sorted = project.documents.map((document) => document.sourceDocumentId).sort((left, right) => left.localeCompare(right))
+    /** Holds one member's document row, admits a batch over the members in reverse order, and reports which other
+     *  members the admission had locked when it blocked. */
+    async function lockedWhileHolding(held: string) {
+      const holder = new pg.Client({ connectionString: disposableDatabaseUrl! })
+      const prober = new pg.Client({ connectionString: disposableDatabaseUrl! })
+      await holder.connect()
+      await prober.connect()
+      try {
+        await holder.query('BEGIN')
+        await holder.query('SELECT id FROM "sourceDocument" WHERE id = $1 FOR UPDATE', [held])
+        const scheduling = module.scheduleBatch({
+          projectContextId: project.projectContextId,
+          schemaRevisionId: project.schemaRevisionId,
+          strategy: 'ARTICLE',
+          sourceDocumentIds: [...sorted].reverse(),
+          repetition: 'create-new',
+          models: { fields: 'nuextract' },
+        })
+        void scheduling.catch(() => {})
+        await eventually(async () => {
+          await prober.query('SELECT pg_stat_clear_snapshot()')
+          const { rows } = await prober.query<{ count: number }>(
+            `SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database()
+               AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE%"sourceDocument"%'`)
+          return rows[0]!.count
+        }, (count) => count === 1, 'the batch admission waits on the held document')
+        const locked: string[] = []
+        for (const id of sorted.filter((candidate) => candidate !== held)) {
+          await prober.query('BEGIN')
+          try {
+            await prober.query('SELECT id FROM "sourceDocument" WHERE id = $1 FOR UPDATE NOWAIT', [id])
+          } catch (error) {
+            if ((error as { code?: string }).code !== '55P03') throw error
+            locked.push(id)
+          } finally {
+            await prober.query('ROLLBACK')
+          }
+        }
+        await holder.query('COMMIT')
+        return { locked, scheduled: await scheduling }
+      } finally {
+        await holder.query('ROLLBACK').catch(() => {})
+        await holder.end()
+        await prober.end()
+      }
+    }
+    // Holding the smallest ID stops the admission before it locks anything else; holding the largest, after it
+    // locked every other member.
+    assert.deepEqual((await lockedWhileHolding(sorted[0]!)).locked, [])
+    const { locked, scheduled } = await lockedWhileHolding(sorted[2]!)
+    assert.deepEqual(locked, sorted.slice(0, 2))
+    const batchExtractionId = scheduled.batch.batchExtractionId
+    assert.equal(scheduled.disposition, 'created')
+    assert.deepEqual(scheduled.batch.members.map((member) => member.sourceDocumentId), sorted)
+    const rows = await db.orm.public.Extraction.where({ batchExtractionId })
+      .select('id', 'sourceDocumentId', 'outcome', 'requestedModels', 'catalogRecipe').all()
+    assert.equal(rows.length, 3)
+    for (const row of rows) {
+      assert.equal(row.id, stableUuid('batch-member-extraction', stableJson([batchExtractionId, row.sourceDocumentId])))
+      assert.equal(row.outcome, null)
+      assert.equal(row.catalogRecipe, null)
+      assert.deepEqual(row.requestedModels, { fields: 'nuextract' })
+    }
+    const workflows = await app.admission.listWorkflows({ workflowIDs: rows.map((row) => `extract:${row.id}`) })
+    assert.equal(workflows.length, 3)
+    for (const workflow of workflows) {
+      assert.equal(workflow.workflowName, RUN_EXTRACTION)
+      assert.equal(workflow.queueName, 'studio')
+      assert.equal(workflow.authenticatedUser, project.researcherAccountId)
+      assert.equal(workflow.attributes?.batchExtractionId, batchExtractionId)
+    }
+    // Members reach kei at the batch priority.
+    for (const row of rows) await heldByKei(row.id)
+    const submitted = kei.submissions.filter((submission) => rows.some((row) => submission.workflowId === keiExtractWorkflowId(row.id)))
+    assert.equal(submitted.length, 3)
+    assert.ok(submitted.every((submission) => submission.priority === 10))
+  })
+
+it('a committed batch answers with its admitted members even when DBOS cannot be read, and a retry adds no batch', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+    const outage = new Error('connect ECONNREFUSED: DBOS is unavailable')
+    const unreadable: ExtractionExecution = { ...execution, statuses: async () => { throw outage } }
+    const module = createExtractionModule(
+      createResearcherExtractionPersistence(project.researcherAccountId, unreadable, { database: db as Database, packages }),
+    )
+    const batches = async () =>
+      (await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all()).length
+    const input = {
+      projectContextId: project.projectContextId,
+      schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE' as const,
+      sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+    }
+    for (const repetition of ['create-new', 'reuse-equal-selection'] as const) {
+      const before = await batches()
+      const created = await module.scheduleBatch({ ...input, repetition })
+      assert.equal(created.disposition, 'created')
+      assert.equal(created.batch.executionStatus, 'QUEUED')
+      assert.deepEqual(created.batch.members.map((member) => member.executionStatus), ['QUEUED', 'QUEUED'])
+      assert.equal(await batches(), before + 1)
+    }
+    // A replay reads its status like any read, so the outage still answers; it creates nothing.
+    await assert.rejects(module.scheduleBatch({ ...input, repetition: 'reuse-equal-selection' }), (error: unknown) => error === outage)
+    assert.equal(await batches(), 2)
+
+    // A suggested batch's handoff answers the same way.
+    const batchSchemaSuggestionId = randomUUID()
+    await db.orm.public.BatchSchemaSuggestion.create({
+      id: batchSchemaSuggestionId,
+      projectContextId: project.projectContextId,
+      selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+    })
+    for (const document of project.documents)
+      await db.orm.public.BatchSchemaSuggestionSource.create({
+        batchSchemaSuggestionId,
+        sourceDocumentId: document.sourceDocumentId,
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+      })
+    await db.orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).update({
+      outcome: 'SUCCEEDED', phase: 'READY', draft: ARTICLE_SCHEMA, draftVersion: 1,
+    })
+    const handedOff = await module.scheduleSuggestedBatch({
+      projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE',
+    })
+    assert.equal(handedOff.disposition, 'created')
+    assert.deepEqual(handedOff.batch.members.map((member) => member.executionStatus), ['QUEUED', 'QUEUED'])
+    assert.equal(await batches(), 3)
+  })
+
+it('a batch rerun creates new Extraction identities', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+    const module = scheduler(project.researcherAccountId)
+    const input = {
+      projectContextId: project.projectContextId,
+      schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE' as const,
+      sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+      repetition: 'create-new' as const,
+    }
+    const first = await module.scheduleBatch(input)
+    const second = await module.scheduleBatch(input)
+    const ids = async (batchExtractionId: string) =>
+      (await db.orm.public.Extraction.where({ batchExtractionId }).select('id').all()).map((row) => row.id)
+    const firstIds = await ids(first.batch.batchExtractionId)
+    const secondIds = await ids(second.batch.batchExtractionId)
+    assert.equal(firstIds.length, 2)
+    assert.equal(secondIds.length, 2)
+    assert.ok(firstIds.every((id) => !secondIds.includes(id)))
+  })
+
+it('pending Extractions count as batch members but do not displace the latest reviewed result on reopen', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const document = project.documents[0]!
+    const { module } = createRuntime(project.researcherAccountId)
+    const reviewed = await module.runSingle(freshInput(project))
+    const prepared = await module.prepareReview(reviewed.extraction.extractionId)
+    await module.finalizeReview(reviewed.extraction.extractionId, prepared.reviewDecisions)
+    kei.holding = true
+    const scheduled = await module.scheduleBatch({
+      projectContextId: project.projectContextId,
+      schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE',
+      sourceDocumentIds: [document.sourceDocumentId],
+      repetition: 'create-new',
+    })
+    const member = stableUuid('batch-member-extraction', stableJson([scheduled.batch.batchExtractionId, document.sourceDocumentId]))
+    await heldByKei(member)
+    const batch = await module.readBatch({
+      projectContextId: project.projectContextId, batchExtractionId: scheduled.batch.batchExtractionId,
+    })
+    assert.equal(batch.members.length, 1)
+    assert.equal(batch.members[0]!.executionStatus, 'RUNNING')
+    assert.equal(batch.members[0]!.latestExtraction, null)
+    const reopened = await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId })
+    assert.equal(reopened?.latestReviewed?.extractionId, reviewed.extraction.extractionId)
+    assert.equal(reopened?.latestAttempt?.extractionId, reviewed.extraction.extractionId)
+    const results = await module.readBatchResults({
+      projectContextId: project.projectContextId, batchExtractionId: scheduled.batch.batchExtractionId,
+    })
+    assert.deepEqual({ total: results.totalMembers, pending: results.pending, results: results.results.length },
+      { total: 1, pending: 1, results: 0 })
+    // The project list counts the pending member as batch progress, not as a published Extraction.
+    const listed = await createResearcherProjectStore(project.researcherAccountId, db, { workflowStatuses: execution.statuses })
+      .listProjectContexts(20)
+    const summary = listed.find((item) => item.projectContextId === project.projectContextId)?.summary
+    assert.equal(summary?.extractionCount, 1)
+    assert.equal(summary?.reviewedSourceDocumentCount, 1)
+    assert.deepEqual(summary?.runningBatch, { completedMemberCount: 0, memberCount: 1 })
+    const activity = await createResearcherProjectStore(project.researcherAccountId, db).listRecentActivity(20)
+    assert.equal(activity.filter((event) => event.kind === 'extraction_appended').length, 1)
+  })
+
+it('a batch member cannot be cancelled on its own, and its ID posted as an interactive Extraction answers extraction_id_conflict', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const document = project.documents[0]!
+    const module = scheduler(project.researcherAccountId)
+    kei.holding = true
+    const scheduled = await module.scheduleBatch({
+      projectContextId: project.projectContextId,
+      schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE',
+      sourceDocumentIds: [document.sourceDocumentId],
+      repetition: 'create-new',
+    })
+    const member = stableUuid('batch-member-extraction', stableJson([scheduled.batch.batchExtractionId, document.sourceDocumentId]))
+    assert.equal(await module.cancelSingle(member), 'not-found')
+    assert.equal((await extractionRow(member))?.outcome, null)
+    await assert.rejects(module.runSingle(freshInput(project, member)), rejectsWithCode('extraction_id_conflict'))
+  })
+
+it('deleting one batch source preserves another member\'s result, revision pin and finalized review', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['deleted.pdf', 'kept.pdf'])
+    const [deleted, kept] = project.documents as [SeededDocument, SeededDocument]
+    const module = scheduler(project.researcherAccountId)
+    const store = createResearcherProjectStore(project.researcherAccountId, db)
+    const scheduled = await module.scheduleBatch({
+      projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE', sourceDocumentIds: [deleted.sourceDocumentId, kept.sourceDocumentId], repetition: 'create-new',
+    })
+    const batchExtractionId = scheduled.batch.batchExtractionId
+    await waitForBatch(module, project.projectContextId, batchExtractionId,
+      (candidate) => candidate.executionStatus === 'COMPLETED')
+    const keptId = stableUuid('batch-member-extraction', stableJson([batchExtractionId, kept.sourceDocumentId]))
+    const prepared = await module.prepareReview(keptId)
+    await module.finalizeReview(keptId, prepared.reviewDecisions)
+    const keptBefore = await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome', 'resultPayload').first({ id: keptId })
+    const reviewsBefore = await db.orm.public.ExtractionReview.where({ extractionId: keptId })
+      .select('id', 'decisionDigest').all()
+    assert.ok(reviewsBefore.length > 0)
+
+    assert.deepEqual(await store.deleteSourceDocument(project.projectContextId, deleted.sourceDocumentId), { interruptedAttempts: [] })
+    assert.deepEqual(await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome', 'resultPayload').first({ id: keptId }), keptBefore)
+    assert.deepEqual(await db.orm.public.ExtractionReview.where({ extractionId: keptId })
+      .select('id', 'decisionDigest').all(), reviewsBefore)
+    const batch = await module.readBatch({ projectContextId: project.projectContextId, batchExtractionId })
+    assert.deepEqual(batch.members.map((member) => member.sourceDocumentId), [kept.sourceDocumentId])
+  })
+
+it('stores batch model choices on every member Extraction and includes them in selection identity', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+    const module = scheduler(project.researcherAccountId)
+    const input = {
+      projectContextId: project.projectContextId,
+      schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE' as const,
+      sourceDocumentIds: project.documents.map(document => document.sourceDocumentId),
+      repetition: 'reuse-equal-selection' as const,
+    }
+    // Preserve the pre-model-choice identity for deployments with no selected roles.
+    const hash = createHash('sha256').update(JSON.stringify([
+      input.projectContextId, input.schemaRevisionId, input.strategy,
+      [...input.sourceDocumentIds].sort((left, right) => left.localeCompare(right)),
+    ])).digest('hex')
+    const variant = ['8', '9', 'a', 'b'][parseInt(hash[16]!, 16) & 3]
+    const originalId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-${variant}${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+    const defaults = await module.scheduleBatch(input)
+    assert.equal(defaults.batch.batchExtractionId, originalId)
+    for (const models of [null, {}, { fields: '' }]) {
+      const replay = await module.scheduleBatch({ ...input, models })
+      assert.equal(replay.disposition, 'replayed')
+      assert.equal(replay.batch.batchExtractionId, originalId)
+    }
+    const ids = new Set([originalId])
+    for (const models of [null, { fields: 'nuextract', reasoning: 'instruct' },
+      { fields: 'instruct', reasoning: 'instruct' }, { fields: 'nuextract', reasoning: 'other' }]) {
+      const scheduled = await module.scheduleBatch({ ...input, models })
+      const batchExtractionId = scheduled.batch.batchExtractionId
+      if (models) {
+        assert.equal(scheduled.disposition, 'created')
+        assert.ok(!ids.has(batchExtractionId))
+        ids.add(batchExtractionId)
+        const replay = await module.scheduleBatch({
+          ...input, sourceDocumentIds: [...input.sourceDocumentIds].reverse(),
+          models: { reasoning: models.reasoning, fields: models.fields },
+        })
+        assert.equal(replay.disposition, 'replayed')
+        assert.equal(replay.batch.batchExtractionId, batchExtractionId)
+      }
+      await waitForBatch(module, project.projectContextId, batchExtractionId, batch => batch.executionStatus === 'COMPLETED')
+      const members = await db.orm.public.Extraction.where({ batchExtractionId })
+        .select('id', 'requestedModels', 'outcome').all()
+      assert.equal(members.length, project.documents.length)
+      for (const member of members) {
+        assert.deepEqual(member.requestedModels, models)
+        assert.equal(member.outcome, 'SUCCEEDED')
+        const submission = kei.submissions.find((candidate) => candidate.workflowId === keiExtractWorkflowId(member.id))!
+        assert.deepEqual((submission.request as KeiExtractInput).request.options.models ?? null, models)
+      }
+    }
+  })
+
+it('rejects duplicate members, atomically pins valid members, replays equal selections, and creates explicit repetitions', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['b.pdf', 'a.pdf'])
+    const foreign = await seedProject()
+    const module = scheduler(project.researcherAccountId)
+    const selected = [
+      project.documents[1]!.sourceDocumentId,
+      project.documents[0]!.sourceDocumentId,
+    ]
+    const input = {
+      projectContextId: project.projectContextId,
+      schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE' as const,
+      sourceDocumentIds: selected,
+      repetition: 'reuse-equal-selection' as const,
+    }
+
+    await assert.rejects(
+      module.scheduleBatch({
+        ...input,
+        sourceDocumentIds: [...selected, selected[0]!],
+      }),
+      rejectsWithCode('invalid_extraction_pins'),
+    )
+    const created = await module.scheduleBatch(input)
+    assert.equal(created.disposition, 'created')
+    assert.deepEqual(
+      created.batch.members.map((member) => member.sourceDocumentId),
+      [...new Set(selected)].sort(),
+    )
+    const originalPins = created.batch.members.map((member) =>
+      member.sourceRepresentationRevisionId,
+    )
+    await addRepresentation(project.documents[0]!, 'b-v2.pdf')
+    await addRepresentation(project.documents[1]!, 'a-v2.pdf')
+
+    const replayed = await module.scheduleBatch(input)
+    assert.equal(replayed.disposition, 'replayed')
+    assert.equal(
+      replayed.batch.batchExtractionId,
+      created.batch.batchExtractionId,
+    )
+    assert.deepEqual(
+      replayed.batch.members.map((member) =>
+        member.sourceRepresentationRevisionId,
+      ),
+      originalPins,
+    )
+
+    const repeatedInput = { ...input, repetition: 'create-new' as const }
+    const firstRepeat = await module.scheduleBatch(repeatedInput)
+    const secondRepeat = await module.scheduleBatch(repeatedInput)
+    assert.notEqual(
+      firstRepeat.batch.batchExtractionId,
+      secondRepeat.batch.batchExtractionId,
+    )
+    assert.ok(
+      firstRepeat.batch.members.every(
+        (member) => !originalPins.includes(member.sourceRepresentationRevisionId),
+      ),
+    )
+
+    const before = await module.listBatches({
+      projectContextId: project.projectContextId,
+    })
+    await assert.rejects(
+      module.scheduleBatch({
+        ...input,
+        sourceDocumentIds: [
+          project.documents[0]!.sourceDocumentId,
+          foreign.documents[0]!.sourceDocumentId,
+        ],
+        repetition: 'create-new',
+      }),
+      rejectsWithCode('not_found'),
+    )
+    const after = await module.listBatches({
+      projectContextId: project.projectContextId,
+    })
+    assert.equal(after.length, before.length)
+    const foreignModule = scheduler(foreign.researcherAccountId)
+    const foreignBatch = await foreignModule.scheduleBatch({
+      projectContextId: foreign.projectContextId,
+      schemaRevisionId: foreign.schemaRevisionId,
+      strategy: 'ARTICLE',
+      sourceDocumentIds: [
+        foreign.documents[0]!.sourceDocumentId,
+      ],
+      repetition: 'create-new',
+    })
+    await assert.rejects(
+      module.listBatches({
+        projectContextId: foreign.projectContextId,
+      }),
+      rejectsWithCode('not_found'),
+    )
+    for (const projectContextId of [
+      project.projectContextId,
+      foreign.projectContextId,
+    ]) {
+      await assert.rejects(
+        module.readBatch({
+          projectContextId,
+          batchExtractionId:
+            foreignBatch.batch.batchExtractionId,
+        }),
+        rejectsWithCode('not_found'),
+      )
+      await assert.rejects(
+        module.readBatchResults({
+          projectContextId,
+          batchExtractionId:
+            foreignBatch.batch.batchExtractionId,
+        }),
+        rejectsWithCode('not_found'),
+      )
+    }
+    const completedForeign = await waitForBatch(
+      foreignModule,
+      foreign.projectContextId,
+      foreignBatch.batch.batchExtractionId,
+      (batch) => batch.executionStatus === 'COMPLETED',
+    )
+    assert.equal(completedForeign.executionStatus, 'COMPLETED')
+    const results = await foreignModule.readBatchResults({
+      projectContextId: foreign.projectContextId, batchExtractionId: foreignBatch.batch.batchExtractionId,
+    })
+    assert.deepEqual([results.successfulResults, results.pending, results.failed, results.cancelled], [1, 0, 0, 0])
+  })
+
+it('counts a member kei cancelled as cancelled and an interrupted one as failed', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['cancelled.pdf', 'interrupted.pdf'])
+    const [cancelled, interrupted] = project.documents as [SeededDocument, SeededDocument]
+    const module = scheduler(project.researcherAccountId)
+    kei.holding = true
+    const scheduled = await module.scheduleBatch({
+      projectContextId: project.projectContextId,
+      schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE',
+      sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+      repetition: 'create-new',
+    })
+    const batchExtractionId = scheduled.batch.batchExtractionId
+    const memberOf = (document: SeededDocument) =>
+      stableUuid('batch-member-extraction', stableJson([batchExtractionId, document.sourceDocumentId]))
+    await heldByKei(memberOf(cancelled))
+    await heldByKei(memberOf(interrupted))
+    // kei's own cancel of a child settles the member FAILED with code `cancelled`.
+    await kei.handoff.cancel(keiExtractWorkflowId(memberOf(cancelled)))
+    // A Studio workflow stopped without an outcome leaves its member interrupted.
+    await DBOS.cancelWorkflow(`extract:${memberOf(interrupted)}`)
+    await eventually(() => extractionRow(memberOf(cancelled)), (row) => row?.outcome === 'FAILED', 'the cancelled member settles')
+    const results = await module.readBatchResults({ projectContextId: project.projectContextId, batchExtractionId })
+    assert.deepEqual([results.totalMembers, results.pending, results.failed, results.cancelled], [2, 0, 1, 1])
+    assert.equal(results.executionStatus, 'COMPLETED')
+    const batch = await module.readBatch({ projectContextId: project.projectContextId, batchExtractionId })
+    assert.deepEqual(batch.members.map((member) => [member.executionStatus, member.failureMessage]).sort(), [
+      ['FAILED', 'The Extraction was cancelled.'],
+      ['FAILED', 'This work stopped before it finished. Start it again.'],
+    ])
+  })
+})

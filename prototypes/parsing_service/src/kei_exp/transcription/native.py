@@ -24,9 +24,9 @@ from docling_core.types.doc import (
 )
 
 from kei_exp._pdfium import pdfium_lock
-from kei_exp.cut import Crop
 from kei_exp.progress import Emit
-from kei_exp.transcription.types import ConversionError, Execution, PageRecord, Transcription
+from kei_exp.regions import Crop
+from kei_exp.transcription.types import TRANSCRIBER_KNOBS, ConversionError, Execution, PageRecord, Transcription
 from kei_exp.transcription.tables import table_of_html
 
 
@@ -214,7 +214,7 @@ def _items(document: DoclingDocument, page_no: int):
 class NativeText:
     """Transcriber over the PDF's own text through Docling's standard layout/table pipeline: no OCR, VLM or server."""
     kind = "native"
-    knobs: frozenset[str] = frozenset()
+    knobs = TRANSCRIBER_KNOBS[kind]
 
     def transcribe(self, execution: Execution, crops: list[Crop] | None, emit: Emit) -> Transcription:
         options = PdfPipelineOptions(do_ocr=False, force_backend_text=True)

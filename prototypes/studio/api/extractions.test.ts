@@ -446,7 +446,7 @@ describe('/api/extractions transport', () => {
     expect(runningModule.readReviewDraft).not.toHaveBeenCalled()
 
     // Legacy-row fixture: a FAILED job carries the same null checkpoint values, plus a failure the reader
-    // passes through unfiltered (`postgres-persistence.ts`'s non-completed branch).
+    // passes through unfiltered (`postgres-attempts.ts`'s `settledAttempt` FAILED branch).
     const failure = { code: 'legacy_failure', message: 'Legacy job failure.', phase: 'grounding' as const }
     const failed = {
       ...running,

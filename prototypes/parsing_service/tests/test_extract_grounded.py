@@ -341,15 +341,16 @@ def test_a_yes_or_no_from_the_model_is_proposed_on_its_quote_and_never_accepted(
 ])
 def test_a_window_cut_never_makes_a_boundary_the_source_does_not_have(tmp_path, monkeypatch, text, cut_after):
     from kei_exp.kie.extract import grounded
+    from kei_exp.kie.extract.windows import Unit
     entry = text + " " + " ".join(f"Scherbe{n}" for n in range(300))
 
-    def windows(run, units, texts, fits):
+    def windows(units, texts, fits, *, overlap):
         (unit,) = units
         cut = unit.start + entry.index(cut_after) + len(cut_after)
         spaces = [index for index, char in enumerate(texts[unit.segment]) if char == " " and index > cut + 6][::25]
         bounds = [unit.start, cut, *spaces, unit.end]
-        return [[grounded._Unit(unit.segment, start, end)] for start, end in pairwise(bounds)]
-    monkeypatch.setattr(grounded, "_windows", windows)
+        return [[Unit(unit.segment, start, end)] for start, end in pairwise(bounds)]
+    monkeypatch.setattr(grounded, "windows_of", windows)
 
     def script(system, user, schema):
         answer = {name: None for name in schema["properties"]}

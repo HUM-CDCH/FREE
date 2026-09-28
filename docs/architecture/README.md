@@ -1,7 +1,10 @@
 # Architecture presentation
 
 [`current.c4`](./current.c4) is the executable description of FREE's
-implemented production and local-development runtimes. Production combines
+implemented production and local-development runtimes.
+[`grounding.c4`](./grounding.c4) extends it with the evidence-linking
+boundary and the grounding lab; its explanations are in
+[`docs/research/grounding-lab-design-notes.md`](../research/grounding-lab-design-notes.md). Production combines
 [`compose.yaml`](../../compose.yaml) and
 [`compose.prod.yaml`](../../compose.prod.yaml) behind host nginx. Local Compose
 adds [`compose.override.yaml`](../../compose.override.yaml), optionally
@@ -36,6 +39,13 @@ Open the URL that LikeC4 prints, then follow these views:
 9. `local_entra_topology` — the same local entry topology using Microsoft Entra.
 10. `model_configuration` — each account's Model Connections, steps and browser-held keys.
 11. `garbage_collection` — the ten-minute sweep and its quiescence rules.
+12. `grounding_boundary` — evidence linking and validation as two steps
+    with different owners ([`grounding.c4`](./grounding.c4)).
+13. `evidence_linking_vs_validation` — from extracted values to Review
+    Decisions; nothing between the steps accepts a link.
+14. `grounding_lab_policies` — the policies the grounding lab tested and the
+    one part that reached production.
+15. `grounding_lab_policy_e` — policy E and the sibling gate as lab routing.
 
 Use LikeC4 search (`Ctrl+K`) to open a view.
 

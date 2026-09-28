@@ -35,21 +35,18 @@ from kei_exp.kie.artifacts import (
     save_ingest,
     seal,
 )
-from kei_exp.kie.model import (
+from kei_exp.kie.ingest_model import (
     Envelope,
     GutterEvidence,
-    GutterMethod,
-    GutterReason,
     IngestArtifact,
     IngestConfig,
-    IngestError,
     IngestReport,
     Page,
     Placement,
-    Side,
     Source,
     SpreadReport,
 )
+from kei_exp.kie.primitives import GutterMethod, GutterReason, IngestError, Side
 
 # Bump on any change that can alter this stage's output for the same inputs: the namespace shape, the
 # extraction or selection algorithm, a rounding rule, a threshold that is not in config, or a dependency whose

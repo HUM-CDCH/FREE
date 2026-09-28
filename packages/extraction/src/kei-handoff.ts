@@ -24,6 +24,14 @@ export const DELETE_RUNS = 'deleteRuns'
 export const GC_PREFIX = 'kei-gc:'
 /** One path component, kei's runs.COMPONENT; `$` without the m flag matches only at the very end in JavaScript. */
 export const KEI_RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const KEI_PREPROCESS = /^kei-exp:([A-Za-z0-9][A-Za-z0-9._-]*):([^:\s]+)$/
+
+/** The kei run and parse generation a Source Representation Revision was made from (`kei-exp:<run>:<generation>`,
+ *  written by ingestion from kei's convert output). Studio reads the run ID; it never derives one. */
+export function keiRunOf(preprocessId: string): { runId: string; generation: string } | null {
+  const match = KEI_PREPROCESS.exec(preprocessId)
+  return match && KEI_RUN_ID.test(match[1]!) ? { runId: match[1]!, generation: match[2]! } : null
+}
 
 export type ConversionLane = typeof KEI_QUEUE.convertLarge | typeof KEI_QUEUE.convertSmall
 
@@ -37,6 +45,15 @@ export function conversionLane(pages: number | null): ConversionLane {
 export function conversionTimeoutMs(pages: number | null): number {
   return Math.max(600_000, 3 * (20_000 + 6_300 * (pages ?? UNCOUNTED_PAGE_BUDGET)))
 }
+
+/** Studio's `runExtraction` workflow for one Extraction is `extract:<extractionId>`, the parent of
+ *  `kei-extract:<extractionId>`. packages/db writes the prefix by hand (it sits below this package). */
+export const STUDIO_EXTRACT_PREFIX = 'extract:'
+const STUDIO_EXTRACT = /^extract:([^:]+)$/
+export const extractWorkflowId = (extractionId: string) => `${STUDIO_EXTRACT_PREFIX}${extractionId}`
+/** The Extraction a Studio workflow ID names; null for any other workflow (`kei-extract:…`, `suggest:…`). */
+export const extractionIdOfWorkflow = (workflowId: string): string | null =>
+  STUDIO_EXTRACT.exec(workflowId)?.[1] ?? null
 
 export const keiConvertWorkflowId = (parentWorkflowId: string) => `${CONVERT_PREFIX}${parentWorkflowId}`
 export const keiExtractWorkflowId = (extractionId: string) => `${EXTRACT_PREFIX}${extractionId}`

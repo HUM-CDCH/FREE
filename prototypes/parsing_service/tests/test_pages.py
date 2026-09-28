@@ -14,8 +14,8 @@ import pytest
 from PIL import Image
 
 from kei_exp.geometry import CropTransform, PointBox
-from kei_exp.kie.model import IngestArtifact, Placement
-from kei_exp.kie.model import Page as IngestPage
+from kei_exp.kie.ingest_model import IngestArtifact, Placement
+from kei_exp.kie.ingest_model import Page as IngestPage
 from kei_exp.kie.runner import convert
 from kei_exp.kie.stages.ocr import resolve
 from kei_exp.pages import BookPage, BookPages, PdfPages

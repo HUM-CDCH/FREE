@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import {
-  createInternalProjectWorkerStore,
+  createGarbageReferences,
   createModelConfigurationStore,
   createResearcherProjectStore,
   db,
@@ -31,11 +31,11 @@ export async function seedOwner(): Promise<IngestionOwner> {
  * researcher store's discard removes from the default package root, which holds the developer's own packages.
  */
 export function ingestionStoreFor(packages: CanonicalPackageStore): (owner: string) => ResearcherProjectStore {
-  const worker = createInternalProjectWorkerStore(db, { packages })
+  const references = createGarbageReferences(db)
   return (owner) => ({
     ...createResearcherProjectStore(owner),
     async discardCanonicalPackage(descriptor) {
-      await packages.remove(descriptor, () => worker.isPackageReferenced(descriptor.artifactReference))
+      await packages.remove(descriptor, () => references.packageIsReferenced(descriptor.artifactReference))
     },
   })
 }

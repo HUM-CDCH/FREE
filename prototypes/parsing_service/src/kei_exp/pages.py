@@ -12,8 +12,8 @@ import pypdfium2 as pdfium
 from PIL import Image
 
 from kei_exp._pdfium import pdfium_lock
-from kei_exp.geometry import CropTransform, PixelBox, PointBox, unit_to_page_points
-from kei_exp.kie.model import Page as IngestPage
+import kei_exp.geometry as geometry
+from kei_exp.kie.ingest_model import Page as IngestPage
 
 
 class RenderablePage(Protocol):
@@ -21,12 +21,12 @@ class RenderablePage(Protocol):
         """Width and height in points."""
         ...
 
-    def render(self, dpi: float, bbox: PointBox | None = None, *, grayscale: bool = True) -> Image.Image:
+    def render(self, dpi: float, bbox: geometry.PointBox | None = None, *, grayscale: bool = True) -> Image.Image:
         """The page, or bbox of it, at dpi; mode L when grayscale (a bilevel book page is L either way).
         ValueError: a box covering no pixel."""
         ...
 
-    def crop_transform(self, dpi: float, bbox: PointBox | None = None) -> CropTransform:
+    def crop_transform(self, dpi: float, bbox: geometry.PointBox | None = None) -> geometry.CropTransform:
         """How the image `render(dpi, bbox)` produces maps back to page points, rounding included."""
         ...
 
@@ -86,7 +86,7 @@ class PdfPage:
             finally:
                 page.close()
 
-    def crop_transform(self, dpi: float, bbox: PointBox | None = None) -> CropTransform:
+    def crop_transform(self, dpi: float, bbox: geometry.PointBox | None = None) -> geometry.CropTransform:
         """pdfium renders the page into a canvas of ceil(W * s) x ceil(H * s) pixels and ceils the crop offsets
         (pypdfium2 page.py: `crop = [ceil(c * scale) ...]`), so a pixel is W / ceil(W * s) points, not 1 / s, and a
         crop's pixel (0, 0) sits at ceil(left * s) pixels: 0.05 pt requested at 250 dpi is 0.287 pt rendered."""
@@ -94,10 +94,10 @@ class PdfPage:
         scale = dpi / 72
         pt_per_px_x, pt_per_px_y = width / math.ceil(width * scale), height / math.ceil(height * scale)
         left, top = (0.0, 0.0) if bbox is None else (bbox[0], bbox[1])
-        return CropTransform(math.ceil(left * scale) * pt_per_px_x, math.ceil(top * scale) * pt_per_px_y,
+        return geometry.CropTransform(math.ceil(left * scale) * pt_per_px_x, math.ceil(top * scale) * pt_per_px_y,
                              pt_per_px_x, pt_per_px_y, None)
 
-    def render(self, dpi: float, bbox: PointBox | None = None, *, grayscale: bool = True) -> Image.Image:
+    def render(self, dpi: float, bbox: geometry.PointBox | None = None, *, grayscale: bool = True) -> Image.Image:
         with pdfium_lock:
             page = self._document[self._number - 1]
             try:
@@ -136,7 +136,7 @@ class BookPage:
     def get_size(self) -> tuple[float, float]:
         return self.ingest.width_px * 72 / self.dpi_x, self.ingest.height_px * 72 / self.dpi_y
 
-    def native_box(self, bbox: PointBox | None = None) -> PixelBox:
+    def native_box(self, bbox: geometry.PointBox | None = None) -> geometry.PixelBox:
         """The rectangle of native pixels `bbox` covers: cut on the page's own grid (within half a native pixel)
         and at the page's edge, since PIL would pad past it with black. ValueError: a box covering no pixel."""
         if bbox is None:
@@ -149,20 +149,20 @@ class BookPage:
             raise ValueError(f"bbox {bbox} covers no pixel of {self.path.name}")
         return box
 
-    def _output_size(self, box: PixelBox, dpi: float) -> tuple[int, int]:
+    def _output_size(self, box: geometry.PixelBox, dpi: float) -> tuple[int, int]:
         """The scale is exactly `dpi` but for whole-pixel rounding of the output size."""
         width, height = box[2] - box[0], box[3] - box[1]
         return max(1, round(width * dpi / self.dpi_x)), max(1, round(height * dpi / self.dpi_y))
 
-    def crop_transform(self, dpi: float, bbox: PointBox | None = None) -> CropTransform:
+    def crop_transform(self, dpi: float, bbox: geometry.PointBox | None = None) -> geometry.CropTransform:
         """The native box's corner in points and, per axis, the native pixels one output pixel stands for."""
         box = self.native_box(bbox)
         width, height = self._output_size(box, dpi)
-        return CropTransform(box[0] * 72 / self.dpi_x, box[1] * 72 / self.dpi_y,
+        return geometry.CropTransform(box[0] * 72 / self.dpi_x, box[1] * 72 / self.dpi_y,
                              (box[2] - box[0]) / width * 72 / self.dpi_x, (box[3] - box[1]) / height * 72 / self.dpi_y,
                              box)
 
-    def render(self, dpi: float, bbox: PointBox | None = None, *, grayscale: bool = True) -> Image.Image:
+    def render(self, dpi: float, bbox: geometry.PointBox | None = None, *, grayscale: bool = True) -> Image.Image:
         """Grayscale of bbox (or the whole page) at dpi, resampled by area from the native pixels of `native_box`."""
         box = self.native_box(bbox)
         with Image.open(self.path) as image:
@@ -170,11 +170,11 @@ class BookPage:
         size = self._output_size(box, dpi)
         return gray if size == gray.size else gray.resize(size, Image.Resampling.BOX)
 
-    def to_page_points(self, bbox: PointBox) -> PointBox:
+    def to_page_points(self, bbox: geometry.PointBox) -> geometry.PointBox:
         """Book-page top-left points onto the PDF page's top-left points, through the ingest page's rectangle on
         the spread and the spread's placement (`geometry.unit_to_page_points`)."""
         page = self.ingest
-        return unit_to_page_points(page.placement, page.source_rect, (page.spread_width_px, page.spread_height_px),
+        return geometry.unit_to_page_points(page.placement, page.source_rect, (page.spread_width_px, page.spread_height_px),
                                    (self.dpi_x, self.dpi_y), bbox)
 
 

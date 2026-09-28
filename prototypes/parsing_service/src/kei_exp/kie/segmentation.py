@@ -19,8 +19,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from kei_exp.canonical import canonical_json
 from kei_exp.files import publish
-from kei_exp.kie.extract.evidence import Evidence
-from kei_exp.kie.model import Block, Diagnostic, GlossaryEntry, HeadingEvent, Span
+from kei_exp.kie.blocks import Block, Diagnostic, GlossaryEntry, HeadingEvent, Span
+from kei_exp.kie.passages import Evidence
 from kei_exp.kie.recipe import Recipe
 from kei_exp.kie.stages.layout import lines
 
@@ -191,17 +191,3 @@ def check_against(artifact: Segmentation, evidence: Evidence, where: Path | str)
             raise SegmentationInvalid(f"{where}: {block.id}'s primary spans disagree with the lines the ledger gives it")
     if ledger:
         raise SegmentationInvalid(f"{where}: the ledger gives lines to blocks that do not exist: {sorted(ledger)}")
-
-
-def obtain(run_dir: Path, evidence: Evidence, recipe: Recipe) -> Segmentation:
-    """The proven published artifact, or a new one computed and published in its place."""
-    from kei_exp.kie.stages import segment as segmenter  # the stage imports this module for its types
-    try:
-        found = load_segmentation(run_dir, evidence, recipe)
-    except SegmentationInvalid:
-        found = None
-    if found is not None:
-        return found
-    made = segmenter.segment(evidence, recipe)
-    publish_segmentation(run_dir, made)
-    return made

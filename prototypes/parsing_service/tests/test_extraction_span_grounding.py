@@ -3,12 +3,12 @@ from dataclasses import replace
 
 import pytest
 
-from kei_exp.kie.extract import run
+from kei_exp.kie.extract import run, assembly
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.spans import MAX_PROSE_CHARS, source_spans
-from kei_exp.kie.extract.stages import verify
+from kei_exp.kie.extract.grounding import verify
 from kei_exp.pagefile import PageTable, TableCell
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
@@ -152,7 +152,7 @@ def test_skip_paths_distinguish_records_and_array_positions():
 def test_assembled_schedule_retries_unresolved_claims_only(monkeypatch, schedule, expected):
     source = passages(["Hill", "1827"])
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
-    monkeypatch.setattr(run, "source_contexts", lambda *_: [Context((p,)) for p in source])
+    monkeypatch.setattr("kei_exp.kie.extract.article.source_contexts", lambda *_: [Context((p,)) for p in source])
     def reasoning(system, user, schema):
         if "records" in schema["properties"]:
             return {"records": [{"label": "Hill", "identity": {"site": "Hill"}, "passages": [source[0].id]}]}
@@ -180,4 +180,4 @@ def test_factors_are_independent_and_old_serialization_omits_new_defaults():
     requests = [run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": settings})
                 for settings in [{"grounding": "quoted"}, {"grounding": "spans"},
                                  {"grounding": "spans", "grounding_schedule": "unresolved"}]]
-    assert len({run.fingerprint({"generation": "g", "digest": "d"}, r, {}) for r in requests}) == 3
+    assert len({assembly.fingerprint({"generation": "g", "digest": "d"}, r, {}) for r in requests}) == 3

@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from kei_exp import files
-from kei_exp import result as result_module
+from kei_exp import pagefile
 from kei_exp.models import MODELS
 from kei_exp.pagefile import (
     RESULT_VERSION,
@@ -220,7 +220,7 @@ def test_the_recipe_fingerprint_follows_the_recipe_alone(digital_pdf, tmp_path):
     stable = fingerprint(recipe(made, "ab" * 32, None))
     assert stable == fingerprint(recipe(made, "ab" * 32, None)) and len(stable) == 64
     assert stable != fingerprint(recipe(execution(digital_pdf, tmp_path, pages=(1, 2)), "ab" * 32, None))
-    with patch.object(result_module, "RESULT_VERSION", RESULT_VERSION + 1):
+    with patch.object(pagefile, "RESULT_VERSION", RESULT_VERSION + 1):
         assert stable != fingerprint(recipe(made, "ab" * 32, None))
     with patch.dict(MODELS["surya"].params, {"SURYA_GUIDED_LAYOUT": False}):
         assert stable != fingerprint(recipe(made, "ab" * 32, None))

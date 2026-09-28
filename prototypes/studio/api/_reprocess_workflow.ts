@@ -4,7 +4,7 @@ import {
   CONVERSION_PRIORITY, conversionTimeoutMs, keiConvertOkSchema, keiConvertWorkflowId, settleKei, SUBMIT_TO_KEI_RETRY,
   type ConversionLane, type KeiHandoff, type KeiPoll,
 } from 'extraction/kei-handoff'
-import { ARTIFACT_READ_RETRY, isWorkflowCancellation, type WorkflowSteps } from 'extraction/workflows'
+import { ARTIFACT_READ_RETRY, isWorkflowCancellation, type WorkflowSteps } from 'extraction/workflow-steps'
 import { ReprocessConflictError, type ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 import { ApiError } from './_http.js'
 import { conversionFailure, discardPublishedPackage, packageConversion, sameDescriptor, type ConvertedPackage, type PackageStore } from './_kei_conversion.js'

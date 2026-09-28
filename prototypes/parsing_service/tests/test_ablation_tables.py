@@ -45,10 +45,34 @@ def test_failed_result_counts_as_observed_and_missing_pair_keeps_its_denominator
     assert "**3/4 sealed cells**; **1 missing**" in report
     assert "| treatment | 1/2 | 1 | 0 |" in report
     assert "| paper1--treatment--0 | 0/2 |" in report
-    assert "| control → treatment | context | 1/2 | -100.00 | — | 1/2 |" in report
+    assert "| control → treatment | context | 1/2 | -100.00 | — | 1/2 | +0.00 | 1/2 | +0 |" in report
     assert "[-100.00, -100.00]" not in report  # one document cannot support an uncertainty interval
     assert "paper2--treatment--0" in report and "not_completed" in report
     assert "| paper1--control--0 | 0/2 | 1/2 | 0/2 |" in report
+
+
+@pytest.mark.parametrize("known_delta", [None, 0, 20])
+def test_refused_input_retains_pair_but_has_no_measured_token_cost(known_delta):
+    manifest, analysis, accounting, gold = snapshot()
+    observed = analysis["comparisons"][0]
+    del observed["paired"][0]["input_tokens"]
+    refused = analysis["cells"][1]
+    refused["input_tokens"] = refused["output_tokens"] = None
+    if known_delta is not None:
+        row = copy.deepcopy(refused)
+        row.update(id="paper2--treatment--0", source="paper2", input_tokens=10 + known_delta, output_tokens=0)
+        analysis["cells"].append(row)
+        analysis.update(completed_cells=4, missing=[])
+        accounting["cells"][row["id"]] = {}
+        accounting["stage_costs"][row["id"]] = {"stages": {}, "fresh_calls": 1, "reused_calls": 0}
+        observed["paired"].append({"source": "paper2", "calls": 0, "input_tokens": known_delta})
+        observed["accuracy_effect"] = {"documents": 2, "mean": -1, "percentile_95": [-1, -1]}
+    report = tables.render(manifest, analysis, accounting, gold)
+    assert "| paper1--treatment--0 | 0 | 0/0 | 1 | 1 | — | — |" in report
+    if known_delta is None:
+        assert "| 1/2 | +0.00 | 0/2 | — |" in report
+    else:
+        assert f"| 2/2 | +0.00 | 1/2 | {known_delta:+d} |" in report
 
 
 @pytest.mark.parametrize("damage", ["drop_missing", "duplicate_pair", "drop_accounting", "wrong_gold_n"])

@@ -20,7 +20,7 @@ from typing import Final
 import yaml
 from pydantic import ValidationError
 
-from kei_exp.kie.model import EvidenceReport, IngestStep, PipelineConfig, RunReport
+from kei_exp.kie.run_model import EvidenceReport, IngestStep, PipelineConfig, RunReport
 from kei_exp.kie.runner import (
     REPORT_NAME,
     RUNS_ROOT,
