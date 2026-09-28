@@ -223,6 +223,43 @@ describe('extractionAttemptDto', () => {
     })
   })
 
+  it('transports what kei-exp reports it ran, its schema-policy accounting and its support proofs unchanged', async () => {
+    const { extractionAttemptDto } = await import('./_extractions.js')
+    const { extractionAttemptSchema } = await import('../shared/extraction.contract.js')
+    const article = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+      prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
+    const effectiveMethod = { options: { strategy: 'article', model: null, models: null, article }, versions: { prompt: 12, method: 1, spanGrounding: 2 } }
+    const eligibility = { allRecordLeaves: 2, eligibleRecordLeaves: 1, eligibleGrounding: 'complete' as const,
+      skipped: [{ resultPath: ['records', 0, 'year'], policy: 'derived' as const }] }
+    const support = [{ resultPath: ['records', 0, 'title'], segment: 'p1_s0', cell: null, span: 'p1_s0@3:9', start: 3, end: 9,
+      quote: 'Ålpha 🜁', attribution: 'model_attested' }]
+    const dto = extractionAttemptDto({
+      ...attemptSnapshot, requestedSettings: { article: null },
+      diagnostics: { ...snapshot.diagnostics!, effectiveMethod, eligibility, support },
+    })
+    const wire = extractionAttemptSchema.parse(JSON.parse(JSON.stringify(dto)))
+    expect(wire.requestedSettings).toEqual({ article: null })
+    expect(wire.diagnostics?.effectiveMethod).toEqual(effectiveMethod)
+    expect(wire.diagnostics?.eligibility).toEqual(eligibility)
+    expect(wire.diagnostics?.support).toEqual(support)
+  })
+
+  it('a failed attempt keeps its admitted settings and has no effective method; a historical one reads Not recorded', async () => {
+    const { extractionAttemptDto } = await import('./_extractions.js')
+    const failed = extractionAttemptDto({
+      ...attemptSnapshot,
+      requestedSettings: { generic: { record_chars: 30_000 } },
+      strategy: 'CATALOG', executionStatus: 'FAILED', outcome: null, complete: null, modelAttribution: null,
+      diagnostics: null, result: null, evidence: null, reviewable: false,
+      failure: { code: 'interrupted', message: 'This work stopped before it finished. Start it again.', phase: 'extracting' },
+    })
+    expect(failed.diagnostics).toBeNull()
+    expect(failed.requestedSettings).toEqual({ generic: { record_chars: 30_000 } })
+    const historical = extractionAttemptDto(attemptSnapshot)
+    expect(historical.requestedSettings).toBeNull()
+    expect(historical.diagnostics).not.toHaveProperty('effectiveMethod')
+  })
+
   it('echoes no Extraction Model Choice as null and transports no per-role models when kei-exp reported none', async () => {
     const { extractionAttemptDto } = await import('./_extractions.js')
     const dto = extractionAttemptDto(attemptSnapshot)

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  activeSettingsSchema,
   articleSettingsIssues,
   extractionMethodIntentSchema,
   settingsSlot,
@@ -279,6 +280,29 @@ export const groundedDiagnosticsSchema = z
 
 export type GroundedDiagnostics = z.infer<typeof groundedDiagnosticsSchema>
 
+/** What kei-exp recorded running: its dumped options, and the prompt, method and protocol versions it reports. */
+const effectiveMethodSchema = z
+  .object({ options: z.record(z.string(), z.json()), versions: z.record(z.string(), z.number().int()) })
+  .strict()
+
+/** Schema-policy verification's accounting: all and eligible record leaves apart, and each policy-skipped value. */
+const groundingEligibilitySchema = z
+  .object({
+    allRecordLeaves: z.number().int().nonnegative(),
+    eligibleRecordLeaves: z.number().int().nonnegative(),
+    skipped: z.array(z.object({ resultPath: resultPathSchema, policy: z.enum(['derived', 'unverified']) }).strict()),
+    eligibleGrounding: z.enum(['complete', 'partial', 'not_applicable']),
+  })
+  .strict()
+
+/** The quote or exact source span (code-point offsets into its segment) an accepted Article link was verified with. */
+const supportProofSchema = z
+  .object({
+    resultPath: resultPathSchema, segment: z.string(), cell: z.string().nullable(), quote: z.string(), attribution: z.string(),
+    span: z.string().optional(), start: z.number().int().nonnegative().optional(), end: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+
 export const extractionDiagnosticsSchema = z
   .object({
     phase: z.enum([
@@ -297,6 +321,9 @@ export const extractionDiagnosticsSchema = z
     grounded: groundedDiagnosticsSchema.nullable().optional(),
     /** The model each role ran on, as kei-exp resolved the run's choice over its deployment defaults. */
     models: extractionModelsUsedSchema.nullable().optional(),
+    effectiveMethod: effectiveMethodSchema.nullable().optional(),
+    eligibility: groundingEligibilitySchema.nullable().optional(),
+    support: z.array(supportProofSchema).nullable().optional(),
   })
   .strict()
 
@@ -323,6 +350,8 @@ export const extractionAttemptSchema = z
     catalogRecipe: catalogRecipeSchema.nullable(),
     /** The run's Extraction Model Choice as requested; null when every role kept kei-exp's deployment default. */
     requestedModels: extractionModelChoiceSchema.nullable().optional(),
+    /** The settings admitted with the run; null when it predates recorded settings ("Not recorded"). */
+    requestedSettings: activeSettingsSchema.nullable().optional(),
     executionStatus: z.enum(['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED']),
     /** SUCCEEDED once COMPLETED; a failed, cancelled or interrupted Extraction is FAILED with its failure instead. */
     outcome: z.literal('SUCCEEDED').nullable(),

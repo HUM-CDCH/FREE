@@ -153,6 +153,36 @@ export type CatalogDiagnostics = Readonly<{
   documentValues: Readonly<Record<string, unknown>> | null
 }>
 
+/** The method as kei-exp recorded running it: its dumped `options`, and the prompt version plus each method and
+ *  protocol version the artifact reports (`method`, `spanGrounding`, `groundingRouting`, `rendering`, `grouping`,
+ *  `selection`). */
+export type EffectiveMethod = Readonly<{
+  options: Readonly<Record<string, unknown>>
+  versions: Readonly<Record<string, number>>
+}>
+
+/** Schema-policy verification's accounting: every record leaf, the leaves eligible for verification, the values a
+ *  policy skipped and why, and whether the eligible ones were all grounded. Nothing eligible is not applicable. */
+export type GroundingEligibility = Readonly<{
+  allRecordLeaves: number
+  eligibleRecordLeaves: number
+  skipped: readonly Readonly<{ resultPath: ResultPath; policy: 'derived' | 'unverified' }>[]
+  eligibleGrounding: 'complete' | 'partial' | 'not_applicable'
+}>
+
+/** The quote or offered source span an accepted Article link was verified with; `start`/`end` are code-point offsets
+ *  into its segment. A proof is never an Evidence link. */
+export type SupportProof = Readonly<{
+  resultPath: ResultPath
+  segment: string
+  cell: string | null
+  quote: string
+  attribution: string
+  span?: string
+  start?: number
+  end?: number
+}>
+
 export type ExtractionDiagnostics = Readonly<{
   phase: 'loading' | 'extracting' | 'grounding' | 'persisting'
   durationMs: number
@@ -172,6 +202,12 @@ export type ExtractionDiagnostics = Readonly<{
   grounded?: GroundedDiagnostics | null
   /** The model each role ran on; absent on results from before kei-exp routed calls by role. */
   models?: ExtractionModelsUsed | null
+  /** What the Parsing Service reports it ran; absent on results from before it was kept. */
+  effectiveMethod?: EffectiveMethod | null
+  /** Schema-policy verification's accounting; null when the run used no schema evidence policy. */
+  eligibility?: GroundingEligibility | null
+  /** The quote or exact source span each accepted Article link was verified with; null when the run reported none. */
+  support?: readonly SupportProof[] | null
 }>
 
 export type ExtractionFailure = Readonly<{

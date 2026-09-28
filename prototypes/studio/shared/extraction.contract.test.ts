@@ -419,3 +419,30 @@ describe('Extraction Model Choice contracts', () => {
     expect(extractionModelListingSchema.safeParse({ defaults: { fields: 'nuextract' }, models: [] }).success).toBe(false)
   })
 })
+
+describe('Method used contracts', () => {
+  const effectiveMethod = { options: { strategy: 'article', article: { context: 'full', grounding: 'quoted' } }, versions: { prompt: 12, method: 1 } }
+  const eligibility = { allRecordLeaves: 3, eligibleRecordLeaves: 0, eligibleGrounding: 'not_applicable',
+    skipped: [{ resultPath: ['records', 0, 'year'], policy: 'unverified' }] }
+  const support = [{ resultPath: ['records', 0, 'title'], segment: 'p1_s0', cell: 'r0_c1', quote: 'Alpha', attribution: 'model_attested' }]
+
+  it('carries the admitted settings, or null for a run that predates them', () => {
+    expect(extractionAttemptSchema.parse({ ...completed, requestedSettings: { article: null } }).requestedSettings).toEqual({ article: null })
+    expect(extractionAttemptSchema.parse({ ...completed, requestedSettings: null }).requestedSettings).toBeNull()
+    expect(extractionAttemptSchema.safeParse({ ...completed, requestedSettings: { article: null, generic: null } }).success).toBe(false)
+  })
+
+  it('carries the effective method, schema-policy accounting and support proofs, or null, and nothing unknown', () => {
+    const diagnostics = { ...completed.diagnostics, effectiveMethod, eligibility, support }
+    expect(extractionAttemptSchema.parse({ ...completed, diagnostics }).diagnostics).toEqual(diagnostics)
+    const none = { ...completed.diagnostics, effectiveMethod: null, eligibility: null, support: null }
+    expect(extractionAttemptSchema.parse({ ...completed, diagnostics: none }).diagnostics).toEqual(none)
+    for (const wrong of [
+      { effectiveMethod: { ...effectiveMethod, versions: { prompt: 'v12' } } },
+      { eligibility: { ...eligibility, eligibleGrounding: 'fully_grounded' } },
+      { eligibility: { ...eligibility, skipped: [{ resultPath: ['records', 0, 'year'], policy: 'quoted' }] } },
+      { support: [{ ...support[0], start: -1 }] },
+      { support: [{ ...support[0], evidenceAnchorId: 'a_p1_s0' }] },
+    ]) expect(extractionAttemptSchema.safeParse({ ...completed, diagnostics: { ...completed.diagnostics, ...wrong } }).success).toBe(false)
+  })
+})

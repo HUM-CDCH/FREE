@@ -102,6 +102,9 @@ function transportDiagnostics(
       : null,
     ...(diagnostics.grounded ? { grounded: diagnostics.grounded } : {}),
     ...(diagnostics.models ? { models: diagnostics.models } : {}),
+    ...(diagnostics.effectiveMethod ? { effectiveMethod: diagnostics.effectiveMethod } : {}),
+    ...(diagnostics.eligibility ? { eligibility: diagnostics.eligibility } : {}),
+    ...(diagnostics.support ? { support: diagnostics.support } : {}),
   }
 }
 
@@ -115,6 +118,7 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
     strategy: extraction.strategy,
     catalogRecipe: extraction.catalogRecipe,
     requestedModels: extraction.requestedModels ?? null,
+    requestedSettings: extraction.requestedSettings ?? null,
     executionStatus: extraction.executionStatus,
     outcome: extraction.outcome,
     complete: extraction.complete,

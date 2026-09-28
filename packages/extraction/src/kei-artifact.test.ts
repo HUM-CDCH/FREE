@@ -100,7 +100,8 @@ describe('kei artifact acceptance', () => {
     assert.equal(result.failure, null)
     assert.equal(result.batchExtractionId, null)
     assert.deepEqual(result.modelAttribution, { provider: 'kei-exp', modelId: 'selected-model' })
-    assert.deepEqual(result.diagnostics, { phase: 'persisting', durationMs: 1250, modelCalls: 3, inputTokens: 20, outputTokens: 10, finishReason: null, ungroundedPaths: [], groundingIssues: issues, groundingBatches: [], unverifiedFields: [], catalog: null, models: { fields: 'selected-model', reasoning: 'selected-model' } })
+    assert.deepEqual(result.diagnostics, { phase: 'persisting', durationMs: 1250, modelCalls: 3, inputTokens: 20, outputTokens: 10, finishReason: null, ungroundedPaths: [], groundingIssues: issues, groundingBatches: [], unverifiedFields: [], catalog: null, models: { fields: 'selected-model', reasoning: 'selected-model' },
+      effectiveMethod: { options: artifact().options, versions: { prompt: 1 } }, eligibility: null, support: null })
   })
 
   it('maps the version 2 artifact of a Catalog recipe without dropping what review needs', () => {
@@ -266,5 +267,66 @@ describe('kei artifact acceptance', () => {
     refused(() => accept({ ...generic, evidence: [keiExpEvidence({ cell: 'r1_c0', precision: 'cell', page: 2 })] }, { document: table }))
     // A representation with no tables has no cell to name.
     refused(() => accept(generic))
+  })
+})
+
+describe('what the Parsing Service reports it ran', () => {
+  const article = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+    prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
+  const options = { strategy: 'article', model: 'selected-model', discovery_chars: 48_000, record_chars: 24_000, article }
+
+  it('keeps the recorded options and every protocol version the artifact reports', () => {
+    const raw = { ...artifact({ options, prompt_version: 12 }), method_version: 1, span_grounding_version: 2 }
+    const { extraction } = accept(raw, { settings: { article } })
+    assert.deepEqual(extraction.diagnostics.effectiveMethod, { options, versions: { prompt: 12, method: 1, spanGrounding: 2 } })
+  })
+
+  it('keeps policy-skipped values, their reasons and the separate denominators; nothing eligible is not applicable', () => {
+    const skipped = [{ path: ['records', 0, 'title'], policy: 'derived' }, { path: ['records', 0, 'year'], policy: 'unverified' }]
+    const raw = { ...artifact({ options, evidence: [], ungrounded: [['records', 0, 'title'], ['records', 0, 'year']] }),
+      method_version: 1, grounding_eligibility: { all_record_leaves: 2, eligible_record_leaves: 0, skipped },
+      completion: { processing: true, grounding: 'partial', eligible_grounding: 'not_applicable' } }
+    const { extraction } = accept(raw, { settings: { article } })
+    assert.deepEqual(extraction.diagnostics.eligibility, {
+      allRecordLeaves: 2, eligibleRecordLeaves: 0, eligibleGrounding: 'not_applicable',
+      skipped: [{ resultPath: ['records', 0, 'title'], policy: 'derived' }, { resultPath: ['records', 0, 'year'], policy: 'unverified' }],
+    })
+    assert.deepEqual(extraction.evidence, [])
+    assert.deepEqual(extraction.diagnostics.ungroundedPaths, [['records', 0, 'title'], ['records', 0, 'year']])
+    assert.equal(extraction.complete, false)
+  })
+
+  it('keeps exact code-point ranges and never upgrades coarse geometry', () => {
+    const proof = { path: ['records', 0, 'title'], segment: 'p1_s0', cell: null, span: 'p1_s0@3:9', start: 3, end: 9,
+      quote: 'Ålpha 🜁', attribution: 'model_attested' }
+    const raw = { ...artifact({ options, evidence: [keiExpEvidence({ precision: 'segment' })] }), method_version: 1, span_grounding_version: 2,
+      quoted_support: [proof] }
+    const { extraction } = accept(raw, { settings: { article } })
+    assert.deepEqual(extraction.diagnostics.support, [{ resultPath: proof.path, segment: 'p1_s0', cell: null, span: 'p1_s0@3:9',
+      start: 3, end: 9, quote: 'Ålpha 🜁', attribution: 'model_attested' }])
+    assert.equal(extraction.evidence?.[0]?.precision, 'segment')
+  })
+
+  it('a proof without an accepted link creates no Evidence; refusals and NONE stay visible as issues', () => {
+    const refusals = [
+      { code: 'unknown_label', detail: 'year was linked to "E9", which was not offered', record: 0, path: ['records', 0, 'year'] },
+      { code: 'grounding_exceeds_budget', detail: 'one unit does not fit', record: 0, path: ['records', 0, 'title'] },
+    ]
+    const raw = { ...artifact({ options, evidence: [], issues: refusals, ungrounded: [['records', 0, 'title'], ['records', 0, 'year']] }),
+      method_version: 1, quoted_support: [{ path: ['records', 0, 'year'], segment: 'p1_s1', cell: null, quote: '1827', attribution: 'model_attested' }] }
+    const { extraction } = accept(raw, { settings: { article } })
+    assert.deepEqual(extraction.evidence, [])
+    assert.deepEqual(extraction.diagnostics.groundingIssues.map((issue) => issue.code), ['unknown_label', 'grounding_exceeds_budget'])
+  })
+
+  it('a reference run reports no Article method; a recipe run with verification off keeps typed proposals, not links', () => {
+    assert.deepEqual(accept(artifact({ prompt_version: 12 })).extraction.diagnostics.effectiveMethod?.versions, { prompt: 12 })
+    const proposed = [{ path: ['records', 0, 'title'], value: 'Alpha', quote: 'Alpha', key: null, provenance: 'token', spans: [], alternatives: [], window: 0, reason: 'verification_disabled' }]
+    const grounded = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema,
+      proposed, evidence: [], completeness: { processing: true, coverage: true, grounding: false, recall: 'unmeasured' } })
+    const { extraction } = accept(grounded, { strategy: 'CATALOG', recipe: `${grounded.segmentation.recipe.id}@${grounded.segmentation.recipe.version}` })
+    assert.deepEqual(extraction.diagnostics.grounded?.proposed, proposed)
+    assert.equal(extraction.diagnostics.grounded?.completeness.grounding, false)
+    assert.deepEqual(extraction.evidence, [])
   })
 })

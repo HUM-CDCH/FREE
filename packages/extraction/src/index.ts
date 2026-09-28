@@ -28,6 +28,7 @@ export type {
   CancellationResult,
   EvidenceLink,
   DocumentExtractionsSnapshot,
+  EffectiveMethod,
   ExtractionDiagnostics,
   ExtractionAttemptSnapshot,
   ExtractionDisposition,
@@ -43,6 +44,7 @@ export type {
   ExtractionSnapshot,
   ExtractionStrategy,
   FreshExtractionInput,
+  GroundingEligibility,
   ListBatchesInput,
   ModelAttribution,
   ModelGenerationMetadata,
@@ -60,4 +62,5 @@ export type {
   ScheduleBatchResult,
   ScalarFieldType,
   ScheduleSuggestedBatchInput,
+  SupportProof,
 } from './types.js'

@@ -65,6 +65,25 @@ const artifactSchema = z.object({
   calls: z.array(callSchema),
   // Null when no call reported usage (kei-exp's `_total()`).
   tokens: z.object({ input: z.number().int().nullable(), output: z.number().int().nullable() }),
+  // An explicit Article method records its method and protocol versions and its evidence accounting; the reference
+  // artifact (no `options.article`) carries none of them.
+  method_version: z.number().int().optional(),
+  span_grounding_version: z.number().int().optional(),
+  grounding_routing_version: z.number().int().optional(),
+  rendering_version: z.number().int().optional(),
+  grouping_version: z.number().int().optional(),
+  selection_version: z.number().int().optional(),
+  completion: z.object({ eligible_grounding: z.enum(['complete', 'partial', 'not_applicable']).optional() }).optional(),
+  grounding_eligibility: z.object({
+    all_record_leaves: z.number().int().nonnegative(),
+    eligible_record_leaves: z.number().int().nonnegative(),
+    skipped: z.array(z.object({ path, policy: z.enum(['derived', 'unverified']) })),
+  }).optional(),
+  // The quote or offered source span each accepted link was verified with; code-point offsets into its segment.
+  quoted_support: z.array(z.object({
+    path, segment: z.string(), cell: z.string().nullable(), quote: z.string(), attribution: z.string(),
+    span: z.string().optional(), start: z.number().int().nonnegative().optional(), end: z.number().int().nonnegative().optional(),
+  })).optional(),
 })
 const span = z.object({ segment: z.string().regex(/^p\d+_s\d+$/), start: z.number().int().nonnegative(), end: z.number().int().positive() })
 /** Version 2 evidence (`kie/extract/grounded.py` `_link`): the version 1 link plus the raw code-point spans of the value,
@@ -242,6 +261,25 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
       // Document-level fields: extracted into every record, grounded in none of them.
       groundingBatches: [], unverifiedFields: artifact.unverified, catalog: null,
       models: { fields: artifact.models.fields, reasoning: artifact.models.reasoning },
+      effectiveMethod: {
+        options: artifact.options,
+        versions: Object.fromEntries(([
+          ['prompt', artifact.prompt_version], ['method', artifact.method_version], ['spanGrounding', artifact.span_grounding_version],
+          ['groundingRouting', artifact.grounding_routing_version], ['rendering', artifact.rendering_version],
+          ['grouping', artifact.grouping_version], ['selection', artifact.selection_version],
+        ] satisfies [string, number | undefined][]).filter((entry): entry is [string, number] => entry[1] !== undefined)),
+      },
+      eligibility: artifact.grounding_eligibility
+        ? {
+            allRecordLeaves: artifact.grounding_eligibility.all_record_leaves,
+            eligibleRecordLeaves: artifact.grounding_eligibility.eligible_record_leaves,
+            skipped: artifact.grounding_eligibility.skipped.map(({ path: resultPath, policy }) => ({ resultPath, policy })),
+            eligibleGrounding: artifact.completion?.eligible_grounding
+              ?? (artifact.grounding_eligibility.eligible_record_leaves === 0 ? 'not_applicable' : 'partial'),
+          }
+        : null,
+      // Kept beside the Evidence, never turned into it: links come from `evidence` alone.
+      support: artifact.quoted_support?.map(({ path: resultPath, ...proof }) => ({ resultPath, ...proof })) ?? null,
       ...(grounded
         ? {
             grounded: {
