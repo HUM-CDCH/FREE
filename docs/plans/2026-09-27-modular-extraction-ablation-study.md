@@ -1,6 +1,30 @@
 # Modular extraction and controlled ablation study — 2026-09-27
 
 Status: active; implementation merged, controlled study unfinished. This is the durable execution plan.
+
+Merged-grounding acceptance, 2026-09-28: merge `2ce78e4c` reproduces nine
+selected real-capture cases and all 52 requests with network blocked; see the
+[regression report](../validation/2026-09-28-merged-grounding-replay.md).
+This checks the refactored dispatch/grounding assembly, not independent accuracy.
+`artifacts/extraction-ablation/development-exposure-20260928.json` records all 16
+known study PDFs as development-exposed, including the unannotated examples.
+
+Completed-cell acceptance, 2026-09-28 09:16 UTC: all 79 R1 cells, 12 R3 cells and
+four completed R4 controls exactly replay with HTTP disabled. Corrected reports
+and 9,603 pinned-file checks are preserved in
+`artifacts/extraction-ablation/completed-development-20260928/`; see the
+[consolidated development report](../validation/2026-09-28-completed-development-study.md).
+R2a's existing 30-cell acceptance is rechecked. No generation resumed. R4 has
+zero completed treatment pairs; eight R4 and 84 R5 cells remain deferred.
+
+Evaluation decision, 2026-09-28: repeated inspection makes the existing corpus
+development data. The completed [Harvey diagnostic](../validation/2026-09-28-harvey-grounding-micro.md)
+and [Opus repeat audit](../validation/2026-09-28-grounding-pilot-audit.md) do not
+change that status. Finish reporting the agreed development scope; the full
+matrix remains deferred. Freeze a candidate and baseline before a separate
+document-family holdout evaluation. The acceptance gates below are explicit;
+no independent accuracy improvement has been established.
+
 Pilot checkpoint, 2026-09-28 07:55 UTC: all six prioritized grounding cells and
 their offline reports are complete. The [results](../validation/2026-09-28-grounding-pilot.md)
 retain the one-document boundary, changed links and 84 pending cells. R4 and
@@ -27,9 +51,9 @@ Implementation merged through PRs [#142](https://github.com/HUM-CDCH/FREE/pull/1
 For a future agent session, use the [reproduction prompt](2026-09-27-extraction-ablation-reproduction-prompt.md).
 It distinguishes resuming a frozen study from registering a fresh revision.
 
-The subsequent grounding-cost work is a separate registered **R5** study, tracked
-in [PR #145](https://github.com/HUM-CDCH/FREE/pull/145) and its
-[span-grounding plan](https://github.com/HUM-CDCH/FREE/blob/feat/extraction-span-grounding/docs/plans/2026-09-28-span-grounding.md).
+The subsequent grounding-cost work is a separate registered **R5** study, merged
+via [PR #145](https://github.com/HUM-CDCH/FREE/pull/145); see its
+[span-grounding plan](2026-09-28-span-grounding.md).
 Its implementation checkout is `/home/gennaro/projects/FREE-worktrees/extraction-span-grounding`.
 It freezes the same upstream records before comparing span selection, unresolved
 scheduling, schema evidence policy and origin/lexical routing. R5 does not replace
@@ -194,6 +218,48 @@ boundary when code evidence warrants it and record the decision in the OpenSpec 
 - Produce a reproducible report under `docs/validation/` with effect tables, exact commands,
   limitations, effective architecture and outstanding gates. Choose a production default only
   from stated acceptance evidence; do not auto-deploy the winning development arm.
+
+### M7 — Independent evaluation after policy freeze
+
+This is a separate, currently unmet generalization gate. No independently annotated,
+untouched set has been supplied. The six-paper gold, inspected examples, Zelechowska
+reviews and selected Harvey cases remain development evidence. A model reviewer
+being separate from the implementation agent does not make its labels human gold
+or make familiar documents unseen.
+
+- Distinguish contract repairs (preserved table cells, valid evidence references,
+  explicit overflow, accurate page provenance) from empirical choices (coverage
+  thresholds, crop sizes, grouping, prompts, selection and fallback policies).
+  Test repairs against their contracts; evaluate empirical choices on development
+  data and freeze them before inspecting holdout results. Contract correctness
+  alone does not establish improved extraction accuracy.
+- Freeze baseline and candidate commits, dependencies, OCR/model versions, schema,
+  prompts, thresholds, grouping, routing, token budgets and decoding. Record any
+  unavailable model digest. Freeze the scorer, matching rules and acceptance
+  criteria too; do not choose them after observing the comparison.
+- Register an exposure ledger and an untouched evaluation set grouped by document
+  family/template, including near-duplicates and related editions in the same
+  partition. Never split random pages from one document across development and
+  evaluation. Being unannotated is not evidence of being unexposed.
+- Annotate from source before examining either pipeline's outputs, with written
+  entity/field/completeness and evidence-support rules. Use human review and
+  adjudication for ambiguous subjects, preparation arms and compound claims;
+  blind annotators to the competing method where practical. Retain disagreements.
+- Predeclare the number of documents/families, primary comparisons, precision
+  target or minimum meaningful effect, and cost budget before execution. Report
+  paired document results and uncertainty at document/family level; many fields
+  and repeated requests do not create additional independent documents.
+- Run both frozen pipelines on the same PDFs. Report completeness, value accuracy,
+  semantic grounding, technical/source validity, document failure rate and cost
+  separately. Keep every admitted document, timeout, refusal, missing output and
+  extra prediction in accounting. Partial annotation cannot estimate exhaustive
+  recall; mark unscored output rather than treating it as correct.
+- Inspect the holdout once for the registered decision. Any subsequent tuning on
+  its failures turns that set into development data; preserve its prior results
+  and obtain another untouched family split for the next generalization claim.
+
+Do not start another large experiment or silently relabel existing examples as
+holdout to satisfy this gate. The user's small-pilot priority still controls scope.
 
 ## Verification and completion
 

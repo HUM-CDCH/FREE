@@ -2,7 +2,7 @@
 
 Status: six user-prioritized Zelechowska R5 cells completed with exact offline
 replay; the remaining 84 cells and original collection are deferred. The
-[pilot report](https://github.com/HUM-CDCH/FREE/blob/docs/extraction-ablation-report/docs/validation/2026-09-28-grounding-pilot.md)
+[pilot report](../validation/2026-09-28-grounding-pilot.md)
 records costs, changed links and semantic limits. The full preflight's coverage
 refusals remain unresolved; this small pilot does not complete the study.
 Branch/worktree: `feat/extraction-span-grounding` in

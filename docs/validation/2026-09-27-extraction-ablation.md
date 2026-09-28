@@ -2,6 +2,15 @@
 
 Status: **implementation merged; R1 and R3 execution complete; six-cell grounding pilot complete; full matrix deferred**.
 
+Current acceptance, 2026-09-28 09:16 UTC: the
+[completed-development report](2026-09-28-completed-development-study.md) now
+verifies all 95 completed R1/R3/R4 cells by exact offline replay from 3,552 saved
+replies. R1 is 79/79, R3 is 12/12 and R4 is 4/12; R4 has only controls and no
+paired treatment estimate. Corrected analysis, cost/failure accounting, extra-output
+queues and full tables are regenerated in a separate directory. R2a's existing
+30-cell acceptance/report pins also match. The historical pending-replay statements
+below are superseded for completed cells, while the full matrix remains deferred.
+
 The [pilot report](2026-09-28-grounding-pilot.md) records all six completed and
 exactly replayed outcomes. Span IDs plus policy and unresolved scheduling used
 10 calls versus 40 and 89,770 input tokens versus 222,156, with 35 linked paths
@@ -13,7 +22,7 @@ At 2026-09-28 07:12 UTC the user chose faster pilot feedback. The
 [pilot plan](../plans/2026-09-28-grounding-pilot.md) supersedes the earlier execution
 order: current R4 workers finish normally, further R4 admission is held, and
 six registered Zelechowska R5 cells take their slots. Full R5 is deferred.
-Final replay and scientific reporting remain unfinished. Historical checkpoints
+Full-study execution and final scientific reporting remain unfinished. Historical checkpoints
 below do not authorize restarting the old full-matrix scheduler.
 
 The [execution plan](../plans/2026-09-27-modular-extraction-ablation-study.md) and
@@ -21,7 +30,7 @@ The [execution plan](../plans/2026-09-27-modular-extraction-ablation-study.md) a
 describe the implementation. This record must be completed from terminal study artifacts;
 the old reference accuracy below is a scorer regression check, not a new study result.
 
-## Current execution recovery
+## Historical execution recovery
 
 Latest checkpoint, 2026-09-28 08:33 CEST (06:33 UTC): R1 has all **79/79 sealed
 results**. Its recovery parent exited normally, and full frozen-input validation
@@ -228,6 +237,9 @@ latency, or deployment validation. No deployment was performed.
 
 ## R1 complete execution: preliminary effects awaiting final replay
 
+Superseded by the [completed-development report](2026-09-28-completed-development-study.md),
+which records the final exact replay; this section is kept as history.
+
 The corrected analyzer covers all 79 sealed R1 cells, including the eight
 partial-processing outcomes. This is a **descriptive preview**, not final replay
 acceptance. Its network-disabled reporting outputs and result pins are preserved
@@ -356,6 +368,9 @@ Completion of this conditional selection comparison does not complete R1,
 R3/R4 or the full study.
 
 ## R3 complete execution: preliminary rendering effects
+
+Superseded by the [completed-development report](2026-09-28-completed-development-study.md),
+which records the final exact replay; this section is kept as history.
 
 All twelve R3 results are sealed. The corrected analyzer and table renderer run
 offline against those results; their outputs and pins are preserved under

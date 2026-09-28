@@ -1,6 +1,9 @@
 # Harvey grounding micro-pilot — 2026-09-28
 
-Status: selected cases and code pinned; preflight complete; generation pending.
+Status: complete; 12 cells sealed and exactly replayed offline, including four
+cells with explicit budget refusals. Generation took 103.53 seconds and 12 calls.
+See the [report](../validation/2026-09-28-harvey-grounding-micro.md). The registered
+pre-generation protocol remains unchanged in the artifact directory.
 This is a bounded follow-up to the user's small-pilot preference. The full R4/R5
 matrix remains deferred. No existing cell is rerun or overwritten.
 
@@ -66,6 +69,12 @@ An admitted request can run for at most the configured 120-second client timeout
 beyond the admission deadline. Preserve timeouts/missing replies as failures and
 do not retry a cell automatically. Existing adapter fallback for unsupported
 structured output, if triggered, consumes the same HTTP-call cap and is reported.
+
+Clarification, 2026-09-28 (after generation; the registered protocol above is
+unchanged): the 120-second value is a client timeout, not a hard backend
+termination deadline. The "concurrent architecture integration" above is
+#145/#146, since merged as `2ce78e4c`; see the
+[merged replay](../validation/2026-09-28-merged-grounding-replay.md).
 
 ## Artifacts and acceptance
 

@@ -44,6 +44,14 @@
 - [ ] 6.2 Execute every registered Article and Catalog study cell with fresh captures or explicitly labelled reuse; verify all terminal statuses and pins.
 - [ ] 6.3 Produce per-document effects, cost/refusal tables, extra-prediction review queue and scope limitations; distinguish invalid JSON, truncation and unsupported evidence; verify results regenerate from captures.
 
+Checkpoint 2026-09-28: all 95 completed R1/R3/R4 cells exactly replay offline;
+R1 and R3 have complete corrected reports, R4 has four controls and no treatment
+pairs. The existing complete R2a acceptance is rechecked. See
+`docs/validation/2026-09-28-completed-development-study.md`. Tasks 6.2/6.3 remain
+open for the deferred cells and full-study report; the completed subset is not
+a replacement for those obligations. Independent family-holdout acceptance is
+specified in M7 of the durable plan and remains unmet.
+
 ## 7. Integration and delivery
 
 - [x] 7.1 Run required unit/adapter/type checks and conditional lifecycle checks; record tested boundaries and audit bloat.
