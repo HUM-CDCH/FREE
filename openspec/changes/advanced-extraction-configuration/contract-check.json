@@ -1,0 +1,108 @@
+{
+  "scope": "Existing ArticleOptions only; no new product code, model calls, HTTP or database access",
+  "baseline": "4e2a5820",
+  "method_sha256": "0e399e4f1c668218bc76fdb4af975722510a13b27460acab7ea0a11d611fe604",
+  "fixture_sha256": "348b86aecd7f86ca09c84263f66b6dd690ff49d0adb7f655698b1b0143ce002a",
+  "cases": [
+    {
+      "id": "reference",
+      "accepted": true,
+      "matches": true
+    },
+    {
+      "id": "full-quoted-policy",
+      "accepted": true,
+      "matches": true
+    },
+    {
+      "id": "bounded-combined",
+      "accepted": true,
+      "matches": true
+    },
+    {
+      "id": "all-optional-factors",
+      "accepted": true,
+      "matches": true
+    },
+    {
+      "id": "reference-with-fields",
+      "accepted": true,
+      "matches": true
+    },
+    {
+      "id": "semantic-unresolved",
+      "accepted": true,
+      "matches": true
+    },
+    {
+      "id": "off",
+      "accepted": true,
+      "matches": true
+    },
+    {
+      "id": "full-overlap",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "full-selection",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "full-structural",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "semantic-schema-policy",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "off-schedule",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "routing-without-schedule",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "routing-semantic",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "conservative-no-fields",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "duplicate-fields",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "too-small-context",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "too-much-overlap",
+      "accepted": false,
+      "matches": true
+    },
+    {
+      "id": "invented-span-version-option",
+      "accepted": false,
+      "matches": true
+    }
+  ],
+  "categorical_inventory": {
+    "accepted": 1560,
+    "rejected": 4584
+  },
+  "inventory_limits": "context_tokens fixed at 12288; one valid key set; excludes schema/model/runtime-fit validation"
+}
