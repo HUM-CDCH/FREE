@@ -27,7 +27,7 @@ TRANSIENT_STATUS = (429, 502, 503, 504)
 
 CODES = ("invalid_request", "source_missing", "source_mismatch", "source_unreadable", "too_many_pages",
          "model_unavailable", "conversion_failed", "conversion_incomplete", "no_result", "stale_generation",
-         "extraction_failed", "cancelled")
+         "extraction_failed", "cancelled", "budget_refused")
 REASON_CHARS = 2000
 
 

@@ -7,10 +7,11 @@ schema is another one, with no OCR rerun either way), the records, their evidenc
 result, what stayed ungrounded, the issues, and every model call's cost.
 
 Every implementation has one call shape: the run directory, the evidence read from it, the validated request and a
-router, keyword-only `counter`, `chunks` and `before_entry`, returning the finished artifact. The recipe Catalog's
-is `grounded.extract`, Article's `article.extract` and the version 1 Catalog's `catalog.extract`; the last two
-assemble their version 1 artifact in `assembly.py`. `extract` chooses one from the options and does not know what it
-does; no implementation imports this module.
+router, keyword-only `counter`, `chunks` and `before_entry`, returning the finished artifact. The unified Catalog's
+is `unified.extract` (version 3, `options.unified`), which also takes the extraction ID its records are published
+under; the legacy recipe Catalog's is `grounded.extract`, Article's `article.extract` and the legacy version 1
+Catalog's `catalog.extract`; the last two assemble their version 1 artifact in `assembly.py`. `extract` chooses one
+from the options and does not know what it does; no implementation imports this module.
 """
 from __future__ import annotations
 
@@ -24,13 +25,14 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from kei_exp.files import publish
-from kei_exp.kie.extract import article, catalog, grounded
+from kei_exp.kie.extract import article, catalog, grounded, unified
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router, as_router, chats_for
 from kei_exp.kie.extract.schema import Schema
+from kei_exp.kie.extract.unified import ITEM, UnifiedOptions
 from kei_exp.kie.passages import load
 from kei_exp.kie.recipe import load_recipe
 
@@ -43,10 +45,21 @@ class Options(BaseModel):
     record_chars: int = Field(default=24_000, ge=1_000)     # generic Catalog text/grounding cap; Article uses tokens
     catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
     article: ArticleOptions | None = None
+    unified: UnifiedOptions | None = None  # the unified Catalog method: result version 3
 
     @model_validator(mode="after")
     def _models_are_served(self) -> Options:
         extraction_models.check(self.models or {})  # an unservable route is refused before any model call
+        return self
+
+    @model_validator(mode="after")
+    def _unified_stands_alone(self) -> Options:
+        """The unified method never reads the legacy character limits or a recipe: sent with it, they are refused
+        rather than silently ignored."""
+        if self.unified is not None and (self.strategy != "catalog" or self.catalog is not None
+                                         or {"discovery_chars", "record_chars"} & self.model_fields_set):
+            raise ValueError("options.unified applies to the catalog strategy only and takes no recipe "
+                             "(options.catalog) and no character limits (discovery_chars, record_chars)")
         return self
 
     @model_validator(mode="after")
@@ -61,9 +74,13 @@ class Options(BaseModel):
 
     def dumped(self) -> dict:
         """The options as the artifact and the fingerprint record them; no `catalog` key on the version 1 path."""
-        result = self.model_dump(exclude={name for name in ("catalog", "article") if getattr(self, name) is None})
+        result = self.model_dump(exclude={name for name in ("catalog", "article", "unified")
+                                          if getattr(self, name) is None})
         if self.catalog is not None and self.catalog.factors is None:
             result["catalog"].pop("factors")
+        if self.unified is not None:  # it has no character limits to record
+            del result["discovery_chars"], result["record_chars"]
+            result["unified"] = self.unified.dumped()
         return result
 
 
@@ -72,6 +89,14 @@ class ExtractRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     schema_: Schema = Field(alias="schema")
     options: Options = Field(default_factory=Options)
+
+    @model_validator(mode="after")
+    def _item_name_is_free(self):
+        if self.options.unified is not None:
+            lists = [node for top in self.schema_.nodes for node in _nodes(top) if node.type == "array"]
+            if any(child.name == ITEM for node in lists for child in node.children or []):
+                raise ValueError(f"the unified Catalog reserves the list field name {ITEM!r}")
+        return self
 
     @model_validator(mode="after")
     def _identity_fields_exist(self):
@@ -84,6 +109,12 @@ class ExtractRequest(BaseModel):
         return self
 
 
+def _nodes(node):
+    yield node
+    for child in node.children or []:
+        yield from _nodes(child)
+
+
 class StaleGeneration(ValueError):
     """The run's result is no longer the parse generation this extraction was admitted against.
 
@@ -94,7 +125,8 @@ class StaleGeneration(ValueError):
 
 
 def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, generation: str | None = None,
-            counter=None, chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+            counter=None, chunks: int = 1, before_entry: Callable[[], None] | None = None,
+            extraction_id: str | None = None) -> dict:
     """The artifact for `request` over the run's canonical result, from the implementation its options choose.
 
     `generation` is the parse the caller admitted this extraction against, when it had one: the result on disk
@@ -103,7 +135,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     none: it extracts from whatever the directory holds at the moment it is run.
 
     `counter`, `chunks` and `before_entry` go to the implementation unchanged. `before_entry` is a hook whose error
-    ends the extraction (the worker's cooperative cancellation); each implementation says where it calls it.
+    ends the extraction (the worker's cooperative cancellation); each implementation says where it calls it. The
+    unified Catalog also receives `extraction_id`, the name its execution and discovery records are published under.
     """
     evidence = load(run_dir)
     if generation is not None and evidence.generation != generation:
@@ -112,6 +145,9 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
             f"admitted against: it was re-converted in between, so submit this extraction again against the "
             f"generation that is there now")
     chat = as_router(chat)
+    if request.options.unified is not None:
+        return unified.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
+                               before_entry=before_entry, extraction_id=extraction_id)
     if request.options.catalog is not None:
         implementation = grounded.extract
     elif request.options.strategy == "article":

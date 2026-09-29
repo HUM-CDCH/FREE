@@ -3,8 +3,10 @@ complete, the parse still the admitted generation, the models and recipe known; 
 artifact, published by rename to extractions/<extraction id>/result.json (rewritten whole by a re-execution).
 Cancellation is checked before any model call and then between records on every path: a recipe's Catalog before
 each entry (its entries in KEI_CATALOG_CHUNKS chunks), the version 1 Catalog before each discovery call and before each
-record's extraction and verification, Article before inventory, each record and each grounding batch. A model call
-that is already running finishes first."""
+record's extraction and verification, Article before inventory, each record and each grounding batch, and the
+unified Catalog before each of its calls. A model call that is already running finishes first. The unified Catalog
+publishes its execution and discovery records write-once beside the result and reuses them when this step runs again;
+budgets it can no longer honor are refused as `budget_refused`."""
 from __future__ import annotations
 
 import os
@@ -18,6 +20,7 @@ from kei_exp.canonical import sha256_file
 from kei_exp.failures import STEP_RETRY, KeiFailure
 from kei_exp.kie.extract.models import chats_for
 from kei_exp.kie.extract.run import ExtractRequest, StaleGeneration, extract, publish_extraction
+from kei_exp.kie.extract.unified import BudgetRefused, RecordConflict
 from kei_exp.pagefile import ResultError, read_manifest
 from kei_exp.workflows import config
 from kei_exp.workflows.cancel import CancelCheck
@@ -64,9 +67,13 @@ def extract_run(workflow_id: str, run_id: str, generation: str, body: dict) -> d
     check(force=True)
     try:
         result = extract(directory, request, chats_for(request.options), generation=generation,
-                         chunks=CATALOG_CHUNKS, before_entry=check)
+                         chunks=CATALOG_CHUNKS, before_entry=check, extraction_id=extraction_id)
     except StaleGeneration as error:
         raise KeiFailure("stale_generation", str(error)) from error
+    except BudgetRefused as error:
+        raise KeiFailure("budget_refused", str(error)) from error
+    except RecordConflict as error:
+        raise KeiFailure("extraction_failed", str(error)) from error
     # Observe cancellation during the final model call before publishing or refreshing the run's GC age.
     check(force=True)
     path = publish_extraction(directory, extraction_id, result)
