@@ -61,7 +61,7 @@ export type SchemaSample = {
   currentRevisionNumber: number | null
   pagesLabel: string
   review: Pick<ExtractionController['review'],
-    'decisions' | 'isTouched' | 'setDecision' | 'undo' | 'draftError' | 'draftSaving' | 'retryDraft'>
+    'decisions' | 'isTouched' | 'setDecision' | 'undo' | 'draftError' | 'draftSaving' | 'retryDraft' | 'error' | 'reload'>
   parsedDocument: ParsedDocument | null
   /** The value a page passage was picked for (`resultPathKey`). */
   focusedPathKey: string | null
@@ -1339,7 +1339,7 @@ function SchemaPanel({
 
         {/* ponytail: scalar root fields only; object and array fields list no values and scalar arrays offer no review
             (their decisions sit on item paths): add per-item rows when a schema needs them. */}
-        {sample && !isDiff && <SampleValues node={node} sample={sample} />}
+        {sample && !isDiff && <SampleValues key={sample.attempt.extractionId} node={node} sample={sample} />}
 
         {/* Nested children area — shown when there are children or dragging (for drop slot) */}
         {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (
@@ -1777,6 +1777,12 @@ function SchemaPanel({
               </div>
             )}
             <div className="flex flex-col">
+              {sample?.review.error && (
+                <p role="alert" className="mb-1 flex items-center gap-2 text-[11.5px] text-danger">
+                  <span className="min-w-0 flex-1">Sample review could not be loaded: {sample.review.error}</span>
+                  <Button onClick={sample.review.reload}>Retry</Button>
+                </p>
+              )}
               {sample?.review.draftError && (
                 <p role="alert" className="mb-1 flex items-center gap-2 text-[11.5px] text-danger">
                   <span className="min-w-0 flex-1">Sample review not saved: {sample.review.draftError}</span>

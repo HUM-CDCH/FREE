@@ -84,6 +84,8 @@ type Monitor = {
   /** A read failed; polling resumes only through `reconnect()`. */
   paused: boolean
   controller: AbortController
+  /** The request this monitor posted, when the server has not acknowledged it (JSON). */
+  unacknowledged?: string
 }
 
 function isActive(attempt: ExtractionAttempt | null): boolean {
@@ -186,9 +188,6 @@ export function useExtraction({
   const [cancellationError, setCancellationError] = useState<string | null>(null)
   const [monitorError, setMonitorError] = useState<string | null>(null)
   const monitorRef = useRef<Monitor | null>(null)
-  // The identity of a posted request the server has not acknowledged yet: running the same request again posts it
-  // under this identity, which admission replays if it did commit, so an uncertain run is never admitted twice.
-  const unacknowledgedRef = useRef<{ extractionId: string; request: string } | null>(null)
   const reviewLoadRef = useRef(0)
   const saveScopeRef = useRef({ saving: false })
 
@@ -243,7 +242,7 @@ export function useExtraction({
         if (!live()) return
         latest = (await readExtraction(monitor.extractionId, signal)).extraction
         if (!live()) return
-        if (unacknowledgedRef.current?.extractionId === latest.extractionId) unacknowledgedRef.current = null
+        monitor.unacknowledged = undefined
         setAttempt(latest)
         setState(extractionStateFromAttempt(latest))
       }
@@ -418,11 +417,13 @@ export function useExtraction({
     if (!schemaReady || activeAttempt || (running !== null && !running.paused) || indexing)
       return null
     stopMonitor()
-    const key = JSON.stringify(request)
-    const extractionId = unacknowledgedRef.current?.request === key ? unacknowledgedRef.current.extractionId : crypto.randomUUID()
-    unacknowledgedRef.current = { extractionId, request: key }
+    // Only while an uncertain admission of this same request is unresolved (its monitor paused before any read
+    // answered) does running it again post the same identity, which admission replays if it did commit (design §4).
+    // A refusal, an acknowledgement, a reopened document or another request always starts a new identity.
+    const unacknowledged = JSON.stringify(request)
     const monitor: Monitor = {
-      extractionId,
+      extractionId: running?.paused && running.unacknowledged === unacknowledged ? running.extractionId : crypto.randomUUID(),
+      unacknowledged,
       isRerun,
       paused: false,
       controller: new AbortController(),
@@ -465,7 +466,7 @@ export function useExtraction({
     }
     if (monitorRef.current !== monitor || monitor.controller.signal.aborted) return null
     if (seed) {
-      unacknowledgedRef.current = null
+      monitor.unacknowledged = undefined
       setAttempt(seed)
       setState(extractionStateFromAttempt(seed))
       setReviewDecisions([])
@@ -614,6 +615,8 @@ export function useExtraction({
       error: reviewError,
       draftError,
       draftSaving,
+      /** Reads the review again after it failed to load. */
+      reload: () => setReviewReload((value) => value + 1),
       retryDraft: () => {
         if (draftSaveRef.current.conflict && attempt) {
           forgetReviewDraft(attempt.extractionId)

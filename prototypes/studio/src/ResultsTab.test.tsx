@@ -56,6 +56,7 @@ function controller(
       retryDraft: () => {},
       setDecision: () => {},
       undo: () => {},
+      reload: () => {},
       approveAll: () => {},
       accept: async () => {},
       ...reviewOverrides,

@@ -68,6 +68,7 @@ function readyController(): ExtractionController {
       retryDraft: () => {},
       setDecision: () => {},
       undo: () => {},
+      reload: () => {},
       approveAll: () => {},
       accept: async () => {},
     },

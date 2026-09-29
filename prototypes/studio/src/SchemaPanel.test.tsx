@@ -1353,7 +1353,7 @@ describe('SchemaPanel sample values', () => {
       pagesLabel: 'pp. 12',
       review: { decisions: [touched ? { ...decision, action: 'EDITED', reviewedValue: 'um 1650' } : decision],
         isTouched: () => touched, setDecision: vi.fn(), undo: vi.fn(),
-        draftError: null, draftSaving: false, retryDraft: vi.fn() },
+        draftError: null, draftSaving: false, retryDraft: vi.fn(), error: null, reload: vi.fn() },
       parsedDocument, focusedPathKey: null, onSelectEvidence: vi.fn(),
       ...overrides,
     }
@@ -1385,12 +1385,16 @@ describe('SchemaPanel sample values', () => {
     }
   })
 
-  it('says when the sample review could not be saved, and retries it', () => {
+  it('says when the sample review could not be loaded or saved, and retries each', () => {
     const base = sampleOf()
-    const sample = { ...base, review: { ...base.review, draftError: 'Draft could not be saved.' } }
+    const sample = { ...base, review: { ...base.review, draftError: 'Draft could not be saved.', error: 'Review unavailable.' } }
     renderPanel({}, { sample })
-    expect(screen.getByRole('alert')).toHaveTextContent('Sample review not saved: Draft could not be saved.')
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    const [loading, saving] = screen.getAllByRole('alert')
+    expect(loading).toHaveTextContent('Sample review could not be loaded: Review unavailable.')
+    expect(saving).toHaveTextContent('Sample review not saved: Draft could not be saved.')
+    fireEvent.click(within(loading!).getByRole('button', { name: 'Retry' }))
+    expect(sample.review.reload).toHaveBeenCalled()
+    fireEvent.click(within(saving!).getByRole('button', { name: 'Retry' }))
     expect(sample.review.retryDraft).toHaveBeenCalled()
   })
 

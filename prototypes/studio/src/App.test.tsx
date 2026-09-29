@@ -1220,8 +1220,10 @@ describe('reopened Source Document workspace', () => {
           runs.push(body)
           return Promise.resolve(runs.length === 1
             ? Response.json({ error: { code: 'invalid_request', message: 'The sample was refused.' } }, { status: 422 })
-            : Response.json({ ...reopened.persistedExtraction, extractionId: body.id, schemaRevisionId: savedSchemaRevisionId,
-              requestedPages: body.pages }, { status: 201 }))
+            : runs.length === 2
+              ? new Response('Bad gateway', { status: 502 })
+              : Response.json({ ...reopened.persistedExtraction, extractionId: body.id, schemaRevisionId: savedSchemaRevisionId,
+                requestedPages: body.pages }, { status: 201 }))
         }
         return Promise.resolve(new Response('pdf'))
       }),
@@ -1245,13 +1247,18 @@ describe('reopened Source Document workspace', () => {
     expect(schemaSaves).toHaveLength(1)
     expect(runs[0]).toMatchObject({ schemaRevisionId: savedSchemaRevisionId, pages: [1, 2] })
 
-    // Refused: the revision stays saved, so running the sample again only admits.
+    // Refused: the revision stays saved, so running the sample again only admits, under a new identity.
     await waitFor(() => expect(screen.getByRole('button', { name: 'Run sample on pp. 1–2' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: 'Run sample on pp. 1–2' }))
     await waitFor(() => expect(runs).toHaveLength(2))
     expect(schemaSaves).toHaveLength(1)
-    // The same request under the same identity: admission replays it if the first did commit (design §4).
-    expect(runs[1]).toEqual({ ...runs[0], id: runs[0]!.id })
+    expect(runs[1]).toEqual({ ...runs[0], id: expect.not.stringMatching(runs[0]!.id) })
+    // Uncertain (the gateway failed, and so does reading it): the sample bar offers Reconnect, and running again
+    // posts the same identity, which admission replays if it did commit (design §4).
+    expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Run sample on pp. 1–2' }))
+    await waitFor(() => expect(runs).toHaveLength(3))
+    expect(runs[2]).toEqual(runs[1])
     // The sample is its own attempt: the whole-document result stays what Results shows.
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(await screen.findByText('Ellekilde')).toBeInTheDocument()
