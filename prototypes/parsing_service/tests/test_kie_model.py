@@ -1,31 +1,24 @@
-"""The KIE model's validation rules, pinned on hand-built values (no PDF, no GPU): geometry, source, page, segment
-and block, the assembled document and its optional namespaces, the ingest config at parse time and against a source,
-the effective config, the pipeline config, the ingest artifact with its report and envelope, the evidence report and
-the run report. Each section's refusals are one parametrized test; what each one refuses is its id."""
+"""The KIE model's validation rules, pinned on hand-built values (no PDF, no GPU): geometry, source, page, heading
+event and block, the ingest config at parse time and against a source, the effective config, and the ingest artifact
+with its report and envelope. Each section's refusals are one parametrized test; what each one refuses is its id."""
 
 import hashlib
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from kei_exp.kie.blocks import Block, HeadingEvent, Span
-from kei_exp.kie.document import Document, Segment
 from kei_exp.kie.ingest_model import IngestArtifact, IngestConfig, IngestReport, Page, Placement, Source
-from kei_exp.kie.primitives import IngestError
-from kei_exp.kie.run_model import EvidenceReport, PipelineConfig, RunReport
+from kei_exp.kie.primitives import Bbox, IngestError
 
 SPREAD_W, SPREAD_H = 1000, 700
 PAGE_PT = (500.0, 350.0)
 GUTTER = 480
+BBOX = TypeAdapter(Bbox)
 
 
 def digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
-def without(fields: dict, name: str) -> dict:
-    """The same value with one field left out: a missing field, which is not a null one."""
-    return {key: value for key, value in fields.items() if key != name}
 
 
 def placement(size_pt: tuple[float, float] = PAGE_PT, **overrides) -> dict:
@@ -99,21 +92,6 @@ def source(spreads: int = 2, size_pt: tuple[float, float] = PAGE_PT, **overrides
     return {**fields, **overrides}
 
 
-def segment(id: str, page_index: int, text: str, *, bbox: tuple = (0, 0, 100, 50), **overrides) -> dict:
-    fields = {
-        "id": id,
-        "page": page_index,
-        "bbox": bbox,
-        "text": text,
-        "conf": 0.98,
-        "label": "Text",
-        "status": "ok",
-        "crop": 1,
-        "source": {"generation": "g", "page": 1, "index": 0},
-    }
-    return {**fields, **overrides}
-
-
 def span(segment_id: str, start: int, end: int) -> dict:
     return {"segment_id": segment_id, "start": start, "end": end}
 
@@ -128,48 +106,6 @@ def block(id: str, label: str, no: int, suffix: str, primary: list[dict], **over
         "context_spans": [],
         "continuation": False,
         "heading_events": [],
-    }
-    return {**fields, **overrides}
-
-
-# `31 ...` and `31a ...` inside one OCR block: two entries, adjacent primary spans, no shared character.
-ENTRIES = "31 Grobers, Kr. Halle. 31a Wallendorf, Kr. Merseburg."
-BOUNDARY = ENTRIES.index("31a")
-# A heading and an astral character, so that offsets are code points rather than bytes or UTF-16 units.
-HEADING = "Bezirk Halle \U0001d505 Kreis Grosse"
-ASTRAL = HEADING.index("\U0001d505")
-
-
-def document(**overrides) -> dict:
-    fields = {
-        "source": source(),
-        "pages": [page(1, 1, "left"), page(2, 1, "right"), page(3, 2, "left"), page(4, 2, "right")],
-        "segments": [segment("p1_s1", 1, ENTRIES), segment("p2_s1", 2, HEADING), segment("p3_s1", 3, "")],
-        "blocks": [
-            block(
-                "b1",
-                "31",
-                31,
-                "",
-                [span("p1_s1", 0, BOUNDARY)],
-                context_spans=[span("p1_s1", 0, len(ENTRIES))],
-                heading_events=["h1"],
-            ),
-            block(
-                "b2",
-                "31a",
-                31,
-                "a",
-                [span("p1_s1", BOUNDARY, len(ENTRIES))],
-                context_spans=[span("p1_s1", 0, len(ENTRIES))],
-                heading_events=["h1", "h2"],
-            ),
-        ],
-        "heading_events": [
-            {"id": "h1", "kind": "bezirk", "level": 1, "text": "Bezirk Halle", "spans": [span("p2_s1", 0, 12)]},
-            {"id": "h2", "kind": "kreis", "level": 2, "text": "Kreis Grosse",
-             "spans": [span("p2_s1", ASTRAL + 2, len(HEADING))]},
-        ],
     }
     return {**fields, **overrides}
 
@@ -226,39 +162,11 @@ def artifact(**overrides) -> dict:
     return {**fields, **overrides}
 
 
-def evidence_report(**overrides) -> dict:
-    fields = {
-        "generation": "g",
-        "digest": "0" * 64,
-        "pages_read": 1,
-        "spreads_without_pages": [],
-        "segments": 2,
-        "rejected": [],
-        "clamped": 0,
-        "by_label": {"Text": 2},
-        "by_status": {"ok": 2},
-        "empty_text": 0,
-        "overlaps": {},
-        "seconds": 0.1,
-    }
-    return {**fields, **overrides}
-
-
-def run_report(**overrides) -> dict:
-    fields = {
-        "run_id": "2026-09-14T12-00-00",
-        "doc_id": "catalogue",
-        "seconds": 0.05,
-        "ingest": {"skipped": True, "seconds": 0.04, "report": ingest_report()},
-    }
-    return {**fields, **overrides}
-
-
 # --- Geometry: strict integers, half-open intervals, invertible placement ------------------------------------
 
 
 def test_the_smallest_bbox_is_one_pixel():
-    assert Segment.model_validate(segment("p1_s1", 1, "x", bbox=(0, 0, 1, 1))).bbox == (0, 0, 1, 1)
+    assert BBOX.validate_python((0, 0, 1, 1)) == (0, 0, 1, 1)
 
 
 def test_a_span_ends_where_its_half_open_range_stops():
@@ -270,19 +178,12 @@ def test_an_axis_aligned_placement_is_invertible():
 
 
 GEOMETRY_REJECTIONS = [
-    pytest.param(lambda: Segment.model_validate(segment("p1_s1", 1, "x", bbox=(10, 0, 10, 5))), id="an empty bbox"),
-    pytest.param(lambda: Segment.model_validate(segment("p1_s1", 1, "x", bbox=(10, 0, 5, 5))), id="a reversed bbox"),
-    pytest.param(
-        lambda: Segment.model_validate(segment("p1_s1", 1, "x", bbox=(0.0, 0, 10.0, 5))), id="a fractional bbox"
-    ),
-    pytest.param(
-        lambda: Segment.model_validate(segment("p1_s1", 1, "x", bbox=(True, 0, 10, 5))),
-        id="a boolean bbox coordinate",
-    ),
-    pytest.param(lambda: Segment.model_validate(segment("p1_s1", 1, "x", bbox=(-1, 0, 10, 5))), id="a negative bbox"),
-    pytest.param(
-        lambda: Segment.model_validate(segment("p1_s1", 1, "x", bbox=(0, 0, 10, 5, 5))), id="a five-coordinate bbox"
-    ),
+    pytest.param(lambda: BBOX.validate_python((10, 0, 10, 5)), id="an empty bbox"),
+    pytest.param(lambda: BBOX.validate_python((10, 0, 5, 5)), id="a reversed bbox"),
+    pytest.param(lambda: BBOX.validate_python((0.0, 0, 10.0, 5)), id="a fractional bbox"),
+    pytest.param(lambda: BBOX.validate_python((True, 0, 10, 5)), id="a boolean bbox coordinate"),
+    pytest.param(lambda: BBOX.validate_python((-1, 0, 10, 5)), id="a negative bbox"),
+    pytest.param(lambda: BBOX.validate_python((0, 0, 10, 5, 5)), id="a five-coordinate bbox"),
     pytest.param(lambda: Span(segment_id="p1_s1", start=3, end=3), id="an empty span"),
     pytest.param(lambda: Span(segment_id="p1_s1", start=4, end=3), id="a reversed span"),
     pytest.param(lambda: Span.model_validate(span("p1_s1", 0, 1.5)), id="a fractional span offset"),
@@ -416,36 +317,14 @@ def test_page_refuses(build):
         build()
 
 
-# --- Segment, HeadingEvent, Block -----------------------------------------------------------------------------
-
-
-def test_segment_text_is_immutable():
-    kept = Segment.model_validate(segment("p1_s1", 1, ENTRIES))
-    with pytest.raises(ValidationError):
-        kept.text = "edited"  # type: ignore[misc]
-
-
-def test_empty_text_is_evidence_too():
-    assert Segment.model_validate(segment("p3_s1", 3, "")).text == ""  # empty text is evidence too
+# --- HeadingEvent, Block -----------------------------------------------------------------------------
 
 
 def test_a_block_label_carries_its_number_and_suffix():
     assert Block.model_validate(block("b2", "31a", 31, "a", [span("p1_s1", 0, 3)])).entry_suffix == "a"
 
 
-SEGMENT_HEADING_BLOCK_REJECTIONS = [
-    pytest.param(
-        lambda: Segment.model_validate({**segment("p1_s1", 1, "x"), "order": 1}), id="an unknown segment field"
-    ),
-    pytest.param(
-        lambda: Segment.model_validate(without(segment("p1_s1", 1, "x"), "crop")), id="a segment without a crop"
-    ),
-    pytest.param(
-        lambda: Segment.model_validate(
-            segment("p1_s1", 1, "x", source={"generation": "g", "page": 1, "index": 0, "spread": 1})
-        ),
-        id="a segment source with an unknown field",
-    ),
+HEADING_BLOCK_REJECTIONS = [
     pytest.param(
         lambda: HeadingEvent.model_validate({"id": "h1", "kind": "bezirk", "level": 1, "text": "Bezirk Halle",
                                              "spans": []}),
@@ -481,229 +360,8 @@ SEGMENT_HEADING_BLOCK_REJECTIONS = [
 ]
 
 
-@pytest.mark.parametrize("build", SEGMENT_HEADING_BLOCK_REJECTIONS)
-def test_segment_heading_event_and_block_refuse(build):
-    with pytest.raises(ValidationError):
-        build()
-
-
-# --- Document: references, bounds, ownership ------------------------------------------------------------------
-
-
-def test_the_assembled_document_keeps_its_pages_and_two_adjacent_entries():
-    assembled = Document.model_validate(document())
-    assert [page.index for page in assembled.pages] == [1, 2, 3, 4]
-    assert {block.entry_label for block in assembled.blocks} == {"31", "31a"}
-    # Adjacent primary spans own no character in common, and both blocks see the whole segment as context.
-    first, second = assembled.blocks
-    assert first.primary_spans[0].end == second.primary_spans[0].start
-    assert first.context_spans[0] == second.context_spans[0]
-
-
-def test_span_offsets_are_code_points():
-    # Offsets are code points: the astral heading character is one position wide.
-    assembled = Document.model_validate(document())
-    astral_span = assembled.heading_events[1].spans[0]
-    assert HEADING[ASTRAL : ASTRAL + 1] == "\U0001d505" and astral_span.end == len(HEADING)
-    astral_only = Document.model_validate(
-        document(
-            heading_events=[
-                {"id": "h1", "kind": "bezirk", "level": 1, "text": "\U0001d505", "spans": [span("p2_s1", ASTRAL, ASTRAL + 1)]},
-            ],
-            blocks=[block("b1", "31", 31, "", [span("p1_s1", 0, BOUNDARY)])],
-        )
-    )
-    assert astral_only.heading_events[0].text == "\U0001d505"
-
-
-def test_documents_of_another_page_count_or_page_size_are_ordinary_sources():
-    # Two documents differing in page count and page size are both ordinary sources.
-    wide = Document.model_validate(
-        {
-            "source": {**source(1), "page_size_pt": {1: (842.0, 1190.0)}},
-            "pages": [page(1, 1, "single", size_pt=(842.0, 1190.0), width=2000, height=3000)],
-        }
-    )
-    assert wide.pages[0].width_px == 2000 and wide.source.spreads == 1
-    mixed = Document.model_validate(
-        {
-            "source": {**source(2), "page_size_pt": {1: PAGE_PT, 2: (600.0, 400.0)}},
-            "pages": [page(1, 1, "single"), page(2, 2, "single", size_pt=(600.0, 400.0))],
-        }
-    )
-    assert mixed.pages[0].dpi_x != mixed.pages[1].dpi_x
-
-
-def test_a_shared_leading_number_is_still_two_identities():
-    # `31` and `31a` share the leading number and are still two identities.
-    assert len(Document.model_validate(document()).blocks) == 2
-
-
-def test_interleaved_but_disjoint_primary_spans_are_two_owners():
-    interleaved = Document.model_validate(
-        document(
-            blocks=[
-                block("b1", "31", 31, "", [span("p1_s1", 0, 10), span("p1_s1", 20, 30)]),
-                block("b2", "32", 32, "", [span("p1_s1", 10, 20)]),
-            ]
-        )
-    )  # interleaved but disjoint ownership
-    assert [block.id for block in interleaved.blocks] == ["b1", "b2"]
-
-
-DOCUMENT_REJECTIONS = [
-    pytest.param(
-        lambda: Document.model_validate(document(pages=[page(1, 1, "left"), page(1, 1, "right")])),
-        id="a duplicate page index",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(segments=[segment("p1_s1", 1, ENTRIES), segment("p1_s1", 1, "x")])),
-        id="a duplicate segment id",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(
-            document(
-                blocks=[
-                    block("b1", "31", 31, "", [span("p1_s1", 0, 5)]),
-                    block("b1", "32", 32, "", [span("p1_s1", 6, 10)]),
-                ]
-            )
-        ),
-        id="a duplicate block id",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(
-            document(
-                heading_events=[
-                    {"id": "h1", "kind": "bezirk", "level": 1, "text": "a", "spans": [span("p2_s1", 0, 1)]},
-                    {"id": "h1", "kind": "kreis", "level": 2, "text": "b", "spans": [span("p2_s1", 1, 2)]},
-                ]
-            )
-        ),
-        id="a duplicate heading event id",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(
-            document(
-                blocks=[
-                    block("b1", "31", 31, "", [span("p1_s1", 0, 5)]),
-                    block("b2", "31", 31, "", [span("p1_s1", 6, 10)]),
-                ]
-            )
-        ),
-        id="a repeated entry identity",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(segments=[segment("p9_s1", 9, "x")])),
-        id="a segment on a page the document has not",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(blocks=[block("b1", "31", 31, "", [span("p9_s1", 0, 3)])])),
-        id="a span into a segment the document has not",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(
-            document(blocks=[block("b1", "31", 31, "", [span("p1_s1", 0, 3)], heading_events=["h9"])])
-        ),
-        id="a heading event named by no heading",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(
-            document(blocks=[block("b1", "31", 31, "", [span("p1_s1", 0, len(ENTRIES) + 1)])])
-        ),
-        id="a span past the end of its segment",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(blocks=[block("b1", "31", 31, "", [span("p3_s1", 0, 1)])])),
-        id="a span into an empty segment",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(segments=[segment("p1_s1", 1, "x", bbox=(0, 0, GUTTER + 1, 50))])),
-        id="a segment bbox outside its page",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(
-            document(
-                blocks=[
-                    block("b1", "31", 31, "", [span("p1_s1", 0, 10)]),
-                    block("b2", "32", 32, "", [span("p1_s1", 5, 15)]),
-                ]
-            )
-        ),
-        id="primary spans that share characters",
-    ),
-    # A wide first span still catches a later block nested inside it, without an all-pairs scan.
-    pytest.param(
-        lambda: Document.model_validate(
-            document(
-                blocks=[
-                    block("b1", "31", 31, "", [span("p1_s1", 0, 40), span("p1_s1", 4, 6)]),
-                    block("b2", "32", 32, "", [span("p1_s1", 10, 20)]),
-                ]
-            )
-        ),
-        id="a primary span nested in another block's",
-    ),
-]
-
-
-@pytest.mark.parametrize("build", DOCUMENT_REJECTIONS)
-def test_document_refuses(build):
-    with pytest.raises(ValidationError):
-        build()
-
-
-# --- Document: the optional namespaces ------------------------------------------------------------------------
-
-
-def test_the_optional_namespaces_load_and_default_to_none():
-    loaded = Document.model_validate(
-        document(
-            reading_order={1: ["p1_s1"], 2: ["p2_s1"], 3: ["p3_s1"]},
-            columns={1: [(0, 0, 200, 700), (200, 0, 480, 700)]},
-            page_types={1: "catalogue", 2: "glossary"},
-            glossary_pages=[2],
-            page_labels={1: "90", 2: "91"},
-        )
-    )
-    assert loaded.reading_order[1] == ["p1_s1"] and loaded.page_types[2] == "glossary"
-    assert Document.model_validate(document()).reading_order is None
-
-
-NAMESPACE_REJECTIONS = [
-    pytest.param(
-        lambda: Document.model_validate(document(reading_order={1: [], 2: ["p2_s1"], 3: ["p3_s1"]})),
-        id="an incomplete reading order",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(reading_order={1: ["p1_s1", "p1_s1"], 2: ["p2_s1"], 3: ["p3_s1"]})),
-        id="a repeated reading order entry",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(reading_order={1: ["p1_s1"], 2: ["p2_s1"]})),
-        id="a reading order that omits a page holding segments",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(reading_order={1: ["p1_s1"], 2: ["p2_s1"], 3: ["p3_s1"], 4: []})),
-        id="a reading order for a page with no segments",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(reading_order={9: []})),
-        id="a reading order for a page the document has not",
-    ),
-    pytest.param(
-        lambda: Document.model_validate(document(columns={1: [(0, 0, GUTTER + 1, SPREAD_H)]})),
-        id="a column outside its page",
-    ),
-    pytest.param(lambda: Document.model_validate(document(page_types={1: "index"})), id="an unknown page type"),
-    pytest.param(
-        lambda: Document.model_validate(document(glossary_pages=[9])), id="a glossary page the document has not"
-    ),
-]
-
-
-@pytest.mark.parametrize("build", NAMESPACE_REJECTIONS)
-def test_the_optional_namespaces_refuse(build):
+@pytest.mark.parametrize("build", HEADING_BLOCK_REJECTIONS)
+def test_heading_event_and_block_refuse(build):
     with pytest.raises(ValidationError):
         build()
 
@@ -831,42 +489,6 @@ EFFECTIVE_CONFIG_REJECTIONS = [
 
 @pytest.mark.parametrize("build", EFFECTIVE_CONFIG_REJECTIONS)
 def test_the_effective_config_refuses(build):
-    with pytest.raises(ValidationError):
-        build()
-
-
-# --- PipelineConfig: how to ingest, and what evidence to accept --------------------------------------------------
-
-
-def test_the_default_pipeline_runs_ocr():
-    assert PipelineConfig().ocr is not None
-
-
-def test_the_ingest_config_nests_and_persists_in_its_effective_form():
-    assert PipelineConfig.model_validate({"ingest": {"split": "single"}}).ingest.split == "single"
-    assert PipelineConfig.model_validate({"ingest": {"split": "single"}}).model_dump(mode="json")["ingest"] == {
-        "split": "single"
-    }
-
-
-PIPELINE_CONFIG_REJECTIONS = [
-    pytest.param(lambda: PipelineConfig.model_validate({"stages": ["ingest"]}), id="a stage list, an unknown key"),
-    pytest.param(
-        lambda: PipelineConfig.model_validate({"ocr": {"transcriber": "surya"}}), id="an unknown OCR setting"
-    ),
-    pytest.param(
-        lambda: PipelineConfig.model_validate({"evidence": {"transcriber": "vlm"}}),
-        id="an external evidence section",
-    ),
-    # A path is a run argument, never a setting.
-    pytest.param(
-        lambda: PipelineConfig.model_validate({"evidence": {"result_dir": "x"}}), id="a result directory as a setting"
-    ),
-]
-
-
-@pytest.mark.parametrize("build", PIPELINE_CONFIG_REJECTIONS)
-def test_pipeline_config_refuses(build):
     with pytest.raises(ValidationError):
         build()
 
@@ -1028,66 +650,5 @@ ARTIFACT_REJECTIONS = [
 
 @pytest.mark.parametrize("build", ARTIFACT_REJECTIONS)
 def test_ingest_artifact_report_and_envelope_refuse(build):
-    with pytest.raises(ValidationError):
-        build()
-
-
-# --- EvidenceReport: what the loader read, counted and could not place ------------------------------------------
-
-
-def test_an_evidence_report_counts_its_segments_by_label_and_status():
-    report = EvidenceReport.model_validate(evidence_report())
-    assert (report.generation, report.segments, report.rejected, report.overlaps) == ("g", 2, [], {})
-    assert report.by_label == {"Text": 2} and report.by_status == {"ok": 2}
-
-
-EVIDENCE_REPORT_REJECTIONS = [
-    pytest.param(
-        lambda: EvidenceReport.model_validate(evidence_report(by_label={"Text": 1})),
-        id="labels that do not count every segment",
-    ),
-    pytest.param(
-        lambda: EvidenceReport.model_validate(evidence_report(spreads_without_pages=[2, 2])),
-        id="a spread without pages listed twice",
-    ),
-    pytest.param(
-        lambda: EvidenceReport.model_validate(
-            evidence_report(rejected=[{"page": 1, "unit": 1, "crop": 1, "index": 0, "bbox_px": None, "reason": "lost"}])
-        ),
-        id="a rejection for a reason the loader does not give",
-    ),
-    pytest.param(
-        lambda: EvidenceReport.model_validate(evidence_report(overlaps={1: [1, 3]})),
-        id="overlaps that are not pairs of crops",
-    ),
-]
-
-
-@pytest.mark.parametrize("build", EVIDENCE_REPORT_REJECTIONS)
-def test_evidence_report_refuses(build):
-    with pytest.raises(ValidationError):
-        build()
-
-
-# --- Run report: this invocation's seconds, and the stored ingest timings ---------------------------------------
-
-
-def test_a_skipped_ingest_reports_this_invocation_and_the_stored_timings():
-    skipped = RunReport.model_validate(run_report())
-    assert skipped.ingest.seconds == 0.04 and skipped.ingest.report.seconds == 1.8
-    assert skipped.ocr is None
-
-
-RUN_REPORT_REJECTIONS = [
-    pytest.param(lambda: RunReport.model_validate(run_report(stages=[])), id="a run report with a stage list"),
-    pytest.param(lambda: RunReport.model_validate(run_report(seconds=-1.0)), id="negative seconds"),
-    pytest.param(
-        lambda: RunReport.model_validate(without(run_report(), "ingest")), id="a run report without its ingest"
-    ),
-]
-
-
-@pytest.mark.parametrize("build", RUN_REPORT_REJECTIONS)
-def test_run_report_refuses(build):
     with pytest.raises(ValidationError):
         build()

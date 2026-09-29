@@ -2,9 +2,9 @@
 gutter evidence, the ingest configuration, the envelope and the ingest report.
 
 Vocabulary: `CONTEXT.md`. Contract: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md`
-(sections are cited as "spec 3.8" below). An artifact type checks what one stage file can know on its own; what only
-the assembled document can know is `kie.document`'s. Nothing here reads a file, renders a spread or hashes bytes:
-`kie/stages/ingest.py` produces the artifact and `kie/artifacts.py` hashes it and reads it back.
+(sections are cited as "spec 3.8" below). An artifact type checks what one stage file can know on its own. Nothing
+here reads a file, renders a spread or hashes bytes: `kie/stages/ingest.py` produces the artifact and
+`kie/artifacts.py` hashes it and reads it back.
 """
 
 import math
@@ -73,7 +73,7 @@ class Placement(_Base):
 
 
 class Source(_Base):
-    """The identity of the PDF a Document was built from (spec 3.7)."""
+    """The identity of the PDF an ingest artifact was built from (spec 3.7)."""
 
     pdf_name: Name  # the file's name, not its path: a path is not reproducible across machines
     sha256: Sha256  # of the PDF bytes; this is the identity every stage binds to

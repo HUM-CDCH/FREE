@@ -26,7 +26,6 @@ dependencies = [
 
 [project.scripts]
 kei-exp = "kei_exp.convert:main"
-kie = "kei_exp.kie.cli:main"
 kei-worker = "kei_exp.workflows.cli:main"
 
 [tool.uv]

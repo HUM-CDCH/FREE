@@ -100,7 +100,7 @@ TypeScript/Python boundary.
 10. **The extraction runtime package** — `packages/extraction/src/runtime.ts`, `module.ts`, `types.ts`, `postgres-persistence.ts` (composition over `postgres-{admission,attempts,batches,reviews,ownership,workflow-store}.ts`), `job-worker.ts`.
 11. **Crossing to the parsing service** — `packages/extraction/src/kei-exp.ts` (submit + poll with Retry-After) and `studio/api/_kei_exp.ts` (parse run → `parsed_document.v2`).
 12. **kei_exp API and durable jobs** — `kei_exp/api.py` (highest fan-out in the graph), `jobs/app.py`, `jobs/tasks.py`.
-13. **Parsing: layout, OCR, segments** — `kie/runner.py`, `kie/segmentation.py`, `kie/evidence.py`, `canonical.py`.
+13. **Parsing: layout, OCR, segments** — `kie/runner.py`, `kie/segmentation.py`, `kie/passages.py`, `canonical.py`.
 14. **Grounded extraction and CI** — `kie/passages.py`, `kie/extract/grounded.py`, `.github/workflows/verify.yml`.
 
 ## 5. File map (key files by layer)
@@ -127,7 +127,7 @@ TypeScript/Python boundary.
 
 **Persistence** — `db/src/prisma/contract.prisma`, `project-store.ts`, `artifact-store.ts`, `researcher-account-store.ts`, `database-url.ts`, `index.ts`
 
-**Parsing service** — `kei_exp/api.py`, `jobs/{app,tasks,store,worker}.py`, `kie/runner.py`, `kie/stages/{ingest,ocr,layout,route,segment}.py`, `kie/{primitives,blocks,ingest_model,document,run_model}.py`, `kie/evidence.py`, `kie/extract/{run,stages,assembly,grounding,grounded,locate,llm}.py`, `transcription/{native,surya}.py`, `cut.py`, `result.py`, `pagefile.py`, `canonical.py`, `kie/recipes/numbered-catalogue-de.json`
+**Parsing service** — `kei_exp/api.py`, `jobs/{app,tasks,store,worker}.py`, `kie/runner.py`, `kie/stages/{ingest,ocr,layout,route,segment}.py`, `kie/{primitives,blocks,ingest_model,passages}.py`, `kie/extract/{run,stages,assembly,grounding,grounded,locate,llm}.py`, `transcription/{native,surya}.py`, `cut.py`, `result.py`, `pagefile.py`, `canonical.py`, `kie/recipes/numbered-catalogue-de.json`
 
 **Deployment & ops** — `scripts/free.mjs`, `compose.yaml` + `compose.{override,prod,gpu,nginx,entra}.yaml`, both Dockerfiles, `docker/nginx/*.template`, `docker/studio-entrypoint.sh`, `.github/workflows/verify.yml`
 
@@ -143,7 +143,7 @@ TypeScript/Python boundary.
 | `prototypes/studio/src/projectContexts/BatchExtractionsPanel.tsx` | 1386 | 1 | 18 | Highest UI fan-out; orchestrates selection, suggestion, runs, history |
 | `prototypes/studio/src/ResultsTab.tsx` | 1122 | 1 | 12 | Review decisions, drafts, diagnostics, retry |
 | `prototypes/studio/src/App.tsx` | 958 | 0 | 13 | Per-document workspace composition |
-| `prototypes/parsing_service/src/kei_exp/kie/ingest_model.py` | 407 | — | — | Largest of the KIE core type modules (split by layer: `primitives`, `blocks`, `ingest_model`, `document`, `run_model`) |
+| `prototypes/parsing_service/src/kei_exp/kie/ingest_model.py` | 407 | — | — | Largest of the KIE core type modules (split by layer: `primitives`, `blocks`, `ingest_model`) |
 | `prototypes/parsing_service/src/kei_exp/kie/extract/grounded.py` | 767 | 1 | 10 | The evidence-verification heart of the product promise |
 | `prototypes/studio/api/source_documents.ts` | 742 | 1 | 6 | Upload → submit → poll with retry → publish representation |
 | `prototypes/studio/api/_provider.ts` | 732 | 7 | 4 | Eight provider kinds behind one runtime |

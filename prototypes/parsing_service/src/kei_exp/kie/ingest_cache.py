@@ -12,14 +12,22 @@ from pathlib import Path
 
 from kei_exp.canonical import canonical_json, sha256_file
 from kei_exp.kie.artifacts import CacheMiss, fingerprint, load_ingest
-from kei_exp.kie.ingest_model import IngestArtifact, IngestConfig
-from kei_exp.kie.primitives import IngestError
-from kei_exp.kie.run_model import IngestStep
+from kei_exp.kie.ingest_model import IngestArtifact, IngestConfig, IngestReport
+from kei_exp.kie.primitives import IngestError, Seconds, _Base
 from kei_exp.kie.stages import ingest
 
 
 class IngestCacheError(Exception):
     """An ingest generation could not be produced, proven or published."""
+
+
+class IngestStep(_Base):
+    """What one ingest call did: whether the accepted artifact was reused, this invocation's seconds, and the
+    stage's own report (on a skip, the one stored when it last ran)."""
+
+    skipped: bool
+    seconds: Seconds  # this invocation, the skip check included
+    report: IngestReport
 
 
 @dataclass(frozen=True)

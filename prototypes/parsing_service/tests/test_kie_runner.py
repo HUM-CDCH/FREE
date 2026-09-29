@@ -1,23 +1,23 @@
-"""The KIE runner and its ingest cache: the canonical hashes, the loader that must prove a cache entry, whole runs of
-the real single-mode ingest under a temporary root, a publication interrupted at each point it can be, and the
-evidence read over the accepted ingest. Ported from `scratch/check_kie_cache.py` (all of it) and the runner half of
-`scratch/check_kie_ocr.py`; the stage half of that check is `tests/test_evidence.py`. No PDF of the catalogue and no
-GPU: hand-built artifacts with real PNGs, and generated PDFs of the size each case wants.
+"""The KIE ingest cache: the canonical hashes, the loader that must prove a cache entry, whole ingest calls of the real
+single-mode ingest under a temporary root, a publication interrupted at each point it can be, and OCR over the
+accepted ingest through `convert`. Ported from `scratch/check_kie_cache.py` (all of it) and the runner half of
+`scratch/check_kie_ocr.py`. No PDF of the catalogue and no GPU: hand-built artifacts with real PNGs, and generated
+PDFs of the size each case wants.
 
-The hashing and loader tests, up to the runner banner, are independent of one another: each builds under its own
+The hashing and loader tests, up to the ingest-call banner, are independent of one another: each builds under its own
 directory, or reads the one reference generation of the module-scoped `spread` fixture without changing it.
 
-The runner tests are an ordered sequence on purpose. Each builds on the accepted generation the previous one left in
-one run directory (`runs/resume/catalogue` under the module-scoped workspace), because that is what a cache decision
-is about: what an earlier invocation published, proven again by a later one. They run in file order, share the
+The ingest-call tests are an ordered sequence on purpose. Each builds on the accepted generation the previous one left
+in one document directory (`runs/resume/catalogue` under the module-scoped workspace), because that is what a cache
+decision is about: what an earlier call published, proven again by a later one. They run in file order, share the
 module-scoped `workspace`, `runs`, `catalogue`, `changed` and `first` fixtures, and are not meant to run alone: `-k`
-one of them and it starts from whatever generation is accepted, or from none. The OCR tests at the end use independent run trees. Every run root is under the temporary workspace and never the
-repository's `runs/`, which the module checks it left as it found it.
+one of them and it starts from whatever generation is accepted, or from none. The OCR tests at the end use independent
+trees. Every root is under the temporary workspace and never the repository's `runs/`, which the module checks it
+left as it found it.
 """
 import hashlib
 import io
 import json
-import re
 import shutil
 import tracemalloc
 import warnings
@@ -30,7 +30,7 @@ import pytest
 from PIL import Image
 
 from kei_exp.canonical import canonical_json, sha256_file
-from kei_exp.kie import artifacts, cli
+from kei_exp.kie import artifacts, ingest_cache
 from kei_exp.kie.artifacts import (
     CacheMiss,
     fingerprint,
@@ -39,16 +39,16 @@ from kei_exp.kie.artifacts import (
     save_ingest,
     seal,
 )
-from kei_exp.kie.evidence import load_evidence
 from kei_exp.kie.ingest_model import IngestArtifact, IngestConfig
 from kei_exp.kie.primitives import IngestError
-from kei_exp.kie.run_model import OcrConfig, PipelineConfig, RunReport
-from kei_exp.kie.ingest_cache import IngestPaths
-from kei_exp.kie.runner import REPORT_NAME, RunError, document_dir, run
+from kei_exp.kie.ingest_cache import IngestCacheError, IngestPaths, IngestStep
+from kei_exp.kie.runner import convert
 from kei_exp.kie.stages import ingest, ocr
 from kei_exp.pagefile import load_result
+from kei_exp.transcription.types import ConversionError, Execution, RunParams
 from tests.helpers.fake import FakeTranscriber
 from tests.helpers.pdfs import PAGE_SIZE, binary_pdf, mask
+from tests.helpers.synthetic import record
 
 # stages/ingest.py owns `STAGE_VERSION`; the hashing helpers take it as a value, so these pass it.
 STAGE_VERSION = 3
@@ -62,14 +62,13 @@ SIDES = {"spread": ("left", "right"), "single": ("single",)}
 # Inactive in single mode: these settings provably changed nothing, so re-running over them would be waste.
 INACTIVE = {"gutter_window": (0.30, 0.70), "bands": 9, "dark_ink": 0.5, "overrides": {1: 7}}
 
-SINGLE_MODE = PipelineConfig(ocr=None, ingest=IngestConfig(split="single"))
-TUNED_MODE = PipelineConfig(ocr=None, ingest=IngestConfig(split="single", **INACTIVE))
-SPREAD_MODE = PipelineConfig(ocr=None)  # `split` is the only setting active in single mode: the other active config
+SINGLE_MODE = IngestConfig(split="single")
+TUNED_MODE = IngestConfig(split="single", **INACTIVE)
+SPREAD_MODE = IngestConfig()  # `split` is the only setting active in single mode: the other active config
 REAL_OPEN = Path.open
 REAL_INGEST = ingest.run
 REAL_RENAME = Path.rename
 REAL_RMTREE = shutil.rmtree
-REAL_WRITE_TEXT = Path.write_text
 
 
 @pytest.fixture(scope="module")
@@ -498,8 +497,8 @@ def test_an_unreadable_file_keeps_its_own_error_and_is_not_a_cache_miss(spread):
 
 
 # ================================================================================================================
-# The runner: whole runs of real single-mode ingest under a temporary root, a cache decision per spec 5, and a
-# publication that is interrupted at each point it can be interrupted at. Nothing below knows a file name, a
+# Ingest calls: whole calls of real single-mode ingest under a temporary root, a cache decision per spec 5,
+# and a publication that is interrupted at each point it can be interrupted at. Nothing below knows a file name, a
 # spread count or a page count of the real catalogue: every PDF is generated here at the size the case wants.
 # An ordered sequence sharing one run directory, as the module docstring says.
 # ================================================================================================================
@@ -532,17 +531,19 @@ def generation(paths: IngestPaths) -> IngestArtifact:
     return accepted
 
 
-def read_report(doc_dir: Path) -> dict[str, Any]:
-    """The run report as a reader of the run directory finds it, with no `.part` file left beside it."""
-    assert [entry.name for entry in doc_dir.iterdir() if entry.suffix == ".part"] == []
-    return json.loads((doc_dir / REPORT_NAME).read_text(encoding="utf-8"))
+def step(pdf: Path, cfg: IngestConfig, *, run_id: str, runs_root: Path,
+         on_spread: ingest.OnSpread | None = None) -> IngestStep:
+    """One ingest call into `<runs_root>/<run_id>/<pdf stem>`, a document directory made the way `convert` makes it."""
+    doc_dir = runs_root / run_id / pdf.stem
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    return ingest_cache.ingest_step(pdf, cfg, doc_dir, on_spread)[0]
 
 
 def refused(what: str, act: Callable[[], object], *naming: str) -> None:
-    """`act` must fail as a run failure, and the failure must name each of `naming`, source and stage."""
+    """`act` must fail as an ingest failure, and the failure must name each of `naming`, source and stage."""
     try:
         act()
-    except RunError as error:
+    except IngestCacheError as error:
         silent = [text for text in naming if text not in str(error)]
         assert not silent, f"{what} failed, but the message does not say {silent}: {error}"
         return
@@ -563,76 +564,67 @@ def truncate(path: Path) -> None:
 
 
 class FirstRun(NamedTuple):
-    report: RunReport
+    step: IngestStep
     spreads_seen: list[tuple[int, int]]
 
 
 @pytest.fixture(scope="module")
 def first(catalogue, runs) -> FirstRun:
-    """The first run over the catalogue, with the progress callback recording what the stage announced. Its accepted
-    generation under `runs/resume/catalogue` is what every runner test below starts from, in file order."""
+    """The first ingest of the catalogue, with the progress callback recording what the stage announced. Its accepted
+    generation under `runs/resume/catalogue` is what every ingest-call test below starts from, in file order."""
     seen: list[tuple[int, int]] = []
-    report = run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs, on_spread=lambda *a: seen.append(a))
-    return FirstRun(report, seen)
+    done = step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs, on_spread=lambda *a: seen.append(a))
+    return FirstRun(done, seen)
 
 
 @pytest.fixture(scope="module")
 def paths(first, runs) -> IngestPaths:
-    """The ingest directories of that run: accepted, staging and superseded."""
-    return IngestPaths(document_dir(runs, first.report.run_id, first.report.doc_id))
+    """The ingest directories of that document: accepted, staging and superseded."""
+    return IngestPaths(runs / "resume" / "catalogue")
 
 
 def test_the_stage_version_the_hashing_tests_assume_is_the_stages_own():
     assert ingest.STAGE_VERSION == STAGE_VERSION
 
 
-# --- A run: the stage runs, its artifact is published, and the document report says what happened --------------
-def test_a_run_publishes_its_artifact_and_reports_what_happened(first, paths, catalogue):
-    report = first.report
-    assert (report.run_id, report.doc_id) == ("resume", "catalogue")
-    assert report.ingest.skipped is False and report.ingest.report.pages_written == 2
-    assert first.spreads_seen == [(1, 2), (2, 2)], first.spreads_seen  # the runner hands the callback to the stage
-    assert report.seconds >= report.ingest.seconds
+# --- A first call: the stage runs, its artifact is published, and the step says what happened ------------------
+def test_a_first_call_publishes_its_artifact_and_says_what_happened(first, paths, catalogue):
+    assert first.step.skipped is False and first.step.report.pages_written == 2
+    assert first.spreads_seen == [(1, 2), (2, 2)], first.spreads_seen  # the cache hands the callback to the stage
     produced = generation(paths)
     assert produced.source.sha256 == sha256_file(catalogue) and len(produced.pages) == 2
-    assert produced.envelope.fingerprint == fingerprint(
-        STAGE_VERSION, SINGLE_MODE.ingest, sha256_file(catalogue)
-    )
+    assert produced.envelope.fingerprint == fingerprint(STAGE_VERSION, SINGLE_MODE, sha256_file(catalogue))
     assert not paths.staging.exists()
-    assert read_report(paths.doc_dir)["ingest"]["skipped"] is False
-    assert read_report(paths.doc_dir)["ingest"]["report"]["pages_written"] == 2
 
 
 # --- A second identical call: proven, skipped, and not one byte of the accepted generation rewritten -----------
 def test_a_second_identical_call_is_proven_and_skipped_without_rewriting_a_byte(first, paths, catalogue, runs):
     accepted = state(paths.accepted)
     produced = generation(paths)
-    second = run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs,
-                 on_spread=lambda *a: first.spreads_seen.append(a))
-    assert second.ingest.skipped is True
+    second = step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs,
+                  on_spread=lambda *a: first.spreads_seen.append(a))
+    assert second.skipped is True
     assert first.spreads_seen == [(1, 2), (2, 2)]  # a proven artifact is reused: nothing read, nothing announced
     assert state(paths.accepted) == accepted
     # The stage's own report is the one stored when it last ran; `seconds` is this invocation's, the check included.
-    assert second.ingest.report == first.report.ingest.report
-    assert read_report(paths.doc_dir)["ingest"]["skipped"] is True
-    assert read_report(paths.doc_dir)["ingest"]["report"]["seconds"] == first.report.ingest.report.seconds
+    assert second.report == first.step.report
     assert generation(paths) == produced
 
 
 def test_settings_inactive_in_the_chosen_mode_are_not_a_reason_to_rerun(first, paths, catalogue, runs):
     # Settings that are inactive in the chosen mode provably changed nothing, so they are not a reason to re-run.
     accepted = state(paths.accepted)
-    assert run(catalogue, TUNED_MODE, run_id="resume", runs_root=runs).ingest.skipped is True
+    assert step(catalogue, TUNED_MODE, run_id="resume", runs_root=runs).skipped is True
     assert state(paths.accepted) == accepted
 
     # The same settings on a run with nothing to skip: what is persisted is the effective config and not the
     # config in memory, so a producing run only recognises what it wrote if the two are compared as they are
     # written down. That the second call skips is what says the first one published what it returned.
-    assert run(catalogue, TUNED_MODE, run_id="tuned", runs_root=runs).ingest.skipped is False
-    assert run(catalogue, TUNED_MODE, run_id="tuned", runs_root=runs).ingest.skipped is True
+    assert step(catalogue, TUNED_MODE, run_id="tuned", runs_root=runs).skipped is False
+    assert step(catalogue, TUNED_MODE, run_id="tuned", runs_root=runs).skipped is True
     # And the plain single-mode config skips that same generation: inactive settings are not part of the recipe.
-    assert run(catalogue, SINGLE_MODE, run_id="tuned", runs_root=runs).ingest.skipped is True
-    tuned = IngestPaths(document_dir(runs, "tuned", first.report.doc_id))
+    assert step(catalogue, SINGLE_MODE, run_id="tuned", runs_root=runs).skipped is True
+    tuned = IngestPaths(runs / "tuned" / "catalogue")
     assert generation(tuned).config.model_dump() == {"split": "single"}
 
 
@@ -641,26 +633,26 @@ def test_staging_left_by_an_interrupted_run_is_removed_before_the_decision(paths
     accepted = state(paths.accepted)
     (paths.staging / "pages").mkdir(parents=True)
     (paths.staging / "pages" / "001.png").write_bytes(b"half a page")
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is True
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is True
     assert not paths.staging.exists() and state(paths.accepted) == accepted
 
 
 # --- A different recipe re-runs the stage: other bytes, another stage version ----------------------------------
 def test_other_bytes_under_the_same_name_are_another_recipe_and_rerun_the_stage(paths, catalogue, changed, runs):
-    assert run(changed, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+    assert step(changed, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     superseded = generation(paths)
     assert superseded.source.sha256 == sha256_file(changed) and len(superseded.pages) == 1
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     assert generation(paths).source.sha256 == sha256_file(catalogue)
 
 
 def test_a_bumped_stage_version_is_another_recipe_for_the_same_input(paths, catalogue, runs):
     with patch.object(ingest, "STAGE_VERSION", STAGE_VERSION + 1):
         # A bumped stage version is a different recipe even though nothing about the input changed (spec 5).
-        assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+        assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
         assert generation(paths).envelope.stage_version == STAGE_VERSION + 1
-        assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is True
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+        assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is True
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     assert generation(paths).envelope.stage_version == STAGE_VERSION
 
 
@@ -680,7 +672,7 @@ DAMAGE = [
 @pytest.mark.parametrize("damage", DAMAGE)
 def test_a_cache_entry_that_cannot_be_proven_is_rerun_not_repaired(damage, paths, catalogue, runs):
     damage(paths)
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     assert generation(paths).source.sha256 == sha256_file(catalogue)
 
 
@@ -690,23 +682,23 @@ def test_a_generation_of_an_earlier_version_reruns_once_under_the_current_one(pa
     # then skips on an identical rerun. The report is outside the digest, so dropping the field is what a
     # version-1 run left behind and not a tampered artifact.
     with patch.object(ingest, "STAGE_VERSION", 1):
-        assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+        assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     rewrite_accepted(paths, lambda data: data["report"].pop("text_layers"))
     legacy = json.loads(paths.artifact(paths.accepted).read_text(encoding="utf-8"))
     assert legacy["envelope"]["stage_version"] == 1 and "text_layers" not in legacy["report"]
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     assert generation(paths).envelope.stage_version == STAGE_VERSION
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is True
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is True
 
 
 def test_a_hand_edited_fingerprint_is_a_claim_and_not_evidence(paths, catalogue, changed, runs):
     # A fingerprint hand-edited to this run's recipe: it sits in the envelope, which the digest excludes, so it
     # is a claim and not evidence. The config and the source hash state the same thing from inside the digest,
     # and here they state that the run which produced this artifact read other bytes.
-    assert run(changed, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
-    claimed = fingerprint(STAGE_VERSION, SINGLE_MODE.ingest, sha256_file(catalogue))
+    assert step(changed, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
+    claimed = fingerprint(STAGE_VERSION, SINGLE_MODE, sha256_file(catalogue))
     rewrite_accepted(paths, lambda data: data["envelope"].update({"fingerprint": claimed}))
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     assert generation(paths).source.sha256 == sha256_file(catalogue)
 
 
@@ -715,7 +707,7 @@ CALLED: list[tuple[str, Path]] = []
 
 
 def refuse(pdf: Path, cfg: IngestConfig, out: Path, *, on_spread: ingest.OnSpread | None = None) -> IngestArtifact:
-    """A stage that reads nothing. What it proves is that the runner called it instead of skipping."""
+    """A stage that reads nothing. What it proves is that the cache called it instead of skipping."""
     CALLED.append((cfg.split, out))
     raise IngestError(f"{pdf.name} cannot be read by this stub")
 
@@ -729,7 +721,7 @@ def half_write(pdf: Path, cfg: IngestConfig, out: Path, *, on_spread: ingest.OnS
 
 
 def misreport(pdf: Path, cfg: IngestConfig, out: Path, *, on_spread: ingest.OnSpread | None = None) -> IngestArtifact:
-    """A stage whose returned artifact is not the one it wrote: the files are what the runner may believe."""
+    """A stage whose returned artifact is not the one it wrote: the files are what the cache may believe."""
     written = REAL_INGEST(pdf, cfg, out)
     return written.model_copy(update={"report": written.report.model_copy(update={"seconds": 99.0})})
 
@@ -739,10 +731,10 @@ def test_a_stage_that_fails_half_writes_or_misreports_leaves_the_accepted_genera
     accepted = state(paths.accepted)
     # `split` is the only setting active in single mode, so a changed active config is the change to spread mode.
     # The stage is a stub here because the gutter policy is still the user's to write (spec 7); what this case
-    # asks is only whether the runner skipped, and it did not.
+    # asks is only whether the cache skipped, and it did not.
     with patch.object(ingest, "run", refuse):
         refused("a run whose active config changed",
-                lambda: run(catalogue, SPREAD_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", "ingest")
+                lambda: step(catalogue, SPREAD_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", "ingest")
     assert CALLED == [("spread", paths.staging)]
     assert state(paths.accepted) == accepted and not paths.staging.exists()
     assert generation(paths).source.sha256 == sha256_file(catalogue)
@@ -750,17 +742,17 @@ def test_a_stage_that_fails_half_writes_or_misreports_leaves_the_accepted_genera
     CALLED.clear()
     with patch.object(ingest, "run", half_write):
         refused("a stage interrupted while writing staging",
-                lambda: run(changed, SINGLE_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", "ingest")
+                lambda: step(changed, SINGLE_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", "ingest")
     assert CALLED == [("single", paths.staging)]
     # The accepted generation is untouched, and the partial staging is not a second one: the next run removes it.
     assert state(paths.accepted) == accepted and paths.staging.exists()
     assert generation(paths).source.sha256 == sha256_file(catalogue)
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is True
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is True
     assert not paths.staging.exists()
 
     with patch.object(ingest, "run", misreport):
         refused("a stage that returned an artifact it did not write",
-                lambda: run(changed, SINGLE_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", "ingest")
+                lambda: step(changed, SINGLE_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", "ingest")
     assert state(paths.accepted) == accepted  # caught while the new generation is still only staged
     assert generation(paths).source.sha256 == sha256_file(catalogue)
 
@@ -778,7 +770,7 @@ def test_a_publication_interrupted_between_its_renames_puts_the_previous_generat
     accepted = state(paths.accepted)
     with patch.object(Path, "rename", fail_second_rename):
         refused("a publication interrupted between its two renames",
-                lambda: run(changed, SINGLE_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", "ingest")
+                lambda: step(changed, SINGLE_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", "ingest")
     assert state(paths.accepted) == accepted  # the previous generation was put back under its own name
     assert generation(paths).source.sha256 == sha256_file(catalogue)
 
@@ -788,38 +780,31 @@ def test_startup_recovery_keeps_the_one_proven_generation_whatever_name_it_carri
     accepted = state(paths.accepted)
     paths.accepted.rename(paths.previous)  # died after the first rename: only the superseded name is on disk
     assert not paths.accepted.exists()
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is True
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is True
     assert state(paths.accepted) == accepted  # restored, then proven: a valid generation is never re-made
     assert generation(paths).source.sha256 == sha256_file(catalogue)
 
     # Died while the accepted name held a half-written directory: the superseded generation is the valid one.
     shutil.copytree(paths.accepted, paths.previous)
     paths.artifact(paths.accepted).write_text("{ truncated", encoding="utf-8")
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is True
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is True
     assert generation(paths).source.sha256 == sha256_file(catalogue)
 
     # Both names hold a valid generation: the accepted one wins, and `.old` is removed only after it was verified.
-    other = run(changed, SINGLE_MODE, run_id="other", runs_root=runs)
-    shutil.copytree(IngestPaths(document_dir(runs, "other", other.doc_id)).accepted, paths.previous)
+    step(changed, SINGLE_MODE, run_id="other", runs_root=runs)
+    shutil.copytree(IngestPaths(runs / "other" / changed.stem).accepted, paths.previous)
     assert load_ingest(paths.artifact(paths.previous)).source.sha256 == sha256_file(changed)
     kept = state(paths.accepted)
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is True
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is True
     assert generation(paths).source.sha256 == sha256_file(catalogue)
     assert state(paths.accepted) == kept  # the older generation under `.old` never reached the accepted name
 
 
-# --- Cleanup after a publication, and the report, are not the publication -------------------------------------
+# --- Cleanup after a publication is not the publication ----------------------------------------------------
 def keep_superseded(path: Path, *args: Any, **kwargs: Any) -> None:
     if str(path).endswith(".old"):
         raise OSError(39, "Directory not empty", str(path))
     REAL_RMTREE(path, *args, **kwargs)
-
-
-def deny_report(self: Path, *args: Any, **kwargs: Any) -> int:
-    """The run report cannot be written. Ingest's own `ingest.json` is not this file and still goes out."""
-    if REPORT_NAME in self.name:
-        raise OSError(28, "No space left on device", str(self))
-    return REAL_WRITE_TEXT(self, *args, **kwargs)
 
 
 def test_a_superseded_generation_that_cannot_be_removed_is_reported_not_rolled_back(paths, catalogue, runs):
@@ -829,52 +814,24 @@ def test_a_superseded_generation_that_cannot_be_removed_is_reported_not_rolled_b
         warnings.catch_warnings(record=True) as caught,
     ):
         warnings.simplefilter("always")
-        assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+        assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     # The new generation is published and stays published; the leftover is reported, not rolled back.
     assert [warning.category for warning in caught] == [RuntimeWarning]
     assert paths.previous.exists()
     assert load_ingest(paths.artifact(paths.accepted)).envelope.stage_version == STAGE_VERSION + 2
     # Back at the stage's own version, and the next run removed what was left.
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
+    assert step(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).skipped is False
     assert generation(paths).envelope.stage_version == STAGE_VERSION
-
-
-def test_a_report_that_cannot_be_written_fails_the_run_after_the_artifact_is_accepted(paths, catalogue, runs):
-    stale = read_report(paths.doc_dir)
-    with patch.object(ingest, "STAGE_VERSION", STAGE_VERSION + 3), patch.object(Path, "write_text", deny_report):
-        refused("a run whose report cannot be written",
-                lambda: run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs), "catalogue.pdf", REPORT_NAME)
-        # The stage ran and its artifact is accepted: the report records a run, and is not what makes it one.
-        assert generation(paths).envelope.stage_version == STAGE_VERSION + 3
-    assert read_report(paths.doc_dir) == stale  # the previous report, whole: the failed write is renamed onto nothing
-    assert run(catalogue, SINGLE_MODE, run_id="resume", runs_root=runs).ingest.skipped is False
-    assert generation(paths).envelope.stage_version == STAGE_VERSION
-    assert read_report(paths.doc_dir)["ingest"]["skipped"] is False
-
-
-# --- Run ids name one directory of the run tree, and a generated one names the moment the run started ----------
-@pytest.mark.parametrize("bad", ["", ".", "..", "nested/id"])
-def test_a_run_id_that_is_not_one_path_component_is_refused(bad, catalogue, runs):
-    refused(f"the run id {bad!r}", lambda: run(catalogue, SINGLE_MODE, run_id=bad, runs_root=runs), "run id")
-
-
-def test_a_generated_run_id_names_the_moment_the_run_started(catalogue, runs):
-    generated = run(catalogue, SINGLE_MODE, runs_root=runs)
-    assert re.fullmatch(r"\d{8}T\d{6}\.\d{6}Z", generated.run_id), generated.run_id
-    assert document_dir(runs, generated.run_id, generated.doc_id).is_dir()
-    assert generated.ingest.skipped is False  # a new run id is a new directory, where there is nothing to prove
-    assert run(catalogue, SINGLE_MODE, runs_root=runs).run_id != generated.run_id
-    fresh = IngestPaths(document_dir(runs, generated.run_id, generated.doc_id))
-    assert generation(fresh).source.sha256 == sha256_file(catalogue)
 
 
 def test_a_document_that_is_not_there_fails_the_ingest_by_name(workspace, runs):
     refused("a document that is not there",
-            lambda: run(workspace / "absent.pdf", SINGLE_MODE, run_id="missing", runs_root=runs), "absent.pdf", "ingest")
+            lambda: step(workspace / "absent.pdf", SINGLE_MODE, run_id="missing", runs_root=runs),
+            "absent.pdf", "ingest")
 
 
-# OCR executes over the accepted ingest. Only the remote transcriber is replaced; rendering, placement,
-# publication and the evidence reader are real.
+# --- OCR over the accepted ingest, through `convert`. Only the remote transcriber is replaced; rendering, placement
+# and publication are real. ------------------------------------------------------------------------------------
 @pytest.fixture
 def ocr_backend(monkeypatch):
     fake = FakeTranscriber(blocks=True)
@@ -882,77 +839,49 @@ def ocr_backend(monkeypatch):
     return fake
 
 
-def test_ocr_runs_and_its_evidence_resolves_after_a_cached_ingest(catalogue, tmp_path, ocr_backend):
-    cfg = PipelineConfig(ingest=IngestConfig(split="single"), ocr=OcrConfig(cut="none", crop_dpi=250))
-    first = run(catalogue, cfg, runs_root=tmp_path, run_id="ocr", emit=lambda event: None)
-    directory = document_dir(tmp_path, "ocr", catalogue.stem)
-    artifact = load_ingest(directory / "ingest" / "ingest.json")
-    kept = state(directory / "ingest")
-    found = load_evidence(directory / "ocr", artifact)
-    assert first.ocr is not None and first.ocr.segments == 2
-    assert [segment.text for segment in found.segments] == ["x", "x"]
-    assert [segment.page for segment in found.segments] == [1, 2]
+def over_ingest(pdf: Path, root: Path, **settings: Any) -> Execution:
+    """Surya over the single-mode ingest of `pdf` under `root`, whole pages, publishing into `root / "result"`."""
+    return ocr.resolve(RunParams(pdf=pdf, model="surya", page_source="ingest", ingest_dir=root,
+                                 ingest={"split": "single"}, result_dir=root / "result", cut="none", **settings))
+
+
+def ingest_reused(events: list[dict]) -> bool:
+    return any(event["type"] == "log" and "skipped, cached" in event["text"] for event in events)
+
+
+def test_ocr_runs_over_the_accepted_ingest_and_a_second_conversion_reuses_it(catalogue, tmp_path, ocr_backend):
+    convert(over_ingest(catalogue, tmp_path), emit=lambda event: None)
+    paths = IngestPaths(tmp_path / catalogue.stem)
+    artifact = load_ingest(paths.artifact(paths.accepted))
+    kept = state(paths.accepted)
+    first = load_result(tmp_path / "result", require_complete=True)
+    assert first.manifest.recipe["ingest_digest"] == artifact.envelope.digest
+    assert [segment.text for number in sorted(first.pages) for segment in first.pages[number].segments] == ["x", "x"]
     execution, crops = ocr_backend.calls[0]
     assert execution.model == "surya" and execution.page_source == "ingest"
     assert len(crops) == 2 and all(region.transform.source_px is not None for _, region, _ in crops)
-    assert read_report(directory)["ocr"]["generation"] == found.report.generation
-    second = run(catalogue, cfg, runs_root=tmp_path, run_id="ocr", emit=lambda event: None)
-    assert second.ingest.skipped and len(ocr_backend.calls) == 2
-    assert second.ocr.generation != first.ocr.generation
-    assert state(directory / "ingest") == kept
-    accepted = load_result(directory / "ocr", require_complete=True)
-    assert accepted.manifest.recipe["ingest_digest"] == artifact.envelope.digest
-    for segment in load_evidence(directory / "ocr", artifact).segments:
-        assert accepted.pages[segment.source.page].segments[segment.source.index].text == segment.text
+
+    events: list[dict] = []
+    convert(over_ingest(catalogue, tmp_path), emit=events.append)
+    assert ingest_reused(events) and len(ocr_backend.calls) == 2
+    assert state(paths.accepted) == kept
+    assert load_result(tmp_path / "result", require_complete=True).manifest.generation != first.manifest.generation
 
 
-@pytest.mark.parametrize("damage, message", [
-    ({"page": 99}, "names page 99"),
-    ({"bbox": (0, 0, 9999, 9999)}, "bbox"),
-])
-def test_invalid_projected_evidence_cannot_publish_a_run_report(catalogue, tmp_path, ocr_backend, damage, message):
-    def misplaced(result_dir, artifact):
-        evidence = load_evidence(result_dir, artifact)
-        evidence.segments[0] = evidence.segments[0].model_copy(update=damage)
-        return evidence
-
-    cfg = PipelineConfig(ingest=IngestConfig(split="single"), ocr=OcrConfig(cut="none"))
-    with patch("kei_exp.kie.runner.load_evidence", side_effect=misplaced), pytest.raises(RunError, match=message):
-        run(catalogue, cfg, runs_root=tmp_path, run_id="invalid-evidence", emit=lambda event: None)
-    assert not (document_dir(tmp_path, "invalid-evidence", catalogue.stem) / REPORT_NAME).exists()
-
-
-def test_a_resumed_ocr_run_can_narrow_its_page_range(catalogue, tmp_path, ocr_backend):
-    cfg = PipelineConfig(ingest=IngestConfig(split="single"), ocr=OcrConfig(cut="none"))
-    run(catalogue, cfg, runs_root=tmp_path, run_id="range", emit=lambda event: None)
-    cfg.ocr.pages = (2, 2)
-    report = run(catalogue, cfg, runs_root=tmp_path, run_id="range", emit=lambda event: None)
-    assert report.ingest.skipped and report.ocr.spreads_without_pages == [1]
-    assert report.ocr.segments == 1
+def test_a_resumed_conversion_can_narrow_its_page_range(catalogue, tmp_path, ocr_backend):
+    convert(over_ingest(catalogue, tmp_path), emit=lambda event: None)
+    events: list[dict] = []
+    convert(over_ingest(catalogue, tmp_path, pages=(2, 2)), emit=events.append)
+    assert ingest_reused(events)
     execution, crops = ocr_backend.calls[-1]
     assert execution.pages == (2, 2) and [page for page, _, _ in crops] == [2]
+    assert sorted(load_result(tmp_path / "result").pages) == [2]
 
 
-def test_failed_ocr_is_reported_and_ingest_stays_usable(catalogue, tmp_path, ocr_backend):
-    from tests.helpers.synthetic import record
-
+def test_an_incomplete_ocr_fails_the_conversion_and_the_ingest_stays_accepted(catalogue, tmp_path, ocr_backend):
     ocr_backend.records = [record(1, incomplete="token cap"), record(2)]
-    cfg = PipelineConfig(ingest=IngestConfig(split="single"), ocr=OcrConfig(cut="none"))
-    with pytest.raises(RunError, match="stage 'ocr'.*token cap"):
-        run(catalogue, cfg, runs_root=tmp_path, run_id="failed", emit=lambda event: None)
-    directory = document_dir(tmp_path, "failed", catalogue.stem)
-    assert len(load_ingest(directory / "ingest" / "ingest.json").pages) == 2
-    assert load_result(directory / "ocr").manifest.status == "incomplete"
-    assert not (directory / "report.json").exists()
-
-
-def test_the_cli_runs_ocr_or_explicitly_stops_after_ingest(catalogue, tmp_path, ocr_backend, capsys):
-    config = tmp_path / "config.yaml"
-    config.write_text("ingest:\n  split: single\nocr:\n  cut: none\n", encoding="utf-8")
-    argv = ["run", "--config", str(config), "--pdf", str(catalogue), "--runs-root", str(tmp_path), "--run-id", "cli"]
-    assert cli.main(argv) == cli.EXIT_OK
-    assert "ocr: 2 segments" in capsys.readouterr().out
-    assert read_report(tmp_path / "cli" / catalogue.stem)["ocr"]["segments"] == 2
-    config.write_text("ingest:\n  split: single\nocr: null\n", encoding="utf-8")
-    assert cli.main(argv) == cli.EXIT_OK and len(ocr_backend.calls) == 1
-    assert read_report(tmp_path / "cli" / catalogue.stem)["ocr"] is None
+    with pytest.raises(ConversionError, match="token cap"):
+        convert(over_ingest(catalogue, tmp_path), emit=lambda event: None)
+    paths = IngestPaths(tmp_path / catalogue.stem)
+    assert len(load_ingest(paths.artifact(paths.accepted)).pages) == 2
+    assert load_result(tmp_path / "result").manifest.status == "incomplete"

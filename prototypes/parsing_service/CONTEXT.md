@@ -45,7 +45,7 @@ block. A segment is never rewritten by a later stage.
 
 **Page file** — the OCR stage's accepted result of one PDF page, `ocr/pages/<n>.json` in KIE (`PageResult` in
 `src/kei_exp/pagefile.py`): the units rendered, their crops with the recorded render transforms, and the page
-segments in reading order. The one persisted parsing result: the evidence reader projects segments from it in memory.
+segments in reading order. The one persisted parsing result: `kie/passages.py` projects passages from it in memory.
 
 **Result generation** — one immutable set of page files and their manifest, written by one OCR execution under
 one recipe and named by an opaque id minted when it is first written; every page file names it, and the
@@ -53,7 +53,7 @@ manifest records every page file's hash and a digest over them. A rerun is anoth
 fingerprint identifies what was asked; the generation and its digest identify what was produced.
 
 **Evidence reference** — where a segment came from: the generation, the PDF page whose file holds it, and its
-position in that file's segment list (`EvidenceRef`). It resolves for as long as the generation exists.
+position in that file's segment list, named `p{page}_s{index}`. It resolves for as long as the generation exists.
 
 **Source OCR block** — a page segment of a page file, before it becomes a segment. Its HTML and italics stay
 resolvable from the page file through the segment's evidence reference, while the generation exists.
@@ -65,8 +65,8 @@ concatenated string.
 **Page segment** — the same evidence as the OCR stage publishes it, placed on the PDF page (`PageSegment` in
 `src/kei_exp/pagefile.py`): text and HTML as the engine gave them, the engine's box in image pixels, and that
 box on the page through the recorded render transforms; its extent says whether the box is one engine block
-or the whole input, which a transcriber without boxes leaves deliberately coarse. The evidence loader projects
-`Segment` from it in memory; the two never carry different text.
+or the whole input, which a transcriber without boxes leaves deliberately coarse. Extraction reads it as a
+`Passage` in memory; the two never carry different text.
 
 **Input ordinal** — a transcriber input's 1-based position in what it was given: a crop number, or a position
 in the selected page range. Adapters number their records and events by it. **Source identity** — the PDF page,
@@ -104,14 +104,12 @@ artifact's header, recording what the stage was and what it was run on. **Finger
 stage's inputs, which decides whether the stage can be skipped. **Digest** — a hash of a stage's produced
 namespace, which is what a downstream consumer binds to; the OCR recipe binds to the ingest digest.
 
-**Document** — the whole document as the pipeline sees it, assembled from the ingest artifact and the
-evidence read over it, and never persisted as one file. **Source** — the identity of the PDF a Document was
-built from.
+**Source** — the identity of the PDF an ingest artifact was built from.
 
 **Run** — as a type, in ingest: a maximal stretch of consecutive spread columns that are all blank or all
-dark; the gutter is chosen from runs. `Run` in code is always this one. In prose, "a run" is one execution
-of the pipeline — what `kie run` does, named by a **run id**, writing into a **run directory** and producing
-a **run report** — and the two never collide, because the execution has no type of its own.
+dark; the gutter is chosen from runs. `Run` in code is always this one. In prose, "a run" is one parse
+execution, named by a **run id** and writing into a **run directory** — and the two never collide, because
+the execution has no type of its own.
 
 ## The invariants these names protect
 

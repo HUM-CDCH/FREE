@@ -3,9 +3,8 @@
 Vocabulary: `CONTEXT.md`. Contracts: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md`
 (sections are cited as "spec 3.6" below) and the grounded catalogue design. These are the only model types the
 recipe stages, the segmentation artifact and extraction use, and this module imports only `kie.primitives`, so none
-of them loads the ingest artifact, the document or the run report. Whether a span lies inside real text is checked
-where the text is: by `Document` over the assembled document, by the segmentation artifact over the canonical
-passages.
+of them loads the ingest artifact. Whether a span lies inside real text is checked where the text is: by the
+segmentation artifact over the canonical passages.
 """
 
 import re

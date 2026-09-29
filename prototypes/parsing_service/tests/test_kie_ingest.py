@@ -1,7 +1,7 @@
 """The KIE ingest stage on synthetic rasters and PDFs: no GPU and no fixture.
 
 The selector-independent tests come first: profiles, runs, band support, extraction and the input the stage
-refuses, one snapshot of the source, the command line, the source-dependent config, single mode. Then the tests
+refuses, one snapshot of the source, the source-dependent config, single mode. Then the tests
 that depend on `choose_gutter`, in two groups that answer different questions. The reference branches assert the
 exact coordinates of the policy in spec 4.3 step 3; a different policy may change one of them, and must then say
 so and update it here. The input invariants after them hold for any policy: the cut lands inside the gutter the
@@ -13,7 +13,6 @@ Nothing here knows a file name, a document or a spread number of the real catalo
 binary array at the size the case wants.
 """
 
-import contextlib
 import ctypes
 import hashlib
 import io
@@ -21,7 +20,6 @@ import os
 import shutil
 from collections import Counter
 from collections.abc import Callable, Sequence
-from functools import partial
 from pathlib import Path
 from unittest.mock import patch
 
@@ -32,7 +30,6 @@ import pytest
 from PIL import Image
 
 from kei_exp.canonical import sha256_file
-from kei_exp.kie import cli, runner
 from kei_exp.kie.artifacts import PAGE_IMAGE_MODE, load_ingest
 from kei_exp.kie.ingest_model import GutterEvidence, IngestArtifact, IngestConfig, Placement
 from kei_exp.kie.primitives import IngestError
@@ -613,33 +610,6 @@ def test_a_source_that_cannot_be_read_is_fatal_before_anything_is_written(tmp_pa
     with patch.object(Path, "read_bytes", side_effect=OSError(5, "Input/output error")), pytest.raises(OSError):
         run(one_spread, ALONE, tmp_path / "unread")
     assert not (tmp_path / "unread").exists()
-
-
-# --- The command line: a stage failure is exit 1 and one line, an unreadable config is exit 2 ----------------
-def command(runs_root: Path, *argv: str) -> tuple[int, str]:
-    """`kie run ...` under `runs_root`, with what it printed to stderr.
-
-    The run root is named twice: `main` passes `--runs-root` to `run` by keyword, which overrides the keyword
-    the partial binds, so the option is what keeps the run out of the repository's `runs/`.
-    """
-    stderr = io.StringIO()
-    with patch.object(cli, "run", partial(runner.run, runs_root=runs_root)), contextlib.redirect_stderr(stderr):
-        code = cli.main(["run", "--runs-root", str(runs_root), *argv])
-    return code, stderr.getvalue()
-
-
-def test_a_stage_failure_is_exit_1_and_one_line_naming_the_spread(tmp_path: Path, corrupt_pdf: Path) -> None:
-    config = tmp_path / "single.yaml"
-    config.write_text("ingest:\n  split: single\n", encoding="utf-8")
-    code, said = command(tmp_path / "runs", "--config", str(config), "--pdf", str(corrupt_pdf))
-    assert code == cli.EXIT_FAILED and said.startswith("kie: ") and said.count("\n") == 1 and "spread 2" in said, said
-
-
-def test_an_unreadable_config_is_exit_2(tmp_path: Path, one_spread: Path) -> None:
-    latin = tmp_path / "latin.yaml"
-    latin.write_bytes(b"ingest: {split: single}  # caf\xe9\n")  # not UTF-8, which is a `ValueError` and no `OSError`
-    code, said = command(tmp_path / "runs", "--config", str(latin), "--pdf", str(one_spread))
-    assert code == cli.EXIT_USAGE and said.startswith("kie: ") and "cannot be read" in said, said
 
 
 # --- Source-dependent config, checked once the raster dimensions are known (spec 4.3) --------------------------

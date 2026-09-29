@@ -2,8 +2,8 @@
 
 Vocabulary: `CONTEXT.md`. Contract: `docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md`
 (sections are cited as "spec 3.1" below). Pixels, counts and offsets are strict integers, coordinates fixed-length
-tuples and times zoned ISO 8601, so a block, an ingest artifact, the document and a run report refuse the same value
-in the same way. `IngestError` is ingest's one refusal of input or configuration. This module imports no other KIE
+tuples and times zoned ISO 8601, so a block, an ingest artifact and a segmentation refuse the same value in the same
+way. `IngestError` is ingest's one refusal of input or configuration. This module imports no other KIE
 module; every model module builds on it.
 """
 
@@ -81,7 +81,6 @@ PageSizePt = Annotated[tuple[float, float], AfterValidator(_positive_size)]
 Side = Literal["left", "right", "single"]
 GutterMethod = Literal["shadow", "blank", "midline", "override", "none"]
 GutterReason = Literal["no_candidate", "ambiguous_candidates", "config"]
-PageType = Literal["glossary", "catalogue", "figures", "bibliography", "prose", "cover"]
 
 
 def _unique(values: Iterable[Hashable], what: str) -> None:
