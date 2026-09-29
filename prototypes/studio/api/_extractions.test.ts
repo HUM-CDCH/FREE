@@ -197,6 +197,26 @@ describe('extractionAttemptDto', () => {
     expect(dto.diagnostics?.grounded).toEqual(grounded)
   })
 
+  it('transports a unified Catalog result exactly as acceptance maps the Parsing Service\'s artifact', async () => {
+    const { extractionAttemptDto } = await import('./_extractions.js')
+    const { acceptKeiArtifact } = await import('../../../packages/extraction/src/kei-artifact.js')
+    const { decodeParsedDocument } = await import('../../../packages/extraction/src/parsed-document.js')
+    const { keiExpManifestSchema, keiExpPageSchema, parsedDocumentFromKeiExp } = await import('./_kei_exp.js')
+    const contract = (await import('../../parsing_service/tests/fixtures/contracts/extract.result.v3.json', { with: { type: 'json' } })).default
+    const manifest = keiExpManifestSchema.parse(contract.manifest)
+    const document = decodeParsedDocument(parsedDocumentFromKeiExp(contract.request.run_id, manifest,
+      contract.pages.map((page) => keiExpPageSchema.parse(page)),
+      { sha256: manifest.recipe.source_sha256, originalFilename: 'katalog.pdf', byteSize: 1 }, new Date()).document)
+    const accepted = acceptKeiArtifact({ extractionId: contract.extraction_id, sourceDocumentId: attemptSnapshot.sourceDocumentId,
+      sourceRepresentationRevisionId: attemptSnapshot.sourceRepresentationRevisionId, schemaRevisionId: attemptSnapshot.schemaRevisionId,
+      strategy: 'CATALOG', batchExtractionId: null }, document, contract.artifact, contract.request as never)
+    const dto = extractionAttemptDto({ ...attemptSnapshot, strategy: 'CATALOG', requestedSettings: { unified: { defaults: 1 } },
+      complete: accepted.complete, diagnostics: accepted.diagnostics, result: accepted.result, evidence: accepted.evidence })
+    expect(dto.diagnostics?.unified).toEqual(accepted.diagnostics.unified)
+    expect(dto.evidenceLinks).toEqual(accepted.evidence)
+    expect(dto.requestedSettings).toEqual({ unified: { defaults: 1 } })
+  })
+
   it('carries the Catalog recipe the attempt ran with, or null', async () => {
     const { extractionAttemptDto } = await import('./_extractions.js')
     expect(extractionAttemptDto(attemptSnapshot).catalogRecipe).toBeNull()

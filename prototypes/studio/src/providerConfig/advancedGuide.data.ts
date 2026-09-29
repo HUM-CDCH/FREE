@@ -286,7 +286,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
   },
   {
     id: 'catalog', title: 'Catalog',
-    purpose: 'Generic Catalog limits apply to Model discovery; recipe budgets and factors apply to numbered-catalogue recipes.',
+    purpose: 'Generic Catalog limits apply to Model discovery; recipe budgets and factors apply to numbered-catalogue recipes. Where the deployment enables the unified Catalog, one group of five controls replaces both for every new single and batch Catalog Extraction.',
     stage: 'Catalog discovery and per-entry extraction.',
     example: {
       caption: 'Heading “Grav 7”, an abbreviated material and a neighboring line.',
@@ -299,11 +299,14 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
         { label: 'Verification off', blocks: [unit('Entry', 'Kn.', 'proposal')], outcome: 'Typed values are kept as proposals, not accepted evidence.' },
       ],
     },
-    combinations: 'Factor switches never turn off structural ownership or canonical spans. A recipe is chosen per Extraction.',
+    combinations: 'Factor switches never turn off structural ownership or canonical spans. A recipe is chosen per Extraction. In the unified Catalog, input and reply budgets change how the source is split into requests, never how much of it is read; with overlap 0 a record continues across a split only when both sides say so; retired limits and recipe factors are never converted.',
     takeaway: "Verification Off yields proposals; a recipe's applicability is source-specific.",
     evidence: [{ source: 'r1catalog', finding: 'Recipe, recipe without neighboring context and recipe without verification each made seven calls and returned seven records; without neighboring context it used 440 fewer input tokens; generic Catalog made 14 calls.' }],
-    gaps: [{ kind: 'Not measured', text: 'Catalog accuracy, exhaustive recall and any benefit of switching verification off; glossary and inherited headings were not varied.' }],
-    technical: 'discovery_chars, record_chars (generic); catalog.input_tokens, catalog.output_tokens, catalog.factors.{glossary,headings,overlap,verification} (recipe).',
+    gaps: [
+      { kind: 'Not measured', text: 'Catalog accuracy, exhaustive recall and any benefit of switching verification off; glossary and inherited headings were not varied.' },
+      { kind: 'Not measured', text: 'The unified Catalog on independent document families; its default reserves and overlap are engineering choices, not measured settings.' },
+    ],
+    technical: 'discovery_chars, record_chars (generic); catalog.input_tokens, catalog.output_tokens, catalog.factors.{glossary,headings,overlap,verification} (recipe); unified.{defaults,input_tokens,output_tokens,overlap,headings,verification}, result version 3 with its execution and discovery records (unified).',
   },
 ]
 

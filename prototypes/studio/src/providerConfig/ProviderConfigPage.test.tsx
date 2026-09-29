@@ -1074,6 +1074,24 @@ describe('Advanced', () => {
     expect(server.puts()[0]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE, catalog: { unified: {} } })
   })
 
+  it('Use service defaults also migrates retired Catalog controls, and Discard keeps them unchanged', async () => {
+    const legacy = { generic: { discovery_chars: 60_000 } }
+    const server = studio(config({ extractionSettings: { article: REFERENCE_ARTICLE, catalog: legacy } }),
+      { deployment: { ...NO_DEPLOYMENT, unifiedCatalog: true } })
+    await renderPage()
+    openAdvanced()
+    fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(screen.getByRole('note')).toHaveTextContent('Discovery text limit: 60,000 characters')
+    expect(server.puts()).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE })
+  })
+
   it('the issue summary opens Advanced from another tab on the issue\'s strategy and focuses its control', async () => {
     studio(config())
     await renderPage()

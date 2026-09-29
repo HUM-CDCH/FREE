@@ -105,6 +105,7 @@ describe('the Explain guide', () => {
       .toBe('Lower value-call count can omit relevant evidence. It is not grounding routing.')
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.takeaway)
       .toBe("Verification Off yields proposals; a recipe's applicability is source-specific.")
+    expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.combinations).toContain('retired limits and recipe factors are never converted')
     for (const source of EVIDENCE_SOURCES) for (const field of [source.date, source.corpus, source.revision, source.evidence, source.limits]) expect(field).not.toBe('')
   })
 

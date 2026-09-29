@@ -101,6 +101,7 @@ function transportDiagnostics(
         }
       : null,
     ...(diagnostics.grounded ? { grounded: diagnostics.grounded } : {}),
+    ...(diagnostics.unified ? { unified: diagnostics.unified } : {}),
     ...(diagnostics.models ? { models: diagnostics.models } : {}),
     ...(diagnostics.effectiveMethod ? { effectiveMethod: diagnostics.effectiveMethod } : {}),
     ...(diagnostics.eligibility ? { eligibility: diagnostics.eligibility } : {}),

@@ -136,7 +136,17 @@ def extract(source: Evidence, model=None, *, schema=SCHEMA, counter=None, run_di
     chat = CountingChat(model or Model(source))
     result = unified.extract(run_dir, source, request(schema, **settings), as_router(chat),
                              counter=counter or WordCounter(), extraction_id=extraction_id)
+    assert_links_resolve(result)
     return result, chat
+
+
+def assert_links_resolve(result: dict) -> None:
+    """Every evidence link names a populated value of the records, at exactly its path."""
+    for link in result["evidence"]:
+        value = {"records": result["records"]}
+        for step in link["path"]:
+            value = value[step] if isinstance(value, dict) or (isinstance(step, int) and step < len(value)) else None
+            assert value is not None, link["path"]
 
 
 def ranges(result: dict, disposition: str) -> list[tuple[str, int, int]]:
@@ -489,6 +499,18 @@ def test_one_windows_identical_items_are_both_kept_and_flagged():
     _, counts, issues = merged(_observation(0, 0, anchor, ("name", "Nadel", 10)),
                                _observation(0, 1, anchor, ("name", "Nadel", 10)))
     assert counts["resolved"] == 2 and [issue.code for issue in issues] == ["item_identity_ambiguous"]
+
+
+def test_an_item_whose_values_were_all_refused_leaves_no_gap_in_the_list():
+    source = evidence("1. Adorf. Find: Nadel (2). Find: Fibel (1). Find: Perle (3).")
+
+    def verdict(path, value, record):
+        return "unsupported" if value in ("Nadel", 2) else "supported"
+    result, _ = extract(source, Model(source, verdict=verdict))
+    assert result["records"][0]["finds"] == [{"name": "Fibel", "count": 1}, {"name": "Perle", "count": 3}]
+    assert sorted(link["path"][3] for link in result["evidence"] if link["path"][2] == "finds") == [0, 0, 1, 1]
+    assert {tuple(item["path"]) for item in result["rejected"]} == {
+        ("records", 0, "finds", None, "name"), ("records", 0, "finds", None, "count")}
 
 
 def test_complementary_halves_at_a_cut_are_never_joined():

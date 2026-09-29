@@ -550,6 +550,7 @@ class _Run:
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
         self._verify(number, replies, out)
         out.contest = self._settle(number, out, view)
+        _renumbered(out.found)
         out.record = conform(_placed(out.found), self.nodes)
         return out
 
@@ -652,6 +653,26 @@ class _Run:
             if found.kind == "candidate":
                 found.kind, found.reason = "proposed", "document_unverified"
         return out
+
+
+def _renumbered(found: list[_Found]) -> None:
+    """List positions made dense over the items that kept an accepted value, at every list level, as `conform` compacts
+    the record's lists: evidence then names the item it supports. An item left without one takes a null position."""
+    accepted = [leaf.path for leaf in found if leaf.kind == "accepted"]
+
+    def remap(path: tuple) -> tuple:
+        steps: list = []
+        for depth, step in enumerate(path):
+            if isinstance(step, int):
+                kept = sorted({other[depth] for other in accepted if len(other) > depth and other[:depth] == path[:depth]})
+                if step not in kept:
+                    return (*steps, None, *path[depth + 1:])
+                step = kept.index(step)
+            steps.append(step)
+        return tuple(steps)
+    paths = [remap(leaf.path) for leaf in found]
+    for leaf, path in zip(found, paths, strict=True):
+        leaf.path = path
 
 
 def _placed(found: list[_Found], kind: str = "accepted") -> dict:
