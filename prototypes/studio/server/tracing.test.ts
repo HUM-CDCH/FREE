@@ -25,6 +25,7 @@ const failingCollector: SpanExporter = {
 
 let server: Server
 let baseURL: string
+let refuseAuthentication = false
 beforeAll(async () => {
   expect(await startTracing({ OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://127.0.0.1:9/v1/traces' }, failingCollector)).toBe(true)
   server = createServer((request, response) => {
@@ -32,6 +33,14 @@ beforeAll(async () => {
     request.on('data', (chunk) => (body += chunk))
     request.on('end', () => {
       response.setHeader('content-type', 'application/json')
+      if (refuseAuthentication) {
+        response.statusCode = 401
+        response.end(JSON.stringify({ error: {
+          message: `PRIVATE PROVIDER RESPONSE: Invalid API key ${request.headers.authorization}`,
+          type: 'authentication_error',
+        } }))
+        return
+      }
       if (JSON.parse(body).response_format) {
         response.statusCode = 400
         response.end(JSON.stringify({ error: { message: 'response_format is not supported', type: 'invalid_request_error' } }))
@@ -50,6 +59,7 @@ beforeAll(async () => {
 afterAll(() => new Promise((resolve) => server.close(resolve)))
 beforeEach(() => {
   spans.length = 0
+  refuseAuthentication = false
   vi.unstubAllEnvs()
 })
 
@@ -97,6 +107,20 @@ it('records prompts, raw responses and parsed outputs when FREE_TRACE_CAPTURE li
   expect(JSON.parse(String(all.find((span) => span.name === 'schema-suggestion')!.attributes['output.value'])))
     .toEqual({ _description: 'One catalogue entry', title: 'string' })
   expect(everything(all)).not.toContain(SECRET)
+})
+
+it.each(['', 'prompts,responses,parsed'])('never exports provider errors containing credentials (capture=%s)', async (capture) => {
+  vi.stubEnv('FREE_TRACE_CAPTURE', capture)
+  refuseAuthentication = true
+  const all = await traced(async () => {
+    await expect(generateSchemaWithModel(CALLER, input, generalTarget())).rejects.toThrow('The model operation failed.')
+  })
+
+  const chat = all.find((span) => span.name === 'chat audit')!
+  expect(chat.status.code).toBe(2)
+  expect(chat.events.find((event) => event.name === 'exception')?.attributes?.['exception.type']).toBe('AI_APICallError')
+  expect(everything(all)).not.toContain(SECRET)
+  expect(everything(all)).not.toContain('PRIVATE PROVIDER RESPONSE')
 })
 
 it('traces a NuExtract chat completion like the AI SDK does, without its key', async () => {

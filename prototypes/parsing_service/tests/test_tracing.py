@@ -24,6 +24,7 @@ def spans(monkeypatch):
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     monkeypatch.setattr(calls, "_TRACER", provider.get_tracer("test"))
+    monkeypatch.setattr(calls, "CAPTURE", set())
     return exporter
 
 
@@ -39,8 +40,8 @@ def test_a_call_records_its_model_tokens_and_refused_attempt_and_no_content_by_d
     assert dict(span.attributes) == {"openinference.span.kind": "LLM", "llm.model_name": "fake/extractor",
                                      "llm.token_count.prompt": 12, "llm.token_count.completion": 4,
                                      "free.record": 3}
-    assert [(event.name, event.attributes["error"]) for event in span.events] == [
-        ("refused attempt", "HTTP 400: response_format is not supported")]
+    assert [(event.name, dict(event.attributes)) for event in span.events] == [
+        ("refused attempt", {"attempt": 1})]
     assert span.status.status_code is StatusCode.UNSET
 
 
@@ -57,7 +58,47 @@ def test_a_failed_call_is_an_error_span(spans):
     call(FakeChat(lambda *_: Reply(text="not json", input_tokens=1, output_tokens=1, finish="stop", seconds=0.0)))
     [span] = spans.get_finished_spans()
     assert span.status.status_code is StatusCode.ERROR
-    assert "did not return JSON" in span.status.description
+    assert span.status.description is None
+
+
+def recorded(span):
+    return json.dumps({"attributes": dict(span.attributes), "status": span.status.description,
+                       "events": [dict(event.attributes) for event in span.events]})
+
+
+@pytest.mark.parametrize("capture", [set(), {"prompts", "responses", "parsed"}])
+def test_malformed_reply_content_requires_response_capture(spans, monkeypatch, capture):
+    monkeypatch.setattr(calls, "CAPTURE", capture)
+    private = "PRIVATE MODEL RESPONSE"
+    call(FakeChat(lambda *_: Reply(private, 1, 1, "stop", 0.0)))
+    [span] = spans.get_finished_spans()
+    assert span.status.status_code is StatusCode.ERROR
+    assert span.status.description is None
+    assert (private in recorded(span)) == ("responses" in capture)
+
+
+@pytest.mark.parametrize("capture", [set(), {"prompts", "responses", "parsed"}])
+def test_refusal_events_never_record_provider_response_bodies(spans, monkeypatch, capture):
+    monkeypatch.setattr(calls, "CAPTURE", capture)
+    private = "HTTP 400: response_format unsupported PRIVATE PROVIDER RESPONSE"
+    _, attempts = call(FakeChat(lambda *_: Reply("{}", 1, 1, "stop", 0.0, (private,))))
+    [span] = spans.get_finished_spans()
+    assert private not in recorded(span)
+    assert [(event.name, dict(event.attributes)) for event in span.events] == [("refused attempt", {"attempt": 1})]
+    assert attempts[0].error == private  # Tracing does not rewrite the extraction's existing artifact diagnostics.
+
+
+def test_raised_errors_keep_the_failure_without_exporting_their_content(spans):
+    def fail(*_):
+        raise RuntimeError("PRIVATE PROVIDER RESPONSE")
+
+    with pytest.raises(RuntimeError, match="PRIVATE PROVIDER RESPONSE"):
+        call(FakeChat(fail))
+    [span] = spans.get_finished_spans()
+    assert span.status.status_code is StatusCode.ERROR
+    assert "PRIVATE PROVIDER RESPONSE" not in recorded(span)
+    assert [(event.name, dict(event.attributes)) for event in span.events] == [
+        ("exception", {"exception.type": "RuntimeError"})]
 
 
 def test_catalog_chunk_threads_stay_on_the_step_s_trace(spans):

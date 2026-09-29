@@ -25,12 +25,47 @@ export async function startTracing(
     ])
   new sdk.NodeTracerProvider({
     resource: resourceFromAttributes({ 'service.name': 'studio' }),
-    spanProcessors: [new sdk.BatchSpanProcessor(exporter ?? new OTLPTraceExporter())],
+    spanProcessors: [new sdk.BatchSpanProcessor(withoutErrorContent(exporter ?? new OTLPTraceExporter()))],
   }).register()
   // One span per request a model call actually sent, AI SDK retries included; only under a traced call.
   new UndiciInstrumentation({ requireParentforSpans: true })
   registerTelemetry(new OpenTelemetry())
   return true
+}
+
+/** SDK exception recording bypasses recordInputs/recordOutputs. Provider messages and stacks can quote keys or
+ *  source text, so every exporter receives only error types and status codes, regardless of capture settings. */
+function withoutErrorContent(exporter: SpanExporter): SpanExporter {
+  return {
+    export(spans, done) {
+      exporter.export(spans.map((span) => ({
+        name: span.name,
+        kind: span.kind,
+        spanContext: () => span.spanContext(),
+        parentSpanContext: span.parentSpanContext,
+        startTime: span.startTime,
+        endTime: span.endTime,
+        status: { code: span.status.code },
+        attributes: span.attributes,
+        links: span.links,
+        events: span.events.map((event) => ({
+          ...event,
+          attributes: event.name === 'exception'
+            ? { 'exception.type': event.attributes?.['exception.type'] ?? 'Error' }
+            : event.attributes,
+        })),
+        duration: span.duration,
+        ended: span.ended,
+        resource: span.resource,
+        instrumentationScope: span.instrumentationScope,
+        droppedAttributesCount: span.droppedAttributesCount,
+        droppedEventsCount: span.droppedEventsCount,
+        droppedLinksCount: span.droppedLinksCount,
+      })), done)
+    },
+    shutdown: () => exporter.shutdown(),
+    forceFlush: () => exporter.forceFlush?.() ?? Promise.resolve(),
+  }
 }
 
 export function captures(content: 'prompts' | 'responses' | 'parsed'): boolean {

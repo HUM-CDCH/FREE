@@ -167,7 +167,16 @@ Prompts, raw responses and parsed outputs are not recorded unless listed:
 FREE_TRACE_CAPTURE=prompts,responses,parsed pnpm dev -- --phoenix
 ```
 
-Request headers, and with them model keys, are never recorded.
+`prompts` records the model's input; `responses` records its raw reply;
+`parsed` records the output interpreted by FREE. List only the content you
+need, for example `FREE_TRACE_CAPTURE=prompts,responses` for LLM input and
+output. Inspect the model-call spans in Phoenix at http://localhost:6006.
+
+Request headers, and with them model keys, are never recorded. Model-call
+error spans retain their status and exception type, but omit messages, stacks
+and provider refusal bodies even when capture is enabled: those can quote
+source text or credentials. A malformed model reply is recorded only through
+explicit `responses` capture.
 
 ## Database operations
 
