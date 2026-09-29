@@ -1353,7 +1353,7 @@ describe('SchemaPanel sample values', () => {
       pagesLabel: 'pp. 12',
       review: { decisions: [touched ? { ...decision, action: 'EDITED', reviewedValue: 'um 1650' } : decision],
         isTouched: () => touched, setDecision: vi.fn(), undo: vi.fn(),
-        draftError: null, draftSaving: false, retryDraft: vi.fn(), error: null, reload: vi.fn() },
+        draftError: null, draftSaving: false, retryDraft: vi.fn(), error: null, reload: vi.fn(), transfer: {} },
       parsedDocument, focusedPathKey: null, onSelectEvidence: vi.fn(),
       ...overrides,
     }
@@ -1405,6 +1405,25 @@ describe('SchemaPanel sample values', () => {
     expect(screen.getByRole('button', { name: '1897' }).closest('.bg-accent-ghost')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(sample.review.undo).toHaveBeenCalledWith(title)
+  })
+
+  it('compares a re-run value with the review: a changed one offers Accept new and Keep, a carried one says how it carried', () => {
+    const base = sampleOf()
+    const changed = { ...base, review: { ...base.review, transfer: { [JSON.stringify(title)]: { status: 'changed' as const, kept: 'um 1650' } } } }
+    renderPanel({}, { sample: changed })
+    expect(screen.getByText('Changed · was um 1650')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep um 1650' }))
+    expect(changed.review.setDecision).toHaveBeenLastCalledWith(title, 'EDITED', 'um 1650',
+      [{ evidenceAnchorId: 'a_p12_s8', reviewedOccurrenceIds: ['o-a_p12_s8'] }])
+    fireEvent.click(screen.getByRole('button', { name: 'Accept new' }))
+    expect(changed.review.setDecision).toHaveBeenLastCalledWith(title, 'APPROVED')
+    cleanup()
+    const carried = { ...base, review: { ...base.review, isTouched: () => true,
+      decisions: [{ ...decision, carriedFrom: { extractionId: 'sample', sourcePathKey: JSON.stringify(title) } }],
+      transfer: { [JSON.stringify(title)]: { status: 'fixed' as const, kept: '1897' } } } }
+    renderPanel({}, { sample: carried })
+    expect(screen.getByText('Fixed')).toBeInTheDocument()
+    expect(screen.queryByText('✓ right')).not.toBeInTheDocument()
   })
 })
 

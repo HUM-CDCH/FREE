@@ -15,6 +15,7 @@ import {
   type ExtractionStrategy,
   type ReviewDecisionAction,
   type ReviewDecisionInput,
+  type ReviewTransferVerdicts,
 } from '../shared/extraction.contract'
 import { resultPathKey } from '../shared/groundedExtraction'
 
@@ -182,6 +183,8 @@ export function useExtraction({
   const [reviewError, setReviewError] = useState<string | null>(null)
   const draftSaveRef = useRef({ version: 0, pending: Promise.resolve(), writes: 0, conflict: false })
   const [reviewReload, setReviewReload] = useState(0)
+  // The review transfer's verdicts, for the attempt they were read with.
+  const [transfer, setTransfer] = useState<{ extractionId: string; verdicts: ReviewTransferVerdicts }>({ extractionId: '', verdicts: {} })
   const [draftSaving, setDraftSaving] = useState(false)
   const [draftError, setDraftError] = useState<string | null>(null)
   const [cancellationRequested, setCancellationRequested] = useState(false)
@@ -367,6 +370,7 @@ export function useExtraction({
           )
           return
         }
+        setTransfer({ extractionId: attempt.extractionId, verdicts: prepared.reviewDraft?.transfer ?? {} })
         const recovered = recoverReviewDraft(attempt.extractionId, prepared.reviewDraft, prepared.pendingReviewDecisions ?? [])
         draftSaveRef.current = { version: recovered.version, pending: Promise.resolve(), writes: 0, conflict: recovered.conflict }
         setDraftError(recovered.conflict ? REVIEW_DRAFT_CONFLICT : null)
@@ -611,6 +615,8 @@ export function useExtraction({
       ).length,
       isTouched: (resultPath: ReviewDecisionInput['resultPath']) =>
         touchedPaths.has(resultPathKey(resultPath)),
+      /** Each value's verdict against the reviewed samples this run pinned; empty when it pinned none. */
+      transfer: transfer.extractionId === attempt?.extractionId ? transfer.verdicts : {},
       reviewedExtractionId: attempt?.reviewedAt
         ? attempt.extractionId
         : null,

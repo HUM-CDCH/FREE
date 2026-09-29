@@ -80,9 +80,13 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
     const full = (await module.runSingle(freshInput(project))).extraction.extractionId
     const prepared = await module.prepareReview(full)
     const seeded = await module.readReviewDraft(full)
-    assert.deepEqual(seeded, { version: 0, decisions: prepared.reviewDecisions.map((decision) => ({
-      ...decision, carriedFrom: { extractionId: sample, sourcePathKey: JSON.stringify(decision.resultPath) },
-    })) })
+    assert.deepEqual(seeded, {
+      version: 0,
+      decisions: prepared.reviewDecisions.map((decision) => ({
+        ...decision, carriedFrom: { extractionId: sample, sourcePathKey: JSON.stringify(decision.resultPath) },
+      })),
+      transfer: { '["records",0,"title"]': { status: 'reviewed', kept: 'Alpha' } },
+    })
     assert.equal(seeded.decisions.length, 1)
     assert.equal(prepared.extraction.reviewedAt, null)
     assert.deepEqual(prepared.extraction.reviewDecisions, [])

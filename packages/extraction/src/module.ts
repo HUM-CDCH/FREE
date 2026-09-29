@@ -86,22 +86,23 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
     readReviewDraft: async (extractionId) => {
       const draft = await persistence.readReviewDraft(extractionId)
       if (!draft) throw new ExtractionError('not_found', 'That Extraction was not found.')
-      // A review never saved starts from the decisions its pinned samples carry (design §7): draft decisions under
-      // this Extraction's own paths, saved with the researcher's first edit and authoritative only once finalized.
-      const pinned = draft.version === 0 ? (await persistence.readExtraction(extractionId))?.reviewTransfer : null
+      const pinned = (await persistence.readExtraction(extractionId))?.reviewTransfer
       if (!pinned) return draft
       const { extraction, reviewDecisions } = await prepareReview(extractionId)
       const inputs = await persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
       if (!inputs) return draft
       const verdicts = transferVerdicts(pinned, extraction, parsePinnedSchema(inputs.schemaTree).schemaNodes)
       return {
-        version: 0,
-        decisions: reviewDecisions.flatMap((decision) => {
+        version: draft.version,
+        // A review never saved starts from the decisions its pinned samples carry (design §7): draft decisions under
+        // this Extraction's own paths, saved with the researcher's first edit and authoritative only once finalized.
+        decisions: draft.version > 0 ? draft.decisions : reviewDecisions.flatMap((decision) => {
           const { decision: carried, entry } = verdicts.get(resultPathKey(decision.resultPath)) ?? {}
           return carried && entry
             ? [{ ...decision, ...carried, carriedFrom: { extractionId: entry.extractionId, sourcePathKey: entry.sourcePathKey } }]
             : []
         }),
+        transfer: Object.fromEntries([...verdicts].map(([key, { status, kept }]) => [key, { status, kept }])),
       }
     },
     saveReviewDraft: async (extractionId, draft) => {

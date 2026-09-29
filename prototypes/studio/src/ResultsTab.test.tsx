@@ -54,6 +54,7 @@ function controller(
       draftError: null,
       draftSaving: false,
       retryDraft: () => {},
+      transfer: {},
       setDecision: () => {},
       undo: () => {},
       reload: () => {},
@@ -793,6 +794,36 @@ describe('ResultsTab grounded values', () => {
     expect(setDecision).toHaveBeenLastCalledWith(
       ['records', 0, 'person', 'age'], 'EDITED', 7,
     )
+  })
+
+  it('saves a review with decisions carried from a sample only when the researcher asks, and counts them', () => {
+    const accept = vi.fn(async () => {})
+    const schema = { recordDescription: 'Places.', schemaNodes: [{ id: 'place', name: 'place', type: 'string' as const }] }
+    const path = ['records', 0, 'place']
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          { status: 'ready', result: articleAttempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0 },
+          articleAttempt,
+          {
+            available: true, canAccept: true, reviewedCount: 1, accept,
+            decisions: [{ resultPath: path, evidenceAnchorId: 'a_p1_s0', reviewedOccurrenceIds: ['o-1'], action: 'APPROVED',
+              reviewedValue: null, carriedFrom: { extractionId: 'sample', sourcePathKey: JSON.stringify(path) } }],
+            transfer: { [JSON.stringify(path)]: { status: 'reviewed', kept: 'First place' } },
+          },
+        )}
+        schemaReady
+        pinnedSchema={schema}
+        exportSchema={schema}
+        documentMarkdown="# Source"
+        sourceDocumentName="article.pdf"
+      />,
+    )
+    expect(screen.getByText('1 reviewed in sample · 0 changed since sample · 0 to review')).toBeInTheDocument()
+    expect(accept).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save review' }))
+    expect(accept).toHaveBeenCalledOnce()
   })
 
   it('reverses a rejected value back to its original approved value', () => {

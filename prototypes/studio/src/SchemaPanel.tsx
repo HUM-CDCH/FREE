@@ -61,7 +61,7 @@ export type SchemaSample = {
   currentRevisionNumber: number | null
   pagesLabel: string
   review: Pick<ExtractionController['review'],
-    'decisions' | 'isTouched' | 'setDecision' | 'undo' | 'draftError' | 'draftSaving' | 'retryDraft' | 'error' | 'reload'>
+    'decisions' | 'isTouched' | 'setDecision' | 'undo' | 'draftError' | 'draftSaving' | 'retryDraft' | 'error' | 'reload' | 'transfer'>
   parsedDocument: ParsedDocument | null
   /** The value a page passage was picked for (`resultPathKey`). */
   focusedPathKey: string | null
@@ -124,6 +124,12 @@ function typedCorrection(type: SchemaNode['type'], text: string): unknown {
   return text
 }
 
+/** How a re-run value compares with the reviewed samples (design §7). */
+const TRANSFER_STATUS = {
+  fixed: ['Fixed', 'text-green'], reviewed: ['As reviewed', 'text-ink-muted'],
+  changed: ['Changed', 'text-stale'], unmatched: ['Unmatched record', 'text-ink-muted'],
+} as const
+
 const scrollIntoViewOnce = (element: HTMLElement | null) => element?.scrollIntoView?.({ block: 'nearest' })
 
 function SampleValues({ node, sample }: { node: SchemaNode; sample: SchemaSample }) {
@@ -156,6 +162,11 @@ function SampleValues({ node, sample }: { node: SchemaNode; sample: SchemaSample
         const pages = new Set((attempt.evidenceLinks ?? []).filter((each) => each.resultPath[1] === index)
           .map((each) => Number(each.evidenceAnchorId.match(ANCHOR_PAGE)?.[1])))
         const corrected = correcting?.index === index ? typedCorrection(pinned.type, correcting.text) : undefined
+        // A carried or undecided value shows how it compares with the review; the researcher's own decision, itself.
+        const verdict = review.transfer[key]
+        const transfer = verdict && (!touched || decision.carriedFrom) ? verdict : null
+        const correct = (value: unknown) => review.setDecision(path, 'EDITED', value as never,
+          sample.parsedDocument && printedIn(sample.parsedDocument, pages, String(value)))
         return (
           <div key={index} className={`flex flex-col gap-1 rounded px-1 ${sample.focusedPathKey === key ? 'bg-accent-ghost' : ''}`}
             ref={sample.focusedPathKey === key ? scrollIntoViewOnce : undefined}>
@@ -167,10 +178,17 @@ function SampleValues({ node, sample }: { node: SchemaNode; sample: SchemaSample
                 {shown(record[pinned.name])}
               </button>
               {touched && decision.action === 'EDITED' && <span className="font-mono text-accent">{shown(decision.reviewedValue)}</span>}
-              {touched && decision.action === 'APPROVED' && <span className="text-green">✓ right</span>}
+              {touched && decision.action === 'APPROVED' && !transfer && <span className="text-green">✓ right</span>}
+              {transfer && <span className={TRANSFER_STATUS[transfer.status][1]}>
+                {TRANSFER_STATUS[transfer.status][0]}{transfer.status === 'changed' && transfer.kept !== null && ` · was ${shown(transfer.kept)}`}
+              </span>}
               <span className="flex-1" />
               {decision && (touched
                 ? <Button onClick={() => review.undo(path)}>Undo</Button>
+                : transfer?.status === 'changed' ? <>
+                    <Button onClick={() => review.setDecision(path, 'APPROVED')}>Accept new</Button>
+                    {transfer.kept !== null && <Button onClick={() => correct(transfer.kept)}>Keep {shown(transfer.kept)}</Button>}
+                  </>
                 : <>
                     <Button onClick={() => review.setDecision(path, 'APPROVED')}>Right</Button>
                     {!pinned.children && <Button onClick={() => setCorrecting({ index, text: shown(record[pinned.name]) })}>Correct</Button>}
@@ -180,8 +198,7 @@ function SampleValues({ node, sample }: { node: SchemaNode; sample: SchemaSample
               <form className="flex items-center gap-1.5" onSubmit={(event) => {
                 event.preventDefault()
                 if (corrected === undefined) return
-                review.setDecision(path, 'EDITED', corrected as never,
-                  sample.parsedDocument && printedIn(sample.parsedDocument, pages, String(corrected)))
+                correct(corrected)
                 setCorrecting(null)
               }}>
                 <input aria-label={`Correct ${pinned.name}`} value={correcting.text} autoFocus

@@ -359,6 +359,8 @@ export type TransferVerdict = Readonly<{
   status: 'fixed' | 'reviewed' | 'changed' | 'unmatched'
   entry: TransferEntry | null
   decision: Pick<ReviewDecisionInput, 'action' | 'reviewedValue' | 'reviewedEvidence'> | null
+  /** The value the sample reviewed, in the destination type; null when it was rejected or does not convert. */
+  kept: unknown
 }>
 
 /** `value` in a field of `type` when it converts without loss, else undefined. */
@@ -390,6 +392,8 @@ export function transferVerdicts(
   const pairs = new Map(transfer.samples.map((sample) => [sample.extractionId, alignRecords(target, sample)]))
   const sampleOf = (entry: TransferEntry) => transfer.samples.find((sample) => sample.extractionId === entry.extractionId)!
   const verdicts = new Map<string, TransferVerdict>()
+  // ponytail: only values the destination grounds get a verdict; a reviewed value it no longer has (a regression to
+  // nothing) shows as changed with Keep once decisions on ungrounded paths exist (task 3.1).
   for (const link of destination.evidence ?? []) {
     const [, record, ...inRecord] = link.resultPath
     const node = schemaNodeAtPath(nodes, link.resultPath)
@@ -403,7 +407,7 @@ export function transferVerdicts(
     if (!entry) {
       const unmatched = ![...pairs.values()].some((aligned) => aligned.has(record)) && transfer.entries.some((each) =>
         sampleOf(each).records[each.record]!.anchors.some((anchor) => target.records[record]!.anchors.includes(anchor)))
-      if (unmatched) verdicts.set(resultPathKey(link.resultPath), { status: 'unmatched', entry: null, decision: null })
+      if (unmatched) verdicts.set(resultPathKey(link.resultPath), { status: 'unmatched', entry: null, decision: null, kept: null })
       continue
     }
     const type = node.type === 'array' && node.itemType ? node.itemType : node.type
@@ -421,7 +425,9 @@ export function transferVerdicts(
       : !repeated || (entry.action === 'EDITED' && reviewedValue === undefined) ? null
       : entry.action === 'EDITED' ? { action: entry.action, reviewedValue, reviewedEvidence: entry.reviewedEvidence }
       : { action: entry.action, reviewedValue: null }
-    verdicts.set(resultPathKey(link.resultPath), { status: fixed ? 'fixed' : decision ? 'reviewed' : 'changed', entry, decision })
+    const kept = entry.action === 'REJECTED' ? null
+      : entry.action === 'EDITED' ? reviewedValue ?? null : losslessly(entry.modelValue, type) ?? null
+    verdicts.set(resultPathKey(link.resultPath), { status: fixed ? 'fixed' : decision ? 'reviewed' : 'changed', entry, decision, kept })
   }
   return verdicts
 }

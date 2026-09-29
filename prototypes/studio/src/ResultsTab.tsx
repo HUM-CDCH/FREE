@@ -541,9 +541,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
       return next
     })
   }, [])
+  // Decisions carried from samples never finalize on their own: the researcher saves such a review explicitly.
+  const carried = controller.review.decisions.filter((decision) => decision.carriedFrom).length
+  const changedSinceSample = controller.review.decisions.filter((decision) => !controller.review.isTouched(decision.resultPath) &&
+    controller.review.transfer[resultPathKey(decision.resultPath)]?.status === 'changed').length
   useEffect(() => {
     if (!readOnly && !inspectedAttempt && editingPaths.size === 0 &&
-      controller.review.canAccept && !controller.review.error)
+      controller.review.canAccept && !controller.review.error && carried === 0)
       void controller.review.accept()
   })
   const articleRecords =
@@ -734,11 +738,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                         : controller.review.saving ? 'Saving…'
                         : controller.review.error ? 'Review not saved'
                         : controller.review.loading ? 'Loading review…'
+                        : carried > 0 ? `${carried} reviewed in sample · ${changedSinceSample} changed since sample · ${controller.review.untouchedCount - changedSinceSample} to review`
                         : 'Review all fields to save automatically'}
                     </span>
-                    {controller.review.error && controller.review.canAccept && (
-                      <Button size="sm" variant="secondary" disabled={editingPaths.size > 0}
-                        onClick={() => void controller.review.accept()}>Retry</Button>
+                    {(controller.review.error || carried > 0) && controller.review.canAccept && (
+                      <Button size="sm" variant={controller.review.error ? 'secondary' : 'primary'} disabled={editingPaths.size > 0}
+                        onClick={() => void controller.review.accept()}>{controller.review.error ? 'Retry' : 'Save review'}</Button>
                     )}
                   </>
                 )}

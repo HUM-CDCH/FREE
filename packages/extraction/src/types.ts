@@ -353,6 +353,8 @@ export type ReviewPreparation = Readonly<{
 export type ReviewDraft = Readonly<{
   version: number
   decisions: readonly ReviewDecisionInput[]
+  /** Each value's verdict against the sample decisions pinned at admission, by result path key; absent when none were. */
+  transfer?: Readonly<Record<string, Readonly<{ status: 'fixed' | 'reviewed' | 'changed' | 'unmatched'; kept: unknown }>>>
 }>
 
 export type BatchExtractionMemberSnapshot = Readonly<{

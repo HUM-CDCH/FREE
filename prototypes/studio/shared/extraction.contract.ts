@@ -453,9 +453,18 @@ export const extractionReadResponseSchema = z
   .object({
     extraction: extractionAttemptSchema,
     pendingReviewDecisions: z.array(reviewDecisionInputSchema).nullable(),
-    reviewDraft: z.object({ version: z.number().int().nonnegative(), decisions: z.array(reviewDecisionInputSchema) }).strict().optional(),
+    reviewDraft: z.object({
+      version: z.number().int().nonnegative(),
+      decisions: z.array(reviewDecisionInputSchema),
+      /** Each value's verdict against the sample decisions pinned at admission, by result path key. */
+      transfer: z.record(z.string(), z.object({
+        status: z.enum(['fixed', 'reviewed', 'changed', 'unmatched']), kept: z.json(),
+      }).strict()).optional(),
+    }).strict().optional(),
   })
   .strict()
+
+export type ReviewTransferVerdicts = NonNullable<NonNullable<z.infer<typeof extractionReadResponseSchema>['reviewDraft']>['transfer']>
 
 export const extractionReviewDraftSchema = z.object({
   version: z.number().int().nonnegative(),
