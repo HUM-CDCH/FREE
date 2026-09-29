@@ -388,4 +388,28 @@ it('reads no result values from a row without a published result, whatever its c
     assert.deepEqual(failed?.failure, failure)
     await assert.rejects(module.prepareReview(input.extractionId), rejectsWithCode('not_found'))
   })
+  it('one stored method that no longer parses does not break reading the Extraction or listing its batch', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['a.pdf', 'b.pdf'])
+    kei.holding = true
+    const module = scheduler(project.researcherAccountId)
+    const opened = await module.scheduleBatch({
+      projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId, strategy: 'ARTICLE',
+      sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId), repetition: 'reuse-equal-selection',
+      method: { models: null, settings: { article: null } },
+    })
+    const single = freshInput(project, randomUUID(), { models: null, settings: { article: null } })
+    await module.runSingle(single)
+    // A later narrowing of the method contract would leave rows like these behind.
+    const retired = { article: { context: 'full', retired_factor: true } }
+    await db.orm.public.Extraction.where({ id: single.extractionId }).update({ requestedSettings: retired })
+    await db.orm.public.BatchExtraction.where({ id: opened.batch.batchExtractionId }).update({ requestedSettings: retired })
+    const attempt = await module.readExtractionAttempt(single.extractionId)
+    assert.ok(attempt, 'the Extraction is still readable')
+    assert.equal(attempt.requestedSettings, null)
+    const [listed] = await module.listBatches({ projectContextId: project.projectContextId })
+    assert.equal(listed?.batchExtractionId, opened.batch.batchExtractionId)
+    const read = await module.readBatch({ projectContextId: project.projectContextId, batchExtractionId: opened.batch.batchExtractionId })
+    assert.equal(read.batchExtractionId, opened.batch.batchExtractionId)
+  })
 })

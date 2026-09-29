@@ -1,5 +1,5 @@
 {
-  "source": "openspec/changes/advanced-extraction-configuration/contract-cases.json (4e2a5820): the nineteen Article method examples, copied verbatim; `canonical` is ArticleOptions.model_dump(mode='json') for accepted cases",
+  "source": "openspec/changes/archive/2026-09-29-advanced-extraction-configuration/contract-cases.json (4e2a5820): the nineteen Article method examples, copied verbatim; `canonical` is ArticleOptions.model_dump(mode='json') for accepted cases",
   "cases": [
     {
       "id": "reference",

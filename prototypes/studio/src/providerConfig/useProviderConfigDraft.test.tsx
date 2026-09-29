@@ -33,6 +33,17 @@ describe('the Advanced draft', () => {
     expect(result.current.draft?.extractionSettings).toEqual({ catalog: REFERENCE_CATALOG })
   })
 
+  it('an inactive context ceiling left behind by full source is not an unsaved change: Apply would store the saved value', () => {
+    const { result } = draftHook()
+    act(() => result.current.initialize({ ...saved, extractionSettings: { article: REFERENCE_ARTICLE } }))
+    act(() => result.current.setArticle('context', 'bounded'))
+    act(() => result.current.setNumber('article.context_tokens', '9000'))
+    expect(result.current.dirty).toBe(true)
+    act(() => result.current.setArticle('context', 'full'))
+    expect(result.current.draft?.extractionSettings.article?.context_tokens).toBe(9000)
+    expect(result.current.dirty).toBe(false)
+  })
+
   it('an optional factor switched off and on again, or a number edited back, is not an unsaved change', () => {
     const { result } = draftHook()
     act(() => result.current.initialize({ ...saved, extractionSettings: { article: { ...REFERENCE_ARTICLE, grounding: 'spans', evidence_policy: 'schema' } } }))
@@ -40,6 +51,8 @@ describe('the Advanced draft', () => {
     expect(result.current.dirty).toBe(true)
     act(() => result.current.setArticle('evidence_policy', 'schema'))
     expect(result.current.dirty).toBe(false)
+    // The ceiling is editable only with bounded source units.
+    act(() => result.current.initialize({ ...saved, extractionSettings: { article: { ...REFERENCE_ARTICLE, context: 'bounded' } } }))
     act(() => result.current.setNumber('article.context_tokens', '16384'))
     expect(result.current.dirty).toBe(true)
     act(() => result.current.setNumber('article.context_tokens', '12288'))

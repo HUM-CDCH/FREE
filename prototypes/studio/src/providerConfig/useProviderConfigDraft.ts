@@ -45,6 +45,14 @@ type DraftInputs = {
   disposeProbe: (connectionId: string) => void
 }
 
+/** The document as Apply would store it, for the unsaved-changes check: under full source the inactive context ceiling
+ *  is stored as the reference value (design §2), so a ceiling left behind by a bounded draft changes nothing. */
+function comparable(config: ModelConfig): ModelConfig {
+  const article = config.extractionSettings.article
+  if (!article || article.context !== 'full' || article.context_tokens === REFERENCE_ARTICLE.context_tokens) return config
+  return { ...config, extractionSettings: { ...config.extractionSettings, article: { ...article, context_tokens: REFERENCE_ARTICLE.context_tokens } } }
+}
+
 export function useProviderConfigDraft({ accountId, providers, scheduleProbe, cancelProbe, disposeProbe }: DraftInputs) {
   const [saved, setSaved] = useState<ModelConfig | null>(null)
   const [draft, setDraft] = useState<ModelConfig | null>(null)
@@ -285,7 +293,8 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
   }
 
   const dirty = draft !== null && saved !== null &&
-    (JSON.stringify(draft) !== JSON.stringify(saved) || Object.keys(keyEdits).length > 0 || Object.keys(numberEdits).length > 0)
+    (JSON.stringify(comparable(draft)) !== JSON.stringify(comparable(saved)) ||
+      Object.keys(keyEdits).length > 0 || Object.keys(numberEdits).length > 0)
 
   /** Every Advanced issue the page shows and Apply waits for: shape (minimums, names), cross-field rules, and number
    *  text that is not a whole number. Paths are relative to `extractionSettings`. Each strategy's member is checked on

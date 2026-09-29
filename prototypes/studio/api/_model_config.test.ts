@@ -483,8 +483,11 @@ describe('advanced extraction settings', () => {
   it('a stored document without the member is a server fault that echoes nothing', async () => {
     const legacy: Partial<ModelConfig> = configured()
     delete legacy.extractionSettings
-    await expect(readAccountModelConfig(ACCOUNT, inMemoryModelConfigurations({ [ACCOUNT]: legacy })))
-      .rejects.toMatchObject({ status: 500, code: 'invalid_model_config', message: 'The saved model configuration is invalid.' })
+    const refusal = await readAccountModelConfig(ACCOUNT, inMemoryModelConfigurations({ [ACCOUNT]: legacy })).catch((error: unknown) => error)
+    expect(refusal).toMatchObject({ status: 500, code: 'invalid_model_config', message: 'The saved model configuration is invalid.' })
+    // Nothing of the stored document leaves the server: no details, and no stored value in any field.
+    expect((refusal as { details?: unknown }).details).toBeUndefined()
+    expect(JSON.stringify(refusal, Object.getOwnPropertyNames(refusal))).not.toContain(legacy.connections?.[0]?.name ?? 'connections')
   })
 
   it('refuses an incompatible combination field by field, with the design copy, and stores nothing', async () => {

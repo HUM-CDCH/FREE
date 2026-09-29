@@ -200,7 +200,8 @@ function EvidenceTable({ rows }: { rows: GuideTopic['evidence'] }) {
   )
 }
 
-/** Choices away from the documented reference; context ceiling and identity field names are inputs, not choices. */
+/** Choices away from the documented reference; context ceiling and identity field names are inputs, not choices. Two or
+ *  more together is what the completed one-choice-at-a-time studies did not cover. */
 function changedChoices(article: ArticleSettings | undefined): number {
   if (!article) return 0
   return ARTICLE_KEYS.filter((key) => key !== 'context_tokens' && key !== 'identity_fields' &&
@@ -220,7 +221,7 @@ function Overview({ article, onUse }: { article: ArticleSettings | undefined; on
       {changed >= 2 && (
         <p>
           <strong className="font-semibold">Combination not studied</strong>
-          {`: your Article draft changes ${changed} choices from the reference, and no study evaluated them together on today’s runtime. Each finding holds only under its own study conditions.`}
+          {`: your Article draft changes ${changed} choices from the reference together. The completed studies changed one choice at a time; only the grounding pilot combined choices, on one selected document. Each finding holds only under its own study conditions.`}
         </p>
       )}
       <h3 className="text-[12.5px] font-semibold">Starting points</h3>

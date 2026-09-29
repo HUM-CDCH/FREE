@@ -84,6 +84,11 @@ test('numeric and key boundaries: minima, integers, overlap ceiling, duplicate a
   refused({ context: 'bounded', overlap_passages: 3 }, 'overlap_passages', METHOD_MESSAGES.overlap)
   refused({ identity_fields: ['species', 'species'] }, 'identity_fields', METHOD_MESSAGES.identityNames)
   refused({ identity_fields: [''] }, 'identity_fields.0', METHOD_MESSAGES.identityNames)
+  // Bounded like any account-owned input: a record identity is a few scalar fields with ordinary names.
+  assert.equal(validateArticleOptions({ identity_fields: Array.from({ length: 32 }, (_, index) => `f${index}`) }).ok, true)
+  refused({ identity_fields: Array.from({ length: 33 }, (_, index) => `f${index}`) }, 'identity_fields', METHOD_MESSAGES.identityLimit)
+  assert.equal(validateArticleOptions({ identity_fields: ['x'.repeat(128)] }).ok, true)
+  refused({ identity_fields: ['x'.repeat(129)] }, 'identity_fields.0', METHOD_MESSAGES.identityLimit)
   assert.equal(validateArticleOptions({ span_grounding_version: 1 }).ok, false)
   const catalog = (value: unknown) => extractionSettingsSchema.safeParse({ catalog: value })
   assert.equal(catalog({ generic: { discovery_chars: 1000, record_chars: 1000 } }).success, true)

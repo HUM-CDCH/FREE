@@ -4,7 +4,7 @@
  */
 
 import type { Database, DatabaseOrm, WorkflowStatuses } from 'db'
-import { modelChoice, storedSettings, type ActiveSettings } from './extraction-method.js'
+import { modelChoice, recordedSettings, type ActiveSettings } from './extraction-method.js'
 import {
   decodeReviewedValue,
   deriveAttempts,
@@ -144,7 +144,7 @@ export async function loadBatches(
       strategy: batch.strategy as ExtractionStrategy,
       requestedModels: modelChoice(batch.requestedModels),
       // A batch has no recipe: its members pin none.
-      requestedSettings: storedSettings(batch.requestedSettings, batch.strategy as ExtractionStrategy, null),
+      requestedSettings: recordedSettings(batch.requestedSettings, batch.strategy as ExtractionStrategy, null),
       executionStatus,
       createdAt: batch.createdAt,
       members,

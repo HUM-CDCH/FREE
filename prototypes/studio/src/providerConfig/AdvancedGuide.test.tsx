@@ -72,7 +72,7 @@ describe('the Explain guide', () => {
     renderGuide()
     fireEvent.click(screen.getByRole('button', { name: 'Explain Recipe Catalog' }))
     const dialog = screen.getByRole('dialog', { name: 'Catalog' })
-    expect(within(dialog).getByText('Not measured')).toBeInTheDocument()
+    expect(within(dialog).getAllByText('Not measured').length).toBeGreaterThan(0)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Verification' }))
     const table = within(screen.getByRole('dialog', { name: 'Verification' })).getByRole('table', { name: 'Study evidence' })
     for (const header of ['Finding', 'Date', 'Corpus', 'Method revision', 'Evidence type', 'Limits'])
@@ -118,7 +118,7 @@ describe('the Explain guide', () => {
 
   it('makes no recommendation, speed or accuracy claim', () => {
     const text = JSON.stringify([GUIDE_TOPICS, EVIDENCE_SOURCES, STARTING_POINTS])
-    expect(text).not.toMatch(/\bbest\b|\bfastest\b|\bfaster\b|\brecommended\b|more accurate|improves accuracy|\bsafer\b/i)
+    expect(text).not.toMatch(/\bbest\b|\bfastest\b|\bfaster\b|\bbetter\b|\bcheaper\b|\bimprov|\brecommended\b|more accurate|\bsafer\b/i)
   })
 
   it('How this works shows the flow with a text equivalent and each starting point\'s full delta before it is used', () => {
@@ -137,7 +137,10 @@ describe('the Explain guide', () => {
   it('a draft that changes two or more choices says Combination not studied; the reference does not', () => {
     renderGuide(vi.fn(), { ...REFERENCE_ARTICLE, context: 'bounded', rendering: 'structured' })
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-    expect(within(screen.getByRole('dialog', { name: 'How this works' })).getByText('Combination not studied')).toBeInTheDocument()
+    const guide = within(screen.getByRole('dialog', { name: 'How this works' }))
+    expect(guide.getByText('Combination not studied')).toBeInTheDocument()
+    // What the studies did, not an inference from how many choices changed.
+    expect(guide.getByText(/completed studies changed one choice at a time/)).toBeInTheDocument()
     cleanup()
     renderGuide()
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))

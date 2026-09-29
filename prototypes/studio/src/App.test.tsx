@@ -39,7 +39,7 @@ const {
 // The account keeps every service default: each run submits `{ models: null, settings: <its slot>: null }`.
 const saved = vi.hoisted(() => ({
   state: {
-    status: 'ready' as const,
+    status: 'ready',
     config: {
       connections: [],
       routes: { schemaSuggestion: null, interaction: null },
@@ -47,7 +47,7 @@ const saved = vi.hoisted(() => ({
       ingestionModels: {},
       extractionSettings: {},
     },
-  },
+  } as import('./savedMethod').SavedMethodState,
   refresh: vi.fn(),
 }))
 vi.mock('./savedMethod', async (importOriginal) => ({
@@ -1533,6 +1533,29 @@ describe('reopened Source Document workspace', () => {
         'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.',
       )
       expect(screen.queryByRole('button', { name: /^Run (Article|Catalog) extraction/ })).not.toBeInTheDocument()
+    })
+
+    it.each([
+      [{ status: 'loading' } as const, 'Loading saved advanced settings…'],
+      [{ status: 'error', message: 'Unavailable.' } as const, 'Nothing can start until they load.'],
+    ])('starts nothing while the saved settings are %o', async (state, shown) => {
+      const ready = saved.state
+      saved.state = state
+      try {
+        vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+          return Promise.resolve(new Response('pdf'))
+        }))
+        render(<DocumentWorkspace {...reopened} />)
+        await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+        expect(screen.getByText(shown, { exact: false })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+      } finally {
+        saved.state = ready
+      }
     })
 
     it('shows the saved advanced settings it submits; a method_changed refusal opens them with a refresh and no failure', async () => {

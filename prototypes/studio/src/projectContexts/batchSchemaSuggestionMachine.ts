@@ -511,14 +511,16 @@ export const batchSchemaSuggestionMachine = setup({
     running: {
       invoke: {
         src: 'runSuggestion',
-        input: ({ context, event }) => ({
-          run: context.run,
-          batchSchemaSuggestionId: context.suggestion!.batchSchemaSuggestionId,
-          strategy:
-            event.type === 'run.requested' ? event.strategy : 'ARTICLE',
-          method:
-            event.type === 'run.requested' ? event.method : { models: null, settings: { article: null } },
-        }),
+        input: ({ context, event }) => {
+          // Only run.requested enters this state; a default here would submit a method nobody saw.
+          if (event.type !== 'run.requested') throw new Error(`A suggested Batch Extraction cannot start on ${event.type}.`)
+          return {
+            run: context.run,
+            batchSchemaSuggestionId: context.suggestion!.batchSchemaSuggestionId,
+            strategy: event.strategy,
+            method: event.method,
+          }
+        },
         onDone: {
           target: 'confirmed',
           actions: [

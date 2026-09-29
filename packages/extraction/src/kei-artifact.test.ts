@@ -276,9 +276,12 @@ describe('what the Parsing Service reports it ran', () => {
   const options = { strategy: 'article', model: 'selected-model', discovery_chars: 48_000, record_chars: 24_000, article }
 
   it('keeps the recorded options and every protocol version the artifact reports', () => {
-    const raw = { ...artifact({ options, prompt_version: 12 }), method_version: 1, span_grounding_version: 2 }
+    const raw = { ...artifact({ options, prompt_version: 12 }), method_version: 1, span_grounding_version: 2,
+      grounding_routing_version: 3, rendering_version: 4, grouping_version: 5, selection_version: 6 }
     const { extraction } = accept(raw, { settings: { article } })
-    assert.deepEqual(extraction.diagnostics.effectiveMethod, { options, versions: { prompt: 12, method: 1, spanGrounding: 2 } })
+    assert.deepEqual(extraction.diagnostics.effectiveMethod, { options, versions: {
+      prompt: 12, method: 1, spanGrounding: 2, groundingRouting: 3, rendering: 4, grouping: 5, selection: 6,
+    } })
   })
 
   it('keeps policy-skipped values, their reasons and the separate denominators; nothing eligible is not applicable', () => {

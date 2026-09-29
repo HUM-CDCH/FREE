@@ -352,6 +352,16 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await expect(responsiveExportDialog).toBeHidden()
     await expect(exportTrigger).toBeFocused()
   }
+  // The start view's saved-method summary opens inside the viewport at every width, including 360 px.
+  for (const viewport of [{ width: 360, height: 800 }, ...REQUIRED_VIEWPORTS]) {
+    await page.setViewportSize(viewport)
+    const savedSettings = page.locator('summary', { hasText: 'Saved advanced settings' })
+    await expectOperableInViewport(page, savedSettings)
+    await savedSettings.click()
+    await expectOperableInViewport(page, page.getByText('Change them on the Model Configuration page’s Advanced tab.'))
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${viewport.width}px`).toBe(true)
+    await savedSettings.click()
+  }
   await emulateBrowserZoom200(page)
   await expectOperableInViewport(
     page,

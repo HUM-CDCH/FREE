@@ -30,6 +30,7 @@ export const METHOD_MESSAGES = {
   routing: 'Use generated quotes or source spans, and stop after support.',
   identity: 'Add the scalar record fields that identify one record.',
   identityNames: 'Each identity field needs its own non-empty name.',
+  identityLimit: 'Use at most 32 identity fields, each at most 128 characters.',
   contextTokens: 'Enter a whole number of tokens, at least 8,192.',
   overlap: 'Choose 0, 1 or 2 previous passages.',
   characters: 'Enter a whole number of characters, at least 1,000.',
@@ -46,7 +47,8 @@ export const articleSettingsSchema = z.object({
   context_tokens: wholeNumber(METHOD_MESSAGES.contextTokens, ARTICLE_MIN_CONTEXT_TOKENS).default(ARTICLE_REFERENCE_CONTEXT_TOKENS),
   overlap_passages: wholeNumber(METHOD_MESSAGES.overlap, 0).max(2, METHOD_MESSAGES.overlap).default(0),
   identity: z.enum(['reference', 'conservative']).default('reference'),
-  identity_fields: z.array(z.string().min(1, METHOD_MESSAGES.identityNames)).default([]),
+  identity_fields: z.array(z.string().min(1, METHOD_MESSAGES.identityNames).max(128, METHOD_MESSAGES.identityLimit))
+    .max(32, METHOD_MESSAGES.identityLimit).default([]),
   prompt: z.enum(['reference', 'schema']).default('reference'),
   grounding: z.enum(['semantic', 'quoted', 'spans', 'off']).default('semantic'),
   grounding_schedule: optionalFactor('unresolved'),
@@ -274,6 +276,17 @@ export function storedSettings(value: unknown, strategy: ExtractionStrategy, cat
   if (!parsed.success || !(settingsSlot(strategy, catalogRecipe) in parsed.data))
     throw new ExtractionError('invalid_extraction_method', 'The admitted extraction method is invalid.')
   return parsed.data
+}
+
+/** The same stored method for reading and listing: a record a later contract no longer parses shows as not recorded, so
+ *  one such row never breaks a whole listing. Execution uses `storedSettings`, which refuses it for that run only. */
+export function recordedSettings(value: unknown, strategy: ExtractionStrategy, catalogRecipe: string | null): ActiveSettings | null {
+  try {
+    return storedSettings(value, strategy, catalogRecipe)
+  } catch (error) {
+    if (error instanceof ExtractionError && error.code === 'invalid_extraction_method') return null
+    throw error
+  }
 }
 
 /** A choice from a request or stored jsonb value: absent, null and empty roles all mean service defaults. */
