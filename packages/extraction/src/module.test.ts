@@ -164,12 +164,21 @@ describe('review of an Extraction with document-level schema fields', () => {
       schemaRevisionId: extraction.schemaRevisionId, schemaTree: reviewSchema, parsedDocument,
     }),
     finalizeReview: async () => ({ status: 'reviewed' as const, extraction }),
+    saveReviewDraft: async (_: string, draft: unknown) => draft,
   } as unknown as ExtractionPersistence
 
   it('finalizes a review whose only unaccounted value is the unverified document field', async () => {
     const module = createExtractionModule(persistence)
     const finalized = await module.finalizeReview(extractionId, [decision])
     assert.equal(finalized.disposition, 'reviewed')
+  })
+
+  it('saves a draft correction only with its Evidence on a published anchor of the pinned document', async () => {
+    const module = createExtractionModule(persistence)
+    const correction = (evidenceAnchorId: string) => ({ version: 0, decisions: [{ ...decision, action: 'EDITED' as const,
+      reviewedValue: 'Beta', reviewedEvidence: [{ evidenceAnchorId, reviewedOccurrenceIds: ['bundled-occurrence'] }] }] })
+    await module.saveReviewDraft(extractionId, correction('bundled-anchor'))
+    await assert.rejects(module.saveReviewDraft(extractionId, correction('unpublished-anchor')), { code: 'invalid_review' })
   })
 })
 

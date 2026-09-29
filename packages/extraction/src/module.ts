@@ -3,6 +3,7 @@ import { ExtractionError } from './errors.js'
 import { resultPathKey } from './review-paths.js'
 import { decodePinnedDocument } from './parsed-document.js'
 import {
+  correctionEvidenceIsPublished,
   occurrenceOwnership,
   parsePinnedSchema,
   reviewableExtraction,
@@ -38,7 +39,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
     const extraction = await persistence.readExtraction(extractionId)
     if (!extraction) throw new ExtractionError('not_found', 'That Extraction was not found.')
     if (extraction.outcome !== 'SUCCEEDED' || !extraction.reviewable || !extraction.evidence)
-      return { extraction, reviewDecisions: [] }
+      return { extraction, reviewDecisions: [], occurrenceIdsByAnchor: new Map<string, ReadonlySet<string>>() }
     const raw = await persistence.readCanonicalParsedDocument(extraction.sourceRepresentationRevisionId)
     if (!raw) throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is unavailable.')
     const document = decodePinnedDocument(raw)
@@ -55,7 +56,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
           }]
         : []
     })
-    return { extraction, reviewDecisions: decisions }
+    return { extraction, reviewDecisions: decisions, occurrenceIdsByAnchor }
   }
 
   const finalizeReview = async (extractionId: string, decisions: readonly ReviewDecisionInput[], expectedDraftVersion = 0): Promise<FinalizeReviewResult> => {
@@ -112,7 +113,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       }
     },
     saveReviewDraft: async (extractionId, draft) => {
-      const { extraction, reviewDecisions } = await prepareReview(extractionId)
+      const { extraction, reviewDecisions, occurrenceIdsByAnchor } = await prepareReview(extractionId)
       if (extraction.reviewedAt) throw new ExtractionError('review_conflict', 'This review is already finalized. Reload to see the saved review.')
       if (!extraction.reviewable) throw new ExtractionError('invalid_review', 'This Extraction cannot be reviewed.')
       const inputs = await persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
@@ -125,7 +126,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
         return !expected || expected.evidenceAnchorId !== decision.evidenceAnchorId ||
           expected.reviewedOccurrenceIds.length !== decision.reviewedOccurrenceIds.length ||
           !expected.reviewedOccurrenceIds.every((id) => decision.reviewedOccurrenceIds.includes(id)) ||
-          !reviewDecisionMatchesSchema(nodes, decision)
+          !reviewDecisionMatchesSchema(nodes, decision) || !correctionEvidenceIsPublished(occurrenceIdsByAnchor, decision)
       })) throw new ExtractionError('invalid_review', 'Draft decisions do not match the pinned Extraction Result and Evidence.')
       if (!draft.pairings || !extraction.reviewTransfer) return persistence.saveReviewDraft(extractionId, draft)
       // A save that pairs a record carries its decisions into the paths the researcher has not decided; one that

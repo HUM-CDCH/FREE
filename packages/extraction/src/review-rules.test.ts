@@ -11,6 +11,7 @@ import {
   transferSample,
   transferVerdicts,
   unionReviewTransfer,
+  unmatchedSources,
   type ReviewAuthority,
 } from './review-rules.js'
 import { parseExtractionSchema } from './schema.js'
@@ -327,5 +328,28 @@ describe('Review transfer from a sample to a later run', () => {
     const decisions = [decide(marks, ['records', 0, 'marks', 0], 'APPROVED'), decide(marks, ['records', 0, 'marks', 1], 'REJECTED')]
     assert.deepEqual(verdicts(marks, decisions, run('full', [{ number: ['41', 'a0'], marks: [['A', 'm2'], ['N', 'm1']] }])),
       { '["records",0,"marks",0]': 'reviewed REJECTED', '["records",0,"marks",1]': 'reviewed APPROVED' })
+  })
+
+  it('keeps an older decision on one array item when a newer sample decides another', () => {
+    const older = run('older', [{ number: ['41', 'a0'], marks: [['N', 'm1'], ['A', 'm2']] }])
+    const newer = run('newer', [{ number: ['41', 'a0'], marks: [['N', 'm1'], ['A', 'm2']] }])
+    const item = (at: number) => ['records', 0, 'marks', at]
+    const actions = (transfer: ReturnType<typeof twoSamples>) => transfer.entries.map((entry) => [entry.extractionId, entry.action])
+    assert.deepEqual(actions(twoSamples(older, [decide(older, item(0), 'REJECTED')], newer, [decide(newer, item(1), 'APPROVED')])),
+      [['older', 'REJECTED'], ['newer', 'APPROVED']])
+    assert.deepEqual(actions(twoSamples(older, [decide(older, item(0), 'REJECTED')], newer, [decide(newer, item(0), 'APPROVED')])),
+      [['newer', 'APPROVED']])
+  })
+
+  it('leaves a record on a sampled page that shares no passage unmatched and pairable; paired, its fix carries', () => {
+    const sample = run('sample', [{ number: ['41', 'a_p1_s0'], date: ['1897', 'a_p1_s2'] }])
+    const fix = { reviewedValue: 'um 1650', reviewedEvidence: [{ evidenceAnchorId: 'a_p1_s5', reviewedOccurrenceIds: ['o1'] }] }
+    const transfer = unionReviewTransfer([{ ...transferSample(sample), entries: transferEntries(sample, [decide(sample, date, 'EDITED', fix)], nodes, 1) }])!
+    const rerun = run('rerun', [{ date: ['um 1650', 'a_p1_s5'] }])
+    assert.equal(transferVerdicts(transfer, rerun, nodes).get(JSON.stringify(date))?.status, 'unmatched')
+    assert.deepEqual(unmatchedSources(transfer, rerun).map((source) => source.record), [0])
+    assert.equal(transferVerdicts(transfer, rerun, nodes, [{ record: 0, extractionId: 'sample', sourceRecord: 0 }])
+      .get(JSON.stringify(date))?.status, 'fixed')
+    assert.equal(transferVerdicts(transfer, run('rerun', [{ date: ['um 1650', 'a_p2_s5'] }]), nodes).size, 0)
   })
 })

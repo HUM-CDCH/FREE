@@ -251,22 +251,26 @@ export function reviewAuthorityMatchesExtraction(
     submitted.length === evidenceByPath.size &&
     new Set(submitted.map((decision) => decision.resultPathKey)).size ===
       submitted.length &&
-    submitted.every((decision) => {
-      // Every occurrence of a published anchor of the pinned document, the model's and a correction's alike.
-      const reviewsAnchor = (anchorId: string, occurrenceIds: readonly string[]) => {
-        const owned = authority.occurrenceIdsByAnchor.get(anchorId)
-        return owned !== undefined && occurrenceIds.length === owned.size && occurrenceIds.every((id) => owned.has(id))
-      }
-      return (
-        evidenceByPath.get(decision.resultPathKey) ===
-          decision.evidenceAnchorId &&
-        reviewsAnchor(decision.evidenceAnchorId, decision.reviewedOccurrenceIds) &&
-        (!decision.reviewedEvidence || (decision.action === 'EDITED' && decision.reviewedEvidence.every(
-          (evidence) => reviewsAnchor(evidence.evidenceAnchorId, evidence.reviewedOccurrenceIds)))) &&
-        actionMatchesReviewedValue(decision)
-      )
-    })
+    submitted.every((decision) =>
+      evidenceByPath.get(decision.resultPathKey) === decision.evidenceAnchorId &&
+      reviewsAnchor(authority.occurrenceIdsByAnchor, decision.evidenceAnchorId, decision.reviewedOccurrenceIds) &&
+      correctionEvidenceIsPublished(authority.occurrenceIdsByAnchor, decision) &&
+      actionMatchesReviewedValue(decision))
   )
+}
+
+/** Every occurrence of a published anchor of the pinned document, the model's and a correction's alike. */
+function reviewsAnchor(owned: ReviewAuthority['occurrenceIdsByAnchor'], anchorId: string, occurrenceIds: readonly string[]) {
+  const ids = owned.get(anchorId)
+  return ids !== undefined && occurrenceIds.length === ids.size && occurrenceIds.every((id) => ids.has(id))
+}
+
+/** A correction's own Evidence, if any, is on an EDITED decision and reviews published anchors of the pinned document. */
+export function correctionEvidenceIsPublished(
+  owned: ReviewAuthority['occurrenceIdsByAnchor'], decision: Pick<ReviewDecisionInput, 'action' | 'reviewedEvidence'>,
+): boolean {
+  return !decision.reviewedEvidence || (decision.action === 'EDITED' && decision.reviewedEvidence.every(
+    (evidence) => reviewsAnchor(owned, evidence.evidenceAnchorId, evidence.reviewedOccurrenceIds)))
 }
 
 type TransferSample = ReviewTransfer['samples'][number]
@@ -341,13 +345,16 @@ export function unionReviewTransfer(
   samples: readonly (TransferSample & { entries: readonly TransferEntry[]; pairings?: readonly ReviewPairing[] })[],
 ): ReviewTransfer | null {
   let entries: readonly TransferEntry[] = []
+  // A decision's node in a record; an array item's also by its anchor, so a newer decision leaves the other items'.
+  const key = (entry: TransferEntry, record: number) => `${record} ${entry.nodeId}` +
+    ((JSON.parse(entry.sourcePathKey) as unknown[]).slice(2).some((segment) => typeof segment === 'number') ? ` ${entry.evidenceAnchorId}` : '')
   samples.forEach((sample, at) => {
-    const decided = new Set(sample.entries.map((entry) => `${entry.record} ${entry.nodeId}`))
+    const decided = new Set(sample.entries.map((entry) => key(entry, entry.record)))
     // This sample's records aligned with the older samples' records, or paired with them by hand in its review.
     const pairs = transferPairs(samples.slice(0, at), sample, sample.pairings ?? [])
     entries = [...entries.filter((entry) => {
       const record = [...pairs.get(entry.extractionId)!].find(([, source]) => source === entry.record)?.[0]
-      return record === undefined || !decided.has(`${record} ${entry.nodeId}`)
+      return record === undefined || !decided.has(key(entry, record))
     }), ...sample.entries]
   })
   if (entries.length === 0) return null
@@ -410,7 +417,15 @@ function transferPairs(samples: ReviewTransfer['samples'], target: TransferSampl
   return pairs
 }
 
-/** The pinned records with decisions that share a destination record's anchors without aligning or being paired,
+/** The page an Evidence Anchor ID names (`a_p{page}_s{index}`), if any. */
+const anchorPage = (anchorId: string) => /^a_p(\d+)_/.exec(anchorId)?.[1]
+
+/** Whether two records cite a passage on the same page (the same anchor, when it names no page): records that could
+ *  be one without aligning. */
+const sharePage = (left: TransferRecord, right: TransferRecord) => left.anchors.some((anchor) =>
+  right.anchors.some((other) => (anchorPage(anchor) ?? anchor) === (anchorPage(other) ?? other)))
+
+/** The pinned records with decisions that share a page with a destination record without aligning or being paired,
  *  each labelled for display only by its first decided value's page and model value. */
 export function unmatchedSources(
   transfer: ReviewTransfer, destination: Parameters<typeof transferSample>[0], pairings: readonly ReviewPairing[] = [],
@@ -420,8 +435,8 @@ export function unmatchedSources(
   return transfer.samples.flatMap((sample) => sample.records.flatMap((record, index) => {
     const first = transfer.entries.find((entry) => entry.extractionId === sample.extractionId && entry.record === index)
     if (!first || [...pairs.get(sample.extractionId)!.values()].includes(index) ||
-        !target.records.some((each) => each.anchors.some((anchor) => record.anchors.includes(anchor)))) return []
-    const page = /^a_p(\d+)_/.exec(first.evidenceAnchorId)?.[1]
+        !target.records.some((each) => sharePage(each, record))) return []
+    const page = anchorPage(first.evidenceAnchorId)
     return [{ extractionId: sample.extractionId, record: index, label: `${page ? `p. ${page} · ` : ''}${String(first.modelValue)}` }]
   }))
 }
@@ -432,7 +447,7 @@ export function unmatchedSources(
  * destination type, an approval carries on the same value and anchor; a correction carries as an approval (fixed) on
  * the corrected value at its reviewed Evidence, and as itself when the model repeats the corrected value on the same
  * anchor; a rejection carries on the same value and anchor. Anything else under a decision is changed; a record that
- * shares a decided record's anchors without aligning is unmatched. A value without a verdict is to review.
+ * shares a page with a decided record without aligning is unmatched. A value without a verdict is to review.
  */
 export function transferVerdicts(
   transfer: ReviewTransfer,
@@ -458,7 +473,7 @@ export function transferVerdicts(
         .includes(link.evidenceAnchorId)))
     if (!entry) {
       const unmatched = ![...pairs.values()].some((aligned) => aligned.has(record)) && transfer.entries.some((each) =>
-        sampleOf(each).records[each.record]!.anchors.some((anchor) => target.records[record]!.anchors.includes(anchor)))
+        sharePage(sampleOf(each).records[each.record]!, target.records[record]!))
       if (unmatched) verdicts.set(resultPathKey(link.resultPath), { status: 'unmatched', entry: null, decision: null, kept: null })
       continue
     }
