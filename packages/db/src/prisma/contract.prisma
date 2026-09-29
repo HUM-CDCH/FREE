@@ -273,6 +273,9 @@ model ReviewDecision {
   reviewedOccurrenceIds Json
   action                String
   reviewedValue         Json?
+  // A correction's own Evidence (`[{evidenceAnchorId, reviewedOccurrenceIds}]`): where its value is printed.
+  // Null: none recorded, so the correction never carries as fixed.
+  reviewedEvidence      Json?
   createdAt             Timestamptz6     @default(now())
   extractionReview      ExtractionReview @relation(fields: [extractionReviewId], references: [id], onDelete: Cascade)
 

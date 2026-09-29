@@ -83,6 +83,8 @@ export type ReviewDecisionInput = Readonly<{
   reviewedOccurrenceIds: readonly string[]
   action: ReviewDecisionAction
   reviewedValue: unknown | null
+  /** An EDITED decision's own Evidence: the published passage its corrected value is printed in. */
+  reviewedEvidence?: readonly Readonly<{ evidenceAnchorId: string; reviewedOccurrenceIds: readonly string[] }>[] | null
 }>
 
 export type ReviewDecision = ReviewDecisionInput & Readonly<{

@@ -112,6 +112,10 @@ const reviewDecisionShape = {
   reviewedOccurrenceIds: z.array(z.string().min(1)),
   action: reviewDecisionActionSchema,
   reviewedValue: z.json().nullable(),
+  /** A correction's own Evidence: the published passage its value is printed in; absent when none was found. */
+  reviewedEvidence: z.array(z.object({
+    evidenceAnchorId: z.string().min(1), reviewedOccurrenceIds: z.array(z.string().min(1)),
+  }).strict()).nullable().optional(),
 }
 
 function validateReviewDecision(
@@ -354,6 +358,8 @@ export const extractionAttemptSchema = z
     requestedModels: extractionModelChoiceSchema.nullable().optional(),
     /** The settings admitted with the run; null when it predates recorded settings ("Not recorded"). */
     requestedSettings: activeSettingsSchema.nullable().optional(),
+    /** A Sample Extraction's pages; null (or absent) for the whole document. */
+    requestedPages: z.array(z.int().positive()).nullable().optional(),
     executionStatus: z.enum(['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED']),
     /** SUCCEEDED once COMPLETED; a failed, cancelled or interrupted Extraction is FAILED with its failure instead. */
     outcome: z.literal('SUCCEEDED').nullable(),

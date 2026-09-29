@@ -129,6 +129,7 @@ function pendingDecision(
     reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
     action: decision.action,
     reviewedValue: decision.reviewedValue,
+    ...(decision.reviewedEvidence ? { reviewedEvidence: decision.reviewedEvidence } : {}),
   }
 }
 
@@ -547,15 +548,22 @@ export function useExtraction({
     resultPath: ReviewDecisionInput['resultPath'],
     action: ReviewDecisionAction,
     reviewedValue: ReviewDecisionInput['reviewedValue'] = null,
+    reviewedEvidence: ReviewDecisionInput['reviewedEvidence'] = null,
+    touch = true,
   ) {
     if (saveScopeRef.current.saving || !reviewAvailable || reviewLoading || attempt?.reviewedAt) return
     const key = resultPathKey(resultPath)
     if (!reviewDecisions.some((decision) => resultPathKey(decision.resultPath) === key)) return
-    updateReview(draftRef.current.decisions.map((decision) =>
-      resultPathKey(decision.resultPath) === key
-        ? { ...decision, action, reviewedValue: action === 'EDITED' ? reviewedValue : null }
-        : decision,
-    ), new Set(draftRef.current.touched).add(key))
+    const touched = new Set(draftRef.current.touched)
+    if (touch) touched.add(key)
+    else touched.delete(key)
+    updateReview(draftRef.current.decisions.map((decision) => {
+      if (resultPathKey(decision.resultPath) !== key) return decision
+      const next = { ...decision, action, reviewedValue: action === 'EDITED' ? reviewedValue : null }
+      if (action === 'EDITED' && reviewedEvidence) return { ...next, reviewedEvidence }
+      delete (next as { reviewedEvidence?: unknown }).reviewedEvidence
+      return next
+    }), touched)
   }
 
   // Marks every field the researcher hasn't explicitly acted on as touched,
@@ -605,6 +613,8 @@ export function useExtraction({
         } else updateReview(draftRef.current.decisions, draftRef.current.touched)
       },
       setDecision: setReviewDecision,
+      /** Back to the untouched default: approved, no correction, not yet decided by the researcher. */
+      undo: (resultPath: ReviewDecisionInput['resultPath']) => setReviewDecision(resultPath, 'APPROVED', null, null, false),
       approveAll: approveAllRemaining,
       accept: acceptResult,
     },

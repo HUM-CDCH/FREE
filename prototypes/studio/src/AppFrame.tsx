@@ -226,6 +226,7 @@ export default function AppFrame({
         extractionSchema: openDocument.extractionSchema,
         persistedExtraction: openDocument.latestAttempt,
         latestReviewedExtraction: openDocument.latestReviewed,
+        latestSample: openDocument.latestSample,
         onOpenExtraction: (extractionId: string) => onNavigate({
           kind: 'document',
           projectContextId: openDocument.projectContext.projectContextId,

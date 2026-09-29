@@ -137,6 +137,7 @@ function snapshot(sourceDocument = beretning, projectContext = project) {
     extractionSchema: null,
     latestAttempt: null,
     latestReviewed: null,
+    latestSample: null,
   }
 }
 
@@ -212,6 +213,7 @@ function hydratedSnapshot() {
       },
     },
     latestReviewed: null,
+    latestSample: null,
   }
 }
 
@@ -2439,6 +2441,7 @@ describe('routed Source Document reopening', () => {
           },
           latestAttempt: null,
           latestReviewed: null,
+          latestSample: null,
         })
       }),
     )

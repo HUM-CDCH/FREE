@@ -43,6 +43,7 @@ const defaultController: ExtractionController = {
     draftSaving: false,
     retryDraft: () => {},
     setDecision: () => {},
+    undo: () => {},
     approveAll: () => {},
     accept: async () => {},
   },

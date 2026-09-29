@@ -1,6 +1,6 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
-import SchemaPanel from './SchemaPanel'
+import SchemaPanel, { type SchemaSample } from './SchemaPanel'
 import { useSyncExternalStore } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { nodesToTemplate } from 'extraction/schema'
@@ -48,6 +48,8 @@ type RightRailProps = {
   onRenameSchema?: (name: string) => Promise<string | null>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
   onResultPathChange: (path: string[] | null) => void
+  /** The latest Sample Extraction, reviewed in the Schema tab. */
+  sample?: SchemaSample | null
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
@@ -82,6 +84,7 @@ function RightRail({
   onRenameSchema,
   onSelectEvidence,
   onResultPathChange,
+  sample = null,
 }: RightRailProps) {
   const { documentMarkdown, parsedDocument, reviewDecisions } = inspection
   const showDeveloperUi = isDeveloperUiEnabled()
@@ -186,6 +189,7 @@ function RightRail({
           sourceDocumentName={sourceDocumentName}
           schemaName={schemaName}
           onRenameSchema={onRenameSchema}
+          sample={sample}
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>

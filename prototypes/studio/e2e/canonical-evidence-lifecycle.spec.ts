@@ -830,3 +830,64 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   expect(published.outcome).toBe('SUCCEEDED')
   await fresh.close()
 })
+
+test('a sample is reviewed in the Schema tab, and its correction survives a reload without becoming the result @deterministic', async ({ page }) => {
+  test.setTimeout(120_000)
+  test.skip(!extractionDatabaseReady(), 'DATABASE_URL must equal the disposable EXTRACTION_TEST_DATABASE_URL')
+  Object.assign(kei, {
+    omitGrounding: false, blockNextValues: false, blockNextResult: false, failNextValues: false, incompleteNextResult: false,
+  })
+  const [researcherAccountId, researcherObjectId, projectContextId, sourceDocumentId, representationId, extractionSchemaId] =
+    Array.from({ length: 6 }, () => randomUUID())
+  const source = await canonicalPackage('reviewed.pdf')
+  const descriptor = await createCanonicalPackageStore().save(source.bytes)
+  await db.orm.public.ResearcherAccount.create({
+    id: researcherAccountId, tenantId: DEVELOPMENT_ENTRA_TENANT_ID, objectId: researcherObjectId, displayName: 'Sample Researcher',
+  })
+  await db.orm.public.ModelConfiguration.create({ researcherAccountId, document: {
+    connections: [], routes: { schemaSuggestion: null, interaction: null },
+    extractionModels: {}, ingestionModels: {}, extractionSettings: {},
+  } })
+  await db.orm.public.ProjectContext.create({ id: projectContextId, researcherAccountId, name: 'Sample E2E' })
+  await db.orm.public.SourceDocument.create({
+    id: sourceDocumentId, projectContextId, contentSha256: source.sourceHash, mediaType: 'application/pdf', originalName: 'sample.pdf',
+  })
+  await db.orm.public.SourceRepresentationRevision.create({
+    id: representationId, sourceDocumentId, revisionNumber: 1, artifactReference: descriptor.artifactReference,
+    artifactSha256: descriptor.artifactSha256, contractVersion: 'parsed_document.v2',
+    preprocessId: `kei-exp:e2e-${representationId}:g1`, parserName: 'fixture', parserVersion: '1',
+  })
+  await db.orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: 'Sample schema' })
+  await db.orm.public.SchemaRevision.create({
+    id: randomUUID(), extractionSchemaId, revisionNumber: 1, origin: 'RESEARCHER_EDIT',
+    schemaTree: { recordDescription: 'One lifecycle fixture record.', schemaNodes: lifecycleSchemaNodes },
+  })
+
+  await loginResearcher(page, researcherObjectId)
+  await page.goto(e2eStudioPath(`/projects/${projectContextId}/documents/${sourceDocumentId}`))
+  await expect(page.getByText('6 pages', { exact: true })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'This page' }).click()
+  await page.getByRole('button', { name: 'Run sample on pp. 1' }).click()
+  const year = page.getByRole('button', { name: '1801' })
+  await expect(year).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('Sample · rev 1 · pp. 1').first()).toBeVisible()
+  const row = year.locator('..')
+  await row.getByRole('button', { name: 'Correct' }).click()
+  await page.getByLabel('Correct year').fill('1802')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(row.getByText('1802')).toBeVisible()
+  await expect.poll(async () => JSON.stringify((await db.orm.public.Extraction.where({ sourceDocumentId })
+    .select('reviewDraft').first())?.reviewDraft)).toContain('1802')
+
+  // A passage on the page focuses the value it supports (every fixture value cites the same passage: the first).
+  const passage = await page.locator('.parsed-evidence-highlight').first().boundingBox()
+  await page.mouse.click(passage!.x + passage!.width / 2, passage!.y + passage!.height / 2)
+  await expect(page.getByRole('button', { name: 'Résumé, source line' }).locator('xpath=../..')).toHaveClass(/bg-accent-ghost/)
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: '1801' }).locator('..').getByText('1802')).toBeVisible({ timeout: 20_000 })
+  // The sample is no result of the document: nothing was run on the whole of it.
+  await expect(page.getByRole('button', { name: '▶ Run extraction' })).toBeVisible()
+  const sample = await db.orm.public.Extraction.where({ sourceDocumentId }).select('requestedPages').first()
+  expect(sample?.requestedPages).toEqual([1])
+})

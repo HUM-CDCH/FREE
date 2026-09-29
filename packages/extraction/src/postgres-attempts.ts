@@ -157,6 +157,7 @@ export async function extractionSnapshot(orm: DatabaseOrm, row: AttemptRow): Pro
         'reviewedOccurrenceIds',
         'action',
         'reviewedValue',
+        'reviewedEvidence',
         'createdAt',
       )
       .orderBy((decision) => decision.resultPathKey.asc()).all()
@@ -178,6 +179,9 @@ export async function extractionSnapshot(orm: DatabaseOrm, row: AttemptRow): Pro
       reviewedOccurrenceIds: decision.reviewedOccurrenceIds as string[],
       action: decision.action as ExtractionSnapshot['reviewDecisions'][number]['action'],
       reviewedValue: decodeReviewedValue(decision.reviewedValue),
+      ...(decision.reviewedEvidence
+        ? { reviewedEvidence: decision.reviewedEvidence as ExtractionSnapshot['reviewDecisions'][number]['reviewedEvidence'] }
+        : {}),
       createdAt: decision.createdAt,
     })),
   }

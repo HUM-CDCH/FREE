@@ -7,7 +7,7 @@ import type { ModelOperation } from '../shared/modelOperation.contract'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import { nodesToTemplate, type SchemaNode } from 'extraction/schema'
-import SchemaPanel from './SchemaPanel'
+import SchemaPanel, { type SchemaSample } from './SchemaPanel'
 import type { SchemaModelContext } from './api'
 import {
   createSchemaEditorController,
@@ -1325,6 +1325,73 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(setup.edits).toHaveLength(0)
   })
 
+})
+
+describe('SchemaPanel sample values', () => {
+  const passage = (id: string, text: string) => ({ anchor: { kind: 'text', anchor_id: id, block_id: id,
+    producer_observations: [{ occurrence_id: `o-${id}`, page_number: 12 }] }, block: { kind: 'paragraph', block_id: id, text } })
+  const passages = [passage('a_p12_s4', 'Silber, vergoldet'), passage('a_p12_s8', 'um 1650'),
+    passage('a_p12_s12', 'Erworben 1897'), passage('a_p12_s13', 'Silber')]
+  const parsedDocument = {
+    evidence_index: { anchors: passages.map((each) => each.anchor) },
+    content_stream: passages.map((each) => each.block), tables: [],
+  } as unknown as NonNullable<SchemaSample['parsedDocument']>
+  const title = ['records', 0, 'title']
+  const decision = { resultPath: title, evidenceAnchorId: 'a_p12_s12', reviewedOccurrenceIds: ['o-a_p12_s12'], action: 'APPROVED' as const, reviewedValue: null }
+
+  function sampleOf(overrides: Partial<SchemaSample> = {}, touched = false): SchemaSample {
+    return {
+      attempt: {
+        extractionId: '51000000-0000-4000-8006-000000000009', outcome: 'SUCCEEDED', requestedPages: [12],
+        resultPayload: { records: [{ title: '1897', gender: 'woman' }] },
+        evidenceLinks: [{ resultPath: title, evidenceAnchorId: 'a_p12_s12' }],
+        diagnostics: { grounded: { recordBlocks: [{ block: 'b41', entry_label: '41' }] } },
+      } as unknown as SchemaSample['attempt'],
+      // The sample ran on revision 1, before `gender` existed; the editor is at revision 2.
+      pinned: { revisionNumber: 1, schemaNodes: [nodes[0]!] },
+      currentRevisionNumber: 2,
+      pagesLabel: 'pp. 12',
+      review: { decisions: [touched ? { ...decision, action: 'EDITED', reviewedValue: 'um 1650' } : decision],
+        isTouched: () => touched, setDecision: vi.fn(), undo: vi.fn() },
+      parsedDocument, focusedPathKey: null, onSelectEvidence: vi.fn(),
+      ...overrides,
+    }
+  }
+
+  it('lists each value with its record, revision and pages, shows its Evidence, and reviews it in place', () => {
+    const sample = sampleOf()
+    renderPanel({}, { sample })
+    expect(screen.getByText('Nr. 41')).toBeInTheDocument()
+    expect(screen.getByText('Sample · rev 1 · pp. 12 · values are from revision 1')).toBeInTheDocument()
+    expect(screen.getByText('No sample values yet: this field is newer than revision 1.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '1897' }))
+    expect(sample.onSelectEvidence).toHaveBeenCalledWith('a_p12_s12')
+    fireEvent.click(screen.getByRole('button', { name: 'Right' }))
+    expect(sample.review.setDecision).toHaveBeenLastCalledWith(title, 'APPROVED')
+
+    // Printed once on the record's pages: that passage is the correction's Evidence.
+    fireEvent.click(screen.getByRole('button', { name: 'Correct' }))
+    fireEvent.change(screen.getByLabelText('Correct title'), { target: { value: 'um 1650' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(sample.review.setDecision).toHaveBeenLastCalledWith(title, 'EDITED', 'um 1650',
+      [{ evidenceAnchorId: 'a_p12_s8', reviewedOccurrenceIds: ['o-a_p12_s8'] }])
+    // Printed twice, or only inside a longer number (1897): no Evidence, so the correction can never carry as fixed.
+    for (const text of ['Silber', '97']) {
+      fireEvent.click(screen.getByRole('button', { name: 'Correct' }))
+      fireEvent.change(screen.getByLabelText('Correct title'), { target: { value: text } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect(sample.review.setDecision).toHaveBeenLastCalledWith(title, 'EDITED', text, null)
+    }
+  })
+
+  it('shows a correction with its undo, and marks the value a page passage was picked for', () => {
+    const sample = sampleOf({ focusedPathKey: JSON.stringify(title) }, true)
+    renderPanel({}, { sample })
+    expect(screen.getByText('um 1650')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '1897' }).closest('.bg-accent-ghost')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(sample.review.undo).toHaveBeenCalledWith(title)
+  })
 })
 
 describe('SchemaPanel conflict recovery', () => {

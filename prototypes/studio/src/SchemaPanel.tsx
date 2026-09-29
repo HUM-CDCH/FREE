@@ -23,6 +23,11 @@ import {
   templateToSchemaDefinition,
 } from 'extraction/schema'
 import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
+import { resultPathKey } from '../shared/groundedExtraction'
+import type { ExtractionController } from './useExtraction'
+import { blockForAnchor, tableForAnchor, type ParsedDocument, type ParsedEvidenceAnchor } from 'extraction/parsed-document'
+import { Button } from './ui'
 import SchemaNameEditor from './SchemaNameEditor'
 import {
   deriveSchemaProposal,
@@ -48,6 +53,147 @@ import {
 
 const EMPTY_NODES: SchemaNode[] = []
 
+/** The latest Sample Extraction, shown and reviewed under the field cards it ran on. */
+export type SchemaSample = {
+  attempt: ExtractionAttempt
+  /** Its Schema Revision's number and nodes, when known: values are found by node id, so a rename keeps them. */
+  pinned: { revisionNumber: number; schemaNodes: readonly SchemaNode[] } | null
+  currentRevisionNumber: number | null
+  pagesLabel: string
+  review: Pick<ExtractionController['review'], 'decisions' | 'isTouched' | 'setDecision' | 'undo'>
+  parsedDocument: ParsedDocument | null
+  /** The value a page passage was picked for (`resultPathKey`). */
+  focusedPathKey: string | null
+  onSelectEvidence: (anchorId: string) => void
+}
+
+const ANCHOR_PAGE = /^a_p(\d+)_/
+const shown = (value: unknown) => value == null ? '—' : typeof value === 'string' ? value : JSON.stringify(value)
+
+/** One label per record on every card, display only: the recipe entry, the Article identity values, else its first
+ *  Evidence page and first non-empty scalar value or position. */
+function recordLabel(attempt: ExtractionAttempt, record: Record<string, unknown>, index: number): string {
+  const entry = attempt.diagnostics?.grounded?.recordBlocks[index]?.entry_label
+  if (entry) return `Nr. ${entry}`
+  const settings = attempt.requestedSettings
+  const identity = settings && 'article' in settings ? settings.article?.identity_fields ?? [] : []
+  const named = identity.map((name) => record[name]).filter((value) => value != null && value !== '')
+  if (named.length) return named.map(shown).join(' · ')
+  const page = attempt.evidenceLinks?.find((link) => link.resultPath[1] === index)?.evidenceAnchorId.match(ANCHOR_PAGE)?.[1]
+  const scalar = Object.values(record).find((value) => (typeof value === 'string' && value !== '') || typeof value === 'number')
+  return `${page ? `p. ${page} · ` : ''}${scalar ?? `record ${index + 1}`}`
+}
+
+function anchorText(document: ParsedDocument, anchor: ParsedEvidenceAnchor): string {
+  if (anchor.kind === 'table_cell')
+    return tableForAnchor(document, anchor)?.cells.find((cell) => cell.cell_id === anchor.cell_id)?.text ?? ''
+  const block = blockForAnchor(document, anchor)
+  return block && 'text' in block ? block.text : ''
+}
+
+const normalText = (text: string) => text.normalize('NFKC').toLowerCase().split(/\s+/).filter(Boolean).join(' ')
+const WORD = /[\p{L}\p{N}]/u
+
+/** As the Parsing Service's `stages.contains`: `value` occurs as a bounded token, not inside a longer word or number. */
+function printsToken(haystack: string, value: string): boolean {
+  const needle = normalText(value)
+  const hay = normalText(haystack)
+  for (let at = needle ? hay.indexOf(needle) : -1; at >= 0; at = hay.indexOf(needle, at + 1))
+    if (!WORD.test(hay[at - 1] ?? ' ') && !WORD.test(hay[at + needle.length] ?? ' ')) return true
+  return false
+}
+
+/** A correction's Evidence: the one published passage on the record's pages that prints the corrected value, else
+ *  none, so the correction can never carry as fixed. */
+function printedIn(document: ParsedDocument, pages: ReadonlySet<number>, text: string) {
+  const hits = document.evidence_index.anchors.filter((anchor) =>
+    anchor.producer_observations.some((observation) => pages.has(observation.page_number)) &&
+    printsToken(anchorText(document, anchor), text))
+  return hits.length === 1
+    ? [{ evidenceAnchorId: hits[0]!.anchor_id, reviewedOccurrenceIds: hits[0]!.producer_observations.map((each) => each.occurrence_id) }]
+    : null
+}
+
+function typedCorrection(type: SchemaNode['type'], text: string): unknown {
+  if (type === 'integer' || type === 'number') {
+    const number = Number(text)
+    return text.trim() === '' || !Number.isFinite(number) || (type === 'integer' && !Number.isInteger(number)) ? undefined : number
+  }
+  if (type === 'boolean') return text === 'true' ? true : text === 'false' ? false : undefined
+  return text
+}
+
+const scrollIntoViewOnce = (element: HTMLElement | null) => element?.scrollIntoView?.({ block: 'nearest' })
+
+function SampleValues({ node, sample }: { node: SchemaNode; sample: SchemaSample }) {
+  const [correcting, setCorrecting] = useState<{ index: number; text: string } | null>(null)
+  const { attempt, review } = sample
+  const records = attempt.outcome === 'SUCCEEDED' && Array.isArray(attempt.resultPayload?.records)
+    ? attempt.resultPayload.records as Record<string, unknown>[]
+    : null
+  if (!records || !sample.pinned) return null
+  const pinned = sample.pinned.schemaNodes.find((each) => each.id === node.id)
+  const revision = sample.pinned.revisionNumber
+  if (!pinned)
+    return <p className="ml-6 mt-1 text-[11px] text-ink-muted">No sample values yet: this field is newer than revision {revision}.</p>
+  return (
+    <div className="ml-6 mt-1 flex flex-col gap-1 text-[11.5px]">
+      <p className="text-[11px] text-ink-muted">
+        Sample · rev {revision} · {sample.pagesLabel}
+        {sample.currentRevisionNumber !== null && sample.currentRevisionNumber !== revision &&
+          ` · values are from revision ${revision}`}
+      </p>
+      {records.map((record, index) => {
+        const path = ['records', index, pinned.name]
+        const key = resultPathKey(path)
+        const link = attempt.evidenceLinks?.find((each) => resultPathKey(each.resultPath) === key)
+        const decision = review.decisions.find((each) => resultPathKey(each.resultPath) === key)
+        const touched = decision !== undefined && review.isTouched(path)
+        const pages = new Set((attempt.evidenceLinks ?? []).filter((each) => each.resultPath[1] === index)
+          .map((each) => Number(each.evidenceAnchorId.match(ANCHOR_PAGE)?.[1])))
+        const corrected = correcting?.index === index ? typedCorrection(pinned.type, correcting.text) : undefined
+        return (
+          <div key={index} className={`flex flex-col gap-1 rounded px-1 ${sample.focusedPathKey === key ? 'bg-accent-ghost' : ''}`}
+            ref={sample.focusedPathKey === key ? scrollIntoViewOnce : undefined}>
+            <div className="flex items-center gap-1.5">
+              <span className="shrink-0 text-ink-muted">{recordLabel(attempt, record, index)}</span>
+              <button type="button" disabled={!link} title={link ? 'Show its Evidence on the page' : 'No Evidence'}
+                onClick={() => link && sample.onSelectEvidence(link.evidenceAnchorId)}
+                className={`min-w-0 truncate font-mono text-ink ${touched && decision.action === 'EDITED' ? 'line-through' : ''}`}>
+                {shown(record[pinned.name])}
+              </button>
+              {touched && decision.action === 'EDITED' && <span className="font-mono text-accent">{shown(decision.reviewedValue)}</span>}
+              {touched && decision.action === 'APPROVED' && <span className="text-green">✓ right</span>}
+              <span className="flex-1" />
+              {decision && (touched
+                ? <Button onClick={() => review.undo(path)}>Undo</Button>
+                : <>
+                    <Button onClick={() => review.setDecision(path, 'APPROVED')}>Right</Button>
+                    {!pinned.children && <Button onClick={() => setCorrecting({ index, text: shown(record[pinned.name]) })}>Correct</Button>}
+                  </>)}
+            </div>
+            {correcting?.index === index && (
+              <form className="flex items-center gap-1.5" onSubmit={(event) => {
+                event.preventDefault()
+                if (corrected === undefined) return
+                review.setDecision(path, 'EDITED', corrected as never,
+                  sample.parsedDocument && printedIn(sample.parsedDocument, pages, String(corrected)))
+                setCorrecting(null)
+              }}>
+                <input aria-label={`Correct ${pinned.name}`} value={correcting.text} autoFocus
+                  onChange={(event) => setCorrecting({ index, text: event.target.value })}
+                  className="min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-1.5 py-0.5 font-mono" />
+                <Button type="submit" variant="primary" disabled={corrected === undefined}>Save</Button>
+                <Button onClick={() => setCorrecting(null)}>Cancel</Button>
+              </form>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const CHAT_GREETING = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
 
 type SchemaPanelProps = {
@@ -63,6 +209,7 @@ type SchemaPanelProps = {
   showRegenerate?: boolean
   /** Reports edits visible in the panel that are not yet in its controller. */
   onPendingLocalEditChange?: (pending: boolean) => void
+  sample?: SchemaSample | null
 }
 
 type DragState = {
@@ -486,6 +633,7 @@ function SchemaPanel({
   readOnly = false,
   showRegenerate = true,
   onPendingLocalEditChange,
+  sample = null,
 }: SchemaPanelProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const nodes =
@@ -1184,6 +1332,10 @@ function SchemaPanel({
             onCancel={() => setOpenDescId(null)}
           />
         )}
+
+        {/* ponytail: scalar root fields only; object and array fields list no values and scalar arrays offer no review
+            (their decisions sit on item paths): add per-item rows when a schema needs them. */}
+        {sample && !isDiff && <SampleValues node={node} sample={sample} />}
 
         {/* Nested children area — shown when there are children or dragging (for drop slot) */}
         {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (

@@ -216,5 +216,7 @@ export const documentReopenResponseSchema = z
       .nullable(),
     latestAttempt: reopenedExtractionSchema.nullable(),
     latestReviewed: reopenedExtractionSchema.nullable(),
+    /** The newest Sample Extraction of this Source Representation, never latest above. */
+    latestSample: reopenedExtractionSchema.nullable(),
   })
   .strict()

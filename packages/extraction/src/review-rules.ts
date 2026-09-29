@@ -88,6 +88,7 @@ export function reviewAuthority(input: Readonly<{
       reviewedOccurrenceIds: [...decision.reviewedOccurrenceIds],
       action: decision.action,
       reviewedValue: decision.reviewedValue,
+      ...(decision.reviewedEvidence ? { reviewedEvidence: decision.reviewedEvidence } : {}),
     })),
     occurrenceIdsByAnchor: occurrenceOwnership(input.document),
     evidenceResultPathKeys,
@@ -186,6 +187,8 @@ export function normalizeDecisions(decisions: ReviewAuthority['reviewDecisions']
     reviewedOccurrenceIds: [...new Set(decision.reviewedOccurrenceIds)].sort(),
     action: decision.action,
     reviewedValue: decision.reviewedValue,
+    // Absent unless recorded, so the digests of reviews without it stay as they were.
+    ...(decision.reviewedEvidence ? { reviewedEvidence: decision.reviewedEvidence } : {}),
   })).sort((left, right) => left.resultPathKey.localeCompare(right.resultPathKey))
 }
 
@@ -235,15 +238,17 @@ export function reviewAuthorityMatchesExtraction(
     new Set(submitted.map((decision) => decision.resultPathKey)).size ===
       submitted.length &&
     submitted.every((decision) => {
-      const owned = authority.occurrenceIdsByAnchor.get(
-        decision.evidenceAnchorId,
-      )
+      // Every occurrence of a published anchor of the pinned document, the model's and a correction's alike.
+      const reviewsAnchor = (anchorId: string, occurrenceIds: readonly string[]) => {
+        const owned = authority.occurrenceIdsByAnchor.get(anchorId)
+        return owned !== undefined && occurrenceIds.length === owned.size && occurrenceIds.every((id) => owned.has(id))
+      }
       return (
         evidenceByPath.get(decision.resultPathKey) ===
           decision.evidenceAnchorId &&
-        owned !== undefined &&
-        decision.reviewedOccurrenceIds.length === owned.size &&
-        decision.reviewedOccurrenceIds.every((id) => owned.has(id)) &&
+        reviewsAnchor(decision.evidenceAnchorId, decision.reviewedOccurrenceIds) &&
+        (!decision.reviewedEvidence || (decision.action === 'EDITED' && decision.reviewedEvidence.every(
+          (evidence) => reviewsAnchor(evidence.evidenceAnchorId, evidence.reviewedOccurrenceIds)))) &&
         actionMatchesReviewedValue(decision)
       )
     })

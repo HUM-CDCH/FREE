@@ -119,6 +119,7 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
     catalogRecipe: extraction.catalogRecipe,
     requestedModels: extraction.requestedModels ?? null,
     requestedSettings: extraction.requestedSettings ?? null,
+    requestedPages: extraction.requestedPages ?? null,
     executionStatus: extraction.executionStatus,
     outcome: extraction.outcome,
     complete: extraction.complete,

@@ -30,6 +30,7 @@ import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
 import type { SchemaDefinition } from 'extraction/schema'
 import { browserStudioPath } from './studioUrl.js'
 import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
+import { resultPathKey } from '../shared/groundedExtraction'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -61,6 +62,8 @@ function pageRanges(pages: readonly number[]): string {
 }
 
 const SAMPLE_PAGE_LIMIT = 30
+/** Every result path: the sample's Evidence is painted whole, and stable so painting does not repeat per render. */
+const EVERY_RESULT_PATH: readonly string[] = []
 
 function isFreeHighlightTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) {
@@ -136,6 +139,8 @@ export type DocumentWorkspaceProps = {
   extractionSchema: DocumentSnapshot['extractionSchema']
   persistedExtraction: DocumentSnapshot['latestAttempt']
   latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
+  /** The newest Sample Extraction of this Source Representation. */
+  latestSample?: DocumentSnapshot['latestSample']
   onOpenExtraction: (extractionId: string) => void
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
@@ -163,6 +168,7 @@ export function DocumentWorkspace({
   extractionSchema,
   persistedExtraction,
   latestReviewedExtraction = null,
+  latestSample = null,
   onOpenExtraction,
   onInitialResourceLoadFailure,
   onSourceSuperseded,
@@ -211,7 +217,7 @@ export function DocumentWorkspace({
   // restored, or historical — resolves the exact revision it ran with.
   const reopenedSchemas = useMemo(() => {
     const known: Record<string, PinnedAttemptSchema> = {}
-    for (const reopenedAttempt of [persistedExtraction, latestReviewedExtraction])
+    for (const reopenedAttempt of [persistedExtraction, latestReviewedExtraction, latestSample])
       if (reopenedAttempt)
         known[reopenedAttempt.schemaRevisionId] = {
           schemaRevisionId: reopenedAttempt.schemaRevisionId,
@@ -220,7 +226,7 @@ export function DocumentWorkspace({
           schemaNodes: reopenedAttempt.extractionSchema.schemaNodes,
         }
     return known
-  }, [persistedExtraction, latestReviewedExtraction])
+  }, [persistedExtraction, latestReviewedExtraction, latestSample])
   const [knownSchemas, setKnownSchemas] = useState(reopenedSchemas)
   const [finishedExtractionReport, setFinishedExtractionReport] = useState<{
     attempt: ExtractionAttempt
@@ -586,6 +592,7 @@ export function DocumentWorkspace({
   const sample = useExtraction({
     schemaReady,
     indexing,
+    initialAttempt: latestSample,
     documentKey: sourceRepresentationId,
     reviewTarget,
     onTerminal: (attempt) => showToast(attempt.executionStatus === 'FAILED' ? 'Sample failed' : '✓ Sample complete'),
@@ -695,19 +702,26 @@ export function DocumentWorkspace({
     return () => controller.abort()
   }, [projectContextId, extractionSchemaId, missingSchemaRevisionId])
 
+  // On the Schema tab the page shows the sample's Evidence, and a passage picks the value it supports.
+  const onSampleTab = effectiveRailOpen && railTab === 'schema' && sample.attempt !== null
+  const sampleSchema = sample.attempt ? knownSchemas[sample.attempt.schemaRevisionId] ?? null : null
+  const [focusedSampleKey, setFocusedSampleKey] = useState<string | null>(null)
+  const pickSampleValue = useCallback((path: readonly (string | number)[]) => setFocusedSampleKey(resultPathKey([...path])), [])
+  const overlaySchema = onSampleTab ? sampleSchema : inspectedAttemptSchema
   const evidenceFieldNames = useMemo(
     () =>
-      inspectedAttemptSchema?.schemaNodes.map((node) => node.name) ?? [],
-    [inspectedAttemptSchema],
+      overlaySchema?.schemaNodes.map((node) => node.name) ?? [],
+    [overlaySchema],
   )
   const selectEvidenceAnchor = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,
     parsedDocument,
-    attempt: inspectedAttempt,
+    attempt: onSampleTab ? sample.attempt : inspectedAttempt,
     fieldNames: evidenceFieldNames,
-    resultPath,
-    active: effectiveRailOpen && railTab === 'results',
+    resultPath: onSampleTab ? EVERY_RESULT_PATH : resultPath,
+    active: onSampleTab || (effectiveRailOpen && railTab === 'results'),
+    onPick: onSampleTab ? pickSampleValue : undefined,
   })
 
   /** Saves pending schema edits as the Current Schema Revision, then admits the run: a Sample Extraction on `pages`,
@@ -1105,6 +1119,19 @@ export function DocumentWorkspace({
               }}
               onSelectEvidence={selectEvidenceAnchor}
               onResultPathChange={setResultPath}
+              sample={sample.attempt && {
+                attempt: sample.attempt,
+                pinned: sampleSchema,
+                currentRevisionNumber: currentSchemaRevision?.revisionNumber ?? null,
+                pagesLabel: `pp. ${pageRanges(sample.attempt.requestedPages ?? [])}`,
+                review: sample.review,
+                parsedDocument,
+                focusedPathKey: focusedSampleKey,
+                onSelectEvidence: (anchorId) => {
+                  const anchor = parsedDocument?.evidence_index.anchors.find((each) => each.anchor_id === anchorId)
+                  if (anchor) selectEvidenceAnchor(anchor)
+                },
+              }}
             />
           </aside>
         </div>

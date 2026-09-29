@@ -103,6 +103,7 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
       sourceRepresentationRevisionId: representationId,
       latestAttempt: extraction,
       latestReviewed: extraction,
+      samples: [],
     })),
     scheduleBatch: vi.fn(),
     scheduleSuggestedBatch: vi.fn(),
