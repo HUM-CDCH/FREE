@@ -55,3 +55,14 @@ shape; a server flag would be a production change.
 5. H5 consistent starts: the G1 lever, but passing a document-derived
    convention needs the user's word (hard rule), and chaining windows
    conflicts with H2. Ask when G1 is the last open gate.
+
+Plan for H1 (after review): single-token keys already, so only whitespace and
+whole keys count. Keep one source-ordered array (two arrays make the model scan
+twice, and a missed `other` hides in the previous entry unseen by G1): try
+positional tuples (`prefixItems`, `["L4",null,"record","40"]`) or an `anyOf`
+item; check with one raw call on a 1.6-3k-token window that xgrammar accepts it
+and what it costs (count places through `_observe`, not a `places` key). Change
+only `discovery.py`; grep for `PROMPT_VERSION` and for TS pins on the discovery
+`version` before bumping. One cut-off on the whole-`big` first window is
+expected even with H1 (≈ 268 places); log tok/place per window. On holdout rows
+note `verbleib:empty` beside `WRONG`.
