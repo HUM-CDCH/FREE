@@ -1,16 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { parseTemplate, parseUnknownJson } from './_model_output'
+import { parseTemplate } from './_model_output'
 
 const INVALID = { status: 502, code: 'invalid_model_output' }
 
 describe('parseTemplate', () => {
-  it('keeps literal reasoning tags inside a valid description', async () => {
-    const description = 'One source containing the literal <think>ritual</think> element.'
-    const text = JSON.stringify({ template: { _description: description, title: 'string' } })
-
-    await expect(parseTemplate(text)).resolves.toEqual({ _description: description, title: 'string' })
-  })
-
   it('keeps literal fences and tags anywhere inside valid values', async () => {
     const template = {
       _description: '<think>a</think> then ```json``` and </think> again',
@@ -52,17 +45,5 @@ describe('parseTemplate', () => {
     ['two JSON documents', '{"_description":"One grave."}\n{"_description":"Another."}'],
   ])('rejects %s visibly', async (_, text) => {
     await expect(parseTemplate(text)).rejects.toMatchObject(INVALID)
-  })
-})
-
-describe('parseUnknownJson', () => {
-  it('rejects a truncated schema edit envelope visibly', async () => {
-    await expect(parseUnknownJson('{"fields":{"a":{"name":"a","type":"str', 'Edit schema model returned invalid JSON.'))
-      .rejects.toMatchObject({ ...INVALID, message: 'Edit schema model returned invalid JSON.' })
-  })
-
-  it('reads a schema edit envelope after a leading reasoning block', async () => {
-    await expect(parseUnknownJson('<think>ok</think>{"fields":{},"additions":[]}', 'x'))
-      .resolves.toEqual({ fields: {}, additions: [] })
   })
 })

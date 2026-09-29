@@ -284,8 +284,8 @@ Neither model keys nor document content enter Studio's workflow inputs.
 These are different validation boundaries, not equivalent schema validators:
 [`parseSchemaDefinition`](packages/extraction/src/schema.ts) accepts an editable
 TypeScript tree (including zero fields); batch suggestions additionally use
-`parseBatchSuggestionDefinition` to forbid duplicate and parser-owned Evidence
-fields. At execution, Python [`Schema`](prototypes/parsing_service/src/kei_exp/kie/extract/schema.py)
+`parseBatchSuggestionDefinition` to forbid repeated sibling field names. At
+execution, Python [`Schema`](prototypes/parsing_service/src/kei_exp/kie/extract/schema.py)
 requires at least one field and unique sibling names and builds strict call
 schemas; [`acceptKeiArtifact`](packages/extraction/src/kei-artifact.ts) validates
 the returned artifact. Historical Schema Revisions remain pinned, readable
