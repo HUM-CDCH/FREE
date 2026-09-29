@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useCallback, useState } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +10,7 @@ import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { SchemaDefinition } from 'extraction/schema'
+import type { ArticleSettings } from 'extraction/extraction-method'
 
 vi.mock('extraction-result-export', async (importOriginal) => ({
   ...await importOriginal<typeof import('extraction-result-export')>(),
@@ -1596,5 +1597,43 @@ describe('ResultsTab recipe review material', () => {
     render(<ResultsTab {...defaultRunProps} controller={controller({ status: 'idle' })} schemaReady
       documentMarkdown="" sourceDocumentName="Catalogue" inspectedAttempt={articleAttempt} />)
     expect(screen.queryByRole('region', { name: 'Recipe review' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Method used', () => {
+  const SPANS: ArticleSettings = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+    prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
+  const renderWith = (attempt: ExtractionAttempt) => render(
+    <ResultsTab {...defaultRunProps}
+      controller={controller(attempt.executionStatus === 'FAILED'
+        ? { status: 'error', message: attempt.failure!.message }
+        : { status: 'ready', result: attempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0 }, attempt)}
+      schemaReady documentMarkdown="# Source" sourceDocumentName="Article.pdf" />)
+  const methodUsed = () => { fireEvent.click(screen.getByRole('button', { name: 'Run details' })); return within(screen.getByRole('region', { name: 'Method used' })) }
+
+  it('shows requested and effective methods with the versions the service reported', () => {
+    renderWith({ ...articleAttempt, requestedModels: { fields: 'instruct' }, requestedSettings: { article: SPANS },
+      diagnostics: { ...articleAttempt.diagnostics!, models: { fields: 'Qwen/Qwen3.8-27B-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' },
+        effectiveMethod: { options: { strategy: 'article', article: SPANS }, versions: { prompt: 12, method: 1, spanGrounding: 2 } },
+        eligibility: { allRecordLeaves: 5, eligibleRecordLeaves: 0, skipped: [], eligibleGrounding: 'not_applicable' } } })
+    const used = methodUsed()
+    expect(used.getByText('Bounded source units (12,288 tokens) · Plain text · Source-span verification')).toBeInTheDocument()
+    expect(used.getByText('Field values: instruct · Reasoning: deployment default')).toBeInTheDocument()
+    expect(used.getByText('Prompt 12 · Method 1 · Span grounding 2')).toBeInTheDocument()
+    expect(used.getByText('Not applicable: no value was eligible')).toBeInTheDocument()
+  })
+
+  it('a run that failed before a service result keeps its request and has no effective method', () => {
+    renderWith({ ...articleAttempt, executionStatus: 'FAILED', outcome: null, complete: null, modelAttribution: null, diagnostics: null,
+      resultPayload: null, evidenceLinks: null, reviewable: false, failure: { code: 'extraction_failed', message: 'Refused.' },
+      requestedSettings: { article: SPANS } })
+    const used = methodUsed()
+    expect(used.getByText('Effective method unavailable')).toBeInTheDocument()
+    expect(used.getByText('Bounded source units (12,288 tokens) · Plain text · Source-span verification')).toBeInTheDocument()
+  })
+
+  it('a historical run is Not recorded, never borrowing today\'s configuration', () => {
+    renderWith({ ...articleAttempt, requestedSettings: null })
+    expect(methodUsed().getAllByText('Not recorded')).toHaveLength(2)
   })
 })

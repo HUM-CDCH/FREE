@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { exportExtractionResult } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
+import { MethodUsed } from './MethodUsed'
 import ResultValue, { singularItemLabel } from './ui/ResultValue'
 import { Overline, Spinner, Button, ModalDialog, Pill, type ButtonProps } from './ui'
 import { isRecord } from '../shared/template'
@@ -315,6 +316,7 @@ function AttemptDetails({ attempt }: { attempt: ExtractionAttempt }) {
             </button>
           </div>
           <div className="scrollbar-subtle mt-1.5 max-h-64 overflow-y-auto pr-1">
+            <MethodUsed attempt={attempt} />
             <ExtractionDiagnostics attempt={attempt} />
           </div>
         </ModalDialog>
