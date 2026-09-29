@@ -62,12 +62,12 @@ test("projects a selected nested path with root and ancestor scalar context", ()
 
   assert.deepEqual(table.columns, [
     "title", "meta.year", "meta.sections.heading", "meta.sections.paragraphs.text",
-    "meta.sections.paragraphs.tags", "after",
+    "meta.sections.paragraphs.tags", "Evidence", "_internal", "after",
   ]);
   assert.deepEqual(table.rows.map((row) => ({ ...row })), [
-    { title: "Paper", "meta.year": 2026, "meta.sections.heading": "A", "meta.sections.paragraphs.text": "One", "meta.sections.paragraphs.tags": "x, y", after: "last" },
-    { title: "Paper", "meta.year": 2026, "meta.sections.heading": "A", "meta.sections.paragraphs.text": "Two", "meta.sections.paragraphs.tags": "", after: "last" },
-    { title: "Paper", "meta.year": 2026, "meta.sections.heading": "B", "meta.sections.paragraphs.text": "Three", "meta.sections.paragraphs.tags": "z", after: "last" },
+    { title: "Paper", "meta.year": 2026, "meta.sections.heading": "A", "meta.sections.paragraphs.text": "One", "meta.sections.paragraphs.tags": "x, y", Evidence: null, _internal: null, after: "last" },
+    { title: "Paper", "meta.year": 2026, "meta.sections.heading": "A", "meta.sections.paragraphs.text": "Two", "meta.sections.paragraphs.tags": "", Evidence: null, _internal: null, after: "last" },
+    { title: "Paper", "meta.year": 2026, "meta.sections.heading": "B", "meta.sections.paragraphs.text": "Three", "meta.sections.paragraphs.tags": "z", Evidence: null, _internal: null, after: "last" },
   ]);
 });
 
@@ -86,7 +86,7 @@ test("preserves sibling repeated fields as ordered indexed columns or omits them
   assert.deepEqual(preserved.columns, [
     "title", "meta.year", "meta.sections.heading", "meta.sections.paragraphs.text",
     "meta.sections.paragraphs.tags", "meta.sections.notes.0.kind", "meta.sections.notes.1.kind",
-    "contributors.0.name", "after",
+    "contributors.0.name", "Evidence", "_internal", "after",
   ]);
   const omitted = buildExportTable(schema, result, choices("meta.sections.paragraphs", "omit"));
   assert.ok(!omitted.columns.some((column) => column.includes("notes") || column.includes("contributors")));
@@ -98,15 +98,16 @@ test("keeps schema-ordered headers for an empty selected collection", () => {
   }, choices("meta.sections.paragraphs", "omit"));
   assert.deepEqual(table.columns, [
     "title", "meta.year", "meta.sections.heading", "meta.sections.paragraphs.text",
-    "meta.sections.paragraphs.tags", "after",
+    "meta.sections.paragraphs.tags", "Evidence", "_internal", "after",
   ]);
   assert.deepEqual(table.rows, []);
 });
 
-test("supports one or many root records and excludes evidence/internal fields", () => {
-  const one = buildExportTable(schema, { title: "One", Evidence: "secret", _internal: "secret", after: "x" }, choices(ROOT_ROWS, "omit"));
+test("supports one or many root records and keeps declared Evidence and _-prefixed fields", () => {
+  const one = buildExportTable(schema, { title: "One", Evidence: "cited", _internal: "kept", after: "x" }, choices(ROOT_ROWS, "omit"));
   assert.equal(one.rows.length, 1);
-  assert.deepEqual(one.columns, ["title", "meta.year", "after"]);
+  assert.deepEqual(one.columns, ["title", "meta.year", "Evidence", "_internal", "after"]);
+  assert.deepEqual({ ...one.rows[0] }, { title: "One", "meta.year": null, Evidence: "cited", _internal: "kept", after: "x" });
   const many = buildExportTable(schema, [
     { title: "One", meta: { year: 1 }, after: "a" },
     { title: "Two", meta: { year: 2 }, after: "b" },
@@ -138,4 +139,53 @@ test("preserves escaped schema paths and rejects non-finite numbers", () => {
   );
   assert.deepEqual(table.columns, ["a\\.b", "a.b", "a.\\0", "a\\\\b", "items.0.name"]);
   assert.throws(() => buildExportTable([scalar("score", "score", "number")], { score: Number.NaN }, choices(ROOT_ROWS)), /finite number/);
+});
+
+test("keeps every declared field whatever its name, in nested objects and repeated objects", () => {
+  const declared = [
+    scalar("title", "title"),
+    scalar("evidence", "evidence"),
+    object("internal", "internal", [
+      scalar("Evidence", "Evidence"),
+      scalar("catalogue", "_catalogue_id"),
+    ]),
+    repeated("entries", "_entries", [
+      scalar("page", "page"),
+      scalar("entryEvidence", "evidence"),
+      scalar("entryInternal", "internal"),
+    ]),
+  ];
+  const record = {
+    title: "Paper",
+    evidence: "quoted",
+    internal: { Evidence: "nested", _catalogue_id: "C-1" },
+    _entries: [{ page: "3", evidence: "first", internal: "a" }, { page: "4", evidence: "second", internal: "b" }],
+  };
+
+  assert.deepEqual(deriveRowsRepresentOptions(declared), [
+    { value: ROOT_ROWS, label: "Root result" },
+    { value: "_entries", label: "_entries[]" },
+  ]);
+  assert.deepEqual(buildExportTable(declared, record, choices(ROOT_ROWS)).columns, [
+    "title", "evidence", "internal.Evidence", "internal._catalogue_id",
+    "_entries.0.page", "_entries.0.evidence", "_entries.0.internal",
+    "_entries.1.page", "_entries.1.evidence", "_entries.1.internal",
+  ]);
+  const rows = buildExportTable(declared, record, choices("_entries"));
+  assert.deepEqual(rows.columns, [
+    "title", "evidence", "internal.Evidence", "internal._catalogue_id",
+    "_entries.page", "_entries.evidence", "_entries.internal",
+  ]);
+  assert.deepEqual(rows.rows.map((row) => [row["internal._catalogue_id"], row["_entries.evidence"], row["_entries.internal"]]), [
+    ["C-1", "first", "a"], ["C-1", "second", "b"],
+  ]);
+});
+
+test("a data key the approved schema does not declare never becomes a column", () => {
+  const table = buildExportTable(
+    [scalar("title", "title"), repeated("items", "items", [scalar("name", "name")])],
+    { title: "Paper", evidence: "system", _run: "x", items: [{ name: "a", bbox: [1, 2] }] },
+    choices(ROOT_ROWS),
+  );
+  assert.deepEqual(table.columns, ["title", "items.0.name"]);
 });

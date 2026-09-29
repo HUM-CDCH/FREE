@@ -33,10 +33,6 @@ function escapeSegment(segment: string): string {
 function childPath(parent: string, name: string): string {
   return parent ? `${parent}.${escapeSegment(name)}` : escapeSegment(name);
 }
-function isInternal(name: string): boolean {
-  const normalized = name.toLowerCase();
-  return name.startsWith("_") || normalized === "evidence" || normalized === "internal";
-}
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -47,12 +43,11 @@ function isObjectArray(node: SchemaNode): node is SchemaNode & { type: "array"; 
   return node.type === "array" && node.children !== undefined;
 }
 
-/** Root plus every visible array-of-object path, including paths through ordinary objects. */
+/** Root plus every declared array-of-object path, including paths through ordinary objects. */
 export function deriveRowsRepresentOptions(nodes: readonly SchemaNode[]): Choice<string>[] {
   const options: Choice<string>[] = [{ value: ROOT_ROWS, label: "Root result" }];
   const visit = (level: readonly SchemaNode[], parent = "", display: readonly string[] = []): void => {
     for (const node of level) {
-      if (isInternal(node.name)) continue;
       const path = childPath(parent, node.name);
       const label = [...display, node.type === "array" && node.children ? `${node.name}[]` : node.name];
       if (isObjectArray(node)) {
@@ -94,7 +89,6 @@ function selectedRows(
   selected: ReadonlyMap<string, number>,
 ): Selection[] {
   for (const node of nodes) {
-    if (isInternal(node.name)) continue;
     const path = childPath(parent, node.name);
     if (target !== path && !target.startsWith(`${path}.`)) continue;
     const child = valueAt(value, node.name);
@@ -127,7 +121,6 @@ function flatten(
   selected: Selection, repeated: OtherRepeatedFields, output: OrderedCell[],
 ): void {
   nodes.forEach((node, schemaIndex) => {
-    if (isInternal(node.name)) return;
     const path = childPath(parent, node.name);
     const nodeOrder = [...order, schemaIndex];
     const child = valueAt(value, node.name);

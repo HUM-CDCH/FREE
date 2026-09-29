@@ -20,7 +20,7 @@ export function sourceSuggestionFailure(error: unknown): {
   return { code: 'unexpected_failure' }
 }
 
-/** The researcher may edit names, but cannot create duplicate or Evidence fields. */
+/** The researcher may edit names, but cannot create duplicate fields at one level. */
 export function validateEditableSuggestion(
   definition: SchemaDefinition,
 ): SchemaDefinition {

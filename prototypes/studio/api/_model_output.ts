@@ -1,4 +1,4 @@
-import { cascadeRepairText } from 'ai-sdk-ollama'
+import { jsonrepair } from 'jsonrepair'
 import { z } from 'zod'
 import { ApiError } from './_http.js'
 
@@ -12,28 +12,39 @@ export async function parseTemplate(text: string): Promise<Record<string, unknow
   return envelope.success ? envelope.data.template : object
 }
 
+/**
+ * Parse valid JSON before touching its text, preserving literal tags and fences
+ * inside values. Otherwise remove outer framing, then use jsonrepair for syntax
+ * that still cannot be parsed.
+ */
 export async function parseUnknownJson(text: string, message: string): Promise<unknown> {
   const parsed = tryParseJson(text)
   if (parsed.ok) {
     return unwrapJsonString(parsed.value)
   }
 
-  const repaired = await cascadeRepairText({ text, error: parsed.error })
-  if (repaired !== null) {
-    const repairedParsed = tryParseJson(repaired)
-    if (repairedParsed.ok) {
-      return unwrapJsonString(repairedParsed.value)
-    }
+  const unframedText = withoutOuterFraming(text)
+  const unframed = tryParseJson(unframedText)
+  if (unframed.ok) {
+    return unwrapJsonString(unframed.value)
   }
+  try {
+    return unwrapJsonString(JSON.parse(jsonrepair(unframedText)))
+  } catch (cause) {
+    throw new ApiError(502, 'invalid_model_output', message, { cause })
+  }
+}
 
-  if (parsed.error instanceof SyntaxError) {
-    throw new ApiError(502, 'invalid_model_output', message, { cause: parsed.error })
-  }
-  throw parsed.error
+const LEADING_REASONING = /^\s*<think>[\s\S]*?<\/think>\s*/
+const OUTER_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/
+
+function withoutOuterFraming(text: string): string {
+  const reply = text.replace(LEADING_REASONING, '').trim()
+  return OUTER_FENCE.exec(reply)?.[1] ?? reply
 }
 
 async function parseJsonObject(text: string, message: string): Promise<Record<string, unknown>> {
-  const parsed = await parseUnknownJson(text.replace(/<think>[\s\S]*?<\/think>/, '').trim(), message)
+  const parsed = await parseUnknownJson(text, message)
   if (!isRecord(parsed)) {
     throw new ApiError(502, 'invalid_model_output', message)
   }

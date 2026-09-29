@@ -371,14 +371,20 @@ describe('useBatchExtractionReviewGrid', () => {
     }
   })
 
-  it('derives grid columns from the pinned schema, excluding grouped/internal fields', () => {
+  it('derives a column for every declared leaf of the pinned schema, whatever its name, but none for groups', () => {
     const { result } = renderHook(() =>
       useBatchExtractionReviewGrid(batch(), [
         ...schemaNodes,
-        { id: 'internal', name: '_internal', type: 'string' as const },
+        { id: 'evidence', name: 'evidence', type: 'string' as const },
+        { id: 'catalogue', name: '_catalogue_id', type: 'string' as const },
+        { id: 'internal', name: 'internal', type: 'object' as const, children: [
+          { id: 'nestedEvidence', name: 'Evidence', type: 'string' as const },
+        ] },
       ]),
     )
-    expect(result.current.columns.map((column) => column.key)).toEqual(['title', 'year'])
+    expect(result.current.columns.map((column) => column.path)).toEqual([
+      ['title'], ['year'], ['evidence'], ['_catalogue_id'], ['internal', 'Evidence'],
+    ])
   })
 
   it('only reads SUCCEEDED members, staging their pending decisions', async () => {
