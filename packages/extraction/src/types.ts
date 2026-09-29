@@ -232,6 +232,8 @@ export type ExtractionSnapshot = Readonly<{
   /** The settings admitted with the run (`{article}`, `{generic}` or `{recipe}`, each null for service defaults);
    *  null or absent when the run predates recorded settings ("Not recorded"). */
   requestedSettings?: ActiveSettings | null
+  /** A Sample Extraction's pages; null (or absent) for a whole-document Extraction. */
+  requestedPages?: readonly number[] | null
   /** Only a published Extraction has a result snapshot. */
   outcome: 'SUCCEEDED'
   complete: boolean | null
@@ -263,6 +265,8 @@ export type ExtractionAttemptSnapshot = Readonly<{
   /** The settings admitted with the run (`{article}`, `{generic}` or `{recipe}`, each null for service defaults);
    *  null or absent when the run predates recorded settings ("Not recorded"). */
   requestedSettings?: ActiveSettings | null
+  /** A Sample Extraction's pages; null (or absent) for a whole-document Extraction. */
+  requestedPages?: readonly number[] | null
   executionStatus: ProjectOperationStatus
   /** SUCCEEDED once published; a failed, cancelled or interrupted attempt is FAILED with its failure instead. */
   outcome: 'SUCCEEDED' | null
@@ -407,6 +411,8 @@ export type DocumentExtractionsSnapshot = Readonly<{
   sourceRepresentationRevisionId: string
   latestAttempt: ExtractionAttemptSnapshot | null
   latestReviewed: ExtractionAttemptSnapshot | null
+  /** The Sample Extractions of the current Source Representation Revision, newest first; never latest above. */
+  samples: readonly ExtractionAttemptSnapshot[]
 }>
 
 

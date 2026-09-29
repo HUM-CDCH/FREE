@@ -264,7 +264,8 @@ export async function admitInteractiveExtraction(
         catalogRecipe: pins.catalogRecipe,
         requestedModels: pins.requestedModels,
         requestedSettings: pins.requestedSettings,
-        requestedPages: pins.requestedPages,
+        // Omitted, not null, for the whole document: the column stays SQL NULL, which whole-document reads filter on.
+        ...(pins.requestedPages ? { requestedPages: pins.requestedPages } : {}),
         batchExtractionId: null,
       })
       await execution.enqueue(client, {

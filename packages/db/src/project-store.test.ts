@@ -169,7 +169,8 @@ function fakeDatabase(
           return query
         }
         selected = selected.filter((row) =>
-          Object.entries(filter).every(([key, value]) => row[key] === value),
+          // As SQL: a null filter matches IS NULL, which a row without the column is.
+          Object.entries(filter).every(([key, value]) => (value === null ? row[key] == null : row[key] === value)),
         )
         return query
       },

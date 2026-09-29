@@ -218,6 +218,7 @@ describe('document reopen ExtractionModule projection', () => {
           sourceRepresentationRevisionId: representationId,
           latestAttempt: attempt,
           latestReviewed: attempt,
+          samples: [],
         })),
       }),
     )(url(query))

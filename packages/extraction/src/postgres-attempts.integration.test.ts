@@ -71,6 +71,29 @@ describe('Extraction attempts on disposable PostgreSQL', { skip: !fixture && 'se
     assert.equal((await extractionRow(input.extractionId))?.outcome, 'FAILED')
   })
 
+it('a newer reviewed sample is listed apart and displaces neither the full result nor the summary', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const document = project.documents[0]!
+    const { module } = createRuntime(project.researcherAccountId)
+    const review = async (extractionId: string) =>
+      module.finalizeReview(extractionId, (await module.prepareReview(extractionId)).reviewDecisions)
+    const full = await module.runSingle(freshInput(project))
+    await review(full.extraction.extractionId)
+    const sample = await module.runSingle({ ...freshInput(project), pages: [1] })
+    await review(sample.extraction.extractionId)
+    const reopened = await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId })
+    assert.equal(reopened?.latestAttempt?.extractionId, full.extraction.extractionId)
+    assert.equal(reopened?.latestReviewed?.extractionId, full.extraction.extractionId)
+    assert.deepEqual(reopened?.samples.map((each) => [each.extractionId, each.requestedPages]),
+      [[sample.extraction.extractionId, [1]]])
+    const listed = await createResearcherProjectStore(project.researcherAccountId, db, { workflowStatuses: execution.statuses })
+      .listProjectContexts(20)
+    assert.equal(listed.find((item) => item.projectContextId === project.projectContextId)?.summary.extractionCount, 1)
+    const activity = await createResearcherProjectStore(project.researcherAccountId, db).listRecentActivity(20)
+    assert.equal(activity.filter((event) => event.kind === 'extraction_appended').length, 1)
+  })
+
 it('a SUCCESS workflow over a row without an outcome reads as interrupted after the re-read', async (t) => {
     t.after(cleanup)
     const project = await seedProject()

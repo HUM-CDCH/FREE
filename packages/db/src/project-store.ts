@@ -1125,7 +1125,8 @@ export function createResearcherProjectStore(
           : await database.orm.public.Extraction.where((extraction) =>
               extraction.sourceDocumentId.in(documentIds),
             )
-              .where({ outcome: 'SUCCEEDED' })
+              // A Sample Extraction is no document's result and counts in no summary.
+              .where({ outcome: 'SUCCEEDED', requestedPages: null })
               .select(
                 'sourceDocumentId',
                 'sourceRepresentationRevisionId',
@@ -1362,7 +1363,7 @@ export function createResearcherProjectStore(
           : await database.orm.public.Extraction.where((extraction) =>
               extraction.sourceDocumentId.in(documents.map((d) => d.id)),
             )
-              .where({ outcome: 'SUCCEEDED' })
+              .where({ outcome: 'SUCCEEDED', requestedPages: null })
               .select('sourceDocumentId', 'createdAt', 'reviewedAt')
               .all()
       const schemas = await database.orm.public.ExtractionSchema.where(
