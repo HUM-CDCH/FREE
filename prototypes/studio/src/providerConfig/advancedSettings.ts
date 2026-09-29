@@ -175,13 +175,6 @@ export function withStartingPoint(article: ArticleSettings | undefined, point: S
   return orderedArticle({ ...(article ?? REFERENCE_ARTICLE), ...point.assign })
 }
 
-/** A starting point's name when the settings match all its assignments; names are derived, never stored. */
-export function matchingStartingPoint(article: ArticleSettings | undefined): StartingPoint | null {
-  if (!article) return null
-  return STARTING_POINTS.find((point) => Object.entries(point.assign).every(([key, value]) =>
-    (article[key as ArticleKey] ?? undefined) === value)) ?? null
-}
-
 export type SettingChange = Readonly<{ label: string; from: string; to: string }>
 
 /** Every setting a change would alter, in control order, as the researcher reads them. */

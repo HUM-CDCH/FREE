@@ -1175,6 +1175,32 @@ describe('Advanced', () => {
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
   })
 
+  it('an Article edit ends the notice for good: editing back to the starting point, or an identity field, brings no Undo back', async () => {
+    studio(config())
+    await renderPage()
+    openAdvanced()
+    const useExplore = () => {
+      fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
+      const point = within(within(screen.getByRole('dialog', { name: 'How this works' })).getByRole('region', { name: 'Explore spans and schema policies' }))
+      fireEvent.click(point.getByRole('button', { name: 'Show changes' }))
+      fireEvent.click(point.getByRole('button', { name: 'Use these settings' }))
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+    }
+    useExplore()
+    openSection('Evidence')
+    fireEvent.click(radio('Continue verification', 'Across all source units'))
+    fireEvent.click(radio('Continue verification', 'Until first support'))
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
+    useExplore()
+    openSection('Record identity')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Identity field name' }), { target: { value: 'species' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
+    expect(within(screen.getByRole('list', { name: 'Identity fields' })).getByText('species')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+  })
+
   it('the tablist keeps arrow-key navigation across three tabs', async () => {
     studio(config())
     await renderPage()

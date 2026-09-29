@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
 import {
-  ARTICLE_CHOICES, changedSections, effectiveSummary, matchingStartingPoint, orderedArticle, sectionSummary,
+  ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle, sectionSummary,
   settingsDelta, STARTING_POINTS, unavailableReason, withStartingPoint, type ArticleKey,
 } from './advancedSettings'
 
@@ -105,8 +105,6 @@ describe('starting points', () => {
       prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema',
     })
     expect(withStartingPoint(explore, STARTING_POINTS[0]!)).toEqual({ ...REFERENCE_ARTICLE, identity_fields: ['species'] })
-    expect(matchingStartingPoint(explore)?.name).toBe('Explore spans and schema policies')
-    expect(matchingStartingPoint({ ...explore, grounding: 'quoted' })).toBeNull()
     expect(JSON.stringify(explore)).not.toMatch(/preset|"name"|"id"/)
   })
 

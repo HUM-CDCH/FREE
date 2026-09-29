@@ -7,7 +7,7 @@ import { ExplainButton, GuideProvider, HowThisWorksButton } from './AdvancedGuid
 import { SECTION_TOPIC, type GuideTopicId } from './advancedGuide.data'
 import {
   ARTICLE_CHOICES, ARTICLE_SECTIONS, CATALOG_LABELS, CONTROL_HINTS, CONTROL_LABELS, changedSections, effectiveSummary,
-  issueSection, matchingStartingPoint, sectionSummary, unavailableReason, type AdvancedStrategy, type ArticleKey,
+  issueSection, sectionSummary, unavailableReason, type AdvancedStrategy, type ArticleKey,
   type ArticleSection, type CatalogFactor, type NumberPath,
 } from './advancedSettings'
 import type { ProviderConfigDraft } from './useProviderConfigDraft'
@@ -25,14 +25,20 @@ type Props = {
   onIssueFocused: () => void
 }
 
-/** The starting point last used, and the Article draft (with its number text) that Undo restores. */
-type Applied = Readonly<{ name: string; prior: ArticleSettings | undefined; priorEdits: ProviderConfigDraft['numberEdits'] }>
+/** The starting point last used, and the Article draft (with its number text) that Undo restores. `shown` is the
+ *  Article draft the starting point produced, recorded on the first render that has it. */
+type Applied = Readonly<{
+  name: string; prior: ArticleSettings | undefined; priorEdits: ProviderConfigDraft['numberEdits']
+  shown?: Readonly<{ article: ArticleSettings | undefined; edits: string }>
+}>
 
 const STRATEGIES: readonly { value: AdvancedStrategy; label: string }[] = [
   { value: 'article', label: 'Article' }, { value: 'catalog', label: 'Catalog' },
 ]
 const textButton = 'text-[11.5px] font-semibold transition-colors'
 const describedBy = (...ids: readonly (string | false | null)[]) => ids.filter(Boolean).join(' ')
+const articleEdits = (edits: ProviderConfigDraft['numberEdits']) =>
+  JSON.stringify(Object.entries(edits).filter(([path]) => path.startsWith('article.')))
 /** A section's Explain action, at the top of the opened section: never inside the summary row that toggles it, and
  *  outside the controls' fieldset, so it works while service defaults are in use. */
 const explain = (topic: GuideTopicId, subject: string) => (
@@ -49,8 +55,12 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused }
   const [applied, setApplied] = useState<Applied | null>(null)
   // Discard and Apply make the draft the saved document again (the same object): that ends the notice and its Undo.
   if (applied && draft === saved) setApplied(null)
-  // It also ends once the Article draft no longer has the starting point's settings; names are derived, never stored.
-  const notice = applied && matchingStartingPoint(draft.extractionSettings.article)?.name === applied.name ? applied : null
+  // It also ends at the first Article edit after it (settings, identity fields or number text), for good: an Undo
+  // shown again later would discard the edits made in between.
+  const current = { article: draft.extractionSettings.article, edits: articleEdits(editor.numberEdits) }
+  if (applied && !applied.shown) setApplied({ ...applied, shown: current })
+  else if (applied?.shown && (applied.shown.article !== current.article || applied.shown.edits !== current.edits)) setApplied(null)
+  const notice = applied && (!applied.shown || applied.shown.article === current.article) ? applied : null
   const first = editor.settingsIssues[0]
   const issueStrategy: AdvancedStrategy | null = first ? (first.path.startsWith('catalog.') ? 'catalog' : 'article') : null
   // The footer's request shows the first issue's strategy before anything is committed.

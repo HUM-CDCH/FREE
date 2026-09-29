@@ -108,6 +108,14 @@ describe('the Explain guide', () => {
     for (const source of EVIDENCE_SOURCES) for (const field of [source.date, source.corpus, source.revision, source.evidence, source.limits]) expect(field).not.toBe('')
   })
 
+  it('every study names its document count and states the semantic review it still lacks', () => {
+    for (const source of EVIDENCE_SOURCES) {
+      expect(source.corpus, source.id).toMatch(/\b(one|two|five|six|\d+)\b[^;]*\bdocuments?\b/i)
+      expect(source.limits, source.id).toMatch(/(semantic|human) (adjudication|review)/i)
+    }
+    expect(EVIDENCE_SOURCES.find((source) => source.id === 'r1r3r4')!.revision).toMatch(/R1.*v11.*R4.*v12/)
+  })
+
   it('makes no recommendation, speed or accuracy claim', () => {
     const text = JSON.stringify([GUIDE_TOPICS, EVIDENCE_SOURCES, STARTING_POINTS])
     expect(text).not.toMatch(/\bbest\b|\bfastest\b|\bfaster\b|\brecommended\b|more accurate|improves accuracy|\bsafer\b/i)
