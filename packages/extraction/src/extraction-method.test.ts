@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
-  activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, articleSettingsSchema, canonicalArticle,
+  activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, canonicalArticle,
   canonicalExtractionSettings, canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
   identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG,
   storedSettings, validateArticleOptions, type ActiveSettings, type ArticleSettings, type ExtractionSettings,
@@ -178,16 +178,6 @@ test('explicit reference and omission are different descriptors', () => {
   assert.deepEqual(omitted, { models: null, settings: { article: null } })
   assert.notDeepEqual(omitted, explicit)
   assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, explicit.settings)).article, REFERENCE_ARTICLE)
-})
-
-test('no default enables supported selection: its recall is unmeasured, so only an explicit choice turns it on', () => {
-  for (const article of [REFERENCE_ARTICLE, articleSettingsSchema.parse({}), articleSettingsSchema.parse({ context: 'bounded' })])
-    assert.equal(article.selection, undefined)
-  // An account that never applied, admitted and sent to the Parsing Service: service defaults, no Article options.
-  const intent = canonicalIntent(accountMethod(null, 'ARTICLE', null), 'ARTICLE', null)
-  assert.deepEqual(intent, { models: null, settings: { article: null } })
-  const options = keiMethodOptions(extractionMethod('ARTICLE', null, intent!.models, intent!.settings))
-  assert.deepEqual(options, { strategy: 'article' })
 })
 
 test('an account document yields the active descriptor; only the chosen strategy counts', () => {

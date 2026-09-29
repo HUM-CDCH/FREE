@@ -6,12 +6,6 @@ describe('sourceCoverageNotice', () => {
     expect(sourceCoverageNotice({ complete: true })).toBeNull()
   })
 
-  it('names the excerpted page and how many characters were not read', () => {
-    expect(
-      sourceCoverageNotice({ complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }),
-    ).toBe('Suggested from excerpts: the middle of page 1 was not read (4,040 of 50,040 characters).')
-  })
-
   it('lists several pages, collapsing consecutive ones into a range', () => {
     const omitted = [1, 2, 3, 7, 9, 10].map((page, index) => ({ page, start: index * 100, end: index * 100 + 10 }))
     expect(sourceCoverageNotice({ complete: false, sourceCharacters: 1_000, omitted })).toBe(

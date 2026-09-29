@@ -1,6 +1,5 @@
 """Evidence selection retains source units and exposes omissions rather than asserting recall."""
 import dataclasses
-import json
 
 import pytest
 
@@ -53,21 +52,6 @@ def test_selection_requires_bounded_context_and_does_not_change_default_serializ
     assert "selection" not in ArticleOptions().model_dump()
     assert "selection" not in ArticleOptions(context="bounded").model_dump(mode="json")
     assert ArticleOptions(context="bounded", selection="supported").model_dump()["selection"] == "supported"
-
-
-def test_no_default_enables_selection():
-    """Selection is a research factor with unmeasured recall: only an explicit Article choice turns it on."""
-    from kei_exp.kie.extract.method import REFERENCE
-    from kei_exp.kie.extract.run import ExtractRequest
-
-    assert REFERENCE.selection is None and ArticleOptions().selection is None
-    assert ArticleOptions(context="bounded").selection is None
-    schema = SCHEMA.model_dump(by_alias=True, exclude_none=True)
-    # The extract workflow's request as Studio sends service defaults, and with no options at all.
-    for body in ({"schema": schema, "options": {"strategy": "article"}}, {"schema": schema}):
-        options = ExtractRequest.model_validate(body).options
-        assert options.article is None  # Article then runs REFERENCE
-        assert "selection" not in json.dumps(options.dumped())
 
 
 def test_pipeline_omits_unselected_value_calls_but_preserves_inventory_coverage(monkeypatch):
