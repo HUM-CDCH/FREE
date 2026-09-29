@@ -1,4 +1,6 @@
 """Grounding is an interchangeable technique: `run.extract` calls whatever `grounding.technique` returns."""
+import json
+
 import pytest
 
 from kei_exp.kie.extract import grounding, run
@@ -117,3 +119,54 @@ def test_a_correct_unique_claim_links_only_after_the_model_attests_it():
     birth = {link.path: link for link in links}[("records", 0, "birth_year")]
     assert (birth.segment, birth.linked_by, birth.verbatim, birth.hits) == ("p1_s0", "model", True, 1)
     assert "lexical" not in {link.linked_by for link in links}
+
+
+# A claim split into its own grounding batch still names its record (final review F1). Without Article's record
+# context, a nested claim batched apart from the record's identifying fields was verified blind: Ada's and Grace's
+# requests for the same birth year were identical, so no verifier could tell the right record from the wrong one.
+
+NESTED = Schema(recordDescription="One biography.", schemaNodes=[
+    {"id": "n", "name": "name", "type": "string"},
+    {"id": "d", "name": "details", "type": "object", "children": [
+        {"id": "b", "name": "birth_year", "type": "integer"}]}])
+BORN = Passage("p1_s0", 1, 0, "Ada was born in 1815. Grace was born in 1843.", "text", (0, 0, 100, 100), "block")
+
+
+def reads_its_record(system, user, schema):
+    """A verifier answering from the request alone: 1843 is Grace's birth year, not Ada's. A year request that does
+    not say whose record it is reads as supported, since the passage does print a birth in 1843."""
+    answer = {claim: "E1" for claim in schema["properties"]}
+    if "C2" in answer and '"name": "Ada"' in user:
+        answer["C2"] = "NONE"
+    return answer
+
+
+def request_size(call):
+    return len(call["system"]) + len(call["user"]) + len(json.dumps(call["schema"], ensure_ascii=False))
+
+
+def test_a_nested_claim_split_from_its_records_name_is_verified_with_the_record():
+    ada = {"name": "Ada", "details": {"birth_year": 1843}}
+    grace = {"name": "Grace", "details": {"birth_year": 1843}}
+    whole = []
+    for fields in (ada, grace):
+        chat = FakeChat(reads_its_record)
+        grounding.semantic([BORN], fields, NESTED, chat, record=0)
+        assert len(chat.calls) == 1
+        whole.append(request_size(chat.calls[0]))
+    budget = min(whole) - 1  # both claims no longer fit one request: each is verified in its own batch
+
+    runs = {}
+    for label, fields in (("ada", ada), ("grace", grace)):
+        chat = FakeChat(reads_its_record)
+        links, calls, issues = grounding.semantic([BORN], fields, NESTED, chat, record=0, budget=budget)
+        assert issues == [] and len(calls) == len(chat.calls) == 2
+        assert all(request_size(call) <= budget for call in chat.calls), "the record's fields count toward the budget"
+        year = next(call["user"] for call in chat.calls if "C2" in call["schema"]["properties"])
+        runs[label] = year, {link.path for link in links}
+
+    (ada_year, ada_links), (grace_year, grace_links) = runs["ada"], runs["grace"]
+    assert ada_year != grace_year
+    assert "C1" not in ada_year and '"name": "Ada"' in ada_year and "Grace" not in ada_year.split("### Evidence")[0]
+    assert ada_links == {("records", 0, "name")}, "1843 under Ada's record stays unsupported"
+    assert grace_links == {("records", 0, "name"), ("records", 0, "details", "birth_year")}
