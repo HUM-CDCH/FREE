@@ -1,0 +1,29 @@
+# Optional model-call tracing for development and production, selected by
+# `pnpm dev -- --phoenix` or `pnpm production -- --phoenix`.
+# Nothing depends on the collector; it never gates inference.
+x-tracing-environment: &tracing-environment
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "${FREE_PHOENIX:+http://phoenix:6006/v1/traces}"
+  FREE_TRACE_CAPTURE: "${FREE_TRACE_CAPTURE:-}"
+
+services:
+  studio:
+    environment: *tracing-environment
+
+  parsing_worker:
+    environment: *tracing-environment
+
+  phoenix:
+    profiles: ["phoenix"]
+    image: arizephoenix/phoenix:version-20.16.0
+    restart: unless-stopped
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+    ports:
+      - "127.0.0.1:6006:6006"
+    volumes:
+      - phoenix-data:/mnt/data
+    networks:
+      - app
+
+volumes:
+  phoenix-data:

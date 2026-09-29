@@ -49,9 +49,6 @@ services:
     environment:
       # kei's own role on Studio's database; the password is Studio's FREE_KEI_POSTGRES_PASSWORD (M2).
       KEI_SYSTEM_DATABASE_URL: "postgresql://kei:${FREE_KEI_POSTGRES_PASSWORD:-kei-development}@db:5432/free"
-      # Tracing to Phoenix (`pnpm dev -- --phoenix`); see docs/operations/local-development.md.
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "${FREE_PHOENIX:+http://phoenix:6006/v1/traces}"
-      FREE_TRACE_CAPTURE: "${FREE_TRACE_CAPTURE:-}"
     develop: *parsing-watch
 
   studio:
@@ -69,8 +66,6 @@ services:
       # invalidates the Researcher's session cookie.
       FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET comes from pnpm dev; start the stack with it}"
       VITE_SHOW_DEVELOPER_UI: "true"
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "${FREE_PHOENIX:+http://phoenix:6006/v1/traces}"
-      FREE_TRACE_CAPTURE: "${FREE_TRACE_CAPTURE:-}"
       # A developer running FREE for themselves routes to their own Codex and
       # Claude Code logins; production leaves this to the operator.
       FREE_DEPLOYMENT_CLI_PROVIDERS: codex-cli,claude-code
@@ -222,22 +217,6 @@ services:
     networks:
       - app
 
-  # Phoenix, the developer dashboard for model-call traces (`pnpm dev --
-  # --phoenix`). Development only: published on loopback, never behind nginx,
-  # and nothing depends on it, so Studio and the worker keep working when it is
-  # down. Traces persist in the phoenix-data volume.
-  phoenix:
-    profiles: ["phoenix"]
-    image: arizephoenix/phoenix:version-20.16.0
-    environment:
-      PHOENIX_WORKING_DIR: /mnt/data
-    ports:
-      - "127.0.0.1:6006:6006"
-    volumes:
-      - phoenix-data:/mnt/data
-    networks:
-      - app
-
   # The development TLS entry point. Production has no nginx container: the
   # host-managed nginx includes the same rendered
   # docker/nginx/free-studio-locations.inc.template and proxies to Studio's
@@ -281,6 +260,3 @@ services:
         condition: service_healthy
     networks:
       - proxy
-
-volumes:
-  phoenix-data:
