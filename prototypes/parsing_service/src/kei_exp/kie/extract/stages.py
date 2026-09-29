@@ -48,7 +48,7 @@ class Link:
     bbox_pt: tuple[float, float, float, float]
     verbatim: bool                      # the value occurs as a bounded token in the passage
     hits: int                           # passages of the record containing the value; above one is ambiguous
-    linked_by: str                      # lexical | model
+    linked_by: str                      # model (lexical only in results from before PROMPT_VERSION 13)
     cell: str | None = None             # local cell identity within segment, only with measured geometry
     precision: str = "segment"
 

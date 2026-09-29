@@ -6,14 +6,15 @@ model calls made and the issues found. `assembly.ground_records` obtains one tec
 per verification group of each record; it does not know which technique it holds. A new grounding arm is a new
 function of this shape and one more entry in `technique`.
 
-`semantic` is the production reference. Without a record context (the version 1 Catalog, under a character
-budget) it is deterministic first: a value that occurs as a bounded token in exactly one of the record's passages
-is linked without a model; the rest go to bounded grounding calls that may answer only with an evidence label each
-claim was shown, or NONE. A label outside the shown set links nothing. Article supplies its record context and a
-served counter, so every claim is verified semantically even for unique lexical occurrences, because the whole
-document contains other records' measurements. `quoted` never takes the lexical shortcut; it also asks for an
-exact source quote and an attribution to this record, in batches of four claims, and records each accepted quote
-in `proofs`. `spans` selects canonical ranges and reconstructs their quotes. `off` makes no call and links nothing, leaving every value ungrounded.
+`semantic` is the production reference: bounded grounding calls that may answer only with an evidence label each
+claim was shown, or NONE, reading each claim with its field and sibling fields. A label outside the shown set links
+nothing. Every claim is verified, even a value that occurs as a bounded token in exactly one passage: the same
+string can belong to another field or another record, so a unique text hit is a candidate location (the matching
+cells offered and the `hits` count recorded), never field evidence on its own. The version 1 Catalog grounds under
+a character budget; Article supplies its record context and a served counter. `quoted` also asks for an exact
+source quote and an attribution to this record, in batches of four claims, and records each accepted quote in
+`proofs`. `spans` selects canonical ranges and reconstructs their quotes. `off` makes no call and links nothing,
+leaving every value ungrounded. Links from before this rule may carry `linked_by: "lexical"`; none are made now.
 """
 from __future__ import annotations
 
@@ -129,8 +130,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
 
     Every batch retains all passages for coarse/non-verbatim support, and all matching cells for its claims.
     An oversized single claim stays ungrounded with a diagnostic; evidence is never truncated to fit.
-    Generic Catalog uses a character cap and links unique lexical hits. Article supplies its record context
-    and a served counter: every claim is semantically verified within the context minus an output reserve.
+    Every claim is verified by the model, a uniquely found value included. Generic Catalog uses a character cap;
+    Article supplies its record context and a served counter, verifying within the context minus an output reserve.
     `before_call`, when given, runs before each grounding batch; its error ends verification (cancellation).
     """
     prefix: tuple[str | int, ...] = ("records", record)
@@ -145,11 +146,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     for path, value in leaves(fields):
         if (*prefix, *path) in skip_paths:
             continue
-        hits = _hits(candidates, value)
-        if len(hits) == 1 and record_context is None and not quoted and not span_ids:
-            links.append(_link((*prefix, *path), hits[0], True, 1, "lexical"))
-        else:
-            pending.append(((*prefix, *path), value, len(hits)))
+        pending.append(((*prefix, *path), value, len(_hits(candidates, value))))
     if not pending:
         return links, [], []
     # Labels are local to this catalogue; saved proofs retain canonical source identities.

@@ -3,7 +3,10 @@ import pytest
 
 from kei_exp.kie.extract import grounding, run
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Link
+from kei_exp.kie.passages import Passage
+from tests.helpers.chat import FakeChat
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
@@ -68,3 +71,49 @@ def test_the_version_1_catalog_grounds_each_record_through_the_reference_techniq
     assert received == [{"record": 0, "passages": ["p1_s1", "p1_s2"], "counter": None, "record_context": None},
                         {"record": 1, "passages": ["p1_s3"], "counter": None, "record_context": None}]
     assert all(link["linked_by"] == "substitute" for link in result["evidence"])
+
+
+# A unique text hit is a candidate location, not field evidence (overfitting audit O5): the generic Catalog's
+# reference technique sends every claim, uniquely found or not, to the model with its field and sibling fields.
+
+BIOGRAPHY = Schema(recordDescription="One biography.", schemaNodes=[
+    {"id": "n", "name": "name", "type": "string"}, {"id": "b", "name": "birth_year", "type": "integer"}])
+ADA = Passage("p1_s0", 1, 0, "Ada was born in 1815. This catalogue was published in 1843.", "text",
+              (0, 0, 100, 100), "block")
+
+
+def test_a_number_found_once_under_the_wrong_field_is_verified_and_stays_unsupported():
+    """The audit's probe: 1843 occurs once, but as the catalogue's publication year, not Ada's birth year."""
+    chat = FakeChat(lambda system, user, schema: {"C1": "NONE", "C2": "NONE"})
+    links, calls, issues = grounding.semantic([ADA], {"name": "Ada", "birth_year": 1843}, BIOGRAPHY, chat,
+                                              record=0)
+    assert links == [] and issues == []
+    assert [call.stage for call in calls] == ["grounding"] and len(chat.calls) == 1
+    user = chat.calls[0]["user"]
+    assert "C2 (birth_year): 1843" in user
+    assert 'Sibling fields: {"name": "Ada", "birth_year": 1843}' in user
+    assert chat.calls[0]["schema"]["properties"]["C2"]["enum"] == ["E1", "NONE"]
+
+
+def test_a_number_found_once_in_another_records_text_is_verified_and_stays_unsupported():
+    """Two entries share one passage; record 0 claims the year printed for entry 32."""
+    shared = Passage("p1_s0", 1, 0, "31. Hjortlund sogn, 1827. 32. Vester Vedsted, 1830.", "text",
+                     (0, 0, 100, 100), "block")
+    chat = FakeChat(lambda system, user, schema: {"C1": "E1", "C2": "E1", "C3": "NONE"})
+    links, calls, issues = grounding.semantic([shared], {"entry_no": "31", "site": "Hjortlund sogn", "year": 1830},
+                                              SCHEMA, chat, record=0)
+    assert [(link.path, link.linked_by) for link in links] == [
+        (("records", 0, "entry_no"), "model"), (("records", 0, "site"), "model")]
+    assert issues == [] and len(calls) == len(chat.calls) == 1
+    user = chat.calls[0]["user"]
+    assert "C3 (year): 1830" in user
+    assert 'Sibling fields: {"entry_no": "31", "site": "Hjortlund sogn", "year": 1830}' in user
+
+
+def test_a_correct_unique_claim_links_only_after_the_model_attests_it():
+    chat = FakeChat(lambda system, user, schema: {"C1": "E1", "C2": "E1"})
+    links, calls, issues = grounding.semantic([ADA], {"name": "Ada", "birth_year": 1815}, BIOGRAPHY, chat, record=0)
+    assert len(chat.calls) == 1 and issues == [] and [call.stage for call in calls] == ["grounding"]
+    birth = {link.path: link for link in links}[("records", 0, "birth_year")]
+    assert (birth.segment, birth.linked_by, birth.verbatim, birth.hits) == ("p1_s0", "model", True, 1)
+    assert "lexical" not in {link.linked_by for link in links}

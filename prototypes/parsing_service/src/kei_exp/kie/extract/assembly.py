@@ -34,7 +34,7 @@ from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import Evidence, Passage
 
 EXTRACTION_VERSION = 1
-PROMPT_VERSION = 12  # Lossless source-string decoding and coherent exact quoted grounding.
+PROMPT_VERSION = 13  # A unique text hit is verified like any claim; no lexical-only links.
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
