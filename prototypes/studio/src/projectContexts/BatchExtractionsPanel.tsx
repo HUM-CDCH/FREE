@@ -226,6 +226,7 @@ export default function BatchExtractionsPanel({
   sourceDocuments,
   openBatchExtractionId,
   openBatchExtractionView,
+  pilotSchemaRevisionId,
   onNavigate,
 }: {
   projectContextId: string
@@ -234,6 +235,9 @@ export default function BatchExtractionsPanel({
   openBatchExtractionId: string | null
   /** The routed sub-view over that Batch Extraction, e.g. the review grid. */
   openBatchExtractionView: 'grid' | null
+  /** Set right after approving a Schema Revision from the document workspace
+   *  — opens straight into "Pilot Extraction" on this exact Revision. */
+  pilotSchemaRevisionId: string | null
   onNavigate: (route: NavigableRoute) => void
 }) {
   const sourceDocumentIds = sourceDocuments.map(
@@ -783,6 +787,23 @@ export default function BatchExtractionsPanel({
       setOpeningBatch(false)
     }
   }
+
+  // A Schema Revision just approved from the document workspace hands off
+  // here via `pilotSchemaRevisionId` (guided-pilot-extraction-workflow): open
+  // straight into "Pilot Extraction" on that exact Revision — the same
+  // small selection `beginPilotExtraction` picks by hand — instead of making
+  // the researcher re-find it on the history screen.
+  useEffect(() => {
+    if (!pilotSchemaRevisionId || sourceDocumentIds.length === 0) return
+    setSchemaRevisionId(pilotSchemaRevisionId)
+    setSelected(
+      new Set(sourceDocumentIds.slice(0, Math.min(3, sourceDocumentIds.length))),
+    )
+    setPreparing(true)
+    // Only the hand-off id itself should retrigger this; `sourceDocumentIds`
+    // just needs to be readable once it fires.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pilotSchemaRevisionId])
 
   /** "Pilot Extraction" entry point: opens the preparation screen with a
    *  small (2-3) Source Document selection pre-picked, so a researcher can

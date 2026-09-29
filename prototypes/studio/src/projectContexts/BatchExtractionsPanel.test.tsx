@@ -143,6 +143,7 @@ function RoutedPanel({
       sourceDocuments={sourceDocuments}
       openBatchExtractionId={open}
       openBatchExtractionView={view}
+      pilotSchemaRevisionId={null}
       onNavigate={(route) => {
         if (route.kind === 'project' && route.tab === 'extractions') {
           setOpen(route.batchExtractionId ?? null)

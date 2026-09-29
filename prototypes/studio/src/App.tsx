@@ -25,6 +25,7 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
 import type { SchemaDefinition } from 'extraction/schema'
+import type { NavigableRoute } from './projectNavigation'
 import { browserStudioPath } from './studioUrl.js'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
@@ -118,6 +119,11 @@ export type DocumentWorkspaceProps = {
   /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
       portalled into so the PDF controls share that row instead of a second one. */
   tabBarSlot?: HTMLElement | null
+  /** Set when the Project Context page's "Build your schema from a document"
+   *  picker opened this document — offers a "Next step" control that saves
+   *  the schema and returns to the project's Schemas tab. */
+  fromSchemaBuilder?: boolean
+  onNavigate?: (route: NavigableRoute) => void
 }
 
 type PinnedAttemptSchema = SchemaDefinition & {
@@ -137,6 +143,8 @@ export function DocumentWorkspace({
   latestReviewedExtraction = null,
   onInitialResourceLoadFailure,
   tabBarSlot = null,
+  fromSchemaBuilder = false,
+  onNavigate,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
@@ -159,6 +167,7 @@ export function DocumentWorkspace({
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
   const [savingForRun, setSavingForRun] = useState(false)
+  const [confirmingSchema, setConfirmingSchema] = useState(false)
   // One-shot per-run selection: each new run defaults back to Article, and the
   // selector never changes the strategy of an active or persisted attempt.
   const [nextExtractionStrategy, setNextExtractionStrategy] =
@@ -450,6 +459,40 @@ export function DocumentWorkspace({
     // name it the way initializeSchemaRevision's caller always has.
     if (!hadSchema && schema.snapshot().extractionSchemaId !== null)
       setSchemaName((name) => name ?? 'Extraction Schema')
+  }
+
+  // "Approve schema and go to next step" (guided-pilot-extraction-workflow):
+  // flushes the draft to a durable Schema Revision — that revision is
+  // already what "saved to history" means here, there's no separate commit
+  // step — then hands the researcher to the Extractions tab pre-armed with
+  // this exact Revision, so the next thing they do is pick 2-3 Source
+  // Documents and run a pilot Batch Extraction. Stabilising the Revision
+  // itself is a later step: the server refuses to stabilise a Schema
+  // Revision until a pilot Extraction has been run and reviewed against it.
+  async function approveSchemaAndGoToNextStep() {
+    if (!onNavigate) return
+    setConfirmingSchema(true)
+    try {
+      const acknowledged = await schema.flush()
+      const revisionId =
+        acknowledged?.schemaRevisionId ??
+        schemaSnap.extractableSchemaRevisionId ??
+        undefined
+      onNavigate({
+        kind: 'project',
+        projectContextId,
+        tab: 'extractions',
+        ...(revisionId ? { pilotSchemaRevisionId: revisionId } : {}),
+      })
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : 'Could not save the Extraction Schema.',
+      )
+    } finally {
+      setConfirmingSchema(false)
+    }
   }
 
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
@@ -767,48 +810,71 @@ export function DocumentWorkspace({
               </button>
             </div>
           )}
-          <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
-            Strategy
-            <select
-              aria-label="Extraction strategy"
-              value={running ? latestAttempt.strategy : nextExtractionStrategy}
-              disabled={running || savingForRun}
-              onChange={(event) =>
-                setNextExtractionStrategy(event.target.value as ExtractionStrategy)
+          {/* While building a schema toward a pilot extraction, Run/Strategy
+              are the wrong next action — the only step from here is
+              approving the schema, so they're left out entirely rather than
+              shown disabled. */}
+          {!fromSchemaBuilder && (
+            <>
+              <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
+                Strategy
+                <select
+                  aria-label="Extraction strategy"
+                  value={running ? latestAttempt.strategy : nextExtractionStrategy}
+                  disabled={running || savingForRun}
+                  onChange={(event) =>
+                    setNextExtractionStrategy(event.target.value as ExtractionStrategy)
+                  }
+                  className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink"
+                >
+                  <option value="ARTICLE">Article</option>
+                  <option value="CATALOG">Catalog</option>
+                </select>
+              </label>
+              <Button
+                variant="primary"
+                size="md"
+                disabled={
+                  running
+                    ? extraction.cancellationRequested
+                    : runExtractionUnavailable
+                }
+                title={
+                  running
+                    ? extraction.cancellationRequested
+                      ? 'Waiting for the Extraction to stop'
+                      : 'Cancel the active Extraction'
+                    : schemaReady
+                      ? nextExtractionStrategy === 'CATALOG'
+                        ? 'Find catalogue entries and extract one record per entry'
+                        : 'Run one values extraction across the whole Source Document'
+                      : 'Generate a schema in the Schema tab first'
+                }
+                onClick={() =>
+                  running
+                    ? void extraction.requestCancellation()
+                    : void runExtraction()
+                }
+              >
+                {runLabel}
+              </Button>
+            </>
+          )}
+          {fromSchemaBuilder && (
+            <Button
+              variant="primary"
+              size="md"
+              disabled={confirmingSchema || schemaSnap.extractionSchemaId === null}
+              title={
+                schemaSnap.extractionSchemaId === null
+                  ? 'Generate a schema in the Schema tab first'
+                  : 'Save this Schema Revision, then pick 2-3 documents for a pilot extraction'
               }
-              className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink"
+              onClick={() => void approveSchemaAndGoToNextStep()}
             >
-              <option value="ARTICLE">Article</option>
-              <option value="CATALOG">Catalog</option>
-            </select>
-          </label>
-          <Button
-            variant="primary"
-            size="md"
-            disabled={
-              running
-                ? extraction.cancellationRequested
-                : runExtractionUnavailable
-            }
-            title={
-              running
-                ? extraction.cancellationRequested
-                  ? 'Waiting for the Extraction to stop'
-                  : 'Cancel the active Extraction'
-                : schemaReady
-                  ? nextExtractionStrategy === 'CATALOG'
-                    ? 'Find catalogue entries and extract one record per entry'
-                    : 'Run one values extraction across the whole Source Document'
-                  : 'Generate a schema in the Schema tab first'
-            }
-            onClick={() =>
-              running
-                ? void extraction.requestCancellation()
-                : void runExtraction()
-            }
-          >
-            {runLabel}
-          </Button>
+              {confirmingSchema ? 'Approving…' : 'Approve schema and go to next step'}
+            </Button>
+          )}
         </>,
         tabBarSlot,
       )}

@@ -21,6 +21,20 @@ export class SchemaRevisionConflictError extends Error {
   }
 }
 
+/** Thrown by `deleteExtractionSchema` when it's refused because the schema
+ *  still has Extractions and the caller didn't pass `force` — distinct from
+ *  the generic `Error` `failure()` throws so the UI can offer a second,
+ *  explicit "delete anyway" confirmation instead of just showing the raw
+ *  message. */
+export class ExtractionSchemaHasExtractionsError extends Error {
+  constructor() {
+    super(
+      'This Extraction Schema has Extractions. Delete it anyway to remove them too.',
+    )
+    this.name = 'ExtractionSchemaHasExtractionsError'
+  }
+}
+
 export async function listExtractionSchemas(
   projectContextId: string,
   limit = 20,
@@ -53,15 +67,23 @@ export async function renameExtractionSchema(
 export async function deleteExtractionSchema(
   projectContextId: string,
   extractionSchemaId: string,
-  signal?: AbortSignal,
+  options: { force?: boolean; signal?: AbortSignal } = {},
 ): Promise<void> {
   const query = new URLSearchParams({ projectContextId })
+  if (options.force) query.set('force', 'true')
   const response = await authenticatedFetch(
     `/api/extraction-schemas/${extractionSchemaId}?${query}`,
-    { method: 'DELETE', signal },
+    { method: 'DELETE', signal: options.signal },
   )
   if (response.status === 204) return
   const value = await body(response)
+  if (
+    response.status === 409 &&
+    isRecord(value) &&
+    isRecord(value.error) &&
+    value.error.code === 'extraction_schema_has_extractions'
+  )
+    throw new ExtractionSchemaHasExtractionsError()
   throw failure(value, response.status)
 }
 

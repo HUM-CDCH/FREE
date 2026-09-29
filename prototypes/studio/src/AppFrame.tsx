@@ -228,9 +228,11 @@ export default function AppFrame({
         extractionSchema: openDocument.extractionSchema,
         persistedExtraction: openDocument.latestAttempt,
         latestReviewedExtraction: openDocument.latestReviewed,
+        fromSchemaBuilder:
+          route.kind === 'document' && route.fromSchemaBuilder === true,
         tabBarSlot,
       },
-    [openDocument, tabBarSlot],
+    [openDocument, route, tabBarSlot],
   )
 
   // Keeps open tabs in sync with routes reached other than a tab-strip or
@@ -515,10 +517,16 @@ export default function AppFrame({
             onActivate={activateTab}
             onClose={closeTab}
             onNavigateProject={() =>
-                onNavigate({
+              onNavigate({
                 kind: 'project',
                 projectContextId: routedProjectContextId,
-                tab: 'sources',
+                // Opened via the Schemas tab's document picker: back should
+                // return there, so picking a different document stays a
+                // one-click round trip instead of also re-selecting the tab.
+                tab:
+                  route.kind === 'document' && route.fromSchemaBuilder
+                    ? 'schemas'
+                    : 'sources',
               })
             }
             onBackToReviewGrid={
@@ -587,6 +595,7 @@ export default function AppFrame({
                   key={workspace.projectContextId}
                   {...workspace}
                   onInitialResourceLoadFailure={onInitialResourceLoadFailure}
+                  onNavigate={onNavigate}
                 />
               </Suspense>
             </RouteLoadBoundary>

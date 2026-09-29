@@ -130,8 +130,9 @@ export function createDeleteExtractionSchema(
           'invalid_request',
           'projectContextId and extractionSchemaId must be canonical lowercase UUIDs.',
         )
+      const force = url.searchParams.get('force') === 'true'
       const result = await store
-        .deleteExtractionSchema(projectContextId, match[1])
+        .deleteExtractionSchema(projectContextId, match[1], force)
         .catch((cause) => {
           throw persistenceUnavailable(cause)
         })

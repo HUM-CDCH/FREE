@@ -5,6 +5,7 @@ import type { ProjectSpreadsheetVersion } from '../../shared/projectSpreadsheet.
 import type { BatchSchemaSuggestionPurpose } from '../../shared/batchSchemaSuggestion.contract'
 import {
   deleteExtractionSchema,
+  ExtractionSchemaHasExtractionsError,
   getSchemaRevision,
   listExtractionSchemas,
   listSchemaRevisions,
@@ -21,14 +22,12 @@ import { useSchemaEditorController } from '../useCurrentSchemaRevision'
 import { Button, DeleteDialog, ModalDialog, EmptyState, GuidedNextStep } from '../ui'
 import BatchExtractionsPanel, {
   SuggestedSchemaEditor,
-  SuggestionSourceProgress,
 } from './BatchExtractionsPanel'
 import {
   getCurrentProjectSpreadsheet,
   uploadProjectSpreadsheet,
 } from './batchExtractions'
 import { useSpreadsheetSchemaSuggestion } from './useSpreadsheetSchemaSuggestion'
-import { useBatchSchemaSuggestion } from './useBatchSchemaSuggestion'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts } from './useProjectContexts'
 import ProjectWorkflowSteps from './ProjectWorkflowSteps'
@@ -475,6 +474,7 @@ export default function ProjectContextPage({
   const [nudge, setNudge] = useState<'upload-complete' | 'schema-ready' | null>(null)
   const previousSourceDocumentCount = useRef<number | null>(null)
   const previousSchemaCount = useRef<number | null>(null)
+  const generateSchemaSectionRef = useRef<HTMLElement>(null)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
   const [settledSchemaList, setSettledSchemaList] =
@@ -490,6 +490,10 @@ export default function ProjectContextPage({
   const [deletingSchema, setDeletingSchema] = useState<{
     extractionSchemaId: string
     name: string
+    /** Set once a plain delete was refused for having Extractions — the
+     *  dialog stays open with a stronger warning, and confirming again
+     *  retries with `force: true`. */
+    blocked: boolean
   } | null>(null)
   const [previewingSchema, setPreviewingSchema] = useState<{
     extractionSchemaId: string
@@ -511,8 +515,6 @@ export default function ProjectContextPage({
   const [spreadsheetPurpose, setSpreadsheetPurpose] =
     useState<BatchSchemaSuggestionPurpose>('SCHEMA')
   const [inferTypesFromValues, setInferTypesFromValues] = useState(true)
-  const [docSuggestionSelected, setDocSuggestionSelected] =
-    useState<ReadonlySet<string>>(new Set())
   const schemaList =
     settledSchemaList?.requestKey === schemaRequestKey
       ? settledSchemaList
@@ -687,56 +689,6 @@ export default function ProjectContextPage({
 
   const allSourceDocuments =
     branch?.status === 'ready' ? branch.detail.sourceDocuments : []
-  const docSuggestionDocumentName = (sourceDocumentId: string) =>
-    allSourceDocuments.find(
-      (document) => document.sourceDocumentId === sourceDocumentId,
-    )?.name ?? 'Source Document'
-
-  const [docSuggestion, sendDocSuggestion] = useBatchSchemaSuggestion({
-    projectContextId,
-    onSuggestion: () => {},
-    onRun: () => {
-      setSchemaRetry((attempt) => attempt + 1)
-      sendDocSuggestion({ type: 'reset' })
-      setDocSuggestionSelected(new Set())
-    },
-  })
-  const activeDocSuggestion = docSuggestion.context.suggestion
-  const docSuggestionDraftConflict = docSuggestion.matches('conflict')
-  const docSuggestionHeterogeneous = docSuggestion.matches('heterogeneous')
-  const docSuggestionConfirmed =
-    activeDocSuggestion?.confirmedSchemaRevisionId != null
-  const updateDocSuggestedDefinition = (
-    update: (definition: NonNullable<typeof docSuggestion.context.draft>) => NonNullable<typeof docSuggestion.context.draft>,
-  ) => {
-    if (!docSuggestion.context.draft) return
-    sendDocSuggestion({
-      type: 'proposal.changed',
-      definition: update(docSuggestion.context.draft),
-    })
-  }
-
-  // Schema generation starts from a single Source Document (guided-pilot-
-  // extraction-workflow) — broader applicability across the rest of the
-  // collection is validated later, during pilot extraction and review, not
-  // by merging suggestions across multiple documents up front. Clicking a
-  // document both selects and generates in one step, so the picker reads as
-  // "open this document as a schema draft" rather than a separate pick-then-
-  // submit form.
-  function startSchemaFromDocument(sourceDocumentId: string) {
-    setDocSuggestionSelected(new Set([sourceDocumentId]))
-    sendDocSuggestion({
-      type: 'selection.changed',
-      sourceDocumentIds: [sourceDocumentId],
-      suggestion: null,
-    })
-    sendDocSuggestion({ type: 'suggestion.requested' })
-  }
-
-  function regenerateDocSuggestion() {
-    if (!activeDocSuggestion || docSuggestionSelected.size === 0) return
-    sendDocSuggestion({ type: 'suggestion.retry' })
-  }
 
   useEffect(() => {
     if (tab !== 'schemas') return
@@ -767,13 +719,18 @@ export default function ProjectContextPage({
     if (previous === 0 && count > 0) setNudge('upload-complete')
   }, [branch])
 
-  // "First Schema Revision committed" -> nudge toward piloting it.
+  // "First Schema Revision committed" -> nudge toward piloting it. Going
+  // back to zero schemas (the last one was just deleted) -> there's nothing
+  // left in Schema history, so jump straight back to the chat step instead
+  // of leaving the researcher looking at an empty list.
   useEffect(() => {
     if (schemaList?.status !== 'ready') return
     const count = schemaList.schemas.length
     const previous = previousSchemaCount.current
     previousSchemaCount.current = count
     if (previous === 0 && count > 0) setNudge('schema-ready')
+    if (previous !== null && previous > 0 && count === 0)
+      generateSchemaSectionRef.current?.focus()
   }, [schemaList])
 
   if (branch?.status === 'error')
@@ -953,6 +910,11 @@ export default function ProjectContextPage({
             openBatchExtractionView={
               resource.tab === 'extractions' ? (resource.view ?? null) : null
             }
+            pilotSchemaRevisionId={
+              resource.tab === 'extractions'
+                ? (resource.pilotSchemaRevisionId ?? null)
+                : null
+            }
             onNavigate={onNavigate}
           />
         ) : tab === 'schemas' ? (
@@ -1081,6 +1043,7 @@ export default function ProjectContextPage({
                                   extractionSchemaId:
                                     schema.extractionSchemaId,
                                   name: schema.name,
+                                  blocked: false,
                                 })
                               }}
                               className="text-[11px] font-semibold text-danger"
@@ -1165,7 +1128,9 @@ export default function ProjectContextPage({
             </section>
 
             <section
-              className="mb-6 space-y-3 border-b border-line pb-6"
+              ref={generateSchemaSectionRef}
+              tabIndex={-1}
+              className="mb-6 space-y-3 border-b border-line pb-6 outline-none"
               aria-label="From a document"
             >
               <h2 className="text-xs font-bold text-ink">
@@ -1182,129 +1147,29 @@ export default function ProjectContextPage({
               ) : (
                 <div className="max-h-40 overflow-y-auto rounded-md border border-line bg-surface p-1">
                   <ul className="space-y-1">
-                    {allSourceDocuments.map((document) => {
-                      const selected = docSuggestionSelected.has(
-                        document.sourceDocumentId,
-                      )
-                      const locked = !(
-                        docSuggestion.matches('idle') ||
-                        docSuggestion.matches('failed')
-                      )
-                      return (
-                        <li key={document.sourceDocumentId}>
-                          <button
-                            type="button"
-                            disabled={locked && !selected}
-                            onClick={() =>
-                              startSchemaFromDocument(
-                                document.sourceDocumentId,
-                              )
-                            }
-                            className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] transition-colors disabled:cursor-default disabled:opacity-50 ${
-                              selected
-                                ? 'bg-accent-soft font-semibold text-accent'
-                                : 'text-ink hover:bg-accent-soft hover:text-accent'
-                            }`}
-                          >
-                            <span className="min-w-0 truncate">
-                              {document.name}
-                            </span>
-                            <span aria-hidden="true">→</span>
-                          </button>
-                        </li>
-                      )
-                    })}
+                    {allSourceDocuments.map((document) => (
+                      <li key={document.sourceDocumentId}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onNavigate({
+                              kind: 'document',
+                              projectContextId,
+                              sourceDocumentId: document.sourceDocumentId,
+                              fromSchemaBuilder: true,
+                            })
+                          }
+                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] text-ink transition-colors hover:bg-accent-soft hover:text-accent"
+                        >
+                          <span className="min-w-0 truncate">
+                            {document.name}
+                          </span>
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 </div>
-              )}
-
-              {docSuggestion.matches('creating') && (
-                <p className="text-xs text-ink-muted" aria-busy="true">
-                  Analyzing…
-                </p>
-              )}
-              {docSuggestion.context.error && (
-                <p className="text-[11px] text-danger" role="alert">
-                  {docSuggestion.context.error}
-                </p>
-              )}
-              {activeDocSuggestion && activeDocSuggestion.sources.length > 0 && (
-                <SuggestionSourceProgress
-                  suggestion={activeDocSuggestion}
-                  documentName={docSuggestionDocumentName}
-                />
-              )}
-              {docSuggestionDraftConflict && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[11px] text-danger" role="alert">
-                    This draft changed elsewhere. Reload before continuing.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() =>
-                      sendDocSuggestion({ type: 'suggestion.retry' })
-                    }
-                  >
-                    Reload
-                  </Button>
-                </div>
-              )}
-              {docSuggestionHeterogeneous && (
-                <p className="text-xs text-ink-muted">
-                  No reliable common field set was found across the selected
-                  documents. Try a smaller or more similar selection.
-                </p>
-              )}
-
-              {docSuggestion.context.draft && (
-                <>
-                  <div
-                    className="h-[28rem] overflow-hidden rounded-md border border-line bg-surface"
-                    aria-busy={docSuggestion.matches('running')}
-                    inert={docSuggestion.matches('running') ? true : undefined}
-                  >
-                    <SuggestedSchemaEditor
-                      key={activeDocSuggestion?.batchSchemaSuggestionId}
-                      proposal={docSuggestion.context.draft}
-                      proposalVersion={{
-                        draftVersion: activeDocSuggestion?.draftVersion ?? 0,
-                        finishedAt: activeDocSuggestion?.finishedAt ?? null,
-                      }}
-                      sourceDocumentName={docSuggestionDocumentName(
-                        [...docSuggestionSelected][0] ?? '',
-                      )}
-                      readOnly={docSuggestionConfirmed}
-                      showRegenerate={!docSuggestionConfirmed}
-                      onGenerateInstructions={regenerateDocSuggestion}
-                      onProposalEdit={updateDocSuggestedDefinition}
-                      onPendingLocalEditChange={() => {}}
-                    />
-                  </div>
-                  {!docSuggestionConfirmed ? (
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() =>
-                        sendDocSuggestion({
-                          type: 'run.requested',
-                          strategy: 'ARTICLE',
-                        })
-                      }
-                    >
-                      Confirm schema
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={docSuggestionSelected.size === 0}
-                      onClick={regenerateDocSuggestion}
-                    >
-                      Regenerate
-                    </Button>
-                  )}
-                </>
               )}
             </section>
 
@@ -1846,16 +1711,27 @@ export default function ProjectContextPage({
         <DeleteDialog
           title="Delete schema"
           description={
-            <>
-              Deleting “{deletingSchema.name}” permanently removes it and its
-              version history. This cannot be undone.
-            </>
+            deletingSchema.blocked ? (
+              <>
+                “{deletingSchema.name}” has Extractions run against it.
+                Deleting it anyway also permanently deletes those
+                Extractions, along with its version history. This cannot be
+                undone.
+              </>
+            ) : (
+              <>
+                Deleting “{deletingSchema.name}” permanently removes it and
+                its version history. This cannot be undone.
+              </>
+            )
           }
+          confirmLabel={deletingSchema.blocked ? 'Delete anyway' : undefined}
           onConfirm={async () => {
             try {
               await deleteExtractionSchema(
                 projectContextId,
                 deletingSchema.extractionSchemaId,
+                { force: deletingSchema.blocked },
               )
               setSettledSchemaList((current) =>
                 current?.status === 'ready' &&
@@ -1872,6 +1748,13 @@ export default function ProjectContextPage({
               )
               return null
             } catch (error) {
+              if (
+                error instanceof ExtractionSchemaHasExtractionsError &&
+                !deletingSchema.blocked
+              ) {
+                setDeletingSchema({ ...deletingSchema, blocked: true })
+                return { message: error.message }
+              }
               return {
                 message:
                   error instanceof Error

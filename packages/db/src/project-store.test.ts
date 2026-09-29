@@ -1350,6 +1350,26 @@ describe('ResearcherProjectStore Schema Revisions', () => {
     )
   })
 
+  it('force-deletes an Extraction Schema despite an Extraction under one of its revisions', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    database.tables.Extraction = [
+      {
+        id: '51000000-0000-4000-8006-000000000001',
+        schemaRevisionId: REVISION_1,
+      },
+    ]
+
+    assert.deepEqual(
+      await store.deleteExtractionSchema(PROJECT, SCHEMA, true),
+      { status: 'deleted' },
+    )
+    assert.deepEqual(
+      database.tables.ExtractionSchema.map((row) => row.id),
+      ['51000000-0000-4000-8003-000000000002'],
+    )
+  })
+
   it('refuses to delete an unowned or unknown Extraction Schema', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)

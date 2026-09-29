@@ -131,11 +131,16 @@ describe('PATCH /api/extraction-schemas/:id', () => {
 })
 
 describe('DELETE /api/extraction-schemas/:id', () => {
-  const request = (id = SCHEMA, projectContextId: string | null = PROJECT) =>
+  const request = (
+    id = SCHEMA,
+    projectContextId: string | null = PROJECT,
+    force = false,
+  ) =>
     new Request(
-      `http://test/api/extraction-schemas/${id}${
-        projectContextId ? `?projectContextId=${projectContextId}` : ''
-      }`,
+      `http://test/api/extraction-schemas/${id}?${new URLSearchParams({
+        ...(projectContextId ? { projectContextId } : {}),
+        ...(force ? { force: 'true' } : {}),
+      })}`,
       { method: 'DELETE' },
     )
 
@@ -148,7 +153,17 @@ describe('DELETE /api/extraction-schemas/:id', () => {
 
     expect(response.status).toBe(204)
     expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(deleteExtractionSchema).toHaveBeenCalledWith(PROJECT, SCHEMA)
+    expect(deleteExtractionSchema).toHaveBeenCalledWith(PROJECT, SCHEMA, false)
+  })
+
+  it('passes force through to the store', async () => {
+    const deleteExtractionSchema = vi.fn(async () => ({
+      status: 'deleted' as const,
+    }))
+    const DELETE = createDeleteExtractionSchema({ deleteExtractionSchema })
+    await DELETE(request(SCHEMA, PROJECT, true))
+
+    expect(deleteExtractionSchema).toHaveBeenCalledWith(PROJECT, SCHEMA, true)
   })
 
   it('refuses invalid ids, missing schemas, and schemas with Extractions', async () => {

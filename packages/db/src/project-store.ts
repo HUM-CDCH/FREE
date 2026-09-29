@@ -770,10 +770,13 @@ export type ResearcherProjectStore = {
   /** Refuses (`'has_extractions'`) rather than cascading through an
    *  Extraction Schema's Schema Revisions when any of them has an
    *  Extraction — the Prisma cascade would otherwise silently delete
-   *  Extraction rows along with the schema. */
+   *  Extraction rows along with the schema. `force` skips that check and
+   *  lets the cascade run, for a researcher who has explicitly confirmed
+   *  they want the Extractions gone too. */
   deleteExtractionSchema(
     projectContextId: string,
     extractionSchemaId: string,
+    force?: boolean,
   ): Promise<{ status: 'deleted' | 'has_extractions' } | null>
   appendSchemaRevision(
     projectContextId: string,
@@ -2200,7 +2203,7 @@ export function createResearcherProjectStore(
           }
         : null
     },
-    async deleteExtractionSchema(projectContextId, extractionSchemaId) {
+    async deleteExtractionSchema(projectContextId, extractionSchemaId, force) {
       return database.transaction(async ({ orm }) => {
         if (
           !(await ownsProjectContext(orm, researcherAccountId, projectContextId))
@@ -2211,18 +2214,22 @@ export function createResearcherProjectStore(
           projectContextId,
         })
         if (!schema) return null
-        const revisions = await orm.public.SchemaRevision.where({
-          extractionSchemaId,
-        })
-          .select('id')
-          .all()
-        if (revisions.length > 0) {
-          const extraction = await orm.public.Extraction.where((row) =>
-            row.schemaRevisionId.in(revisions.map((revision) => revision.id)),
-          )
+        if (!force) {
+          const revisions = await orm.public.SchemaRevision.where({
+            extractionSchemaId,
+          })
             .select('id')
-            .first()
-          if (extraction) return { status: 'has_extractions' as const }
+            .all()
+          if (revisions.length > 0) {
+            const extraction = await orm.public.Extraction.where((row) =>
+              row.schemaRevisionId.in(
+                revisions.map((revision) => revision.id),
+              ),
+            )
+              .select('id')
+              .first()
+            if (extraction) return { status: 'has_extractions' as const }
+          }
         }
         await orm.public.ExtractionSchema.where({
           id: extractionSchemaId,
