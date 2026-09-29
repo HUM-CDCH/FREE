@@ -146,8 +146,16 @@ The Capability Route used for Schema Suggestion. It uses the *NuExtract protocol
 _Avoid_: extraction route, extraction model, ext route
 
 **Extraction Model Choice**:
-A Researcher Account's choice, set on the Model Configuration page, of the Parsing Service's extraction models by role: the *field model* reads values off the source for the Extraction Schema, and the *reasoning model* decides over labelled source text (where records start, which passage grounds a value, which competing candidate is right). Each role is chosen among the models the Parsing Service deployment serves for that role; a role left unchosen uses the deployment's default. Every single and batch Extraction is requested on its Project Context owner's choice current when it starts, and records it beside the models each role actually ran on. It is not a Capability Route and does not name a Model Connection.
+A Researcher Account's choice, set on the Model Configuration page, of the Parsing Service's extraction models by role: the *field model* reads values off the source for the Extraction Schema, and the *reasoning model* decides over labelled source text (where records start, which passage grounds a value, which competing candidate is right). Each role is chosen among the models the Parsing Service deployment serves for that role; a role left unchosen uses the deployment's default. Every single and batch Extraction is requested on its Project Context owner's choice as its start view showed it, pinned at admission, and records it beside the models each role actually ran on. It is not a Capability Route and does not name a Model Connection.
 _Avoid_: extraction model, extraction route, model setting
+
+**Extraction Method Settings**:
+A Researcher Account's saved choices, per Extraction Strategy, of how future Extractions run: Article's source context, record identity, instructions, source representation, value evidence and verification choices; generic Catalog's text limits; a recipe Catalog's budgets and factors. They are set on the Model Configuration page's Advanced tab; unset settings keep the Parsing Service's defaults. They never edit an Extraction Schema: whether verification follows the schema's evidence policies is a setting, the policies are the schema's.
+_Avoid_: preset, profile, pipeline configuration, advanced extraction
+
+**Extraction Method**:
+What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe, Extraction Model Choice and the applicable Extraction Method Settings. It never changes after admission, and execution reads only it; Extraction details show it beside the options and protocol versions the Parsing Service reports for the run. Equal methods do not promise identical model output across runtime revisions.
+_Avoid_: current settings, configuration, method profile
 
 **Ingestion Model Choice**:
 A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages) and layout model (the detector that cuts scanned pages into regions). It applies to new ingestions and reprocessing only: an admitted ingestion keeps the models it was admitted with, and existing Source Representation Revisions never change. A page with a text layer uses neither. A role left unchosen uses the deployment's default. It names no Model Connection.

@@ -316,7 +316,9 @@ to its own Project Contexts only.
    the OCR and layout models for new ingestions and reprocessing), *Schema &
    chat* (the Assistant model; Schema Suggestion follows it unless given its
    own model) and *Extracting data* (the Extraction Model Choice). A step at its
-   defaults says so in one sentence.
+   defaults says so in one sentence. The Advanced tab holds each account's
+   Extraction Method Settings for future Extractions; they need no deployment
+   configuration.
 3. **Apply** saves the whole configuration in one transaction.
 
 A Studio restart empties its memory: an open page sends its keys again with

@@ -50,8 +50,10 @@ FREE's normative product and safety contract is:
    representation revisions, schema revisions, extractions, and review decisions
    survive ordinary restarts. One Extraction record carries a run from admission
    to its outcome and on to its reviews; it stays pinned to the
-   source-representation and schema revisions it used, so newer revisions can
-   make it stale without rewriting its history. Work in progress survives too:
+   source-representation and schema revisions it used, and to the extraction
+   method it was admitted with (its Extraction Model Choice and Extraction
+   Method Settings), so newer revisions can make it stale without rewriting its
+   history. Work in progress survives too:
    it runs as DBOS workflows inside Studio and the Parsing Service, which resume
    after a restart, and its status is derived from them rather than stored twice.
 6. **Project lifecycle.** A researcher can create, list, rename, and
@@ -61,7 +63,11 @@ FREE's normative product and safety contract is:
 7. **Model-provider surface.** Each Researcher Account owns its model
    configuration, stored in PostgreSQL: its Model Connections, the Assistant
    model (the Interaction Route) and the Schema Suggestion Route, the Extraction
-   Model Choice and the Ingestion Model Choice. A Project Context uses its
+   Model Choice and the Ingestion Model Choice. It also holds the account's
+   Extraction Method Settings: per Extraction Strategy, how future Extractions
+   run (the Model Configuration page's Advanced tab). Unset settings keep the
+   Parsing Service's defaults; saved settings never edit an Extraction Schema
+   and never hold a key. A Project Context uses its
    owner's configuration. The Model Configuration page supports Ollama, OpenAI,
    Anthropic, Google, vLLM and OpenAI-compatible connections. A researcher's API
    keys stay in their own browser; Studio holds a copy only in memory while it
@@ -230,7 +236,23 @@ to this separate execution endpoint. Instead, every single and Batch Extraction
 is requested on the Extraction Model Choice saved on the Model Configuration
 page: a field model and a reasoning model picked from the models the service
 lists at `GET /api/extraction-models`; an unchosen role uses the service's
-defaults, and each Extraction records the models its roles ran on. Schema
+defaults, and each Extraction records the models its roles ran on. Every
+single and Batch Extraction is admitted with the saved method its start view
+shows ("Saved advanced settings"): the Extraction Model Choice and the
+Extraction Method Settings for its strategy (Article; generic Catalog; a recipe
+Catalog's budgets and factors — a Batch Extraction has no recipe). Admission
+compares that method with the account's saved one under the configuration
+row's lock and refuses a stale one, starting nothing; otherwise it pins the
+method on the Extraction (and on the Batch Extraction and each member).
+`runExtraction` sends only the pinned method, also after a restart; saving new
+settings affects only later admissions. A repeated request with the same
+Extraction ID and method replays its Extraction; the same ID with another
+method is a conflict. Extraction details show the requested method beside the
+options and protocol versions the Parsing Service reports; a run from before
+methods were recorded shows "Not recorded". The Parsing Service remains the
+authority on method rules and re-validates every request; Studio's copy of the
+rules (`packages/extraction/src/extraction-method.ts`) is pinned to it by shared
+fixtures in `prototypes/parsing_service/tests/fixtures/contracts/`. Schema
 Suggestion and Interaction use the configured Capability Routes, and an unset
 route runs on the deployment's instruction model. Each Extraction runs as a
 durable workflow: Studio hands it to the Parsing Service's worker on its
