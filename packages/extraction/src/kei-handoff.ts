@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import type { DBOSClient, StepConfig } from '@dbos-inc/dbos-sdk'
+import { context, propagation } from '@opentelemetry/api'
 import { z } from 'zod'
 
 /** kei's lanes, priorities and identities (prototypes/parsing_service/src/kei_exp/workflows/config.py and contracts.py;
@@ -133,6 +134,14 @@ export type KeiHandoff = Readonly<{
   requestDeleteRuns(workflowId: string, request: KeiDeleteRunsInput): Promise<void>
 }>
 
+/** The submitting step's trace, where kei's DBOS reads it on dequeue and recovery (dbos-transact-py's
+ *  PropagateOtelContext attribute), so kei's spans join Studio's trace. Nothing while Studio does not trace. */
+function traceCarrier(): Record<string, unknown> {
+  const carrier: Record<string, string> = {}
+  propagation.inject(context.active(), carrier)
+  return Object.keys(carrier).length ? { 'dbos.otelContext': carrier } : {}
+}
+
 const LIVE = new Set(['ENQUEUED', 'DELAYED', 'PENDING'])
 const STOPPED = new Set(['ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'])
 
@@ -156,7 +165,7 @@ export function createKeiHandoff(
           workflowTimeoutMS: submission.timeoutMs,
           applicationName: KEI_APPLICATION, // unowned rows could be dequeued by any application (M0R 3)
           authenticatedUser: submission.authenticatedUser,
-          attributes: { ...submission.attributes },
+          attributes: { ...submission.attributes, ...traceCarrier() },
         },
         [submission.request],
       )
