@@ -289,6 +289,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
         recordDescription: 'One private record.',
         schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
       },
+      sourceCoverage: null,
     },
   })
 
@@ -1177,6 +1178,7 @@ describe('two-account schema, revision, suggestion, and editing isolation', () =
       ids.schemaB,
       1,
       schemaDefinition,
+      undefined,
     )
   })
 

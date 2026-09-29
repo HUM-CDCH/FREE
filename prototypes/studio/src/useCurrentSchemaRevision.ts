@@ -7,6 +7,7 @@ import {
   listSchemaRevisions,
 } from './schemaRevisions'
 import type { AcknowledgedSchemaRevision } from './schemaSaveCoordinator'
+import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 import {
   createSchemaEditorController,
   durableSchemaPersistence,
@@ -49,9 +50,12 @@ export type DurableSchemaScope = {
   projectContextId: string
   /**
    * The open Extraction Schema, or null before the first generation — the
-   * controller's first successful generate() initializes it.
+   * controller's first successful generate() initializes it. A reopened
+   * revision carries the source declaration it was saved with.
    */
-  extractionSchema: AcknowledgedSchemaRevision | null
+  extractionSchema:
+    | (AcknowledgedSchemaRevision & { sourceCoverage?: SourceCoverage | null })
+    | null
   /** Save debounce; the Batch prepare screen passes 0, the workspace 1500. */
   debounceMs?: number
   /**
@@ -107,15 +111,16 @@ export function useDurableCurrentSchemaRevision(
       projectContextId: scope.projectContextId,
       initial,
       debounceMs: scope.debounceMs,
-      append: (extractionSchemaId, expectedRevisionNumber, definition) =>
+      append: (extractionSchemaId, expectedRevisionNumber, definition, sourceCoverage) =>
         appendSchemaRevision(
           scope.projectContextId,
           extractionSchemaId,
           expectedRevisionNumber,
           definition,
+          sourceCoverage,
         ),
-      initialize: (definition, signal) =>
-        initializeSchemaRevision(scope.projectContextId, definition, signal),
+      initialize: (definition, signal, sourceCoverage) =>
+        initializeSchemaRevision(scope.projectContextId, definition, sourceCoverage, signal),
       listRevisions: (extractionSchemaId, limit, signal) =>
         listSchemaRevisions(scope.projectContextId, extractionSchemaId, limit, signal),
       getRevision: (extractionSchemaId, schemaRevisionId, signal) =>
@@ -144,6 +149,7 @@ export function useDurableCurrentSchemaRevision(
         : null,
       initialRevisionNumber: initial?.revisionNumber,
       initialExtractableRevisionId: initial?.schemaRevisionId ?? null,
+      initialSourceCoverage: initial?.sourceCoverage ?? null,
       onCommitMessage: scope.onCommitMessage,
     })
     if (recoveredDraft)

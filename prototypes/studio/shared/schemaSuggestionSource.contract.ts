@@ -1,5 +1,8 @@
+import { CANONICAL_UUID } from 'studio-configuration'
 import { z } from 'zod'
-import { canonicalUuidSchema } from './projectContext.contract.js'
+
+// Defined here rather than imported: projectContext.contract imports this module for a reopened revision's declaration.
+const sourceDocumentIdSchema = z.string().regex(CANONICAL_UUID, 'Must be a canonical lowercase UUID.')
 
 /** A range of a Source Document's canonical Markdown that Schema Suggestion did not send to the model: character
  *  offsets `[start, end)` into the whole source, and the physical page it lies on (null before the first page marker). */
@@ -38,7 +41,7 @@ export type SourceCoverage = z.infer<typeof sourceCoverageSchema>
 export const batchSourceCoverageSchema = z
   .array(
     z
-      .object({ sourceDocumentId: canonicalUuidSchema, sourceCoverage: sourceCoverageSchema.nullable(), combined: z.boolean() })
+      .object({ sourceDocumentId: sourceDocumentIdSchema, sourceCoverage: sourceCoverageSchema.nullable(), combined: z.boolean() })
       .strict(),
   )
   .min(1)

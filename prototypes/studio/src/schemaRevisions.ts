@@ -9,6 +9,7 @@ import {
   type SchemaRevision,
   type SchemaRevisionSummary,
 } from '../shared/schemaRevision.contract'
+import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 import { isRecord } from '../shared/template'
 
 export class SchemaRevisionConflictError extends Error {
@@ -118,23 +119,27 @@ async function writeSchemaRevision(
   return schemaRevisionResponseSchema.parse(value).revision
 }
 
+/** `sourceCoverage`: what the Schema Suggestion behind the definition read of its source, when it made one. */
 export function initializeSchemaRevision(
   projectContextId: string,
   definition: SchemaDefinition,
+  sourceCoverage?: SourceCoverage | null,
   signal?: AbortSignal,
 ): Promise<SchemaRevision> {
-  return writeSchemaRevision({ projectContextId, ...definition }, signal)
+  return writeSchemaRevision({ projectContextId, ...definition, sourceCoverage }, signal)
 }
 
+/** Without `sourceCoverage` the new revision inherits its head's declaration: an edit of the suggested schema. */
 export function appendSchemaRevision(
   projectContextId: string,
   extractionSchemaId: string,
   expectedRevisionNumber: number,
   definition: SchemaDefinition,
+  sourceCoverage?: SourceCoverage | null,
   signal?: AbortSignal,
 ): Promise<SchemaRevision> {
   return writeSchemaRevision(
-    { projectContextId, extractionSchemaId, expectedRevisionNumber, ...definition },
+    { projectContextId, extractionSchemaId, expectedRevisionNumber, ...definition, sourceCoverage },
     signal,
   )
 }

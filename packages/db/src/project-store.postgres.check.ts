@@ -230,6 +230,24 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   })
   assert.deepEqual((await store.getSchemaRevision(project.projectContextId, schema.id, appliedRevision.id))?.schemaTree,
     policySchema, 'schema evidence policies must survive the PostgreSQL revision round trip')
+  await t.test('a Schema Revision keeps its source declaration: an edit inherits it, a replacement names its own or none', async () => {
+    const excerpted = { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+    const reopened: unknown[] = []
+    for (const [expected, sourceCoverage] of [[2, excerpted], [3, undefined], [4, { complete: true }], [5, null], [6, undefined]] as const) {
+      assert.equal((await store.appendSchemaRevision(project.projectContextId, schema.id, expected, policySchema, sourceCoverage))?.status, 'created')
+      reopened.push((await store.getDocumentReopenSnapshot(project.projectContextId, document.id))?.extractionSchema?.sourceCoverage)
+    }
+    assert.deepEqual(reopened, [excerpted, excerpted, { complete: true }, null, null])
+
+    const declared = await store.createProjectContext('Declared')
+    const initialized = await store.initializeSchemaRevision(declared.projectContextId, policySchema, excerpted)
+    assert.equal(initialized?.status, 'created')
+    assert.deepEqual(
+      await db.orm.public.SchemaRevision.select('modelAttribution').first({ id: initialized!.status === 'created' ? initialized!.revision.schemaRevisionId : '' }),
+      { modelAttribution: { sourceCoverage: excerpted } },
+    )
+    assert.equal(await store.deleteProjectContext(declared.projectContextId), true)
+  })
   const extraction = await db.orm.public.Extraction.create({
     sourceDocumentId: document.id,
     schemaRevisionId: appliedRevision.id,

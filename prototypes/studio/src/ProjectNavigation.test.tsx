@@ -166,6 +166,7 @@ function hydratedSnapshot() {
       revisionNumber: 1,
       recordDescription: 'One place record.',
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+      sourceCoverage: null,
     },
     latestAttempt: {
       extractionId: '51000000-0000-4000-8006-000000000001',

@@ -4,6 +4,7 @@ import type {
   SchemaRevision,
   SchemaRevisionSummary,
 } from '../shared/schemaRevision.contract'
+import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 import { SchemaRevisionConflictError } from './schemaRevisions'
 import type { AcknowledgedSchemaRevision, SchemaSaveState } from './schemaSaveCoordinator'
 import {
@@ -100,10 +101,10 @@ function setupDurable(options: {
 
   // Instrument the adapter's surface so tests observe what the core does.
   const rawEdit = persistence.edit.bind(persistence)
-  persistence.edit = (sent) => {
+  persistence.edit = (sent, sourceCoverage) => {
     events.push('edit')
     edits.push(sent)
-    rawEdit(sent)
+    rawEdit(sent, sourceCoverage)
   }
   const rawFlush = persistence.flush.bind(persistence)
   persistence.flush = async () => {
@@ -840,5 +841,108 @@ describe('durable persistence adapter', () => {
 
     const ids = setup.controller.snapshot().draft!.schemaNodes.map(({ id }) => id)
     expect(new Set(ids)).toHaveLength(2)
+  })
+})
+
+type StoredRevision = SchemaRevision & { sourceCoverage: SourceCoverage | null }
+
+/**
+ * A revision chain kept as the store keeps it: each revision holds its source declaration, an append without one
+ * inherits its head's, and null records none. `open()` is a page load: a controller over the head revision, seeded
+ * with that revision's declaration as the workspace seeds it from the reopened document.
+ */
+function revisionChain(first?: string) {
+  const chain: StoredRevision[] = first ? [{ ...revision(1, first), sourceCoverage: null }] : []
+  const save = (sent: SchemaDefinition, sourceCoverage: SourceCoverage | null): StoredRevision => {
+    const saved = { ...revision(chain.length + 1, sent.schemaNodes[0]!.name), ...sent, sourceCoverage }
+    chain.push(saved)
+    return saved
+  }
+  const open = () => {
+    const head = chain.at(-1) ?? null
+    const persistence = durableSchemaPersistence({
+      projectContextId: 'project-1',
+      initial: head,
+      debounceMs: 0,
+      initialize: async (sent, _signal, sourceCoverage) => save(sent, sourceCoverage ?? null),
+      append: async (_schema, expected, sent, sourceCoverage) => {
+        const current = chain.at(-1)!
+        if (current.revisionNumber !== expected) throw new SchemaRevisionConflictError(current)
+        return save(sent, sourceCoverage === undefined ? current.sourceCoverage : sourceCoverage)
+      },
+      listRevisions: async () => [],
+      getRevision: async (_schema, schemaRevisionId) => chain.find((saved) => saved.schemaRevisionId === schemaRevisionId)!,
+    })
+    return createSchemaEditorController(persistence, {
+      initialDraft: head && { recordDescription: head.recordDescription, schemaNodes: head.schemaNodes },
+      initialRevisionNumber: head?.revisionNumber,
+      initialExtractableRevisionId: head?.schemaRevisionId ?? null,
+      initialSourceCoverage: head?.sourceCoverage ?? null,
+    })
+  }
+  return { chain, open }
+}
+
+const generated = (name: string, coverage: SourceCoverage) =>
+  async (_signal: AbortSignal, declareSourceCoverage: (coverage: SourceCoverage | null) => void) => {
+    declareSourceCoverage(coverage)
+    return { _description: `One ${name} record.`, [name]: 'string' }
+  }
+
+describe('the source declaration across a reopen', () => {
+  it('an initial generation saves its declaration, and the reopened schema shows it', async () => {
+    const server = revisionChain()
+    await server.open().generate(generated('site', EXCERPTED))
+
+    expect(server.chain.map((saved) => saved.sourceCoverage)).toEqual([EXCERPTED])
+    expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
+  })
+
+  it('a regeneration saves its declaration and the reopened schema shows it; a whole-source one clears it', async () => {
+    const server = revisionChain('site')
+    await server.open().generate(generated('place', EXCERPTED))
+    expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
+
+    await server.open().generate(generated('year', { complete: true }))
+    expect(server.chain.map((saved) => saved.sourceCoverage)).toEqual([null, EXCERPTED, { complete: true }])
+    expect(server.open().snapshot().sourceCoverage).toBeNull()
+  })
+
+  it('a restored generation saves its declaration with the revision it creates', async () => {
+    const server = revisionChain('site')
+    await server.open().restoreGeneration({ _description: 'One restored record.', restored: 'string' }, 'rev-1', EXCERPTED)
+
+    expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
+  })
+
+  it('edits keep the declaration through a reopen; a revision created from history does not', async () => {
+    const server = revisionChain('site')
+    const tab = server.open()
+    await tab.generate(generated('place', EXCERPTED))
+    tab.commit((nodes) => [...nodes, node('year')], '✎ Schema updated')
+    await tab.flush()
+    expect(server.chain).toHaveLength(3)
+    expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
+
+    const reopened = server.open()
+    await reopened.createCurrentRevisionFromHistory('rev-1')
+    expect(reopened.snapshot().sourceCoverage).toBeNull()
+    expect(server.chain.at(-1)!.sourceCoverage).toBeNull()
+    expect(server.open().snapshot().sourceCoverage).toBeNull()
+  })
+
+  it('a conflict adopting another tab’s revision drops this tab’s notice; the chain keeps that revision’s own declaration', async () => {
+    const server = revisionChain('site')
+    const tab = server.open()
+    await server.open().generate(generated('place', EXCERPTED))
+
+    await tab.generate(generated('late', { complete: true }))
+    expect(tab.snapshot().generationError).not.toBeNull()
+    expect(tab.snapshot().sourceCoverage).toBeNull()
+    tab.commit((nodes) => [...nodes, node('year')], '✎ Schema updated')
+    await tab.flush()
+
+    expect(server.chain.map((saved) => saved.sourceCoverage)).toEqual([null, EXCERPTED, EXCERPTED])
+    expect(server.open().snapshot().sourceCoverage).toEqual(EXCERPTED)
   })
 })

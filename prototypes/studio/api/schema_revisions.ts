@@ -147,11 +147,16 @@ export function createSchemaRevisionHandlers(
               recordDescription: input.recordDescription,
               schemaNodes: input.schemaNodes,
             },
+            input.sourceCoverage,
           )
-        : store.initializeSchemaRevision(input.projectContextId, {
-            recordDescription: input.recordDescription,
-            schemaNodes: input.schemaNodes,
-          }))
+        : store.initializeSchemaRevision(
+            input.projectContextId,
+            {
+              recordDescription: input.recordDescription,
+              schemaNodes: input.schemaNodes,
+            },
+            input.sourceCoverage ?? null,
+          ))
         .catch((cause) => {
           throw persistenceUnavailable(cause)
         })
