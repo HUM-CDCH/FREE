@@ -86,6 +86,7 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
         ...decision, carriedFrom: { extractionId: sample, sourcePathKey: JSON.stringify(decision.resultPath) },
       })),
       transfer: { '["records",0,"title"]': { status: 'reviewed', kept: 'Alpha' } },
+      sources: [],
     })
     assert.equal(seeded.decisions.length, 1)
     assert.equal(prepared.extraction.reviewedAt, null)

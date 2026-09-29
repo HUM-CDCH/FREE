@@ -16,6 +16,7 @@ import {
   type ExtractionAttempt,
   type ExtractionModelListing,
   type ReviewDecisionInput,
+  type ReviewPairing,
 } from '../shared/extraction.contract'
 import { ingestionModelListingSchema, type IngestionModelListing } from '../shared/modelConfig.contract'
 import { modelOperationListingSchema, type ModelOperation } from '../shared/modelOperation.contract'
@@ -293,7 +294,9 @@ export async function resetExtractionReview(extractionId: string, expectedDraftV
 }
 // Only in-flight writes live here. PostgreSQL owns all persisted review state.
 const draftWrites = new Map<string, Promise<SavedReviewDraft>>()
-export function saveExtractionReviewDraft(extractionId: string, decisions: readonly ReviewDecisionInput[], version: number): Promise<SavedReviewDraft> {
+export function saveExtractionReviewDraft(
+  extractionId: string, decisions: readonly ReviewDecisionInput[], version: number, pairings?: readonly ReviewPairing[],
+): Promise<SavedReviewDraft> {
   const invalid = decisions
     .map((decision) => reviewDecisionInputSchema.safeParse(decision))
     .flatMap((result, index) => (result.success ? [] : [{ decision: decisions[index], error: result.error }]))
@@ -312,7 +315,7 @@ export function saveExtractionReviewDraft(extractionId: string, decisions: reado
     acknowledgeReviewDraft(extractionId, saved.version)
     // A conflict is one state for every caller: the hooks key their reload path on this message.
     const result = extractionReviewDraftSchema.parse(
-      await requestJson(`/extractions/${extractionId}/review/draft`, 'POST', { version: saved.version, decisions }).catch((error: unknown) => {
+      await requestJson(`/extractions/${extractionId}/review/draft`, 'POST', { version: saved.version, decisions, ...(pairings && { pairings }) }).catch((error: unknown) => {
         throw error instanceof Error && error.message.startsWith('review_conflict:') ? new Error(REVIEW_DRAFT_CONFLICT) : error
       }),
     )

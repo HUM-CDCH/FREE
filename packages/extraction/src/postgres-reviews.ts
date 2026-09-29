@@ -28,9 +28,13 @@ async function reviewDigest(orm: DatabaseOrm, extractionId: string): Promise<str
 export async function readStoredReviewDraft(database: Database, accountId: string, extractionId: string): Promise<ReviewDraft | null> {
   return database.transaction(async (transaction) => {
     if (!await ownsResearcherExtraction(transaction, accountId, extractionId)) return null
-    const row = await transaction.orm.public.Extraction.select('reviewDraft', 'reviewDraftVersion', 'reviewedAt').first({ id: extractionId })
+    const row = await transaction.orm.public.Extraction.select('reviewDraft', 'reviewDraftVersion', 'reviewedAt', 'reviewPairings').first({ id: extractionId })
     if (!row) return null
-    return { version: row.reviewDraftVersion, decisions: row.reviewedAt ? [] : (row.reviewDraft ?? []) as unknown as ReviewDraft['decisions'] }
+    return {
+      version: row.reviewDraftVersion,
+      decisions: row.reviewedAt ? [] : (row.reviewDraft ?? []) as unknown as ReviewDraft['decisions'],
+      ...(row.reviewPairings && !row.reviewedAt ? { pairings: row.reviewPairings as unknown as ReviewDraft['pairings'] } : {}),
+    }
   })
 }
 
@@ -42,7 +46,11 @@ export async function saveStoredReviewDraft(database: Database, accountId: strin
     // selects an identity, then updates by primary key and loses that guard.
     const updated = await transaction.orm.public.Extraction.where({
       id: extractionId, reviewedAt: null, reviewable: true, reviewDraftVersion: draft.version,
-    }).updateAll({ reviewDraft: draft.decisions, reviewDraftVersion: draft.version + 1 })
+    }).updateAll({
+      reviewDraft: draft.decisions, reviewDraftVersion: draft.version + 1,
+      // Pairings change only when a save carries them, so an ordinary decision save keeps them.
+      ...(draft.pairings ? { reviewPairings: draft.pairings.length ? draft.pairings : null } : {}),
+    })
     if (updated.length !== 1) throw new ExtractionError('review_conflict', 'The review changed elsewhere. Reload before continuing.')
     return { decisions: draft.decisions, version: draft.version + 1 }
   })
@@ -54,7 +62,7 @@ export async function resetStoredReview(database: Database, accountId: string, e
       throw new ExtractionError('not_found', 'That Extraction was not found.')
     const updated = await transaction.orm.public.Extraction.where({
       id: extractionId, reviewable: true, reviewDraftVersion: version,
-    }).updateAll({ reviewedAt: null, reviewDraft: [], reviewDraftVersion: version + 1 })
+    }).updateAll({ reviewedAt: null, reviewDraft: [], reviewPairings: null, reviewDraftVersion: version + 1 })
     if (updated.length !== 1) throw new ExtractionError('review_conflict', 'The review changed elsewhere. Reload before continuing.')
     return { decisions: [], version: version + 1 }
   })

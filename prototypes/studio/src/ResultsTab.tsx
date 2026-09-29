@@ -545,6 +545,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
   const carried = controller.review.decisions.filter((decision) => decision.carriedFrom).length
   const changedSinceSample = controller.review.decisions.filter((decision) => !controller.review.isTouched(decision.resultPath) &&
     controller.review.transfer[resultPathKey(decision.resultPath)]?.status === 'changed').length
+  const { pairings, sources, pair } = controller.review.pairing
+  const unmatchedRecords = [...new Set(Object.entries(controller.review.transfer).filter(([, verdict]) => verdict.status === 'unmatched')
+    .map(([key]) => (JSON.parse(key) as number[])[1]!))]
   useEffect(() => {
     if (!readOnly && !inspectedAttempt && editingPaths.size === 0 &&
       controller.review.canAccept && !controller.review.error && carried === 0)
@@ -777,6 +780,28 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               <div role="alert" className="text-xs text-danger">
                 Draft not saved: {controller.review.draftError}
                 <Button onClick={controller.review.retryDraft} disabled={controller.review.draftSaving}>{controller.review.draftError === REVIEW_DRAFT_CONFLICT ? 'Reload server review' : 'Retry draft'}</Button>
+              </div>
+            )}
+            {!readOnly && !inspectedAttempt && !controller.review.reviewedExtractionId && (unmatchedRecords.length > 0 || pairings.length > 0) && (
+              <div className="flex flex-col gap-1 text-[11.5px] text-ink-muted">
+                {pairings.map((pairing) => (
+                  <p key={pairing.record} className="flex items-center gap-1.5">
+                    Record {pairing.record + 1} is paired by hand with a sample record.
+                    <Button size="sm" onClick={() => pair(pairings.filter((each) => each !== pairing))}>Undo pairing</Button>
+                  </p>
+                ))}
+                {sources.length > 0 && unmatchedRecords.map((record) => (
+                  <label key={record} className="flex items-center gap-1.5">
+                    Record {record + 1} matches no sample record.
+                    <select value="" className="rounded-md border border-line bg-surface px-2 py-1 text-xs" onChange={(event) => {
+                      const source = sources[Number(event.target.value)]
+                      if (source) pair([...pairings, { record, extractionId: source.extractionId, sourceRecord: source.record }])
+                    }}>
+                      <option value="">Pair with…</option>
+                      {sources.map((source, index) => <option key={index} value={index}>{source.label}</option>)}
+                    </select>
+                  </label>
+                ))}
               </div>
             )}
             {!readOnly && !inspectedAttempt && !controller.review.reviewedExtractionId && !controller.review.draftError && (

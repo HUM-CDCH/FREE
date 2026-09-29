@@ -350,9 +350,16 @@ export type ReviewPreparation = Readonly<{
   reviewDecisions: readonly ReviewDecisionInput[]
 }>
 
+/** A researcher's hand pairing of an unmatched destination record with an unmatched pinned sample record. */
+export type ReviewPairing = Readonly<{ record: number; extractionId: string; sourceRecord: number }>
+
 export type ReviewDraft = Readonly<{
   version: number
   decisions: readonly ReviewDecisionInput[]
+  /** Hand pairings, saved with the draft; on a save, absent keeps the stored ones. */
+  pairings?: readonly ReviewPairing[]
+  /** The pinned sample records with decisions that overlap a destination record without aligning: pairable by hand. */
+  sources?: readonly Readonly<{ extractionId: string; record: number; label: string }>[]
   /** Each value's verdict against the sample decisions pinned at admission, by result path key; absent when none were. */
   transfer?: Readonly<Record<string, Readonly<{ status: 'fixed' | 'reviewed' | 'changed' | 'unmatched'; kept: unknown }>>>
 }>

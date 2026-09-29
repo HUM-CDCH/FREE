@@ -43,6 +43,7 @@ const defaultController: ExtractionController = {
     draftSaving: false,
     retryDraft: () => {},
     transfer: {},
+    pairing: { pairings: [], sources: [], pair: () => {} },
     setDecision: () => {},
     undo: () => {},
     reload: () => {},

@@ -14,7 +14,7 @@ import {
   type ReviewAuthority,
 } from './review-rules.js'
 import { parseExtractionSchema } from './schema.js'
-import type { EvidenceLink, ExtractionSnapshot, ResultPath, ReviewDecisionInput } from './types.js'
+import type { EvidenceLink, ExtractionSnapshot, ResultPath, ReviewDecisionInput, ReviewPairing } from './types.js'
 
 const schemaTree = {
   recordDescription: 'Catalogue records.',
@@ -229,10 +229,10 @@ describe('Review transfer from a sample to a later run', () => {
     evidenceAnchorId: sample.evidence.find((each) => JSON.stringify(each.resultPath) === JSON.stringify(path))!.evidenceAnchorId,
   })
   /** Each destination value's status, carried action and carried value after `decisions` on `sample`. */
-  const verdicts = (sample: Sample, decisions: ReviewDecisionInput[], destination: Sample) =>
+  const verdicts = (sample: Sample, decisions: ReviewDecisionInput[], destination: Sample, pairings: ReviewPairing[] = []) =>
     Object.fromEntries([...transferVerdicts(
       unionReviewTransfer([{ ...transferSample(sample), entries: transferEntries(sample, decisions, nodes, 1) }])!,
-      destination, nodes,
+      destination, nodes, pairings,
     )].map(([key, { status, decision }]) => [key, [status, decision?.action, decision?.reviewedValue].filter(Boolean).join(' ')]))
   const date = ['records', 0, 'date']
   const nr41 = (dateValue: string, anchor: string, extractionId = 'full') => run(extractionId, [{ number: ['41', 'a0'], date: [dateValue, anchor] }])
@@ -263,6 +263,22 @@ describe('Review transfer from a sample to a later run', () => {
     const one = nr41('1897', 'a1', 'sample')
     assert.deepEqual(verdicts(one, [decide(one, date, 'APPROVED')], run('full', [{ number: ['41', 'a0'] }, { date: ['1897', 'a1'] }])),
       { '["records",0,"number"]': 'unmatched', '["records",1,"date"]': 'unmatched' })
+  })
+
+  it('compares a split record paired by hand with one half under the same rules, and ignores a pairing of an aligned record', () => {
+    const whole = run('sample', [{ number: ['41', 'a0'], date: ['1897', 'a1'], marks: [['Augsburg', 'a2']] }])
+    const decisions = [decide(whole, ['records', 0, 'number'], 'APPROVED'), decide(whole, date, 'APPROVED'),
+      decide(whole, ['records', 0, 'marks', 0], 'APPROVED')]
+    // The full run split it: the first half cites the date on another passage, the second keeps the mark's.
+    const split = run('full', [{ number: ['41', 'a0'], date: ['1897', 'a9'] }, { marks: [['Augsburg', 'a2']] }])
+    const paired = { record: 0, extractionId: 'sample', sourceRecord: 0 }
+    assert.deepEqual(verdicts(whole, decisions, split, [paired]), {
+      '["records",0,"number"]': 'reviewed APPROVED', '["records",0,"date"]': 'changed', '["records",1,"marks",0]': 'unmatched',
+    })
+    const other = run('sample', [{ number: ['41', 'a0'] }, { number: ['42', 'b0'] }])
+    assert.deepEqual(verdicts(other, [decide(other, ['records', 0, 'number'], 'APPROVED'), decide(other, ['records', 1, 'number'], 'APPROVED')],
+      run('full', [{ number: ['41', 'a0'] }]), [{ record: 0, extractionId: 'sample', sourceRecord: 1 }]),
+    { '["records",0,"number"]': 'reviewed APPROVED' })
   })
 
   it('aligns array items by their anchors, never by index', () => {

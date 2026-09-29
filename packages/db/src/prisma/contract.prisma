@@ -223,6 +223,9 @@ model Extraction {
   // The sample Review Decisions pinned at single admission (design §6, `ReviewTransfer`): self-contained, never
   // changed after admission. Null: nothing to carry (no reviewed sample of this document, revision and schema; batch).
   reviewTransfer                 Json?
+  // The review draft's hand pairings of unmatched records (`[{record, extractionId, sourceRecord}]`, design §7.1),
+  // saved with the draft under its version; null when there are none.
+  reviewPairings                 Json?
   outcome                        ExtractionOutcome?
   complete                       Boolean?
   modelAttribution               Json?

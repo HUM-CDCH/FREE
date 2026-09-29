@@ -4,7 +4,8 @@ import { isDeepStrictEqual } from 'node:util'
 import { populatedContentPaths, resultPathKey, valueAtPath } from './review-paths.js'
 import { isRecord, parseExtractionSchema, partitionSchemaNodes, restoreSchemaNodeOrder, schemaNodeAtPath } from './schema.js'
 import type {
-  EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ReviewDecisionInput, ReviewTransfer, TransferEntry, TransferRecord,
+  EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ReviewDecisionInput, ReviewPairing, ReviewTransfer, TransferEntry,
+  TransferRecord,
 } from './types.js'
 
 /*
@@ -336,6 +337,8 @@ export function alignRecords(records: TransferSample, other: TransferSample): Re
  * The union of samples' decisions, oldest sample first (design §6): where a newer sample decided a schema node of a
  * record aligned with an older one's, the newer decision wins; every other decision is kept. Null when none is left.
  */
+// ponytail: a sample's hand pairings are not read here, so an older decision on a record a newer sample paired by hand
+// is kept beside the newer one; the destination's own alignment still decides which applies.
 export function unionReviewTransfer(samples: readonly (TransferSample & { entries: readonly TransferEntry[] })[]): ReviewTransfer | null {
   let entries: readonly TransferEntry[] = []
   for (const sample of samples) {
@@ -376,6 +379,37 @@ function losslessly(value: unknown, type: string): unknown {
 }
 
 /**
+ * Per pinned sample, which of its records each destination record aligns with, plus the researcher's hand pairings of
+ * records aligned to nothing on either side, one to one (design §7.1). A pairing that breaks this is ignored.
+ */
+function transferPairs(transfer: ReviewTransfer, target: TransferSample, pairings: readonly ReviewPairing[]) {
+  const pairs = new Map(transfer.samples.map((sample) => [sample.extractionId, new Map(alignRecords(target, sample))]))
+  for (const { record, extractionId, sourceRecord } of pairings) {
+    const own = pairs.get(extractionId)
+    if (own && record < target.records.length && sourceRecord < transfer.samples.find((sample) => sample.extractionId === extractionId)!.records.length &&
+        ![...pairs.values()].some((aligned) => aligned.has(record)) && ![...own.values()].includes(sourceRecord))
+      own.set(record, sourceRecord)
+  }
+  return pairs
+}
+
+/** The pinned records with decisions that share a destination record's anchors without aligning or being paired,
+ *  each labelled for display only by its first decided value's page and model value. */
+export function unmatchedSources(
+  transfer: ReviewTransfer, destination: Parameters<typeof transferSample>[0], pairings: readonly ReviewPairing[] = [],
+) {
+  const target = transferSample(destination)
+  const pairs = transferPairs(transfer, target, pairings)
+  return transfer.samples.flatMap((sample) => sample.records.flatMap((record, index) => {
+    const first = transfer.entries.find((entry) => entry.extractionId === sample.extractionId && entry.record === index)
+    if (!first || [...pairs.get(sample.extractionId)!.values()].includes(index) ||
+        !target.records.some((each) => each.anchors.some((anchor) => record.anchors.includes(anchor)))) return []
+    const page = /^a_p(\d+)_/.exec(first.evidenceAnchorId)?.[1]
+    return [{ extractionId: sample.extractionId, record: index, label: `${page ? `p. ${page} · ` : ''}${String(first.modelValue)}` }]
+  }))
+}
+
+/**
  * Each grounded destination value's verdict against the pinned review (design §7): records align first, fields by
  * schema node id, array items by their anchor inside the record, never by index. After lossless conversion to the
  * destination type, an approval carries on the same value and anchor; a correction carries as an approval (fixed) on
@@ -387,9 +421,10 @@ export function transferVerdicts(
   transfer: ReviewTransfer,
   destination: Parameters<typeof transferSample>[0],
   nodes: readonly ExtractionSchemaNode[],
+  pairings: readonly ReviewPairing[] = [],
 ): ReadonlyMap<string, TransferVerdict> {
   const target = transferSample(destination)
-  const pairs = new Map(transfer.samples.map((sample) => [sample.extractionId, alignRecords(target, sample)]))
+  const pairs = transferPairs(transfer, target, pairings)
   const sampleOf = (entry: TransferEntry) => transfer.samples.find((sample) => sample.extractionId === entry.extractionId)!
   const verdicts = new Map<string, TransferVerdict>()
   // ponytail: only values the destination grounds get a verdict; a reviewed value it no longer has (a regression to

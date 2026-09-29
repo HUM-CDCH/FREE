@@ -449,6 +449,12 @@ export type ExtractionAttempt = z.infer<typeof extractionAttemptSchema>
  * Evidence requires. The decisions are derived from the pinned Source
  * Representation, so the browser never needs the parsed document to review.
  */
+/** A hand pairing of an unmatched record of this run with an unmatched pinned sample record. */
+export const reviewPairingSchema = z.object({
+  record: z.number().int().nonnegative(), extractionId: z.string().min(1), sourceRecord: z.number().int().nonnegative(),
+}).strict()
+export type ReviewPairing = z.infer<typeof reviewPairingSchema>
+
 export const extractionReadResponseSchema = z
   .object({
     extraction: extractionAttemptSchema,
@@ -460,6 +466,11 @@ export const extractionReadResponseSchema = z
       transfer: z.record(z.string(), z.object({
         status: z.enum(['fixed', 'reviewed', 'changed', 'unmatched']), kept: z.json(),
       }).strict()).optional(),
+      pairings: z.array(reviewPairingSchema).optional(),
+      /** Pinned sample records with decisions that overlap a record of this run without aligning: pairable by hand. */
+      sources: z.array(z.object({
+        extractionId: z.string().min(1), record: z.number().int().nonnegative(), label: z.string(),
+      }).strict()).optional(),
     }).strict().optional(),
   })
   .strict()
@@ -469,6 +480,8 @@ export type ReviewTransferVerdicts = NonNullable<NonNullable<z.infer<typeof extr
 export const extractionReviewDraftSchema = z.object({
   version: z.number().int().nonnegative(),
   decisions: z.array(reviewDecisionInputSchema),
+  /** The hand pairings; absent keeps the stored ones. */
+  pairings: z.array(reviewPairingSchema).optional(),
 }).strict()
 
 export const resetExtractionReviewSchema = z.object({

@@ -9,8 +9,18 @@ import {
   reviewAuthority,
   reviewDecisionMatchesSchema,
   transferVerdicts,
+  unmatchedSources,
 } from './review-rules.js'
 import type { CancellationResult, FinalizeReviewResult, ExtractionModule, ReviewDecisionInput, RunSingleInput } from './types.js'
+
+/** The prepared decisions a verdict carries, as draft decisions under their own paths with their provenance. */
+const carried = (verdicts: ReturnType<typeof transferVerdicts>, prepared: readonly ReviewDecisionInput[]) =>
+  prepared.flatMap((decision) => {
+    const { decision: carries, entry } = verdicts.get(resultPathKey(decision.resultPath)) ?? {}
+    return carries && entry
+      ? [{ ...decision, ...carries, carriedFrom: { extractionId: entry.extractionId, sourcePathKey: entry.sourcePathKey } }]
+      : []
+  })
 
 const DEFAULT_LIMIT = 50
 
@@ -91,18 +101,14 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       const { extraction, reviewDecisions } = await prepareReview(extractionId)
       const inputs = await persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
       if (!inputs) return draft
-      const verdicts = transferVerdicts(pinned, extraction, parsePinnedSchema(inputs.schemaTree).schemaNodes)
+      const verdicts = transferVerdicts(pinned, extraction, parsePinnedSchema(inputs.schemaTree).schemaNodes, draft.pairings)
       return {
-        version: draft.version,
+        ...draft,
         // A review never saved starts from the decisions its pinned samples carry (design §7): draft decisions under
         // this Extraction's own paths, saved with the researcher's first edit and authoritative only once finalized.
-        decisions: draft.version > 0 ? draft.decisions : reviewDecisions.flatMap((decision) => {
-          const { decision: carried, entry } = verdicts.get(resultPathKey(decision.resultPath)) ?? {}
-          return carried && entry
-            ? [{ ...decision, ...carried, carriedFrom: { extractionId: entry.extractionId, sourcePathKey: entry.sourcePathKey } }]
-            : []
-        }),
+        decisions: draft.version > 0 ? draft.decisions : carried(verdicts, reviewDecisions),
         transfer: Object.fromEntries([...verdicts].map(([key, { status, kept }]) => [key, { status, kept }])),
+        sources: unmatchedSources(pinned, extraction, draft.pairings),
       }
     },
     saveReviewDraft: async (extractionId, draft) => {
@@ -121,7 +127,19 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
           !expected.reviewedOccurrenceIds.every((id) => decision.reviewedOccurrenceIds.includes(id)) ||
           !reviewDecisionMatchesSchema(nodes, decision)
       })) throw new ExtractionError('invalid_review', 'Draft decisions do not match the pinned Extraction Result and Evidence.')
-      return persistence.saveReviewDraft(extractionId, draft)
+      if (!draft.pairings || !extraction.reviewTransfer) return persistence.saveReviewDraft(extractionId, draft)
+      // A save that pairs a record carries its decisions into the paths the researcher has not decided; one that
+      // unpairs a record drops the decisions its pairing carried.
+      const stored = (await persistence.readReviewDraft(extractionId))?.pairings ?? []
+      const records = (pairings: typeof stored, others: typeof stored) => pairings
+        .filter((pairing) => !others.some((other) => other.record === pairing.record && other.extractionId === pairing.extractionId &&
+          other.sourceRecord === pairing.sourceRecord)).map((pairing) => pairing.record)
+      const [paired, unpaired] = [records(draft.pairings, stored), records(stored, draft.pairings)]
+      const kept = draft.decisions.filter((decision) => !(decision.carriedFrom && unpaired.includes(decision.resultPath[1] as number)))
+      const decided = new Set(kept.map((decision) => resultPathKey(decision.resultPath)))
+      const verdicts = transferVerdicts(extraction.reviewTransfer, extraction, nodes, draft.pairings)
+      return persistence.saveReviewDraft(extractionId, { ...draft, decisions: [...kept, ...carried(verdicts, reviewDecisions.filter(
+        (decision) => paired.includes(decision.resultPath[1] as number) && !decided.has(resultPathKey(decision.resultPath))))] })
     },
     readDocumentExtractions: (input) =>
       persistence.readDocumentExtractions(input),
