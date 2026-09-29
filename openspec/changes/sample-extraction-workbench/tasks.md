@@ -18,7 +18,7 @@ one PR each, in merge order; section 5 accepts the whole change.
 - [x] 2.2 Record alignment (segmentation block for recipe Catalog, else one-to-one mutual anchor overlap) and per-action matching by node id, value after lossless conversion and anchors; arrays by anchors. Verify with table cases: approval, same mistake, fix, rejection, moved anchor, merged/split Article records, reordered arrays, table-cell anchors. — 18b07a06
 - [x] 2.3 Seed the destination review draft under its own paths with provenance; override and finalize through existing review rules. Verify that a fully carried review still needs explicit finalization. — 809887d6
 - [x] 2.4 Studio: re-run statuses (fixed, as reviewed, changed with Accept new/Keep, unmatched record) in the Schema tab; Results show reviewed in sample / changed since sample / to review. Add *Carried Review Decision* to `CONTEXT.md`. — 64132106
-- [x] 2.5 Hand pairing of unmatched records (one-to-one, undoable, stored in the destination review draft); paired records compared under the same rules. Verify a split Article record paired to one half, and that pairing never carries a value on a different anchor.
+- [x] 2.5 Hand pairing of unmatched records (one-to-one, undoable, stored in the destination review draft); paired records compared under the same rules. Verify a split Article record paired to one half, and that pairing never carries a value on a different anchor. — 03ce3687
 
 ## 3. PR 3 — Structural edits and correction Evidence
 
