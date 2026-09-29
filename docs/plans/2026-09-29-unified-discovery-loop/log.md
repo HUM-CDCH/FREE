@@ -66,3 +66,23 @@ only `discovery.py`; grep for `PROMPT_VERSION` and for TS pins on the discovery
 `version` before bumping. One cut-off on the whole-`big` first window is
 expected even with H1 (≈ 268 places); log tok/place per window. On holdout rows
 note `verbleib:empty` beside `WRONG`.
+
+## Tick 2 (2026-09-30, H1)
+
+Probes (`/out/probe*.py`, `/out/probe2-*.json` on the Spark, servers idle):
+xgrammar accepts a `prefixItems` 4-tuple and honours "on one line, without
+indentation". A nullable `text` came back as the string `"null"`, so `text` is
+a plain string with `""` for a line start. On the rev-8 window that gave 25
+false entries (83 lines, 1,630 in): 58 places, 1,047 out = 18.1 tok/place
+(the baseline run: 52), 134 s; always copying the start text: 24.3. Both
+still report the 25 `1. Scherben.` lines as records: this window reads the
+nested list the same way at temperature 0, so G1 is H5's.
+
+Commit `c9663703`: places are `[line, text, kind, label]` on one line.
+`discovery.VERSION` stays 1 because `packages/extraction` pins
+`z.literal(1)` on the discovery record and its format did not change;
+`unified.PROMPT_VERSION` 1 → 2 instead (in the execution record's `IDENTITY`,
+so no record is reused across the change; TS takes any integer). Fast tier
+1,157 passed; `extraction` 124/124, `extraction-result-export` 36/36, Studio
+`_extractions.test.ts` 14/14 with the regenerated v3 contract fixture.
+`big-h1` started 00:14 (servers idle), background.
