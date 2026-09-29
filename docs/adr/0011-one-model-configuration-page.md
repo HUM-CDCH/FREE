@@ -56,3 +56,11 @@ schema and chat, extracting data) and has no Single/Routes mode.
 `extractionModels` and `ingestionModels` belong to the account's
 configuration. The configuration is validated on every write, so the reset
 and `DELETE /api/model_config` are gone, and nothing is kept in a keyring.
+
+## Amendment (0015, 2026-09-29)
+
+Clients again send the Extraction Model Choice: every start submits the choice
+and the Extraction Method Settings its view showed, and admission refuses a
+stale one and pins the rest on the Extraction (see
+[0015](0015-extraction-method-pinned-at-admission.md)). The page has Models,
+Connections and Advanced tabs.

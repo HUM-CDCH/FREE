@@ -2,6 +2,9 @@
 
 Status: pre-implementation specification, 2026-09-28. Based on checkout
 `4e2a5820`. No product implementation is authorized by this artifact.
+Implemented 2026-09-29 and merged to `dev` (`fc2faa51`), with follow-up fixes after. Acceptance evidence:
+[validation receipt](../../../../docs/validation/2026-09-29-advanced-extraction-configuration.md); decisions:
+[ADR 0015](../../../../docs/adr/0015-extraction-method-pinned-at-admission.md).
 
 ## Why
 

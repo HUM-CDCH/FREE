@@ -1,7 +1,7 @@
 # Advanced extraction configuration — validation receipt, 2026-09-29
 
 Status: OpenSpec task 4.1 (validation receipt) for
-[advanced-extraction-configuration](../../openspec/changes/advanced-extraction-configuration/verification.md),
+[advanced-extraction-configuration](../../openspec/changes/archive/2026-09-29-advanced-extraction-configuration/verification.md),
 implemented on `feat/advanced-extraction-configuration` from
 [the plan](../plans/2026-09-28-advanced-extraction-configuration.md).
 Candidate: commit `97388f9cc8ff20a4e5b3029fdcc1f6e268940a24`, tree
@@ -118,3 +118,52 @@ Revalidation on `5ec86c1c`:
 The db, Studio and Parsing Service PostgreSQL tiers and `test:service` were not
 re-run: this fix touched no migration, Studio handler or service code. Their
 earlier results above stand.
+
+## Addendum: closing the deferred items (2026-09-29)
+
+The minors both reviews deferred are resolved on `dev` after `fc2faa51`:
+
+- **Migration over a populated database.** A disposable database was migrated
+  with the baseline `4e2a5820` migrations, then seeded with three configuration
+  documents (pre-release shape, already migrated, malformed), a project,
+  documents, a Schema Revision, a single Extraction with a stored model choice
+  and a Batch Extraction with a member. This branch's `prisma-next migrate` then
+  applied one migration (4 operations). Only three things changed: the
+  pre-release document gained `"extractionSettings": {}`, and Extraction and
+  Batch Extraction rows gained NULL `requestedSettings` / `requestedModels`.
+  Every other value was byte-identical, including the stored model choice and
+  the other two documents. The migrated document parses with Studio's current
+  schema. The database was dropped afterwards.
+- **Start-view summary reflow.** The canonical-lifecycle browser case opens the
+  toolbar's "Saved advanced settings" at 360 px and at each required viewport:
+  it stays inside the viewport and nothing scrolls sideways (both strategies).
+- **Tolerant reads.** One stored method that a later contract no longer parses
+  now shows as not recorded when read or listed; running on it still fails that
+  Extraction only. Covered by a PostgreSQL case that fails on the old code.
+- **Bounded identity fields.** At most 32 identity fields of at most 128
+  characters each. This is narrower than the Parsing Service, like the existing
+  empty-name rule.
+- **Tests that were too weak are now tightened:**
+  - the 500 for an invalid stored document is shown to echo nothing;
+  - all seven protocol versions are mapped;
+  - the saved-settings reader's error state and a late older read are covered,
+    and App's Run is disabled while loading or after a failed read;
+  - the A1 import guard now sees subpath, dynamic, side-effect and re-export
+    imports (mutation-checked);
+  - the guide's banned-word list is wider.
+- **Copy and dead code:**
+  - "Combination not studied" now states what the studies did (one choice at a
+    time; only the grounding pilot combined choices, on one document);
+  - the footer ignores an inactive context ceiling that Apply would reset;
+  - an unreachable default in the suggestion state machine now throws.
+- **Records.**
+  - [ADR 0015](../adr/0015-extraction-method-pinned-at-admission.md) records
+    pin-at-admission and the settings-in-account decision; ADR 0011 and the C4
+    model are amended.
+  - The OpenSpec change is archived as
+    `openspec/changes/archive/2026-09-29-advanced-extraction-configuration`,
+    with its deltas synced into `openspec/specs/` (strict validation: 13/13).
+
+Still not run: `pnpm test:system`. It builds multi-GB images into the Docker
+data root on `/home` while study jobs were writing there, and `mkcert` is not
+installed on this host.

@@ -24,6 +24,6 @@ Status: 1.1–3.3 implemented on `feat/advanced-extraction-configuration` (2026-
 
 ## 4. Accept the exact candidate
 
-- [x] 4.1 Run typecheck, lint and fast tests, then guarded PostgreSQL, authenticated browser/recovery and scripted real-service tiers; record candidate hash and separate evidence boundaries in a dated validation receipt (all applicable matrix IDs). — [receipt](../../../docs/validation/2026-09-29-advanced-extraction-configuration.md), candidate 97388f9c
+- [x] 4.1 Run typecheck, lint and fast tests, then guarded PostgreSQL, authenticated browser/recovery and scripted real-service tiers; record candidate hash and separate evidence boundaries in a dated validation receipt (all applicable matrix IDs). — [receipt](../../../../docs/validation/2026-09-29-advanced-extraction-configuration.md), candidate 97388f9c
 - [x] 4.2 Complete a fresh read-only correctness/architecture/simplification review of the final candidate and the disposable maintenance probe; resolve findings without weakening the contract and record remaining limitations. — Sonnet 5 xhigh and Codex gpt-6-astra xhigh reviews of 97388f9c; maintenance probe passed and discarded
 - [x] 4.3 Revalidate any repairs, ensure review refers to the exact final tree, and present the result with unrun checks and empirical limitations stated; do not claim accuracy gains from configuration coverage. — fixes 5ec86c1c revalidated; see receipt addendum

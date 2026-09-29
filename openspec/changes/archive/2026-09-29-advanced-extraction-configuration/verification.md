@@ -4,6 +4,9 @@ Status: pre-implementation, 2026-09-28. This is the concrete acceptance contract
 for the design, not a claim that new UI behavior has been tested. Cases below
 must exercise the actual implementation at the named seam. Do not replace an
 adapter or database test with a function that mirrors the proposed implementation.
+Implemented 2026-09-29 and merged to `dev` (`fc2faa51`), with follow-up fixes after. Acceptance evidence:
+[validation receipt](../../../../docs/validation/2026-09-29-advanced-extraction-configuration.md); decisions:
+[ADR 0015](../../../../docs/adr/0015-extraction-method-pinned-at-admission.md).
 
 ## Small initial gate
 

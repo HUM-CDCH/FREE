@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, zod 4, React 19 + Testing Library (vitest/jsdom), node:test via tsx, Prisma Next 0.16 authored migrations on PostgreSQL, DBOS TypeScript SDK 5.1, Playwright, Python 3.13 + pydantic + pytest (Parsing Service, tests only).
 
-**Spec:** `openspec/changes/advanced-extraction-configuration/` — `proposal.md`, `design.md` (UI and ownership, binding), `verification.md` (acceptance matrix U1–U9, P1–P7, E1–E5, F1–F2, M1, A1), `tasks.md`, `contract-cases.json`, `specs/advanced-extraction-configuration/spec.md`, `specs/model-connection-configuration/spec.md`. Executors read the spec beside this plan.
+**Spec:** `openspec/changes/archive/2026-09-29-advanced-extraction-configuration/` — `proposal.md`, `design.md` (UI and ownership, binding), `verification.md` (acceptance matrix U1–U9, P1–P7, E1–E5, F1–F2, M1, A1), `tasks.md`, `contract-cases.json`, `specs/advanced-extraction-configuration/spec.md`, `specs/model-connection-configuration/spec.md`. Executors read the spec beside this plan.
 
 Worktree: `/home/gennaro/projects/FREE-worktrees/advanced-extraction-spec`, branch `feat/advanced-extraction-configuration`, based on `e2a82549` (spec commit over `4e2a5820`). Every path below is relative to that root.
 
@@ -144,11 +144,11 @@ Each is written into the tasks with the recommended ruling; the controller can o
 
 - [ ] **Step 1: Create the shared fixtures**
 
-  `prototypes/parsing_service/tests/fixtures/contracts/article-options.json` — copy the 19 `cases` from `openspec/changes/advanced-extraction-configuration/contract-cases.json` verbatim (same `id`, `input`, `accepted`, same order); `canonical` fields and the inventory `verdicts` are filled by Step 3's `--write`:
+  `prototypes/parsing_service/tests/fixtures/contracts/article-options.json` — copy the 19 `cases` from `openspec/changes/archive/2026-09-29-advanced-extraction-configuration/contract-cases.json` verbatim (same `id`, `input`, `accepted`, same order); `canonical` fields and the inventory `verdicts` are filled by Step 3's `--write`:
 
   ```json
   {
-    "source": "openspec/changes/advanced-extraction-configuration/contract-cases.json (4e2a5820): the nineteen Article method examples, copied verbatim; `canonical` is ArticleOptions.model_dump(mode='json') for accepted cases",
+    "source": "openspec/changes/archive/2026-09-29-advanced-extraction-configuration/contract-cases.json (4e2a5820): the nineteen Article method examples, copied verbatim; `canonical` is ArticleOptions.model_dump(mode='json') for accepted cases",
     "cases": [
       {"id": "reference", "input": {}, "accepted": true},
       {"id": "full-quoted-policy", "input": {"grounding": "quoted", "evidence_policy": "schema"}, "accepted": true},
@@ -5275,7 +5275,7 @@ Copy: "Method used", "Requested", "Effective", "Not recorded", "Effective method
 - Modify: `README.md` (product contract items 5 and 7; "Extraction execution")
 - Modify: `CONTEXT.md` (new terms; Extraction Model Choice wording)
 - Modify: `docs/operations/deployment.md` (Model Configuration page description near line 318)
-- Modify: `openspec/changes/advanced-extraction-configuration/tasks.md` (check 1.1–3.3 with their commits; leave 4.x for the controller)
+- Modify: `openspec/changes/archive/2026-09-29-advanced-extraction-configuration/tasks.md` (check 1.1–3.3 with their commits; leave 4.x for the controller)
 
 **Interfaces:**
 - Consumes: the released behavior of Tasks 1–13 (verify each sentence against code and tests before writing it).
@@ -5329,7 +5329,7 @@ Copy: "Method used", "Requested", "Effective", "Not recorded", "Effective method
 - [ ] **Step 5: Commit**
 
   ```bash
-  git add README.md CONTEXT.md docs/operations/deployment.md openspec/changes/advanced-extraction-configuration/tasks.md
+  git add README.md CONTEXT.md docs/operations/deployment.md openspec/changes/archive/2026-09-29-advanced-extraction-configuration/tasks.md
   git commit -m "docs: extraction method settings, pinned admission and Method used"
   ```
 

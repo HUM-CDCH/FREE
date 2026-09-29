@@ -1,6 +1,9 @@
 # Advanced tab: UI and behavior design
 
 Status: proposed, 2026-09-28; no implementation. Source baseline: `4e2a5820`.
+Implemented 2026-09-29 and merged to `dev` (`fc2faa51`), with follow-up fixes after. Acceptance evidence:
+[validation receipt](../../../../docs/validation/2026-09-29-advanced-extraction-configuration.md); decisions:
+[ADR 0015](../../../../docs/adr/0015-extraction-method-pinned-at-admission.md).
 The [proposal](proposal.md) states the scope; [verification.md](verification.md)
 defines the future acceptance harness. Decisions below are proposed product
 behavior, not claims that Studio already supports them.
@@ -24,13 +27,13 @@ external research. No additional architecture framework is needed.
 
 | Evidence inspected | Implication for the interface |
 | --- | --- |
-| [Completed R1/R3/R4 report](../../../docs/validation/2026-09-28-completed-development-study.md): R1 79/79, R3 12/12; R4 4/12, all controls | Keep defaults. No structural-grouping benefit has been estimated. |
+| [Completed R1/R3/R4 report](../../../../docs/validation/2026-09-28-completed-development-study.md): R1 79/79, R3 12/12; R4 4/12, all controls | Keep defaults. No structural-grouping benefit has been estimated. |
 | Same report: bounded context −33.35 percentage points and structured rendering −24.12, mean changes on six development papers under historical frozen conditions | Never label bounded or structured “more accurate.” Explain coverage/cost trade-offs and budget refusal. These numbers are not predictions for today's runtime. |
-| [R2a selection report](../../../docs/validation/2026-09-28-extraction-selection-results.md): 30 conditional-replay cells | Selection is available to explore. Fixed-reply savings do not establish fresh-model speed or evidence recall. |
-| [Grounding pilot](../../../docs/validation/2026-09-28-grounding-pilot.md): combined spans/policy/scheduling 10 versus 40 calls and 89,770 versus 222,156 input tokens | Useful illustrative result on one selected document, not a recommended universal preset. |
-| [Pilot audit](../../../docs/validation/2026-09-28-grounding-pilot-audit.md): identical requests can disagree; reviewers disagree on attribution | Never equate linked values, exact source text or model agreement with semantic accuracy. |
-| [Harvey micro-pilot](../../../docs/validation/2026-09-28-harvey-grounding-micro.md): compact spans admitted refused cases, but used 80,806 versus 34,910 input tokens; both methods linked an incompletely supported compound claim | Explain what span IDs guarantee and what they do not. No blanket “faster” or “safer” badge. |
-| [Compact labels](../../../docs/validation/2026-09-28-compact-span-labels.md) and [singleton overflow diagnosis](../../../docs/validation/2026-09-28-grounding-singleton-overflows.md) | Protocol version is metadata, not a toggle. Short labels do not ensure every source unit fits. |
+| [R2a selection report](../../../../docs/validation/2026-09-28-extraction-selection-results.md): 30 conditional-replay cells | Selection is available to explore. Fixed-reply savings do not establish fresh-model speed or evidence recall. |
+| [Grounding pilot](../../../../docs/validation/2026-09-28-grounding-pilot.md): combined spans/policy/scheduling 10 versus 40 calls and 89,770 versus 222,156 input tokens | Useful illustrative result on one selected document, not a recommended universal preset. |
+| [Pilot audit](../../../../docs/validation/2026-09-28-grounding-pilot-audit.md): identical requests can disagree; reviewers disagree on attribution | Never equate linked values, exact source text or model agreement with semantic accuracy. |
+| [Harvey micro-pilot](../../../../docs/validation/2026-09-28-harvey-grounding-micro.md): compact spans admitted refused cases, but used 80,806 versus 34,910 input tokens; both methods linked an incompletely supported compound claim | Explain what span IDs guarantee and what they do not. No blanket “faster” or “safer” badge. |
+| [Compact labels](../../../../docs/validation/2026-09-28-compact-span-labels.md) and [singleton overflow diagnosis](../../../../docs/validation/2026-09-28-grounding-singleton-overflows.md) | Protocol version is metadata, not a toggle. Short labels do not ensure every source unit fits. |
 
 These are dated development findings. The full R4/R5 matrix remains deferred.
 The page's help includes study date, corpus, method revision and evidence type;
