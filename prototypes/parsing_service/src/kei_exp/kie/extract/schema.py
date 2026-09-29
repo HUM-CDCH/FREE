@@ -121,7 +121,7 @@ def json_schema(nodes: Sequence[Node]) -> dict:
 def _field_schema(node: Node) -> dict:
     """A field's JSON schema. A scalar also names FREE's own type under `x-free-type`, which JSON's types collapse
     (verbatim-string, string and date are all "string"): a template extractor reads it, and `llm.OpenAIChat` strips
-    every `x-` annotation before a schema constrains decoding."""
+    every `x-` annotation, but no field name, before a schema constrains decoding."""
     if node.type in SCALAR_JSON:
         if node.allowed_values is not None:
             return {"type": ["string", "null"], "enum": [*node.allowed_values, None]}

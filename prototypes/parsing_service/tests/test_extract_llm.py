@@ -139,6 +139,44 @@ def test_the_instruction_model_is_sent_the_schema_without_the_field_type_annotat
     assert sent[0]["response_format"]["json_schema"]["schema"]["properties"]["entry_no"] == {"type": ["integer", "null"]}
 
 
+def keywords(value) -> list[str]:
+    """Every schema keyword in `value`, not counting the field names a `properties` map declares."""
+    if isinstance(value, list):
+        return [key for item in value for key in keywords(item)]
+    if not isinstance(value, dict):
+        return []
+    found = [*value]
+    for key, item in value.items():
+        found += ([key for field in item.values() for key in keywords(field)] if key == "properties"
+                  else keywords(item))
+    return found
+
+
+def test_a_field_named_like_an_annotation_reaches_constrained_decoding(monkeypatch):
+    sent = []
+    body = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+    monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append(kwargs["json"]) or response(200, body))
+    schema = fields({"id": "x", "name": "x-coordinate", "type": "number"},
+                    {"id": "n", "name": "name", "type": "string"},
+                    {"id": "o", "name": "x-site", "type": "object", "children": [
+                        {"id": "oy", "name": "x-depth", "type": "integer"}]},
+                    {"id": "a", "name": "x-finds", "type": "array", "children": [
+                        {"id": "ac", "name": "x-count", "type": "integer"}]},
+                    {"id": "t", "name": "x-tags", "type": "array", "itemType": "string"})
+    OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema=schema)
+    wire = sent[0]["response_format"]["json_schema"]["schema"]
+    assert not [key for key in keywords(wire) if key.startswith("x-")]
+    assert wire["properties"]["x-coordinate"] == {"type": ["number", "null"]}
+    assert wire["properties"]["x-tags"]["items"] == {"type": "string"}
+    for level in (wire, wire["properties"]["x-site"], wire["properties"]["x-finds"]["items"]):
+        assert list(level["properties"]) == level["required"]
+    assert wire["required"] == ["x-coordinate", "name", "x-site", "x-finds", "x-tags"]
+    assert wire["properties"]["x-site"]["required"] == ["x-depth"]
+    assert wire["properties"]["x-finds"]["items"]["required"] == ["x-count"]
+    assert nuextract_template(schema) == {"x-coordinate": "number", "name": "string", "x-site": {"x-depth": "integer"},
+                                          "x-finds": [{"x-count": "integer"}], "x-tags": ["string"]}
+
+
 def test_nuextract_is_sent_the_template_and_the_instructions_only_through_the_chat_template(monkeypatch):
     """The June provider probe: when message text and template kwargs disagree, vLLM follows the text, so the
     controls travel in one channel. The user message is the source text alone; there is no system message."""
