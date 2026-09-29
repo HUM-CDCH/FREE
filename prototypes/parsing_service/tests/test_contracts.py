@@ -38,6 +38,7 @@ def test_the_extract_fixture_carries_a_request_kei_accepts():
     assert [node.name for node in request.schema_.nodes] == [node["name"] for node in SCHEMA["schemaNodes"]]
     assert request.options.strategy == "catalog"
     assert request.options.catalog is not None and request.options.catalog.recipe == "numbered-catalogue-de@1"
+    assert request.options.pages == [1]  # a Sample Extraction; without `pages` the whole document
 
 
 @pytest.mark.parametrize("name", OUTPUTS)

@@ -16,6 +16,7 @@ the artifact is shaped from in `catalog_result.py`.
 """
 from __future__ import annotations
 
+import collections
 import hashlib
 import re
 import threading
@@ -180,7 +181,7 @@ def extract(run_dir: Path, evidence: Evidence, request, chat: Router, *,
     if counter is None:
         counter = counters_for(chat)
     body = extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter,
-                            chunks=chunks, before_entry=before_entry)
+                            chunks=chunks, before_entry=before_entry, pages=options.pages)
     result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
               "model": chat.model, "models": chat.models,
               "schema": request.schema_.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
@@ -192,9 +193,11 @@ def extract(run_dir: Path, evidence: Evidence, request, chat: Router, *,
 
 def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options: CatalogOptions,
                      segmentation: Segmentation, chat: Chat | Router, counter: Counter | dict[str, Counter], *,
-                     chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+                     chunks: int = 1, before_entry: Callable[[], None] | None = None,
+                     pages: list[int] | None = None) -> dict:
     """The version 2 artifact body for `schema` over `segmentation` (without run identity and fingerprint). `counter`
-    is one counter for every call, or one per role when the roles are served apart.
+    is one counter for every call, or one per role when the roles are served apart. `pages`, for a sample, keeps the
+    entries with text on them and reads the document-level fields from them alone.
 
     `chunks` contiguous runs of entries are extracted at once, each in its own thread with its own `_Run`, because
     `_Run.call` mutates run state; the segmentation, budget checks, bindings and document fields are computed once,
@@ -206,6 +209,8 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
     counters = counter if isinstance(counter, dict) else dict.fromkeys(ROLES, counter)
     distinct = list({id(each): each for each in counters.values()}.values())
     run = _Run(evidence, schema, recipe, options, as_router(chat), counters)
+    if pages is not None:
+        segmentation = _on_pages(segmentation, evidence, pages)
     run.calls += [Call(stage="tokenizer_probe", record=None, input_tokens=probe["input_tokens"],
                        output_tokens=probe["output_tokens"], seconds=probe["seconds"], finish=None, ok=True)
                   for each in distinct for probe in getattr(each, "probes", [])]
@@ -229,7 +234,7 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
         run.refused = True
     pieces: list[list[tuple[int, Block]]] = []
     if not run.refused:
-        document = _document(run)  # once for the whole document; every chunk's records merge it
+        document = _document(run, pages)  # once for the whole document; every chunk's records merge it
         pieces = _pieces(list(enumerate(segmentation.blocks)), chunks)
         for part, found in _in_chunks(run, pieces, before_entry,
                                       lambda part, number, block: _block(part, number, block, headings, bindings,
@@ -552,15 +557,36 @@ def _arbitrate(run: _Run, number: int, path: tuple, candidates: list[Outcome], t
 
 # --- document fields -----------------------------------------------------------------------------------------------
 
-def _document(run: _Run) -> dict:
-    """The document-level fields from one call over as much of the source as the budget allows; unverified, as in
-    version 1, and reported when the source had to be shortened."""
+def _on_pages(segmentation: Segmentation, evidence: Evidence, pages: list[int]) -> Segmentation:
+    """A sample's view of the whole-document segmentation: the entries with text on `pages`, under their own block ids
+    and with the headings and glossary the whole document puts in force, and the coverage of the lines on them."""
+    page = {passage.id: passage.page for passage in (*evidence.passages, *evidence.withheld)}
+    blocks = [block for block in segmentation.blocks if any(page[span.segment_id] in pages
+                                                             for span in block.primary_spans)]
+    lines = [line for line in segmentation.dispositions if page[line.segment_id] in pages]
+    roles = collections.Counter(line.role for line in lines)
+    whole = segmentation.coverage
+    # ponytail: potential duplicates and reading-order issues are whole-document counts, so one anywhere leaves a
+    # sample incomplete; scope them by their diagnostics' spans if that proves too strict.
+    coverage = whole.model_copy(update={
+        "complete": not roles["unresolved"] and not whole.potential_duplicates and not whole.reading_order_issues,
+        "lines": len(lines), "entries": len(blocks), "unresolved": roles["unresolved"],
+        "roles": dict(sorted(roles.items())),
+        "excluded": dict(sorted(collections.Counter(line.reason for line in lines if line.role == "excluded").items())),
+        "withheld_intentional": [each for each in whole.withheld_intentional if page[each] in pages],
+        "withheld_failures": [each for each in whole.withheld_failures if page[each] in pages]})
+    return segmentation.model_copy(update={"blocks": blocks, "coverage": coverage})
+
+
+def _document(run: _Run, pages: list[int] | None = None) -> dict:
+    """The document-level fields from one call over as much of the source (a sample's pages) as the budget allows;
+    unverified, as in version 1, and reported when the source had to be shortened."""
     nodes = run.schema.document_nodes
     if not nodes:
         return {}
     system = "\n".join([GUARDRAIL.split(". Answer")[0] + ".", f"A record is: {run.schema.record_description}",
                         *notes(nodes)])
-    passages = list(run.evidence.passages)
+    passages = [passage for passage in run.evidence.passages if pages is None or passage.page in pages]
     count = len(passages)
     low, high = 0, count
     while low < high:  # the most leading passages whose request fits
