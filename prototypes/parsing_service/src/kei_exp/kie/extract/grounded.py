@@ -32,6 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from kei_exp.canonical import canonical_json
 from kei_exp.kie.blocks import Block, Span
 from kei_exp.kie.extract.acceptance import Outcome, assess, bounded, candidates_schema, typed_value
+from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.catalog_result import (
     NORMALIZATION_VERSION,
     conformed_record,
@@ -46,7 +47,7 @@ from kei_exp.kie.extract.locate import BlockText
 from kei_exp.kie.extract.method import CatalogFactors
 from kei_exp.kie.extract.models import ROLE, ROLES, Router, as_router
 from kei_exp.kie.extract.schema import Node, Schema, conform, json_schema, notes
-from kei_exp.kie.extract.stages import Call, _complete, merge
+from kei_exp.kie.extract.stages import merge
 from kei_exp.kie.extract.tokens import counters_for
 from kei_exp.kie.extract.windows import units_of, windows_of
 from kei_exp.kie.passages import Evidence, text_of
@@ -146,8 +147,8 @@ class _Run:
                        f"{self.options.input_tokens}", record)
             self.refused = True
             return None
-        answer, attempts = _complete(self.chat, stage=stage, record=record, system=system, user=user, schema=schema,
-                                     max_tokens=self.options.output_tokens)
+        answer, attempts = complete(self.chat, stage=stage, record=record, system=system, user=user, schema=schema,
+                                    max_tokens=self.options.output_tokens)
         self.calls += attempts
         final = attempts[-1]
         if not final.ok:

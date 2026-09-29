@@ -1,10 +1,14 @@
-"""The extraction stages as plain functions over passages and a chat completion (plan B rule 6).
+"""The document and record value stages as plain functions over passages and a chat (plan B rule 6).
 
-Each record is extracted with one structured-output call under a guardrail. The merge orders a record's fields as
-the schema does and adds the document-level and filename fields. Article requests use served-token admission. How
-records are found belongs to each strategy: version 1 Catalog discovery lives in `catalog.py`, the Article inventory
-of noncontiguous records and their supporting passages in `article.py`. Grounding the extracted values lives in
-`grounding.py`, which uses the value helpers and model admission defined here.
+This module owns the value prompts: the guardrail and schema instruction (`_instruction`, which Article's inventory
+shares), the labelled-passage rendering Article inventory and Catalog discovery share (`_labelled`), and the
+document and record requests (`extract_document`, `record_request`). Each record is extracted with one
+structured-output call under that guardrail; its answer is conformed to the schema here. The merge orders a
+record's fields as the schema does and adds the document-level and filename fields. Article requests use
+served-token admission. The call itself — routing to a role's model, admission, invocation, reading the reply and
+its `Call` accounting — is `calls.complete`. How records are found belongs to each strategy: version 1 Catalog
+discovery lives in `catalog.py`, the Article inventory of noncontiguous records and their supporting passages in
+`article.py`. Grounding the extracted values lives in `grounding.py`, which uses the value helpers defined here.
 """
 from __future__ import annotations
 
@@ -12,14 +16,17 @@ import re
 import unicodedata
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from kei_exp.kie.extract.llm import Chat, ModelOutputError, parse_json
-from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.calls import complete
+from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.rendering import structured_source
 from kei_exp.kie.extract.schema import Schema, conform, json_schema, notes
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter
 from kei_exp.kie.passages import Evidence, Passage, text_of
+
+if TYPE_CHECKING:
+    from kei_exp.kie.extract.calls import Call
 
 GUARDRAIL = ("You extract structured data from a source document. Use only the requested output fields. Copy "
              "values from the source as written unless the field defines normalized labels; do not invent "
@@ -30,22 +37,6 @@ ARTICLE = ("Extract only the specified record, combining its evidence across the
            "reported on different bases or in different units. Never substitute group averages, another record's "
            "measurements, or protocol settings for this record's measurements. A proposed or attempted isolation "
            "is not proof of a recovered material or type. Use the field's defined identity labels.")
-
-
-@dataclass(frozen=True)
-class Call:
-    """One model call as the artifact reports it."""
-    stage: str                          # discovery | inventory | document | record | grounding
-    record: int | None
-    input_tokens: int | None
-    output_tokens: int | None
-    seconds: float
-    finish: str | None
-    ok: bool
-    error: str | None = None
-    counted_input_tokens: int | None = None
-    context_tokens: int | None = None
-    max_output_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -68,45 +59,6 @@ class Issue:
     detail: str
     record: int | None = None
     path: tuple[str | int, ...] | None = None
-
-
-def _complete(chat: Chat | Router, *, stage: str, record: int | None, system: str, user: str, schema: dict,
-              max_tokens: int | None = None, counter: TokenCounter | None = None) -> tuple[Any, list[Call]]:
-    """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer. The calls are the
-    attempts in order, the last one the call whose reply this is: a refused earlier attempt is a failed call too.
-    A router sends the call to the model serving the stage's role."""
-    if isinstance(chat, Router):
-        chat = chat.for_stage(stage)
-    counted = None
-    if counter is not None:
-        assert max_tokens is not None
-        counted = counter.request_tokens(system, user, schema)
-        context = counter.context_tokens
-        if type(context) is not int or context <= 0:
-            raise BudgetUnavailable("Article requires the serving endpoint's context size")
-        if counted + max_tokens > context:
-            return None, [Call(stage, record, None, None, 0.0, None, False,
-                f"{counted} input + {max_tokens} output tokens exceed the served context {context}; "
-                "complete source was not sent", counted, context, max_tokens)]
-    try:
-        reply = chat.complete(system=system, user=user, schema=schema, max_tokens=max_tokens)
-    except ModelOutputError as error:  # a fake or a client that already judged the reply
-        return None, [Call(stage, record, None, None, 0.0, None, False, str(error),
-                           counted, counter.context_tokens if counter else None, max_tokens)]
-    refused = [Call(stage, record, None, None, 0.0, None, False, attempt) for attempt in reply.attempts]
-    parsed = None
-    error = None
-    if reply.finish == "length":
-        error = "the reply was cut off (finish_reason length)"
-    else:
-        try:
-            parsed = parse_json(reply.text)
-        except ModelOutputError as exc:
-            error = str(exc)
-    if error is None and counted is not None and reply.input_tokens != counted:
-        error = f"counted {counted} input tokens but the server reported {reply.input_tokens}"
-    return parsed, [*refused, Call(stage, record, reply.input_tokens, reply.output_tokens, reply.seconds,
-        reply.finish, error is None, error, counted, counter.context_tokens if counter else None, max_tokens)]
 
 
 def _labelled(passages: Sequence[Passage], labels: Sequence[str]) -> str:
@@ -139,8 +91,8 @@ def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: 
     source = (structured_source(evidence.passages) if structured else
               text_of(evidence.passages) if counter else _clipped(evidence.passages, budget, issues, None))
     user = f"### Source document\n{source}\n\nReturn the JSON object now."
-    answer, attempts = _complete(chat, stage="document", record=None, system=_instruction(schema, nodes), user=user,
-                                 schema=json_schema(nodes), counter=counter, max_tokens=2048 if counter else None)
+    answer, attempts = complete(chat, stage="document", record=None, system=_instruction(schema, nodes), user=user,
+                                schema=json_schema(nodes), counter=counter, max_tokens=2048 if counter else None)
     if not attempts[-1].ok:
         issues.append(Issue("call_failed", attempts[-1].error or "document extraction failed"))
     return conform(answer, nodes), attempts, issues
@@ -160,8 +112,8 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
     source = (structured_source(passages) if structured else
               text_of(passages) if counter else _clipped(passages, budget, issues, record))
     system, user, reply_schema = record_request(source, schema, identity, record_name, neutral=neutral)
-    answer, attempts = _complete(chat, stage="record", record=record, system=system, user=user,
-                                 schema=reply_schema, counter=counter, max_tokens=4096 if counter else None)
+    answer, attempts = complete(chat, stage="record", record=record, system=system, user=user,
+                                schema=reply_schema, counter=counter, max_tokens=4096 if counter else None)
     if not attempts[-1].ok:
         issues.append(Issue("call_failed", attempts[-1].error or "record extraction failed", record))
     return {**(identity or {}), **conform(answer, nodes)}, attempts, issues

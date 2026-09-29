@@ -21,9 +21,8 @@ import { disposableDatabaseUrl, dropSchemas, testSchemas } from '../test/support
 import { startScriptedModelServer, type ScriptedModelServer } from '../test/support/scriptedModelServer.js'
 import { suggestionResearcherStore } from '../test/support/suggestionWorkflow.js'
 import { deploymentModels } from './_deployment_models.js'
-import { generateSchemaEditJson } from './_model.js'
 import { createModelKeyCache } from './_model_keys.js'
-import { proposeSchemaEdit } from './_schema_edit.js'
+import { generateSchemaEditJson, proposeSchemaEdit } from './_schema_edit.js'
 import { registerSchemaEditWorkflow, type SchemaEditPorts } from './_schema_edit_workflow.js'
 import { createPostEditSchema } from './edit_schema.js'
 

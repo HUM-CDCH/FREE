@@ -1,8 +1,8 @@
 /** The artifact kei-exp publishes for an Extraction, in one place so that FREE's unit doubles, the kei stand-in and
  *  Studio's e2e fixture cannot drift from each other or from the service.
  *
- *  Derived field by field from kei-exp: `src/kei_exp/kie/extract/run.py` `extract()` for the artifact and `stages.py`
- *  for `Call`, `Link` and `Issue`. Test-only: nothing in the runtime imports it. */
+ *  Derived field by field from kei-exp: `src/kei_exp/kie/extract/run.py` `extract()` for the artifact, `calls.py`
+ *  for `Call` and `stages.py` for `Link` and `Issue`. Test-only: nothing in the runtime imports it. */
 import type { KeiExpArtifact, KeiExpCall, KeiExpEvidence, KeiExpGroundedArtifact } from './kei-exp.js'
 
 export function keiExpArtifact(overrides: Partial<KeiExpArtifact> = {}): KeiExpArtifact {

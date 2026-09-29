@@ -3,12 +3,6 @@ import type { SchemaNode } from 'extraction/schema'
 import { ApiError } from './_http'
 import { parseSchemaNodes, proposeSchemaEdit } from './_schema_edit'
 
-const { generateSchemaEditJson } = vi.hoisted(() => ({ generateSchemaEditJson: vi.fn() }))
-vi.mock('./_model.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./_model.js')>()),
-  generateSchemaEditJson,
-}))
-
 const CALLER = { researcherAccountId: '51000000-0000-4000-8009-00000000000c' }
 const nodes: SchemaNode[] = [
   { id: 'group', name: 'group', type: 'object', children: [{ id: 'child', name: 'child', type: 'string' }] },
@@ -297,14 +291,4 @@ describe('proposeSchemaEdit', () => {
     expect(prompt).toContain('must not invent root path segments')
   })
 
-  it("runs the default model call on the caller's configuration", async () => {
-    generateSchemaEditJson.mockResolvedValue({ text: JSON.stringify({ fields: {}, additions: [] }) })
-
-    const controller = new AbortController()
-
-    await proposeSchemaEdit([], 'add fields', null, { caller: CALLER, temperature: 0.3, signal: controller.signal })
-
-    // The request's signal ends the call, and with it any wait for a key, when the browser leaves.
-    expect(generateSchemaEditJson).toHaveBeenCalledWith(CALLER, expect.any(String), 0.3, controller.signal, undefined)
-  })
 })

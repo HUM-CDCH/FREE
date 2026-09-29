@@ -13,9 +13,9 @@ import {
   registerIngestionWorkflow,
   type IngestionWorkflowPorts,
 } from '../api/_ingestion_workflow.js'
-import { generateSchemaEditJson, generateSchemaWithModel } from '../api/_model.js'
+import { generateSchemaWithModel } from '../api/_schema_suggestion.js'
 import { registerReprocessWorkflow, REPROCESS_SOURCE, type ReprocessWorkflowPorts } from '../api/_reprocess_workflow.js'
-import { proposeSchemaEdit } from '../api/_schema_edit.js'
+import { generateSchemaEditJson, proposeSchemaEdit } from '../api/_schema_edit.js'
 import { PROPOSE_SCHEMA_EDIT, registerSchemaEditWorkflow } from '../api/_schema_edit_workflow.js'
 import { registerSchemaGenerationWorkflow, SUGGEST_SCHEMA } from '../api/_schema_generation_workflow.js'
 import { sourceInboxRoot } from '../api/_source_inbox.js'

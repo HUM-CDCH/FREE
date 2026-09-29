@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass, field, replace
 
 from kei_exp.canonical import canonical_json
 from kei_exp.kie.extract import grounding
+from kei_exp.kie.extract.calls import Call
 from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, reconcile_values
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.method import ArticleOptions
@@ -28,7 +29,7 @@ from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.rendering import RENDERING_VERSION
 from kei_exp.kie.extract.schema import Schema, evidence_policy
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
-from kei_exp.kie.extract.stages import Call, Issue, Link, extract_document, leaves, merge
+from kei_exp.kie.extract.stages import Issue, Link, extract_document, leaves, merge
 from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import Evidence, Passage
 

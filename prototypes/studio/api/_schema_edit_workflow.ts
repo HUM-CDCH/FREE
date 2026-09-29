@@ -2,10 +2,9 @@ import { DBOS } from '@dbos-inc/dbos-sdk'
 import { parseSchemaDefinition } from 'extraction/schema'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract.js'
-import type { generateSchemaEditJson } from './_model.js'
 import { persistenceUnavailable } from './_http.js'
 import { MODEL_OPERATION_TIMEOUT_MS, operationFailureOf, type OperationResult } from './_model_operation.js'
-import type { proposeSchemaEdit } from './_schema_edit.js'
+import type { generateSchemaEditJson, proposeSchemaEdit } from './_schema_edit.js'
 
 export const PROPOSE_SCHEMA_EDIT = 'proposeSchemaEdit'
 

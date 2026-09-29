@@ -23,7 +23,7 @@ import {
   type ScalarFieldType,
 } from 'extraction/allowed-values'
 import { parseUnknownJson } from './_model_output.js'
-import { generateSchemaEditJson, type ModelCaller } from './_model.js'
+import { executeEditPrompt, type ModelCaller, type ModelDependencies } from './_model_execution.js'
 import type { ExecutionTarget } from './_provider.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
 
@@ -301,4 +301,20 @@ Researcher instruction: ${JSON.stringify(instruction)}
 Required opaque field ids and current values:
 ${JSON.stringify(Object.fromEntries(fields.map((field) => [field.id, promptFieldValue(field)])), null, 2)}
 Return {"fields":{...},"additions":[]} with every listed field id exactly once, unchanged. Use name, type (${FIELD_TYPES.join('|')}), removed, itemType for arrays (scalar type or null for records), and optionally description and, for string fields, allowedValues (2+ values, or [] to clear). JSON only.`
+}
+
+/** Edit proposals use the Interaction Route; their envelope is interpreted by proposeSchemaEdit. */
+export async function generateSchemaEditJson(
+  caller: ModelCaller,
+  prompt: string,
+  temperature?: number,
+  signal?: AbortSignal,
+  target?: ExecutionTarget,
+  dependencies: ModelDependencies = {},
+): Promise<{ text: string }> {
+  const result = await executeEditPrompt(caller, prompt, temperature, signal, target, dependencies)
+  if (result.finishReason === 'length') {
+    throw new ApiError(502, 'invalid_model_output', 'Schema edit model output was truncated.')
+  }
+  return { text: result.text.replace(/```(?:json)?|```/g, '').trim() }
 }

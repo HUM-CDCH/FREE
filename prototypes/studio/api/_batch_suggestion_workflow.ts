@@ -3,19 +3,10 @@ import { MODEL_OPERATION_TIMEOUT_MS } from './_model_operation.js'
 import type { InternalProjectWorkerStore } from 'db'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { SchemaDefinition } from 'extraction/schema'
-import {
-  modelSuggestedDefinition,
-  sourceSuggestionFailure,
-  verifiedCommonSuggestion,
-  type FieldCoverage,
-} from './_batch_schema_suggestions.js'
-import type { generateSchemaWithModel } from './_model.js'
+import { sourceSuggestionFailure } from './_batch_schema_suggestions.js'
+import { suggestBatchSource, suggestBatchCommon, type FieldCoverage, type generateSchemaWithModel } from './_schema_suggestion.js'
 
 export const SUGGEST_SCHEMA_BATCH = 'suggestSchemaBatch'
-const SOURCE_SUGGESTION_INSTRUCTION =
-  'Suggest reusable extraction fields for this Source Document. Never include canonical Evidence fields: _evidence, snippets, pages, bboxes, occurrence IDs, or fuzzy matches.'
-const MERGE_INSTRUCTION =
-  'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives, merge notes, or canonical Evidence fields (_evidence, snippets, pages, bboxes, occurrence IDs, fuzzy matches).'
 
 export type SuggestionMember = Readonly<{ sourceDocumentId: string; sourceRepresentationRevisionId: string }>
 /** Admission's snapshot: every current member pin, sorted by sourceDocumentId (spec, *suggestSchemaBatch*). */
@@ -127,12 +118,10 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
       if (owner === null || markdown === null) return { kind: 'stopped' }
       try {
         // The Project Context owner's configuration and keys, resolved when the call runs; DBOS holds only the ID.
-        const generated = await generate({ researcherAccountId: owner }, {
-          document: { file: null, markdown, pages: null },
-          instruction: SOURCE_SUGGESTION_INSTRUCTION,
-          signal: modelSignal(steps.cancelSignal()),
-        })
-        return { kind: 'definition', sourceDocumentId: member.sourceDocumentId, definition: modelSuggestedDefinition(generated.template) }
+        const definition = await suggestBatchSource(
+          { researcherAccountId: owner }, markdown, modelSignal(steps.cancelSignal()), generate,
+        )
+        return { kind: 'definition', sourceDocumentId: member.sourceDocumentId, definition }
       } catch (error) {
         return { kind: 'failure', sourceDocumentId: member.sourceDocumentId, failure: durableFailure(error) }
       }
@@ -153,18 +142,9 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
     const owner = await store.projectContextOwner(input.projectContextId)
     if (owner === null) return { kind: 'stopped' }
     try {
-      const generated = await generate({ researcherAccountId: owner }, {
-        document: {
-          file: null,
-          markdown: definitions
-            .map((source) => `SOURCE DOCUMENT ${source.sourceDocumentId} SUGGESTION:\n${JSON.stringify(source.definition)}`)
-            .join('\n\n'),
-          pages: null,
-        },
-        instruction: MERGE_INSTRUCTION,
-        signal: modelSignal(steps.cancelSignal()),
-      })
-      const common = verifiedCommonSuggestion(generated.template, definitions.map((source) => source.definition))
+      const common = await suggestBatchCommon(
+        { researcherAccountId: owner }, definitions, modelSignal(steps.cancelSignal()), generate,
+      )
       return {
         kind: 'proposal',
         result: common

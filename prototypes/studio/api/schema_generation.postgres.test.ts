@@ -22,7 +22,7 @@ import { disposableDatabaseUrl, dropSchemas, testSchemas } from '../test/support
 import { startScriptedModelServer, type ScriptedModelServer } from '../test/support/scriptedModelServer.js'
 import { suggestionResearcherStore } from '../test/support/suggestionWorkflow.js'
 import { deploymentModels } from './_deployment_models.js'
-import { generateSchemaWithModel } from './_model.js'
+import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { createModelKeyCache } from './_model_keys.js'
 import { startOrJoinOperation } from './_model_operation.js'
 import { registerSchemaGenerationWorkflow, type SchemaGenerationPorts } from './_schema_generation_workflow.js'

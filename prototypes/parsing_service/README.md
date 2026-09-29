@@ -170,7 +170,15 @@ owns their Docling specifications. `kie/runner.py` orchestrates ingest and OCR;
 their identities and hashes. `kie/passages.py` reads those artifacts as the
 `Evidence`/`Passage` view shared by the recipe stages and extraction; it imports
 neither. `kie/extract/` performs record discovery, structured extraction,
-grounding and result publication.
+grounding and result publication. Its strategies and stages build their own
+prompts and interpret their own replies; every model call they make goes through
+`kie/extract/calls.py`, which routes it to its role's model, invokes the
+`llm.py` adapter and records its `Call`. When supplied a counter (as in Article),
+it also admits the request against the served context. Generic Catalog uses
+character budgets; recipe Catalog owns input-budget admission in
+`grounded._Run.call`. The
+[pipeline map](docs/extraction-experiments.md#pipeline-map) names the owner of
+each step from the pinned request to the result Studio accepts.
 The recipe path is split across these files:
 - `kie/recipe.py` and `kie/recipes/` hold the recipes;
 - `kie/stages/{layout,route,segment}.py` produce lines, roles and blocks;

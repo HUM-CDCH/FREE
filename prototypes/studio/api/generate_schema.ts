@@ -6,7 +6,8 @@ import {
   assertFormFields,
   parseFormRequest,
 } from './_http.js'
-import { json, parseInstruction, parseTemperature } from './_model.js'
+import { parseInstruction } from './_document.js'
+import { json, parseTemperature } from './_http.js'
 import { awaitOperation, startOrJoinOperation, type ModelOperationClient } from './_model_operation.js'
 import {
   formContextIdentity,

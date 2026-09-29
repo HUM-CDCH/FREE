@@ -2,8 +2,9 @@
 
 `extract` is the Article implementation: identities inventoried in each source context, each record's values
 extracted and then verified in every source context, and the artifact assembled in `assembly.py`, as the version 1
-Catalog's is. Inventory owns identity validation and reconciliation. Shared model calls, schema rendering,
-value extraction and grounding remain in their stage modules. The complete-source reference
+Catalog's is. This module owns the inventory prompt and reply schema (`inventory_request`), identity validation
+and reconciliation, and each record's value contexts. Every model call goes through `calls.complete`; the shared
+value prompts live in `stages.py` and grounding in `grounding.py`. The complete-source reference
 is preserved for reproducible comparisons while bounded variants are developed.
 """
 from __future__ import annotations
@@ -17,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from kei_exp.kie.extract.assembly import artifact, document_values, ground_records, unchecked
+from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, partition, reconcile_values
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import REFERENCE, ArticleOptions, LimitedCounter
@@ -27,7 +29,7 @@ from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.selection import select_contexts
-from kei_exp.kie.extract.stages import Call, Issue, _complete, _instruction, _labelled, extract_record, normal, record_request, leaves
+from kei_exp.kie.extract.stages import Issue, _instruction, _labelled, extract_record, normal, record_request, leaves
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter, counters_for
 from kei_exp.kie.passages import Evidence, Passage, text_of
 
@@ -249,7 +251,7 @@ def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counte
     # Enumeration can be larger than one record. Keep at least 4096 output tokens or refuse the input;
     # otherwise use the available context up to the adapters' ordinary 8192-token output allowance.
     output_tokens = 4096 if method.context == "bounded" else max(4096, min(8192, available))
-    answer, attempts = _complete(chat, stage="inventory", record=None, system=system,
+    answer, attempts = complete(chat, stage="inventory", record=None, system=system,
         user=user, schema=reply_schema, counter=counter, max_tokens=output_tokens)
     if not attempts[-1].ok:
         return [], attempts, [Issue("call_failed", attempts[-1].error or "Article inventory failed")]

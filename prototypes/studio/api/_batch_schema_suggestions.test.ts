@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  modelSuggestedDefinition,
-  sourceSuggestionFailure,
-} from './_batch_schema_suggestions.js'
+import { sourceSuggestionFailure } from './_batch_schema_suggestions.js'
+import { suggestBatchSource } from './_schema_suggestion.js'
 import { ApiError } from './_http.js'
 import { ModelKeyRequiredError } from './_model_keys.js'
 
@@ -24,15 +22,16 @@ describe('batch source Schema Suggestions', () => {
     })
   })
 
-  it('recursively rejects canonical Evidence fields in every model response', () => {
-    expect(() =>
-      modelSuggestedDefinition({
-        _description: 'One record.',
-        place: {
-          _description: 'One place.',
-          fuzzyMatches: 'string',
+  it('recursively rejects canonical Evidence fields in every model response', async () => {
+    await expect(suggestBatchSource(
+      { researcherAccountId: 'researcher' }, 'source', new AbortController().signal,
+      async () => ({
+        template: {
+          _description: 'One record.',
+          place: { _description: 'One place.', fuzzyMatches: 'string' },
         },
+        raw: '', pages: null,
       }),
-    ).toThrow(/reserved Evidence/i)
+    )).rejects.toThrow(/reserved Evidence/i)
   })
 })
