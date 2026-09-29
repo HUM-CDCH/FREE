@@ -477,7 +477,9 @@ describe('PUT /api/model_config', () => {
 
 describe('advanced extraction settings', () => {
   it('an account that never applied reads no advanced overrides', async () => {
-    await expect(readAccountModelConfig(ACCOUNT, inMemoryModelConfigurations())).resolves.toMatchObject({ extractionSettings: {} })
+    // Exactly empty (toMatchObject({}) would accept any member): a new account runs service defaults, so no Article
+    // factor, such as the research-only supported selection, is switched on for it.
+    expect((await readAccountModelConfig(ACCOUNT, inMemoryModelConfigurations())).extractionSettings).toEqual({})
   })
 
   it('a stored document without the member is a server fault that echoes nothing', async () => {
