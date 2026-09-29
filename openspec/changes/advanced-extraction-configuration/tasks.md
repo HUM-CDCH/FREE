@@ -1,7 +1,7 @@
 # Tasks
 
 Status: 1.1–3.3 implemented on `feat/advanced-extraction-configuration` (2026-09-29);
-4.1 done; 4.2–4.3 (independent review, maintenance probe) pending. Acceptance IDs refer to [verification.md](verification.md).
+4.1–4.3 done (2026-09-29). Acceptance IDs refer to [verification.md](verification.md).
 
 ## 1. Establish the immutable method contract
 
@@ -20,10 +20,10 @@ Status: 1.1–3.3 implemented on `feat/advanced-extraction-configuration` (2026-
 
 - [x] 3.1 Add the saved-method summary to single/batch start views and Method used to existing Extraction details; verify defaults, stale previews, failures and historical missing metadata (P5–P7, F1, F2). — df59960f, da4ccd07, 5863aa6b
 - [x] 3.2 Preserve policy skips, denominators, proposal status and evidence precision through result adapters; run existing schema-policy/span/routing/recipe regressions at the adapter seam (E1–E3, E5). — 5863aa6b
-- [x] 3.3 Update README/CONTEXT and relevant current contracts for the released account preference and pinned-run behavior, preserving domain language; verify examples and links against actual runtime behavior. — this commit
+- [x] 3.3 Update README/CONTEXT and relevant current contracts for the released account preference and pinned-run behavior, preserving domain language; verify examples and links against actual runtime behavior. — 97388f9c
 
 ## 4. Accept the exact candidate
 
 - [x] 4.1 Run typecheck, lint and fast tests, then guarded PostgreSQL, authenticated browser/recovery and scripted real-service tiers; record candidate hash and separate evidence boundaries in a dated validation receipt (all applicable matrix IDs). — [receipt](../../../docs/validation/2026-09-29-advanced-extraction-configuration.md), candidate 97388f9c
-- [ ] 4.2 Complete a fresh read-only correctness/architecture/simplification review of the final candidate and the disposable maintenance probe; resolve findings without weakening the contract and record remaining limitations.
-- [ ] 4.3 Revalidate any repairs, ensure review refers to the exact final tree, and present the result with unrun checks and empirical limitations stated; do not claim accuracy gains from configuration coverage.
+- [x] 4.2 Complete a fresh read-only correctness/architecture/simplification review of the final candidate and the disposable maintenance probe; resolve findings without weakening the contract and record remaining limitations. — Sonnet 5 xhigh and Codex gpt-6-astra xhigh reviews of 97388f9c; maintenance probe passed and discarded
+- [x] 4.3 Revalidate any repairs, ensure review refers to the exact final tree, and present the result with unrun checks and empirical limitations stated; do not claim accuracy gains from configuration coverage. — fixes 5ec86c1c revalidated; see receipt addendum

@@ -8,9 +8,8 @@ Candidate: commit `97388f9cc8ff20a4e5b3029fdcc1f6e268940a24`, tree
 `77f7a27539e9a047d0b79c1656e58c4b691c28d8`. This receipt's own commit changes
 only this file.
 
-Task 4.2's independent whole-branch review has **not** run: both review seats
-were rate-limited when this receipt was written (see "Not run"). Nothing below is
-an independent review.
+Task 4.2's independent reviews ran after this receipt was first written; see the
+addendum at the end for their findings, the fixes and the revalidated candidate.
 
 ## Commands and outcomes
 
@@ -78,13 +77,44 @@ underline mid-transition (`transition-colors`), not a selection defect.
 
 ## Not run, and evidence boundaries
 
-- Task 4.2's fresh independent review and the maintenance probe have not run.
-  During implementation, Codex reviewed Tasks 1–9 and a Claude reviewer
+- During implementation, Codex reviewed Tasks 1–9 and a Claude reviewer
   reviewed Task 10. Task 10's fix round and Tasks 11–14 were implemented inline
-  without per-task independent review.
+  without per-task independent review; the whole-branch reviews in the addendum
+  cover them.
 - No live-model smoke. The service tier scripts the model boundary; it is not
   provider execution.
 - `pnpm test:safety` was not run: no deployment or safety configuration changed.
 - Categorical parity establishes request compatibility, not output quality. No
   accuracy, speed or cost claim follows from configuration coverage. The
   guide's study findings are dated development evidence, as labelled there.
+
+## Addendum: independent review and revalidation (task 4.2–4.3)
+
+Two fresh read-only whole-branch reviews of `97388f9c` against the OpenSpec
+change, the plan and its rulings: Sonnet 5 at xhigh effort, and Codex
+`gpt-6-astra` at xhigh. Both concluded "with fixes" and found nothing critical.
+Their Important findings, all fixed in `5ec86c1c` with a test that failed first:
+
+| Finding | Fix | Covering test |
+| --- | --- | --- |
+| Start views kept the configuration read on mount, so the first start after an Apply in the same page was refused as `method_changed` (a regression for Models-only changes) | `putModelConfig` announces the saved document; `useSavedMethod` adopts it | `savedMethod.test.tsx` |
+| Run again on a Batch Extraction's members screen showed no method, and its refusal and Refresh were invisible | The members screen shows the saved method it submits, with loading, error and refusal | `BatchExtractionsPanel.test.tsx` |
+| An identical batch request that waited for the first admission could be refused when an Apply committed in between | Batch admission re-checks the equal selection after its Source Document locks | `postgres-batches.integration.test.ts` (barrier-controlled) |
+| A second identical suggested-batch refusal disappeared | A new Run clears the previous refusal | `batchSchemaSuggestionMachine.test.ts` |
+| The P3 test could pass without a member starting after the settings change | Members' `loadAdmitted` is gated until the account has changed | `postgres-batches.integration.test.ts` |
+
+Maintenance probe, in a disposable worktree that was discarded afterwards:
+- With the Advanced UI files deleted, `packages/extraction` still passed
+  113/113, running on supplied admitted settings.
+- A help-only guide topic touched only `advancedGuide.data.ts` and its content
+  test.
+
+Revalidation on `5ec86c1c`:
+- `pnpm typecheck` and `pnpm lint` exit 0 (the same 2 pre-existing warnings).
+- `pnpm test` passes: Studio 1,663/1,663; Parsing Service 1,192 passed.
+- `packages/extraction` `test:postgres` passes 79/79 on a fresh database.
+- `pnpm test:e2e` passes 65, then the recovery configuration 5.
+
+The db, Studio and Parsing Service PostgreSQL tiers and `test:service` were not
+re-run: this fix touched no migration, Studio handler or service code. Their
+earlier results above stand.
