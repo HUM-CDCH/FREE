@@ -345,4 +345,86 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
     const submitted = kei.submissions.find((submission) => submission.workflowId === keiExtractWorkflowId(input.extractionId))!
     assert.deepEqual((submitted.request as KeiExtractInput).request.options, { strategy: 'article', models, article: SPANS })
   })
+
+  describe('with the unified Catalog enabled for new admissions', () => {
+    const UNIFIED = { models: null, settings: { unified: { defaults: 1 } } } as never
+    const catalog = (project: Parameters<typeof freshInput>[0], method: unknown, extractionId = randomUUID()) =>
+      ({ ...freshInput(project, extractionId, method as never), strategy: 'CATALOG' as const })
+    const enabled = (t: { after: (fn: () => unknown) => void }) => {
+      process.env.FREE_CATALOG_METHOD = 'unified'
+      t.after(() => { delete process.env.FREE_CATALOG_METHOD })
+    }
+
+    it('pins the unified method, with its defaults version and no recipe, and hands kei options.unified', async (t) => {
+      t.after(cleanup)
+      enabled(t)
+      const project = await seedProject()
+      kei.holding = true
+      await configureAccount(project.researcherAccountId, { extractionSettings: { catalog: { unified: { overlap: 0 } } } })
+      const method = { models: null, settings: { unified: { defaults: 1, overlap: 0 } } }
+      const input = catalog(project, method)
+      assert.equal((await scheduler(project.researcherAccountId).runSingle(input)).disposition, 'created')
+      const row = await extractionRow(input.extractionId)
+      assert.equal(row?.catalogRecipe, null)
+      assert.deepEqual(row?.requestedSettings, method.settings)
+      await heldByKei(input.extractionId)
+      const submitted = kei.submissions.find((submission) => submission.workflowId === keiExtractWorkflowId(input.extractionId))!
+      assert.deepEqual((submitted.request as KeiExtractInput).request.options,
+        { strategy: 'catalog', unified: { defaults: 1, overlap: 0 } })
+    })
+
+    it('refuses a stale legacy start view, and legacy preferences until they are migrated; Article still admits', async (t) => {
+      t.after(cleanup)
+      enabled(t)
+      const project = await seedProject()
+      const module = scheduler(project.researcherAccountId)
+      await assert.rejects(module.runSingle(catalog(project, { models: null, settings: { generic: null } })), rejectsWithCode('method_changed'))
+      await assert.rejects(module.runSingle({ ...catalog(project, { models: null, settings: { recipe: null } }),
+        catalogRecipe: 'numbered-catalogue-de@1' }), rejectsWithCode('method_changed'))
+      await configureAccount(project.researcherAccountId, { extractionSettings: { catalog: { generic: { record_chars: 30_000 } } } })
+      await assert.rejects(module.runSingle(catalog(project, UNIFIED)), rejectsWithCode('catalog_migration_required'))
+      assert.equal((await module.runSingle(freshInput(project))).disposition, 'created')
+      await configureAccount(project.researcherAccountId, {})  // the migration applied: service defaults
+      assert.equal((await module.runSingle(catalog(project, UNIFIED))).disposition, 'created')
+    })
+
+    it('replays an ID admitted on a legacy method before the switch, never re-admitting it as unified', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const module = scheduler(project.researcherAccountId)
+      const legacy = catalog(project, { models: null, settings: { generic: null } })
+      assert.equal((await module.runSingle(legacy)).disposition, 'created')
+      enabled(t)
+      await configureAccount(project.researcherAccountId, { extractionSettings: { catalog: { generic: { record_chars: 30_000 } } } })
+      const replayed = await module.runSingle(legacy)
+      assert.equal(replayed.disposition, 'replayed')
+      assert.deepEqual((await extractionRow(legacy.extractionId))?.requestedSettings, { generic: null })
+      await assert.rejects(module.runSingle({ ...legacy, method: UNIFIED }), rejectsWithCode('extraction_id_conflict'))
+    })
+
+    it('pins every batch member on the unified method', async (t) => {
+      t.after(cleanup)
+      enabled(t)
+      const project = await seedProject()
+      const batch = await scheduler(project.researcherAccountId).scheduleBatch({
+        projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId, strategy: 'CATALOG',
+        sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId), repetition: 'create-new',
+        method: UNIFIED,
+      })
+      assert.equal(batch.disposition, 'created')
+      const rows = await db.orm.public.Extraction.select('catalogRecipe', 'requestedSettings')
+        .where({ batchExtractionId: batch.batch.batchExtractionId }).all()
+      assert.equal(rows.length, project.documents.length)
+      for (const row of rows) {
+        assert.equal(row.catalogRecipe, null)
+        assert.deepEqual(row.requestedSettings, { unified: { defaults: 1 } })
+      }
+    })
+
+    it('without the switch, a unified start view is stale: legacy admission is unchanged', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      await assert.rejects(scheduler(project.researcherAccountId).runSingle(catalog(project, UNIFIED)), rejectsWithCode('method_changed'))
+    })
+  })
 })

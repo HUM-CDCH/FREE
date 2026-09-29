@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import requests
 from sqlalchemy.exc import OperationalError
 
 from kei_exp import runs
@@ -274,7 +275,66 @@ def test_a_bad_chunk_setting_stops_the_worker(value):
         workflow.catalog_chunks({"KEI_CATALOG_CHUNKS": value})
 
 
+def unified_body() -> dict:
+    from tests.test_unified_catalog import SCHEMA
+    return {"schema": SCHEMA, "options": {"strategy": "catalog", "unified": {"defaults": 1}}}
+
+
+def unified_model(run_id: str, asked: list[str], fail_first_entry: list[bool] | None = None):
+    """The unified Catalog's careful scripted model over the run's source; `asked` records each stage called."""
+    from tests.test_unified_catalog import Model
+    model = Model(load(runs.RUNS / run_id))
+
+    def script(system, user, schema):
+        asked.append(system.split(" ")[1])
+        if fail_first_entry and system.startswith("You extract structured data"):
+            fail_first_entry.pop()
+            raise requests.ConnectionError("the model server restarted")
+        return model(system, user, schema)
+    return script
+
+
+def test_a_unified_extraction_publishes_its_records_and_a_re_execution_reuses_them(parsed, scripted):
+    run_id, generation = parsed
+    asked: list[str] = []
+    scripted["script"] = unified_model(run_id, asked)
+    output = workflow.extract_run(WID, run_id, generation, unified_body())
+    directory = runs.RUNS / run_id / "extractions" / "x-1"
+    artifact = json.loads((directory / "result.json").read_text())
+    assert artifact["extraction_version"] == 3 and output["artifact_sha256"]
+    for name, key in (("catalog-execution.json", "execution"), ("catalog-discovery.json", "discovery")):
+        assert hashlib.sha256((directory / name).read_bytes()).hexdigest() == artifact[f"{key}_sha256"]
+    assert asked.count("find") == 1
+    workflow.extract_run(WID, run_id, generation, unified_body())  # the step runs again, as after a lost response
+    assert asked.count("find") == 1  # discovery was reused, not redone
+    assert json.loads((directory / "result.json").read_text())["discovery_sha256"] == artifact["discovery_sha256"]
+
+
+def test_a_unified_extraction_the_served_context_can_no_longer_fit_is_a_budget_refusal(parsed, scripted, monkeypatch):
+    run_id, generation = parsed
+    scripted["script"] = unified_model(run_id, [])
+    workflow.extract_run(WID, run_id, generation, unified_body())
+    smaller = WordCounter()
+    smaller.context_tokens = 4_096
+    monkeypatch.setattr(tokens, "counter_for", lambda client: smaller)
+    with pytest.raises(KeiFailure) as refused:
+        workflow.extract_run(WID, run_id, generation, unified_body())
+    assert refused.value.code == "budget_refused" and "budget_unhonorable" in refused.value.reason
+
+
 # --- through DBOS ------------------------------------------------------------------------------------------------
+
+
+def test_a_unified_step_retried_after_discovery_reuses_the_published_discovery(kei, scripted):
+    run_id = kei_helper.converted_run(kei.runs, "kei-convert:ingest:p:a")
+    asked: list[str] = []
+    scripted["script"] = unified_model(run_id, asked, fail_first_entry=[True])
+    request = {"run_id": run_id, "generation": catalogue.GENERATION, "request": unified_body()}
+    output = kei.output(kei.enqueue("extract", config.EXTRACT, WID, request, priority=config.PRIORITY_INTERACTIVE))
+    contracts.ExtractOk.model_validate(output)
+    assert asked.count("find") == 1  # the transient failure after discovery retried the step, not discovery
+    artifact = json.loads((kei.runs / run_id / "extractions" / "x-1" / "result.json").read_text())
+    assert artifact["complete"] is True and len(artifact["records"]) == 5
 
 
 def test_the_contract_fixture_extracts_through_a_portable_enqueue(kei, scripted):

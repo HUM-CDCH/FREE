@@ -101,6 +101,9 @@ services:
       # on this server's own CLI login and billing, so none is enabled unless
       # the operator sets it; the development overlay enables both.
       FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"
+      # `unified` admits new Catalog Extractions on the unified Catalog method; unset keeps the legacy generic and
+      # recipe Catalog. Its release gates (unify-catalog-extraction) must pass before a deployment sets it.
+      FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"
       # A Claude Code connection spawns the `claude` CLI as a subprocess; it
       # authenticates from this env var (`claude setup-token`'s own output)
       # rather than an interactive login, since the CLI's usual credential

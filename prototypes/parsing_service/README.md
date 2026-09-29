@@ -146,6 +146,22 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   `/tokenize` and report its context size. Otherwise the request
   is refused before any call. See the
   [grounded catalogue design](docs/superpowers/specs/2026-09-23-grounded-catalogue-design.md).
+- `options.unified = {defaults, input_tokens?, output_tokens?, overlap?, headings?,
+  verification?}` runs the unified Catalog (`kie/extract/unified.py`,
+  `discovery.py`): result version 3, no recipe and no character limits (a
+  request naming either is refused). Every nonblank source line is accounted
+  for in a ledger (`entry`, `other`, `unresolved`, `withheld`); discovery,
+  entries, document fields, verification and arbitration all run in counted
+  windows that read the whole admitted text, and a window that cannot be read
+  leaves its range unresolved rather than clipped. Candidates are verified by a
+  separate reasoning request; unverified, partial or conflicting values stay
+  proposals. Before its first model call the step publishes
+  `extractions/<id>/catalog-execution.json` (pins and resolved budgets), then
+  `catalog-discovery.json`, both write-once and reused when the step runs
+  again; budgets the served context no longer fits fail as `budget_refused`.
+  The artifact embeds both records with their canonical digests, which Studio
+  verifies. `deleteRuns` removes them with the run. New admissions use it only
+  where Studio's `FREE_CATALOG_METHOD=unified` gate is on.
 
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership.
