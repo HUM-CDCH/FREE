@@ -1,7 +1,7 @@
 # Tasks
 
 Status: 1.1–3.3 implemented on `feat/advanced-extraction-configuration` (2026-09-29);
-4.x (acceptance) pending. Acceptance IDs refer to [verification.md](verification.md).
+4.1 done; 4.2–4.3 (independent review, maintenance probe) pending. Acceptance IDs refer to [verification.md](verification.md).
 
 ## 1. Establish the immutable method contract
 
@@ -24,6 +24,6 @@ Status: 1.1–3.3 implemented on `feat/advanced-extraction-configuration` (2026-
 
 ## 4. Accept the exact candidate
 
-- [ ] 4.1 Run typecheck, lint and fast tests, then guarded PostgreSQL, authenticated browser/recovery and scripted real-service tiers; record candidate hash and separate evidence boundaries in a dated validation receipt (all applicable matrix IDs).
+- [x] 4.1 Run typecheck, lint and fast tests, then guarded PostgreSQL, authenticated browser/recovery and scripted real-service tiers; record candidate hash and separate evidence boundaries in a dated validation receipt (all applicable matrix IDs). — [receipt](../../../docs/validation/2026-09-29-advanced-extraction-configuration.md), candidate 97388f9c
 - [ ] 4.2 Complete a fresh read-only correctness/architecture/simplification review of the final candidate and the disposable maintenance probe; resolve findings without weakening the contract and record remaining limitations.
 - [ ] 4.3 Revalidate any repairs, ensure review refers to the exact final tree, and present the result with unrun checks and empirical limitations stated; do not claim accuracy gains from configuration coverage.
