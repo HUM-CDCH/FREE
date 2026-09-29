@@ -5,7 +5,7 @@ import {
   uuidSchema,
   type ModelConnection,
   type ProviderKind,
-} from './modelConfig.contract.js'
+} from './modelConnection.contract.js'
 
 /** The provider and API base a key was saved or sent for. A key is used only while its connection still has both. */
 export type ModelKeyAddress = Readonly<{ provider: ProviderKind; baseUrl: string | null }>

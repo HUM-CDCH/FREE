@@ -71,7 +71,7 @@ const PUBLIC_ASSETS: Readonly<Record<string, true>> = {
   '/free-logo.png': true,
   '/--free-logo.png': true,
 }
-const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
+export const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/@react-refresh': true,
   '/src/main.tsx': true,
   '/src/zodWithoutEval.ts': true,
@@ -93,7 +93,7 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/src/modelKeys/modelKeyHandoff.ts': true,
   '/src/modelKeys/modelKeyStore.ts': true,
   '/shared/modelKeys.contract.ts': true,
-  '/shared/modelConfig.contract.ts': true,
+  '/shared/modelConnection.contract.ts': true,
   '/src/ui/Button.tsx': true,
 }
 

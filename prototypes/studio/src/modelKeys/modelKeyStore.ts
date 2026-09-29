@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import { uuidSchema, type ModelConnection } from '../../shared/modelConfig.contract'
+import { uuidSchema, type ModelConnection } from '../../shared/modelConnection.contract'
 import { modelKeyEntrySchema, sameModelKeyAddress } from '../../shared/modelKeys.contract'
 
 /**

@@ -354,7 +354,7 @@ describe('authentication gate and route contract', () => {
       '/src/modelKeys/modelKeyHandoff.ts',
       '/src/modelKeys/modelKeyStore.ts',
       '/shared/modelKeys.contract.ts',
-      '/shared/modelConfig.contract.ts',
+      '/shared/modelConnection.contract.ts',
     ]) {
       const module = await test.app.request(`${ORIGIN}${path}`)
       expect(module.status, path).toBe(200)
