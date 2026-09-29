@@ -316,5 +316,5 @@ export async function generateSchemaEditJson(
   if (result.finishReason === 'length') {
     throw new ApiError(502, 'invalid_model_output', 'Schema edit model output was truncated.')
   }
-  return { text: result.text.replace(/```(?:json)?|```/g, '').trim() }
+  return { text: result.text }
 }
