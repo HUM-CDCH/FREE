@@ -85,11 +85,12 @@ class Model:
 
     def discover(self, user: str) -> dict:
         lines = re.findall(r"^\[(L\d+)\] (.*)$", section(user, "WINDOW"), re.M)
-        places = [[label, text[at:at + 12], kind, printed] for label, text in lines for at, kind, printed in marks(text)]
+        places = [[label, kind, printed, *([text[at:at + 12]] if at else [])]
+                  for label, text in lines for at, kind, printed in marks(text)]
         first = self.full.find(lines[0][1])
         last = self.full.find(lines[-1][1]) + len(lines[-1][1])
         before = marks(self.full[:first])
-        opens = bool(places) and places[0][0] == "L1" and lines[0][1].startswith(places[0][1])
+        opens = bool(places) and places[0][0] == "L1" and len(places[0]) == 3
         inside_at_end = ([mark[1] for mark in marks(self.full[:last])] or ["other"])[-1] == "record"
         rest = self.full[last:].lstrip()
         return {"places": places,
@@ -273,21 +274,22 @@ def test_a_cut_off_discovery_reply_is_retried_on_halves():
     assert any(call["stage"] == "discovery" and not call["ok"] for call in result["calls"])
 
 
-def test_discovery_asks_for_places_as_one_line_lists_and_reads_them():
-    """Four-item lists on one line cost about a third of the tokens of pretty-printed objects; "" is the line start."""
+def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
+    """A place is its line's id, kind and label on one line; start text is copied only for a place inside a line."""
     source = evidence("Kreis Nord\n1. Adorf. Material: Holz. 2. Bdorf. Material: Stein.")
 
     def compact(user):
-        return {"places": [["L1", "", "other", None], ["L2", "", "record", "1."], ["L2", "2. Bdorf", "record", "2."]],
+        return {"places": [["L1", "other", None], ["L2", "record", "1."], ["L2", "record", "2.", "2. Bdorf"]],
                 "begins_inside_record": False, "ends_inside_record": False}
     result, chat = extract(source, Model(source, discovery=compact))
     asked = next(call for call in chat.calls if call["system"].startswith("You find where records begin"))
     assert "on one line, without indentation" in asked["system"]
-    assert [item.get("enum") for item in asked["schema"]["properties"]["places"]["items"]["prefixItems"]] == \
-        [["L1", "L2"], None, ["record", "other"], None]
+    place = asked["schema"]["properties"]["places"]["items"]
+    assert [item.get("enum") for item in place["prefixItems"]] == [["L1", "L2"], ["record", "other"], None, None]
+    assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == 2
+    assert result["prompt_version"] == 3
     assert_accounted(source, result)
 
 
@@ -295,7 +297,7 @@ def test_a_boundary_text_that_is_not_unique_in_its_line_stays_unresolved():
     source = evidence("1. Ort. Teil A. 2. Ort. Teil B.")
 
     def repeated(user):
-        return {"places": [["L1", "Ort.", "record", None]],
+        return {"places": [["L1", "record", None, "Ort."]],
                 "begins_inside_record": False, "ends_inside_record": False}
     result, _ = extract(source, Model(source, discovery=repeated))
     assert result["records"] == [] and ranges(result, "unresolved") == [("p1_s0", 0, 31)]

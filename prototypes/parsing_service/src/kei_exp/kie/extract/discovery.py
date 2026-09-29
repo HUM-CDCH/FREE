@@ -38,9 +38,10 @@ DISCOVERY = (
     "The WINDOW lists source lines, each after a label such as [L1]. Report, in source order, every place in the "
     "WINDOW where a record begins (\"record\") and where text that belongs to no record begins (\"other\": front "
     "matter, a heading between records, an index or a bibliography). A record may begin in the middle of a line and "
-    "one line may hold several records. Give each place as a list of four items: the label of its line; the exact "
-    "characters where it begins, copied from that line (a few words), or \"\" when it begins with the line; "
-    "\"record\" or \"other\"; and the record's printed number or label when it has one, else null. Answer "
+    "one line may hold several records. Give each place as a list: the label of its line; \"record\" or \"other\"; "
+    "the record's printed number or label when it has one, else null; and, only when the place begins after the "
+    "start of its line, a fourth item: the exact characters where it begins, copied from that line (a few words). "
+    "Answer "
     "\"begins_inside_record\": true when the first WINDOW line continues a record that began before the WINDOW, false "
     "when it does not, null when you cannot tell; and \"ends_inside_record\": true when the last record in the WINDOW "
     "continues after it, false when it does not, null when you cannot tell. CONTEXT lines are shown for orientation "
@@ -167,10 +168,10 @@ def _render(window: Window, texts: dict[str, str]) -> tuple[str, list[str]]:
 
 
 def _reply(labels: list[str]) -> dict:
-    place = {"type": "array", "prefixItems": [{"type": "string", "enum": labels}, {"type": "string"},
+    place = {"type": "array", "prefixItems": [{"type": "string", "enum": labels},
                                               {"type": "string", "enum": ["record", "other"]},
-                                              {"type": ["string", "null"]}],
-             "items": False, "minItems": 4, "maxItems": 4}
+                                              {"type": ["string", "null"]}, {"type": "string"}],
+             "items": False, "minItems": 3, "maxItems": 4}
     return {"type": "object", "properties": {
         "places": {"type": "array", "items": place},
         "begins_inside_record": {"type": ["boolean", "null"]}, "ends_inside_record": {"type": ["boolean", "null"]}},
@@ -197,9 +198,10 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
     found: dict[int, list[tuple[int, str, str | None]]] = {}
     unplaced: set[int] = set()
     for place in places:
-        if not isinstance(place, list) or len(place) != 4 or place[0] not in labels or place[2] not in ("record", "other"):
+        if not isinstance(place, list) or len(place) not in (3, 4) or place[0] not in labels or \
+                place[1] not in ("record", "other"):
             return None
-        line_label, text, kind, label = place
+        line_label, kind, label, text = (*place, None)[:4]
         index = labels.index(line_label)
         unit = window.primary[index]
         line = texts[unit.segment][unit.start:unit.end]

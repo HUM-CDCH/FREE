@@ -201,7 +201,7 @@
       "fields": "fake/extractor",
       "reasoning": "fake/extractor"
     },
-    "prompt_version": 2,
+    "prompt_version": 3,
     "schema": {
       "recordDescription": "One entry of a catalogue of finds.",
       "schemaNodes": [
@@ -322,7 +322,7 @@
         "fields": "fake/extractor",
         "reasoning": "fake/extractor"
       },
-      "prompt_version": 2,
+      "prompt_version": 3,
       "discovery_version": 1,
       "tokenizers": {
         "fields": {
@@ -341,10 +341,10 @@
         }
       }
     },
-    "execution_sha256": "5e8bbe8a73890e6cddccb89604a9d4efcbbd1186783afbacc816e56fe2bad706",
+    "execution_sha256": "7a2fadb0ce65bd83a881456ee55a9832f2595c95d7ec6509f1a27bd48758b2db",
     "discovery": {
       "version": 1,
-      "execution_sha256": "5e8bbe8a73890e6cddccb89604a9d4efcbbd1186783afbacc816e56fe2bad706",
+      "execution_sha256": "7a2fadb0ce65bd83a881456ee55a9832f2595c95d7ec6509f1a27bd48758b2db",
       "entries": [
         {
           "id": "p1_s1@0",
@@ -434,19 +434,19 @@
         {
           "stage": "discovery",
           "record": null,
-          "input_tokens": 241,
+          "input_tokens": 244,
           "output_tokens": 5,
           "finish": "stop",
           "ok": true,
           "error": null,
-          "counted_input_tokens": 241,
+          "counted_input_tokens": 244,
           "context_tokens": 16384,
           "max_output_tokens": 4096,
           "milliseconds": 0
         }
       ]
     },
-    "discovery_sha256": "27f1280f3d83f1e0fd3b3cb65aa717b2b57b2898b55507a959cba3ad35852a2a",
+    "discovery_sha256": "a1479b0b88899c8c7d50ded60d0a59f2fd87168b13fe713a24635c780dc770dc",
     "records": [
       {
         "label": "12",
@@ -847,13 +847,13 @@
       {
         "stage": "discovery",
         "record": null,
-        "input_tokens": 241,
+        "input_tokens": 244,
         "output_tokens": 5,
         "seconds": 0.0,
         "finish": "stop",
         "ok": true,
         "error": null,
-        "counted_input_tokens": 241,
+        "counted_input_tokens": 244,
         "context_tokens": 16384,
         "max_output_tokens": 4096
       },
@@ -924,9 +924,9 @@
       }
     ],
     "tokens": {
-      "input": 977,
+      "input": 980,
       "output": 30
     },
-    "fingerprint": "880f5bd40ae0afac921b95116ff1e83cd8245993a3eebb804159f8f39477b863"
+    "fingerprint": "0bd14e235724705e26aaa044e3a7eeb0c1253a35b093d00b63a62589315e4892"
   }
 }
