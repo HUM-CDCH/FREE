@@ -33,7 +33,7 @@ export const phaseOrder: readonly WorkflowPhase[] = [
 
 export const phaseLabels: Record<WorkflowPhase, string> = {
   ingest: 'Ingest',
-  chat: 'Schema Chat',
+  chat: 'Create schema',
   approve: 'Approve schema',
   extract: 'Extract',
   validate: 'Validate',

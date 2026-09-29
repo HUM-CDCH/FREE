@@ -15,6 +15,15 @@ const stepTab: Record<(typeof phaseOrder)[number], StepTab> = {
 
 type StepStatus = 'done' | 'current' | 'upcoming'
 
+type DisplayStep = {
+  key: string
+  label: string
+  tab: StepTab
+  status: StepStatus
+}
+
+const extractPhaseIndex = phaseOrder.indexOf('extract')
+
 /**
  * The project page's own live orientation stepper (guided-pilot-extraction-workflow):
  * unlike the one-shot `nudge` toasts, this always shows every phase — done,
@@ -31,7 +40,7 @@ function ProjectWorkflowSteps({
   activeTab: ProjectResource['tab']
   onNavigate: (tab: StepTab) => void
 }) {
-  const currentIndex = phaseOrder.indexOf(summary.phase)
+  const currentPhaseIndex = phaseOrder.indexOf(summary.phase)
   // `validate` never advances to a further phase once reached, so "fully
   // reviewed" is its own done signal — otherwise a fully-validated project
   // would sit forever on "current" with nothing to show for it.
@@ -40,13 +49,50 @@ function ProjectWorkflowSteps({
     summary.extractedSourceDocumentCount > 0 &&
     summary.reviewedSourceDocumentCount === summary.extractedSourceDocumentCount
 
-  const status = (index: number): StepStatus => {
-    if (index < currentIndex) return 'done'
-    if (index === currentIndex) return fullyValidated ? 'done' : 'current'
+  const statusForPhase = (index: number): StepStatus => {
+    if (index < currentPhaseIndex) return 'done'
+    if (index === currentPhaseIndex) return fullyValidated ? 'done' : 'current'
     return 'upcoming'
   }
 
+  // The server only tracks one `extract` phase value, but it covers two
+  // rounds in sequence: piloting on a small selection first, then a
+  // stabilised schema unlocking the collection-scale run. The phase itself
+  // only flips to `validate` once a pilot Extraction has been reviewed, and
+  // stabilising requires exactly that review to already have happened — so
+  // `phase === 'extract'` and `schemaStabilised` never overlap; reaching
+  // `validate` is what "Pilot Extraction" being done actually means, and
+  // `schemaStabilised` is the only further signal for whether "Batch
+  // Extraction" has started or finished from there.
+  const pilotReviewed = currentPhaseIndex > extractPhaseIndex
+  const pilotStatus: StepStatus =
+    currentPhaseIndex < extractPhaseIndex
+      ? 'upcoming'
+      : pilotReviewed
+        ? 'done'
+        : 'current'
+  const batchStatus: StepStatus = !pilotReviewed
+    ? 'upcoming'
+    : summary.schemaStabilised
+      ? 'done'
+      : 'current'
+
+  const displaySteps: readonly DisplayStep[] = phaseOrder.flatMap((phase, index) =>
+    phase === 'extract'
+      ? [
+          { key: 'pilot', label: 'Pilot Extraction', tab: stepTab.extract, status: pilotStatus },
+          { key: 'batch', label: 'Batch Extraction', tab: stepTab.extract, status: batchStatus },
+        ]
+      : [{ key: phase, label: phaseLabels[phase], tab: stepTab[phase], status: statusForPhase(index) }],
+  )
+
   const nextTab = stepTab[summary.phase]
+  const nextLabel =
+    summary.phase === 'extract'
+      ? 'Pilot Extraction'
+      : summary.phase === 'validate' && !summary.schemaStabilised
+        ? 'Batch Extraction'
+        : phaseLabels[summary.phase]
   const showNext = !fullyValidated && activeTab !== nextTab
 
   return (
@@ -56,9 +102,9 @@ function ProjectWorkflowSteps({
           `getByRole('list')` queries ambiguous for no real accessibility
           benefit here. */}
       <div className="flex min-w-0 flex-1 items-start gap-1" role="group" aria-label="Project workflow">
-        {phaseOrder.map((phase, index) => {
-          const state = status(index)
-          const isLast = index === phaseOrder.length - 1
+        {displaySteps.map((step, index) => {
+          const state = step.status
+          const isLast = index === displaySteps.length - 1
           // Done steps stay interactive so a researcher can jump straight back
           // to an earlier phase's tab (e.g. to revise an already-approved
           // schema) — the phase itself never locks, it's just where the
@@ -95,28 +141,17 @@ function ProjectWorkflowSteps({
                   state === 'upcoming' ? 'text-ink-faint' : 'text-ink'
                 }`}
               >
-                {phaseLabels[phase]}
+                {step.label}
               </span>
-              {phase === 'extract' && state !== 'upcoming' && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold ${
-                    summary.schemaStabilised
-                      ? 'bg-green/10 text-green'
-                      : 'bg-accent-soft text-accent'
-                  }`}
-                >
-                  {summary.schemaStabilised ? 'Stabilised' : 'Piloting'}
-                </span>
-              )}
             </>
           )
           return (
-            <div key={phase} className="flex min-w-0 flex-1 items-start last:flex-none">
+            <div key={step.key} className="flex min-w-0 flex-1 items-start last:flex-none">
               {clickable ? (
                 <button
                   type="button"
-                  onClick={() => onNavigate(stepTab[phase])}
-                  aria-label={`Go to ${phaseLabels[phase]}`}
+                  onClick={() => onNavigate(step.tab)}
+                  aria-label={`Go to ${step.label}`}
                   className="flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1.5 rounded-md text-center outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   {stepContent}
@@ -130,7 +165,7 @@ function ProjectWorkflowSteps({
                 <span
                   aria-hidden="true"
                   className={`mt-2.5 h-0.5 min-w-4 flex-1 ${
-                    index < currentIndex ? 'bg-accent' : 'bg-line'
+                    state === 'done' ? 'bg-accent' : 'bg-line'
                   }`}
                 />
               )}
@@ -144,7 +179,7 @@ function ProjectWorkflowSteps({
           className="shrink-0 cursor-pointer rounded-md border border-accent px-3 py-1.5 text-xs font-semibold text-accent outline-none transition-colors hover:bg-accent-soft"
           onClick={() => onNavigate(nextTab)}
         >
-          Next: {phaseLabels[summary.phase]}
+          Next: {nextLabel}
           <span aria-hidden="true"> →</span>
         </button>
       )}

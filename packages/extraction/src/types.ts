@@ -29,7 +29,9 @@ export type ReviewDecisionAction = 'APPROVED' | 'EDITED' | 'REJECTED'
 
 export type ReviewDecisionInput = Readonly<{
   resultPath: ResultPath
-  evidenceAnchorId: string
+  /** Null for a field with no Evidence Link — ungrounded-with-value or
+   *  missing, reviewable the same way just without an anchor behind it. */
+  evidenceAnchorId: string | null
   reviewedOccurrenceIds: readonly string[]
   action: ReviewDecisionAction
   reviewedValue: unknown | null

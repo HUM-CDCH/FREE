@@ -1144,14 +1144,26 @@ if (!disposableDatabaseUrl) {
       assert.equal(completed.extraction.diagnostics!.ungroundedPaths.length, 1)
 
       const prepared = await module.prepareReview(completed.extraction.extractionId)
-      assert.equal(prepared.reviewDecisions.length, 1)
+      // One grounded (title) plus one ungrounded-with-value (note) — the
+      // ungrounded field is reviewable too, just with no Evidence Anchor
+      // manufactured for it.
+      assert.equal(prepared.reviewDecisions.length, 2)
+      const groundedDecision = prepared.reviewDecisions.find(
+        (decision) => decision.evidenceAnchorId !== null,
+      )
+      const ungroundedDecision = prepared.reviewDecisions.find(
+        (decision) => decision.evidenceAnchorId === null,
+      )
+      assert.ok(groundedDecision)
+      assert.ok(ungroundedDecision)
+      assert.deepEqual(ungroundedDecision.reviewedOccurrenceIds, [])
       const reviewed = await module.finalizeReview(
         completed.extraction.extractionId,
         prepared.reviewDecisions,
       )
       assert.equal(reviewed.disposition, 'reviewed')
       assert.ok(reviewed.extraction.reviewedAt)
-      assert.equal(reviewed.extraction.reviewDecisions.length, 1)
+      assert.equal(reviewed.extraction.reviewDecisions.length, 2)
       assert.equal(reviewed.extraction.diagnostics.ungroundedPaths.length, 1)
     })
 

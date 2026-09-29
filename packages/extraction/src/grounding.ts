@@ -42,6 +42,53 @@ export function populatedContentPaths(value: unknown, path: ResultPath = []): Re
   return value === '' || value === null || value === undefined ? [] : typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? [path] : []
 }
 
+function isPopulatedScalar(value: unknown): boolean {
+  return (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    (typeof value === 'string' && value !== '')
+  )
+}
+
+/** Walks one schema leaf field's name path against an actual value,
+ *  expanding every array ancestor at its real length — the same rule the
+ *  review grid's own `valuesAtColumn` uses to decide what's a clickable
+ *  cell, so a Review Decision is never expected for something the grid
+ *  never renders (a genuinely empty array produces no cells at all). */
+function leafOccurrences(
+  value: unknown,
+  remaining: readonly string[],
+  path: ResultPath,
+): Array<{ path: ResultPath; value: unknown }> {
+  if (Array.isArray(value))
+    return value.flatMap((item, index) => leafOccurrences(item, remaining, [...path, index]))
+  if (remaining.length === 0) return [{ path, value }]
+  const [name, ...rest] = remaining
+  const next =
+    value !== null && typeof value === 'object'
+      ? (value as Record<string, unknown>)[name]
+      : undefined
+  return leafOccurrences(next, rest, [...path, name])
+}
+
+/** Every scalar occurrence one record actually shows in the review grid for
+ *  the given leaf field name-paths — grounded, ungrounded-with-value, and
+ *  missing alike — each tagged with whether it currently holds a value.
+ *  Mirrors the client's own cell-expansion exactly, so the two never
+ *  disagree about what a submitted Review Decision is allowed to cover. */
+export function reviewableLeafOccurrences(
+  leafFieldPaths: readonly (readonly string[])[],
+  record: unknown,
+  recordPathPrefix: ResultPath,
+): Array<{ path: ResultPath; populated: boolean }> {
+  return leafFieldPaths.flatMap((fieldPath) =>
+    leafOccurrences(record, fieldPath, recordPathPrefix).map(({ path, value }) => ({
+      path,
+      populated: isPopulatedScalar(value),
+    })),
+  )
+}
+
 export async function groundExtraction(
   document: ParsedDocument,
   result: Readonly<Record<string, unknown>>,

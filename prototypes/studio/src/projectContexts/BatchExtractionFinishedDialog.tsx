@@ -10,7 +10,6 @@ import {
 import type { ResultPath } from '../../shared/groundedExtraction'
 import {
   batchExtractionProgress,
-  PILOT_BATCH_SELECTION_LIMIT,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
 import { Button, ModalDialog } from '../ui'
@@ -225,13 +224,17 @@ export default function BatchExtractionFinishedDialog({
   const progress = batchExtractionProgress(batch)
   const schemaRevision = useBatchSchemaRevision(projectContextId, batch)
   const reports = useBatchDocumentReports(batch, schemaRevision?.schemaNodes ?? null)
-  const isPilotRound = batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
+  // The dialog's own "is this a pilot round" threshold, smaller than the
+  // gate's `PILOT_BATCH_SELECTION_LIMIT` (which just caps how large a run
+  // may be without a stabilised schema) — matches the 2-3 documents the
+  // pilot banner and "Pilot Extraction" button actually recommend.
+  const isPilotRound = batch.members.length <= 3
   const nextStepText = failed
     ? null
     : isPilotRound && schemaRevision?.stabilisedAt == null
-      ? 'This was a pilot round. Review the results below, then stabilise the schema once you trust it, to unlock a full run across the whole collection.'
+      ? 'This was a pilot round. Review the results below, then approve the schema for batch extraction once you trust it, to unlock a full run across the whole collection.'
       : isPilotRound
-        ? 'Review the results below, then run the full collection when ready.'
+        ? 'Review the results below, then run the full Batch Extraction when ready.'
         : 'Review the results below, then export when you’re satisfied.'
 
   const { detailMembers, cleanCount } = useMemo(
@@ -248,7 +251,13 @@ export default function BatchExtractionFinishedDialog({
       onDismiss={onDismiss}
     >
       <h2 id={titleId} className="text-sm font-bold text-ink">
-        {failed ? 'Batch Extraction failed' : 'Batch Extraction finished'}
+        {isPilotRound
+          ? failed
+            ? 'Pilot Extraction failed'
+            : 'Pilot Extraction finished'
+          : failed
+            ? 'Batch Extraction failed'
+            : 'Batch Extraction finished'}
       </h2>
       <div id={descriptionId} className="mt-2 space-y-1 text-xs leading-relaxed text-ink-muted">
         {failed && (

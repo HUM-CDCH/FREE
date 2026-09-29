@@ -28,10 +28,11 @@ import {
   type MutableCatalogDiagnostics,
 } from './catalog.js'
 import { ExtractionError, extractionError } from './errors.js'
-import { groundExtraction, populatedContentPaths, resultPathKey } from './grounding.js'
+import { groundExtraction, populatedContentPaths, resultPathKey, reviewableLeafOccurrences } from './grounding.js'
 import { decodeParsedDocument, type ParsedDocument } from './parsed-document.js'
 import {
   compileInstructions,
+  enumerateFieldPaths,
   isRecord,
   nodesToTemplate,
   parseExtractionSchema,
@@ -53,6 +54,7 @@ import type {
   ExtractionSchemaNode,
   ModelAttribution,
   ModelGenerationMetadata,
+  ResultPath,
   ReviewDecisionInput,
   RunSingleInput,
 } from './types.js'
@@ -107,7 +109,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
     if (!raw) throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is unavailable.')
     const document = decodeCanonical(raw)
     const occurrenceIdsByAnchor = occurrenceOwnership(document)
-    const decisions = extraction.evidence.flatMap((link) => {
+    const groundedDecisions = extraction.evidence.flatMap((link) => {
       const occurrences = occurrenceIdsByAnchor.get(link.evidenceAnchorId)
       return occurrences
         ? [{
@@ -119,7 +121,30 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
           }]
         : []
     })
-    return { extraction, reviewDecisions: decisions }
+    // Ungrounded-with-value and missing fields are just as reviewable, only
+    // without an Evidence Anchor behind them — approving one records "I
+    // confirmed this by other means" (or "confirmed genuinely absent" for a
+    // missing field), rejecting or editing it works the same as a grounded
+    // field's.
+    const inputs = extraction.result
+      ? await persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
+      : null
+    const reviewRecords = inputs && extraction.result ? extractionRecords(extraction.result) : null
+    const nonGroundedDecisions =
+      inputs && reviewRecords
+        ? nonGroundedReviewablePaths(
+            parsePinnedSchema(inputs.schemaTree).schemaNodes,
+            reviewRecords,
+            new Set(extraction.evidence.map((link) => resultPathKey(link.resultPath))),
+          ).map((resultPath) => ({
+            resultPath: [...resultPath],
+            evidenceAnchorId: null,
+            reviewedOccurrenceIds: [],
+            action: 'APPROVED' as const,
+            reviewedValue: null,
+          }))
+        : []
+    return { extraction, reviewDecisions: [...groundedDecisions, ...nonGroundedDecisions] }
   }
 
   const finalizeReview = async (extractionId: string, decisions: readonly ReviewDecisionInput[], expectedDraftVersion = 0): Promise<FinalizeReviewResult> => {
@@ -165,13 +190,31 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
     const evidenceByPath = new Map(
       extraction.evidence.map((link) => [resultPathKey(link.resultPath), link]),
     )
+    // Ungrounded-with-value and missing fields are reviewable too, just
+    // without an Evidence Anchor: every submitted decision must land on
+    // either an Evidence Link (anchor must match exactly, as before) or one
+    // of these, with a null anchor — nothing else.
+    const nonGroundedResultPathKeys = new Set(
+      nonGroundedReviewablePaths(definition.schemaNodes, reviewRecords, evidenceResultPathKeys).map(
+        resultPathKey,
+      ),
+    )
+    const decisionPathKeys = decisions.map((decision) => resultPathKey(decision.resultPath))
     if (
-      decisions.length !== evidenceByPath.size ||
+      new Set(decisionPathKeys).size !== decisionPathKeys.length ||
+      decisions.length !== evidenceByPath.size + nonGroundedResultPathKeys.size ||
       decisions.some((decision) => {
-        const link = evidenceByPath.get(resultPathKey(decision.resultPath))
+        const key = resultPathKey(decision.resultPath)
+        const link = evidenceByPath.get(key)
+        if (link)
+          return (
+            link.evidenceAnchorId !== decision.evidenceAnchorId ||
+            !reviewDecisionMatchesSchema(definition.schemaNodes, decision)
+          )
         return (
-          !link ||
-          link.evidenceAnchorId !== decision.evidenceAnchorId ||
+          !nonGroundedResultPathKeys.has(key) ||
+          decision.evidenceAnchorId !== null ||
+          decision.reviewedOccurrenceIds.length > 0 ||
           !reviewDecisionMatchesSchema(definition.schemaNodes, decision)
         )
       })
@@ -191,6 +234,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       })),
       occurrenceIdsByAnchor: occurrenceOwnership(document),
       evidenceResultPathKeys,
+      nonGroundedResultPathKeys,
     })
     if (finalized.status === 'not-found') throw new ExtractionError('not_found', 'That Extraction was not found.')
     if (finalized.status === 'conflict') throw new ExtractionError('review_conflict', 'That Extraction was reviewed differently.')
@@ -989,6 +1033,26 @@ function extractionRecord(result: Readonly<Record<string, unknown>>): Record<str
 
 function occurrenceOwnership(document: ParsedDocument): ReadonlyMap<string, ReadonlySet<string>> {
   return new Map(document.evidence_index.anchors.map((anchor) => [anchor.anchor_id, new Set(anchor.producer_observations.map((observation) => observation.occurrence_id))]))
+}
+
+/** Every scalar occurrence the review grid shows that has no Evidence Link —
+ *  ungrounded-with-value and missing alike, both reviewable the same way:
+ *  Approve/Reject/Edit with no Evidence Anchor. Schema-field-order derived,
+ *  so it matches the client's own cell expansion regardless of grounding. */
+function nonGroundedReviewablePaths(
+  schemaNodes: readonly ExtractionSchemaNode[],
+  records: readonly Record<string, unknown>[],
+  evidenceResultPathKeys: ReadonlySet<string>,
+): ResultPath[] {
+  const packageFields = new Set(partitionSchemaNodes(schemaNodes).packageNodes.map((node) => node.name))
+  const leafFieldPaths = enumerateFieldPaths(schemaNodes)
+    .filter((field) => !field.node.children && !packageFields.has(field.path[0]))
+    .map((field) => field.path)
+  return records.flatMap((record, recordIndex) =>
+    reviewableLeafOccurrences(leafFieldPaths, record, ['records', recordIndex])
+      .map((occurrence) => occurrence.path)
+      .filter((path) => !evidenceResultPathKeys.has(resultPathKey(path))),
+  )
 }
 
 const reviewSchemaNode = schemaNodeAtPath

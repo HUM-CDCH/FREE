@@ -356,7 +356,7 @@ describe('BatchExtractionsPanel', () => {
     // The chosen Schema Revision (stabilised, per this fixture) loads
     // independently of the document checkboxes; wait for it so the later
     // Run-enabled assertions aren't racing that fetch.
-    await screen.findByText(/This schema is stabilised/)
+    await screen.findByText(/This schema is approved for batch extraction/)
     expect(screen.getByText(/takes at most 50/)).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Run 51 Source Documents' }),
@@ -512,7 +512,9 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
     await screen.findAllByRole('checkbox')
     const selectionCount = manyDocuments.length
-    expect(await screen.findByText(/hasn.t been stabilised yet/)).toBeVisible()
+    expect(
+      await screen.findByText(/isn.t approved for batch extraction yet/),
+    ).toBeVisible()
     expect(
       screen.getByRole('button', {
         name: `Run ${selectionCount} Source Documents`,
@@ -530,13 +532,17 @@ describe('BatchExtractionsPanel', () => {
       }),
     ).toBeEnabled()
 
-    // Re-select the full set, then stabilise — Run enables at the
-    // collection scale too, without changing the selection.
+    // Re-select the full set, then approve for batch extraction — Run
+    // enables at the collection scale too, without changing the selection.
     fireEvent.click(
       screen.getByRole('checkbox', { name: /^Source 06\.pdf/ }),
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Stabilise schema' }))
-    expect(await screen.findByText(/is stabilised/)).toBeVisible()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Approve for batch extraction' }),
+    )
+    expect(
+      await screen.findByText(/is approved for batch extraction/),
+    ).toBeVisible()
     expect(
       screen.getByRole('button', {
         name: `Run ${selectionCount} Source Documents`,
@@ -1695,8 +1701,10 @@ describe('BatchExtractionsPanel', () => {
     const sourcesHeading = screen.getByRole('heading', {
       name: 'Source Documents',
     })
+    // Source Documents now comes before the Extraction Schema picker (and so
+    // before whatever schema-slot content it drives), not after.
     expect(
-      suggested.compareDocumentPosition(sourcesHeading) &
+      sourcesHeading.compareDocumentPosition(suggested) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
 

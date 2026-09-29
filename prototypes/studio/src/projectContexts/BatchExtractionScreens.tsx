@@ -177,6 +177,17 @@ function selectionLine(batch: BatchExtraction): string {
   return `${count} Source Document${count === 1 ? '' : 's'} · ${strategy}`
 }
 
+/** The "Pilot" label's own threshold — smaller than the gate's
+ *  `PILOT_BATCH_SELECTION_LIMIT` (which just caps how large a run may be
+ *  without a stabilised schema). This only decides what a run is *called*
+ *  in the history list, matching the 2-3 documents the pilot banner and
+ *  "Pilot Extraction" button actually recommend. */
+const PILOT_LABEL_LIMIT = 3
+
+function isPilotRound(batch: BatchExtraction): boolean {
+  return batch.members.length <= PILOT_LABEL_LIMIT
+}
+
 export function BatchExtractionHistory({
   batches,
   onOpen,
@@ -209,9 +220,16 @@ export function BatchExtractionHistory({
               onClick={() => onOpen(batch)}
             >
               <span className="min-w-0">
-                <strong className="block text-[12.5px] font-semibold text-ink">
-                  <time dateTime={batch.createdAt}>{stamp(batch.createdAt)}</time>
-                </strong>
+                <span className="flex items-center gap-1.5">
+                  <strong className="text-[12.5px] font-semibold text-ink">
+                    <time dateTime={batch.createdAt}>{stamp(batch.createdAt)}</time>
+                  </strong>
+                  {isPilotRound(batch) && (
+                    <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[9.5px] font-semibold text-accent">
+                      Pilot
+                    </span>
+                  )}
+                </span>
                 <span className="mt-1 block text-[11px] text-ink-muted">
                   {batchSchemaLine(batch)}
                 </span>

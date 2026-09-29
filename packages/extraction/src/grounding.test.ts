@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
-import { groundExtraction, resultPathKey } from './grounding.js'
+import { groundExtraction, resultPathKey, reviewableLeafOccurrences } from './grounding.js'
 import { PER_RECORD_CATALOG_POLICY } from './catalog.js'
 import type { GroundingModelRequest } from './dependencies.js'
 import { resolveCatalogBoundaries } from './catalog-boundaries.js'
@@ -369,5 +369,49 @@ describe('groundExtraction lexical checks', () => {
         C3: { record: null, field: 'site', description: null },
       })
     })
+  })
+})
+
+// The review grid's own `valuesAtColumn` (prototypes/studio) expands a
+// leaf field's cells the same way: every array ancestor at its real length,
+// a genuinely absent/empty array producing zero cells rather than a
+// placeholder. These mirror that behavior exactly so the server never
+// expects a Review Decision the client could never submit.
+describe('reviewableLeafOccurrences', () => {
+  it('reports a populated scalar leaf as one occurrence', () => {
+    assert.deepEqual(
+      reviewableLeafOccurrences([['title']], { title: 'Alpha' }, ['records', 0]),
+      [{ path: ['records', 0, 'title'], populated: true }],
+    )
+  })
+
+  it('reports a missing scalar leaf as one unpopulated occurrence', () => {
+    assert.deepEqual(
+      reviewableLeafOccurrences([['title']], {}, ['records', 0]),
+      [{ path: ['records', 0, 'title'], populated: false }],
+    )
+    assert.deepEqual(
+      reviewableLeafOccurrences([['title']], { title: '' }, ['records', 0]),
+      [{ path: ['records', 0, 'title'], populated: false }],
+    )
+  })
+
+  it('expands a repeated group at its actual length, one occurrence per item', () => {
+    const record = { authors: [{ name: 'Ada' }, { name: '' }] }
+    assert.deepEqual(reviewableLeafOccurrences([['authors', 'name']], record, ['records', 0]), [
+      { path: ['records', 0, 'authors', 0, 'name'], populated: true },
+      { path: ['records', 0, 'authors', 1, 'name'], populated: false },
+    ])
+  })
+
+  it('reports zero occurrences for a genuinely empty or absent repeated group, not a placeholder', () => {
+    assert.deepEqual(
+      reviewableLeafOccurrences([['authors', 'name']], { authors: [] }, ['records', 0]),
+      [],
+    )
+    assert.deepEqual(
+      reviewableLeafOccurrences([['authors', 'name']], {}, ['records', 0]),
+      [{ path: ['records', 0, 'authors', 'name'], populated: false }],
+    )
   })
 })

@@ -62,6 +62,9 @@ export type ReviewAuthority = Readonly<{
   reviewDecisions: readonly ReviewDecisionInput[]
   occurrenceIdsByAnchor: ReadonlyMap<string, ReadonlySet<string>>
   evidenceResultPathKeys: ReadonlySet<string>
+  /** Ungrounded-with-value and missing fields reviewable without an Evidence
+   *  Anchor — a decision on one of these must carry a null anchor. */
+  nonGroundedResultPathKeys: ReadonlySet<string>
 }>
 
 export type PersistedReviewResult =

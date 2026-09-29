@@ -804,22 +804,34 @@ function reviewAuthorityMatchesExtraction(
     [...authority.evidenceResultPathKeys].every((key) =>
       evidenceByPath.has(key),
     ) &&
-    submitted.length === evidenceByPath.size &&
+    submitted.length ===
+      evidenceByPath.size + authority.nonGroundedResultPathKeys.size &&
     new Set(submitted.map((decision) => decision.resultPathKey)).size ===
       submitted.length &&
     submitted.every((decision) => {
-      const owned = authority.occurrenceIdsByAnchor.get(
-        decision.evidenceAnchorId,
-      )
-      return (
-        evidenceByPath.get(decision.resultPathKey) ===
-          decision.evidenceAnchorId &&
-        owned !== undefined &&
-        decision.reviewedOccurrenceIds.length === owned.size &&
-        decision.reviewedOccurrenceIds.every((id) => owned.has(id)) &&
+      const shapeMatches =
         ['APPROVED', 'EDITED', 'REJECTED'].includes(decision.action) &&
         ((decision.action === 'EDITED') ===
           (decision.reviewedValue !== null))
+      if (!shapeMatches) return false
+      const groundedAnchorId = evidenceByPath.get(decision.resultPathKey)
+      if (groundedAnchorId !== undefined) {
+        const owned = authority.occurrenceIdsByAnchor.get(
+          decision.evidenceAnchorId ?? '',
+        )
+        return (
+          groundedAnchorId === decision.evidenceAnchorId &&
+          owned !== undefined &&
+          decision.reviewedOccurrenceIds.length === owned.size &&
+          decision.reviewedOccurrenceIds.every((id) => owned.has(id))
+        )
+      }
+      // Ungrounded-with-value or missing: reviewable, but with no Evidence
+      // Anchor and nothing occurring in it to cite.
+      return (
+        authority.nonGroundedResultPathKeys.has(decision.resultPathKey) &&
+        decision.evidenceAnchorId === null &&
+        decision.reviewedOccurrenceIds.length === 0
       )
     })
   )

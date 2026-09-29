@@ -368,12 +368,10 @@ function RevertRowBadge({
 }
 
 /** Share of this document's *reviewable* fields (every field with a Review
- *  Decision — i.e. grounded to Evidence — not just the ones touched so far)
- *  that the researcher has confirmed unchanged. Ungrounded/missing fields
- *  have no Review Decision and no Approve/Reject affordance in the grid, so
- *  they're excluded from the total: this reaches 100% exactly when every
- *  field the researcher *can* act on has been confirmed. Returns null while
- *  nothing has been touched. */
+ *  Decision — grounded, ungrounded-with-value, or missing alike — not just
+ *  the ones touched so far) that the researcher has confirmed unchanged:
+ *  this reaches 100% exactly when every field has been confirmed. Returns
+ *  null while nothing has been touched. */
 function confirmedNoChangeShare(
   decisions: readonly ReviewDecisionInput[],
   touched: ReadonlySet<string>,
@@ -395,11 +393,9 @@ function qualityTone(share: number): 'success' | 'accent' | 'danger' {
 /** A compact quality signal for one document's Extraction: "Not yet
  *  reviewed" while untouched, then "N% approved unchanged" (scoped to
  *  "so far" until every reviewable field has been acted on) once the
- *  researcher starts making Review Decisions. Scoped to fields with a
- *  Review Decision — ungrounded/missing fields have no Approve/Reject
- *  affordance in the grid, so they're excluded from both the percentage and
- *  the completion check. Not a correctness guarantee: a confirmed value can
- *  still be wrong if the researcher approved it without close reading. */
+ *  researcher starts making Review Decisions. Not a correctness guarantee: a
+ *  confirmed value can still be wrong if the researcher approved it without
+ *  close reading. */
 function QualityScoreBadge({
   decisions,
   touched,
@@ -787,7 +783,7 @@ export default function BatchExtractionReviewGrid({
       </div>}
       {!grid.draftError && <p role="status" className="text-xs text-ink-muted">{grid.draftSaving ? 'Saving draft…' : grid.dirtyCount > 0 ? 'Draft saved' : ''}</p>}
       <div className="flex shrink-0 flex-col gap-2.5 rounded-card border border-line bg-surface px-4 py-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -813,7 +809,7 @@ export default function BatchExtractionReviewGrid({
               </span>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex flex-wrap shrink-0 items-center gap-2">
             <SegmentedControl
               aria-label="Filter Source Documents"
               value={filter}
@@ -908,11 +904,11 @@ export default function BatchExtractionReviewGrid({
           >
             <p className="text-[11px] leading-snug text-ink-muted">
               {readyToStabiliseSignal
-                ? 'This pilot round looks cleaner than the last one — you may be ready to stabilise this schema and run the full collection.'
-                : 'This pilot round is fully reviewed. Stabilise this schema whenever you trust it, to unlock a full collection-level Batch Extraction — or keep piloting on a new set of documents first.'}
+                ? 'This pilot round looks cleaner than the last one — you may be ready to approve this schema for batch extraction and run the full collection.'
+                : 'This pilot round is fully reviewed. Approve this schema for batch extraction whenever you trust it, to unlock a full run across the collection — or keep piloting on a new set of documents first.'}
             </p>
             <Button size="sm" variant="primary" disabled={stabilising} onClick={() => void stabilise()}>
-              {stabilising ? 'Stabilising…' : 'Stabilise schema'}
+              {stabilising ? 'Approving…' : 'Approve for batch extraction'}
             </Button>
           </div>
         )}
@@ -930,7 +926,7 @@ export default function BatchExtractionReviewGrid({
               <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                 <span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-line-strong" />
               </span>
-              Grounded, pending
+              Pending
             </span>
             <span className="flex items-center gap-1.5">
               <span className="flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-green text-white">

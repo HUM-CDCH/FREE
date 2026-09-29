@@ -27,7 +27,10 @@ export type MemberReviewState =
       attempt: ExtractionAttempt
       decisions: readonly ReviewDecisionInput[]
       touched: ReadonlySet<string>
-      /** Grounded and not yet finalized — false once reviewed or ungrounded. */
+      /** Reviewable and not yet finalized — false once reviewed, or if the
+       *  Extraction attempt itself has no reviewable result at all. Not
+       *  gated by any individual field's groundedness: ungrounded-with-value
+       *  and missing fields are just as editable as grounded ones. */
       editable: boolean
       saving: boolean
       saveError: string | null

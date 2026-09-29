@@ -561,7 +561,7 @@ describe('Studio home', () => {
     const chatting = within(
       await home().findByRole('button', { name: 'Chatting' }),
     )
-    expect(chatting.getByText('Schema Chat')).toBeInTheDocument()
+    expect(chatting.getByText('Create schema')).toBeInTheDocument()
 
     const running = within(home().getByRole('button', { name: 'Running' }))
     expect(running.getByText('Extraction running')).toBeInTheDocument()
