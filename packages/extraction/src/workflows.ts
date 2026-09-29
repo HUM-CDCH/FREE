@@ -94,6 +94,8 @@ export function extractionFailureOf(outcome: Extract<KeiOutcome<unknown>, { ok: 
   switch (outcome.code) {
     case 'stale_generation': return { code: 'invalid_source_representation', message: outcome.reason.slice(0, 512), phase }
     case 'model_unavailable': return { code: 'model_unavailable', message: outcome.reason.slice(0, 512), phase }
+    // The unified Catalog's pinned budgets do not fit what is served now, or no minimum request fits them.
+    case 'budget_refused': return { code: 'budget_refused', message: outcome.reason.slice(0, 512), phase }
     case 'cancelled': return { code: 'cancelled', message: 'The Extraction was cancelled.', phase }
     case 'deadline_exceeded':
       return { code: 'extraction_failed', message: `The Extraction did not finish within its time limit (${EXTRACTION_TIMEOUT_MS[strategy] / 3_600_000} hours).`, phase }

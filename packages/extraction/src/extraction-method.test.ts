@@ -5,7 +5,8 @@ import {
   activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, canonicalArticle,
   canonicalExtractionSettings, canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
   identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG,
-  storedSettings, validateArticleOptions, type ActiveSettings, type ArticleSettings, type ExtractionSettings,
+  storedSettings, UNIFIED_CATALOG_DEFAULTS, unifiedCatalogEnabled, unifiedCatalogSettingsSchema, validateArticleOptions,
+  type ActiveSettings, type ArticleSettings, type ExtractionSettings,
 } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
 import { parseSchemaDefinition } from './schema.js'
@@ -217,4 +218,51 @@ test('identity fields are checked against the pinned schema exactly as the share
     identityFieldsMessage(identityFieldIssues(nodes, ['Species', 'tags'])),
     'These identity fields are not scalar record fields of the selected Schema Revision: Species (not in this schema), tags (not a single value).',
   )
+})
+
+test('the unified Catalog defaults and option bounds are the service\'s', () => {
+  const shared = fixture('unified-catalog-options') as { defaults: Record<string, unknown>; valid: unknown[]; invalid: unknown[] }
+  assert.deepEqual(shared.defaults, UNIFIED_CATALOG_DEFAULTS)
+  for (const options of shared.valid) assert.deepEqual(unifiedCatalogSettingsSchema.parse(options), options)
+  for (const options of shared.invalid)
+    assert.equal(unifiedCatalogSettingsSchema.safeParse(options).success, false, JSON.stringify(options))
+})
+
+test('where the deployment enables it, a new Catalog Extraction uses the unified method, never a recipe', () => {
+  assert.equal(unifiedCatalogEnabled({}), false)
+  assert.equal(unifiedCatalogEnabled({ FREE_CATALOG_METHOD: 'unified' }), true)
+  const saved: ExtractionSettings = { catalog: { unified: { overlap: 0, verification: false } } }
+  // The defaults version is always pinned, so a method left wholly to the defaults stays identifiable.
+  assert.deepEqual(activeMethod(null, {}, 'CATALOG', null, true), { models: null, settings: { unified: { defaults: 1 } } })
+  const method = activeMethod({ fields: 'nuextract' }, saved, 'CATALOG', 'numbered-catalogue-de@1', true)
+  assert.deepEqual(method.settings, { unified: { defaults: 1, overlap: 0, verification: false } })
+  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, method.models, method.settings)), {
+    strategy: 'catalog', models: { fields: 'nuextract' }, unified: { defaults: 1, overlap: 0, verification: false },
+  })
+  // Article and the legacy slots are untouched by the unified preference.
+  assert.deepEqual(activeSettings(saved, 'CATALOG', null), { generic: null })
+  assert.deepEqual(activeSettings(saved, 'ARTICLE', null, true), { article: null })
+  // A submitted unified intent is canonical; a unified method never carries a recipe.
+  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { verification: false, defaults: 1 } } }, 'CATALOG', null),
+    { models: null, settings: { unified: { defaults: 1, verification: false } } })
+  assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 1 } } }, 'CATALOG', 'numbered-catalogue-de@1'), null)
+  assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 1 } } }, 'ARTICLE', null), null)
+  assert.deepEqual(storedSettings({ unified: { defaults: 1 } }, 'CATALOG', null), { unified: { defaults: 1 } })
+  assert.throws(() => storedSettings({ unified: { defaults: 1 } }, 'CATALOG', 'numbered-catalogue-de@1'), ExtractionError)
+})
+
+test('legacy Catalog preferences refuse new unified Catalog admission until migrated, and keep Article usable', () => {
+  const account = (catalog: unknown) => ({ extractionModels: {}, extractionSettings: { catalog } })
+  for (const legacy of [{ generic: { record_chars: 30_000 } }, { recipe: { factors: { glossary: false } } }])
+    assert.throws(() => accountMethod(account(legacy), 'CATALOG', null, true),
+      (error: unknown) => error instanceof ExtractionError && error.code === 'catalog_migration_required')
+  const legacy = account({ generic: { record_chars: 30_000 } })
+  assert.deepEqual(accountMethod(legacy, 'ARTICLE', null, true), { models: null, settings: { article: null } })
+  // Without the deployment's switch the legacy method is unchanged, character limits and all.
+  assert.deepEqual(accountMethod(legacy, 'CATALOG', null), { models: null, settings: { generic: { record_chars: 30_000 } } })
+  // Applying the unified group replaces the Catalog branch: nothing legacy is left to migrate.
+  const applied = canonicalExtractionSettings({ catalog: { unified: { overlap: 2 } } })
+  assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG', null, true).settings, { unified: { defaults: 1, overlap: 2 } })
+  assert.deepEqual(canonicalExtractionSettings({ catalog: { unified: {} } }), {})
+  assert.equal(extractionSettingsSchema.safeParse({ catalog: { unified: { input_tokens: 100 } } }).success, false)
 })

@@ -1,3 +1,4 @@
+import type { UnifiedDiagnostics } from './kei-artifact.js'
 export type ExtractionStrategy = 'ARTICLE' | 'CATALOG'
 export type ExtractionOutcome = 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
 export type ExtractionDisposition = 'created' | 'replayed'
@@ -25,8 +26,9 @@ export type EvidenceLink = Readonly<{
    *  exactly one candidate. Absent means the grounder chose the anchor. */
   linkedBy?: 'citation_lexical' | 'lexical'
   /** Version 2 (recipe Catalog) evidence: code-point spans of the value in its canonical segment, the key that
-   *  introduced it or the heading it was inherited from, and the precision its box can claim. Absent on version 1. */
-  grounding?: EvidenceGrounding
+   *  introduced it or the heading it was inherited from, and the precision its box can claim. Version 3 (unified
+   *  Catalog): the verified value's literal span or supporting passage. Absent on version 1. */
+  grounding?: EvidenceGrounding | VerifiedGrounding
 }>
 
 export type TextSpan = Readonly<{ segment: string; start: number; end: number }>
@@ -42,6 +44,19 @@ export type EvidenceGrounding = Readonly<{
   raw: string
   /** The document's own glossary expansion of `raw`, with both glossary spans; the record keeps the raw value. */
   normalized: Readonly<{ value: string; rule: 'glossary'; keySpan: TextSpan; expansionSpan: TextSpan }> | null
+}>
+
+/** Version 3 evidence: a separate verification request accepted the value; `literal` spans print the value itself,
+ *  `supporting` spans are the passage that supports a yes/no, a label or a derived value. `itemSpans` locate the list
+ *  item the value belongs to. */
+export type VerifiedGrounding = Readonly<{
+  linkedBy: 'verification'
+  support: 'literal' | 'supporting'
+  textSpans: readonly TextSpan[]
+  alternatives: readonly (readonly TextSpan[])[]
+  precision: 'cell' | 'segment' | 'input'
+  raw: string
+  itemSpans: readonly TextSpan[] | null
 }>
 
 /** A candidate the recipe path kept for review rather than accepting: proposed (quote-supported, no rule ties it to
@@ -200,6 +215,8 @@ export type ExtractionDiagnostics = Readonly<{
   catalog: CatalogDiagnostics | null
   /** The recipe path's review material and separated completeness; absent on version 1 results. */
   grounded?: GroundedDiagnostics | null
+  /** The unified Catalog's method, source accounting, processing and review material; version 3 results only. */
+  unified?: UnifiedDiagnostics | null
   /** The model each role ran on; absent on results from before kei-exp routed calls by role. */
   models?: ExtractionModelsUsed | null
   /** What the Parsing Service reports it ran; absent on results from before it was kept. */

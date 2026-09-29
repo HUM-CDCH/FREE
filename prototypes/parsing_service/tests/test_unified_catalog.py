@@ -7,8 +7,11 @@ whole document only to answer honestly whether its window begins or ends inside 
 budgets are easy to reason about; the chat reports the same count, as an honest server does.
 """
 import json
+import os
 import re
 from dataclasses import replace
+from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -16,8 +19,10 @@ from kei_exp.canonical import canonical_json
 from kei_exp.kie.extract import discovery, run, unified
 from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.models import as_router
-from kei_exp.kie.passages import Evidence, Passage
+from kei_exp.kie.passages import Evidence, Passage, load
 from kei_exp.pagefile import PageTable, TableCell
+from tests.helpers import catalogue
+from tests.helpers.contracts import FIXTURES
 from tests.test_extract_grounded import CountingChat, WordCounter
 
 SCHEMA = {"recordDescription": "One entry of a catalogue of finds.", "schemaNodes": [
@@ -633,3 +638,42 @@ def test_the_unified_modules_know_no_recipe():
                     if line.startswith(("import ", "from "))}
         assert not imported & {"kei_exp.kie.recipe", "kei_exp.kie.segmentation", "kei_exp.kie.segmentation_run",
                                "kei_exp.kie.extract.grounded", "kei_exp.kie.extract.catalog"}
+
+
+# --- the cross-language contract ------------------------------------------------------------------------------------
+
+def test_the_version_3_contract_fixture_is_what_the_service_produces(tmp_path, monkeypatch):
+    """Studio's acceptance test reads this fixture: a unified artifact over a written canonical result, with the
+    manifest and page files it was read from, so digests over non-ASCII text and evidence anchors are checked across
+    languages. Set `FREE_UPDATE_GOLDEN=1` to rewrite it after a reviewed contract change."""
+    case = {"transcriber": "native", "source_name": "katalog.pdf", "pages": [{"page": 1, "units": [{"index": 0, "segments": [
+        "Vorwort: Funde aus Schäfers Grabung. Title: Fundkatalog Süd.", "12. Adorf. Material: Bronze. Find: Nadel (2).",
+        "第3号 北京出土 Material: Jade. Gilded."]}]}]}
+    run_dir = catalogue.write(case, tmp_path / "run-contract")
+    monkeypatch.setattr(unified, "datetime", SimpleNamespace(now=lambda tz=None: datetime(2026, 9, 29, 12, tzinfo=UTC)))
+    monkeypatch.setattr(unified, "time", SimpleNamespace(monotonic=lambda: 100.0))
+    source = load(run_dir)
+    produced = unified.extract(run_dir, source, request(), as_router(CountingChat(Model(source))), counter=WordCounter(),
+                               extraction_id="x-contract")
+    assert produced["complete"] is True and len(produced["records"]) == 2
+    fixture = {"extraction_id": "x-contract",
+               "request": {"run_id": source.run_id, "generation": source.generation, "request": {
+                   "schema": SCHEMA, "options": {"strategy": "catalog", "unified": {"defaults": 1}}}},
+               "manifest": json.loads((run_dir / "result" / "result.json").read_text(encoding="utf-8")),
+               "pages": [json.loads((run_dir / "result" / "pages" / "1.json").read_text(encoding="utf-8"))],
+               "artifact": produced}
+    text = json.dumps(fixture, ensure_ascii=False, indent=2) + "\n"
+    path = FIXTURES / "extract.result.v3.json"
+    if os.environ.get("FREE_UPDATE_GOLDEN") == "1":
+        path.write_text(text, encoding="utf-8")
+    assert text == path.read_text(encoding="utf-8")
+
+
+def test_the_defaults_and_option_bounds_match_the_shared_fixture():
+    shared = json.loads((FIXTURES / "unified-catalog-options.json").read_text(encoding="utf-8"))
+    assert {int(version): defaults for version, defaults in shared["defaults"].items()} == unified.DEFAULTS
+    for options in shared["valid"]:
+        assert unified.UnifiedOptions.model_validate(options).dumped() == options
+    for options in shared["invalid"]:
+        with pytest.raises(ValueError):
+            unified.UnifiedOptions.model_validate(options)
