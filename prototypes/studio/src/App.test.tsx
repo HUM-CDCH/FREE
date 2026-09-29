@@ -87,7 +87,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
     private scaleValue: string | null = null
     private scale = 1
     private eventBus: {
-      dispatch: (name: string, event: { scale: number }) => void
+      dispatch: (name: string, event: unknown) => void
     }
 
     firstPagePromise: Promise<void> | null = null
@@ -95,9 +95,14 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
     constructor({
       eventBus,
     }: {
-      eventBus: { dispatch: (name: string, event: { scale: number }) => void }
+      eventBus: { dispatch: (name: string, event: unknown) => void }
     }) {
       this.eventBus = eventBus
+    }
+
+    // As pdf.js: moving to a page announces it.
+    set currentPageNumber(pageNumber: number) {
+      this.eventBus.dispatch('pagechanging', { pageNumber })
     }
 
     get currentScale() {
@@ -1184,6 +1189,71 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getAllByRole('button', { name: 'Cancellation requested…' })).toHaveLength(2)
     for (const control of screen.getAllByRole('button', { name: 'Cancellation requested…' }))
       expect(control).toBeDisabled()
+  })
+
+  it('samples the viewed page and its neighbours or strip pages, saves the schema, then admits; a refused admission only admits again', async () => {
+    const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
+    const schemaSaves: unknown[] = []
+    const runs: Array<{ id: string; schemaRevisionId: string; pages?: number[] }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?'))
+          return Promise.resolve(Response.json({ revisions: [] }))
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const request = JSON.parse(String(init.body)) as { recordDescription: string; schemaNodes: SchemaNode[] }
+          schemaSaves.push(request)
+          return Promise.resolve(Response.json({
+            revision: {
+              schemaRevisionId: savedSchemaRevisionId,
+              extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+              revisionNumber: 2, origin: 'researcher-edit', createdAt: '2026-08-12T00:00:00.000Z',
+              recordDescription: request.recordDescription, schemaNodes: request.schemaNodes,
+            },
+          }, { status: 201 }))
+        }
+        if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as (typeof runs)[number]
+          runs.push(body)
+          return Promise.resolve(runs.length === 1
+            ? Response.json({ error: { code: 'invalid_request', message: 'The sample was refused.' } }, { status: 422 })
+            : Response.json({ ...reopened.persistedExtraction, extractionId: body.id, schemaRevisionId: savedSchemaRevisionId,
+              requestedPages: body.pages }, { status: 201 }))
+        }
+        return Promise.resolve(new Response('pdf'))
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Go to page 2' }))
+    expect(screen.getByText('Around page 2:')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '± 1 page' }))
+    expect(screen.getByText('pp. 1–3')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove page 3 from the sample' }))
+    expect(screen.getByRole('button', { name: 'Add page 3 to the sample' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('2 pages')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run sample on pp. 1–2' }))
+    await waitFor(() => expect(runs).toHaveLength(1))
+    expect(schemaSaves).toHaveLength(1)
+    expect(runs[0]).toMatchObject({ schemaRevisionId: savedSchemaRevisionId, pages: [1, 2] })
+
+    // Refused: the revision stays saved, so running the sample again only admits.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run sample on pp. 1–2' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Run sample on pp. 1–2' }))
+    await waitFor(() => expect(runs).toHaveLength(2))
+    expect(schemaSaves).toHaveLength(1)
+    expect(runs[1]).toMatchObject({ schemaRevisionId: savedSchemaRevisionId, pages: [1, 2] })
+    // The sample is its own attempt: the whole-document result stays what Results shows.
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(await screen.findByText('Ellekilde')).toBeInTheDocument()
   })
 
   it.each([[null], ['numbered-catalogue-de@1']])('submits the selected Catalog strategy and record boundaries (%s) once, then defaults back to Article', async (recipe) => {

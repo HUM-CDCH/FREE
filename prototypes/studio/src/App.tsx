@@ -23,7 +23,7 @@ import { savedMethodFor, useSavedMethod } from './savedMethod'
 import { SavedMethodSummary } from './SavedMethodSummary'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
 import ExtractionFinishedDialog from './ExtractionFinishedDialog'
-import { Button, Spinner } from './ui'
+import { Button, Overline, Spinner } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
@@ -48,6 +48,20 @@ const HIGHLIGHT_ANNOTATIONS_ENABLED = false
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
 // (AnnotationEditorLayer #textLayerPointerDown): the text-layer background
 // and its non-text children.
+/** Sorted pages as the researcher reads them: `12–14, 17`. */
+function pageRanges(pages: readonly number[]): string {
+  const parts: string[] = []
+  for (let i = 0; i < pages.length; i += 1) {
+    let j = i
+    while (j + 1 < pages.length && pages[j + 1] === pages[j]! + 1) j += 1
+    parts.push(j > i ? `${pages[i]}–${pages[j]}` : String(pages[i]))
+    i = j
+  }
+  return parts.join(', ')
+}
+
+const SAMPLE_PAGE_LIMIT = 30
+
 function isFreeHighlightTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) {
     return false
@@ -175,6 +189,9 @@ export function DocumentWorkspace({
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
   const [savingForRun, setSavingForRun] = useState(false)
+  // The page the viewer shows (pdf.js `pagechanging`) and the pages the next Sample Extraction runs on.
+  const [currentPage, setCurrentPage] = useState(1)
+  const [samplePages, setSamplePages] = useState<number[]>([])
   // One-shot per-run selection: each new run defaults back to Article, and the
   // selector never changes the strategy of an active or persisted attempt.
   const [nextExtractionStrategy, setNextExtractionStrategy] =
@@ -301,6 +318,10 @@ export function DocumentWorkspace({
       setZoomPercent(Math.round(scale * 100))
     }
     eventBus.on('scalechanging', syncZoom, { signal: abortController.signal })
+    eventBus.on('pagechanging', ({ pageNumber }: { pageNumber: number }) => setCurrentPage(pageNumber),
+      { signal: abortController.signal })
+    setCurrentPage(1)
+    setSamplePages([])
 
     container.addEventListener(
       'wheel',
@@ -549,17 +570,35 @@ export function DocumentWorkspace({
   // The account's saved method: a run submits what it saw, and admission refuses it if an Apply changed it since.
   const saved = useSavedMethod()
   const [methodConflict, setMethodConflict] = useState<string | null>(null)
+  const reviewTarget = sourceRepresentationId
+    ? { sourceRepresentationId, schemaRevisionId: schemaSnap.extractableSchemaRevisionId }
+    : null
+  // Nothing started. The refresh either keeps this Source Representation, now no longer current (Run is then
+  // disabled), or moves to the reprocessed one; either way the notice outlives that switch.
+  const onSuperseded = () => {
+    showToast('This document has been reprocessed — no new Extraction was started', {
+      outlivesSwitch: true,
+      durationMs: 6000,
+    })
+    onSourceSuperseded?.()
+  }
+  // A Sample Extraction is its own attempt: it never replaces the whole-document one the Results tab shows.
+  const sample = useExtraction({
+    schemaReady,
+    indexing,
+    documentKey: sourceRepresentationId,
+    reviewTarget,
+    onTerminal: (attempt) => showToast(attempt.executionStatus === 'FAILED' ? 'Sample failed' : '✓ Sample complete'),
+    onError: (message) => showToast(message),
+    onSuperseded,
+    onMethodChanged: setMethodConflict,
+  })
   const extraction = useExtraction({
     schemaReady,
     indexing,
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
-    reviewTarget: sourceRepresentationId
-      ? {
-          sourceRepresentationId,
-          schemaRevisionId: schemaSnap.extractableSchemaRevisionId,
-        }
-      : null,
+    reviewTarget,
     // Completion preserves the rail tab and inspected snapshot; a completion
     // report temporarily takes focus until dismissed or Review now is chosen.
     onTerminal: (attempt, isRerun) => {
@@ -582,15 +621,7 @@ export function DocumentWorkspace({
         )
     },
     onError: () => showToast('Extraction failed — see details in Results'),
-    // Nothing started. The refresh either keeps this Source Representation, now no longer current (Run is then
-    // disabled), or moves to the reprocessed one; either way the notice outlives that switch.
-    onSuperseded: () => {
-      showToast('This document has been reprocessed — no new Extraction was started', {
-        outlivesSwitch: true,
-        durationMs: 6000,
-      })
-      onSourceSuperseded?.()
-    },
+    onSuperseded,
     onMethodChanged: setMethodConflict,
   })
 
@@ -621,6 +652,8 @@ export function DocumentWorkspace({
   const running =
     latestAttempt?.executionStatus === 'QUEUED' ||
     latestAttempt?.executionStatus === 'RUNNING'
+  const sampleRunning =
+    sample.attempt?.executionStatus === 'QUEUED' || sample.attempt?.executionStatus === 'RUNNING'
   const reviewedOnAnotherSource = latestReviewedExtraction &&
     latestReviewedExtraction.sourceRepresentationRevisionId !== sourceRepresentationId
   const inspectionChoices = latestAttempt && latestReviewedExtraction && !reviewedOnAnotherSource && latestAttempt.extractionId !== latestReviewedExtraction.extractionId
@@ -677,8 +710,10 @@ export function DocumentWorkspace({
     active: effectiveRailOpen && railTab === 'results',
   })
 
-  async function runExtraction() {
-    if (savingForRun || running || !sourceRepresentationCurrent || saved.state.status !== 'ready') return
+  /** Saves pending schema edits as the Current Schema Revision, then admits the run: a Sample Extraction on `pages`,
+   *  else the whole document. A failed admission leaves the revision saved; running again only admits. */
+  async function runExtraction(pages: number[] | null = null) {
+    if (savingForRun || running || sampleRunning || !sourceRepresentationCurrent || saved.state.status !== 'ready') return
     const savedConfig = saved.state.config
     setSavingForRun(true)
     const targetSourceRepresentationId = sourceRepresentationId
@@ -697,7 +732,7 @@ export function DocumentWorkspace({
       setMethodConflict(null)
       // The researcher asked for this run, so it is what they now inspect;
       // its schema is known before the server acknowledges the attempt.
-      setSelectedInspectionId(null)
+      if (!pages) setSelectedInspectionId(null)
       setKnownSchemas((known) => ({
         ...known,
         [revision.schemaRevisionId]: {
@@ -707,7 +742,7 @@ export function DocumentWorkspace({
           schemaNodes: revision.schemaNodes,
         },
       }))
-      const acknowledged = await extraction.runExtraction(
+      const acknowledged = await (pages ? sample : extraction).runExtraction(
         method,
         {
           sourceRepresentationId: targetSourceRepresentationId,
@@ -715,8 +750,9 @@ export function DocumentWorkspace({
         },
         strategy,
         catalogRecipe,
+        pages,
       )
-      if (!acknowledged) return
+      if (!acknowledged || pages) return
       selectNextRunAfter(acknowledged)
       if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
         if (acknowledged.outcome === 'SUCCEEDED')
@@ -738,6 +774,7 @@ export function DocumentWorkspace({
     saved.state.status !== 'ready' ||
     savingForRun ||
     running ||
+    sampleRunning ||
     !sourceRepresentationId ||
     !sourceRepresentationCurrent ||
     !schemaReady ||
@@ -932,9 +969,61 @@ export function DocumentWorkspace({
       )}
       <div className="min-h-0 flex-1 overflow-hidden p-1 sm:p-3">
         <div className="relative flex h-full min-h-0 overflow-hidden rounded-lg border border-line sm:rounded-2xl">
-          <section className="relative min-h-0 min-w-0 flex-1" aria-label="PDF document">
-            <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
-              <div className="pdfViewer" ref={setViewerNode} />
+          <section className="relative flex min-h-0 min-w-0 flex-1 flex-col" aria-label="PDF document">
+            {loadState.status === 'ready' && (
+              <div className="flex shrink-0 flex-col gap-2 border-b border-line bg-surface px-3.5 py-2.5 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Overline>Sample</Overline>
+                  <span className="font-semibold">{samplePages.length ? `pp. ${pageRanges(samplePages)}` : 'No pages chosen'}</span>
+                  <span className="text-ink-muted">{samplePages.length} {samplePages.length === 1 ? 'page' : 'pages'}</span>
+                  <span className="ml-auto text-ink-muted">Around page {currentPage}:</span>
+                  {(['This page', '± 1 page', '± 2 pages'] as const).map((label, reach) => (
+                    <Button key={label} variant="pill" onClick={() => setSamplePages(Array.from(
+                      { length: 2 * reach + 1 }, (_, index) => currentPage - reach + index,
+                    ).filter((page) => page >= 1 && page <= loadState.pageCount))}>
+                      {label}
+                    </Button>
+                  ))}
+                  <Button variant="primary" disabled={samplePages.length === 0 || runExtractionUnavailable}
+                    onClick={() => void runExtraction(samplePages)}>
+                    {samplePages.length ? `Run sample on pp. ${pageRanges(samplePages)}` : 'Run sample'}
+                  </Button>
+                </div>
+                {/* ponytail: numbered tiles, not rendered thumbnails; render pages here if tiles prove too abstract. */}
+                <div className="flex gap-2 overflow-x-auto" role="group" aria-label="Sample pages">
+                  {Array.from({ length: Math.min(9, loadState.pageCount) },
+                    (_, index) => Math.max(1, Math.min(loadState.pageCount - 8, currentPage - 4)) + index,
+                  ).map((page) => {
+                    const inSample = samplePages.includes(page)
+                    return (
+                      <div key={page} className="flex flex-col items-center gap-1">
+                        <button type="button" aria-label={`Go to page ${page}`}
+                          aria-current={page === currentPage ? 'page' : undefined}
+                          onClick={() => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }}
+                          className={`h-10 w-8 rounded-[3px] border bg-canvas text-[10.5px] text-ink-muted ${
+                            inSample ? 'border-accent' : 'border-line'} ${page === currentPage ? 'ring-2 ring-ink' : ''}`}>
+                          {page}
+                        </button>
+                        <button type="button" aria-pressed={inSample}
+                          aria-label={inSample ? `Remove page ${page} from the sample` : `Add page ${page} to the sample`}
+                          disabled={!inSample && samplePages.length >= SAMPLE_PAGE_LIMIT}
+                          onClick={() => setSamplePages((pages) => inSample
+                            ? pages.filter((each) => each !== page)
+                            : [...pages, page].sort((left, right) => left - right))}
+                          className={`min-w-8 rounded-full px-1.5 text-[10.5px] font-bold disabled:opacity-40 ${
+                            inSample ? 'bg-accent-soft text-accent' : 'bg-surface-muted text-ink-muted'}`}>
+                          {inSample ? '✓' : '+'}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="relative min-h-0 flex-1">
+              <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
+                <div className="pdfViewer" ref={setViewerNode} />
+              </div>
             </div>
             {loadState.status === 'loading' && (
               <Spinner

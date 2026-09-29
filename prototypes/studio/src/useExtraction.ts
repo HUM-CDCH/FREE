@@ -33,6 +33,8 @@ type ExtractionRunRequest = Readonly<{
   catalogRecipe?: string
   /** The saved method the start view showed; admission refuses it if the account's changed since. */
   method: ExtractionMethodIntent
+  /** A Sample Extraction's pages; absent for the whole document. */
+  pages?: number[]
 }>
 
 export type ReviewTarget = {
@@ -469,6 +471,7 @@ export function useExtraction({
     target: ReviewTarget | null = reviewTarget,
     strategy: ExtractionStrategy = 'ARTICLE',
     catalogRecipe: string | null = null,
+    pages: number[] | null = null,
   ) {
     if (!target?.schemaRevisionId) return null
     return runRequest(attempt !== null, {
@@ -477,6 +480,7 @@ export function useExtraction({
       strategy,
       ...(strategy === 'CATALOG' && catalogRecipe ? { catalogRecipe } : {}),
       method,
+      ...(pages ? { pages } : {}),
     })
   }
 
