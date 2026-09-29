@@ -7,7 +7,7 @@ catalogue's truth. The summary is the loop's only yardstick; every row of log.md
 
 CASE is a `tests/fixtures/catalogue` name (no truth), `big` (the rev-8 200-entry catalogue), or `FILE.py:FUNCTION`
 (relative to /repo) returning {"case": <catalogue fixture dict>, "schema": <FREE schema>,
-"truth": {label: {field: value}}}. The scorer may know the truth; the method under test must not.
+"truth": {label: {field: value}}} and optionally "label", a function from a printed label to its truth key. The scorer may know the truth; the method under test must not.
 """
 import collections
 import json
@@ -54,7 +54,8 @@ def summary(result: dict, name: str, spec: dict | None, discovery_wall: float | 
            "tokens_per_place": round(succeeded / places, 1) if places else None, "rejected": reasons(result["rejected"]), "proposed": reasons(result["proposed"])}
     if spec:
         truth = spec["truth"]
-        labels = [(entry["label"] or "").rstrip(".") for entry in entries]
+        key = spec.get("label") or (lambda label: label.rstrip("."))  # the truth's key for a printed label
+        labels = [key(entry["label"] or "") for entry in entries]
         score: collections.Counter = collections.Counter()
         for entry_label, record in zip(labels, result["records"], strict=True):
             for field, want in truth.get(entry_label, {}).items():
