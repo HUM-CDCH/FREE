@@ -26,6 +26,7 @@ import { parseUnknownJson } from './_model_output.js'
 import { executeEditPrompt, type ModelCaller, type ModelDependencies } from './_model_execution.js'
 import type { ExecutionTarget } from './_provider.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
+import { traceModelCall } from '../server/tracing.js'
 
 const modelEnvelopeSchema = z.object({
   fields: z.record(z.string(), z.unknown()),
@@ -146,11 +147,11 @@ export async function proposeSchemaEdit(
     (await generateSchemaEditJson(options.caller, prompt, temperature, options.signal, target)).text)
 
   try {
-    const initial = await readEnvelope(await generate(
+    const initial = await traceModelCall('schema-edit', async () => readEnvelope(await generate(
       schemaEditPrompt(fields.map(({ id, node }) => toPromptField(id, node)), instruction, documentMarkdown),
       options.temperature,
       options.target,
-    ))
+    )))
     const unknownIssues = unknownFieldIssues(initial.fields, expected)
     const additions = validatedAdditions(initial.additions, unknownIssues)
     const accepted = new Map<string, FieldEdit>()
@@ -160,11 +161,11 @@ export async function proposeSchemaEdit(
       try {
         const retryIds = [...unresolved.keys()]
         const retryExpected = new Map(retryIds.map((id) => [id, expected.get(id)!]))
-        const retry = await readEnvelope(await generate(
+        const retry = await traceModelCall('schema-edit-repair', async () => readEnvelope(await generate(
           retryPrompt(retryIds.map((id) => toPromptField(id, expected.get(id)!.node)), instruction),
           options.temperature,
           options.target,
-        ))
+        )))
         unknownIssues.push(...unknownFieldIssues(retry.fields, retryExpected))
         unresolved = validateExpected(retry.fields, retryExpected, accepted)
       } catch (error) {

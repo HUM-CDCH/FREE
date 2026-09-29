@@ -207,6 +207,17 @@ describe('development launcher profiles', () => {
     ])
   })
 
+  it('adds the Phoenix profile and turns tracing on only with --phoenix', () => {
+    const plain = deriveDevProfile(parseDevOptions([]), interfaces)
+    const phoenix = deriveDevProfile(parseDevOptions(['--phoenix']), interfaces)
+
+    assert.ok(developmentComposeArguments(phoenix).join(' ').includes('--profile mock-oidc --profile phoenix'))
+    assert.equal(developmentComposeEnvironment(phoenix, {}, 'test-secret').FREE_PHOENIX, '1')
+    assert.ok(!developmentComposeArguments(plain).includes('phoenix'))
+    // An inherited FREE_PHOENIX cannot turn tracing on without the profile's collector.
+    assert.equal(developmentComposeEnvironment(plain, { FREE_PHOENIX: '1' }, 'test-secret').FREE_PHOENIX, '')
+  })
+
   it('selects Wi-Fi ahead of other private adapters', () => {
     assert.equal(selectWifiAddress(interfaces), '192.168.1.149')
     const profile = deriveDevProfile(parseDevOptions(['--wifi']), interfaces)

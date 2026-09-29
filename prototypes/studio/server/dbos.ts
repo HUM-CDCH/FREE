@@ -2,6 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { DBOS, DBOSClient, type DBOSConfig } from '@dbos-inc/dbos-sdk'
 import { KEI_APPLICATION } from 'extraction/kei-handoff'
 import pg from 'pg'
+import { startTracing } from './tracing.js'
 
 export const STUDIO_APPLICATION = 'studio'
 export const STUDIO_SCHEMA = 'dbos'
@@ -93,7 +94,8 @@ export function launchStudioDbos(options: StudioDbosOptions): Promise<StudioDbos
 async function start(options: StudioDbosOptions): Promise<StudioDbos> {
   const bootTimestampMs = await databaseClockMs(options.databaseUrl)
   options.register()
-  DBOS.setConfig(studioDbosConfig(options))
+  // Before launch: DBOS installs its own exporter-less tracer provider when none is registered.
+  DBOS.setConfig({ ...studioDbosConfig(options), tracingEnabled: await startTracing() })
   const clients: DBOSClient[] = []
   try {
     // DBOS can dispatch recovered work during launch, before these queues are registered again. Client construction
