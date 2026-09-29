@@ -134,7 +134,8 @@ export function sectionSummary(article: ArticleSettings, section: ArticleSection
   }
 }
 
-const shownValue = (article: ArticleSettings, key: ArticleKey): string =>
+/** A setting's value as a researcher reads it; the unused ceiling says so. */
+export const describeArticleValue = (article: ArticleSettings, key: ArticleKey): string =>
   key === 'context_tokens'
     ? (article.context === 'bounded' ? `${numberText(article.context_tokens)} tokens` : 'Used with bounded source units')
     : key === 'identity_fields'
@@ -144,7 +145,7 @@ const shownValue = (article: ArticleSettings, key: ArticleKey): string =>
 /** Sections whose shown values differ from the saved settings (service defaults compare as the reference). */
 export function changedSections(draft: ArticleSettings, saved: ArticleSettings | undefined): ReadonlySet<ArticleSection> {
   const before = saved ?? REFERENCE_ARTICLE
-  return new Set(ARTICLE_KEYS.filter((key) => shownValue(draft, key) !== shownValue(before, key)).map((key) => SECTION_OF[key]))
+  return new Set(ARTICLE_KEYS.filter((key) => describeArticleValue(draft, key) !== describeArticleValue(before, key)).map((key) => SECTION_OF[key]))
 }
 
 export type StartingPoint = Readonly<{ name: string; description: string; assign: Readonly<Partial<Record<ArticleKey, unknown>>> }>
@@ -183,8 +184,8 @@ export function settingsDelta(before: ArticleSettings | undefined, after: Articl
   return [
     ...(before ? [] : [{ label: 'Article settings', from: 'Service defaults', to: 'Customized' }]),
     ...ARTICLE_SECTIONS.flatMap(({ keys }) => keys)
-      .filter((key) => shownValue(base, key) !== shownValue(after, key))
-      .map((key) => ({ label: CONTROL_LABELS[key], from: shownValue(base, key), to: shownValue(after, key) })),
+      .filter((key) => describeArticleValue(base, key) !== describeArticleValue(after, key))
+      .map((key) => ({ label: CONTROL_LABELS[key], from: describeArticleValue(base, key), to: describeArticleValue(after, key) })),
   ]
 }
 

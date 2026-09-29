@@ -20,6 +20,7 @@ import {
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 import { useExtraction } from './useExtraction'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
+import { SavedMethodSummary } from './SavedMethodSummary'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
 import ExtractionFinishedDialog from './ExtractionFinishedDialog'
 import { Button, Spinner } from './ui'
@@ -547,6 +548,7 @@ export function DocumentWorkspace({
 
   // The account's saved method: a run submits what it saw, and admission refuses it if an Apply changed it since.
   const saved = useSavedMethod()
+  const [methodConflict, setMethodConflict] = useState<string | null>(null)
   const extraction = useExtraction({
     schemaReady,
     indexing,
@@ -589,6 +591,7 @@ export function DocumentWorkspace({
       })
       onSourceSuperseded?.()
     },
+    onMethodChanged: setMethodConflict,
   })
 
   /**
@@ -691,6 +694,7 @@ export function DocumentWorkspace({
       const strategy = nextExtractionStrategy
       const catalogRecipe = nextCatalogRecipe || null
       const method = savedMethodFor(savedConfig, strategy, catalogRecipe)
+      setMethodConflict(null)
       // The researcher asked for this run, so it is what they now inspect;
       // its schema is known before the server acknowledges the attempt.
       setSelectedInspectionId(null)
@@ -886,6 +890,13 @@ export function DocumentWorkspace({
                 ))}
               </select>
             </label>
+          )}
+          {!running && (
+            <SavedMethodSummary variant="toolbar" saved={saved.state} conflict={methodConflict}
+              method={saved.state.status === 'ready'
+                ? savedMethodFor(saved.state.config, nextExtractionStrategy, nextExtractionStrategy === 'CATALOG' ? nextCatalogRecipe || null : null)
+                : null}
+              onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
           )}
           <Button
             variant="primary"

@@ -57,6 +57,8 @@ type UseExtractionOptions = {
    * it stops offering runs on the old revision.
    */
   onSuperseded?: () => void
+  /** The account's saved advanced settings changed after the start view showed them: nothing started. */
+  onMethodChanged?: (message: string) => void
   initialAttempt?: ExtractionAttempt | null
   reviewTarget?: ReviewTarget | null
   /**
@@ -92,6 +94,7 @@ function definiteRejection(error: unknown): error is ApiRequestError {
 
 /** PR #140: a run on a Source Representation that reprocessing replaced is refused before anything starts. */
 const SOURCE_REPRESENTATION_SUPERSEDED = 'source_representation_superseded'
+const METHOD_CHANGED = 'method_changed'
 
 export type ExtractionController = ReturnType<typeof useExtraction>
 
@@ -150,6 +153,7 @@ export function useExtraction({
   onTerminal,
   onError,
   onSuperseded,
+  onMethodChanged,
   initialAttempt = null,
   reviewTarget = null,
   documentKey = '',
@@ -433,6 +437,13 @@ export function useExtraction({
         monitorRef.current = null
         setState(extractionStateFromAttempt(attempt))
         onSuperseded?.()
+        return null
+      }
+      if (definiteRejection(error) && error.code === METHOD_CHANGED) {
+        // Nothing started: the previous attempt stays, and the start view refreshes its summary.
+        monitorRef.current = null
+        setState(extractionStateFromAttempt(attempt))
+        onMethodChanged?.(error.message)
         return null
       }
       if (definiteRejection(error)) {

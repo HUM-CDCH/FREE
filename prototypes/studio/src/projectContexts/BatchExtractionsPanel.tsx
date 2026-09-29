@@ -35,7 +35,9 @@ import {
 } from '../useCurrentSchemaRevision'
 import type { AcknowledgedSchemaRevision } from '../schemaSaveCoordinator'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
+import { SavedMethodSummary } from '../SavedMethodSummary'
 import {
+  BatchRequestError,
   getBatchExtractionResults,
   listBatchExtractions,
   listBatchSchemaSuggestions,
@@ -79,6 +81,11 @@ const control =
 
 function failureText(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
+}
+
+/** The start was refused because the saved advanced settings changed after its summary was shown. */
+function methodChanged(error: unknown): error is BatchRequestError {
+  return error instanceof BatchRequestError && error.code === 'method_changed'
 }
 
 function stamp(value: string): string {
@@ -162,6 +169,8 @@ export default function BatchExtractionsPanel({
   // The account's saved method: a start submits what it saw, and admission refuses it if an Apply changed it since.
   const saved = useSavedMethod()
   const [runFailure, setRunFailure] = useState<string | null>(null)
+  // A start refused because the saved settings changed after the summary was shown: nothing started.
+  const [methodConflict, setMethodConflict] = useState<string | null>(null)
   // A replayed selection reopens a Batch Extraction the researcher already has,
   // which is indistinguishable from nothing happening unless it is said.
   const [runNotice, setRunNotice] = useState<string | null>(null)
@@ -222,6 +231,14 @@ export default function BatchExtractionsPanel({
     },
   })
   const activeSuggestion = suggestion.context.suggestion
+  // A suggested-batch Run refused the same way is shown with the summary, not as the suggestion's failure.
+  const suggestionMethodConflict =
+    suggestion.context.runFailureCode === 'method_changed' ? suggestion.context.error : null
+  const [seenSuggestionConflict, setSeenSuggestionConflict] = useState<string | null>(null)
+  if (suggestionMethodConflict !== seenSuggestionConflict) {
+    setSeenSuggestionConflict(suggestionMethodConflict)
+    if (suggestionMethodConflict) setMethodConflict(suggestionMethodConflict)
+  }
   const confirmedSuggestion =
     activeSuggestion?.confirmedSchemaRevisionId !== null
       ? activeSuggestion
@@ -593,6 +610,7 @@ export default function BatchExtractionsPanel({
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
+    setMethodConflict(null)
     setRunNotice(null)
     try {
       const savedRevision = await savedSchemaFlush.current?.()
@@ -605,9 +623,8 @@ export default function BatchExtractionsPanel({
       }
       acceptOpenedBatch(await openBatchExtraction(request))
     } catch (error) {
-      setRunFailure(
-        failureText(error, 'The Batch Extraction could not be opened.'),
-      )
+      if (methodChanged(error)) setMethodConflict(error.message)
+      else setRunFailure(failureText(error, 'The Batch Extraction could not be opened.'))
     } finally {
       opening.current = false
       setOpeningBatch(false)
@@ -626,6 +643,7 @@ export default function BatchExtractionsPanel({
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
+    setMethodConflict(null)
     setRunNotice(null)
     try {
       const opened = await openBatchExtraction({
@@ -643,9 +661,8 @@ export default function BatchExtractionsPanel({
       setSelected(new Set())
       openMembers(opened.batchExtraction)
     } catch (error) {
-      setRunFailure(
-        failureText(error, 'The Batch Extraction could not be run again.'),
-      )
+      if (methodChanged(error)) setMethodConflict(error.message)
+      else setRunFailure(failureText(error, 'The Batch Extraction could not be run again.'))
     } finally {
       opening.current = false
       setOpeningBatch(false)
@@ -654,6 +671,7 @@ export default function BatchExtractionsPanel({
 
   const openNewBatch = () => {
     setRunFailure(null)
+    setMethodConflict(null)
     setRunNotice(null)
     if (!canRun || saved.state.status !== 'ready') return
     if (schemaRevisionId === SUGGEST_SCHEMA) {
@@ -930,6 +948,11 @@ export default function BatchExtractionsPanel({
                 </select>
               </label>
             </div>
+            <div className="mb-3">
+              <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
+                method={saved.state.status === 'ready' ? savedMethodFor(saved.state.config, batchStrategy, null) : null}
+                onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
+            </div>
             {schemas.failure && (
               <p className="mb-3 text-[11px] text-danger" role="alert">
                 {schemas.failure}
@@ -969,7 +992,7 @@ export default function BatchExtractionsPanel({
                     Suggesting common fields…
                   </p>
                 )}
-                {(activeSuggestion?.failure || suggestion.context.error) && (
+                {(activeSuggestion?.failure || (suggestion.context.error && !suggestionMethodConflict)) && (
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-[11px] text-danger" role="alert">

@@ -51,6 +51,8 @@ export function useBatchSchemaSuggestion({
         (error.failure.code === 'draft_conflict' || error.failure.code === 'attempt_conflict'),
       failureMessage: (error, fallback) =>
         error instanceof Error ? error.message : fallback,
+      failureCode: (error) =>
+        error instanceof BatchSchemaSuggestionRequestError ? error.failure.code : null,
       onSuggestion,
       onRun,
     },

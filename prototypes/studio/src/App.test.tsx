@@ -1535,6 +1535,40 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByRole('button', { name: /^Run (Article|Catalog) extraction/ })).not.toBeInTheDocument()
     })
 
+    it('shows the saved advanced settings it submits; a method_changed refusal opens them with a refresh and no failure', async () => {
+      const message = 'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
+      const posts: unknown[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            posts.push(JSON.parse(String(init.body)))
+            return Promise.resolve(Response.json({ error: { code: 'method_changed', message } }, { status: 409 }))
+          }
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      saved.refresh.mockClear()
+      render(<DocumentWorkspace {...reopened} />)
+      await waitFor(() =>
+        expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+      )
+      expect(screen.getByText('Saved advanced settings')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Nothing was started'))
+      expect(posts).toHaveLength(1)
+      expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh summary' }))
+      expect(saved.refresh).toHaveBeenCalledOnce()
+      expect(screen.queryByRole('button', { name: 'Refresh summary' })).not.toBeInTheDocument()
+    })
+
     it('keeps the superseded notice when the refresh moves a plain route to the reprocessed Source Representation', async () => {
       const posts: unknown[] = []
       vi.stubGlobal(

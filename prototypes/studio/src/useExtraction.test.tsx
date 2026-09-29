@@ -626,6 +626,22 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.hasResults).toBe(true)
   })
 
+  it('a method_changed refusal starts nothing, keeps the previous attempt and reports to the start view, not as an error', async () => {
+    const message = 'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
+    vi.mocked(api.requestExtraction).mockRejectedValueOnce(new ApiRequestError(message, 409, 'method_changed'))
+    const earlier = attempt()
+    const input = { ...options(earlier), onMethodChanged: vi.fn() }
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
+
+    expect(input.onMethodChanged).toHaveBeenCalledExactlyOnceWith(message)
+    expect(input.onError).not.toHaveBeenCalled()
+    expect(api.requestExtraction).toHaveBeenCalledOnce()
+    expect(result.current.attempt).toBe(earlier)
+    expect(result.current.state.status).toBe('ready')
+  })
+
   it('offers no cancellation until the server has acknowledged the run', async () => {
     const post = Promise.withResolvers<ExtractionAttempt>()
     vi.mocked(api.requestExtraction).mockReturnValue(post.promise)

@@ -60,6 +60,7 @@ function operations(
     isConflict: () => false,
     failureMessage: (error, fallback) =>
       error instanceof Error ? error.message : fallback,
+    failureCode: () => null,
     onSuggestion: () => {},
     onRun: () => {},
     ...overrides,
@@ -305,6 +306,26 @@ describe('batchSchemaSuggestionMachine', () => {
     await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2))
     await vi.waitFor(() => expect(onRun).toHaveBeenCalledTimes(1))
     expect(actor.getSnapshot().matches('confirmed')).toBe(true)
+  })
+
+  it('keeps the code of a refused Run beside its message, and forgets it once the selection changes', async () => {
+    const refusal = Object.assign(new Error('Your saved advanced settings changed.'), { code: 'method_changed' })
+    const run = vi.fn<BatchSchemaSuggestionOperations['run']>().mockRejectedValueOnce(refusal)
+    const actor = createActor(batchSchemaSuggestionMachine, {
+      input: operations({ run, failureCode: (error) => (error === refusal ? 'method_changed' : null) }),
+    }).start()
+    const select = () => actor.send({
+      type: 'selection.changed',
+      sourceDocumentIds: ['51000000-0000-4000-8001-000000000001'],
+      suggestion: ready(),
+    })
+    select()
+
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE', method })
+    await vi.waitFor(() => expect(actor.getSnapshot().context.runFailureCode).toBe('method_changed'))
+    expect(actor.getSnapshot().context.error).toBe('Your saved advanced settings changed.')
+    select()
+    expect(actor.getSnapshot().context.runFailureCode).toBeNull()
   })
 
   it('adopts the saved draft after a version conflict', async () => {

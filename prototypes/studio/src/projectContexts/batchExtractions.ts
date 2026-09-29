@@ -35,6 +35,18 @@ export class BatchSchemaSuggestionRequestError extends Error {
     this.failure = failure
   }
 }
+/** A refused Batch Extraction request, with the server's code when it sent one (e.g. `method_changed`). */
+export class BatchRequestError extends Error {
+  readonly status: number
+  readonly code: string | null
+  constructor(status: number, code: string | null, message: string) {
+    super(message)
+    this.name = 'BatchRequestError'
+    this.status = status
+    this.code = code
+  }
+}
+
 async function read(url: string, init?: RequestInit): Promise<unknown> {
   const response = await authenticatedFetch(url, init)
   const value: unknown = await response.json().catch(() => null)
@@ -48,7 +60,9 @@ async function read(url: string, init?: RequestInit): Promise<unknown> {
         )
     }
     const error = isRecord(value) && isRecord(value.error) ? value.error : null
-    throw new Error(
+    throw new BatchRequestError(
+      response.status,
+      typeof error?.code === 'string' ? error.code : null,
       typeof error?.message === 'string'
         ? error.message
         : `Batch Extraction request failed (HTTP ${response.status}).`,

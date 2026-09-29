@@ -19,6 +19,8 @@ export type BatchSchemaSuggestionOperations = {
   ): Promise<BatchSchemaSuggestion>
   isConflict(error: unknown): boolean
   failureMessage(error: unknown, fallback: string): string
+  /** The server's refusal code, when it sent one (e.g. `method_changed`). */
+  failureCode(error: unknown): string | null
   onSuggestion(suggestion: BatchSchemaSuggestion): void
   onRun(suggestion: BatchSchemaSuggestion): void
 }
@@ -28,6 +30,8 @@ type Context = BatchSchemaSuggestionOperations & {
   suggestion: BatchSchemaSuggestion | null
   draft: SchemaDefinition | null
   error: string | null
+  /** The code of the last Run refusal, so the start view can tell a stale saved-settings preview from a failure. */
+  runFailureCode: string | null
 }
 
 type Event =
@@ -137,6 +141,7 @@ export const batchSchemaSuggestionMachine = setup({
       suggestion: () => null,
       draft: () => null,
       error: () => null,
+      runFailureCode: () => null,
     }),
     adoptSelection: assign({
       sourceDocumentIds: ({ event }) =>
@@ -146,6 +151,7 @@ export const batchSchemaSuggestionMachine = setup({
       draft: ({ event }) =>
         event.type === 'selection.changed' ? event.suggestion?.draft ?? null : null,
       error: () => null,
+      runFailureCode: () => null,
     }),
     adoptUpdatedSuggestion: assign({
       suggestion: ({ event }) =>
@@ -153,11 +159,13 @@ export const batchSchemaSuggestionMachine = setup({
       draft: ({ event }) =>
         event.type === 'suggestion.updated' ? event.suggestion.draft : null,
       error: () => null,
+      runFailureCode: () => null,
     }),
     adoptActorSuggestion: assign({
       suggestion: ({ event }) => suggestionOutput(event),
       draft: ({ event }) => suggestionOutput(event)?.draft ?? null,
       error: () => null,
+      runFailureCode: () => null,
     }),
     editProposal: assign({
       draft: ({ context, event }) =>
@@ -170,6 +178,7 @@ export const batchSchemaSuggestionMachine = setup({
           ? { ...context.suggestion, draft: event.definition }
           : context.suggestion,
       error: () => null,
+      runFailureCode: () => null,
     }),
     acceptSave: assign({
       suggestion: ({ context, event }) => {
@@ -187,8 +196,10 @@ export const batchSchemaSuggestionMachine = setup({
           : output.suggestion.draft
       },
       error: () => null,
+      runFailureCode: () => null,
     }),
     captureCreateFailure: assign({
+      runFailureCode: () => null,
       error: ({ context, event }) =>
         'error' in event
           ? context.failureMessage(
@@ -198,6 +209,7 @@ export const batchSchemaSuggestionMachine = setup({
           : null,
     }),
     captureRetryFailure: assign({
+      runFailureCode: () => null,
       error: ({ context, event }) =>
         'error' in event
           ? context.failureMessage(
@@ -207,6 +219,7 @@ export const batchSchemaSuggestionMachine = setup({
           : null,
     }),
     captureSaveFailure: assign({
+      runFailureCode: () => null,
       error: ({ context, event }) =>
         'error' in event
           ? context.failureMessage(
@@ -223,6 +236,8 @@ export const batchSchemaSuggestionMachine = setup({
               'The suggested Batch Extraction could not start.',
             )
           : null,
+      runFailureCode: ({ context, event }) =>
+        'error' in event ? context.failureCode(event.error) : null,
     }),
     notifySuggestion: ({ context }) => {
       if (context.suggestion) context.onSuggestion(context.suggestion)
@@ -262,6 +277,7 @@ export const batchSchemaSuggestionMachine = setup({
     suggestion: null,
     draft: null,
     error: null,
+    runFailureCode: null,
   }),
   initial: 'idle',
   on: {

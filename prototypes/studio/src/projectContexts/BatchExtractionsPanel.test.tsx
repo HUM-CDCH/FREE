@@ -585,6 +585,52 @@ describe('BatchExtractionsPanel', () => {
     )
   })
 
+  it('shows the saved advanced settings; a method_changed refusal opens them with a refresh and no run failure', async () => {
+    const message = 'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/schema-revisions?')) return response({ revisions: [] })
+      if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [] })
+      if (url === '/api/batch-extractions' && init?.method === 'POST')
+        return new Response(JSON.stringify({ error: { code: 'method_changed', message } }), {
+          status: 409, headers: { 'content-type': 'application/json' },
+        })
+      if (url.startsWith('/api/extraction-schemas?'))
+        return response({
+          extractionSchemas: [{
+            extractionSchemaId: batch.extractionSchemaId, name: 'Places', createdAt: '2026-08-14T10:00:00.000Z',
+            currentRevision: { schemaRevisionId, revisionNumber: 1, origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z' },
+          }],
+        })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+        return response({
+          revision: {
+            schemaRevisionId, extractionSchemaId: batch.extractionSchemaId, revisionNumber: 1, origin: 'researcher-edit',
+            createdAt: '2026-08-14T10:00:00.000Z', recordDescription: 'One place record.',
+            schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+          },
+        })
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    saved.refresh.mockClear()
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await screen.findByLabelText('Extraction Schema fields')
+    expect(screen.getByText('Saved advanced settings: Service defaults')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
+    fireEvent.click(screen.getByRole('button', { name: 'Run 1 Source Document' }))
+
+    const refusal = await screen.findByText(message, { exact: false })
+    expect(refusal).toHaveAttribute('role', 'alert')
+    expect(screen.queryByText(/could not be opened/)).toBeNull()
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh summary' }))
+    expect(saved.refresh).toHaveBeenCalledOnce()
+    expect(screen.queryByText(message, { exact: false })).not.toBeInTheDocument()
+  })
+
   it('reads failed and cancelled members as Failed with their own message', async () => {
     vi.stubGlobal(
       'fetch',
