@@ -22,16 +22,19 @@ describe('batch source Schema Suggestions', () => {
     })
   })
 
-  it('recursively rejects canonical Evidence fields in every model response', async () => {
-    await expect(suggestBatchSource(
+  it('accepts the same field names as ordinary Extraction Schema validation, at every depth', async () => {
+    const suggested = await suggestBatchSource(
       { researcherAccountId: 'researcher' }, 'source', new AbortController().signal,
       async () => ({
         template: {
           _description: 'One record.',
-          place: { _description: 'One place.', fuzzyMatches: 'string' },
+          pages: 'string',
+          place: { _description: 'One place.', fuzzyMatches: 'string', evidence: 'string' },
         },
         raw: '', pages: null,
       }),
-    )).rejects.toThrow(/reserved Evidence/i)
+    )
+    expect(suggested.schemaNodes.map((node) => node.name)).toEqual(['pages', 'place'])
+    expect(suggested.schemaNodes[1]!.children!.map((node) => node.name)).toEqual(['fuzzyMatches', 'evidence'])
   })
 })

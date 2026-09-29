@@ -86,35 +86,9 @@ export function parseSchemaDefinition(value: unknown): SchemaDefinition {
   return schemaDefinitionSchema.parse(value)
 }
 
-const reservedBatchSuggestionFieldNames = new Set([
-  'evidence',
-  'snippet',
-  'snippets',
-  'page',
-  'pages',
-  'bbox',
-  'bboxes',
-  'occurrenceid',
-  'occurrenceids',
-  'fuzzymatch',
-  'fuzzymatches',
-])
-
-function normalizedBatchSuggestionFieldName(name: string): string {
-  return name.replace(/[^a-z0-9]/gi, '').toLowerCase()
-}
-
 function validateBatchSuggestionNodes(nodes: readonly SchemaNode[]): void {
   const names = new Set<string>()
   for (const node of nodes) {
-    if (
-      reservedBatchSuggestionFieldNames.has(
-        normalizedBatchSuggestionFieldName(node.name),
-      )
-    )
-      throw new Error(
-        `Schema suggestions cannot define reserved Evidence field ${node.name}.`,
-      )
     if (names.has(node.name))
       throw new Error(
         `Schema suggestions cannot repeat field name ${node.name}.`,
