@@ -162,6 +162,16 @@ describe('Review Decision revalidation against the locked row', () => {
       assert.equal(holds([title, approve('year'), approve('scale')]), false)
   })
 
+  it("a correction's own Evidence is a published anchor with every occurrence, once, on an EDITED decision only", () => {
+    const corrected = (reviewedEvidence: ReviewDecisionInput['reviewedEvidence'], action: 'EDITED' | 'APPROVED' = 'EDITED') =>
+      holds([approve('title', { action, reviewedValue: action === 'EDITED' ? 'Corrected' : null, reviewedEvidence }),
+        approve('year'), approve('scale')])
+    assert.equal(corrected([{ evidenceAnchorId: 'anchor-title', reviewedOccurrenceIds: ['o-2', 'o-1'] }]), true)
+    assert.equal(corrected([{ evidenceAnchorId: 'anchor-title', reviewedOccurrenceIds: ['o-1', 'o-1'] }]), false)
+    assert.equal(corrected([{ evidenceAnchorId: 'anchor-missing', reviewedOccurrenceIds: ['o-9'] }]), false)
+    assert.equal(corrected([{ evidenceAnchorId: 'anchor-year', reviewedOccurrenceIds: ['o-3'] }], 'APPROVED'), false)
+  })
+
   it('fails on the action/value rule, a changed row or Evidence the authority was not granted for', () => {
     assert.equal(holds([approve('title', { action: 'EDITED' }), approve('year'), approve('scale')]), false)
     assert.equal(holds(approvals(), snapshot({ reviewable: false })), false)

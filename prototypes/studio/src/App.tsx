@@ -703,8 +703,10 @@ export function DocumentWorkspace({
   }, [projectContextId, extractionSchemaId, missingSchemaRevisionId])
 
   // On the Schema tab the page shows the sample's Evidence, and a passage picks the value it supports.
-  const onSampleTab = effectiveRailOpen && railTab === 'schema' && sample.attempt !== null
-  const sampleSchema = sample.attempt ? knownSchemas[sample.attempt.schemaRevisionId] ?? null : null
+  // Only a sample of the Source Representation on screen: its anchors mean nothing on another one.
+  const shownSample = sample.attempt?.sourceRepresentationRevisionId === sourceRepresentationId ? sample.attempt : null
+  const onSampleTab = effectiveRailOpen && railTab === 'schema' && shownSample !== null
+  const sampleSchema = shownSample ? knownSchemas[shownSample.schemaRevisionId] ?? null : null
   const [focusedSampleKey, setFocusedSampleKey] = useState<string | null>(null)
   const pickSampleValue = useCallback((path: readonly (string | number)[]) => setFocusedSampleKey(resultPathKey([...path])), [])
   const overlaySchema = onSampleTab ? sampleSchema : inspectedAttemptSchema
@@ -717,7 +719,7 @@ export function DocumentWorkspace({
     containerRef,
     viewerRef: pdfViewerRef,
     parsedDocument,
-    attempt: onSampleTab ? sample.attempt : inspectedAttempt,
+    attempt: onSampleTab ? shownSample : inspectedAttempt,
     fieldNames: evidenceFieldNames,
     resultPath: onSampleTab ? EVERY_RESULT_PATH : resultPath,
     active: onSampleTab || (effectiveRailOpen && railTab === 'results'),
@@ -1002,6 +1004,12 @@ export function DocumentWorkspace({
                     onClick={() => void runExtraction(samplePages)}>
                     {samplePages.length ? `Run sample on pp. ${pageRanges(samplePages)}` : 'Run sample'}
                   </Button>
+                  {sample.monitorError && (
+                    <>
+                      <span role="status" className="text-danger">{sample.monitorError}</span>
+                      <Button onClick={sample.reconnect}>Reconnect</Button>
+                    </>
+                  )}
                 </div>
                 {/* ponytail: numbered tiles, not rendered thumbnails; render pages here if tiles prove too abstract. */}
                 <div className="flex gap-2 overflow-x-auto" role="group" aria-label="Sample pages">
@@ -1119,11 +1127,11 @@ export function DocumentWorkspace({
               }}
               onSelectEvidence={selectEvidenceAnchor}
               onResultPathChange={setResultPath}
-              sample={sample.attempt && {
-                attempt: sample.attempt,
+              sample={shownSample && {
+                attempt: shownSample,
                 pinned: sampleSchema,
                 currentRevisionNumber: currentSchemaRevision?.revisionNumber ?? null,
-                pagesLabel: `pp. ${pageRanges(sample.attempt.requestedPages ?? [])}`,
+                pagesLabel: `pp. ${pageRanges(shownSample.requestedPages ?? [])}`,
                 review: sample.review,
                 parsedDocument,
                 focusedPathKey: focusedSampleKey,

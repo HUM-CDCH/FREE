@@ -187,8 +187,14 @@ export function normalizeDecisions(decisions: ReviewAuthority['reviewDecisions']
     reviewedOccurrenceIds: [...new Set(decision.reviewedOccurrenceIds)].sort(),
     action: decision.action,
     reviewedValue: decision.reviewedValue,
-    // Absent unless recorded, so the digests of reviews without it stay as they were.
-    ...(decision.reviewedEvidence ? { reviewedEvidence: decision.reviewedEvidence } : {}),
+    // Absent unless recorded, so the digests of reviews without it stay as they were; its occurrences unique and sorted
+    // like the model's, so a repeated one cannot stand in for a missing one.
+    ...(decision.reviewedEvidence
+      ? { reviewedEvidence: decision.reviewedEvidence.map((evidence) => ({
+          evidenceAnchorId: evidence.evidenceAnchorId,
+          reviewedOccurrenceIds: [...new Set(evidence.reviewedOccurrenceIds)].sort(),
+        })) }
+      : {}),
   })).sort((left, right) => left.resultPathKey.localeCompare(right.resultPathKey))
 }
 

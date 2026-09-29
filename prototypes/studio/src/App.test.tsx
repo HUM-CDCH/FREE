@@ -1250,10 +1250,31 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Run sample on pp. 1–2' }))
     await waitFor(() => expect(runs).toHaveLength(2))
     expect(schemaSaves).toHaveLength(1)
-    expect(runs[1]).toMatchObject({ schemaRevisionId: savedSchemaRevisionId, pages: [1, 2] })
+    // The same request under the same identity: admission replays it if the first did commit (design §4).
+    expect(runs[1]).toEqual({ ...runs[0], id: runs[0]!.id })
     // The sample is its own attempt: the whole-document result stays what Results shows.
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(await screen.findByText('Ellekilde')).toBeInTheDocument()
+  })
+
+  it('shows the newest sample only on the Source Representation it ran on', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      return Promise.resolve(new Response('pdf'))
+    }))
+    const sampleOn = (sourceRepresentationRevisionId: string) => ({
+      ...reopened.persistedExtraction!, extractionId: '51000000-0000-4000-8006-000000000002', requestedPages: [1],
+      resultPayload: { records: [{ place: 'Ellekilde' }] }, sourceRepresentationRevisionId,
+    })
+    const { unmount } = render(<DocumentWorkspace {...reopened} latestSample={sampleOn(reopened.sourceRepresentationId)} />)
+    expect(await screen.findByText(/^Sample · rev 1 · pp\. 1/)).toBeInTheDocument()
+    unmount()
+    render(<DocumentWorkspace {...reopened} latestSample={sampleOn('51000000-0000-4000-8002-000000000009')} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    expect(screen.queryByText(/^Sample · rev/)).not.toBeInTheDocument()
   })
 
   it.each([[null], ['numbered-catalogue-de@1']])('submits the selected Catalog strategy and record boundaries (%s) once, then defaults back to Article', async (recipe) => {

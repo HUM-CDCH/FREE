@@ -186,6 +186,9 @@ export function useExtraction({
   const [cancellationError, setCancellationError] = useState<string | null>(null)
   const [monitorError, setMonitorError] = useState<string | null>(null)
   const monitorRef = useRef<Monitor | null>(null)
+  // The identity of a posted request the server has not acknowledged yet: running the same request again posts it
+  // under this identity, which admission replays if it did commit, so an uncertain run is never admitted twice.
+  const unacknowledgedRef = useRef<{ extractionId: string; request: string } | null>(null)
   const reviewLoadRef = useRef(0)
   const saveScopeRef = useRef({ saving: false })
 
@@ -240,6 +243,7 @@ export function useExtraction({
         if (!live()) return
         latest = (await readExtraction(monitor.extractionId, signal)).extraction
         if (!live()) return
+        if (unacknowledgedRef.current?.extractionId === latest.extractionId) unacknowledgedRef.current = null
         setAttempt(latest)
         setState(extractionStateFromAttempt(latest))
       }
@@ -414,8 +418,11 @@ export function useExtraction({
     if (!schemaReady || activeAttempt || (running !== null && !running.paused) || indexing)
       return null
     stopMonitor()
+    const key = JSON.stringify(request)
+    const extractionId = unacknowledgedRef.current?.request === key ? unacknowledgedRef.current.extractionId : crypto.randomUUID()
+    unacknowledgedRef.current = { extractionId, request: key }
     const monitor: Monitor = {
-      extractionId: crypto.randomUUID(),
+      extractionId,
       isRerun,
       paused: false,
       controller: new AbortController(),
@@ -458,6 +465,7 @@ export function useExtraction({
     }
     if (monitorRef.current !== monitor || monitor.controller.signal.aborted) return null
     if (seed) {
+      unacknowledgedRef.current = null
       setAttempt(seed)
       setState(extractionStateFromAttempt(seed))
       setReviewDecisions([])

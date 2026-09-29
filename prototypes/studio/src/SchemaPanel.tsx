@@ -60,7 +60,8 @@ export type SchemaSample = {
   pinned: { revisionNumber: number; schemaNodes: readonly SchemaNode[] } | null
   currentRevisionNumber: number | null
   pagesLabel: string
-  review: Pick<ExtractionController['review'], 'decisions' | 'isTouched' | 'setDecision' | 'undo'>
+  review: Pick<ExtractionController['review'],
+    'decisions' | 'isTouched' | 'setDecision' | 'undo' | 'draftError' | 'draftSaving' | 'retryDraft'>
   parsedDocument: ParsedDocument | null
   /** The value a page passage was picked for (`resultPathKey`). */
   focusedPathKey: string | null
@@ -1776,6 +1777,14 @@ function SchemaPanel({
               </div>
             )}
             <div className="flex flex-col">
+              {sample?.review.draftError && (
+                <p role="alert" className="mb-1 flex items-center gap-2 text-[11.5px] text-danger">
+                  <span className="min-w-0 flex-1">Sample review not saved: {sample.review.draftError}</span>
+                  <Button onClick={sample.review.retryDraft}>Retry</Button>
+                </p>
+              )}
+              {sample?.review.draftSaving && !sample.review.draftError &&
+                <p role="status" className="mb-1 text-[11px] text-ink-muted">Saving sample review…</p>}
               {(pending ? pending.reviewNodes : nodes).map((node, i) => renderRootField(node, i))}
               {provisionalField && editing?.id === provisionalField.id && (
                 <FieldEditForm

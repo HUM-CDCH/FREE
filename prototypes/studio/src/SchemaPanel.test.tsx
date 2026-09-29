@@ -1352,7 +1352,8 @@ describe('SchemaPanel sample values', () => {
       currentRevisionNumber: 2,
       pagesLabel: 'pp. 12',
       review: { decisions: [touched ? { ...decision, action: 'EDITED', reviewedValue: 'um 1650' } : decision],
-        isTouched: () => touched, setDecision: vi.fn(), undo: vi.fn() },
+        isTouched: () => touched, setDecision: vi.fn(), undo: vi.fn(),
+        draftError: null, draftSaving: false, retryDraft: vi.fn() },
       parsedDocument, focusedPathKey: null, onSelectEvidence: vi.fn(),
       ...overrides,
     }
@@ -1382,6 +1383,15 @@ describe('SchemaPanel sample values', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       expect(sample.review.setDecision).toHaveBeenLastCalledWith(title, 'EDITED', text, null)
     }
+  })
+
+  it('says when the sample review could not be saved, and retries it', () => {
+    const base = sampleOf()
+    const sample = { ...base, review: { ...base.review, draftError: 'Draft could not be saved.' } }
+    renderPanel({}, { sample })
+    expect(screen.getByRole('alert')).toHaveTextContent('Sample review not saved: Draft could not be saved.')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(sample.review.retryDraft).toHaveBeenCalled()
   })
 
   it('shows a correction with its undo, and marks the value a page passage was picked for', () => {
