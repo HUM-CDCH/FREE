@@ -27,3 +27,7 @@ export function sourceCoverageNotice(coverage: SourceCoverage): string | null {
   const unread = coverage.omitted.reduce((total, omission) => total + omission.end - omission.start, 0)
   return `Suggested from excerpts: ${where} was not read (${count(unread)} of ${count(coverage.sourceCharacters)} characters).`
 }
+
+/** The researcher-facing statement for a Source Document suggestion the common-schema merge did not read. */
+export const UNCOMBINED_NOTICE =
+  'Left out of the common fields: the selected suggestions together were too long to combine in one request.'

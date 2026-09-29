@@ -30,9 +30,17 @@ export const sourceCoverageSchema = z.discriminatedUnion('complete', [
 export type SourceOmission = z.infer<typeof sourceOmissionSchema>
 export type SourceCoverage = z.infer<typeof sourceCoverageSchema>
 
-/** A Batch Schema Suggestion's declaration: one entry per Source Document suggestion it combined. */
+/**
+ * A Batch Schema Suggestion's declaration, one entry per Source Document: what its suggestion read of the source (null
+ * when not recorded), and whether the common-schema merge read that suggestion (`combined`; false when the combined
+ * suggestions exceeded the merge's input limit and this one was left out whole).
+ */
 export const batchSourceCoverageSchema = z
-  .array(z.object({ sourceDocumentId: canonicalUuidSchema, sourceCoverage: sourceCoverageSchema }).strict())
+  .array(
+    z
+      .object({ sourceDocumentId: canonicalUuidSchema, sourceCoverage: sourceCoverageSchema.nullable(), combined: z.boolean() })
+      .strict(),
+  )
   .min(1)
 
 export type BatchSourceCoverage = z.infer<typeof batchSourceCoverageSchema>

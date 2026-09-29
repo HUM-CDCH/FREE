@@ -1512,8 +1512,9 @@ describe('BatchExtractionsPanel', () => {
         {
           sourceDocumentId: failedDocumentId,
           sourceCoverage: { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] },
+          combined: true,
         },
-        { sourceDocumentId: cancelledDocumentId, sourceCoverage: { complete: true } },
+        { sourceDocumentId: cancelledDocumentId, sourceCoverage: { complete: true }, combined: true },
       ],
     })
     vi.stubGlobal('fetch', suggestionFetch(() => [excerpted]))
@@ -1529,6 +1530,26 @@ describe('BatchExtractionsPanel', () => {
     expect(within(suggested).queryByText(/Cancelled\.pdf/)).not.toBeInTheDocument()
   })
 
+  it('says which Source Document suggestion the common fields left out, and one not recorded says nothing', async () => {
+    const uncombined = readySuggestion({
+      sourceCoverage: [
+        { sourceDocumentId: failedDocumentId, sourceCoverage: null, combined: true },
+        { sourceDocumentId: cancelledDocumentId, sourceCoverage: { complete: true }, combined: false },
+      ],
+    })
+    vi.stubGlobal('fetch', suggestionFetch(() => [uncombined]))
+    renderPanel()
+
+    const suggested = await openSuggestedFields()
+    expect(within(suggested).getByText('place')).toBeVisible()
+    expect(
+      within(suggested).getByText(
+        'Cancelled.pdf: Left out of the common fields: the selected suggestions together were too long to combine in one request.',
+      ),
+    ).toBeVisible()
+    expect(within(suggested).queryByText(/Failed\.pdf/)).not.toBeInTheDocument()
+  })
+
   it('declares excerpted sources beside a heterogeneous outcome too', async () => {
     const heterogeneous = readySuggestion({
       phase: 'HETEROGENEOUS',
@@ -1538,6 +1559,7 @@ describe('BatchExtractionsPanel', () => {
         {
           sourceDocumentId: cancelledDocumentId,
           sourceCoverage: { complete: false, sourceCharacters: 60_000, omitted: [{ page: null, start: 23_000, end: 37_000 }] },
+          combined: true,
         },
       ],
     })

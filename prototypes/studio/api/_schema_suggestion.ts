@@ -1,6 +1,6 @@
 import type { DocumentInput } from './_document.js'
 import { documentFileParts } from './_pdf.js'
-import { schemaPrompt, schemaSourceExcerpts } from './_schema.js'
+import { EXCERPT_THRESHOLD, schemaPrompt, schemaSourceExcerpts } from './_schema.js'
 import { ApiError } from './_http.js'
 import { parseTemplate } from './_model_output.js'
 import {
@@ -104,24 +104,50 @@ export async function suggestBatchSource(
   return { definition: modelSuggestedDefinition(generated.template), sourceCoverage: generated.sourceCoverage }
 }
 
-/** One model-assisted merge of the per-source suggestions, then validation. */
+/**
+ * The merge's input: whole Source Document suggestions, in member order, while they fit the length a schema-suggestion
+ * input is sent whole. A suggestion that does not fit is left out whole and named, never cut mid-structure.
+ */
+function mergeInput(sources: readonly { sourceDocumentId: string; definition: SchemaDefinition }[]): {
+  markdown: string
+  uncombined: string[]
+} {
+  const blocks: string[] = []
+  const uncombined: string[] = []
+  let length = 0
+  for (const source of sources) {
+    const block = `SOURCE DOCUMENT ${source.sourceDocumentId} SUGGESTION:\n${JSON.stringify(source.definition)}`
+    const next = length + (blocks.length === 0 ? 0 : 2) + block.length
+    if (next > EXCERPT_THRESHOLD) {
+      uncombined.push(source.sourceDocumentId)
+      continue
+    }
+    blocks.push(block)
+    length = next
+  }
+  if (blocks.length === 0)
+    throw new ApiError(422, 'merge_input_too_large',
+      `No Source Document suggestion fits the ${EXCERPT_THRESHOLD.toLocaleString('en-US')}-character limit for combining common fields.`)
+  return { markdown: blocks.join('\n\n'), uncombined }
+}
+
+/**
+ * One model-assisted merge of the per-source suggestions, then validation. `uncombined` names the Source Documents
+ * whose suggestions the merge did not read because the combined suggestions exceeded the limit; `definition` is null
+ * when the merge found no common field.
+ */
 export async function suggestBatchCommon(
   caller: ModelCaller,
   sources: readonly { sourceDocumentId: string; definition: SchemaDefinition }[],
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
-): Promise<SchemaDefinition | null> {
+): Promise<{ definition: SchemaDefinition | null; uncombined: string[] }> {
+  const { markdown, uncombined } = mergeInput(sources)
   const generated = await generate(caller, {
-    document: {
-      file: null,
-      markdown: sources
-        .map((source) => `SOURCE DOCUMENT ${source.sourceDocumentId} SUGGESTION:\n${JSON.stringify(source.definition)}`)
-        .join('\n\n'),
-      pages: null,
-    },
+    document: { file: null, markdown, pages: null },
     instruction: MERGE_INSTRUCTION,
     signal,
   })
   const definition = modelSuggestedDefinition(generated.template)
-  return definition.schemaNodes.length === 0 ? null : definition
+  return { definition: definition.schemaNodes.length === 0 ? null : definition, uncombined }
 }

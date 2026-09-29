@@ -44,7 +44,8 @@ Place the actual requested field names directly inside "template", for example {
 When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"]. Write each allowed value exactly as the source writes it, in the source's language.`
 }
 
-const EXCERPT_THRESHOLD = 48_000
+/** The longest schema-suggestion input sent whole; past it, a source is excerpted. */
+export const EXCERPT_THRESHOLD = 48_000
 const EXCERPT_BUDGET = 46_000
 const PAGE_MARKER = /^<!-- FREE:PAGE (\d+) -->/
 

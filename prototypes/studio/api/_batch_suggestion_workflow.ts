@@ -17,7 +17,8 @@ export type SuggestionAttemptInput = Readonly<{
   projectContextId: string
   members: readonly SuggestionMember[]
 }>
-/** Either phase declares what each Source Document suggestion read of its source (null: not recorded). */
+/** Either phase declares, per Source Document, what its suggestion read of the source and whether the merge read the
+ *  suggestion (null: a merge result checkpointed before the declaration existed). */
 export type SuggestionProposal =
   | { phase: 'READY'; proposal: SchemaDefinition; sourceCoverage: BatchSourceCoverage | null; draft: SchemaDefinition }
   | { phase: 'HETEROGENEOUS'; sourceCoverage: BatchSourceCoverage | null }
@@ -107,15 +108,18 @@ const SOURCES_FAILED: SuggestionFailure = {
   message: 'Fields could not be suggested for every selected Source Document.',
 }
 
-/** Every source's own declaration, in member order; null when any source's was not recorded, so an undeclared
- *  source is never reported as read whole. */
-function declaredSourceCoverage(definitions: readonly Extract<SourceResult, { kind: 'definition' }>[]): BatchSourceCoverage | null {
-  const declared: BatchSourceCoverage = []
-  for (const { sourceDocumentId, sourceCoverage } of definitions) {
-    if (!sourceCoverage) return null
-    declared.push({ sourceDocumentId, sourceCoverage })
-  }
-  return declared
+/** Every source's declaration, in member order: what its suggestion read of the source (null when a step
+ *  checkpointed before the declaration existed, so it is never reported as read whole), and whether the merge read the
+ *  suggestion itself. */
+function declaredSourceCoverage(
+  definitions: readonly Extract<SourceResult, { kind: 'definition' }>[],
+  uncombined: readonly string[],
+): BatchSourceCoverage {
+  return definitions.map(({ sourceDocumentId, sourceCoverage }) => ({
+    sourceDocumentId,
+    sourceCoverage: sourceCoverage ?? null,
+    combined: !uncombined.includes(sourceDocumentId),
+  }))
 }
 
 /**
@@ -155,19 +159,19 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
     }
     definitions.push(result)
   }
-  const sourceCoverage = declaredSourceCoverage(definitions)
   const merged = await steps.step('merge', async (): Promise<MergeResult> => {
     if ((await store.attemptState(id, attempt)) !== 'current') return { kind: 'stopped' }
     const owner = await store.projectContextOwner(input.projectContextId)
     if (owner === null) return { kind: 'stopped' }
     try {
-      const common = await suggestBatchCommon(
+      const { definition, uncombined } = await suggestBatchCommon(
         { researcherAccountId: owner }, definitions, modelSignal(steps.cancelSignal()), generate,
       )
+      const sourceCoverage = declaredSourceCoverage(definitions, uncombined)
       return {
         kind: 'proposal',
-        result: common
-          ? { phase: 'READY', proposal: common, sourceCoverage, draft: common }
+        result: definition
+          ? { phase: 'READY', proposal: definition, sourceCoverage, draft: definition }
           : { phase: 'HETEROGENEOUS', sourceCoverage },
       }
     } catch (error) {

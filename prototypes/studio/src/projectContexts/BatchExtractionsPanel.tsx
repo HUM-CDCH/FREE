@@ -44,7 +44,7 @@ import {
   openBatchExtraction,
 } from './batchExtractions'
 import { useBatchSchemaSuggestion } from './useBatchSchemaSuggestion'
-import { sourceCoverageNotice } from '../sourceCoverageNotice'
+import { sourceCoverageNotice, UNCOMBINED_NOTICE } from '../sourceCoverageNotice'
 import {
   BatchExtractionHistory,
   BatchExtractionMembers,
@@ -257,11 +257,16 @@ export default function BatchExtractionsPanel({
             selectionKey: activeSuggestion.selectionKey,
           }
         : null
-  // Each Source Document suggestion made from excerpts, said beside the proposal it fed (or the heterogeneous outcome).
+  // Each Source Document suggestion made from excerpts or left out of the merge, said beside the proposal it fed (or the
+  // heterogeneous outcome).
   const excerptNotices = suggestionProposal
-    ? (activeSuggestion?.sourceCoverage ?? []).flatMap(({ sourceDocumentId, sourceCoverage }) => {
-        const notice = sourceCoverageNotice(sourceCoverage)
-        if (notice === null) return []
+    ? (activeSuggestion?.sourceCoverage ?? []).flatMap(({ sourceDocumentId, sourceCoverage, combined }) => {
+        const statements = [
+          sourceCoverage && sourceCoverageNotice(sourceCoverage),
+          combined ? null : UNCOMBINED_NOTICE,
+        ].filter((statement) => statement)
+        if (statements.length === 0) return []
+        const notice = statements.join(' ')
         const name = sourceDocuments.find((document) => document.sourceDocumentId === sourceDocumentId)?.name
         return [{ sourceDocumentId, text: `${name ?? 'A removed Source Document'}: ${notice}` }]
       })

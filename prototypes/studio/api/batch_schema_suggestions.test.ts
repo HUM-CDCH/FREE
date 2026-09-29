@@ -286,6 +286,7 @@ describe('Batch Schema Suggestion APIs', () => {
     const declared = [{
       sourceDocumentId,
       sourceCoverage: { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] },
+      combined: false,
     }]
     // Rows published before the declaration hold the retired path-agreement counts in the same column.
     const legacy = { ...suggestion, batchSchemaSuggestionId: '51000000-0000-4000-8008-000000000002' }
