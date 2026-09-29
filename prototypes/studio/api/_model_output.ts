@@ -1,4 +1,4 @@
-import { cascadeRepairText } from 'ai-sdk-ollama'
+import { jsonrepair } from 'jsonrepair'
 import { z } from 'zod'
 import { ApiError } from './_http.js'
 
@@ -14,8 +14,8 @@ export async function parseTemplate(text: string): Promise<Record<string, unknow
 
 /**
  * Parse valid JSON before touching its text, preserving literal tags and fences
- * inside values. Otherwise remove outer framing, then let the provider library
- * repair syntax that still cannot be parsed.
+ * inside values. Otherwise remove outer framing, then use jsonrepair for syntax
+ * that still cannot be parsed.
  */
 export async function parseUnknownJson(text: string, message: string): Promise<unknown> {
   const parsed = tryParseJson(text)
@@ -28,12 +28,11 @@ export async function parseUnknownJson(text: string, message: string): Promise<u
   if (unframed.ok) {
     return unwrapJsonString(unframed.value)
   }
-  const repaired = await cascadeRepairText({ text: unframedText, error: unframed.error })
-  if (repaired !== null) {
-    const repairedParsed = tryParseJson(repaired)
-    if (repairedParsed.ok) return unwrapJsonString(repairedParsed.value)
+  try {
+    return unwrapJsonString(JSON.parse(jsonrepair(unframedText)))
+  } catch (cause) {
+    throw new ApiError(502, 'invalid_model_output', message, { cause })
   }
-  throw new ApiError(502, 'invalid_model_output', message, { cause: unframed.error })
 }
 
 const LEADING_REASONING = /^\s*<think>[\s\S]*?<\/think>\s*/

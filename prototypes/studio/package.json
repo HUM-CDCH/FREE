@@ -43,6 +43,7 @@
     "extraction": "workspace:*",
     "extraction-result-export": "workspace:*",
     "hono": "^4.13.7",
+    "jsonrepair": "^3.15.0",
     "pdfjs-dist": "^6.3.289",
     "pg": "8.22.0",
     "pluralize": "^8.0.0",
