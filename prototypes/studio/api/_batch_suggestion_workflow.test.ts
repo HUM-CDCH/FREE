@@ -10,7 +10,9 @@ import {
   type SuggestionAttemptInput,
   type SuggestionProposal,
   type SuggestionWorkflowPorts,
+  workerSuggestionStore,
 } from './_batch_suggestion_workflow.js'
+import type { InternalProjectWorkerStore } from 'db'
 
 const registerWorkflow = vi.hoisted(() => vi.fn())
 vi.mock('@dbos-inc/dbos-sdk', () => ({ DBOS: { registerWorkflow } }))
@@ -29,7 +31,9 @@ const emptyTemplate = { _description: 'One article.' }
 const SOURCES_FAILED = { code: 'source_suggestion_failed', message: 'Fields could not be suggested for every selected Source Document.' }
 
 type Generated = Awaited<ReturnType<SuggestionWorkflowPorts['generate']>>
-const generated = (template: Record<string, unknown>): Generated => ({ template, raw: JSON.stringify(template), pages: null })
+const generated = (template: Record<string, unknown>, sourceCoverage: Generated['sourceCoverage'] = { complete: true }): Generated =>
+  ({ template, raw: JSON.stringify(template), pages: null, sourceCoverage })
+const EXCERPTED = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
 
 type Scenario = {
   /** The answer to the model call for this markdown (a source's) or for the merge ('merge'). */
@@ -119,7 +123,35 @@ describe('suggestSchemaBatch', () => {
     if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
     expect(write.result.proposal.schemaNodes.map((node) => node.name)).toEqual(['title'])
     expect(write.result.draft).toEqual(write.result.proposal)
-    expect(write.result.coverage).toEqual([{ nodeId: write.result.proposal.schemaNodes[0]!.id, present: 2, total: 2 }])
+    expect(write.result.sourceCoverage).toEqual([
+      { sourceDocumentId: 'source-a', sourceCoverage: { complete: true } },
+      { sourceDocumentId: 'source-b', sourceCoverage: { complete: true } },
+    ])
+    expect(write.result).not.toHaveProperty('coverage')
+  })
+
+  it('publishes each Source Document suggestion\'s own declaration of what it did not read', async () => {
+    const h = harness({ generate: async (markdown) =>
+      markdown === '# Source B' ? generated(sourceTemplate, EXCERPTED) : generated(markdown === 'merge' ? commonTemplate : sourceTemplate) })
+    await h.run()
+    const [write] = h.writes
+    if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
+    expect(write.result.sourceCoverage).toEqual([
+      { sourceDocumentId: 'source-a', sourceCoverage: { complete: true } },
+      { sourceDocumentId: 'source-b', sourceCoverage: EXCERPTED },
+    ])
+  })
+
+  it('declares nothing when a recovered source step predates the declaration, rather than claiming it complete', async () => {
+    const checkpoints = new Map<string, unknown>([
+      ['suggestSource:source-a', { kind: 'definition', sourceDocumentId: 'source-a',
+        definition: { recordDescription: 'One article.', schemaNodes: [{ id: 'title', name: 'title', type: 'string' }] } }],
+    ])
+    const h = harness({ checkpoints })
+    await h.run()
+    const [write] = h.writes
+    if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
+    expect(write.result.sourceCoverage).toBeNull()
   })
 
   it('the first failed source ends the attempt: no later source runs, no merge, and its failure is published', async () => {
@@ -197,7 +229,10 @@ describe('suggestSchemaBatch', () => {
     const h = harness({ generate: async (markdown) => generated(markdown === 'merge' ? emptyTemplate : sourceTemplate) })
     await h.run()
     expect(h.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'merge', 'publish'])
-    expect(h.writes).toEqual([{ kind: 'publish', result: { phase: 'HETEROGENEOUS' } }])
+    expect(h.writes).toEqual([{ kind: 'publish', result: { phase: 'HETEROGENEOUS', sourceCoverage: [
+      { sourceDocumentId: 'source-a', sourceCoverage: { complete: true } },
+      { sourceDocumentId: 'source-b', sourceCoverage: { complete: true } },
+    ] } }])
   })
 
   it('a failed merge publishes the merge\'s failure without provider details', async () => {
@@ -279,5 +314,25 @@ describe('suggestSchemaBatch', () => {
     await fn(h.input)
     expect(ports).toHaveBeenCalledTimes(1)
     expect(h.writes.map((write) => write.kind)).toEqual(['publish'])
+  })
+})
+
+describe('workerSuggestionStore', () => {
+  it('persists the declaration in the suggestion\'s coverage column, never a merge-era path count', async () => {
+    const publishBatchSchemaSuggestion = vi.fn(async () => 'published' as const)
+    const store = workerSuggestionStore({ publishBatchSchemaSuggestion } as unknown as InternalProjectWorkerStore)
+    const proposal = { recordDescription: 'One article.', schemaNodes: [{ id: 'title', name: 'title', type: 'string' as const }] }
+    const declared = [{ sourceDocumentId: 'source-a', sourceCoverage: EXCERPTED }]
+
+    await store.publish(SUGGESTION, 2, { phase: 'READY', proposal, sourceCoverage: declared, draft: proposal })
+    await store.publish(SUGGESTION, 2, { phase: 'HETEROGENEOUS', sourceCoverage: declared })
+    // A merge step checkpointed before the declaration existed replays its old result.
+    await store.publish(SUGGESTION, 2, { phase: 'READY', proposal, coverage: [{ nodeId: 'title', present: 1, total: 1 }], draft: proposal } as never)
+
+    expect(publishBatchSchemaSuggestion.mock.calls).toEqual([
+      [SUGGESTION, 2, { phase: 'READY', proposal, coverage: declared, draft: proposal }],
+      [SUGGESTION, 2, { phase: 'HETEROGENEOUS', coverage: declared }],
+      [SUGGESTION, 2, { phase: 'READY', proposal, coverage: null, draft: proposal }],
+    ])
   })
 })

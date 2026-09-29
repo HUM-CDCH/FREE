@@ -16,7 +16,7 @@ function generation(n: number, status: ModelOperation['status'], over: Partial<G
   return {
     kind: 'generation', workflowId: `suggestion:${uuid(n)}`, operationId: uuid(n), status, instruction: `Instruction ${n}`,
     createdAt: new Date(1_700_000_000_000 - n).toISOString(), failure: null, baseSchemaRevisionId: R1,
-    template: status === 'SUCCEEDED' ? TEMPLATE : null, ...over,
+    template: status === 'SUCCEEDED' ? TEMPLATE : null, sourceCoverage: null, ...over,
   }
 }
 function proposal(n: number, status: ModelOperation['status'], over: Partial<Proposal> = {}): Proposal {
@@ -96,7 +96,7 @@ describe('recoveryView', () => {
     view: 'editing', generating: false, generationError: null, cancellationError: null, draft: { recordDescription: 'One entry.', schemaNodes: [] },
     draftVersion: 0, replacementVersion: 0, save: { status: 'saved', acknowledged, draft: { recordDescription: 'One entry.', schemaNodes: [] } },
     history: [], extractionSchemaId: 'schema-1', currentRevisionNumber: 1, extractableSchemaRevisionId: R1,
-    creatingFromRevisionId: null, previewingRevisionId: null, historicalPreview: null, ...over,
+    creatingFromRevisionId: null, previewingRevisionId: null, historicalPreview: null, sourceCoverage: null, ...over,
   })
 
   it('names the clean current revision only when saved and the draft is exactly the acknowledged one', () => {

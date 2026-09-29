@@ -113,6 +113,7 @@ describe('Studio API endpoints', () => {
       template: { title: 'verbatim-string' },
       raw: '{"title":"verbatim-string"}',
       pages: null,
+      sourceCoverage: null,
     })
     expect(store.getSourceRepresentation).toHaveBeenCalledWith(PROJECT, SOURCE_REVISION)
     // The handler never reads the document: the workflow does, outside history.

@@ -617,10 +617,11 @@ export type BatchSchemaSuggestionRecord = {
   sources: BatchSchemaSuggestionSourceRecord[]
 }
 
-/** What one successful attempt publishes (Studio's SuggestionProposal). */
+/** What one successful attempt publishes (Studio's SuggestionProposal); `coverage` is Studio's declaration of what
+ *  each Source Document suggestion read of its source, or null. */
 export type BatchSchemaSuggestionProposal =
   | { phase: 'READY'; proposal: unknown; coverage: unknown; draft: unknown }
-  | { phase: 'HETEROGENEOUS' }
+  | { phase: 'HETEROGENEOUS'; coverage?: unknown }
 
 export type UpdateBatchSchemaSuggestionDraftResult =
   | { status: 'updated'; suggestion: BatchSchemaSuggestionRecord }
@@ -2212,7 +2213,7 @@ export function createInternalProjectWorkerStore(
                 failure: null,
                 phase: 'HETEROGENEOUS',
                 proposal: null,
-                coverage: null,
+                coverage: result.coverage ?? null,
                 draft: null,
                 draftVersion: row.draftVersion + 1,
               },

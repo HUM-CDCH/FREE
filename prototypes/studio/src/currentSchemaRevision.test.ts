@@ -317,6 +317,8 @@ describe('flush-before-extract', () => {
   })
 })
 
+const EXCERPTED = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+
 describe('generation lifecycle', () => {
   it('initializes a fresh Extraction Schema on first generation', async () => {
     const setup = setupDurable()
@@ -484,6 +486,44 @@ describe('generation lifecycle', () => {
 
     void setup.controller.generate(() => new Promise<unknown>(() => {}))
     expect(setup.controller.snapshot().cancellationError).toBeNull()
+  })
+
+  it('declares what an excerpted generation did not read until the generated draft is replaced', async () => {
+    const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    expect(setup.controller.snapshot().sourceCoverage).toBeNull()
+
+    await setup.controller.generate(async (_signal, declareSourceCoverage) => {
+      declareSourceCoverage(EXCERPTED)
+      return { _description: 'One regenerated record.', place: 'string' }
+    })
+    expect(setup.controller.snapshot().sourceCoverage).toEqual(EXCERPTED)
+
+    // A failed regeneration leaves the excerpted schema, and its declaration, in place.
+    await setup.controller.generate(async () => {
+      throw new Error('The model refused.')
+    })
+    expect(setup.controller.snapshot().sourceCoverage).toEqual(EXCERPTED)
+
+    await setup.controller.generate(async (_signal, declareSourceCoverage) => {
+      declareSourceCoverage({ complete: true })
+      return { _description: 'One whole-source record.', place: 'string' }
+    })
+    expect(setup.controller.snapshot().sourceCoverage).toBeNull()
+
+    await setup.controller.generate(async (_signal, declareSourceCoverage) => {
+      declareSourceCoverage(EXCERPTED)
+      return { _description: 'One regenerated record.', place: 'string' }
+    })
+    await setup.controller.reset()
+    expect(setup.controller.snapshot().sourceCoverage).toBeNull()
+  })
+
+  it('restoreGeneration carries the declaration of the generation it saves', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
+
+    await setup.controller.restoreGeneration({ _description: 'One restored record.', restored: 'string' }, 'rev-1', EXCERPTED)
+
+    expect(setup.controller.snapshot().sourceCoverage).toEqual(EXCERPTED)
   })
 
   it('restoreGeneration saves onto a clean base and drops on a conflict without an error', async () => {

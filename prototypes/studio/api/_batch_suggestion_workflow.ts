@@ -4,7 +4,8 @@ import type { InternalProjectWorkerStore } from 'db'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { SchemaDefinition } from 'extraction/schema'
 import { sourceSuggestionFailure } from './_batch_schema_suggestions.js'
-import { suggestBatchSource, suggestBatchCommon, type FieldCoverage, type generateSchemaWithModel } from './_schema_suggestion.js'
+import { suggestBatchSource, suggestBatchCommon, type generateSchemaWithModel } from './_schema_suggestion.js'
+import type { BatchSourceCoverage, SourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 
 export const SUGGEST_SCHEMA_BATCH = 'suggestSchemaBatch'
 
@@ -16,9 +17,10 @@ export type SuggestionAttemptInput = Readonly<{
   projectContextId: string
   members: readonly SuggestionMember[]
 }>
+/** Either phase declares what each Source Document suggestion read of its source (null: not recorded). */
 export type SuggestionProposal =
-  | { phase: 'READY'; proposal: SchemaDefinition; coverage: FieldCoverage[]; draft: SchemaDefinition }
-  | { phase: 'HETEROGENEOUS' }
+  | { phase: 'READY'; proposal: SchemaDefinition; sourceCoverage: BatchSourceCoverage | null; draft: SchemaDefinition }
+  | { phase: 'HETEROGENEOUS'; sourceCoverage: BatchSourceCoverage | null }
 export type SuggestionFailure = { code: string; message: string }
 export type SuggestionStore = Readonly<{
   /** 'current' while this attempt is the suggestion's attempt and has no outcome; 'stopped' after an interruption, a later attempt or deletion. */
@@ -38,7 +40,11 @@ export function workerSuggestionStore(worker: InternalProjectWorkerStore): Sugge
     attemptState: (id, attempt) => worker.suggestionAttemptState(id, attempt),
     projectContextOwner: (projectContextId) => worker.projectContextOwner(projectContextId),
     readMarkdown: (revisionId) => worker.readRevisionMarkdown(revisionId),
-    publish: (id, attempt, result) => worker.publishBatchSchemaSuggestion(id, attempt, result),
+    // The suggestion's `coverage` column holds the source declaration; a merge result checkpointed before the
+    // declaration existed has none, so it publishes null.
+    publish: (id, attempt, result) => worker.publishBatchSchemaSuggestion(id, attempt, result.phase === 'READY'
+      ? { phase: 'READY', proposal: result.proposal, coverage: result.sourceCoverage ?? null, draft: result.draft }
+      : { phase: 'HETEROGENEOUS', coverage: result.sourceCoverage ?? null }),
     fail: (id, attempt, failure) => worker.failBatchSchemaSuggestionAttempt(id, attempt, failure),
   }
 }
@@ -87,7 +93,8 @@ function durableFailure(error: unknown): SuggestionFailure {
 }
 
 type SourceResult =
-  | { kind: 'definition'; sourceDocumentId: string; definition: SchemaDefinition }
+  // sourceCoverage is absent from a step checkpointed before the declaration existed.
+  | { kind: 'definition'; sourceDocumentId: string; definition: SchemaDefinition; sourceCoverage?: SourceCoverage }
   | { kind: 'failure'; sourceDocumentId: string; failure: SuggestionFailure }
   | { kind: 'stopped' }
 type MergeResult =
@@ -98,6 +105,17 @@ type MergeResult =
 const SOURCES_FAILED: SuggestionFailure = {
   code: 'source_suggestion_failed',
   message: 'Fields could not be suggested for every selected Source Document.',
+}
+
+/** Every source's own declaration, in member order; null when any source's was not recorded, so an undeclared
+ *  source is never reported as read whole. */
+function declaredSourceCoverage(definitions: readonly Extract<SourceResult, { kind: 'definition' }>[]): BatchSourceCoverage | null {
+  const declared: BatchSourceCoverage = []
+  for (const { sourceDocumentId, sourceCoverage } of definitions) {
+    if (!sourceCoverage) return null
+    declared.push({ sourceDocumentId, sourceCoverage })
+  }
+  return declared
 }
 
 /**
@@ -118,10 +136,10 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
       if (owner === null || markdown === null) return { kind: 'stopped' }
       try {
         // The Project Context owner's configuration and keys, resolved when the call runs; DBOS holds only the ID.
-        const definition = await suggestBatchSource(
+        const { definition, sourceCoverage } = await suggestBatchSource(
           { researcherAccountId: owner }, markdown, modelSignal(steps.cancelSignal()), generate,
         )
-        return { kind: 'definition', sourceDocumentId: member.sourceDocumentId, definition }
+        return { kind: 'definition', sourceDocumentId: member.sourceDocumentId, definition, sourceCoverage }
       } catch (error) {
         return { kind: 'failure', sourceDocumentId: member.sourceDocumentId, failure: durableFailure(error) }
       }
@@ -137,6 +155,7 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
     }
     definitions.push(result)
   }
+  const sourceCoverage = declaredSourceCoverage(definitions)
   const merged = await steps.step('merge', async (): Promise<MergeResult> => {
     if ((await store.attemptState(id, attempt)) !== 'current') return { kind: 'stopped' }
     const owner = await store.projectContextOwner(input.projectContextId)
@@ -148,8 +167,8 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
       return {
         kind: 'proposal',
         result: common
-          ? { phase: 'READY', proposal: common.definition, coverage: common.coverage, draft: common.definition }
-          : { phase: 'HETEROGENEOUS' },
+          ? { phase: 'READY', proposal: common, sourceCoverage, draft: common }
+          : { phase: 'HETEROGENEOUS', sourceCoverage },
       }
     } catch (error) {
       return { kind: 'failure', failure: durableFailure(error) }

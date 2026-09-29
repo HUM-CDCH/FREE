@@ -11,11 +11,11 @@ import {
   type ModelDependencies,
 } from './_model_execution.js'
 import type { ExecutionTarget } from './_provider.js'
+import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 import {
   parseBatchSuggestionDefinition,
   templateToSchemaDefinition,
   type SchemaDefinition,
-  type SchemaNode,
 } from 'extraction/schema'
 
 export type SchemaModelInput = {
@@ -39,18 +39,22 @@ async function documentContentParts(document: DocumentInput): Promise<{
   return { parts: fileParts.parts, pages: fileParts.pages }
 }
 
-/** Complete single-source suggestion: prepare source, resolve route, call model, interpret the schema. */
+/** Complete single-source suggestion: prepare source, resolve route, call model, interpret the schema. The result
+ *  declares what of the source the model received (`sourceCoverage`); a file is sent whole. */
 export async function generateSchemaWithModel(
   caller: ModelCaller,
   { document, instruction, temperature, signal }: SchemaModelInput,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
-): Promise<{ readonly template: Record<string, unknown>; readonly raw: string; readonly pages: number | null }> {
+): Promise<{
+  readonly template: Record<string, unknown>
+  readonly raw: string
+  readonly pages: number | null
+  readonly sourceCoverage: SourceCoverage
+}> {
   const resolved = await resolveModelTarget('schema-suggestion', temperature, target, caller, dependencies)
-  const documentParts = await documentContentParts({
-    ...document,
-    markdown: document.markdown ? schemaSourceExcerpts(document.markdown) : document.markdown,
-  })
+  const excerpts = document.markdown ? schemaSourceExcerpts(document.markdown) : null
+  const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
   const generated = await executeSchemaSuggestion(resolved, {
     instructions:
       'Propose a compact extraction schema grounded in the supplied source document. ' +
@@ -63,7 +67,12 @@ export async function generateSchemaWithModel(
   const parsed = await parseTemplate(generated.response)
   if (typeof parsed._description !== 'string' || parsed._description.trim().length === 0)
     throw new ApiError(502, 'invalid_model_output', 'The generated Extraction Schema has no root record description.')
-  return { template: parsed, raw: generated.response, pages: documentParts.pages ?? document.pages }
+  return {
+    template: parsed,
+    raw: generated.response,
+    pages: documentParts.pages ?? document.pages,
+    sourceCoverage: excerpts?.sourceCoverage ?? { complete: true },
+  }
 }
 
 const SOURCE_SUGGESTION_INSTRUCTION =
@@ -86,52 +95,22 @@ export async function suggestBatchSource(
   markdown: string,
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
-): Promise<SchemaDefinition> {
+): Promise<{ definition: SchemaDefinition; sourceCoverage: SourceCoverage }> {
   const generated = await generate(caller, {
     document: { file: null, markdown, pages: null },
     instruction: SOURCE_SUGGESTION_INSTRUCTION,
     signal,
   })
-  return modelSuggestedDefinition(generated.template)
+  return { definition: modelSuggestedDefinition(generated.template), sourceCoverage: generated.sourceCoverage }
 }
 
-export type FieldCoverage = { nodeId: string; present: number; total: number }
-
-function pathExists(nodes: readonly SchemaNode[], path: readonly string[]): boolean {
-  let level = nodes
-  for (const name of path) {
-    const node = level.find((candidate) => candidate.name === name)
-    if (!node) return false
-    level = node.children ?? []
-  }
-  return true
-}
-
-function coverageFor(
-  nodes: readonly SchemaNode[],
-  sources: readonly SchemaDefinition[],
-  path: readonly string[] = [],
-  coverage: FieldCoverage[] = [],
-): FieldCoverage[] {
-  for (const node of nodes) {
-    const nodePath = [...path, node.name]
-    coverage.push({
-      nodeId: node.id,
-      present: sources.filter((source) => pathExists(source.schemaNodes, nodePath)).length,
-      total: sources.length,
-    })
-    if (node.children) coverageFor(node.children, sources, nodePath, coverage)
-  }
-  return coverage
-}
-
-/** One model-assisted merge, then validation and coverage reporting (not coverage enforcement). */
+/** One model-assisted merge of the per-source suggestions, then validation. */
 export async function suggestBatchCommon(
   caller: ModelCaller,
   sources: readonly { sourceDocumentId: string; definition: SchemaDefinition }[],
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
-): Promise<{ definition: SchemaDefinition; coverage: FieldCoverage[] } | null> {
+): Promise<SchemaDefinition | null> {
   const generated = await generate(caller, {
     document: {
       file: null,
@@ -144,6 +123,5 @@ export async function suggestBatchCommon(
     signal,
   })
   const definition = modelSuggestedDefinition(generated.template)
-  if (definition.schemaNodes.length === 0) return null
-  return { definition, coverage: coverageFor(definition.schemaNodes, sources.map((source) => source.definition)) }
+  return definition.schemaNodes.length === 0 ? null : definition
 }

@@ -22,7 +22,7 @@ describe('modelOperationSchema', () => {
   }
 
   it('accepts a generation and a proposal, and a listing of at most 20', () => {
-    const generation = { kind: 'generation', ...common, baseSchemaRevisionId: null, template: { title: 'string' } }
+    const generation = { kind: 'generation', ...common, baseSchemaRevisionId: null, template: { title: 'string' }, sourceCoverage: { complete: true } }
     const proposal = {
       kind: 'proposal', ...common, workflowId: `edit:${UUID}`, status: 'FAILED', failure: { code: 'interrupted', message: 'Stopped.' },
       baseSchemaRevisionId: UUID, response: null,
@@ -35,7 +35,7 @@ describe('modelOperationSchema', () => {
 
   it('refuses a proposal without a base, an unknown status and an extra key', () => {
     expect(modelOperationSchema.safeParse({ kind: 'proposal', ...common, baseSchemaRevisionId: null, response: null }).success).toBe(false)
-    expect(modelOperationSchema.safeParse({ kind: 'generation', ...common, status: 'DONE', baseSchemaRevisionId: null, template: null }).success).toBe(false)
-    expect(modelOperationSchema.safeParse({ kind: 'generation', ...common, baseSchemaRevisionId: null, template: null, extra: 1 }).success).toBe(false)
+    expect(modelOperationSchema.safeParse({ kind: 'generation', ...common, status: 'DONE', baseSchemaRevisionId: null, template: null, sourceCoverage: null }).success).toBe(false)
+    expect(modelOperationSchema.safeParse({ kind: 'generation', ...common, baseSchemaRevisionId: null, template: null, sourceCoverage: null, extra: 1 }).success).toBe(false)
   })
 })

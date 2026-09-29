@@ -220,7 +220,7 @@ describe('Batch Schema Suggestion APIs', () => {
         executionStatus: 'QUEUED',
         phase: null,
         proposal: null,
-        coverage: null,
+        sourceCoverage: null,
         draft: null,
         draftVersion: 0,
         failure: null,
@@ -280,6 +280,24 @@ describe('Batch Schema Suggestion APIs', () => {
     expect(store.createBatchSchemaSuggestion).not.toHaveBeenCalled()
     expect(store.retryBatchSchemaSuggestion).not.toHaveBeenCalled()
     expect(module.scheduleSuggestedBatch).not.toHaveBeenCalled()
+  })
+
+  it('reads the stored source declaration, and still loads a suggestion stored with schema-path counts', async () => {
+    const declared = [{
+      sourceDocumentId,
+      sourceCoverage: { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] },
+    }]
+    // Rows published before the declaration hold the retired path-agreement counts in the same column.
+    const legacy = { ...suggestion, batchSchemaSuggestionId: '51000000-0000-4000-8008-000000000002' }
+    const current = { ...suggestion, coverage: declared }
+    const { GET } = handlersFor({ listBatchSchemaSuggestions: vi.fn(async () => [legacy, current]) })
+
+    const listed = await GET(new Request(`http://test/api/batch-schema-suggestions?projectContextId=${projectContextId}`))
+
+    expect(listed.status).toBe(200)
+    const body = await listed.json()
+    expect(body.batchSchemaSuggestions.map((item: Record<string, unknown>) => item.sourceCoverage)).toEqual([null, declared])
+    expect(body.batchSchemaSuggestions[0]).not.toHaveProperty('coverage')
   })
 
   it('status reads are derived and a DBOS outage is 503', async () => {

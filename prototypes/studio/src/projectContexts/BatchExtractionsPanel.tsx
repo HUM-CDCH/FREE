@@ -44,6 +44,7 @@ import {
   openBatchExtraction,
 } from './batchExtractions'
 import { useBatchSchemaSuggestion } from './useBatchSchemaSuggestion'
+import { sourceCoverageNotice } from '../sourceCoverageNotice'
 import {
   BatchExtractionHistory,
   BatchExtractionMembers,
@@ -249,7 +250,6 @@ export default function BatchExtractionsPanel({
           status: 'ready' as const,
           selectionKey: activeSuggestion.selectionKey,
           ...suggestion.context.draft,
-          coverage: activeSuggestion.coverage ?? [],
         }
       : activeSuggestion?.phase === 'HETEROGENEOUS'
         ? {
@@ -257,6 +257,15 @@ export default function BatchExtractionsPanel({
             selectionKey: activeSuggestion.selectionKey,
           }
         : null
+  // Each Source Document suggestion made from excerpts, said beside the proposal it fed (or the heterogeneous outcome).
+  const excerptNotices = suggestionProposal
+    ? (activeSuggestion?.sourceCoverage ?? []).flatMap(({ sourceDocumentId, sourceCoverage }) => {
+        const notice = sourceCoverageNotice(sourceCoverage)
+        if (notice === null) return []
+        const name = sourceDocuments.find((document) => document.sourceDocumentId === sourceDocumentId)?.name
+        return [{ sourceDocumentId, text: `${name ?? 'A removed Source Document'}: ${notice}` }]
+      })
+    : []
   const draftConflict = suggestion.matches('conflict')
   const suggestionHasMembers = (activeSuggestion?.sources.length ?? 0) > 0
 
@@ -1037,6 +1046,11 @@ export default function BatchExtractionsPanel({
                     </Button>
                   </div>
                 )}
+                {excerptNotices.map((notice) => (
+                  <p key={notice.sourceDocumentId} className="text-[11px] text-ink-muted" role="note">
+                    {notice.text}
+                  </p>
+                ))}
                 {suggestedFields?.status === 'heterogeneous' && (
                   <p className="text-xs text-ink-muted">
                     No reliable common field set was found. Choose an existing

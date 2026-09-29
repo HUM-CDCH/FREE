@@ -73,6 +73,8 @@ const LISTING = {
   workflow_id_prefix: ['suggestion:', 'edit:'], authenticatedUser: ACCOUNT, loadInput: true, loadOutput: true, sortDesc: true, limit: 20,
 }
 
+const EXCERPTED = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+
 describe('GET /api/model-operations', () => {
   it("lists the owner's generations and edits for a scope, newest first, in one listWorkflows call", async () => {
     const rows = [row('edit', 2, 'PENDING'), row('suggestion', 1, 'SUCCESS', { output: { ok: true, template: TEMPLATE, raw: '{}', pages: null, baseSchemaRevisionId: null } })]
@@ -96,7 +98,7 @@ describe('GET /api/model-operations', () => {
     const rows = [
       row('suggestion', 1, 'ENQUEUED'),
       row('edit', 2, 'PENDING'),
-      row('suggestion', 3, 'SUCCESS', { output: { ok: true, template: TEMPLATE, raw: '{}', pages: 2, baseSchemaRevisionId: R1 }, input: { baseSchemaRevisionId: R1, extractionSchemaId: SCHEMA } }),
+      row('suggestion', 3, 'SUCCESS', { output: { ok: true, template: TEMPLATE, raw: '{}', pages: 2, sourceCoverage: EXCERPTED, baseSchemaRevisionId: R1 }, input: { baseSchemaRevisionId: R1, extractionSchemaId: SCHEMA } }),
       row('edit', 4, 'SUCCESS', { output: { ok: true, baseSchemaRevisionId: R1, response: PROPOSED } }),
       row('suggestion', 5, 'SUCCESS', { output: { ok: false, status: 502, code: 'model_operation_failed', message: 'The model call failed.' } }),
       row('edit', 6, 'CANCELLED'),
@@ -115,15 +117,18 @@ describe('GET /api/model-operations', () => {
     })
     // Newest first: the rows were admitted in order 1..8.
     expect(body.operations.slice().reverse()).toEqual([
-      { kind: 'generation', ...common(1, 'suggestion'), status: 'QUEUED', failure: null, baseSchemaRevisionId: null, template: null },
+      { kind: 'generation', ...common(1, 'suggestion'), status: 'QUEUED', failure: null, baseSchemaRevisionId: null, template: null, sourceCoverage: null },
       { kind: 'proposal', ...common(2, 'edit'), status: 'RUNNING', failure: null, baseSchemaRevisionId: R1, response: null },
-      { kind: 'generation', ...common(3, 'suggestion'), status: 'SUCCEEDED', failure: null, baseSchemaRevisionId: R1, template: TEMPLATE },
+      { kind: 'generation', ...common(3, 'suggestion'), status: 'SUCCEEDED', failure: null, baseSchemaRevisionId: R1, template: TEMPLATE, sourceCoverage: EXCERPTED },
       { kind: 'proposal', ...common(4, 'edit'), status: 'SUCCEEDED', failure: null, baseSchemaRevisionId: R1, response: PROPOSED },
-      { kind: 'generation', ...common(5, 'suggestion'), status: 'FAILED', failure: { code: 'model_operation_failed', message: 'The model call failed.' }, baseSchemaRevisionId: null, template: null },
+      { kind: 'generation', ...common(5, 'suggestion'), status: 'FAILED', failure: { code: 'model_operation_failed', message: 'The model call failed.' }, baseSchemaRevisionId: null, template: null, sourceCoverage: null },
       { kind: 'proposal', ...common(6, 'edit'), status: 'FAILED', failure: { ...INTERRUPTED_FAILURE }, baseSchemaRevisionId: R1, response: null },
-      { kind: 'generation', ...common(7, 'suggestion'), status: 'FAILED', failure: { ...INTERRUPTED_FAILURE }, baseSchemaRevisionId: null, template: null },
+      { kind: 'generation', ...common(7, 'suggestion'), status: 'FAILED', failure: { ...INTERRUPTED_FAILURE }, baseSchemaRevisionId: null, template: null, sourceCoverage: null },
       { kind: 'proposal', ...common(8, 'edit'), status: 'FAILED', failure: { ...INTERRUPTED_FAILURE }, baseSchemaRevisionId: R1, response: null },
     ])
+    // A generation recorded before the source declaration existed lists as not recorded.
+    expect(modelOperationOf(row('suggestion', 11, 'SUCCESS', { output: { ok: true, template: TEMPLATE, raw: '{}', pages: 2, baseSchemaRevisionId: null } })))
+      .toMatchObject({ status: 'SUCCEEDED', template: TEMPLATE, sourceCoverage: null })
     expect(modelOperationOf(rows[8]!)).toBeNull()
     expect(modelOperationOf(rows[9]!)).toBeNull()
   })

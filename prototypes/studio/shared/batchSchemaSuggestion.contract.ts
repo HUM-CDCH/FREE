@@ -9,6 +9,7 @@ import { extractionStrategySchema, methodRuleIssues } from './extraction.contrac
 import { validationDetailsSchema } from './modelConfig.contract.js'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 import { schemaDefinitionSchema } from 'extraction/schema'
+import { batchSourceCoverageSchema } from './schemaSuggestionSource.contract.js'
 
 const sourceDocumentIdsSchema = z
   .array(canonicalUuidSchema)
@@ -47,14 +48,6 @@ export const batchSchemaSuggestionRetryRequestSchema = z
   .object({ expectedAttempt: z.number().int().positive() })
   .strict()
 
-const coverageSchema = z
-  .object({
-    nodeId: z.string().min(1),
-    present: z.number().int().nonnegative(),
-    total: z.number().int().positive(),
-  })
-  .strict()
-
 const operationFailureSchema = z
   .object({ code: z.string().min(1), message: z.string().min(1) })
   .strict()
@@ -79,7 +72,8 @@ export const batchSchemaSuggestionSchema = z
     /** The retained proposal's meaning; null before the first proposal. */
     phase: z.enum(['READY', 'HETEROGENEOUS']).nullable(),
     proposal: schemaDefinitionSchema.nullable(),
-    coverage: z.array(coverageSchema).nullable(),
+    /** What each Source Document suggestion read of its source; null before a proposal or when not recorded. */
+    sourceCoverage: batchSourceCoverageSchema.nullable(),
     draft: schemaDefinitionSchema.nullable(),
     draftVersion: z.number().int().nonnegative(),
     /** The current attempt's failure. */

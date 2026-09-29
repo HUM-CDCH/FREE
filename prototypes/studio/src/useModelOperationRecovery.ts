@@ -67,7 +67,7 @@ export function useModelOperationRecovery({ schema, proposalReview, busy, append
       }
       deferred = []
       if (plan.saveGeneration) {
-        await schema.restoreGeneration(plan.saveGeneration.template, plan.saveGeneration.baseSchemaRevisionId)
+        await schema.restoreGeneration(plan.saveGeneration.template, plan.saveGeneration.baseSchemaRevisionId, plan.saveGeneration.sourceCoverage)
       } else if (plan.reopenProposal?.response?.status === 'proposed') {
         const snapshot = schema.snapshot()
         const original = snapshot.draft?.schemaNodes ?? []

@@ -19,6 +19,7 @@ import {
 import { sameSchemaDefinition } from './schemaDefinitionEquality'
 import { SchemaRevisionConflictError } from './schemaRevisions'
 import type { SchemaModelContext } from './api'
+import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Persistence port
@@ -246,22 +247,26 @@ export type SchemaEditorSnapshot = {
   creatingFromRevisionId: string | null
   previewingRevisionId: string | null
   historicalPreview: SchemaRevision | null
+  /** What the generation behind the current draft did not read of its source: set while that generated draft stays
+   *  (edits included), null once it is replaced wholesale or when the generation read the whole source. */
+  sourceCoverage: Extract<SourceCoverage, { complete: false }> | null
 }
 
 export type SchemaEditorController = {
   snapshot(): SchemaEditorSnapshot
   subscribe(listener: () => void): () => void
 
-  /** Runs a generation; `cancel` is what a user's Stop calls on the server, before the wait ends. */
+  /** Runs a generation; `cancel` is what a user's Stop calls on the server, before the wait ends. The request resolves
+   *  the template and may declare what of the source the model read. */
   generate(
-    request: (signal: AbortSignal) => Promise<unknown>,
+    request: (signal: AbortSignal, declareSourceCoverage: (coverage: SourceCoverage | null) => void) => Promise<unknown>,
     options?: { cancel?: () => Promise<void> },
   ): Promise<void>
   cancelGeneration(): void
   /** The durable scope a reloaded page lists model operations for; null for a local draft. */
   operationScope(): { projectContextId: string; extractionSchemaId: string | null } | null
   /** Saves a generation that finished while no tab waited for it, but only onto its base; true when it was saved. */
-  restoreGeneration(template: unknown, baseSchemaRevisionId: string | null): Promise<boolean>
+  restoreGeneration(template: unknown, baseSchemaRevisionId: string | null, sourceCoverage?: SourceCoverage | null): Promise<boolean>
 
   commit(
     mutator: (nodes: SchemaNode[]) => SchemaNode[],
@@ -320,6 +325,8 @@ export function createSchemaEditorController(
   let historyAbort: AbortController | null = null
   let replacementVersion = 0
   let draftVersion = 0
+  /** The adopted generation's declaration, valid for the replacement it made. */
+  let generatedCoverage: { coverage: SourceCoverage | null; replacementVersion: number } | null = null
   let disposed = false
 
   const listeners = new Set<() => void>()
@@ -351,6 +358,10 @@ export function createSchemaEditorController(
       creatingFromRevisionId,
       previewingRevisionId,
       historicalPreview,
+      sourceCoverage:
+        generatedCoverage?.replacementVersion === replacementVersion && generatedCoverage.coverage?.complete === false
+          ? generatedCoverage.coverage
+          : null,
     }
   }
   function publish() {
@@ -475,11 +486,15 @@ export function createSchemaEditorController(
       historicalPreview = null
       publish()
       try {
-        const generatedSchema = await request(abort.signal)
+        let declared: SourceCoverage | null = null
+        const generatedSchema = await request(abort.signal, (coverage) => {
+          declared = coverage
+        })
         if (abort.signal.aborted || disposed) return
         const parsed = templateToSchemaDefinition(generatedSchema)
         const definition = normalizeSchemaDefinition(parsed)
         if (!(await adoptGenerated(definition, abort.signal))) return
+        generatedCoverage = { coverage: declared, replacementVersion }
         generating = false
         publish()
       } catch (error) {
@@ -500,7 +515,7 @@ export function createSchemaEditorController(
     /** Saves a generation that finished while no tab waited for it (a reload or a restart), but only onto its base: the
      *  base is still the acknowledged revision of a clean draft, or no Extraction Schema exists yet. Anything else — and a
      *  conflict, meaning newer work landed first — drops it without an error (spec, *Generation*). */
-    async restoreGeneration(template, baseSchemaRevisionId) {
+    async restoreGeneration(template, baseSchemaRevisionId, sourceCoverage = null) {
       if (disposed || generating) return false
       const save = persistence.saveState?.() ?? null
       const onBase = baseSchemaRevisionId === null
@@ -516,6 +531,7 @@ export function createSchemaEditorController(
       }
       try {
         const saved = await adoptGenerated(definition)
+        if (saved) generatedCoverage = { coverage: sourceCoverage, replacementVersion }
         publish()
         return saved
       } catch (error) {
