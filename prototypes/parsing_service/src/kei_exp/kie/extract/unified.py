@@ -56,7 +56,7 @@ from kei_exp.kie.extract.windows import Unit
 from kei_exp.kie.passages import Evidence
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2  # 2: discovery places are one-line [line, text, kind, label] lists
 RECORD_VERSION = 1
 ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apart from its values' evidence
 # The versioned service defaults: engineering choices, none measured yet. Reserves are sized for replies that list

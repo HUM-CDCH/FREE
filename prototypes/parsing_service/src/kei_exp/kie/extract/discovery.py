@@ -36,15 +36,15 @@ CONTEXT_UNITS = 3  # the record-free lines before an entry kept as its context r
 DISCOVERY = (
     "You find where records begin in a source document. A record is: {description}\n"
     "The WINDOW lists source lines, each after a label such as [L1]. Report, in source order, every place in the "
-    "WINDOW where a record begins (kind \"record\") and where text that belongs to no record begins (kind \"other\": "
-    "front matter, a heading between records, an index or a bibliography). A record may begin in the middle of a line "
-    "and one line may hold several records. For each place give \"line\", the label of its line; \"text\", the exact "
-    "characters where it begins, copied from that line (a few words; null when it begins with the line); and "
-    "\"label\", the record's printed number or label when it has one, else null. Answer \"begins_inside_record\": "
-    "true when the first WINDOW line continues a record that began before the WINDOW, false when it does not, null "
-    "when you cannot tell; and \"ends_inside_record\": true when the last record in the WINDOW continues after it, "
-    "false when it does not, null when you cannot tell. CONTEXT lines are shown for orientation only: never report a "
-    "place in them. Return only the JSON object.")
+    "WINDOW where a record begins (\"record\") and where text that belongs to no record begins (\"other\": front "
+    "matter, a heading between records, an index or a bibliography). A record may begin in the middle of a line and "
+    "one line may hold several records. Give each place as a list of four items: the label of its line; the exact "
+    "characters where it begins, copied from that line (a few words), or \"\" when it begins with the line; "
+    "\"record\" or \"other\"; and the record's printed number or label when it has one, else null. Answer "
+    "\"begins_inside_record\": true when the first WINDOW line continues a record that began before the WINDOW, false "
+    "when it does not, null when you cannot tell; and \"ends_inside_record\": true when the last record in the WINDOW "
+    "continues after it, false when it does not, null when you cannot tell. CONTEXT lines are shown for orientation "
+    "only: never report a place in them. Return only the JSON object, on one line, without indentation.")
 
 
 @dataclass(frozen=True)
@@ -167,10 +167,10 @@ def _render(window: Window, texts: dict[str, str]) -> tuple[str, list[str]]:
 
 
 def _reply(labels: list[str]) -> dict:
-    place = {"type": "object", "properties": {
-        "line": {"type": "string", "enum": labels}, "text": {"type": ["string", "null"]},
-        "kind": {"type": "string", "enum": ["record", "other"]}, "label": {"type": ["string", "null"]}},
-        "required": ["line", "text", "kind", "label"], "additionalProperties": False}
+    place = {"type": "array", "prefixItems": [{"type": "string", "enum": labels}, {"type": "string"},
+                                              {"type": "string", "enum": ["record", "other"]},
+                                              {"type": ["string", "null"]}],
+             "items": False, "minItems": 4, "maxItems": 4}
     return {"type": "object", "properties": {
         "places": {"type": "array", "items": place},
         "begins_inside_record": {"type": ["boolean", "null"]}, "ends_inside_record": {"type": ["boolean", "null"]}},
@@ -197,15 +197,15 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
     found: dict[int, list[tuple[int, str, str | None]]] = {}
     unplaced: set[int] = set()
     for place in places:
-        if not isinstance(place, dict) or place.get("line") not in labels or place.get("kind") not in ("record", "other"):
+        if not isinstance(place, list) or len(place) != 4 or place[0] not in labels or place[2] not in ("record", "other"):
             return None
-        index = labels.index(place["line"])
+        line_label, text, kind, label = place
+        index = labels.index(line_label)
         unit = window.primary[index]
         line = texts[unit.segment][unit.start:unit.end]
-        text, label = place.get("text"), place.get("label")
         starts = [0] if not isinstance(text, str) or not text.strip() else [a for a, _ in occurrences(line, text)]
         if len(starts) != 1:
-            issues.append(Issue("boundary_unplaced", f"a {place['kind']} start {text!r} occurs {len(starts)} times in "
+            issues.append(Issue("boundary_unplaced", f"a {kind} start {text!r} occurs {len(starts)} times in "
                                 f"{unit.segment} [{unit.start}:{unit.end}]"))
             unplaced.add(index)
             continue
@@ -213,7 +213,7 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
             issues.append(Issue("label_not_in_source", f"printed label {label!r} is not in {unit.segment} after "
                                 f"offset {unit.start + starts[0]}"))
             label = None
-        found.setdefault(index, []).append((unit.start + starts[0], place["kind"],
+        found.setdefault(index, []).append((unit.start + starts[0], kind,
                                             label if isinstance(label, str) and label.strip() else None))
     located: list[tuple[int, int, str, str | None]] = []
     for index in sorted({*found, *unplaced}):
