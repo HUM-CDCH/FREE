@@ -9,6 +9,7 @@ import {
 } from '../shared/modelConfig.contract.js'
 import type { ExtractionModelListing } from '../shared/extraction.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
+import { REQUIRED_VIEWPORTS, activateWithKeyboard, emulateBrowserZoom200, expectOperableInViewport } from './accessibility.js'
 
 const QWEN = 'Qwen/Qwen3.8-27B-FP8'
 const NUEXTRACT = 'numind/NuExtract3-FP8'
@@ -570,5 +571,138 @@ test.describe('with a mocked configuration', () => {
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
     await expect(opener).toBeFocused()
+  })
+})
+
+test.describe('the Advanced tab', () => {
+  test.describe.configure({ mode: 'serial' })
+  const openAdvanced = async (dialog: Locator) => {
+    const models = dialog.getByRole('tab', { name: 'Models' })
+    await models.focus()
+    await dialog.page().keyboard.press('ArrowLeft')
+    await expect(dialog.getByRole('tab', { name: 'Advanced' })).toBeFocused()
+    await expect(dialog.getByRole('heading', { name: 'Advanced extraction' })).toBeVisible()
+  }
+  const section = (dialog: Locator, title: string) => dialog.locator('details').filter({ has: dialog.page().locator('summary', { hasText: title }) })
+
+  test('opening, explaining and switching strategies saves nothing; an Apply survives a reload; a second account sees none of it', async ({ page, browser }) => {
+    await routeModelServers(page)
+    await signIn(page)
+    let puts = 0
+    page.on('request', (request) => { if (pathOf(request.url()) === '/api/model_config' && request.method() === 'PUT') puts += 1 })
+    const dialog = await openModelConfiguration(page)
+    await openAdvanced(dialog)
+    await dialog.getByRole('radio', { name: 'Catalog' }).check()
+    await dialog.getByRole('radio', { name: 'Article' }).check()
+    await section(dialog, 'Evidence').locator('summary').click()
+    await dialog.getByRole('button', { name: 'Explain Evidence' }).click()
+    await expect(page.getByRole('dialog', { name: 'Verification' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Verification' })).toBeHidden()
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByText('Everything saved')).toBeVisible()
+    expect(puts).toBe(0)
+
+    await dialog.getByRole('button', { name: 'Customize' }).click()
+    await section(dialog, 'Evidence').getByRole('radio', { name: 'Source spans' }).check()
+    const committed = await apply(page, dialog)
+    expect(committed.extractionSettings.article?.grounding).toBe('spans')
+    await reload(page)
+    const reopened = await openModelConfiguration(page)
+    await openAdvanced(reopened)
+    await section(reopened, 'Evidence').locator('summary').click()
+    await expect(section(reopened, 'Evidence').getByRole('radio', { name: 'Source spans' })).toBeChecked()
+    expect(await storedConfiguration(page)).toEqual(committed)
+
+    const other = await browser.newContext()
+    try {
+      const pageB = await other.newPage()
+      await routeModelServers(pageB)
+      await signIn(pageB)
+      const dialogB = await openModelConfiguration(pageB)
+      await openAdvanced(dialogB)
+      await expect(dialogB.getByRole('button', { name: 'Use service defaults', pressed: true })).toBeVisible()
+      expect((await storedConfiguration(pageB)).extractionSettings).toEqual({})
+    } finally {
+      await other.close()
+    }
+  })
+
+  test('a failed Apply keeps the draft and the saved document', async ({ page }) => {
+    await routeModelServers(page)
+    await signIn(page)
+    const dialog = await openModelConfiguration(page)
+    await openAdvanced(dialog)
+    await dialog.getByRole('button', { name: 'Customize' }).click()
+    await page.route('**/api/model_config', (route) => route.request().method() === 'PUT'
+      ? route.fulfill({ status: 503, json: { error: { code: 'persistence_unavailable', message: 'Unavailable.' } } })
+      : route.fallback())
+    await dialog.getByRole('button', { name: 'Apply', exact: true }).click()
+    await expect(dialog.getByRole('alert')).toContainText('persistence_unavailable')
+    await expect(dialog.getByText('Unsaved changes')).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Customize', pressed: true })).toBeVisible()
+    await page.unroute('**/api/model_config')
+    expect((await storedConfiguration(page)).extractionSettings).toEqual({})
+  })
+
+  test('by keyboard: an invalid child is kept, announced, summarized and focusable; the parent back resolves it', async ({ page }) => {
+    await routeModelServers(page)
+    await signIn(page)
+    const dialog = await openModelConfiguration(page)
+    await openAdvanced(dialog)
+    await activateWithKeyboard(page, dialog.getByRole('button', { name: 'Customize' }))
+    const context = section(dialog, 'Source context')
+    await context.locator('summary').focus()
+    await page.keyboard.press('Enter')
+    await context.getByRole('radio', { name: 'Bounded source units' }).check()
+    await context.getByRole('group', { name: 'Previous passages' }).getByRole('radio', { name: '1' }).check()
+    await context.getByRole('radio', { name: 'Full source' }).check()
+    const overlap = context.getByRole('group', { name: 'Previous passages' }).getByRole('radio', { name: '1' })
+    await expect(overlap).toBeChecked()
+    await expect(overlap).toHaveAttribute('aria-invalid', 'true')
+    await expect(context.getByText('This choice requires bounded source units.', { exact: true }).last()).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled()
+    await activateWithKeyboard(page, dialog.getByRole('button', { name: '1 issue blocks Apply' }))
+    await expect(overlap).toBeFocused()
+    await context.getByRole('radio', { name: 'Bounded source units' }).check()
+    await expect(overlap).toBeChecked()
+    await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeEnabled()
+  })
+
+  test('reflows without horizontal scrolling at 360 px, the required viewports and 200% zoom; Explain returns focus', async ({ page }, testInfo) => {
+    await routeModelServers(page)
+    await signIn(page)
+    // Narrow widths collapse the project rail into an overlay: wait for that state, then open it (as the provider
+    // dialog's viewport test does) so "Configure models" is reachable.
+    const showRail = async (width: number) => {
+      if (width >= 860) return
+      await expect(page.getByRole('button', { name: 'Configure models' })).toHaveCount(0)
+      await activateWithKeyboard(page, page.getByRole('button', { name: 'Expand projects' }))
+    }
+    for (const viewport of [{ width: 360, height: 800 }, ...REQUIRED_VIEWPORTS]) {
+      await page.setViewportSize(viewport)
+      await showRail(viewport.width)
+      const dialog = await openModelConfiguration(page)
+      await openAdvanced(dialog)
+      await dialog.getByRole('button', { name: 'How this works' }).click()
+      const guide = page.getByRole('dialog', { name: 'How this works' })
+      await expect(guide.getByRole('figure')).toHaveAccessibleName(/Canonical Source Context feeds Context and grouping/)
+      await page.keyboard.press('Escape')
+      await expect(dialog.getByRole('button', { name: 'How this works' })).toBeFocused()
+      for (const control of ['Customize', 'Apply', 'Discard'])
+        await expectOperableInViewport(page, dialog.getByRole('button', { name: control, exact: true }))
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+      // The dialog scrolls on its own: its content must not overflow sideways either.
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth), `dialog at ${viewport.width}px`).toBe(true)
+      await page.screenshot({ path: testInfo.outputPath(`advanced-${viewport.width}x${viewport.height}.png`), fullPage: true })
+      await page.keyboard.press('Escape')
+      await expect(dialog).toBeHidden()
+    }
+    await emulateBrowserZoom200(page)
+    await showRail(640)
+    const zoomed = await openModelConfiguration(page)
+    await openAdvanced(zoomed)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath('advanced-zoom-200.png'), fullPage: true })
   })
 })

@@ -470,3 +470,61 @@ test('two selected PDFs are admitted while a conversion is held, and a reload ke
     await expect(projectPage.getByText('held.pdf', { exact: true })).toHaveCount(1)
   } finally { await service.releaseConversion(); await service.close() }
 })
+
+const EMPTY_DOCUMENT = { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {} }
+
+test('kei receives the saved Article method byte for value, and the Extraction records it', async ({ page }, testInfo) => {
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+  try {
+    const project = await createProject(page, 'Method transport')
+    const article = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+      prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
+    const saved = await page.request.put('/api/model_config', { headers, data: { config: { ...EMPTY_DOCUMENT, extractionSettings: { article } } } })
+    expect(saved.status(), await saved.text()).toBe(200)
+    const { sourceDocumentId } = await uploaded(page, project, cataloguePdf())
+    const revision = await articleSchema(page, project)
+    const id = randomUUID()
+    const admitted = await page.request.post('/api/extractions', { headers, data: {
+      id, strategy: 'ARTICLE', schemaRevisionId: revision, sourceRepresentationRevisionId: await representation(page, project, sourceDocumentId),
+      method: { models: null, settings: { article } },
+    } })
+    expect(admitted.status(), await admitted.text()).toBe(201)
+    expect(extractionReadResponseSchema.shape.extraction.parse(await admitted.json()).requestedSettings).toEqual({ article })
+    await expect.poll(async () => (await service.keiWorkflows(`kei-extract:${id}`)).length, { timeout: 120_000 }).toBe(1)
+    const [child] = await service.keiWorkflows(`kei-extract:${id}`)
+    expect((child!.input as [{ request: { options: unknown } }])[0].request.options).toEqual({ strategy: 'article', article })
+    const cancelled = await page.request.delete(`/api/extractions/${id}`, { headers })
+    expect([202, 404]).toContain(cancelled.status())
+  } finally { await service.close() }
+})
+
+test('a recipe budget the served model cannot hold is refused before model calls and keeps its requested budget', async ({ page }, testInfo) => {
+  test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL), 'The served context is the scripted model boundary’s 16,384 tokens.')
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+  try {
+    const project = await createProject(page, 'Refused budget')
+    const recipe = { input_tokens: 4096, output_tokens: 16000, factors: { glossary: true, headings: true, overlap: true, verification: true } }
+    expect((await page.request.put('/api/model_config', { headers, data: { config: { ...EMPTY_DOCUMENT, extractionSettings: { catalog: { recipe } } } } })).status()).toBe(200)
+    const { sourceDocumentId } = await uploaded(page, project, numberedCataloguePdf(), 'katalog.pdf')
+    const schema = await page.request.post('/api/schema-revisions', { headers, data: {
+      projectContextId: project, recordDescription: 'One numbered catalogue entry.',
+      schemaNodes: [{ id: 'entry_no', name: 'entry_no', type: 'integer', description: 'The catalogue number.' }],
+    } })
+    expect(schema.status(), await schema.text()).toBe(201)
+    const id = randomUUID()
+    const admitted = await page.request.post('/api/extractions', { headers, data: {
+      id, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', schemaRevisionId: (await schema.json()).revision.schemaRevisionId,
+      sourceRepresentationRevisionId: await representation(page, project, sourceDocumentId), method: { models: null, settings: { recipe } },
+    } })
+    expect(admitted.status(), await admitted.text()).toBe(201)
+    await expect.poll(async () =>
+      extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json()).extraction.executionStatus,
+    { timeout: 300_000, intervals: [500, 1000] }).toBe('COMPLETED')
+    const { extraction } = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
+    expect(extraction.requestedSettings).toEqual({ recipe })
+    expect(extraction.complete).toBe(false)
+    expect(extraction.evidenceLinks).toEqual([])
+    expect(extraction.diagnostics?.grounding?.issueCodes).toContain('budget_exceeds_context')
+    expect((extraction.diagnostics?.effectiveMethod?.options.catalog as { output_tokens: number }).output_tokens).toBe(16000)
+  } finally { await service.close() }
+})
