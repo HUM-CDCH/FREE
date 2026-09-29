@@ -1342,7 +1342,7 @@ describe('SchemaPanel sample values', () => {
   function sampleOf(overrides: Partial<SchemaSample> = {}, touched = false): SchemaSample {
     return {
       attempt: {
-        extractionId: '51000000-0000-4000-8006-000000000009', outcome: 'SUCCEEDED', requestedPages: [12],
+        extractionId: '51000000-0000-4000-8006-000000000009', outcome: 'SUCCEEDED', requestedPages: [12], complete: true,
         resultPayload: { records: [{ title: '1897', gender: 'woman' }] },
         evidenceLinks: [{ resultPath: title, evidenceAnchorId: 'a_p12_s12' }],
         diagnostics: { grounded: { recordBlocks: [{ block: 'b41', entry_label: '41' }] } },
@@ -1362,7 +1362,7 @@ describe('SchemaPanel sample values', () => {
     const sample = sampleOf()
     renderPanel({}, { sample })
     expect(screen.getByText('Nr. 41')).toBeInTheDocument()
-    expect(screen.getByText('Sample · rev 1 · pp. 12 · values are from revision 1')).toBeInTheDocument()
+    expect(screen.getByText('Sample · rev 1 · pp. 12 · complete for these pages · values are from revision 1')).toBeInTheDocument()
     expect(screen.getByText('No sample values yet: this field is newer than revision 1.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '1897' }))
     expect(sample.onSelectEvidence).toHaveBeenCalledWith('a_p12_s12')

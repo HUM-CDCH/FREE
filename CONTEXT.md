@@ -112,6 +112,10 @@ _Avoid_: schema, suggestion
 A researcher-initiated operation that applies one Current Schema Revision and one Extraction Strategy to a selected set of Source Documents, creating a separate Extraction and Extraction Result for each Source Document.
 _Avoid_: annotation set, combined extraction, project-wide extraction
 
+**Sample Extraction**:
+A single Extraction admitted on a page scope of at most 30 pages of its Source Document, to try an Extraction Schema before extracting the whole document. It is reviewed like any Extraction, never becomes the document's latest or latest reviewed result, counts in no project summary, and is complete only for its pages. An Article sample reads only its pages, so a record that continues beyond them comes back partial.
+_Avoid_: preview, test run, partial extraction
+
 **Extraction Result**:
 A source-grounded value or set of values produced by an extraction and linked to
 validated evidence.

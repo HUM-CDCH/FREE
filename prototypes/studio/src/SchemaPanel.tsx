@@ -139,10 +139,13 @@ function SampleValues({ node, sample }: { node: SchemaNode; sample: SchemaSample
   return (
     <div className="ml-6 mt-1 flex flex-col gap-1 text-[11.5px]">
       <p className="text-[11px] text-ink-muted">
-        Sample · rev {revision} · {sample.pagesLabel}
+        Sample · rev {revision} · {sample.pagesLabel} · {attempt.complete ? 'complete' : 'incomplete'} for these pages
         {sample.currentRevisionNumber !== null && sample.currentRevisionNumber !== revision &&
           ` · values are from revision ${revision}`}
       </p>
+      {attempt.strategy === 'ARTICLE' && (
+        <p className="text-[11px] text-ink-muted">Article read only these pages: a record that continues beyond them comes back partial.</p>
+      )}
       {records.map((record, index) => {
         const path = ['records', index, pinned.name]
         const key = resultPathKey(path)
