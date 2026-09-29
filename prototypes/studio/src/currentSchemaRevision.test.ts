@@ -518,6 +518,32 @@ describe('generation lifecycle', () => {
     expect(setup.controller.snapshot().sourceCoverage).toBeNull()
   })
 
+  it('drops the declaration when a regeneration save conflict adopts a competing revision, and keeps it through a failure', async () => {
+    const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    await setup.controller.generate(async (_signal, declareSourceCoverage) => {
+      declareSourceCoverage(EXCERPTED)
+      return { _description: 'One regenerated record.', place: 'string' }
+    })
+    expect(setup.controller.snapshot().sourceCoverage).toEqual(EXCERPTED)
+
+    // A model failure leaves the excerpt-generated draft in place, with its declaration.
+    await setup.controller.generate(async () => {
+      throw new Error('The model refused.')
+    })
+    expect(setup.controller.snapshot().draft!.recordDescription).toBe('One regenerated record.')
+    expect(setup.controller.snapshot().sourceCoverage).toEqual(EXCERPTED)
+
+    // Another tab saved a revision; this tab's next regeneration conflicts, and recovery adopts that revision.
+    setup.failNextAppendWith(new SchemaRevisionConflictError(revision(7, 'elsewhere')))
+    await setup.controller.generate(async (_signal, declareSourceCoverage) => {
+      declareSourceCoverage(EXCERPTED)
+      return { _description: 'One late record.', late: 'string' }
+    })
+    expect(setup.controller.snapshot().generationError).not.toBeNull()
+    expect(setup.controller.snapshot().draft).toEqual(definition('elsewhere'))
+    expect(setup.controller.snapshot().sourceCoverage).toBeNull()
+  })
+
   it('restoreGeneration carries the declaration of the generation it saves', async () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
 

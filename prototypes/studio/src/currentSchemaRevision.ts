@@ -499,7 +499,11 @@ export function createSchemaEditorController(
         publish()
       } catch (error) {
         if (abort.signal.aborted || disposed) return
+        const failedOn = draft
         persistence.reloadCurrent?.()
+        // A save conflict's reload adopts the competing revision (the save subscription replaces the draft without a
+        // replacement); the declaration described the draft it replaced. A failure that keeps the draft keeps it.
+        if (draft !== failedOn) generatedCoverage = null
         generating = false
         generationError =
           error instanceof Error ? error.message : 'Schema generation failed.'
