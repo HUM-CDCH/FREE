@@ -162,19 +162,25 @@ def test_a_field_named_like_an_annotation_reaches_constrained_decoding(monkeypat
                         {"id": "oy", "name": "x-depth", "type": "integer"}]},
                     {"id": "a", "name": "x-finds", "type": "array", "children": [
                         {"id": "ac", "name": "x-count", "type": "integer"}]},
-                    {"id": "t", "name": "x-tags", "type": "array", "itemType": "string"})
+                    {"id": "t", "name": "x-tags", "type": "array", "itemType": "string"},
+                    {"id": "d", "name": "x-date", "type": "date"})
+    assert "x-free-type" in keywords(schema)
+    schema["properties"]["name"]["x-vendor-hint"] = "kept"
     OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema=schema)
     wire = sent[0]["response_format"]["json_schema"]["schema"]
-    assert not [key for key in keywords(wire) if key.startswith("x-")]
+    assert "x-free-type" not in keywords(wire)
+    assert wire["properties"]["name"]["x-vendor-hint"] == "kept"
     assert wire["properties"]["x-coordinate"] == {"type": ["number", "null"]}
+    assert wire["properties"]["x-date"] == {"type": ["string", "null"]}
     assert wire["properties"]["x-tags"]["items"] == {"type": "string"}
     for level in (wire, wire["properties"]["x-site"], wire["properties"]["x-finds"]["items"]):
         assert list(level["properties"]) == level["required"]
-    assert wire["required"] == ["x-coordinate", "name", "x-site", "x-finds", "x-tags"]
+    assert wire["required"] == ["x-coordinate", "name", "x-site", "x-finds", "x-tags", "x-date"]
     assert wire["properties"]["x-site"]["required"] == ["x-depth"]
     assert wire["properties"]["x-finds"]["items"]["required"] == ["x-count"]
     assert nuextract_template(schema) == {"x-coordinate": "number", "name": "string", "x-site": {"x-depth": "integer"},
-                                          "x-finds": [{"x-count": "integer"}], "x-tags": ["string"]}
+                                          "x-finds": [{"x-count": "integer"}], "x-tags": ["string"],
+                                          "x-date": "verbatim-string"}
 
 
 def test_nuextract_is_sent_the_template_and_the_instructions_only_through_the_chat_template(monkeypatch):

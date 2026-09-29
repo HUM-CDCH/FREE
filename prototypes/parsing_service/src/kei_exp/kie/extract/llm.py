@@ -140,13 +140,16 @@ def _reply(response, started: float, attempts: tuple[str, ...]) -> Reply:
                  seconds=time.monotonic() - started, attempts=attempts)
 
 
+# The annotations FREE writes into a reply schema (`schema.json_schema`); constrained decoding never sees them.
+_FREE_ANNOTATIONS = frozenset({"x-free-type"})
+
+
 def _plain(schema: Any) -> Any:
-    """The schema without its `x-` annotations: what constrains decoding carries no vendor keywords. A `properties`
-    map's keys are field names, not keywords, so each field survives whatever its name and loses only its own
-    annotations."""
+    """The schema without FREE's own annotations. A `properties` map's keys are field names, not keywords, so each
+    field survives whatever its name and loses only FREE's annotations on its own schema."""
     if isinstance(schema, dict):
         return {key: ({name: _plain(field) for name, field in value.items()} if key == "properties" else _plain(value))
-                for key, value in schema.items() if not key.startswith("x-")}
+                for key, value in schema.items() if key not in _FREE_ANNOTATIONS}
     if isinstance(schema, list):
         return [_plain(item) for item in schema]
     return schema
