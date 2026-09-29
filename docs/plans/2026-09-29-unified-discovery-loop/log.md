@@ -86,3 +86,27 @@ so no record is reused across the change; TS takes any integer). Fast tier
 1,157 passed; `extraction` 124/124, `extraction-result-export` 36/36, Studio
 `_extractions.test.ts` 14/14 with the regenerated v3 contract fixture.
 `big-h1` started 00:14 (servers idle), background.
+
+## Tick 3 (2026-09-30, direction change: IDs only)
+
+The user asked whether the loop was producing slop. Answer: H1 was a small,
+measured change, but H2-H4 (parallel queue, reply-aware planner, prefix
+salvage) would add machinery to a discovery whose cost grows with the number
+of records. FREE-technical's boundary call (`core/hierarchical`) is the same
+idea, with markers copied for every record and the document truncated, so it
+is no faster. Papers: Evaporate (Arora et al., VLDB 2024,
+arXiv:2304.09433) has the model write extraction code once; LumberChunker
+(Duarte et al., EMNLP Findings 2024, arXiv:2406.17526) answers with a passage
+id, not text. **The user chose IDs only.** H2, H3 and H4 are dropped. The
+Evaporate-style induced start convention is the recorded design option (needs
+the user's approval).
+
+`big-h1` (H1, `c9663703`) was stopped at 9 min (EXIT 137, no result): the IDs
+shape supersedes it and its whole-`big` first window would have been cut off.
+
+Commit `b610a0ca`: a place is `[line, kind, label]`, with the start text as a
+fourth item only for a place inside a line; `PROMPT_VERSION` 3. Fast tier
+1,157 passed; `extraction` 124/124, `extraction-result-export` 36/36, Studio
+`_extractions.test.ts` 14/14. Raw reply on the same 40 lines as tick 1: 209
+out (was 691), 27.0 s (was 88.4), the same 17 places, 0 blank tokens,
+≈ 11 tok/place. `big-ids` started 00:25 (servers idle).
