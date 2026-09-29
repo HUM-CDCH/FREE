@@ -2,6 +2,7 @@
 the merge into one grounded artifact. Passages are built by hand; the parse-run projection has its own tests."""
 import dataclasses
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -87,6 +88,22 @@ def test_discovery_labels_every_passage_and_cuts_records_at_the_starts_it_is_tol
     assert seen["schema"]["properties"]["starts"]["items"]["enum"] == ["B1", "B2", "B3", "B4", "B5"]
     assert [[p.id for p in group] for group in slices] == [["p1_s1", "p1_s2"], ["p1_s3"]]
     assert calls[0].stage == "discovery" and calls[0].ok and not issues
+
+
+def test_discovery_prompt_carries_the_record_description_and_no_development_corpus_examples():
+    seen = {}
+
+    def script(system, user, schema):
+        seen["system"] = system
+        return {"starts": ["B2"], "end": None}
+    discover(evidence(), SCHEMA, FakeChat(script), budget=48_000)
+    system = seen["system"]
+    assert "A record is: One numbered catalogue entry." in system
+    assert "the labels of the blocks that OPEN each record" in system and "\"end\" as null" in system
+    assert "A block that opens a record is never the end." in system
+    for corpus_term in ("urn", "axe", "spear", "bowl", "burial", "grave", "finds", "Oak", "Brook", "Marsh", "Heath",
+                        "region", "inventory"):
+        assert not re.search(rf"\b{corpus_term}\b", system, re.IGNORECASE), corpus_term
 
 
 def test_discovery_reports_a_numbered_entry_that_its_end_cuts_off():

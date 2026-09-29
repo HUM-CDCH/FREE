@@ -34,7 +34,7 @@ from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import Evidence, Passage
 
 EXTRACTION_VERSION = 1
-PROMPT_VERSION = 13  # A unique text hit is verified like any claim; no lexical-only links.
+PROMPT_VERSION = 14  # Catalog discovery examples are structural, not from the development corpus.
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
