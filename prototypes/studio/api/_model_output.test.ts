@@ -33,17 +33,13 @@ describe('parseTemplate', () => {
     await expect(parseTemplate(text)).resolves.toEqual({ _description: 'Uses <think>x</think> verbatim.' })
   })
 
-  it.each([
-    ['a truncated description', '{"_description":"Graves from the cem'],
-    ['mismatched closing brackets', '{"_description":"One grave record.","grave":[{"name":"verbatim-string"}}]'],
-    ['an elided array', '{"_description":"One grave.","ids":[1,2,...]}'],
-    ['concatenated strings', '{"_description":"One" + " grave."}'],
-    ['a missing comma', '{"_description":"One grave." "grave":"string"}'],
-    ['prose around the JSON', 'Here is the schema: {"_description":"One grave."}'],
-    ['an unclosed reasoning block', '<think>still thinking {"_description":"One grave."}'],
-    ['a reasoning block that is not leading', '{"_description":"One grave."}<think>after</think>'],
-    ['two JSON documents', '{"_description":"One grave."}\n{"_description":"Another."}'],
-  ])('rejects %s visibly', async (_, text) => {
+  it('repairs syntax after outer framing without stripping literal tags from values', async () => {
+    const text = '<think>plan</think>\n```json\n{"_description":"Uses <think>x</think> and ``` verbatim.",}\n```'
+
+    await expect(parseTemplate(text)).resolves.toEqual({ _description: 'Uses <think>x</think> and ``` verbatim.' })
+  })
+
+  it.each(['{"a":1:2}', 'not json'])('rejects an unrecoverable or non-object reply: %s', async (text) => {
     await expect(parseTemplate(text)).rejects.toMatchObject(INVALID)
   })
 })

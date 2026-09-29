@@ -324,11 +324,11 @@ describe('schema edit model reply', () => {
     })
   }
 
-  it('keeps literal triple backticks inside a valid description', async () => {
+  it.each([false, true])('keeps literal triple backticks in a description (repair: %s)', async (repair) => {
     const description = 'Copy the ```json``` block verbatim, fences included: ```'
     const reply = JSON.stringify({ fields: { code: { name: 'code', type: 'string', removed: false, description } }, additions: [] })
 
-    await expect(proposeFromReply(reply)).resolves.toMatchObject({
+    await expect(proposeFromReply(repair ? `${reply.slice(0, -1)},}` : reply)).resolves.toMatchObject({
       status: 'proposed',
       fields: { code: { description } },
     })
