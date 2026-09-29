@@ -15,7 +15,7 @@ import {
   validateExtraction as persistExtractionValidation,
 } from './postgres-evaluation-runs.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
-import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
+import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT } from './batch.js'
 import { sameRetrySelection, validateCatalogRetry } from './catalog.js'
 import type {
   ClaimedExtractionJob,
@@ -49,6 +49,8 @@ import type {
   ScheduleBatchInput,
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
+  StabiliseSchemaRevisionInput,
+  StabiliseSchemaRevisionResult,
   ValidateExtractionInput,
 } from './types.js'
 
@@ -1695,14 +1697,35 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
         const current = await orm.public.SchemaRevision.where({
           extractionSchemaId: schema.extractionSchemaId,
         })
-          .select('id')
+          .select('id', 'stabilisedAt')
           .orderBy((revision) => revision.revisionNumber.desc())
           .first()
         if (current?.id !== input.schemaRevisionId)
           return 'invalid' as const
+        // A pilot-sized selection is allowed pre-stabilise (this *is* how a
+        // pilot round runs, per guided-pilot-extraction-workflow); only a
+        // collection-scale batch requires stabilising first.
+        if (
+          !current.stabilisedAt &&
+          input.sourceDocumentIds.length > PILOT_BATCH_SELECTION_LIMIT
+        )
+          return 'unstabilised' as const
+        type ReusableExtraction = {
+          id: string
+          outcome: string
+          complete: boolean | null
+          modelAttribution: unknown
+          diagnostics: unknown
+          failure: unknown
+          resultPayload: unknown
+          evidenceLinks: unknown
+          reviewable: boolean
+          reviewedAt: Date | null
+        }
         const members: Array<{
           sourceDocumentId: string
           sourceRepresentationRevisionId: string
+          reuse: ReusableExtraction | null
         }> = []
         for (const sourceDocumentId of canonicalIds(
           input.sourceDocumentIds,
@@ -1722,9 +1745,32 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
               .orderBy((revision) => revision.revisionNumber.desc())
               .first()
           if (!representation) return 'invalid' as const
+          // Reuse an already-piloted-and-reviewed Extraction instead of
+          // re-running the model (guided-pilot-extraction-workflow design.md
+          // D6): only when it targets this exact revision, strategy, and
+          // still-current representation. Pilot rounds are themselves small
+          // Batch Extractions, so a reusable Extraction is very likely
+          // already a member of an earlier (pilot) batch — cloning (below)
+          // rather than re-pointing its `batchExtractionId` is what keeps
+          // that earlier batch's own view intact (its `extraction_batch_pin_fkey`
+          // requires exactly one owning batch per Extraction row).
+          const reusable = await orm.public.Extraction.where({
+            schemaRevisionId: input.schemaRevisionId,
+            sourceDocumentId,
+            sourceRepresentationRevisionId: representation.id,
+            strategy: input.strategy,
+          })
+            .where((extraction) => extraction.reviewedAt.isNotNull())
+            .select(
+              'id', 'outcome', 'complete', 'modelAttribution', 'diagnostics',
+              'failure', 'resultPayload', 'evidenceLinks', 'reviewable', 'reviewedAt',
+            )
+            .orderBy((extraction) => extraction.reviewedAt.desc())
+            .first()
           members.push({
             sourceDocumentId,
             sourceRepresentationRevisionId: representation.id,
+            reuse: reusable,
           })
         }
         await orm.public.BatchExtraction.create({
@@ -1733,29 +1779,120 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           schemaRevisionId: input.schemaRevisionId,
           strategy: input.strategy,
         })
-        for (const member of members) {
+        for (const { reuse, ...member } of members) {
           const initialExtractionJobId = stableUuid(
             'batch-member-extraction-job',
             stableJson([batchExtractionId, member.sourceRepresentationRevisionId]),
           )
-          await orm.public.ExtractionJob.create({
-            id: initialExtractionJobId,
-            kind: 'BATCH_MEMBER',
-            projectContextId: input.projectContextId,
-            ...member,
-            schemaRevisionId: input.schemaRevisionId,
-            strategy: input.strategy,
-            batchExtractionId,
-          })
-          await orm.public.BatchExtractionMember.create({
-            batchExtractionId,
-            ...member,
-            initialExtractionJobId,
-          })
+          if (reuse) {
+            const finishedAt = reuse.reviewedAt ?? new Date()
+            await orm.public.ExtractionJob.create({
+              id: initialExtractionJobId,
+              kind: 'BATCH_MEMBER',
+              projectContextId: input.projectContextId,
+              ...member,
+              schemaRevisionId: input.schemaRevisionId,
+              strategy: input.strategy,
+              batchExtractionId,
+              executionStatus: 'COMPLETED',
+              startedAt: finishedAt,
+              finishedAt,
+            })
+            // The member row must exist before any Extraction can reference
+            // this batchExtractionId (`extraction_batch_member_fkey` pins
+            // `(batchExtractionId, sourceDocumentId,
+            // sourceRepresentationRevisionId)` to BatchExtractionMember) —
+            // create it here, ahead of the clone below, instead of after
+            // the branch as the fresh-extraction path does (that path never
+            // inserts an Extraction row itself; the worker does, once this
+            // transaction — and this member row — has already committed).
+            await orm.public.BatchExtractionMember.create({
+              batchExtractionId,
+              ...member,
+              initialExtractionJobId,
+            })
+            // Clone rather than re-point `batchExtractionId`: the reused
+            // Extraction very likely already belongs to an earlier pilot
+            // Batch Extraction, and that FK allows only one owning batch
+            // per row (design.md D6 revision). `retryOfId` links the clone
+            // back to it for lineage, reusing the existing retry-pin FK
+            // (which requires matching representation/schema/strategy —
+            // already guaranteed by the reuse query above).
+            const clonedExtractionId = stableUuid(
+              'batch-member-reused-extraction',
+              stableJson([batchExtractionId, member.sourceRepresentationRevisionId, reuse.id]),
+            )
+            await orm.public.Extraction.create({
+              id: clonedExtractionId,
+              ...member,
+              schemaRevisionId: input.schemaRevisionId,
+              strategy: input.strategy,
+              outcome: reuse.outcome as 'SUCCEEDED' | 'FAILED' | 'CANCELLED',
+              complete: reuse.complete,
+              modelAttribution: reuse.modelAttribution,
+              diagnostics: reuse.diagnostics,
+              failure: reuse.failure,
+              resultPayload: reuse.resultPayload,
+              evidenceLinks: reuse.evidenceLinks,
+              reviewable: reuse.reviewable,
+              retryOfId: reuse.id,
+              batchExtractionId,
+              reviewedAt: reuse.reviewedAt,
+            })
+            // loadExtraction only ever reads ExtractionReview/ReviewDecision
+            // scoped to its own extractionId, so the reviewed value is lost
+            // on read unless the review trail is cloned too.
+            const originalReview = await orm.public.ExtractionReview.where({
+              extractionId: reuse.id,
+            })
+              .select('id', 'revisionNumber', 'decisionDigest')
+              .orderBy((review) => review.revisionNumber.desc())
+              .first()
+            if (originalReview) {
+              const clonedReview = await orm.public.ExtractionReview.create({
+                extractionId: clonedExtractionId,
+                revisionNumber: originalReview.revisionNumber,
+                decisionDigest: originalReview.decisionDigest,
+              })
+              const originalDecisions = await orm.public.ReviewDecision.where({
+                extractionReviewId: originalReview.id,
+              })
+                .select(
+                  'resultPath', 'resultPathKey', 'evidenceAnchorId',
+                  'reviewedOccurrenceIds', 'action', 'reviewedValue',
+                )
+                .all()
+              for (const decision of originalDecisions)
+                await orm.public.ReviewDecision.create({
+                  extractionReviewId: clonedReview.id,
+                  ...decision,
+                })
+            }
+          } else {
+            await orm.public.ExtractionJob.create({
+              id: initialExtractionJobId,
+              kind: 'BATCH_MEMBER',
+              projectContextId: input.projectContextId,
+              ...member,
+              schemaRevisionId: input.schemaRevisionId,
+              strategy: input.strategy,
+              batchExtractionId,
+            })
+            await orm.public.BatchExtractionMember.create({
+              batchExtractionId,
+              ...member,
+              initialExtractionJobId,
+            })
+          }
         }
         return 'created' as const
       })
       if (opened === 'missing') return null
+      if (opened === 'unstabilised')
+        throw new ExtractionError(
+          'schema_not_stabilised',
+          'Stabilise this Schema Revision before running a Batch Extraction against it.',
+        )
       if (opened === 'invalid')
         throw new ExtractionError(
           'invalid_extraction_pins',
@@ -1791,6 +1928,55 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
         )
       return { disposition: 'replayed', batch: snapshot(batch) }
     }
+  }
+
+  async stabiliseSchemaRevision(
+    input: StabiliseSchemaRevisionInput,
+  ): Promise<StabiliseSchemaRevisionResult | 'not-found' | 'not-ready'> {
+    return this.database.transaction(async ({ orm }) => {
+      if (
+        !(await orm.public.ProjectContext.select('id').first({
+          id: input.projectContextId,
+          researcherAccountId: this.researcherAccountId,
+        }))
+      )
+        return 'not-found' as const
+      const revision = await orm.public.SchemaRevision.select(
+        'id', 'extractionSchemaId', 'stabilisedAt',
+      ).first({ id: input.schemaRevisionId })
+      const owner = revision
+        ? await orm.public.ExtractionSchema.select(
+            'projectContextId',
+          ).first({ id: revision.extractionSchemaId })
+        : null
+      if (!revision || !owner || owner.projectContextId !== input.projectContextId)
+        return 'not-found' as const
+      if (revision.stabilisedAt)
+        return {
+          schemaRevisionId: revision.id,
+          stabilisedAt: revision.stabilisedAt.toISOString(),
+        }
+      const reviewed = await orm.public.Extraction.select('id').first({
+        schemaRevisionId: input.schemaRevisionId,
+      })
+      // Guided-pilot-extraction-workflow guided-workflow-phases spec: stabilise
+      // requires at least one already-reviewed pilot Extraction under this
+      // revision.
+      const hasReviewedPilot = reviewed
+        ? await orm.public.Extraction.where({ schemaRevisionId: input.schemaRevisionId })
+            .where((extraction) => extraction.reviewedAt.isNotNull())
+            .select('id')
+            .first()
+        : null
+      if (!hasReviewedPilot) return 'not-ready' as const
+      const stabilisedAt = new Date()
+      const updated = await orm.public.SchemaRevision.where({
+        id: input.schemaRevisionId,
+        stabilisedAt: null,
+      }).updateAll({ stabilisedAt })
+      if (updated.length !== 1) return 'not-ready' as const
+      return { schemaRevisionId: input.schemaRevisionId, stabilisedAt: stabilisedAt.toISOString() }
+    })
   }
 
   scheduleSuggestedBatch(

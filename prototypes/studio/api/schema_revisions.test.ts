@@ -19,8 +19,8 @@ const definition = (name: string) => ({
   schemaNodes: nodes(name),
 })
 const revisions: SchemaRevisionRecord[] = [
-  { schemaRevisionId: REVISION_2, extractionSchemaId: SCHEMA, revisionNumber: 2, origin: 'researcher-edit', schemaTree: definition('year'), createdAt: new Date('2026-08-01T12:01:00Z') },
-  { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: definition('site'), createdAt: new Date('2026-08-01T12:00:00Z') },
+  { schemaRevisionId: REVISION_2, extractionSchemaId: SCHEMA, revisionNumber: 2, origin: 'researcher-edit', schemaTree: definition('year'), createdAt: new Date('2026-08-01T12:01:00Z'), stabilisedAt: null },
+  { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: definition('site'), createdAt: new Date('2026-08-01T12:00:00Z'), stabilisedAt: null },
 ]
 
 function store(overrides: Partial<Pick<ResearcherProjectStore, 'initializeSchemaRevision' | 'appendSchemaRevision' | 'listSchemaRevisions' | 'getSchemaRevision'>> = {}) {

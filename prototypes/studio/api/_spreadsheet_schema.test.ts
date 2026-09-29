@@ -69,7 +69,7 @@ describe('buildSpreadsheetTemplate', () => {
   const stringColumn = { columnName: 'notes', values: ['a', 'b'] }
 
   it('builds a flat template with no separator', () => {
-    const result = buildSpreadsheetTemplate([numericColumn, stringColumn], null)
+    const result = buildSpreadsheetTemplate([numericColumn, stringColumn], null, true)
     expect(result).toEqual({
       ok: true,
       template: { temperature: 'number', notes: 'string' },
@@ -84,6 +84,7 @@ describe('buildSpreadsheetTemplate', () => {
     const result = buildSpreadsheetTemplate(
       [{ columnName: 'measurement.temperature', values: [4.2, 3.8] }],
       null,
+      true,
     )
     expect(result).toEqual({
       ok: true,
@@ -99,6 +100,7 @@ describe('buildSpreadsheetTemplate', () => {
         { columnName: 'measurement.unit', values: ['C', 'F', 'C'] },
       ],
       '.',
+      true,
     )
     expect(result).toEqual({
       ok: true,
@@ -117,6 +119,7 @@ describe('buildSpreadsheetTemplate', () => {
         { columnName: 'measurement.temperature', values: [4.2, 3.8] },
       ],
       '.',
+      true,
     )
     expect(result.ok).toBe(false)
     expect(result.ok === false && result.conflicts).toEqual([
@@ -132,6 +135,7 @@ describe('buildSpreadsheetTemplate', () => {
         { columnName: 'species', values: ['Salmon', 'Cod'] },
       ],
       '.',
+      true,
     )
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error('expected ok result')
@@ -150,11 +154,33 @@ describe('buildSpreadsheetTemplate', () => {
         { columnName: 'species', values: ['Salmon', 'Cod'] },
       ],
       null,
+      true,
     )
     expect(result).toEqual({
       ok: true,
       template: { species: 'string' },
       columnPaths: new Map([['species', ['species']]]),
+    })
+  })
+
+  it('gives every field a plain string type when inferTypesFromValues is false, ignoring cell values', () => {
+    const result = buildSpreadsheetTemplate(
+      [
+        { columnName: 'measurement.temperature', values: [4.2, 3.8] },
+        { columnName: 'measurement.unit', values: ['C', 'F', 'C'] },
+        { columnName: 'species', values: ['Salmon', 'Cod'] },
+      ],
+      '.',
+      false,
+    )
+    expect(result).toEqual({
+      ok: true,
+      template: { measurement: { temperature: 'string', unit: 'string' }, species: 'string' },
+      columnPaths: new Map([
+        ['measurement.temperature', ['measurement', 'temperature']],
+        ['measurement.unit', ['measurement', 'unit']],
+        ['species', ['species']],
+      ]),
     })
   })
 })
@@ -167,6 +193,7 @@ describe('columnFieldIds', () => {
         { columnName: 'species', values: ['Salmon'] },
       ],
       '.',
+      true,
     )
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error('expected ok result')
@@ -184,7 +211,7 @@ describe('columnFieldIds', () => {
   })
 
   it('must be computed once at creation time, before any rename — re-walking by name afterwards fails', () => {
-    const result = buildSpreadsheetTemplate([{ columnName: 'species', values: ['Salmon'] }], null)
+    const result = buildSpreadsheetTemplate([{ columnName: 'species', values: ['Salmon'] }], null, true)
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error('expected ok result')
     const nodes = templateToNodes(result.template)

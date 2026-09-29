@@ -103,11 +103,14 @@ export type SpreadsheetTemplateResult =
  * (`packages/extraction/src/schema.ts`) already accepts. When `separator`
  * is null/undefined, every column stays a flat top-level field, even if its
  * header contains a character that would otherwise be a separator
- * (design.md D1b).
+ * (design.md D1b). When `inferTypesFromValues` is false, every column
+ * becomes a plain `string` field regardless of its cell values — the
+ * researcher can opt out of reading anything but the header row.
  */
 export function buildSpreadsheetTemplate(
   columns: readonly SpreadsheetColumn[],
   separator: string | null,
+  inferTypesFromValues: boolean,
 ): SpreadsheetTemplateResult {
   // The "filename" column (case-insensitive) identifies which document a
   // row is about — never a schema field to extract, regardless of purpose
@@ -126,7 +129,9 @@ export function buildSpreadsheetTemplate(
   const template: Record<string, unknown> = {}
   const columnPaths = new Map<string, string[]>()
   for (const { column, path } of paths) {
-    const inference = inferColumnType(column.values)
+    const inference: ColumnTypeInference = inferTypesFromValues
+      ? inferColumnType(column.values)
+      : { type: 'string' }
     setAtPath(template, path, templateValueFor(inference))
     columnPaths.set(column.columnName, path)
   }

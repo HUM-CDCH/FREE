@@ -1,0 +1,163 @@
+[
+  {
+    "id": "table.schemaIssueFlag",
+    "label": "Create table \"schemaIssueFlag\"",
+    "summary": "Creates table \"schemaIssueFlag\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "schemaIssueFlag"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"schemaIssueFlag\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaIssueFlag\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"schemaIssueFlag\"",
+        "sql": "CREATE TABLE \"public\".\"schemaIssueFlag\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"fieldPath\" text NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"note\" text,\n  \"resolvedAt\" timestamptz(6),\n  \"schemaRevisionId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"schemaIssueFlag\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaIssueFlag\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.schemaRevision.stabilisedAt",
+    "label": "Add column \"stabilisedAt\" to \"schemaRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "stabilisedAt",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"stabilisedAt\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "schemaRevision",
+          "stabilisedAt"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"stabilisedAt\"",
+        "sql": "ALTER TABLE \"public\".\"schemaRevision\" ADD COLUMN \"stabilisedAt\" timestamptz(6)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"stabilisedAt\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "schemaRevision",
+          "stabilisedAt"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.schemaIssueFlag.schemaIssueFlag_schemaRevisionId_idx",
+    "label": "Create index \"schemaIssueFlag_schemaRevisionId_idx\" on \"schemaIssueFlag\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "schemaIssueFlag_schemaRevisionId_idx",
+        "table": "schemaIssueFlag"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"schemaIssueFlag_schemaRevisionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaIssueFlag_schemaRevisionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"schemaIssueFlag_schemaRevisionId_idx\"",
+        "sql": "CREATE INDEX \"schemaIssueFlag_schemaRevisionId_idx\" ON \"public\".\"schemaIssueFlag\" (\"schemaRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"schemaIssueFlag_schemaRevisionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaIssueFlag_schemaRevisionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.schemaIssueFlag.schemaIssueFlag_schemaRevisionId_fkey",
+    "label": "Add foreign key \"schemaIssueFlag_schemaRevisionId_fkey\" on \"schemaIssueFlag\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "schemaIssueFlag_schemaRevisionId_fkey",
+        "table": "schemaIssueFlag"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"schemaIssueFlag_schemaRevisionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaIssueFlag_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"schemaIssueFlag\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"schemaIssueFlag_schemaRevisionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"schemaIssueFlag\"\nADD CONSTRAINT \"schemaIssueFlag_schemaRevisionId_fkey\"\nFOREIGN KEY (\"schemaRevisionId\")\nREFERENCES \"public\".\"schemaRevision\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"schemaIssueFlag_schemaRevisionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaIssueFlag_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"schemaIssueFlag\""
+        ]
+      }
+    ]
+  }
+]

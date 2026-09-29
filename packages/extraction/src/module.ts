@@ -249,6 +249,16 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       if (!result) throw new ExtractionError('not_found', 'That Schema Suggestion was not found.')
       return result
     },
+    async stabiliseSchemaRevision(input) {
+      const result = await persistence.stabiliseSchemaRevision(input)
+      if (result === 'not-found') throw new ExtractionError('not_found', 'That Schema Revision was not found.')
+      if (result === 'not-ready')
+        throw new ExtractionError(
+          'schema_not_ready_to_stabilise',
+          'Review at least one pilot Extraction against this Schema Revision before stabilising it.',
+        )
+      return result
+    },
     async listBatches({ projectContextId, limit = DEFAULT_LIMIT }) {
       if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ExtractionError('invalid_request', 'The Batch Extraction limit must be between 1 and 100.')
       const batches = await persistence.listBatches(projectContextId, limit)

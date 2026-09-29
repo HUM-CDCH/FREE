@@ -126,6 +126,8 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
     scheduleBatch: vi.fn<ExtractionModule['scheduleBatch']>(),
     scheduleSuggestedBatch:
       vi.fn<ExtractionModule['scheduleSuggestedBatch']>(),
+    stabiliseSchemaRevision:
+      vi.fn<ExtractionModule['stabiliseSchemaRevision']>(),
     listBatches: vi.fn<ExtractionModule['listBatches']>(),
     readBatch: vi.fn<ExtractionModule['readBatch']>(),
     readBatchResults: vi.fn<ExtractionModule['readBatchResults']>(),

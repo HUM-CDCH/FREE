@@ -19,7 +19,7 @@ export { default as Spinner } from './Spinner'
 export type { SpinnerProps } from './Spinner'
 export { default as Overline } from './Overline'
 export type { OverlineProps } from './Overline'
-export { default as PhaseProgress } from './PhaseProgress'
+export { default as PhaseProgress, phaseOrder, phaseLabels } from './PhaseProgress'
 export type {
   PhaseProgressProps,
   PhaseProgressTone,
@@ -31,3 +31,5 @@ export { default as ProgressBar } from './ProgressBar'
 export type { ProgressBarProps } from './ProgressBar'
 export { default as ResultValue } from './ResultValue'
 export { CheckIcon, PencilIcon, XIcon, StatusDot, UndoIcon } from './ResultValue'
+export { default as GuidedNextStep } from './GuidedNextStep'
+export type { GuidedNextStepProps } from './GuidedNextStep'

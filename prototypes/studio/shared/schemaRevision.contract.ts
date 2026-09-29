@@ -21,6 +21,9 @@ export const schemaRevisionSchema = z
     revisionNumber: z.number().int().positive(),
     origin: schemaRevisionOriginSchema,
     createdAt: timestamp,
+    /** Null while this revision is still in the piloting state; set once a
+     *  researcher stabilises it (guided-workflow-phases). */
+    stabilisedAt: timestamp.nullable(),
     recordDescription: recordDescriptionSchema,
     schemaNodes: schemaNodesSchema,
   })

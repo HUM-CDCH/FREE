@@ -10,6 +10,7 @@ import {
 import type { ResultPath } from '../../shared/groundedExtraction'
 import {
   batchExtractionProgress,
+  PILOT_BATCH_SELECTION_LIMIT,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
 import { Button, ModalDialog } from '../ui'
@@ -71,15 +72,22 @@ function useBatchDocumentData(
   return fetched
 }
 
+type BatchSchemaRevisionInfo = {
+  schemaNodes: readonly SchemaNode[]
+  stabilisedAt: string | null
+}
+
 /** Fetches the Schema Revision this Batch Extraction ran, so the report can
  *  classify fields the same way the review grid's columns do — independent
  *  of whichever Schema Revision the panel above happens to have pinned,
- *  since the finished batch is not necessarily the one currently open. */
-function useBatchSchemaNodes(
+ *  since the finished batch is not necessarily the one currently open. Also
+ *  carries `stabilisedAt` so the dialog can state the right next step
+ *  (guided-workflow-phases). */
+function useBatchSchemaRevision(
   projectContextId: string,
   batch: BatchExtraction,
-): readonly SchemaNode[] | null {
-  const [schemaNodes, setSchemaNodes] = useState<readonly SchemaNode[] | null>(null)
+): BatchSchemaRevisionInfo | null {
+  const [info, setInfo] = useState<BatchSchemaRevisionInfo | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -90,14 +98,15 @@ function useBatchSchemaNodes(
       controller.signal,
     ).then(
       (revision) => {
-        if (!controller.signal.aborted) setSchemaNodes(revision.schemaNodes)
+        if (!controller.signal.aborted)
+          setInfo({ schemaNodes: revision.schemaNodes, stabilisedAt: revision.stabilisedAt })
       },
       () => {},
     )
     return () => controller.abort()
   }, [projectContextId, batch.extractionSchemaId, batch.schemaRevisionId])
 
-  return schemaNodes
+  return info
 }
 
 function useBatchDocumentReports(
@@ -214,8 +223,16 @@ export default function BatchExtractionFinishedDialog({
   const descriptionId = useId()
   const failed = batch.executionStatus === 'FAILED'
   const progress = batchExtractionProgress(batch)
-  const schemaNodes = useBatchSchemaNodes(projectContextId, batch)
-  const reports = useBatchDocumentReports(batch, schemaNodes)
+  const schemaRevision = useBatchSchemaRevision(projectContextId, batch)
+  const reports = useBatchDocumentReports(batch, schemaRevision?.schemaNodes ?? null)
+  const isPilotRound = batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
+  const nextStepText = failed
+    ? null
+    : isPilotRound && schemaRevision?.stabilisedAt == null
+      ? 'This was a pilot round. Review the results below, then stabilise the schema once you trust it, to unlock a full run across the whole collection.'
+      : isPilotRound
+        ? 'Review the results below, then run the full collection when ready.'
+        : 'Review the results below, then export when you’re satisfied.'
 
   const { detailMembers, cleanCount } = useMemo(
     () => partitionDocumentReports(batch.members, reports),
@@ -245,6 +262,7 @@ export default function BatchExtractionFinishedDialog({
           {progress.unreviewable > 0 ? ` · ${progress.unreviewable} unreviewable` : ''}
           {progress.failed > 0 ? ` · ${progress.failed} failed` : ''}.
         </p>
+        {nextStepText && <p>{nextStepText}</p>}
       </div>
       <ul className="scrollbar-subtle mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto text-xs">
         {detailMembers.map((member) => (

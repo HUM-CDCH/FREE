@@ -6,6 +6,7 @@ import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
 import PanelToggleIcon from './PanelToggleIcon'
 import { useOpenDocumentTabs } from './useOpenDocumentTabs'
+import { usePilotRoundProgress } from './usePilotRoundProgress'
 import { useShiftWheelHorizontalScroll } from './useShiftWheelHorizontalScroll'
 import type { NavigableRoute, Route } from './projectNavigation'
 import type { DocumentSnapshot } from './projectContexts/transport'
@@ -337,6 +338,11 @@ export default function AppFrame({
       : null
   const backToReviewGridBatchExtractionId =
     route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
+  const pilotRoundProgress = usePilotRoundProgress(
+    route.kind === 'document' ? route.projectContextId : null,
+    backToReviewGridBatchExtractionId,
+    route.kind === 'document' ? route.sourceDocumentId : null,
+  )
   const hasOpenDocumentTabs = Boolean(
     routedProjectContextId && openProjectTabs.length > 0,
   )
@@ -525,6 +531,27 @@ export default function AppFrame({
                       batchExtractionId: backToReviewGridBatchExtractionId,
                       view: 'grid',
                     })
+                : undefined
+            }
+            pilotRoundProgress={
+              pilotRoundProgress && backToReviewGridBatchExtractionId
+                ? {
+                    reviewed: pilotRoundProgress.reviewed,
+                    total: pilotRoundProgress.total,
+                    onNext: pilotRoundProgress.nextMember
+                      ? () =>
+                          onNavigate({
+                            kind: 'document',
+                            projectContextId: routedProjectContextId,
+                            sourceDocumentId:
+                              pilotRoundProgress.nextMember!.sourceDocumentId,
+                            extractionId:
+                              pilotRoundProgress.nextMember!.extractionId,
+                            fromBatchExtractionId:
+                              backToReviewGridBatchExtractionId,
+                          })
+                      : undefined,
+                  }
                 : undefined
             }
             slotRef={setTabBarSlot}

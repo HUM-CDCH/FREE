@@ -25,6 +25,8 @@ import type {
   ScheduleBatchInput,
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
+  StabiliseSchemaRevisionInput,
+  StabiliseSchemaRevisionResult,
   ValidateExtractionInput,
 } from './types.js'
 
@@ -88,6 +90,7 @@ export interface ExtractionPersistence extends ExtractionInputReader {
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult | null>
   scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult | null>
+  stabiliseSchemaRevision(input: StabiliseSchemaRevisionInput): Promise<StabiliseSchemaRevisionResult | 'not-found' | 'not-ready'>
   listBatches(projectContextId: string, limit: number): Promise<readonly BatchExtractionSnapshot[] | null>
   readBatch(input: ReadBatchInput): Promise<BatchExtractionSnapshot | null>
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults | null>

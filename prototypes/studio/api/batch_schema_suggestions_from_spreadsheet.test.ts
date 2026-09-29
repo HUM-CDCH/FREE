@@ -83,7 +83,7 @@ function createRequest(body: Record<string, unknown>) {
   return new Request('http://test/api/batch-schema-suggestions/from-spreadsheet', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ purpose: 'SCHEMA', ...body }),
+    body: JSON.stringify({ purpose: 'SCHEMA', inferTypesFromValues: true, ...body }),
   })
 }
 
@@ -249,5 +249,43 @@ describe('POST /api/batch-schema-suggestions/from-spreadsheet', () => {
     expect(createSpreadsheetSchemaSuggestion.mock.calls[0]?.[4]).toBe(
       'SCHEMA_AND_VALIDATE',
     )
+  })
+
+  it('gives every field a plain string type when inferTypesFromValues is false', async () => {
+    const getCurrentProjectSpreadsheet = vi.fn(async () =>
+      currentSpreadsheet([
+        { columnName: 'temperature', values: [4.2, 3.8] },
+      ]),
+    )
+    const createSpreadsheetSchemaSuggestion = vi.fn(async (
+      _projectContextId: string,
+      _definition: unknown,
+      _mapping: Record<string, string>,
+      _projectSpreadsheetVersionId: string,
+    ) => ({
+      status: 'created' as const,
+      suggestion: baseSuggestion(),
+    }))
+    const handler = handlerFor({ getCurrentProjectSpreadsheet, createSpreadsheetSchemaSuggestion })
+
+    const response = await handler(
+      createRequest({ projectContextId, inferTypesFromValues: false }),
+    )
+
+    expect(response.status).toBe(201)
+    const [, definition] = createSpreadsheetSchemaSuggestion.mock.calls[0]
+    expect(
+      (definition as { schemaNodes: { name: string; type: string }[] }).schemaNodes,
+    ).toEqual([{ id: expect.any(String), name: 'temperature', type: 'string' }])
+  })
+
+  it('rejects a request with no inferTypesFromValues', async () => {
+    const createSpreadsheetSchemaSuggestion = vi.fn()
+    const handler = handlerFor({ createSpreadsheetSchemaSuggestion })
+    const response = await handler(
+      rawRequest({ projectContextId, purpose: 'SCHEMA' }),
+    )
+    expect(response.status).toBe(422)
+    expect(createSpreadsheetSchemaSuggestion).not.toHaveBeenCalled()
   })
 })

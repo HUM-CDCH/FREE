@@ -187,7 +187,9 @@ export function BatchExtractionHistory({
   if (batches.length === 0)
     return (
       <p className="py-6 text-center text-xs text-ink-muted">
-        No Batch Extractions yet.
+        No Batch Extractions yet. Start with "New Batch Extraction" above —
+        pick just 2-3 Source Documents for a first pilot run before
+        committing to the whole collection.
       </p>
     )
   return (

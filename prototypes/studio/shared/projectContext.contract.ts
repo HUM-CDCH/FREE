@@ -44,6 +44,7 @@ export const projectContextActivitySummarySchema = z
     reviewedSourceDocumentCount: nonNegativeCount,
     staleSourceDocumentCount: nonNegativeCount,
     schemaDraftCount: nonNegativeCount,
+    schemaStabilised: z.boolean(),
     lastActivityAt: timestamp,
     runningBatch: z
       .object({

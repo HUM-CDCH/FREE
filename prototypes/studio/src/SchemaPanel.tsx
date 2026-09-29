@@ -62,6 +62,12 @@ type SchemaPanelProps = {
   showRegenerate?: boolean
   /** Reports edits visible in the panel that are not yet in its controller. */
   onPendingLocalEditChange?: (pending: boolean) => void
+  /** Seeds the chat draft with context handed off from elsewhere (e.g. a
+   *  flagged field in the review grid — schema-issue-flagging). Applied once
+   *  per distinct value, then `onChatDraftConsumed` fires so the caller can
+   *  clear it without the panel re-seeding on its own re-renders. */
+  initialChatDraft?: string | null
+  onChatDraftConsumed?: () => void
 }
 
 type DragState = {
@@ -500,6 +506,8 @@ function SchemaPanel({
   readOnly = false,
   showRegenerate = true,
   onPendingLocalEditChange,
+  initialChatDraft,
+  onChatDraftConsumed,
 }: SchemaPanelProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const nodes =
@@ -540,6 +548,14 @@ function SchemaPanel({
     chatAbortRef.current?.abort()
     chatAbortRef.current = null
   }, [])
+  useEffect(() => {
+    if (!initialChatDraft) return
+    setChatInput(initialChatDraft)
+    onChatDraftConsumed?.()
+    // Fires once per distinct draft value; `onChatDraftConsumed` clears the
+    // caller's state so this effect doesn't re-seed on unrelated re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialChatDraft])
   const [view, setView] = useState<'fields' | 'json'>('fields')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())

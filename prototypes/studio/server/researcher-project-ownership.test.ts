@@ -306,6 +306,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
         : ('researcher-edit' as const),
     schemaTree,
     createdAt: CREATED_AT,
+    stabilisedAt: null,
   })
 
   const stores = new Map<string, ResearcherProjectStore>()
@@ -470,6 +471,14 @@ function twoAccountStoreFixture(): TwoAccountStores {
           }
         },
       ),
+      deleteExtractionSchema: vi.fn(
+        async (projectContextId, extractionSchemaId) => {
+          const relationship = owned(accountId, projectContextId)
+          if (!relationship || relationship.schemaId !== extractionSchemaId)
+            return null
+          return { status: 'deleted' as const }
+        },
+      ),
       appendSchemaRevision: vi.fn(
         async (
           projectContextId,
@@ -505,6 +514,15 @@ function twoAccountStoreFixture(): TwoAccountStores {
             return null
           return storedRevision(relationship)
         },
+      ),
+      // No route exercises Schema Issue Flag ownership yet
+      // (guided-pilot-extraction-workflow) — these stubs only keep this mock
+      // a structurally complete ResearcherProjectStore.
+      flagSchemaField: vi.fn(async (projectContextId) =>
+        owned(accountId, projectContextId) ? null : null,
+      ),
+      listOpenSchemaIssueFlags: vi.fn(async (projectContextId) =>
+        owned(accountId, projectContextId) ? null : null,
       ),
       // No route exercises Evaluation Corpus ownership yet (§2+ of
       // extraction-quality-evaluation) — these stubs only keep this mock a
@@ -662,6 +680,18 @@ function twoAccountStoreFixture(): TwoAccountStores {
         )
         throw new Error('Authorized suggested Batch is outside this test.')
       }),
+      // No route exercises stabilise ownership yet
+      // (guided-pilot-extraction-workflow) — this stub only keeps this mock
+      // a structurally complete ExtractionModule.
+      stabiliseSchemaRevision:
+        vi.fn<ExtractionModule['stabiliseSchemaRevision']>(async (input) => {
+          if (
+            input.projectContextId !== relationship.projectId ||
+            input.schemaRevisionId !== relationship.revisionId
+          )
+            throw notFound()
+          throw new Error('Authorized stabilise is outside this test.')
+        }),
       listBatches: vi.fn<ExtractionModule['listBatches']>(async (input) => {
         if (input.projectContextId !== relationship.projectId) throw notFound()
         return []

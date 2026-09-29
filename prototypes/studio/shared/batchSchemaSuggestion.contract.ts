@@ -38,6 +38,10 @@ export const batchSchemaSuggestionCreateFromSpreadsheetRequestSchema = z
      *  `measurement.temperature` under a `measurement` object. Omit to
      *  keep every column flat. */
     separator: z.string().min(1).max(4).optional(),
+    /** `true` infers each field's type (number/integer/enum/string) from
+     *  its column's cell values; `false` reads only the header row and
+     *  gives every field a plain `string` type. */
+    inferTypesFromValues: z.boolean(),
     /** `SCHEMA` seeds the schema and stops there; `SCHEMA_AND_VALIDATE`
      *  also populates an Evaluation Corpus version from this project's
      *  current spreadsheet once the suggestion is confirmed — reading the

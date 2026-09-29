@@ -263,6 +263,16 @@ export type ScheduleBatchResult = Readonly<{
   batch: BatchExtractionSnapshot
 }>
 
+export type StabiliseSchemaRevisionInput = Readonly<{
+  projectContextId: string
+  schemaRevisionId: string
+}>
+
+export type StabiliseSchemaRevisionResult = Readonly<{
+  schemaRevisionId: string
+  stabilisedAt: string
+}>
+
 export type ListBatchesInput = Readonly<{
   projectContextId: string
   limit?: number
@@ -348,6 +358,10 @@ export interface ExtractionModule {
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult>
   scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult>
+  /** Marks a piloted Schema Revision stabilised, unlocking batch/collection-level
+   *  extraction against it (guided-pilot-extraction-workflow design.md D2). Requires
+   *  at least one already-reviewed pilot Extraction against that revision. */
+  stabiliseSchemaRevision(input: StabiliseSchemaRevisionInput): Promise<StabiliseSchemaRevisionResult>
   listBatches(input: ListBatchesInput): Promise<readonly BatchExtractionSnapshot[]>
   readBatch(input: ReadBatchInput): Promise<BatchExtractionSnapshot>
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults>

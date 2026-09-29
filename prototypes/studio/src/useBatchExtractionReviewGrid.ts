@@ -90,6 +90,39 @@ export function sortRowsByIssueScore<Row extends { sourceDocumentId: string }>(
   )
 }
 
+/**
+ * A pilot round's mean per-document issue score (design.md D5), computed
+ * straight from the server rather than from an already-loaded grid — used to
+ * compare a round the researcher isn't currently reviewing (the "prior
+ * round") against the active one. Returns `null` while the round is not yet
+ * fully reviewed (a mid-review score isn't a meaningful comparison point) or
+ * has no successful member at all.
+ */
+export async function computeRoundIssueScore(
+  batch: BatchExtraction,
+  schemaNodes: readonly SchemaNode[] | null,
+  signal?: AbortSignal,
+): Promise<number | null> {
+  const succeeded = batch.members.filter(
+    (member) => member.latestExtraction?.outcome === 'SUCCEEDED',
+  )
+  if (succeeded.length === 0) return null
+  if (succeeded.some((member) => member.latestExtraction!.reviewedAt === null)) return null
+  const attempts = await Promise.all(
+    succeeded.map((member) => readExtraction(member.latestExtraction!.extractionId, signal)),
+  )
+  const scores = attempts.map(({ extraction }) => {
+    const grounding = extraction.diagnostics?.grounding
+    const counts = classifyExtractionFields(
+      schemaNodes,
+      extraction.resultPayload,
+      groundedPathKeySet(grounding?.groundedPaths ?? []),
+    )
+    return counts.ungroundedWithValue + counts.missing
+  })
+  return scores.reduce((sum, score) => sum + score, 0) / scores.length
+}
+
 export function pendingReviewCount(state: MemberReviewState): number {
   return state.status === 'ready'
     ? state.decisions.filter((decision) => !state.touched.has(resultPathKey(decision.resultPath))).length

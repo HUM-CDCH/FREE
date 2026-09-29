@@ -39,6 +39,22 @@ export class BatchSchemaSuggestionRequestError extends Error {
     this.failure = failure
   }
 }
+
+/** Carries the server's error `code` (e.g. `schema_not_stabilised`) so the
+ *  Batch Extraction preparation screen can render a specific guided response
+ *  instead of a generic failure message (guided-pilot-extraction-workflow). */
+export class BatchExtractionRequestError extends Error {
+  readonly status: number
+  readonly code: string
+
+  constructor(status: number, code: string, message: string) {
+    super(message)
+    this.name = 'BatchExtractionRequestError'
+    this.status = status
+    this.code = code
+  }
+}
+
 async function read(url: string, init?: RequestInit): Promise<unknown> {
   const response = await authenticatedFetch(url, init)
   const value: unknown = await response.json().catch(() => null)
@@ -56,11 +72,13 @@ async function read(url: string, init?: RequestInit): Promise<unknown> {
       if (parsed.success) throw new Error(parsed.data.error.message)
     }
     const error = isRecord(value) && isRecord(value.error) ? value.error : null
-    throw new Error(
+    const message =
       typeof error?.message === 'string'
         ? error.message
-        : `Batch Extraction request failed (HTTP ${response.status}).`,
-    )
+        : `Batch Extraction request failed (HTTP ${response.status}).`
+    if (url.startsWith('/api/batch-extractions') && typeof error?.code === 'string')
+      throw new BatchExtractionRequestError(response.status, error.code, message)
+    throw new Error(message)
   }
   return value
 }
@@ -155,13 +173,17 @@ export async function createBatchSchemaSuggestion(
  *  immediately, no document sources involved (spreadsheet-schema-
  *  suggestion spec). `separator` splits a column header into a nested
  *  path when given (e.g. "." groups `measurement.temperature` under a
- *  `measurement` object); omit it to keep every column flat. `purpose`
- *  chooses whether confirming the suggestion only seeds the schema
- *  (`SCHEMA`) or also populates an Evaluation Corpus version from this
- *  spreadsheet (`SCHEMA_AND_VALIDATE`). */
+ *  `measurement` object); omit it to keep every column flat.
+ *  `inferTypesFromValues` chooses whether each field's type is guessed
+ *  from its column's cell values (number/integer/enum/string) or every
+ *  field is left as a plain `string`, reading only the header row.
+ *  `purpose` chooses whether confirming the suggestion only seeds the
+ *  schema (`SCHEMA`) or also populates an Evaluation Corpus version from
+ *  this spreadsheet (`SCHEMA_AND_VALIDATE`). */
 export async function createSpreadsheetBatchSchemaSuggestion(
   projectContextId: string,
   purpose: BatchSchemaSuggestionPurpose,
+  inferTypesFromValues: boolean,
   separator?: string,
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
@@ -173,6 +195,7 @@ export async function createSpreadsheetBatchSchemaSuggestion(
         batchSchemaSuggestionCreateFromSpreadsheetRequestSchema.parse({
           projectContextId,
           separator,
+          inferTypesFromValues,
           purpose,
         }),
       ),

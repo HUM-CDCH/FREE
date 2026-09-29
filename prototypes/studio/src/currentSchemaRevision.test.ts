@@ -32,6 +32,7 @@ const revision = (
   revisionNumber,
   origin: 'researcher-edit',
   createdAt: '2026-08-01T12:00:00.000Z',
+  stabilisedAt: null,
   recordDescription: `One ${name} record.`,
   schemaNodes: [node(name)],
 })
@@ -45,6 +46,7 @@ const summaryOf = (
   revisionNumber,
   origin: 'researcher-edit' as const,
   createdAt: '2026-08-01T12:00:00.000Z',
+  stabilisedAt: null,
   summary: name,
 })
 

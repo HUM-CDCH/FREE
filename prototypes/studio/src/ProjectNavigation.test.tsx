@@ -216,6 +216,7 @@ function projectSummary(
     reviewedSourceDocumentCount: number
     staleSourceDocumentCount: number
     schemaDraftCount: number
+    schemaStabilised: boolean
     lastActivityAt: string
     runningBatch: { completedMemberCount: number; memberCount: number } | null
   }> = {},
@@ -227,6 +228,7 @@ function projectSummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     schemaDraftCount: 0,
+    schemaStabilised: false,
     lastActivityAt: project.createdAt,
     runningBatch: null,
     ...overrides,
@@ -1185,8 +1187,10 @@ describe('Project Context navigation', () => {
     expect(sourceNames()).toHaveLength(1)
     expect(sourceNames()[0]).toContain('Historical.pdf')
 
+    // Sources is first in tab order (docs -> schema -> extraction), so the
+    // next tab over is Schemas.
     fireEvent.keyDown(within(page).getByRole('tab', { name: 'Sources' }), {
-      key: 'ArrowLeft',
+      key: 'ArrowRight',
     })
     expect(within(page).getByRole('tab', { name: 'Schemas' })).toHaveFocus()
     expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
@@ -1223,7 +1227,7 @@ describe('Project Context navigation', () => {
     fireEvent.click(within(page).getByRole('tab', { name: 'Extractions' }))
     expect(location.pathname).toBe(`/projects/${projectContextId}/extractions`)
     expect(
-      await within(page).findByText('No Batch Extractions yet.'),
+      await within(page).findByText(/No Batch Extractions yet\./),
     ).toBeInTheDocument()
 
     // Reselecting the open tab must not push an entry Back would have to undo.

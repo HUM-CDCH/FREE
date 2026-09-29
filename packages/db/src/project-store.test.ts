@@ -130,8 +130,10 @@ function fakeDatabase(
         origin: 'SUGGESTION',
         schemaTree: nodes('site'),
         createdAt: new Date('2026-08-01T12:00:00Z'),
+        stabilisedAt: null,
       },
     ],
+    SchemaIssueFlag: [],
   }
   let raced = false
   let ingestionRaced = false
@@ -301,6 +303,9 @@ function fakeDatabase(
             `51000000-0000-4000-${table === 'ExtractionSchema' ? '8003' : '8004'}-${String(rows.length + 1).padStart(12, '0')}`,
           createdAt:
             input.createdAt ?? new Date(`2026-08-01T12:0${rows.length}:00Z`),
+          ...(table === 'SchemaRevision' && input.stabilisedAt === undefined
+            ? { stabilisedAt: null }
+            : {}),
         }
         rows.push(row)
         return row
@@ -310,6 +315,11 @@ function fakeDatabase(
         if (!row) return null
         Object.assign(row, input)
         return row
+      },
+      async updateAll(input: Row) {
+        const matched = await query.all()
+        for (const row of matched) Object.assign(row, input)
+        return matched.length
       },
       async delete() {
         const doomed = await query.all()
@@ -639,6 +649,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       reviewedSourceDocumentCount: 0,
       staleSourceDocumentCount: 0,
       schemaDraftCount: 0,
+      schemaStabilised: false,
       lastActivityAt: new Date('2026-08-01T11:02:00Z'),
       runningBatch: null,
     })
@@ -1307,6 +1318,59 @@ describe('ResearcherProjectStore Schema Revisions', () => {
     assert.equal(database.tables.ExtractionSchema[0].name, 'Historic places')
   })
 
+  it('deletes an owned Extraction Schema with no Extractions', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+
+    assert.deepEqual(await store.deleteExtractionSchema(PROJECT, SCHEMA), {
+      status: 'deleted',
+    })
+    assert.deepEqual(
+      database.tables.ExtractionSchema.map((row) => row.id),
+      ['51000000-0000-4000-8003-000000000002'],
+    )
+  })
+
+  it('refuses to delete an Extraction Schema with an Extraction under any of its revisions', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    database.tables.Extraction = [
+      {
+        id: '51000000-0000-4000-8006-000000000001',
+        schemaRevisionId: REVISION_1,
+      },
+    ]
+
+    assert.deepEqual(await store.deleteExtractionSchema(PROJECT, SCHEMA), {
+      status: 'has_extractions',
+    })
+    assert.deepEqual(
+      database.tables.ExtractionSchema.map((row) => row.id),
+      [SCHEMA, '51000000-0000-4000-8003-000000000002'],
+    )
+  })
+
+  it('refuses to delete an unowned or unknown Extraction Schema', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+
+    assert.equal(
+      await store.deleteExtractionSchema(OTHER_PROJECT, SCHEMA),
+      null,
+    )
+    assert.equal(
+      await store.deleteExtractionSchema(
+        PROJECT,
+        '51000000-0000-4000-8003-000000000099',
+      ),
+      null,
+    )
+    assert.deepEqual(
+      database.tables.ExtractionSchema.map((row) => row.id),
+      [SCHEMA, '51000000-0000-4000-8003-000000000002'],
+    )
+  })
+
   it('deletes only an owned Source Document without exposing package metadata', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
@@ -1339,6 +1403,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
       origin: 'suggestion',
       schemaTree: nodes('site'),
       createdAt: new Date('2026-08-01T12:01:00Z'),
+      stabilisedAt: null,
     })
     assert.equal(
       database.tables.ExtractionSchema.at(-1)?.id,
@@ -1367,6 +1432,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
       origin: 'researcher-edit',
       schemaTree: nodes('year'),
       createdAt: new Date('2026-08-01T12:01:00Z'),
+      stabilisedAt: null,
     })
     assert.equal(database.tables.SchemaRevision.length, 2)
   })
@@ -1391,6 +1457,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
         origin: 'suggestion',
         schemaTree: nodes('site'),
         createdAt: new Date('2026-08-01T12:00:00Z'),
+        stabilisedAt: null,
       },
     })
     assert.equal(database.tables.SchemaRevision.length, 1)

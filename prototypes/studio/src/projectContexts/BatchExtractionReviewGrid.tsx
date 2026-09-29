@@ -1,15 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { BatchExtraction } from '../../shared/batchExtraction.contract'
-import { batchExtractionProgress } from '../../shared/batchExtraction.contract'
+import {
+  batchExtractionProgress,
+  PILOT_BATCH_SELECTION_LIMIT,
+  type BatchExtraction,
+} from '../../shared/batchExtraction.contract'
+import type { SchemaIssueFlag } from '../../shared/schemaIssueFlag.contract'
 import type { ReviewDecisionInput } from '../../shared/extraction.contract'
 import { parseReviewedValue, resultPathKey } from '../reviewDecisions'
 import { REVIEW_DRAFT_CONFLICT } from '../reviewDrafts'
 import { selectPriorityReviewMembers } from '../reviewPriority'
-import { Button, CheckIcon, EmptyState, Pill, PencilIcon, ProgressBar, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
+import { flagSchemaField, listOpenSchemaIssueFlags, stabiliseSchemaRevision } from './schemaGovernance'
+import { Button, CheckIcon, EmptyState, ModalDialog, Pill, PencilIcon, ProgressBar, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
 import { memberStatus } from './batchExtractionStatus'
 import { StatusPill } from './BatchExtractionScreens'
 import {
+  computeRoundIssueScore,
   projectedRecords,
   useBatchExtractionReviewGrid,
   valuesAtColumn,
@@ -40,6 +46,10 @@ const ZOOM_VISUAL_SCALE = 1.2
 
 function appliedZoom(percent: number) {
   return (percent / 100) * ZOOM_VISUAL_SCALE
+}
+
+function failureText(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
 }
 
 function isEditableTarget(target: EventTarget | null) {
@@ -210,6 +220,124 @@ function ApproveAllBadge({
     >
       <CheckIcon size={8} />
     </button>
+  )
+}
+
+function FlagIcon({ size = 10 }: { size?: number }) {
+  return (
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <path
+        d="M5 2.5v15M5 3.5h9l-2.5 3.5L14 10.5H5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/** A column header's "flag as schema issue" affordance (schema-issue-flagging):
+ *  outlined and quiet until an open flag exists on this field, then a filled,
+ *  always-visible pill so an open issue reads at a glance. */
+function FlagFieldBadge({
+  flagged,
+  onClick,
+}: {
+  flagged: boolean
+  onClick(): void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={flagged ? 'Open schema issue flag' : 'Flag this field as a schema issue'}
+      title={flagged ? 'This field is flagged as a schema issue' : 'Flag this field as a schema issue'}
+      onClick={onClick}
+      className={
+        flagged
+          ? 'flex size-3.5 shrink-0 items-center justify-center rounded-sm bg-danger text-white outline-none'
+          : 'flex size-3.5 shrink-0 items-center justify-center rounded-sm border border-line-strong text-ink-faint opacity-0 outline-none transition-colors hover:border-danger hover:text-danger focus-visible:opacity-100 group-hover:opacity-100'
+      }
+    >
+      <FlagIcon />
+    </button>
+  )
+}
+
+/**
+ * Records a schema-issue flag on one field, scoped to the current Schema
+ * Revision (schema-issue-flagging). After flagging, "Edit schema" is the
+ * separate one-click jump into the schema editor with this field's context.
+ */
+function FlagFieldDialog({
+  fieldLabel,
+  initialNote,
+  onCancel,
+  onFlagged,
+}: {
+  fieldLabel: string
+  initialNote: string | null
+  onCancel(): void
+  onFlagged(note: string | null): Promise<void>
+}) {
+  const [note, setNote] = useState(initialNote ?? '')
+  const [saving, setSaving] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
+  const initialFocus = useRef<HTMLTextAreaElement>(null)
+  return (
+    <ModalDialog
+      className="m-auto w-full max-w-sm rounded-card border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
+      ariaLabel={`Flag ${fieldLabel} as a schema issue`}
+      initialFocusRef={initialFocus}
+      dismissDisabled={saving}
+      onDismiss={onCancel}
+    >
+      <h2 className="text-sm font-bold text-ink">Flag “{fieldLabel}” as a schema issue</h2>
+      <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+        Flagging doesn’t change any reviewed value — it marks the field itself
+        as needing a schema change, and offers a one-click jump to the schema
+        editor with this field’s context once it’s flagged.
+      </p>
+      <label className="mt-3 block text-[11px] font-semibold text-ink-muted">
+        Note (optional)
+        <textarea
+          ref={initialFocus}
+          className="mt-1 block w-full resize-none rounded-md border border-line bg-surface px-2 py-1.5 text-xs text-ink outline-none focus-visible:border-accent"
+          rows={3}
+          value={note}
+          disabled={saving}
+          placeholder="What's wrong with this field?"
+          onChange={(event) => setNote(event.target.value)}
+        />
+      </label>
+      {failure && (
+        <p className="mt-2 text-[11px] leading-snug text-danger" role="alert">
+          {failure}
+        </p>
+      )}
+      <div className="mt-4 flex justify-end gap-2">
+        <Button size="md" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
+        <Button
+          size="md"
+          variant="primary"
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true)
+            setFailure(null)
+            try {
+              await onFlagged(note.trim() || null)
+            } catch (error) {
+              setSaving(false)
+              setFailure(failureText(error, 'This field could not be flagged.'))
+            }
+          }}
+        >
+          {saving ? 'Flagging…' : 'Flag field'}
+        </Button>
+      </div>
+    </ModalDialog>
   )
 }
 
@@ -458,16 +586,40 @@ export default function BatchExtractionReviewGrid({
   batch,
   schemaNodes,
   documentName,
+  projectContextId,
+  schemaStabilised = true,
+  priorRoundBatch = null,
   onBack,
   onOpenMember,
   onMemberSaved,
+  onEditSchemaField,
+  onStabilised,
 }: {
   batch: BatchExtraction
   schemaNodes: readonly SchemaNode[] | null
   documentName(sourceDocumentId: string): string
+  /** Needed to read/write schema-issue flags and to stabilise this Schema
+   *  Revision (schema-issue-flagging, guided-workflow-phases). Flagging and
+   *  the pilot/stabilise guidance are both silently unavailable without it. */
+  projectContextId?: string
+  /** Whether the Schema Revision this batch pinned has already been
+   *  stabilised — hides the pilot/stabilise guidance once it has. Defaults
+   *  to `true` (hidden) so callers that don't care about this state don't
+   *  need to pass it. */
+  schemaStabilised?: boolean
+  /** The immediately preceding pilot round under the same Schema Revision,
+   *  if one exists — the comparison point for the soft "ready to stabilise"
+   *  signal (design.md D5). */
+  priorRoundBatch?: BatchExtraction | null
   onBack(): void
   onOpenMember(sourceDocumentId: string, extractionId: string): void
   onMemberSaved?(): void
+  /** Jumps to the schema editor carrying a flagged field's context
+   *  (schema-issue-flagging). */
+  onEditSchemaField?(context: { fieldPath: string; fieldLabel: string; note: string | null }): void
+  /** Called after this Schema Revision is successfully stabilised, so the
+   *  caller can refresh its own Schema Revision / batch state. */
+  onStabilised?(): void
 }) {
   const grid = useBatchExtractionReviewGrid(batch, schemaNodes, onMemberSaved)
   const gridContainerRef = useRef<HTMLDivElement | null>(null)
@@ -475,6 +627,24 @@ export default function BatchExtractionReviewGrid({
   const [activeCell, setActiveCell] = useState<string | null>(null)
   const [editingCell, setEditingCell] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'needs-review'>('all')
+  const [openFlags, setOpenFlags] = useState<ReadonlyMap<string, SchemaIssueFlag>>(new Map())
+  const [flagDialogColumn, setFlagDialogColumn] = useState<GridColumn | null>(null)
+  const [priorRoundScore, setPriorRoundScore] = useState<number | null>(null)
+  const [stabilising, setStabilising] = useState(false)
+  const [stabiliseError, setStabiliseError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!projectContextId) return
+    const controller = new AbortController()
+    void listOpenSchemaIssueFlags(projectContextId, batch.schemaRevisionId, controller.signal).then(
+      (flags) => {
+        if (!controller.signal.aborted)
+          setOpenFlags(new Map(flags.map((flag) => [flag.fieldPath, flag])))
+      },
+      () => {},
+    )
+    return () => controller.abort()
+  }, [projectContextId, batch.schemaRevisionId])
   // Cells key on their extraction id, so a cell from a previous batch or a
   // reloaded member is dropped during render rather than one frame later.
   const isCurrent = (cell: string | null) => cell === null || [...grid.members.values()].some(
@@ -559,6 +729,48 @@ export default function BatchExtractionReviewGrid({
   }
 
   const needsReviewCount = batch.members.filter(needsReviewLocally).length
+
+  const isPilotRound = batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
+  const currentRoundFullyReviewed = progress.succeeded > 0 && progress.reviewed === progress.succeeded
+  const currentMeanIssueScore = currentRoundFullyReviewed
+    ? succeededSourceDocumentIds.reduce((sum, id) => sum + (grid.issueScores.get(id) ?? 0), 0) /
+      succeededSourceDocumentIds.length
+    : null
+
+  useEffect(() => {
+    if (!isPilotRound || !currentRoundFullyReviewed || !priorRoundBatch) {
+      setPriorRoundScore(null)
+      return
+    }
+    const controller = new AbortController()
+    void computeRoundIssueScore(priorRoundBatch, schemaNodes, controller.signal).then(
+      (score) => {
+        if (!controller.signal.aborted) setPriorRoundScore(score)
+      },
+      () => {},
+    )
+    return () => controller.abort()
+    // priorRoundBatch's identity changes whenever the batch list refreshes,
+    // even when the round itself is unchanged — its own id is the real key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPilotRound, currentRoundFullyReviewed, priorRoundBatch?.batchExtractionId, schemaNodes])
+
+  const readyToStabiliseSignal =
+    currentMeanIssueScore !== null && priorRoundScore !== null && currentMeanIssueScore <= priorRoundScore
+
+  async function stabilise() {
+    if (!projectContextId) return
+    setStabilising(true)
+    setStabiliseError(null)
+    try {
+      await stabiliseSchemaRevision({ projectContextId, schemaRevisionId: batch.schemaRevisionId })
+      onStabilised?.()
+    } catch (error) {
+      setStabiliseError(failureText(error, 'This Schema Revision could not be stabilised.'))
+    } finally {
+      setStabilising(false)
+    }
+  }
 
   if (!schemaNodes)
     return (
@@ -689,6 +901,26 @@ export default function BatchExtractionReviewGrid({
             </span>
           </div>
         )}
+        {isPilotRound && !schemaStabilised && currentRoundFullyReviewed && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-muted px-3 py-2"
+          >
+            <p className="text-[11px] leading-snug text-ink-muted">
+              {readyToStabiliseSignal
+                ? 'This pilot round looks cleaner than the last one — you may be ready to stabilise this schema and run the full collection.'
+                : 'This pilot round is fully reviewed. Stabilise this schema whenever you trust it, to unlock a full collection-level Batch Extraction — or keep piloting on a new set of documents first.'}
+            </p>
+            <Button size="sm" variant="primary" disabled={stabilising} onClick={() => void stabilise()}>
+              {stabilising ? 'Stabilising…' : 'Stabilise schema'}
+            </Button>
+          </div>
+        )}
+        {stabiliseError && (
+          <p className="text-[11px] text-danger" role="alert">
+            {stabiliseError}
+          </p>
+        )}
       </div>
 
       {grid.columns.length > 0 && (
@@ -748,23 +980,43 @@ export default function BatchExtractionReviewGrid({
                 <th className="sticky left-0 top-0 z-20 min-w-[14rem] border-b border-r border-line bg-surface px-3 py-2 text-left font-semibold text-ink-muted">
                   Documents
                 </th>
-                {grid.columns.map((column) => (
-                  <th
-                    key={column.key}
-                    className="group sticky top-0 z-10 min-w-[10rem] border-b border-line bg-surface px-3 py-2 text-left font-semibold text-ink-muted"
-                  >
-                    <div className="flex min-w-0 items-center gap-1">
-                      <span className="min-w-0 truncate">
-                        {column.path.length > 1 ? column.path.join(' › ') : column.node.name}
-                      </span>
-                      <ApproveAllBadge
-                        label={`Approve ${columnPendingCount(column)} pending in ${column.node.name}`}
-                        pendingCount={savingAny || editingCell !== null ? 0 : columnPendingCount(column)}
-                        onClick={() => grid.approveColumn(column)}
-                      />
-                    </div>
-                  </th>
-                ))}
+                {grid.columns.map((column) => {
+                  const columnLabel = column.path.length > 1 ? column.path.join(' › ') : column.node.name
+                  const fieldPath = column.path.join('.')
+                  const flag = openFlags.get(fieldPath)
+                  return (
+                    <th
+                      key={column.key}
+                      className="group sticky top-0 z-10 min-w-[10rem] border-b border-line bg-surface px-3 py-2 text-left font-semibold text-ink-muted"
+                    >
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="min-w-0 truncate">{columnLabel}</span>
+                        <ApproveAllBadge
+                          label={`Approve ${columnPendingCount(column)} pending in ${column.node.name}`}
+                          pendingCount={savingAny || editingCell !== null ? 0 : columnPendingCount(column)}
+                          onClick={() => grid.approveColumn(column)}
+                        />
+                        {projectContextId && (
+                          <FlagFieldBadge
+                            flagged={flag !== undefined}
+                            onClick={() => setFlagDialogColumn(column)}
+                          />
+                        )}
+                      </div>
+                      {flag && (
+                        <button
+                          type="button"
+                          className="mt-0.5 truncate text-[10px] font-semibold text-danger outline-none hover:underline"
+                          onClick={() =>
+                            onEditSchemaField?.({ fieldPath, fieldLabel: columnLabel, note: flag.note })
+                          }
+                        >
+                          Edit schema →
+                        </button>
+                      )}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -945,6 +1197,29 @@ export default function BatchExtractionReviewGrid({
             </tbody>
           </table>
         </div>
+      )}
+      {flagDialogColumn && (
+        <FlagFieldDialog
+          fieldLabel={
+            flagDialogColumn.path.length > 1
+              ? flagDialogColumn.path.join(' › ')
+              : flagDialogColumn.node.name
+          }
+          initialNote={openFlags.get(flagDialogColumn.path.join('.'))?.note ?? null}
+          onCancel={() => setFlagDialogColumn(null)}
+          onFlagged={async (note) => {
+            if (!projectContextId) return
+            const fieldPath = flagDialogColumn.path.join('.')
+            const flag = await flagSchemaField({
+              projectContextId,
+              schemaRevisionId: batch.schemaRevisionId,
+              fieldPath,
+              note: note ?? undefined,
+            })
+            setOpenFlags((current) => new Map(current).set(fieldPath, flag))
+            setFlagDialogColumn(null)
+          }}
+        />
       )}
     </div>
   )

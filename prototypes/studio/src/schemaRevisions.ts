@@ -50,6 +50,21 @@ export async function renameExtractionSchema(
   return extractionSchemaResponseSchema.parse(value).extractionSchema
 }
 
+export async function deleteExtractionSchema(
+  projectContextId: string,
+  extractionSchemaId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const query = new URLSearchParams({ projectContextId })
+  const response = await authenticatedFetch(
+    `/api/extraction-schemas/${extractionSchemaId}?${query}`,
+    { method: 'DELETE', signal },
+  )
+  if (response.status === 204) return
+  const value = await body(response)
+  throw failure(value, response.status)
+}
+
 async function body(response: Response): Promise<unknown> {
   return response.json().catch(() => null)
 }

@@ -19,6 +19,7 @@ export type SchemaRevisionRecord = {
   origin: SchemaRevisionOrigin
   schemaTree: unknown
   createdAt: Date
+  stabilisedAt: Date | null
 }
 
 export type ExtractionSchemaSummary = {
@@ -40,6 +41,18 @@ export type AppendSchemaRevisionResult =
   | { status: 'created'; revision: SchemaRevisionRecord }
   | { status: 'conflict'; currentRevision: SchemaRevisionRecord }
 
+/** A researcher-raised flag on one schema field within one Schema Revision
+ *  (guided-pilot-extraction-workflow, schema-issue-flagging). Open flags are
+ *  resolved automatically whenever a new Schema Revision is committed for
+ *  the owning Extraction Schema — see `resolveOpenSchemaIssueFlags`. */
+export type SchemaIssueFlagRecord = {
+  schemaIssueFlagId: string
+  schemaRevisionId: string
+  fieldPath: string
+  note: string | null
+  createdAt: Date
+}
+
 type StoredSchemaRevision = {
   id: string
   extractionSchemaId: string
@@ -47,6 +60,7 @@ type StoredSchemaRevision = {
   origin: 'SUGGESTION' | 'RESEARCHER_EDIT' | 'MODEL_EDIT'
   schemaTree: unknown
   createdAt: Date
+  stabilisedAt: Date | null
 }
 
 const revisionFields = [
@@ -56,6 +70,7 @@ const revisionFields = [
   'origin',
   'schemaTree',
   'createdAt',
+  'stabilisedAt',
 ] as const
 
 const revisionOrigins: Record<
@@ -75,6 +90,7 @@ function schemaRevision(row: StoredSchemaRevision): SchemaRevisionRecord {
     origin: revisionOrigins[row.origin],
     schemaTree: row.schemaTree,
     createdAt: row.createdAt,
+    stabilisedAt: row.stabilisedAt,
   }
 }
 
@@ -253,6 +269,11 @@ export type ProjectContextActivitySummary = {
   reviewedSourceDocumentCount: number
   staleSourceDocumentCount: number
   schemaDraftCount: number
+  /** Whether the current Schema Revision of any Extraction Schema in this
+   *  Project Context is stabilised (guided-pilot-extraction-workflow,
+   *  guided-workflow-phases) — batch/collection-level extraction requires
+   *  this. */
+  schemaStabilised: boolean
   lastActivityAt: Date
   runningBatch: { completedMemberCount: number; memberCount: number } | null
 }
@@ -289,6 +310,7 @@ export function emptyProjectContextActivitySummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     schemaDraftCount: 0,
+    schemaStabilised: false,
     lastActivityAt,
     runningBatch: null,
   }
@@ -745,6 +767,14 @@ export type ResearcherProjectStore = {
     extractionSchemaId: string,
     name: string,
   ): Promise<ExtractionSchemaRecord | null>
+  /** Refuses (`'has_extractions'`) rather than cascading through an
+   *  Extraction Schema's Schema Revisions when any of them has an
+   *  Extraction — the Prisma cascade would otherwise silently delete
+   *  Extraction rows along with the schema. */
+  deleteExtractionSchema(
+    projectContextId: string,
+    extractionSchemaId: string,
+  ): Promise<{ status: 'deleted' | 'has_extractions' } | null>
   appendSchemaRevision(
     projectContextId: string,
     extractionSchemaId: string,
@@ -761,6 +791,18 @@ export type ResearcherProjectStore = {
     extractionSchemaId: string,
     schemaRevisionId: string,
   ): Promise<SchemaRevisionRecord | null>
+  /** Idempotent per `(schemaRevisionId, fieldPath)`: re-flagging an
+   *  already-open field updates it in place rather than duplicating it. */
+  flagSchemaField(
+    projectContextId: string,
+    schemaRevisionId: string,
+    fieldPath: string,
+    note?: string | null,
+  ): Promise<SchemaIssueFlagRecord | null>
+  listOpenSchemaIssueFlags(
+    projectContextId: string,
+    schemaRevisionId: string,
+  ): Promise<SchemaIssueFlagRecord[] | null>
   createEvaluationCorpus(
     projectContextId: string,
     name: string,
@@ -909,6 +951,41 @@ async function ownsProjectContext(
     await orm.public.ProjectContext.select('id').first({
       id: projectContextId,
       researcherAccountId,
+    }),
+  )
+}
+
+/** Marks every open (unresolved) `SchemaIssueFlag` across any Schema
+ *  Revision of this Extraction Schema as resolved. Called whenever a new
+ *  Schema Revision is committed (guided-pilot-extraction-workflow,
+ *  schema-issue-flagging): flagged field paths may no longer describe the
+ *  same thing in a later revision, so open flags do not carry forward. */
+async function resolveOpenSchemaIssueFlags(
+  orm: Orm,
+  extractionSchemaId: string,
+): Promise<void> {
+  const revisions = await orm.public.SchemaRevision.where({
+    extractionSchemaId,
+  }).select('id').all()
+  if (revisions.length === 0) return
+  await orm.public.SchemaIssueFlag.where({ resolvedAt: null })
+    .where((flag) => flag.schemaRevisionId.in(revisions.map((r) => r.id)))
+    .updateAll({ resolvedAt: new Date() })
+}
+
+async function ownsSchemaRevision(
+  orm: Orm,
+  projectContextId: string,
+  schemaRevisionId: string,
+): Promise<boolean> {
+  const revision = await orm.public.SchemaRevision.select(
+    'extractionSchemaId',
+  ).first({ id: schemaRevisionId })
+  if (!revision) return false
+  return Boolean(
+    await orm.public.ExtractionSchema.select('id').first({
+      id: revision.extractionSchemaId,
+      projectContextId,
     }),
   )
 }
@@ -1102,7 +1179,7 @@ export function createResearcherProjectStore(
           : await database.orm.public.SchemaRevision.where((revision) =>
               revision.extractionSchemaId.in(schemas.map((schema) => schema.id)),
             )
-              .select('extractionSchemaId', 'createdAt')
+              .select('extractionSchemaId', 'revisionNumber', 'stabilisedAt', 'createdAt')
               .all()
       const suggestions = await database.orm.public.BatchSchemaSuggestion.where(
         (suggestion) => suggestion.projectContextId.in(projectIds),
@@ -1158,6 +1235,7 @@ export function createResearcherProjectStore(
             schemaDraftCount: 0,
             hasSchemaRevision: false,
             hasReadySuggestion: false,
+            schemaStabilised: false,
             lastActivityAt: row.createdAt,
             runningBatch: null as {
               id: string
@@ -1202,12 +1280,24 @@ export function createResearcherProjectStore(
         if (current && current.id !== latest.sourceRepresentationRevisionId)
           state.staleSourceDocumentCount += 1
       }
+      const latestRevisionByExtractionSchema = new Map<
+        string,
+        { revisionNumber: number; stabilisedAt: Date | null }
+      >()
       for (const revision of schemaRevisions) {
         const projectContextId = projectBySchema.get(revision.extractionSchemaId)
         const state = projectContextId && project.get(projectContextId)
         if (!projectContextId || !state) continue
         state.hasSchemaRevision = true
         bump(projectContextId, revision.createdAt)
+        const latest = latestRevisionByExtractionSchema.get(revision.extractionSchemaId)
+        if (!latest || revision.revisionNumber > latest.revisionNumber)
+          latestRevisionByExtractionSchema.set(revision.extractionSchemaId, revision)
+      }
+      for (const [extractionSchemaId, latest] of latestRevisionByExtractionSchema) {
+        const projectContextId = projectBySchema.get(extractionSchemaId)
+        const state = projectContextId && project.get(projectContextId)
+        if (state && latest.stabilisedAt) state.schemaStabilised = true
       }
       for (const suggestion of suggestions) {
         const state = project.get(suggestion.projectContextId)
@@ -1277,6 +1367,7 @@ export function createResearcherProjectStore(
             reviewedSourceDocumentCount: state.reviewedDocuments.size,
             staleSourceDocumentCount: state.staleSourceDocumentCount,
             schemaDraftCount: state.schemaDraftCount,
+            schemaStabilised: state.schemaStabilised,
             lastActivityAt: state.lastActivityAt,
             runningBatch: state.runningBatch && {
               completedMemberCount: state.runningBatch.completedMemberCount,
@@ -2109,6 +2200,37 @@ export function createResearcherProjectStore(
           }
         : null
     },
+    async deleteExtractionSchema(projectContextId, extractionSchemaId) {
+      return database.transaction(async ({ orm }) => {
+        if (
+          !(await ownsProjectContext(orm, researcherAccountId, projectContextId))
+        )
+          return null
+        const schema = await orm.public.ExtractionSchema.select('id').first({
+          id: extractionSchemaId,
+          projectContextId,
+        })
+        if (!schema) return null
+        const revisions = await orm.public.SchemaRevision.where({
+          extractionSchemaId,
+        })
+          .select('id')
+          .all()
+        if (revisions.length > 0) {
+          const extraction = await orm.public.Extraction.where((row) =>
+            row.schemaRevisionId.in(revisions.map((revision) => revision.id)),
+          )
+            .select('id')
+            .first()
+          if (extraction) return { status: 'has_extractions' as const }
+        }
+        await orm.public.ExtractionSchema.where({
+          id: extractionSchemaId,
+          projectContextId,
+        }).delete()
+        return { status: 'deleted' as const }
+      })
+    },
     async appendSchemaRevision(
       projectContextId,
       extractionSchemaId,
@@ -2160,6 +2282,7 @@ export function createResearcherProjectStore(
             origin: 'RESEARCHER_EDIT',
             schemaTree,
           })
+          await resolveOpenSchemaIssueFlags(orm, extractionSchemaId)
           return {
             status: 'created' as const,
             revision: schemaRevision(created as StoredSchemaRevision),
@@ -2221,6 +2344,81 @@ export function createResearcherProjectStore(
         ...revisionFields,
       ).first({ id: schemaRevisionId, extractionSchemaId })
       return row ? schemaRevision(row as StoredSchemaRevision) : null
+    },
+    async flagSchemaField(projectContextId, schemaRevisionId, fieldPath, note) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const owner = await ownsSchemaRevision(
+        database.orm,
+        projectContextId,
+        schemaRevisionId,
+      )
+      if (!owner) return null
+      const existing = await database.orm.public.SchemaIssueFlag.select(
+        'id',
+      ).first({ schemaRevisionId, fieldPath, resolvedAt: null })
+      const resolvedNote = note ?? null
+      if (existing) {
+        const createdAt = new Date()
+        await database.orm.public.SchemaIssueFlag.where({
+          id: existing.id,
+        }).updateAll({ note: resolvedNote, createdAt })
+        return {
+          schemaIssueFlagId: existing.id,
+          schemaRevisionId,
+          fieldPath,
+          note: resolvedNote,
+          createdAt,
+        }
+      }
+      const created = await database.orm.public.SchemaIssueFlag.create({
+        schemaRevisionId,
+        fieldPath,
+        note: resolvedNote,
+      })
+      return {
+        schemaIssueFlagId: created.id,
+        schemaRevisionId,
+        fieldPath,
+        note: resolvedNote,
+        createdAt: created.createdAt,
+      }
+    },
+    async listOpenSchemaIssueFlags(projectContextId, schemaRevisionId) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const owner = await ownsSchemaRevision(
+        database.orm,
+        projectContextId,
+        schemaRevisionId,
+      )
+      if (!owner) return null
+      const rows = await database.orm.public.SchemaIssueFlag.where({
+        schemaRevisionId,
+        resolvedAt: null,
+      })
+        .select('id', 'schemaRevisionId', 'fieldPath', 'note', 'createdAt')
+        .orderBy((flag) => flag.createdAt.asc())
+        .all()
+      return rows.map((row) => ({
+        schemaIssueFlagId: row.id,
+        schemaRevisionId: row.schemaRevisionId,
+        fieldPath: row.fieldPath,
+        note: row.note,
+        createdAt: row.createdAt,
+      }))
     },
     async createEvaluationCorpus(projectContextId, name) {
       if (

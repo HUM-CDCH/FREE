@@ -92,6 +92,8 @@ function moduleForSuggestedBatch() {
         disposition: 'created',
         batch: {} as never,
       })),
+    stabiliseSchemaRevision:
+      vi.fn<ExtractionModule['stabiliseSchemaRevision']>(),
     listBatches: vi.fn<ExtractionModule['listBatches']>(),
     readBatch: vi.fn<ExtractionModule['readBatch']>(),
     readBatchResults: vi.fn<ExtractionModule['readBatchResults']>(),

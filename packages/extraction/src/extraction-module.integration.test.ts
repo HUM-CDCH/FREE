@@ -43,6 +43,7 @@ if (!disposableDatabaseUrl) {
     { createResearcherProjectStore },
     { createExtractionRuntimeWithInfrastructure },
     { createInternalExtractionJobStore },
+    { PILOT_BATCH_SELECTION_LIMIT },
   ] =
     await Promise.all([
       import('../../db/src/prisma/db.js'),
@@ -50,6 +51,7 @@ if (!disposableDatabaseUrl) {
       import('../../db/src/project-store.js'),
       import('./runtime.js'),
       import('./postgres-persistence.js'),
+      import('./batch.js'),
     ])
 
   const ARTICLE_SCHEMA = {
@@ -321,6 +323,11 @@ if (!disposableDatabaseUrl) {
       revisionNumber: 1,
       origin: 'SUGGESTION',
       schemaTree,
+      // Pre-stabilised so every existing scheduleBatch-based test keeps
+      // exercising its own concern unaffected by the guided-pilot-workflow
+      // gate (guided-workflow-phases); tests for that gate itself seed their
+      // own unstabilised revision explicitly.
+      stabilisedAt: new Date(),
     })
     const documents: SeededDocument[] = []
     for (const filename of filenames) {
@@ -1543,6 +1550,184 @@ if (!disposableDatabaseUrl) {
         (batch) => batch.executionStatus === 'COMPLETED',
       )
       assert.equal(completedForeign.executionStatus, 'COMPLETED')
+    })
+
+    it('allows a pilot-sized Batch Extraction pre-stabilise, gates a collection-scale one on stabilisation, and gates stabilisation on a reviewed pilot Extraction (guided-pilot-extraction-workflow)', async (t) => {
+      t.after(cleanup)
+      const filenames = Array.from({ length: PILOT_BATCH_SELECTION_LIMIT + 1 }, (_, index) => `doc-${index}.pdf`)
+      const project = await seedProject(ARTICLE_SCHEMA, filenames)
+      await db.orm.public.SchemaRevision.where({
+        id: project.schemaRevisionId,
+      }).updateAll({ stabilisedAt: null })
+      const { module } = createRuntime(project.researcherAccountId)
+      const pilotSelection = project.documents
+        .slice(0, PILOT_BATCH_SELECTION_LIMIT)
+        .map((document) => document.sourceDocumentId)
+      const collectionSelection = project.documents.map((document) => document.sourceDocumentId)
+
+      await assert.rejects(
+        module.stabiliseSchemaRevision({
+          projectContextId: project.projectContextId,
+          schemaRevisionId: project.schemaRevisionId,
+        }),
+        rejectsWithCode('schema_not_ready_to_stabilise'),
+      )
+      // Collection-scale (> PILOT_BATCH_SELECTION_LIMIT) is rejected pre-stabilise...
+      await assert.rejects(
+        module.scheduleBatch({
+          projectContextId: project.projectContextId,
+          schemaRevisionId: project.schemaRevisionId,
+          strategy: 'ARTICLE',
+          sourceDocumentIds: collectionSelection,
+          repetition: 'create-new',
+        }),
+        rejectsWithCode('schema_not_stabilised'),
+      )
+      // ...but a pilot-sized selection is allowed through the same
+      // unstabilised revision — this *is* how a pilot round runs.
+      const pilotBatch = await module.scheduleBatch({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: pilotSelection,
+        repetition: 'create-new',
+      })
+      assert.equal(pilotBatch.disposition, 'created')
+
+      const pilot = await module.runSingle(freshInput(project))
+      const prepared = await module.prepareReview(pilot.extraction.extractionId)
+      await module.finalizeReview(pilot.extraction.extractionId, prepared.reviewDecisions)
+
+      const stabilised = await module.stabiliseSchemaRevision({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+      })
+      assert.equal(stabilised.schemaRevisionId, project.schemaRevisionId)
+      assert.ok(stabilised.stabilisedAt)
+      const replayedStabilise = await module.stabiliseSchemaRevision({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+      })
+      assert.equal(replayedStabilise.stabilisedAt, stabilised.stabilisedAt)
+
+      const batch = await module.scheduleBatch({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: collectionSelection,
+        repetition: 'create-new',
+      })
+      assert.equal(batch.disposition, 'created')
+    })
+
+    it('clones an already-piloted, reviewed Extraction into a Batch Extraction instead of re-running it, without disturbing the original pilot batch (guided-pilot-extraction-workflow, batch-extraction-pilot-reuse)', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['piloted.pdf', 'fresh.pdf'])
+      await db.orm.public.SchemaRevision.where({
+        id: project.schemaRevisionId,
+      }).updateAll({ stabilisedAt: null })
+      const { runtime, module } = createRuntime(project.researcherAccountId)
+
+      const piloted = project.documents[0]!
+      const fresh = project.documents[1]!
+      // A pilot round is itself a (pilot-sized) Batch Extraction.
+      const pilotBatch = await module.scheduleBatch({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: [piloted.sourceDocumentId],
+        repetition: 'create-new',
+      })
+      const pilotCompleted = await runWorkerUntil(
+        runtime,
+        module,
+        project.projectContextId,
+        pilotBatch.batch.batchExtractionId,
+        (snapshot) => snapshot.executionStatus === 'COMPLETED',
+      )
+      const pilotExtractionId =
+        pilotCompleted.members[0]!.latestExtraction!.extractionId
+      const prepared = await module.prepareReview(pilotExtractionId)
+      const edited = prepared.reviewDecisions.map((decision) => ({
+        ...decision,
+        action: 'EDITED' as const,
+        reviewedValue: 'Piloted, corrected',
+      }))
+      await module.finalizeReview(pilotExtractionId, edited)
+      await module.stabiliseSchemaRevision({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+      })
+
+      const finalBatch = await module.scheduleBatch({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: [piloted.sourceDocumentId, fresh.sourceDocumentId],
+        repetition: 'create-new',
+      })
+      const pilotedMember = finalBatch.batch.members.find(
+        (member) => member.sourceDocumentId === piloted.sourceDocumentId,
+      )
+      // A clone, not the same row: reused into the new batch immediately
+      // (no worker turn needed), but under a new extraction identity.
+      assert.notEqual(pilotedMember?.latestExtraction?.extractionId, pilotExtractionId)
+      assert.ok(pilotedMember?.latestExtraction?.reviewedAt)
+      const clonedExtractionId = pilotedMember!.latestExtraction!.extractionId
+
+      const completed = await runWorkerUntil(
+        runtime,
+        module,
+        project.projectContextId,
+        finalBatch.batch.batchExtractionId,
+        (snapshot) => snapshot.executionStatus === 'COMPLETED',
+      )
+      const freshMember = completed.members.find(
+        (member) => member.sourceDocumentId === fresh.sourceDocumentId,
+      )
+      assert.notEqual(freshMember?.latestExtraction?.extractionId, pilotExtractionId)
+      assert.notEqual(freshMember?.latestExtraction?.extractionId, clonedExtractionId)
+
+      // The clone carries the reviewed correction, not the raw model value:
+      // its own ExtractionReview/ReviewDecision trail (cloned alongside it)
+      // must project through readBatchResults exactly like any other
+      // reviewed Extraction's does. `readExtractionAttempt` is keyed by
+      // ExtractionJob identity, not raw Extraction identity, so it cannot
+      // read an arbitrary clone id directly — readBatchResults is the real
+      // path a researcher's view goes through.
+      const finalResults = await module.readBatchResults({
+        projectContextId: project.projectContextId,
+        batchExtractionId: finalBatch.batch.batchExtractionId,
+      })
+      const pilotedResult = finalResults.results.find(
+        (result) => result.sourceDocumentId === piloted.sourceDocumentId,
+      )
+      assert.equal(pilotedResult?.extractionId, clonedExtractionId)
+      assert.ok(
+        JSON.stringify(pilotedResult?.result).includes('Piloted, corrected'),
+        'the cloned Extraction result must reflect the reviewed correction, not the raw model output',
+      )
+
+      // The original pilot batch is still fully readable — cloning must not
+      // have disturbed the Extraction it owns.
+      const pilotStillReadable = await module.readBatch({
+        projectContextId: project.projectContextId,
+        batchExtractionId: pilotBatch.batch.batchExtractionId,
+      })
+      assert.equal(
+        pilotStillReadable.members[0]!.latestExtraction!.extractionId,
+        pilotExtractionId,
+      )
+      assert.equal(pilotStillReadable.executionStatus, 'COMPLETED')
+
+      const extractionsForPilotedDoc = await db.orm.public.Extraction.where({
+        sourceDocumentId: piloted.sourceDocumentId,
+      }).select('id').all()
+      assert.equal(
+        extractionsForPilotedDoc.length,
+        2,
+        'reuse clones into a second Extraction row rather than moving the original',
+      )
     })
 
     it('atomically hands a ready Schema Suggestion to one replayable Batch', async (t) => {

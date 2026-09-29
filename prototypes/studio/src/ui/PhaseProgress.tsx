@@ -20,7 +20,10 @@ export type PhaseProgressProps = {
   className?: string
 }
 
-const phaseOrder: readonly WorkflowPhase[] = [
+/** Exported so other views (e.g. ProjectContextPage's full step list) can
+ *  build a compatible, consistently-labeled step sequence without
+ *  redefining these. */
+export const phaseOrder: readonly WorkflowPhase[] = [
   'ingest',
   'chat',
   'approve',
@@ -28,7 +31,7 @@ const phaseOrder: readonly WorkflowPhase[] = [
   'validate',
 ]
 
-const phaseLabels: Record<WorkflowPhase, string> = {
+export const phaseLabels: Record<WorkflowPhase, string> = {
   ingest: 'Ingest',
   chat: 'Schema Chat',
   approve: 'Approve schema',

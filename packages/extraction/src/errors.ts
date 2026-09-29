@@ -20,6 +20,8 @@ export type ExtractionErrorCode =
   | 'catalog_no_records'
   | 'invalid_retry'
   | 'cancelled'
+  | 'schema_not_stabilised'
+  | 'schema_not_ready_to_stabilise'
 
 export class ExtractionError extends Error {
   readonly code: ExtractionErrorCode
