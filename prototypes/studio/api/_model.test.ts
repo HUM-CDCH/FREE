@@ -61,14 +61,15 @@ afterEach(() => {
 })
 
 describe('generateSchemaWithModel', () => {
-  it('repairs generated model JSON on the NuExtract path', async () => {
+  it('rejects malformed generated JSON on the NuExtract path instead of guessing its structure', async () => {
     stubNuExtractResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}}]')
-    const result = await generateSchemaWithModel(
-      CALLER,
-      { document, instruction: '' },
-      nuextractTarget,
-    )
-    expect(result.template).toEqual({ _description: 'One grave record.', grave: [{ name: 'verbatim-string' }] })
+    await expect(
+      generateSchemaWithModel(
+        CALLER,
+        { document, instruction: '' },
+        nuextractTarget,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_model_output' })
   })
 
   it('rejects a generated schema without a root record description', async () => {
