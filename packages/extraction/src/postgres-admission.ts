@@ -47,6 +47,7 @@ import type {
   ExtractionModelChoice,
   ExtractionStrategy,
   ReviewDecisionInput,
+  ReviewPairing,
   ReviewTransfer,
   RunSingleInput,
   ScheduleBatchInput,
@@ -218,7 +219,8 @@ async function samplesReviewTransfer(orm: DatabaseOrm, pins: AdmissionPins): Pro
   const rows = (await orm.public.Extraction.where({
     sourceDocumentId: pins.sourceDocumentId, sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
     outcome: 'SUCCEEDED', reviewable: true,
-  }).select('id', 'requestedPages', 'reviewDraft', 'reviewDraftVersion').all()).filter((row) => row.requestedPages !== null)
+  }).select('id', 'requestedPages', 'reviewDraft', 'reviewDraftVersion', 'reviewPairings').all())
+    .filter((row) => row.requestedPages !== null)
   const samples = []
   for (const row of await readAttemptRows(orm, rows.map((each) => each.id))) {
     const sample = await extractionSnapshot(orm, row)
@@ -231,6 +233,8 @@ async function samplesReviewTransfer(orm: DatabaseOrm, pins: AdmissionPins): Pro
       ...transferSample(sample),
       createdAt: sample.createdAt,
       entries: transferEntries(sample, decisions, nodes, draft.reviewDraftVersion),
+      // Its hand pairings count as alignment when newer decisions override older ones.
+      pairings: (draft.reviewPairings ?? []) as unknown as ReviewPairing[],
     })
   }
   samples.sort((left, right) =>

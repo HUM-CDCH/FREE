@@ -281,6 +281,47 @@ describe('Review transfer from a sample to a later run', () => {
     { '["records",0,"number"]': 'reviewed APPROVED' })
   })
 
+  const twoSamples = (older: Sample, olderDecisions: ReviewDecisionInput[], newer: Sample, newerDecisions: ReviewDecisionInput[],
+    pairings: ReviewPairing[] = []) => unionReviewTransfer([
+    { ...transferSample(older), entries: transferEntries(older, olderDecisions, nodes, 1) },
+    { ...transferSample(newer), entries: transferEntries(newer, newerDecisions, nodes, 1), pairings },
+  ])!
+  const statuses = (transfer: ReturnType<typeof twoSamples>, destination: Sample) => Object.fromEntries([...transferVerdicts(
+    transfer, destination, nodes)].map(([key, { status, decision }]) => [key, [status, decision?.action].filter(Boolean).join(' ')]))
+  const number = ['records', 0, 'number']
+
+  it('aligns one record across samples: two samples\' records merged in the run are unmatched, one record sampled twice carries', () => {
+    const first = run('first', [{ number: ['41', 'a0'] }])
+    const second = run('second', [{ date: ['1897', 'b0'] }])
+    assert.deepEqual(statuses(twoSamples(first, [decide(first, number, 'APPROVED')], second, [decide(second, date, 'APPROVED')]),
+      run('full', [{ number: ['41', 'a0'], date: ['1897', 'b0'] }])),
+    { '["records",0,"number"]': 'unmatched', '["records",0,"date"]': 'unmatched' })
+    const once = nr41('1897', 'a2', 'once')
+    const twice = nr41('1897', 'a2', 'twice')
+    assert.deepEqual(statuses(twoSamples(once, [decide(once, number, 'APPROVED')], twice, [decide(twice, date, 'REJECTED')]), nr41('1897', 'a2')),
+      { '["records",0,"number"]': 'reviewed APPROVED', '["records",0,"date"]': 'reviewed REJECTED' })
+  })
+
+  it('lets a newer sample\'s decision on a record it paired by hand override the older one', () => {
+    const whole = nr41('1897', 'a1', 'whole')
+    const split = run('split', [{ number: ['41', 'a0'] }, { date: ['1897', 'a1'] }])
+    const transfer = twoSamples(whole, [decide(whole, date, 'APPROVED')], split, [decide(split, ['records', 1, 'date'], 'REJECTED')],
+      [{ record: 1, extractionId: 'whole', sourceRecord: 0 }])
+    assert.deepEqual(transfer.entries.map((entry) => [entry.extractionId, entry.action]), [['split', 'REJECTED']])
+    assert.deepEqual(statuses(transfer, nr41('1897', 'a1')), { '["records",0,"number"]': 'unmatched', '["records",0,"date"]': 'unmatched' })
+  })
+
+  it('never carries or keeps a corrected value the destination field no longer allows', () => {
+    const narrowed = parseExtractionSchema({ recordDescription: 'Catalogue entries.', schemaNodes: [
+      { id: 'n-number', name: 'number', type: 'string' }, { id: 'n-date', name: 'date', type: 'string', allowedValues: ['1897', '1898'] },
+    ] }).schemaNodes
+    const sample = nr41('1897', 'a2', 'sample')
+    const verdict = transferVerdicts(unionReviewTransfer([{ ...transferSample(sample),
+      entries: transferEntries(sample, [decide(sample, date, 'EDITED', corrected)], nodes, 1) }])!, nr41('1897', 'a2'), narrowed)
+      .get(JSON.stringify(date))
+    assert.deepEqual([verdict?.status, verdict?.decision, verdict?.kept], ['changed', null, null])
+  })
+
   it('aligns array items by their anchors, never by index', () => {
     const marks = run('sample', [{ number: ['41', 'a0'], marks: [['N', 'm1'], ['A', 'm2']] }])
     const decisions = [decide(marks, ['records', 0, 'marks', 0], 'APPROVED'), decide(marks, ['records', 0, 'marks', 1], 'REJECTED')]

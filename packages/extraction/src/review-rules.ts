@@ -337,18 +337,19 @@ export function alignRecords(records: TransferSample, other: TransferSample): Re
  * The union of samples' decisions, oldest sample first (design §6): where a newer sample decided a schema node of a
  * record aligned with an older one's, the newer decision wins; every other decision is kept. Null when none is left.
  */
-// ponytail: a sample's hand pairings are not read here, so an older decision on a record a newer sample paired by hand
-// is kept beside the newer one; the destination's own alignment still decides which applies.
-export function unionReviewTransfer(samples: readonly (TransferSample & { entries: readonly TransferEntry[] })[]): ReviewTransfer | null {
+export function unionReviewTransfer(
+  samples: readonly (TransferSample & { entries: readonly TransferEntry[]; pairings?: readonly ReviewPairing[] })[],
+): ReviewTransfer | null {
   let entries: readonly TransferEntry[] = []
-  for (const sample of samples) {
+  samples.forEach((sample, at) => {
     const decided = new Set(sample.entries.map((entry) => `${entry.record} ${entry.nodeId}`))
-    const aligned = new Map(samples.map((older) => [older.extractionId, alignRecords(older, sample)]))
+    // This sample's records aligned with the older samples' records, or paired with them by hand in its review.
+    const pairs = transferPairs(samples.slice(0, at), sample, sample.pairings ?? [])
     entries = [...entries.filter((entry) => {
-      const record = aligned.get(entry.extractionId)!.get(entry.record)
+      const record = [...pairs.get(entry.extractionId)!].find(([, source]) => source === entry.record)?.[0]
       return record === undefined || !decided.has(`${record} ${entry.nodeId}`)
     }), ...sample.entries]
-  }
+  })
   if (entries.length === 0) return null
   return {
     samples: samples.filter((sample) => entries.some((entry) => entry.extractionId === sample.extractionId))
@@ -382,11 +383,27 @@ function losslessly(value: unknown, type: string): unknown {
  * Per pinned sample, which of its records each destination record aligns with, plus the researcher's hand pairings of
  * records aligned to nothing on either side, one to one (design §7.1). A pairing that breaks this is ignored.
  */
-function transferPairs(transfer: ReviewTransfer, target: TransferSample, pairings: readonly ReviewPairing[]) {
-  const pairs = new Map(transfer.samples.map((sample) => [sample.extractionId, new Map(alignRecords(target, sample))]))
+function transferPairs(samples: ReviewTransfer['samples'], target: TransferSample, pairings: readonly ReviewPairing[]) {
+  const pairs = new Map(samples.map((sample) => [sample.extractionId, new Map(alignRecords(target, sample))]))
+  // One record across the samples too: a target record aligned with two samples' records that do not align with each
+  // other is a merge, and two target records aligned with records that do are a split; neither aligns.
+  const between = new Map<string, ReadonlyMap<number, number>>()
+  const same = ([left, at]: readonly [string, number], [right, to]: readonly [string, number]) => {
+    if (left === right) return at === to
+    const key = `${left} ${right}`
+    if (!between.has(key)) between.set(key, alignRecords(
+      samples.find((sample) => sample.extractionId === left)!, samples.find((sample) => sample.extractionId === right)!))
+    return between.get(key)!.get(at) === to
+  }
+  const partners = (record: number) =>
+    [...pairs].flatMap(([extractionId, aligned]) => aligned.has(record) ? [[extractionId, aligned.get(record)!] as const] : [])
+  const aligned = [...new Set([...pairs.values()].flatMap((each) => [...each.keys()]))]
+  const broken = aligned.filter((record) => partners(record).some((one, _, all) => all.some((other) => !same(one, other))) ||
+    aligned.some((other) => other !== record && partners(record).some((one) => partners(other).some((two) => same(one, two)))))
+  for (const each of pairs.values()) for (const record of broken) each.delete(record)
   for (const { record, extractionId, sourceRecord } of pairings) {
     const own = pairs.get(extractionId)
-    if (own && record < target.records.length && sourceRecord < transfer.samples.find((sample) => sample.extractionId === extractionId)!.records.length &&
+    if (own && record < target.records.length && sourceRecord < samples.find((sample) => sample.extractionId === extractionId)!.records.length &&
         ![...pairs.values()].some((aligned) => aligned.has(record)) && ![...own.values()].includes(sourceRecord))
       own.set(record, sourceRecord)
   }
@@ -399,7 +416,7 @@ export function unmatchedSources(
   transfer: ReviewTransfer, destination: Parameters<typeof transferSample>[0], pairings: readonly ReviewPairing[] = [],
 ) {
   const target = transferSample(destination)
-  const pairs = transferPairs(transfer, target, pairings)
+  const pairs = transferPairs(transfer.samples, target, pairings)
   return transfer.samples.flatMap((sample) => sample.records.flatMap((record, index) => {
     const first = transfer.entries.find((entry) => entry.extractionId === sample.extractionId && entry.record === index)
     if (!first || [...pairs.get(sample.extractionId)!.values()].includes(index) ||
@@ -424,7 +441,7 @@ export function transferVerdicts(
   pairings: readonly ReviewPairing[] = [],
 ): ReadonlyMap<string, TransferVerdict> {
   const target = transferSample(destination)
-  const pairs = transferPairs(transfer, target, pairings)
+  const pairs = transferPairs(transfer.samples, target, pairings)
   const sampleOf = (entry: TransferEntry) => transfer.samples.find((sample) => sample.extractionId === entry.extractionId)!
   const verdicts = new Map<string, TransferVerdict>()
   // ponytail: only values the destination grounds get a verdict; a reviewed value it no longer has (a regression to
@@ -451,17 +468,22 @@ export function transferVerdicts(
       const converted = losslessly(stored, type)
       return converted !== undefined && isDeepStrictEqual(converted, value)
     }
-    const reviewedValue = losslessly(entry.reviewedValue, type)
+    // A value to carry or keep, when it converts to the destination field and fits it, allowed values included.
+    const fitting = (stored: unknown) => {
+      const converted = losslessly(stored, type)
+      return converted != null && reviewDecisionMatchesSchema(nodes, { resultPath: link.resultPath, evidenceAnchorId: link.evidenceAnchorId,
+        reviewedOccurrenceIds: [], action: 'EDITED', reviewedValue: converted }) ? converted : null
+    }
+    const reviewedValue = fitting(entry.reviewedValue)
     const repeated = link.evidenceAnchorId === entry.evidenceAnchorId && equals(entry.modelValue)
     const fixed = entry.action === 'EDITED' && entry.reviewedEvidence?.length === 1 &&
       entry.reviewedEvidence[0]!.evidenceAnchorId === link.evidenceAnchorId && equals(entry.reviewedValue)
     const decision = fixed
       ? { action: 'APPROVED' as const, reviewedValue: null }
-      : !repeated || (entry.action === 'EDITED' && reviewedValue === undefined) ? null
+      : !repeated || (entry.action === 'EDITED' && reviewedValue === null) ? null
       : entry.action === 'EDITED' ? { action: entry.action, reviewedValue, reviewedEvidence: entry.reviewedEvidence }
       : { action: entry.action, reviewedValue: null }
-    const kept = entry.action === 'REJECTED' ? null
-      : entry.action === 'EDITED' ? reviewedValue ?? null : losslessly(entry.modelValue, type) ?? null
+    const kept = entry.action === 'REJECTED' ? null : entry.action === 'EDITED' ? reviewedValue : fitting(entry.modelValue)
     verdicts.set(resultPathKey(link.resultPath), { status: fixed ? 'fixed' : decision ? 'reviewed' : 'changed', entry, decision, kept })
   }
   return verdicts
