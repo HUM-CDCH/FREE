@@ -228,6 +228,11 @@ export const batchSchemaSuggestionMachine = setup({
             )
           : null,
     }),
+    // A new Run starts without the previous refusal, so an identical one is reported again.
+    clearRunFailure: assign({
+      error: () => null,
+      runFailureCode: () => null,
+    }),
     captureRunFailure: assign({
       error: ({ context, event }) =>
         'error' in event
@@ -414,7 +419,7 @@ export const batchSchemaSuggestionMachine = setup({
                 { type: 'notifySuggestion' },
               ],
             },
-            'run.requested': { target: '#batchSchemaSuggestion.running' },
+            'run.requested': { target: '#batchSchemaSuggestion.running', actions: [{ type: 'clearRunFailure' }] },
             'suggestion.retry': { target: '#batchSchemaSuggestion.retrying' },
             'suggestion.updated': {
               target: '#batchSchemaSuggestion.adopting',

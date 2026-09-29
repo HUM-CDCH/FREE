@@ -1202,6 +1202,11 @@ export default function BatchExtractionsPanel({
             }
             opening={openingAnyBatch}
             canRunAgain={saved.state.status === 'ready'}
+            runAgainMethod={
+              <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
+                method={saved.state.status === 'ready' ? savedMethodFor(saved.state.config, openBatch.strategy, null) : null}
+                onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
+            }
             documentName={documentName}
             onExport={exportOpenBatch}
             onRetrySchema={() =>

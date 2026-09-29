@@ -328,6 +328,27 @@ describe('batchSchemaSuggestionMachine', () => {
     expect(actor.getSnapshot().context.runFailureCode).toBeNull()
   })
 
+  it('a new Run forgets the previous refusal, so an identical second refusal is reported again', async () => {
+    const refusal = () => Object.assign(new Error('Your saved advanced settings changed.'), { code: 'method_changed' })
+    const second = Promise.withResolvers<never>()
+    const run = vi.fn<BatchSchemaSuggestionOperations['run']>()
+      .mockRejectedValueOnce(refusal())
+      .mockReturnValueOnce(second.promise)
+    const actor = createActor(batchSchemaSuggestionMachine, {
+      input: operations({ run, failureCode: () => 'method_changed' }),
+    }).start()
+    actor.send({ type: 'selection.changed', sourceDocumentIds: ['51000000-0000-4000-8001-000000000001'], suggestion: ready() })
+
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE', method })
+    await vi.waitFor(() => expect(actor.getSnapshot().context.runFailureCode).toBe('method_changed'))
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE', method })
+    expect(actor.getSnapshot().matches('running')).toBe(true)
+    expect(actor.getSnapshot().context.error).toBeNull()
+    expect(actor.getSnapshot().context.runFailureCode).toBeNull()
+    second.reject(refusal())
+    await vi.waitFor(() => expect(actor.getSnapshot().context.runFailureCode).toBe('method_changed'))
+  })
+
   it('adopts the saved draft after a version conflict', async () => {
     const conflict = new Error('draft version conflict')
     const actor = createActor(batchSchemaSuggestionMachine, {

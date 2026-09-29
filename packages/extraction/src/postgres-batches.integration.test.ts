@@ -24,7 +24,7 @@ describe('Extraction batches on disposable PostgreSQL', { skip: !fixture && 'set
     stableUuid, createResearcherProjectStore, createResearcherExtractionPersistence, packages, kei,
     app, execution, seedProject, addRepresentation, scheduler,
     eventually, createRuntime, freshInput, rejectsWithCode, waitForBatch,
-    heldByKei, extractionRow, cleanup, configureAccount,
+    heldByKei, extractionRow, cleanup, configureAccount, modelConfigurations, untilLockWait, untilSignalled, ports,
   } = fixture
 
   it('batch admission locks members in sorted order and creates one pending Extraction per member with a deterministic ID', async (t) => {
@@ -567,6 +567,58 @@ it('counts a member kei cancelled as cancelled and an interrupted one as failed'
     assert.equal(opened.batch.members.length, 2)
   })
 
+  it('an identical request that waited for the first admission replays it, even when an Apply commits in between', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['a.pdf', 'b.pdf'])
+    kei.holding = true
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
+    const input = batchInput(project, { models: null, settings: { article: SPANS } })
+    const admitted = Promise.withResolvers<number>()
+    const releaseFirst = Promise.withResolvers<void>()
+    // The first admission pauses in its enqueue, holding its Source Document rows and the configuration row.
+    const barrier: ExtractionExecution = {
+      ...execution,
+      async enqueue(client, workflow, workflowInput) {
+        admitted.resolve((await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid)
+        await releaseFirst.promise
+        await execution.enqueue(client, workflow, workflowInput)
+      },
+    }
+    const first = createExtractionModule(
+      createResearcherExtractionPersistence(project.researcherAccountId, barrier, { database: db as Database, packages }))
+      .scheduleBatch(input)
+    const applyHolds = Promise.withResolvers<void>()
+    const releaseApply = Promise.withResolvers<void>()
+    let second: Promise<{ disposition: string }> | undefined
+    let applying: Promise<unknown> | undefined
+    try {
+      const firstPid = await untilSignalled(admitted.promise, first, 'the first admission holds its locks')
+      second = scheduler(project.researcherAccountId).scheduleBatch(input)
+      await untilLockWait(second, '%', firstPid)
+      applying = modelConfigurations.apply(project.researcherAccountId, async (previous) => {
+        applyHolds.resolve()
+        await releaseApply.promise
+        return { ...(previous as object), extractionSettings: { article: QUOTES } }
+      })
+      await untilLockWait(applying, '%"modelConfiguration"%', firstPid)
+      releaseFirst.resolve()
+      assert.equal((await first).disposition, 'created')
+      // The Apply now holds the configuration row with the new settings not yet committed; it commits next.
+      await untilSignalled(applyHolds.promise, applying, 'the Apply holds the configuration lock')
+      releaseApply.resolve()
+      await applying
+      assert.equal((await second).disposition, 'replayed')
+    } finally {
+      // A failed assertion must not leave a gate closed: released, every transaction settles.
+      releaseFirst.resolve()
+      releaseApply.resolve()
+      await first.catch(() => {})
+      await applying?.catch(() => {})
+      await second?.catch(() => {})
+    }
+    assert.equal((await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all()).length, 1)
+  })
+
   it('a batch whose identity fields the schema lacks is refused whole before enqueue', async (t) => {
     t.after(cleanup)
     const project = await seedProject(ARTICLE_SCHEMA, ['a.pdf', 'b.pdf'])
@@ -592,14 +644,37 @@ it('counts a member kei cancelled as cancelled and an interrupted one as failed'
     const project = await seedProject(ARTICLE_SCHEMA, ['a.pdf', 'b.pdf'])
     kei.holding = true
     await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
-    const opened = await scheduler(project.researcherAccountId).scheduleBatch(batchInput(project, { models: null, settings: { article: SPANS } }))
-    await configureAccount(project.researcherAccountId, { extractionSettings: { article: QUOTES } })
-    const members = await db.orm.public.Extraction.where({ batchExtractionId: opened.batch.batchExtractionId }).select('id').all()
-    assert.equal(members.length, 2)
-    for (const member of members) await heldByKei(member.id)
-    for (const member of members) {
-      const submitted = kei.submissions.find((submission) => submission.workflowId === keiExtractWorkflowId(member.id))!
-      assert.deepEqual(((submitted.request as KeiExtractInput).request.options as { article: unknown }).article, SPANS)
+    // Every member's workflow waits just before it loads its admitted method, so the account changes first.
+    const original = ports.current
+    const gate = Promise.withResolvers<void>()
+    const loading: string[] = []
+    ports.current = {
+      ...original,
+      store: {
+        ...original.store,
+        async loadAdmitted(extractionId) {
+          loading.push(extractionId)
+          await gate.promise
+          return original.store.loadAdmitted(extractionId)
+        },
+      },
+    }
+    try {
+      const opened = await scheduler(project.researcherAccountId).scheduleBatch(batchInput(project, { models: null, settings: { article: SPANS } }))
+      await eventually(async () => loading.length, (count) => count > 0, 'a member waits to load its method')
+      assert.equal(kei.submissions.length, 0)
+      await configureAccount(project.researcherAccountId, { extractionSettings: { article: QUOTES } })
+      gate.resolve()
+      const members = await db.orm.public.Extraction.where({ batchExtractionId: opened.batch.batchExtractionId }).select('id').all()
+      assert.equal(members.length, 2)
+      for (const member of members) await heldByKei(member.id)
+      for (const member of members) {
+        const submitted = kei.submissions.find((submission) => submission.workflowId === keiExtractWorkflowId(member.id))!
+        assert.deepEqual(((submitted.request as KeiExtractInput).request.options as { article: unknown }).article, SPANS)
+      }
+    } finally {
+      gate.resolve()
+      ports.current = original
     }
   })
 })

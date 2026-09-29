@@ -408,6 +408,10 @@ export async function admitBatchExtraction(
           preprocessId: representation.preprocessId,
         })
       }
+      // An equal selection may have committed while this one waited for the document locks: it replays, and today's
+      // settings are not consulted (design §7), as in single admission.
+      if (await orm.public.BatchExtraction.select('id').first({ id: batchExtractionId }))
+        return 'existing' as const
       // Every Source Document row is locked (sorted) before the configuration row, as in single admission.
       if (!(await savedMethodStillCurrent(client, researcherAccountId, input.strategy, null, method)))
         return 'method-changed' as const

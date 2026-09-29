@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { SchemaDefinition } from 'extraction/schema'
 import type {
   ExportChoices,
@@ -246,6 +247,7 @@ export function BatchExtractionMembers({
   coverageMessage,
   opening,
   canRunAgain,
+  runAgainMethod,
   documentName,
   onExport,
   onRetrySchema,
@@ -261,6 +263,8 @@ export function BatchExtractionMembers({
   opening: boolean
   /** Run again submits the account's saved method, so it waits until that has been read. */
   canRunAgain: boolean
+  /** The saved method Run again submits, with its loading, error and stale-settings refusal. */
+  runAgainMethod: ReactNode
   documentName(sourceDocumentId: string): string
   onExport(format: ExportFormat, choices: ExportChoices): Promise<void>
   onRetrySchema(): void
@@ -312,6 +316,7 @@ export function BatchExtractionMembers({
           </Button>
         </div>
       </div>
+      <div className="mb-4">{runAgainMethod}</div>
       {pinnedSchemaFailure && (
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <p className="text-[11.5px] leading-snug text-danger" role="alert">

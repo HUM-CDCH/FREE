@@ -74,6 +74,16 @@ export async function getModelConfig(signal?: AbortSignal): Promise<GetModelConf
   return parsed.data
 }
 
+const savedListeners = new Set<(config: ModelConfig) => void>()
+
+/** Hears every document an Apply saves in this page, so a start view never submits the configuration it replaced. */
+export function onModelConfigSaved(listener: (config: ModelConfig) => void): () => void {
+  savedListeners.add(listener)
+  return () => {
+    savedListeners.delete(listener)
+  }
+}
+
 /** Saves the whole document. It carries no key: keys reach Studio only through `PUT /api/model-keys`. */
 export async function putModelConfig(config: ModelConfig, signal?: AbortSignal): Promise<ModelConfigState> {
   const parsed = modelConfigStateSchema.safeParse(
@@ -87,6 +97,7 @@ export async function putModelConfig(config: ModelConfig, signal?: AbortSignal):
     ),
   )
   if (!parsed.success) throw new ModelConfigApiError(500, 'invalid_response', 'Studio returned invalid saved state.')
+  for (const listener of savedListeners) listener(parsed.data.config)
   return parsed.data
 }
 

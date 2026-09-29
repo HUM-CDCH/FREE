@@ -1366,6 +1366,31 @@ describe('BatchExtractionsPanel', () => {
     ).toHaveLength(1)
   })
 
+  it('Run again shows the saved settings it submits; a method_changed refusal is shown there with a refresh', async () => {
+    const message = 'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [batch] })
+      if (url === '/api/batch-extractions' && init?.method === 'POST')
+        return new Response(JSON.stringify({ error: { code: 'method_changed', message } }), {
+          status: 409, headers: { 'content-type': 'application/json' },
+        })
+      if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`)) return response({ revision: null })
+      throw new Error(`Unexpected request: ${url}`)
+    }))
+    saved.refresh.mockClear()
+    renderPanel(vi.fn(), batchExtractionId)
+
+    const rerun = await screen.findByRole('button', { name: 'Run again' })
+    expect(screen.getByText('Saved advanced settings: Service defaults')).toBeInTheDocument()
+    fireEvent.click(rerun)
+    expect(await screen.findByText(message, { exact: false })).toHaveAttribute('role', 'alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh summary' }))
+    expect(saved.refresh).toHaveBeenCalledOnce()
+    expect(screen.queryByText(message, { exact: false })).not.toBeInTheDocument()
+  })
+
   it('runs the open Batch Extraction selection again as its own Batch Extraction', async () => {
     const reran = {
       ...batch,

@@ -3,6 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
+import { putModelConfig } from './providerConfig/providerConfig.data'
 
 const config = {
   connections: [], routes: { schemaSuggestion: null, interaction: null },
@@ -25,4 +26,17 @@ it('reads the account configuration on mount and again on refresh', async () => 
   await waitFor(() => expect(result.current.state).toEqual({ status: 'ready', config }))
   await result.current.refresh()
   expect(fetch).toHaveBeenCalledTimes(2)
+})
+
+it('adopts the document an Apply saves, without reading again, so the next start submits it', async () => {
+  const applied = { ...config, extractionModels: { fields: 'nuextract' }, extractionSettings: {} }
+  const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => new Response(
+    JSON.stringify(init?.method === 'PUT' ? { config: applied } : { config, providers: [], deployment: { connections: [], defaultRoute: null } }),
+    { headers: { 'content-type': 'application/json' } }))
+  vi.stubGlobal('fetch', fetch)
+  const { result } = renderHook(() => useSavedMethod())
+  await waitFor(() => expect(result.current.state).toEqual({ status: 'ready', config }))
+  await putModelConfig(applied)
+  await waitFor(() => expect(result.current.state).toEqual({ status: 'ready', config: applied }))
+  expect(fetch.mock.calls.filter(([, init]) => init?.method !== 'PUT')).toHaveLength(1)
 })

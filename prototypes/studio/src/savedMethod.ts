@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { activeMethod, type ExtractionMethodIntent } from 'extraction/extraction-method'
 import type { ExtractionStrategy } from '../shared/extraction.contract'
 import type { ModelConfig } from '../shared/modelConfig.contract'
-import { apiErrorText, getModelConfig } from './providerConfig/providerConfig.data'
+import { apiErrorText, getModelConfig, onModelConfigSaved } from './providerConfig/providerConfig.data'
 
 /** The saved method a start view shows and submits: the same function admission compares it with. */
 export function savedMethodFor(config: ModelConfig, strategy: ExtractionStrategy, catalogRecipe: string | null): ExtractionMethodIntent {
@@ -34,6 +34,11 @@ export function useSavedMethod(): { state: SavedMethodState; refresh: () => Prom
       return null
     }
   }, [])
+  // An Apply in this page is the saved document: it replaces any read still in flight.
+  useEffect(() => onModelConfigSaved((config) => {
+    current.current?.abort()
+    setState({ status: 'ready', config })
+  }), [])
   useEffect(() => {
     let mounted = true
     // Deferred so the effect body itself schedules no state update; an unmount before then reads nothing.
