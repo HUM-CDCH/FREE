@@ -158,12 +158,6 @@ class _Seen:
     ends: bool | None = None
 
 
-class Stage:
-    """What discovery needs of its stage: whether a request fits its budget, and one counted call."""
-    def fits(self, system: str, user: str, schema: dict) -> bool: ...
-    def ask(self, record: int | None, system: str, user: str, schema: dict, calls: list, issues: list) -> dict | None: ...
-
-
 def _render(window: Window, texts: dict[str, str]) -> tuple[str, list[str]]:
     labels = [f"L{number}" for number in range(1, len(window.primary) + 1)]
     parts = ([f"### CONTEXT BEFORE\n{text_of(window.before, texts)}"] if window.before else []) + \
@@ -235,15 +229,17 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
     return _Seen(window, True, located, begins, ends)
 
 
-def discover(evidence: Evidence, description: str, stage: Stage, *, overlap: int, splits: int) -> dict | None:
+def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
+             ask: Callable[..., dict | None], *, overlap: int, splits: int) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
-    point fits a discovery request."""
+    point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
+    `ask(record, system, user, schema, calls, issues)` makes one counted call."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     system = DISCOVERY.format(description=description)
 
     def fits(window: Window) -> bool:
         user, labels = _render(window, texts)
-        return stage.fits(system, user, _reply(labels))
+        return fits_budget(system, user, _reply(labels))
     windows = plan(units_of(evidence.passages), texts, fits, overlap=overlap)
     if windows is None:
         return None
@@ -254,7 +250,7 @@ def discover(evidence: Evidence, description: str, stage: Stage, *, overlap: int
     while queue:
         window, depth = queue.pop(0)
         user, labels = _render(window, texts)
-        answer = stage.ask(None, system, user, _reply(labels), calls, issues)
+        answer = ask(None, system, user, _reply(labels), calls, issues)
         observed = _observe(answer, window, texts, labels, issues) if answer is not None else None
         if observed is None and len(window.primary) > 1 and depth < splits:
             queue[0:0] = [(half, depth + 1) for half in split(window, texts, fits, overlap=overlap)]

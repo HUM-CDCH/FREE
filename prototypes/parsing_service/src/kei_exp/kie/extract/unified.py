@@ -32,6 +32,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, Literal
 
@@ -120,17 +121,6 @@ class _Budget:
             issues.append(Issue("reply_malformed", f"the {stage} reply is not the requested object", record))
             return None
         return answer
-
-    def stage(self, name: str) -> discovery.Stage:
-        budget = self
-
-        class Bound(discovery.Stage):
-            def fits(self, system, user, schema):
-                return budget.fits(name, system, user, schema)
-
-            def ask(self, record, system, user, schema, calls, issues):
-                return budget.ask(name, record, system, user, schema, calls, issues)
-        return Bound()
 
 
 def digest(record: dict) -> str:
@@ -244,8 +234,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     budget = _Budget(chat, counters, effective["stages"], check)
 
     def discover() -> dict:
-        body = discovery.discover(evidence, schema.record_description, budget.stage("discovery"),
-                                  overlap=effective["overlap"], splits=effective["splits"])
+        body = discovery.discover(evidence, schema.record_description, partial(budget.fits, "discovery"),
+                                  partial(budget.ask, "discovery"), overlap=effective["overlap"],
+                                  splits=effective["splits"])
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
         return {"version": discovery.VERSION, "execution_sha256": execution_sha256, "entries": body["entries"],
