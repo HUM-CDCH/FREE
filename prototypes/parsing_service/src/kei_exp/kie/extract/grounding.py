@@ -22,10 +22,11 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import GroundingChoice
 from kei_exp.kie.extract.schema import Schema, describe
-from kei_exp.kie.extract.stages import Call, Issue, Link, _complete, _text, contains, leaves
+from kei_exp.kie.extract.stages import Issue, Link, _text, contains, leaves
 from kei_exp.kie.extract.spans import SourceSpan, source_spans
 from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import Passage
@@ -207,8 +208,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                                      else f"{size} characters exceed {budget}") + "; complete evidence was not sent",
                                     record, claims[batch[0]][0]))
             continue
-        answer, attempts = _complete(chat, stage="grounding", record=record, system=instruction, user=user,
-                                    schema=reply_schema, counter=counter, max_tokens=2048 if counter else None)
+        answer, attempts = complete(chat, stage="grounding", record=record, system=instruction, user=user,
+                                   schema=reply_schema, counter=counter, max_tokens=2048 if counter else None)
         calls += attempts
         if not attempts[-1].ok:
             issues.append(Issue("call_failed", attempts[-1].error or "grounding failed", record))

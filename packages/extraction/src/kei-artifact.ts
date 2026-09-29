@@ -7,7 +7,7 @@ import type { ParsedDocument } from './parsed-document.js'
 import type { ExtractionStrategy } from './types.js'
 
 const path = z.array(z.union([z.string(), z.number().int().nonnegative()]))
-/** One model call, as kei-exp's `kie/extract/stages.py` `Call` is written into the artifact. */
+/** One model call, as the Parsing Service's `kie/extract/calls.py` `Call` is written into the artifact. */
 const callSchema = z.object({
   stage: z.string(),
   record: z.number().int().nullable(),

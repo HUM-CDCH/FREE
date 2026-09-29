@@ -3,8 +3,10 @@
 Discovery asks which labelled passages open a record and cuts the passages into record slices at those starts;
 only the final chunk may close the records with an `end`, since an earlier chunk cannot know what follows it. Each
 slice's values are read from the slice alone under the character budget (`record_chars`) and grounded in it by the
-reference technique. The artifact is assembled in `assembly.py`, as Article's is. A request that names a recipe runs
-the grounded Catalog (`grounded.py`) instead.
+reference technique. This module owns the discovery prompt and reply schema and reads the starts and end off the
+reply; record values use `stages.extract_record`, and every model call goes through `calls.complete`. The artifact
+is assembled in `assembly.py`, as Article's is. A request that names a recipe runs the grounded Catalog
+(`grounded.py`) instead.
 """
 from __future__ import annotations
 
@@ -16,11 +18,12 @@ from pathlib import Path
 from typing import Any
 
 from kei_exp.kie.extract.assembly import artifact, document_values, ground_records, unchecked
+from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract.stages import Call, Issue, _complete, _labelled, extract_record
+from kei_exp.kie.extract.stages import Issue, _labelled, extract_record
 from kei_exp.kie.passages import Evidence, Passage
 
 # Without reasoning, "the first block AFTER the last record" read to qwen3:8b as the last record itself.
@@ -134,8 +137,8 @@ def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int,
             "starts": {"type": "array", "items": {"type": "string", "enum": shown}},
             "end": {"type": ["string", "null"], "enum": [*shown, None]}},
             "required": ["starts", "end"], "additionalProperties": False}
-        answer, attempts = _complete(chat, stage="discovery", record=None, system=system,
-                                     user=_labelled(passages[first:last], shown), schema=reply_schema)
+        answer, attempts = complete(chat, stage="discovery", record=None, system=system,
+                                    user=_labelled(passages[first:last], shown), schema=reply_schema)
         calls += attempts
         call = attempts[-1]
         if not call.ok:

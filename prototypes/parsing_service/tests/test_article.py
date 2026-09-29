@@ -7,8 +7,9 @@ from kei_exp.kie.extract import run
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.article import inventory
+from kei_exp.kie.extract.calls import complete
 from kei_exp.kie.extract.grounding import verify
-from kei_exp.kie.extract.stages import _complete, extract_record
+from kei_exp.kie.extract.stages import extract_record
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.tokens import BudgetUnavailable
 from tests.test_extract_grounded import CountingChat, WordCounter
@@ -143,6 +144,6 @@ def test_article_refuses_unknown_context_and_reports_incorrect_server_counts(mon
             counter={role: counter for role in ("fields", "reasoning")})
     assert not chat.calls
     chat = CountingChat(lambda *_: Reply('{}', 999, 1, 'stop', 0))
-    _, calls = _complete(chat, stage="record", record=0, system="S", user="U", schema={"type": "object"},
-                        max_tokens=100, counter=WordCounter())
+    _, calls = complete(chat, stage="record", record=0, system="S", user="U", schema={"type": "object"},
+                       max_tokens=100, counter=WordCounter())
     assert not calls[-1].ok and "server reported 999" in calls[-1].error

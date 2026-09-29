@@ -30,7 +30,11 @@ flowchart LR
 | `article.py` | The Article implementation: enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
 | `catalog.py` | The version 1 Catalog implementation: generic record discovery and one call per record slice. |
 | `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
-| `stages.py` | Shared model admission, schema prompts, document and record values, and the record merge. |
+| `stages.py` | The shared value prompts (guardrail, schema instruction, labelled passages), document and record value requests and their conformance, value helpers, and the record merge. |
+| `calls.py` | Extraction call execution: `complete` routes a finished request to its role's model, admits it against the served context when counted, invokes the adapter, reads the reply and records every attempt as a `Call`. The only way an extraction stage reaches a model. |
+| `llm.py` | The protocol adapters `OpenAIChat` and `NuExtractChat` (request construction, the one explicit unsupported-format fallback, the HTTP call) and `parse_json`. |
+| `models.py` | The deployment's extraction models, their permitted roles and defaults, a run's choice, and `ROLE`/`Router`: which role and chat serve each stage. |
+| `tokens.py` | Count requests on the serving endpoint's `/tokenize` and read its context size. |
 | `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted`, `spans` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
 | `grounded.py` | The recipe Catalog implementation: entry extraction under the token budget, the merge of an entry's windows and conflict arbitration. |
 | `acceptance.py` | Decide, without a model, whether a recipe Catalog candidate is accepted, proposed or rejected: its value typed, its quote in the entry, a recipe key introducing it; the candidate reply schemas. |
@@ -42,6 +46,94 @@ flowchart LR
 These are ordinary Python functions. There is no plugin graph or separate
 service per stage. Strategy differences reflect source structure: Article
 identities recur across sections; Catalog entries own contiguous source spans.
+
+## Pipeline map
+
+How one production Extraction runs, from the pinned request to the result
+Studio accepts. Studio owns Schema Suggestion and Interaction model calls; this
+service owns every Extraction model call and grounding. Studio pins the Schema
+Revision and Source Representation Revision it admitted; the request carries
+that schema and the parse generation, and nothing below substitutes a newer one.
+
+### Admission, source and publication
+
+| Step | Owner |
+| --- | --- |
+| Pinned request | Studio's [`keiExtractRequest`](../../../packages/extraction/src/workflows.ts) sends the pinned executable schema, options and parse generation through [`KeiHandoff`](../../../packages/extraction/src/kei-handoff.ts) as the portable input of the `extract` workflow. |
+| Durable step | [`extract_workflow`/`extract_run`](../src/kei_exp/workflows/extract.py): the one `extract_run` step requires a complete manifest, validates `run.ExtractRequest` (an unservable model choice or unknown recipe is refused by `run.Options` before any call), builds the run's clients with `models.chats_for`, checks cancellation, extracts, checks cancellation again and publishes. Its checkpoint is `ExtractOk` (identities, generation, artifact digest, models), never source text, prompts or replies. There is no per-record or per-call checkpoint. |
+| Canonical input | [`run.extract`](../src/kei_exp/kie/extract/run.py) loads verified canonical `Evidence`/`Passage`s with [`passages.load`](../src/kei_exp/kie/passages.py), refuses a stale generation (`StaleGeneration`) before any model or tokenizer request, and dispatches: a recipe to `grounded.extract`, `article` to `article.extract`, otherwise `catalog.extract`. |
+| Version-1 artifact | [`assembly.artifact`](../src/kei_exp/kie/extract/assembly.py) builds Article and generic Catalog's artifact: it merges records (`stages.merge`), lists ungrounded values, serializes `Link`, `Issue` and `Call`, and computes `fingerprint`; `article.extract` adds its inventory and method fields. |
+| Recipe Catalog artifact | [`grounded.extract_grounded`](../src/kei_exp/kie/extract/grounded.py) constructs the version-2 body; `grounded.extract` adds the run and generation identity, schema, options, model identities and fingerprint. |
+| Publication | `run.publish_extraction` writes `extractions/<id>/result.json` by rename, only after `extract_run`'s final forced cancellation check. |
+| Studio acceptance | [`runExtractionWorkflow`](../../../packages/extraction/src/workflows.ts) reads the artifact, compares its digest with `ExtractOk`, and [`acceptKeiArtifact`](../../../packages/extraction/src/kei-artifact.ts) validates its shape, requires the requested run, generation, strategy, schema, recipe and model choice, maps each Evidence link to its anchor ID and verifies table-cell anchors against the pinned Source Representation before the Extraction settles. |
+
+### Model calls
+
+Each row is one call purpose: the stage label its `Call` records, the role
+[`models.ROLE`](../src/kei_exp/kie/extract/models.py) assigns it, who prepares
+the source and builds the prompt and reply schema, and who interprets the answer.
+
+| Strategy | Stage → role | Initiated by | Source, prompt and reply schema | Interpretation |
+| --- | --- | --- | --- | --- |
+| Article | `document` → fields | [`assembly.document_values`](../src/kei_exp/kie/extract/assembly.py), per source context | [`stages.extract_document`](../src/kei_exp/kie/extract/stages.py): `_instruction` over the document fields, the context's complete text as `text_of` or `rendering.structured_source`, [`schema.json_schema`](../src/kei_exp/kie/extract/schema.py); counted, 2,048 output tokens | `schema.conform`; contexts reconciled by `contexts.reconcile_values`; listed as `unverified` |
+| Article | `inventory` → reasoning | [`article.extract_records`](../src/kei_exp/kie/extract/article.py), per source context | [`article.inventory_request`](../src/kei_exp/kie/extract/article.py): identity-inventory instruction plus `_instruction`, passages labelled with canonical IDs (`_labelled`) or structured, reply schema enumerating those IDs; counted, output allowance chosen in `article.inventory` | `article.inventory` validates identities and passage IDs and merges duplicates; `article.reconcile_identities` across bounded contexts |
+| Article | `record` → fields | `article.extract_records`, per identity and value context | [`stages.record_request`](../src/kei_exp/kie/extract/stages.py) with the identity and the `ARTICLE` (or neutral) instruction, over each value context (by default the complete source); counted, 4,096 output tokens | `schema.conform` under the bound identity; `contexts.reconcile_values` across value contexts |
+| Article | `grounding` → reasoning | [`assembly.ground_records`](../src/kei_exp/kie/extract/assembly.py) → `grounding.technique` (default `semantic`) | [`grounding.verify`](../src/kei_exp/kie/extract/grounding.py): `GROUNDING`, `QUOTED_GROUNDING` or `SPAN_GROUNDING`, record identity, claims and complete evidence; per-batch reply schema enumerating eligible labels; counted, 2,048 output tokens, batches split to fit | `grounding.verify` accepts only offered labels (and, when quoted, exact substrings with attribution) as `Link`s; every claim is verified by the model |
+| Generic Catalog | `document` → fields | `assembly.document_values`, one context | `stages.extract_document` over the source clipped to `record_chars` (`text_truncated` when cut) | `schema.conform`; `unverified` |
+| Generic Catalog | `discovery` → reasoning | [`catalog.discover`](../src/kei_exp/kie/extract/catalog.py), per page-aligned chunk of `discovery_chars` | `catalog.DISCOVERY` with its examples, `B`-labelled blocks (`_labelled`), reply schema enumerating the shown labels | `catalog.discover` keeps ordered starts and a final-chunk end, reports ignored labels and numbering anomalies, and cuts record slices |
+| Generic Catalog | `record` → fields | [`catalog.extract`](../src/kei_exp/kie/extract/catalog.py), per slice | [`stages.extract_record`/`stages.record_request`](../src/kei_exp/kie/extract/stages.py): `_instruction` and the slice clipped to `record_chars` | `schema.conform` |
+| Generic Catalog | `grounding` → reasoning | `assembly.ground_records` → `grounding.semantic` | `grounding.verify`: a value found as a bounded token in exactly one passage of its slice is linked without a model; the rest go to `GROUNDING` calls under the `record_chars` character budget | as Article |
+
+Article counts every request on the serving endpoint of its role
+([`tokens.counters_for`](../src/kei_exp/kie/extract/tokens.py) over `/tokenize`)
+and refuses when either role's context size is unknown. Generic Catalog uses
+character budgets and sends no `max_tokens`, so the adapter's 8,192 applies.
+
+Every row above sends its request through the same execution seam,
+[`calls.complete`](../src/kei_exp/kie/extract/calls.py):
+
+1. `models.Router.for_stage` picks the chat serving the stage's role. The
+   run's routes come from `models.chats_for`: the run's `options.models` over
+   the deployment's defaults (NuExtract fills fields when the deployment
+   configures it; the instruction model reasons).
+2. With a counter, the request is counted; one that does not fit its output
+   allowance in the served context is a failed `Call` and is never sent.
+3. The adapter in [`llm.py`](../src/kei_exp/kie/extract/llm.py) builds and
+   sends the HTTP request. Both adapters send temperature 0 with thinking off.
+   `OpenAIChat` requests strict `json_schema` output and repeats the request once without it only
+   after a 400 refusal that names structured output as unsupported; nothing
+   remembers that refusal for later calls. `NuExtractChat` sends the reply schema
+   as its template (`nuextract_template`) and the instructions in
+   `chat_template_kwargs`, with the source as the only user message; a schema it
+   cannot express raises `TemplateError`, with no fallback to another model.
+4. A `finish_reason` of `length` or text `llm.parse_json` cannot read is a failed
+   call with a null answer; nothing is repaired. A counted request whose served
+   prompt count differs is failed too.
+5. Every attempt becomes a `Call`, the refused one included, in order.
+
+Transport failures (connection errors, timeouts, HTTP errors) are not `Call`s:
+they end the step, and [`failures.classify`](../src/kei_exp/failures.py) decides
+whether DBOS reruns the whole `extract_run` step. `calls.complete` owns no prompt,
+reply schema, conformance or grounding decision, and makes no retry of its own.
+
+Cancellation is cooperative. `extract_run` checks before model work and again
+before publication. Article and generic Catalog invoke their `before_entry`
+hook before document calls, inventory or discovery, record extraction, record
+verification and grounding batches. Recipe Catalog invokes it before each entry
+in `grounded._in_chunks`; its document-level call in `grounded._document`
+precedes those entry checks and does not invoke the hook. A request already
+in flight finishes first.
+
+### The recipe Catalog
+
+A request with `options.catalog.recipe` runs
+[`grounded.extract`](../src/kei_exp/kie/extract/grounded.py) instead of generic
+Catalog; it is an optional path for catalogues a recipe describes, not the
+generic Catalog's replacement. Structural segmentation replaces discovery.
+`grounded._Run.call` counts each `entry` and `document` (fields) and
+`arbitration` (reasoning) request against the recipe's input budget before handing it to the same
+`calls.complete`; code in `acceptance.py` accepts, proposes or rejects each
+candidate, and the result is version 2 with code-point span Evidence.
 
 ## Article choices
 

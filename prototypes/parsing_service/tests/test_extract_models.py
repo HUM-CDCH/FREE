@@ -3,10 +3,10 @@ import pytest
 from pydantic import ValidationError
 
 from kei_exp.kie.extract import models
+from kei_exp.kie.extract.calls import complete
 from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat
 from kei_exp.kie.extract.models import ROLE, Router, chats_for, defaults, registry, routes
 from kei_exp.kie.extract.run import Options
-from kei_exp.kie.extract.stages import _complete
 from tests.helpers.chat import FakeChat
 
 BOTH = {"KEI_EXTRACT_URL": "http://instruct.test:8000/v1/chat/completions", "KEI_EXTRACT_MODEL": "Qwen/Qwen3.8-27B-FP8",
@@ -64,7 +64,7 @@ def test_every_stage_goes_to_its_role():
     fields, reasoning = FakeChat(lambda *_: {}), FakeChat(lambda *_: {})
     router = Router(fields=fields, reasoning=reasoning)
     for stage, role in ROLE.items():
-        _complete(router, stage=stage, record=None, system="S", user="U", schema={"type": "object"})
+        complete(router, stage=stage, record=None, system="S", user="U", schema={"type": "object"})
         assert (fields if role == "fields" else reasoning).calls[-1]["system"] == "S", stage
     assert len(fields.calls) == 3 and len(reasoning.calls) == 4
     assert set(ROLE) == {"document", "record", "entry", "discovery", "inventory", "grounding", "arbitration"}
