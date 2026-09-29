@@ -24,7 +24,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.9.0",
+  "packageManager": "pnpm@12.8.1",
   "devDependencies": {
     "@dbos-inc/dbos-sdk": "5.1.10",
     "@types/node": "^24.13.2",

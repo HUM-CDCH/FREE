@@ -13,7 +13,7 @@ ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     HOME=/root \
     CODEX_HOME=/root/.config/codex
-RUN corepack enable && corepack prepare pnpm@10.9.0 --activate
+RUN corepack enable && corepack prepare pnpm@12.8.1 --activate
 
 WORKDIR /workspace
 
@@ -29,7 +29,7 @@ COPY prototypes/parsing_service/package.json prototypes/parsing_service/
 # The root `postinstall` runs `uv sync` for the Python services, which this
 # JavaScript-only image neither contains nor needs, so install skips scripts.
 # Naming the dependencies keeps the rebuild out of the workspace root's own
-# lifecycle script; the list is `onlyBuiltDependencies` from pnpm-workspace.yaml,
+# lifecycle script; the allowed builds are listed in pnpm-workspace.yaml's `allowBuilds`,
 # and an entry absent from the tree is ignored.
 RUN --mount=type=cache,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store --global \

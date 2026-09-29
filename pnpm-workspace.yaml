@@ -10,9 +10,3 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - tsx@4.23.4
-
-onlyBuiltDependencies:
-  - '@anthropic-ai/claude-code'
-  - '@prisma/engines'
-  - esbuild
-  - prisma
