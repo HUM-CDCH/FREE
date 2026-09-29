@@ -3,10 +3,11 @@
 Discovery asks which labelled passages open a record and cuts the passages into record slices at those starts;
 only the final chunk may close the records with an `end`, since an earlier chunk cannot know what follows it. Each
 slice's values are read from the slice alone under the character budget (`record_chars`) and grounded in it by the
-reference technique. This module owns the discovery prompt and reply schema and reads the starts and end off the
-reply; record values use `stages.extract_record`, and every model call goes through `calls.complete`. The artifact
-is assembled in `assembly.py`, as Article's is. A request that names a recipe runs the grounded Catalog
-(`grounded.py`) instead.
+reference technique. Text the budget cuts is named in a `text_truncated` issue, and a discovery window whose call
+fails names the pages it left unsearched; neither is silent. This module owns the discovery prompt and reply schema
+and reads the starts and end off the reply; record values use `stages.extract_record`, and every model call goes
+through `calls.complete`. The artifact is assembled in `assembly.py`, as Article's is. A request that names a recipe
+runs the grounded Catalog (`grounded.py`) instead.
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract.stages import Issue, _labelled, extract_record
+from kei_exp.kie.extract.stages import Issue, _labelled, extract_record, pages_of
 from kei_exp.kie.passages import Evidence, Passage
 
 # Without reasoning, "the first block AFTER the last record" read to qwen3:8b as the last record itself.
@@ -134,7 +135,9 @@ def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int,
         calls += attempts
         call = attempts[-1]
         if not call.ok:
-            issues.append(Issue("call_failed", call.error or "discovery failed"))
+            window = shown[0] if len(shown) == 1 else f"{shown[0]}–{shown[-1]}"
+            issues.append(Issue("call_failed", f"{call.error or 'discovery failed'}; no record start was searched for "
+                                f"on {pages_of(passages[first:last])} ({window})"))
             continue
         given = answer.get("starts", []) if isinstance(answer, dict) else []
         for label in given if isinstance(given, list) else []:

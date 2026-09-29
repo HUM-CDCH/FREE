@@ -507,6 +507,35 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeInTheDocument()
   })
 
+  it('says an incomplete Extraction did not read the source its text budget cut', () => {
+    const cutAttempt = (issueCodes: string[]): ExtractionAttempt => ({
+      ...articleAttempt,
+      strategy: 'CATALOG',
+      diagnostics: {
+        ...articleAttempt.diagnostics!,
+        grounding: { groundedPaths: [], ungroundedPaths: [], issueCodes, batches: [] },
+      },
+    })
+    const renderWith = (attempt: ExtractionAttempt) => render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0 }, attempt)}
+        schemaReady
+        documentMarkdown="# Source" sourceDocumentName="Catalog.pdf"
+      />,
+    )
+    const notice = /longer than the extraction's text budget/
+
+    const { unmount } = renderWith(cutAttempt(['text_truncated']))
+    expect(screen.getByText('Incomplete Extraction')).toBeInTheDocument()
+    expect(screen.getByText(notice)).toBeInTheDocument()
+    unmount()
+
+    renderWith(cutAttempt(['missing_claim']))
+    expect(screen.getByText('Incomplete Extraction')).toBeInTheDocument()
+    expect(screen.queryByText(notice)).toBeNull()
+  })
+
   it('renders Catalog diagnostics behind Run details and offers a run of the toolbar strategy', () => {
     const catalogAttempt: ExtractionAttempt = {
       ...articleAttempt,
