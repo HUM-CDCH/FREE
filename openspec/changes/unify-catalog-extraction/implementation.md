@@ -98,32 +98,83 @@ them before its held-out run.
 ## Verification (2026-09-29, this worktree)
 
 Python ran on the main checkout's locked environment with `PYTHONPATH` set to
-this worktree's `src`; PostgreSQL tiers used new databases
-`free_test_unify_extraction` and `free_test_unify_parsing` on the loopback test
-server (nothing else on it was touched); browser tiers used their own Compose
-projects and ports.
+this worktree's `src`. PostgreSQL tiers used new `free_test_unify_*`
+databases: first on the loopback test server another session had started
+(nothing else on it was touched; that session later removed the server and
+these databases with it), then, for the HEAD reruns, on a private disposable
+`postgres:17` container on loopback 5432 that was removed afterwards. Browser
+tiers used their own Compose projects and ports.
+
+| Command | Revision | Result |
+| --- | --- | --- |
+| Parsing Service fast tier (`pytest -m "not postgres and not live_model"`) | `578ebd08` | 1,156 passed, 72 skipped (baseline 1,102) |
+| Parsing Service PostgreSQL tier (`-m "postgres and not live_model"`, worker recovery included) | `24ab8a90` | 58 passed |
+| `tests/test_extract_workflow.py` on PostgreSQL (3 unified cases, DBOS retry after discovery) | `578ebd08` | 39 passed |
+| `pnpm --filter extraction test` | `578ebd08` | 124/124 |
+| `pnpm --filter extraction-result-export test` | `578ebd08` | 36/36 |
+| `pnpm --filter extraction test:postgres` | `578ebd08` | 85/85, including 5 gated unified admission cases |
+| Studio `vitest` (full) | `578ebd08` | 1,686/1,693; the 7 failures (`_pdf_pages` worker timeouts, one DBOS-free import check, workflow registration) ran beside the service tier and pass alone (27/27) |
+| `pnpm typecheck`, `pnpm lint` | `c1d34063` | pass; 2 pre-existing hook warnings in `useExtraction.ts` |
+| `pnpm test:safety` | `24ab8a90` | 19/19 |
+| Playwright, gate off (default config) | `24ab8a90` | 64 passed, 3 skipped (the gated spec), 1 mock-OIDC sign-in failure that passes on rerun (6/6) |
+| Playwright, `FREE_CATALOG_METHOD=unified`, `e2e/unified-catalog.spec.ts` | `24ab8a90` | 3/3 |
+| `pnpm test:service` (real API, worker and Docling; gate off) | `578ebd08` | 12/15; the legacy call count (10 for 8), the recipe Catalog's page-2 evidence focus and the GC-lane sweep failed; see the Spark rows |
+
+Production code after `24ab8a90` changed only by `e636649e` (discovery takes
+two callables), covered by the HEAD reruns above.
+
+### On the DGX Spark (`baratheon`, aarch64 GB10)
+
+Branch `578ebd08` plus the uncommitted `tests/test_unified_catalog_live.py`,
+in a separate clone (`~/free-unify`, from a git bundle; nothing pushed). The
+comparison tree `~/free-dev` is `origin/dev` at `287ccb42`. Python ran in
+throwaway `free-unify-*` containers of the production `free-parsing_worker`
+image on `free_app` (the branch's `src` mounted over `/app/src`; no dependency
+changes since the image's `80686ec4`), against the production vLLM servers
+`extraction_model` (`Qwen/Qwen3.8-27B-FP8`) and `nuextract_model`
+(`numind/NuExtract3-FP8`), both idle before each run. No production container
+was touched.
 
 | Command | Result |
 | --- | --- |
-| Parsing Service fast tier (`pytest -m "not postgres and not live_model"`) | 1,154 passed, 72 skipped (baseline 1,102); includes 46 unified, 4 legacy golden/clipping tests |
-| Parsing Service PostgreSQL tier (`-m "postgres and not live_model"`, worker recovery included) | 58 passed |
-| `pnpm --filter extraction test` | 123/123 |
-| `pnpm --filter extraction test:postgres` | 85/85, including 5 gated unified admission cases |
-| Studio `vitest` (full) | 1,678/1,682 before the last Studio additions; the 4 failures were `_pdf_pages` worker timeouts that pass alone (8/8); every changed suite passes |
-| `pnpm typecheck`, `pnpm lint` | pass; 2 pre-existing hook warnings in `useExtraction.ts` |
-| `pnpm test:safety` | 19/19 |
-| Playwright, gate off (default config) | 64 passed, 3 skipped (the gated spec), 1 mock-OIDC sign-in failure that passes on rerun (6/6) |
-| Playwright, `FREE_CATALOG_METHOD=unified`, `e2e/unified-catalog.spec.ts` | 3/3: Catalog group, keyboard issue focus, migration kept until Apply and replaced by it, 360 px and required viewports |
+| `tests/test_unified_catalog_live.py` (new; `continuations`, 4 entries) | 2/2. Deployment routing (NuExtract fields, Qwen reasoning): 9 calls, 2,890 input tokens, 64 s. Qwen for every role: 9 calls, 2,444 tokens, 122 s. Both: labels `40.`–`43.`, `entry_no`, `site_name`, `fundart` right in every record, every call within its stage's ceiling, the re-execution reuses the published discovery |
+| rest of `test:live-model` (Python) | 11 passed, 5 skipped (optional upstream fixtures), 1 failed: `test_extract_grounded_live.py` asserts a tokenizer `model_digest`, which `tokens.py` has reported as `None` since `8813b1d8`; this branch changes neither |
+| `test:live-model` (Studio, `free-studio` image on `free_app`) | 2/3; the NuExtract schema suggestion does not mention "grave". Fails identically on `origin/dev` |
+| `pnpm test:system` | 16/16 |
+| `pnpm test:service` | 14/16; `origin/dev` 14/16 with the same two failures (call count 10 for 8; page-2 evidence focus). The GC-lane sweep passed in both runs and 5/5 on its own (`--repeat-each 5`) |
+| recovery Playwright config (`test:e2e:recovery`) | 5/5 |
+| 200-entry `big` catalogue (rev-8 generator), deployment routing, `chunks=4` | Discovery: 11 Qwen calls in about 83 minutes (legacy did the whole extraction in 435 s), 5 of them cut off at the 4,096-token reply cap and halved; 251 entries for 200: all 200 found, plus 51 find-list lines (`1. Scherben.`) split off as entries; 3 ends unresolved. Whole run 5,556 s (about 13× legacy): 251 NuExtract entry calls (918 model-seconds) and 251 Qwen verifications (1,267). Of the 200 true records, `site_name` right in 196 and `fundart` in 200, no accepted value wrong; `bezirk` and `kreis` empty in all (heading context, plus 133 `type_mismatch`); 55 `site_name` and 33 `fundart` rejected by verification. The 51 false records carry accepted values such as `fundart: "Scherben"`. Result: `~/free-unify-evidence/big-default.json` on the Spark |
 
-Not run: the recovery Playwright config, `test:live-model`, `test:system`, and
-any live-model extraction; the real-service tier is reported in the final
-report.
+Live-model findings (smoke evidence, not the evaluation of 1.4 / 6.2):
+
+- **Heading-inherited fields are never accepted.** `bezirk` and `kreis` are
+  rejected as `quote_not_in_source` in every record: an entry's quotes are
+  located only in its own text, so a value quoted from its heading context
+  cannot be accepted or proposed. The legacy recipe path gets all of them.
+- **The last entry of an excerpt ends `beyond_scope`.** Entry 43 is followed
+  only by a page header, and discovery says it may continue past the
+  offered text, so `completeness.boundaries` is false on `continuations`.
+- **Dense windows overflow the discovery reply.** Windows are packed to the
+  input ceiling (28,672 tokens at a 32,768 served context), but a dense
+  catalogue's boundary list does not fit the 4,096-token reply reserve, so
+  the window is cut off and halved; each attempt costs minutes at the
+  Spark's ~7.8 generated tokens/s, and discovery calls run one at a time.
+- **Nested numbered lists are split inconsistently.** In `big`, 51 of 200
+  one-item find lists (`1. Scherben.`) became entries of their own; the
+  same line shape stayed inside its record elsewhere.
 
 ## Remaining release gates
 
 - **1.4 / 6.2** — no independent labelled document families or registered
   thresholds exist in this repository; the German numbered catalogue is a
   regression fixture only. The manifest is drafted, not frozen.
+- **5.5** — in a browser: untouched defaults, custom controls, invalid values
+  by keyboard, migration through Customize, Discard and service defaults, and
+  360 px to 1,280 px layouts. Not in a browser: old results, failed windows,
+  lost-response replay and single/batch parity, because the TypeScript kei
+  stand-in cannot yet answer with version-3 artifacts. They are covered by
+  jsdom (start payloads, review panel), PostgreSQL (replay, batch pins) and
+  Python tests instead.
 - **6.3** — deterministic part done (field renames, non-Latin labels, recipe
   import check); held-out perturbations need the corpus.
 - **6.4** — the gate stays off; no legacy drain was inventoried.
