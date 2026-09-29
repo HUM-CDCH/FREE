@@ -1,7 +1,9 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
-  CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, type ArticleSettings, type CatalogSettings,
+  CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
+  UNIFIED_CATALOG_DEFAULTS_VERSION, type ArticleSettings, type CatalogSettings,
 } from 'extraction/extraction-method'
+import { settingsHeadline, UNIFIED_LABELS, unifiedLines } from '../methodSummary'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
 import { ExplainButton, GuideProvider, HowThisWorksButton } from './AdvancedGuide'
 import { SECTION_TOPIC, type GuideTopicId } from './advancedGuide.data'
@@ -14,7 +16,7 @@ import type { ProviderConfigDraft } from './useProviderConfigDraft'
 
 export type AdvancedEditor = Pick<ProviderConfigDraft,
   'customize' | 'useServiceDefaults' | 'setArticle' | 'replaceArticle' | 'addIdentityField' | 'removeIdentityField' |
-  'setCatalogFactor' | 'setNumber' | 'numberEdits' | 'settingsIssues'>
+  'setCatalogFactor' | 'customizeUnified' | 'setUnified' | 'setNumber' | 'numberEdits' | 'settingsIssues'>
 
 type Props = {
   draft: ModelConfig
@@ -23,6 +25,8 @@ type Props = {
   /** Set by the footer's issue summary: show the first issue's section, focus its control, then report it handled. */
   focusIssue: boolean
   onIssueFocused: () => void
+  /** The deployment admits new Catalog Extractions on the unified method: its one group replaces Generic and Recipe. */
+  unifiedCatalog?: boolean
 }
 
 /** The starting point last used, and the Article draft (with its number text) that Undo restores. `shown` is the
@@ -47,7 +51,7 @@ const explain = (topic: GuideTopicId, subject: string) => (
 
 /** Saved method settings for future Extractions, per strategy, in the page's one draft. Choosing which strategy's
  *  settings to edit never changes any Extraction's strategy. */
-export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused }: Props) {
+export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false }: Props) {
   const [strategy, setStrategy] = useState<AdvancedStrategy>('article')
   const root = useRef<HTMLElement>(null)
   const guideTrigger = useRef<HTMLButtonElement>(null)
@@ -65,7 +69,8 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused }
   const issueStrategy: AdvancedStrategy | null = first ? (first.path.startsWith('catalog.') ? 'catalog' : 'article') : null
   // The footer's request shows the first issue's strategy before anything is committed.
   if (focusIssue && issueStrategy && issueStrategy !== strategy) setStrategy(issueStrategy)
-  const custom = draft.extractionSettings[strategy] !== undefined
+  const unifiedView = strategy === 'catalog' && unifiedCatalog
+  const custom = unifiedView ? draft.extractionSettings.catalog?.unified !== undefined : draft.extractionSettings[strategy] !== undefined
 
   // Committed with that strategy's view, whose issue section is forced open: its control can take focus.
   useEffect(() => {
@@ -130,11 +135,13 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused }
             onClick={() => editor.useServiceDefaults(strategy)}>Use service defaults</button>
           <button type="button" aria-pressed={custom}
             className={`${textButton} rounded-md border border-line px-2.5 py-1 ${custom ? 'bg-surface-muted text-ink' : 'text-accent hover:underline'}`}
-            onClick={() => { if (!custom) editor.customize(strategy) }}>Customize</button>
+            onClick={() => { if (custom) return; if (unifiedView) editor.customizeUnified(); else editor.customize(strategy) }}>Customize</button>
         </div>
         {strategy === 'article'
           ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} />
-          : <CatalogSettingsView draft={draft} saved={saved} editor={editor} />}
+          : unifiedView
+            ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} />
+            : <CatalogSettingsView draft={draft} saved={saved} editor={editor} />}
       </section>
     </GuideProvider>
   )
@@ -267,9 +274,11 @@ function ChoiceGroup<K extends keyof typeof ARTICLE_CHOICES>({ settingKey, artic
   )
 }
 
-function NumberField({ path, label, hint, unit, value, edit, disabled, inactive = false, error, onText }: {
-  path: NumberPath; label: string; hint: string; unit: string; value: number; edit: string | undefined
+function NumberField({ path, label, hint, unit, value, edit, disabled, inactive = false, error, onText, placeholder }: {
+  path: NumberPath; label: string; hint: string; unit: string; value: number | undefined; edit: string | undefined
   disabled: boolean; inactive?: boolean; error: string | null; onText: (path: NumberPath, text: string) => void
+  /** Shown while no value is set: the setting then follows the service defaults. */
+  placeholder?: string
 }) {
   const id = useId()
   return (
@@ -277,7 +286,8 @@ function NumberField({ path, label, hint, unit, value, edit, disabled, inactive 
       <label htmlFor={id} className="text-[11px] font-semibold text-ink-muted">{label}</label>
       <p id={`${id}-hint`} className="text-[10.5px] text-ink-faint">{hint}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <input id={id} type="text" inputMode="numeric" data-setting={path} value={edit ?? String(value)} readOnly={inactive}
+        <input id={id} type="text" inputMode="numeric" data-setting={path} value={edit ?? (value === undefined ? '' : String(value))}
+          placeholder={placeholder} readOnly={inactive}
           disabled={disabled} aria-invalid={error ? true : undefined}
           aria-describedby={describedBy(`${id}-hint`, `${id}-unit`, error && `${id}-error`)}
           onChange={(event) => onText(path, event.target.value)}
@@ -385,6 +395,94 @@ function CatalogSettingsView({ draft, saved, editor }: Pick<Props, 'draft' | 'sa
               {!factors.verification && <p className="text-[11px] text-ink-muted">Off keeps typed values as proposals, not accepted evidence.</p>}
               <p className="text-[10.5px] text-ink-faint">Switches never turn off structural ownership or canonical spans. Glossary off also turns off glossary normalization.</p>
             </fieldset>
+          </Disclosure>
+        </li>
+      </ul>
+    </>
+  )
+}
+
+/** What the draft still holds of the retired generic and recipe Catalog controls, in the researcher's words. */
+function retiredCatalog(catalog: CatalogSettings | undefined): string[] {
+  const lines: string[] = []
+  const generic = catalog?.generic
+  const recipe = catalog?.recipe
+  if (generic?.discovery_chars !== undefined) lines.push(`${CATALOG_LABELS.discovery_chars}: ${generic.discovery_chars.toLocaleString('en-US')} characters`)
+  if (generic?.record_chars !== undefined) lines.push(`${CATALOG_LABELS.record_chars}: ${generic.record_chars.toLocaleString('en-US')} characters`)
+  if (recipe?.input_tokens !== undefined) lines.push(`Recipe ${CATALOG_LABELS.input_tokens.toLowerCase()}: ${recipe.input_tokens.toLocaleString('en-US')} tokens`)
+  if (recipe?.output_tokens !== undefined) lines.push(`Recipe ${CATALOG_LABELS.output_tokens.toLowerCase()}: ${recipe.output_tokens.toLocaleString('en-US')} tokens`)
+  const off = recipe?.factors ? FACTORS.filter((factor) => !recipe.factors![factor]).map((factor) => CATALOG_LABELS[factor].toLowerCase()) : []
+  if (off.length > 0) lines.push(`Recipe factors off: ${off.join(', ')}`)
+  return lines
+}
+
+/** The unified Catalog's five controls: one group for every new single and batch Catalog Extraction. Retired generic
+ *  and recipe values are shown, never converted; replacing them is the researcher's explicit Apply. */
+function UnifiedCatalogView({ draft, saved, editor }: Pick<Props, 'draft' | 'saved' | 'editor'>) {
+  const catalog = draft.extractionSettings.catalog
+  const unified = catalog?.unified
+  const custom = unified !== undefined
+  const shown = unified ?? {}
+  const defaults = UNIFIED_CATALOG_DEFAULTS[UNIFIED_CATALOG_DEFAULTS_VERSION]
+  const retired = retiredCatalog(catalog)
+  const invalid = new Set(editor.settingsIssues.map((issue) => issueSection(issue.path)))
+  const issueAt = (path: NumberPath) => editor.settingsIssues.find((issue) => issue.path === path)?.message ?? null
+  const number = (key: 'input_tokens' | 'output_tokens' | 'overlap', unit: string, hint: string, placeholder: string) => {
+    const path = `catalog.unified.${key}` as const
+    return <NumberField path={path} label={UNIFIED_LABELS[key]} hint={hint} unit={unit} value={shown[key]} placeholder={placeholder}
+      edit={editor.numberEdits[path]} disabled={!custom} error={issueAt(path)} onText={editor.setNumber} />
+  }
+  const toggle = (key: 'headings' | 'verification') => (
+    <label className="flex items-center gap-2 text-[12px] text-ink">
+      <input type="checkbox" role="switch" aria-checked={shown[key] ?? defaults[key]} checked={shown[key] ?? defaults[key]}
+        data-setting={`catalog.unified.${key}`} onChange={(event) => editor.setUnified(key, event.target.checked)} />
+      {UNIFIED_LABELS[key]}
+    </label>
+  )
+  const reserves = Object.entries(defaults.reserves).map(([stage, tokens]) => `${stage} ${tokens.toLocaleString('en-US')}`).join(', ')
+  const method = { defaults: UNIFIED_CATALOG_DEFAULTS_VERSION, ...shown }
+  return (
+    <>
+      <p className="text-[12px] text-ink">{custom ? settingsHeadline({ unified: method }) : `Service defaults, version ${UNIFIED_CATALOG_DEFAULTS_VERSION}`}</p>
+      {retired.length > 0 && (
+        <div role="note" className="rounded-md border border-line bg-surface-muted px-2.5 py-2 text-[11.5px] text-ink">
+          <p className="font-semibold">Your Catalog settings still hold retired controls</p>
+          <ul className="list-disc pl-4">{retired.map((line) => <li key={line}>{line}</li>)}</ul>
+          <p className="mt-1">They are not converted: character limits are not token budgets, and recipe choices no longer select
+            a method. Choose Use service defaults or Customize, then Apply, to replace them. Until then new Catalog Extractions
+            are refused; Article Extractions and existing results are unaffected.</p>
+        </div>
+      )}
+      <ul className="flex flex-col gap-2">
+        <li>
+          <Disclosure title="Catalog" value="One method for every new single and batch Catalog Extraction."
+            changed={JSON.stringify(unified ?? null) !== JSON.stringify(saved.extractionSettings.catalog?.unified ?? null)}
+            forcedOpen={invalid.has('unified')}>
+            {explain(SECTION_TOPIC.unified, 'Catalog')}
+            <fieldset disabled={!custom} className="flex min-w-0 flex-col gap-3">
+              {number('input_tokens', 'tokens, 512 or more; empty for Auto', 'The largest request of any call. Auto is the served context minus the reply reserve. A smaller ceiling splits the source into more requests; no source text is left out to fit.', 'Auto')}
+              {number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}.`, 'Stage defaults')}
+              {number('overlap', 'source lines, 0 to 4', 'Neighboring lines shown again as context where the source is split. Each line is read as its own text once; a record continues across a split only when both sides say so.', String(defaults.overlap))}
+              {toggle('headings')}
+              {toggle('verification')}
+              {!(shown.verification ?? defaults.verification) && <p className="text-[11px] text-ink-muted">Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.</p>}
+              <p className="text-[10.5px] text-ink-faint">Records and fields come from the schema; models from the Models tab. Document-level fields remain unverified.</p>
+            </fieldset>
+          </Disclosure>
+        </li>
+        <li>
+          <Disclosure title="Effective settings" value="" changed={false} forcedOpen={false}>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
+              {unifiedLines(method).map((line) => [<dt key={`${line.label}-t`} className="text-ink-muted">{line.label}</dt>, <dd key={`${line.label}-d`} className="text-ink">{line.value}</dd>])}
+            </dl>
+            <p className="text-[11.5px] text-ink-muted">Each Extraction records the budgets it resolved from the served models before any call; a later change never alters it.</p>
+            <details className="text-[11px] text-ink-muted">
+              <summary className="cursor-pointer font-semibold text-ink">Technical details</summary>
+              {editor.settingsIssues.some((issue) => issue.path.startsWith('catalog.'))
+                ? <p>Fix the issues above to preview the request.</p>
+                : <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all font-mono">{JSON.stringify(keiMethodOptions(
+                    extractionMethod('CATALOG', null, draft.extractionModels, { unified: method })), null, 2)}</pre>}
+            </details>
           </Disclosure>
         </li>
       </ul>

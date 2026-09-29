@@ -19,7 +19,7 @@ export function MethodUsed({ attempt }: { attempt: ExtractionAttempt }) {
   const effective = attempt.diagnostics?.effectiveMethod ?? null
   const eligibility = attempt.diagnostics?.eligibility ?? null
   const strategy = attempt.strategy === 'CATALOG'
-    ? `Catalog · ${attempt.catalogRecipe
+    ? requested && 'unified' in requested ? 'Catalog' : `Catalog · ${attempt.catalogRecipe
       ? CATALOG_RECIPES.find((recipe) => recipe.id === attempt.catalogRecipe)?.label ?? attempt.catalogRecipe
       : 'Model discovery'}` : 'Article'
   return (

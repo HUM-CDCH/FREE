@@ -33,3 +33,13 @@ it('an unreadable configuration offers a retry and says nothing can start', () =
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   expect(onRefresh).toHaveBeenCalledOnce()
 })
+
+it('a unified Catalog start with retired Catalog preferences says they must be applied first, never converted', () => {
+  const saved = { status: 'ready' as const, unifiedCatalog: true,
+    config: { extractionSettings: { catalog: { generic: { record_chars: 30_000 } } } } as never }
+  render(<SavedMethodSummary variant="panel" saved={saved} conflict={null} onRefresh={vi.fn()}
+    method={{ models: null, settings: { unified: { defaults: 1 } } }} />)
+  expect(screen.getByRole('alert')).toHaveTextContent('apply them before starting a Catalog Extraction')
+  expect(screen.getByText('Unified Catalog, defaults version 1')).toBeInTheDocument()
+  expect(screen.getByText('Auto (served context minus the reply reserve)')).toBeInTheDocument()
+})

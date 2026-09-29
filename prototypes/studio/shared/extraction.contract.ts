@@ -3,7 +3,7 @@ import {
   activeSettingsSchema,
   articleSettingsIssues,
   extractionMethodIntentSchema,
-  settingsSlot,
+  settingsFit,
   type ArticleSettings,
 } from 'extraction/extraction-method'
 import {
@@ -77,7 +77,7 @@ export const extractionRequestSchema = z
     path: ['catalogRecipe'],
     message: 'A recipe applies to a Catalog Extraction only.',
   })
-  .refine((request) => settingsSlot(request.strategy, request.catalogRecipe ?? null) in request.method.settings, {
+  .refine((request) => settingsFit(request.strategy, request.catalogRecipe ?? null, request.method.settings), {
     path: ['method', 'settings'],
     message: 'The saved settings do not match this Extraction Strategy.',
   })
@@ -280,6 +280,52 @@ export const groundedDiagnosticsSchema = z
 
 export type GroundedDiagnostics = z.infer<typeof groundedDiagnosticsSchema>
 
+const count = z.number().int().nonnegative()
+const candidatePathSchema = z.array(z.union([z.string(), z.number().int().nonnegative(), z.null()]))
+const unifiedCandidateSchema = z
+  .object({
+    path: candidatePathSchema, value: z.json(), quote: z.string().nullable(), support: z.enum(['literal', 'supporting']).nullable(),
+    spans: z.array(textSpanSchema), alternatives: z.array(z.array(textSpanSchema)), window: count, reason: z.string().nullable(),
+    raw: z.string().nullable(), item: z.object({ window: count, index: count }).strict().nullable(),
+  })
+  .strict()
+
+/** The unified Catalog's review material (version 3): the method it ran under, the source ranges it could not settle
+ *  or was not given, each stage's processing, and every proposal, rejection, conflict and uncertain list item. Source
+ *  accounting, processing and evidence stay apart; recall is not measured. */
+export const unifiedDiagnosticsSchema = z
+  .object({
+    method: z.object({ requested: z.record(z.string(), z.json()), effective: z.record(z.string(), z.json()) }).strict(),
+    records: z.object({ execution: z.string(), discovery: z.string() }).strict(),
+    entries: count,
+    unsettledEntries: z.array(z.object({ id: z.string(), label: z.string().nullable(), end: z.enum(['unresolved', 'beyond_scope']) }).strict()),
+    unresolved: z.array(textSpanSchema),
+    withheld: z.array(textSpanSchema),
+    processing: z.object({
+      discovery: z.object({ windows: count, failed: count }).strict(),
+      entries: z.object({ entries: count, windows: count, failed: count }).strict(),
+      verification: z.object({ enabled: z.boolean(), undecided: count }).strict(),
+      document: z.object({ applicable: z.boolean(), windows: count, failed: count }).strict(),
+    }).strict(),
+    completeness: z.object({
+      accounting: z.boolean(), boundaries: z.boolean(), processing: z.boolean(), evidence: z.boolean(), recall: z.literal('unmeasured'),
+    }).strict(),
+    proposed: z.array(unifiedCandidateSchema),
+    rejected: z.array(unifiedCandidateSchema),
+    competitors: z.array(z.record(z.string(), z.json())),
+    items: z.array(z.object({ path: resultPathSchema, observed: count, resolved: count, partial: count }).strict()),
+    document: z.object({
+      status: z.literal('unverified'), applicable: z.boolean(), candidates: z.array(unifiedCandidateSchema),
+      conflicts: z.array(z.object({ path: z.array(z.union([z.string(), z.number()])), candidates: z.array(z.json()) }).strict()),
+    }).strict(),
+    contextOmitted: z.array(textSpanSchema.extend({
+      stage: z.string(), record: z.number().int().nullable(), kind: z.enum(['heading', 'before', 'after']),
+    }).strict()),
+  })
+  .strict()
+
+export type UnifiedDiagnostics = z.infer<typeof unifiedDiagnosticsSchema>
+
 /** What kei-exp recorded running: its dumped options, and the prompt, method and protocol versions it reports. */
 const effectiveMethodSchema = z
   .object({ options: z.record(z.string(), z.json()), versions: z.record(z.string(), z.number().int()) })
@@ -319,6 +365,7 @@ export const extractionDiagnosticsSchema = z
     grounding: groundingDiagnosticsSchema.nullable(),
     catalog: catalogDiagnosticsSchema.nullable(),
     grounded: groundedDiagnosticsSchema.nullable().optional(),
+    unified: unifiedDiagnosticsSchema.nullable().optional(),
     /** The model each role ran on, as kei-exp resolved the run's choice over its deployment defaults. */
     models: extractionModelsUsedSchema.nullable().optional(),
     effectiveMethod: effectiveMethodSchema.nullable().optional(),

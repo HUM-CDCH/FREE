@@ -679,7 +679,7 @@ export function DocumentWorkspace({
 
   async function runExtraction() {
     if (savingForRun || running || !sourceRepresentationCurrent || saved.state.status !== 'ready') return
-    const savedConfig = saved.state.config
+    const savedState = saved.state
     setSavingForRun(true)
     const targetSourceRepresentationId = sourceRepresentationId
     try {
@@ -692,8 +692,9 @@ export function DocumentWorkspace({
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
       const strategy = nextExtractionStrategy
-      const catalogRecipe = nextCatalogRecipe || null
-      const method = savedMethodFor(savedConfig, strategy, catalogRecipe)
+      // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
+      const catalogRecipe = savedState.unifiedCatalog ? null : nextCatalogRecipe || null
+      const method = savedMethodFor(savedState, strategy, catalogRecipe)
       setMethodConflict(null)
       // The researcher asked for this run, so it is what they now inspect;
       // its schema is known before the server acknowledges the attempt.
@@ -873,7 +874,7 @@ export function DocumentWorkspace({
               <option value="CATALOG">Catalog</option>
             </select>
           </label>
-          {!running && nextExtractionStrategy === 'CATALOG' && (
+          {!running && nextExtractionStrategy === 'CATALOG' && !(saved.state.status === 'ready' && saved.state.unifiedCatalog) && (
             <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
               Boundaries
               <select
@@ -894,7 +895,7 @@ export function DocumentWorkspace({
           {!running && (
             <SavedMethodSummary variant="toolbar" saved={saved.state} conflict={methodConflict}
               method={saved.state.status === 'ready'
-                ? savedMethodFor(saved.state.config, nextExtractionStrategy, nextExtractionStrategy === 'CATALOG' ? nextCatalogRecipe || null : null)
+                ? savedMethodFor(saved.state, nextExtractionStrategy, nextExtractionStrategy === 'CATALOG' && !saved.state.unifiedCatalog ? nextCatalogRecipe || null : null)
                 : null}
               onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
           )}

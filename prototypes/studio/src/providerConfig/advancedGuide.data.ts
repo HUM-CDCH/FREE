@@ -24,8 +24,9 @@ export type GuideTopic = Readonly<{
   technical: string
 }>
 
-export const SECTION_TOPIC: Readonly<Record<ArticleSection | 'generic' | 'recipe', GuideTopicId>> = {
+export const SECTION_TOPIC: Readonly<Record<ArticleSection | 'generic' | 'recipe' | 'unified', GuideTopicId>> = {
   context: 'scope', identity: 'identity', input: 'format', evidence: 'grounding', generic: 'catalog', recipe: 'catalog',
+  unified: 'catalog',
 }
 
 const COMPLETED = 'docs/validation/2026-09-28-completed-development-study.md'

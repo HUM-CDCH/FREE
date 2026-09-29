@@ -214,7 +214,8 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
     expect(body.extraction.complete).toBe(true)
     const links = body.extraction.evidenceLinks!
     // Canonical segment ids name the physical page: 32's FA: value is grounded on page 2.
-    expect(links.map(link => [link.resultPath.join('.'), link.grounding?.linkedBy, link.grounding?.provenance,
+    expect(links.map(link => [link.resultPath.join('.'), link.grounding?.linkedBy,
+      link.grounding && 'provenance' in link.grounding ? link.grounding.provenance : undefined,
       link.grounding?.textSpans[0]?.segment.split('_')[0]])).toEqual([
       ['records.0.entry_no', 'structure', 'positional', 'p1'], ['records.0.kreis', 'structure', 'inherited', 'p1'],
       ['records.0.fundart', 'key', 'token', 'p1'], ['records.1.entry_no', 'structure', 'positional', 'p1'],

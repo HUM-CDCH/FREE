@@ -1,4 +1,4 @@
-import type { ActiveSettings } from 'extraction/extraction-method'
+import { UNIFIED_CATALOG_DEFAULTS, type ActiveSettings, type UnifiedCatalogSettings } from 'extraction/extraction-method'
 import type { ExtractionModelChoice } from '../shared/extraction.contract'
 import {
   ARTICLE_SECTIONS, CATALOG_LABELS, CONTROL_LABELS, describeArticleValue, effectiveSummary,
@@ -26,6 +26,7 @@ export function methodLines(settings: ActiveSettings | null): readonly MethodLin
       { label: CATALOG_LABELS.record_chars, value: amount(generic.record_chars, 'characters') },
     ] : []
   }
+  if ('unified' in settings) return unifiedLines(settings.unified)
   const recipe = settings.recipe
   if (!recipe) return []
   const off = recipe.factors ? FACTORS.filter((factor) => !recipe.factors![factor]).map((factor) => CATALOG_LABELS[factor].toLowerCase()) : []
@@ -36,8 +37,31 @@ export function methodLines(settings: ActiveSettings | null): readonly MethodLin
   ]
 }
 
+/** The unified Catalog's five controls, each as requested: a value left to the defaults says so. */
+export function unifiedLines(unified: UnifiedCatalogSettings): readonly MethodLine[] {
+  const defaults = UNIFIED_CATALOG_DEFAULTS[unified.defaults]
+  const onOff = (value: boolean | undefined, fallback: boolean) =>
+    value === undefined ? `service default (${fallback ? 'on' : 'off'})` : value ? 'On' : 'Off'
+  return [
+    { label: UNIFIED_LABELS.input_tokens, value: unified.input_tokens === undefined ? 'Auto (served context minus the reply reserve)' : amount(unified.input_tokens, 'tokens') },
+    { label: UNIFIED_LABELS.output_tokens, value: unified.output_tokens === undefined ? 'service defaults per stage' : amount(unified.output_tokens, 'tokens') },
+    { label: UNIFIED_LABELS.overlap, value: unified.overlap === undefined ? `service default (${defaults.overlap} source line)` : `${unified.overlap} source line${unified.overlap === 1 ? '' : 's'}` },
+    { label: UNIFIED_LABELS.headings, value: onOff(unified.headings, defaults.headings) },
+    { label: UNIFIED_LABELS.verification, value: onOff(unified.verification, defaults.verification) },
+  ]
+}
+
+export const UNIFIED_LABELS = {
+  input_tokens: 'Input token ceiling', output_tokens: 'Reply token reserve', overlap: 'Window overlap',
+  headings: 'Heading context', verification: 'Verification',
+} as const
+
 export function settingsHeadline(settings: ActiveSettings | null): string {
   if (settings === null) return 'Not recorded'
+  if ('unified' in settings) {
+    const custom = Object.keys(settings.unified).length > 1
+    return `Unified Catalog, defaults version ${settings.unified.defaults}${custom ? ' with custom settings' : ''}`
+  }
   if ('article' in settings) return settings.article ? effectiveSummary(settings.article) : 'Service defaults'
   const lines = methodLines(settings)
   return lines.length === 0 ? 'Service defaults' : lines.map((line) => (line.label === 'Factors' ? line.value : `${line.label} ${line.value}`)).join(' · ')
