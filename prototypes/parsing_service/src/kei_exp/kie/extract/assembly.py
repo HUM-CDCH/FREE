@@ -34,7 +34,10 @@ from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import Evidence, Passage
 
 EXTRACTION_VERSION = 1
-PROMPT_VERSION = 12  # Lossless source-string decoding and coherent exact quoted grounding.
+# 13: a unique text hit is verified like any claim; no lexical-only links.
+# 14: Catalog discovery examples are domain-neutral structure, not from the development corpus.
+# 15: every grounding batch shows the record's fields, so a claim split from its record's name keeps its record.
+PROMPT_VERSION = 15
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

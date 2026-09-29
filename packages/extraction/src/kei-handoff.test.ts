@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import { propagation } from '@opentelemetry/api'
 import * as handoff from './kei-handoff.js'
 
 const FIXTURES = new URL('../../../prototypes/parsing_service/tests/fixtures/contracts/', import.meta.url)
@@ -242,6 +243,23 @@ test('submit enqueues the child portably by name, as kei\'s application, with it
   }])
   // A copy: the parent's attributes object never becomes DBOS's.
   assert.notEqual(calls.enqueued[0]?.options.attributes, attributes)
+})
+
+test('submit hands a traced step\'s trace context to kei, whose DBOS parents the child\'s spans to it', async (t) => {
+  const traceparent = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'
+  propagation.setGlobalPropagator({
+    inject: (_context, carrier, setter) => setter.set(carrier, 'traceparent', traceparent),
+    extract: (context) => context,
+    fields: () => ['traceparent'],
+  })
+  t.after(() => propagation.disable())
+  const { client, calls } = fakeClient()
+  await handoff.createKeiHandoff(client).submit({
+    workflow: 'convert', workflowId: 'kei-convert:x', queueName: handoff.KEI_QUEUE.convertSmall, priority: 1,
+    timeoutMs: 1, request: fixture('convert.input').request, authenticatedUser: 'owner', attributes: { projectContextId: 'p' },
+  })
+  assert.deepEqual((calls.enqueued[0]?.options as { attributes: unknown }).attributes,
+    { projectContextId: 'p', 'dbos.otelContext': { traceparent } })
 })
 
 test('the deleteRuns fixture parses with Studio\'s schema and round-trips', () => {

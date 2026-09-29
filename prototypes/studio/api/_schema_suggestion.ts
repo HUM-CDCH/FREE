@@ -3,6 +3,7 @@ import { documentFileParts } from './_pdf.js'
 import { schemaPrompt, schemaSourceExcerpts } from './_schema.js'
 import { ApiError } from './_http.js'
 import { parseTemplate } from './_model_output.js'
+import { traceModelCall } from '../server/tracing.js'
 import {
   executeSchemaSuggestion,
   resolveModelTarget,
@@ -40,7 +41,11 @@ async function documentContentParts(document: DocumentInput): Promise<{
 }
 
 /** Complete single-source suggestion: prepare source, resolve route, call model, interpret the schema. */
-export async function generateSchemaWithModel(
+export function generateSchemaWithModel(...call: Parameters<typeof suggestSchema>): ReturnType<typeof suggestSchema> {
+  return traceModelCall('schema-suggestion', () => suggestSchema(...call), (result) => result.template)
+}
+
+async function suggestSchema(
   caller: ModelCaller,
   { document, instruction, temperature, signal }: SchemaModelInput,
   target?: ExecutionTarget,
@@ -67,9 +72,9 @@ export async function generateSchemaWithModel(
 }
 
 const SOURCE_SUGGESTION_INSTRUCTION =
-  'Suggest reusable extraction fields for this Source Document. Never include canonical Evidence fields: _evidence, snippets, pages, bboxes, occurrence IDs, or fuzzy matches.'
+  'Suggest reusable extraction fields for this Source Document. FREE records Evidence and its locations itself, so suggest only fields that describe the content of the researcher\'s records.'
 const MERGE_INSTRUCTION =
-  'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives, merge notes, or canonical Evidence fields (_evidence, snippets, pages, bboxes, occurrence IDs, fuzzy matches).'
+  'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.'
 
 function modelSuggestedDefinition(template: unknown): SchemaDefinition {
   try {

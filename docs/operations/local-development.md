@@ -128,6 +128,56 @@ See the [Entra authentication runbook](entra-authentication.md). In the host
 Compose topologies the base path and TLS behavior are identical, so the
 redirect URIs differ from production only by host.
 
+## Model-call traces (Phoenix)
+
+To inspect Studio's and the Parsing Service's model calls, start development
+with the optional Phoenix dashboard:
+
+```bash
+pnpm dev -- --phoenix
+```
+
+Phoenix opens at http://localhost:6006, published on loopback only and never
+behind nginx; the `phoenix-data` volume keeps its traces across restarts. The
+flag adds the Compose `phoenix` profile and sets
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` for Studio and the worker; without it
+nothing is traced. Tracing never gates inference: spans are exported in the
+background, and a stopped Phoenix only loses them.
+
+One trace follows a workflow: Studio's DBOS workflow and step spans, a
+logical call per model operation (`schema-suggestion`, `schema-edit`, or an
+extraction stage such as `discovery`), the provider calls under it (the AI
+SDK's `chat` spans; one span per extraction call) and every HTTP request they
+sent, so AI SDK retries and the prompt-only output-format fallback show as
+separate attempts. Studio passes the trace to the Parsing Service with each
+conversion and extraction, so kei's workflow and its extraction model calls,
+Catalog chunk threads included, appear in the same trace, also after a worker
+restart. A conversion shows only its workflow and steps: Surya's OCR requests
+are not traced.
+A workflow's recovery is a new workflow span under the same workflow ID: a
+step it re-executes has model spans again, while a step it reuses from its
+checkpoint has none (Studio marks it `cached`). Studio's own recovered
+workflows start a new trace (find them by `operationUUID`); spans still open
+when a process died are lost, so the calls it completed before appear as
+separate roots in the trace list.
+
+Prompts, raw responses and parsed outputs are not recorded unless listed:
+
+```bash
+FREE_TRACE_CAPTURE=prompts,responses,parsed pnpm dev -- --phoenix
+```
+
+`prompts` records the model's input; `responses` records its raw reply;
+`parsed` records the output interpreted by FREE. List only the content you
+need, for example `FREE_TRACE_CAPTURE=prompts,responses` for LLM input and
+output. Inspect the model-call spans in Phoenix at http://localhost:6006.
+
+Request headers, and with them model keys, are never recorded. Model-call
+error spans retain their status and exception type, but omit messages, stacks
+and provider refusal bodies even when capture is enabled: those can quote
+source text or credentials. A malformed model reply is recorded only through
+explicit `responses` capture.
+
 ## Database operations
 
 - `pnpm --filter db db:init` replays authored forward migrations against

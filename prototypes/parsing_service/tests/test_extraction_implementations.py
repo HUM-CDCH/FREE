@@ -24,6 +24,8 @@ def test_the_version_1_catalog_reads_the_evidence_it_is_given():
             return {"starts": ["B2", "B4"], "end": "B5"}
         if "title" in schema["properties"]:
             return {"title": "Fund fra Hjortlund"}
+        if "C1" in schema["properties"]:
+            return {"C1": "E1"}  # grounding: each record's number is in its first passage
         return {"entry_no": "31" if "31." in user else "32", "site": None, "year": None, "finds": None}
     request = run.ExtractRequest(schema=SCHEMA)
     checks = []
@@ -32,12 +34,13 @@ def test_the_version_1_catalog_reads_the_evidence_it_is_given():
     assert result["strategy"] == "catalog" and result["extraction_version"] == assembly.EXTRACTION_VERSION == 1
     assert [(record["entry_no"], record["title"], record["filename"]) for record in result["records"]] == [
         ("31", "Fund fra Hjortlund", "beier.pdf"), ("32", "Fund fra Hjortlund", "beier.pdf")]
-    assert [call["stage"] for call in result["calls"]] == ["document", "discovery", "record", "record"]
+    assert [call["stage"] for call in result["calls"]] == [
+        "document", "discovery", "record", "record", "grounding", "grounding"]
     assert [(link["path"], link["linked_by"]) for link in result["evidence"]] == [
-        (["records", 0, "entry_no"], "lexical"), (["records", 1, "entry_no"], "lexical")]
+        (["records", 0, "entry_no"], "model"), (["records", 1, "entry_no"], "model")]
     assert result["complete"] is True and result["unverified"] == ["title"]
-    # the document call, the discovery call, then each record's extraction and verification
-    assert len(checks) == 6
+    # the document call, the discovery call, then each record's extraction, verification and grounding batch
+    assert len(checks) == 8
     assert result["fingerprint"] == assembly.fingerprint(result, request, result["models"])
 
 

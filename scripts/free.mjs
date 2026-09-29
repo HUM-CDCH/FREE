@@ -1,6 +1,6 @@
 // The FREE launcher: one entry point with an explicit target.
 //
-//   node scripts/free.mjs local [--entra] [--wifi] [--host=<ip>] [--firewall=on|off]
+//   node scripts/free.mjs local [--entra] [--wifi] [--host=<ip>] [--firewall=on|off] [--phoenix]
 //   node scripts/free.mjs production
 //
 // Compose owns the topology (compose.yaml plus compose.override.yaml or
@@ -61,9 +61,11 @@ export function parseDevOptions(args) {
     host: null,
     firewall: true,
     revokeWifiAccess: false,
+    phoenix: false,
   }
   for (const argument of args) {
     if (argument === '--entra') options.entra = true
+    else if (argument === '--phoenix') options.phoenix = true
     else if (argument === '--wifi') options.wifi = true
     else if (argument.startsWith('--firewall='))
       options.firewall = onOff(argument.slice(11), '--firewall')
@@ -382,6 +384,7 @@ export function developmentComposeArguments(profile, gpuArguments = []) {
   return [
     'compose',
     ...(!profile.entra ? ['--profile', 'mock-oidc'] : []),
+    ...(profile.phoenix ? ['--profile', 'phoenix'] : []),
     ...developmentComposeFiles(profile).flatMap((file) => ['-f', file]),
     ...gpuArguments,
     // Compose rejects --no-build with --watch. The build step has already
@@ -425,6 +428,8 @@ export function developmentComposeEnvironment(
     STUDIO_ORIGIN: profile.origin,
     FREE_NGINX_BIND: profile.nginxBind,
     FREE_ENTRA_REAL: profile.entra ? '1' : '0',
+    // Studio and the worker export traces only with the Phoenix profile (compose.override.yaml).
+    FREE_PHOENIX: profile.phoenix ? '1' : '',
   })
   if (profile.entra) Object.assign(composeEnvironment, entraEnvironment)
   else

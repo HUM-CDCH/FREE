@@ -32,31 +32,23 @@ DISCOVERY = ("Identify record boundaries in the labelled source text. A record i
              "the last record opens at a start too. Return \"end\" as null when the last record runs to the end of "
              "the text; otherwise \"end\" is the label of the first block after the last record that belongs to no "
              "record, such as a bibliography or index. A block that opens a record is never the end. Do not select "
-             "continuation text, descriptions, finds within a record or section headings unless they themselves "
+             "continuation text, descriptions, items listed within a record or section headings unless they themselves "
              "open a record.")
 DISCOVERY_EXAMPLES = """
-Examples (independent documents; use only labels from the actual input):
-Input: [B1] Regional inventory
-[B2] 7. Oak: urn.
-[B3] Another fragment from Oak.
-[B4] 8. Brook: axe.
+Examples (structure only; use only labels from the actual input):
+Input: [B1] Contents
+[B2] 1. First entry.
+[B3] More text of the first entry.
+[B4] 2. Second entry.
 Output: {"starts":["B2","B4"],"end":null}
-Input: [B1] Northern region
-[B2] Reed: a bronze spear.
-[B3] Southern region
-[B4] Mere: a clay bowl.
-[B5] A decorated rim was also recovered at Mere.
-[B6] References
-[B7] Smith 1998.
+Input: [B1] Part A
+[B2] An entry.
+[B3] Part B
+[B4] Another entry.
+[B5] More text of that entry.
+[B6] Index
+[B7] Entry, 2.
 Output: {"starts":["B2","B4"],"end":"B6"}
-
-Input: [B1] Inventory
-[B2] 12. Marsh: a burial with these finds:
-[B3] 1. A clay vessel.
-[B4] 2. A bone pin.
-[B5] 13. Heath: a stone axe.
-[B6] A second axe was found at Heath.
-Output: {"starts":["B2","B5"],"end":null}
 """
 
 

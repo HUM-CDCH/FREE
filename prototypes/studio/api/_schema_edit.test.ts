@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SchemaNode } from 'extraction/schema'
 import { ApiError } from './_http'
-import { parseSchemaNodes, proposeSchemaEdit } from './_schema_edit'
+import type { ExecutionTarget } from './_provider'
+import { generateSchemaEditJson, parseSchemaNodes, proposeSchemaEdit } from './_schema_edit'
+
+const { generateTextMock } = vi.hoisted(() => ({ generateTextMock: vi.fn() }))
+vi.mock('ai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('ai')>()
+  return { ...actual, generateText: generateTextMock }
+})
 
 const CALLER = { researcherAccountId: '51000000-0000-4000-8009-00000000000c' }
 const nodes: SchemaNode[] = [
@@ -291,4 +298,48 @@ describe('proposeSchemaEdit', () => {
     expect(prompt).toContain('must not invent root path segments')
   })
 
+})
+
+describe('schema edit model reply', () => {
+  const target: ExecutionTarget = {
+    profile: 'general',
+    model: {
+      specificationVersion: 'v4',
+      provider: 'test-provider',
+      modelId: 'test-model',
+      supportedUrls: {},
+      doGenerate: vi.fn(),
+      doStream: vi.fn(),
+    },
+    jsonOutput: 'prompt',
+    temperatureSupported: false,
+  }
+  const field = [{ id: 'code', name: 'code', type: 'string' }] satisfies SchemaNode[]
+  const proposeFromReply = async (text: string) => {
+    generateTextMock.mockResolvedValueOnce({ text, finishReason: 'stop' })
+    return proposeSchemaEdit(field, 'describe the code field', null, {
+      caller: CALLER,
+      generate: async (prompt, temperature) =>
+        (await generateSchemaEditJson(CALLER, prompt, temperature, undefined, target)).text,
+    })
+  }
+
+  it.each([false, true])('keeps literal triple backticks in a description (repair: %s)', async (repair) => {
+    const description = 'Copy the ```json``` block verbatim, fences included: ```'
+    const reply = JSON.stringify({ fields: { code: { name: 'code', type: 'string', removed: false, description } }, additions: [] })
+
+    await expect(proposeFromReply(repair ? `${reply.slice(0, -1)},}` : reply)).resolves.toMatchObject({
+      status: 'proposed',
+      fields: { code: { description } },
+    })
+  })
+
+  it('reads a reply fenced as a whole', async () => {
+    const reply = '```json\n{"fields":{"code":{"name":"code","type":"string","removed":false,"description":"A code."}},"additions":[]}\n```'
+
+    await expect(proposeFromReply(reply)).resolves.toMatchObject({
+      status: 'proposed',
+      fields: { code: { description: 'A code.' } },
+    })
+  })
 })

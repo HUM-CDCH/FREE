@@ -17,11 +17,21 @@ This module owns only what every call shares:
   may quote the start of the server's refusal or of the unreadable reply; it never carries the request.
 
 It makes no retries of its own; the adapter's single output-format fallback is the only second attempt.
+
+Each call is also a trace span (Phoenix, docs/operations/local-development.md) under the extraction's DBOS step, with
+its model, tokens, outcome and refused attempts; each request it sends is a child span when the worker instruments
+`requests`. The prompt, the raw reply and the parsed answer are recorded only when FREE_TRACE_CAPTURE lists
+`prompts`, `responses` or `parsed`. Without a tracer provider the span is a no-op.
 """
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass
 from typing import Any
+
+from opentelemetry import trace
+from opentelemetry.trace import Span, StatusCode
 
 from kei_exp.kie.extract.llm import Chat, ModelOutputError, parse_json
 from kei_exp.kie.extract.models import Router
@@ -44,6 +54,10 @@ class Call:
     max_output_tokens: int | None = None
 
 
+_TRACER = trace.get_tracer("kei")
+CAPTURE = set(os.environ.get("FREE_TRACE_CAPTURE", "").split(","))
+
+
 def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str, user: str, schema: dict,
              max_tokens: int | None = None, counter: TokenCounter | None = None) -> tuple[Any, list[Call]]:
     """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer. The calls are the
@@ -51,6 +65,40 @@ def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str
     A router sends the call to the model serving the stage's role."""
     if isinstance(chat, Router):
         chat = chat.for_stage(stage)
+    # Errors can quote source text or a provider's credentials. Capture only their type, including exceptions the
+    # OTel context manager would otherwise record automatically; raw model replies have their own capture below.
+    with _TRACER.start_as_current_span(stage, attributes={"openinference.span.kind": "LLM",
+                                                           "llm.model_name": chat.model},
+                                       record_exception=False, set_status_on_exception=False) as span:
+        try:
+            if "prompts" in CAPTURE:
+                span.set_attributes({"input.value": json.dumps({"system": system, "user": user}, ensure_ascii=False),
+                                     "input.mime_type": "application/json"})
+            parsed, calls = _complete(chat, stage, record, system, user, schema, max_tokens, counter, span)
+            _trace(span, parsed, calls)
+            return parsed, calls
+        except Exception as error:
+            span.add_event("exception", {"exception.type": type(error).__name__})
+            span.set_status(StatusCode.ERROR)
+            raise
+
+
+def _trace(span: Span, parsed: Any, calls: list[Call]) -> None:
+    last = calls[-1]
+    for attempt, _ in enumerate(calls[:-1], start=1):
+        span.add_event("refused attempt", {"attempt": attempt})
+    span.set_attributes({key: value for key, value in {
+        "llm.token_count.prompt": last.input_tokens, "llm.token_count.completion": last.output_tokens,
+        "free.record": last.record}.items() if value is not None})
+    if not last.ok:
+        span.set_status(StatusCode.ERROR)
+    if parsed is not None and "parsed" in CAPTURE:
+        span.set_attributes({"output.value": json.dumps(parsed, ensure_ascii=False),
+                             "output.mime_type": "application/json"})
+
+
+def _complete(chat: Chat, stage: str, record: int | None, system: str, user: str, schema: dict, max_tokens: int | None,
+              counter: TokenCounter | None, span: Span) -> tuple[Any, list[Call]]:
     counted = None
     if counter is not None:
         assert max_tokens is not None
@@ -67,6 +115,9 @@ def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str
     except ModelOutputError as error:  # a fake or a client that already judged the reply
         return None, [Call(stage, record, None, None, 0.0, None, False, str(error),
                            counted, counter.context_tokens if counter else None, max_tokens)]
+    if "responses" in CAPTURE:
+        span.set_attributes({"llm.output_messages.0.message.role": "assistant",
+                             "llm.output_messages.0.message.content": reply.text})
     refused = [Call(stage, record, None, None, 0.0, None, False, attempt) for attempt in reply.attempts]
     parsed = None
     error = None

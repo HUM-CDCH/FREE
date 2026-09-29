@@ -28,6 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from opentelemetry import context as otel_context
 from pydantic import BaseModel, ConfigDict, Field
 
 from kei_exp.canonical import canonical_json
@@ -317,8 +318,11 @@ def _in_chunks(prelude: _Run, pieces: list[list[tuple[int, Block]]], before_entr
     """Each piece with its own `_Run`, one thread per piece when there are several. A failed piece stops the others
     at their next entry; the first failure in entry order is raised once every thread has returned."""
     halt = threading.Event()
+    # The step's trace, which a chunk thread would not inherit; only it, not the step's DBOS context.
+    trace_context = otel_context.get_current()
 
     def one(piece):
+        token = otel_context.attach(trace_context)
         part = _Run(prelude.evidence, prelude.schema, prelude.recipe, prelude.options, prelude.chat, prelude.counters)
         found = []
         try:
@@ -331,6 +335,8 @@ def _in_chunks(prelude: _Run, pieces: list[list[tuple[int, Block]]], before_entr
         except BaseException:
             halt.set()
             raise
+        finally:
+            otel_context.detach(token)
         return part, found
 
     if len(pieces) <= 1:

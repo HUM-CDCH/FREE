@@ -1,3 +1,4 @@
+import { SpanKind } from '@opentelemetry/api'
 import {
   APICallError,
   NoObjectGeneratedError,
@@ -13,6 +14,7 @@ import {
 import { withStepCancellation } from './_model_keys.js'
 import { readAccountModelConfig } from './_model_config.js'
 import type { ModelConfig } from '../shared/modelConfig.contract.js'
+import { captures, inSpan } from '../server/tracing.js'
 import {
   appendProviderResource,
   resolveCapabilityRoute,
@@ -54,7 +56,9 @@ export async function resolveModelTarget(
 // ponytail: remember at most 256 routes per process; persist only if restart retries matter.
 const promptOnlyRoutes = new Set<string>()
 
-async function generateWithRouteOutput(target: GeneralExecutionTarget, options: Parameters<typeof generateText>[0]) {
+async function generateWithRouteOutput(target: GeneralExecutionTarget, untraced: Parameters<typeof generateText>[0]) {
+  // The AI SDK records prompts and responses unless told not to.
+  const options = { ...untraced, telemetry: { recordInputs: captures('prompts'), recordOutputs: captures('responses') } }
   const key = target.automaticOutputKey
   const request = key && promptOnlyRoutes.has(key) ? { ...options, output: undefined } : options
   try {
@@ -174,39 +178,49 @@ async function generateWithNuExtract(
     temperature: input.temperature ?? NON_THINKING_TEMPERATURE,
     max_tokens: 8192,
   })
-  let response: Response
-  try {
-    response = await requestFetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(authorization === null ? {} : { authorization }),
-      },
-      body: requestBody,
-      signal,
-    })
-  } catch (error) {
-    throw asModelOperationError(error, 'NuExtract generation failed.')
-  }
+  // The AI SDK traces the general path; this span is the same record for NuExtract's raw chat completion.
+  const attributes = { 'openinference.span.kind': 'LLM', 'llm.model_name': target.modelId }
+  return inSpan(`chat ${target.modelId}`, { kind: SpanKind.CLIENT, attributes }, async (span) => {
+    if (captures('prompts')) span.setAttributes({ 'input.value': requestBody, 'input.mime_type': 'application/json' })
+    let response: Response
+    try {
+      response = await requestFetch(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(authorization === null ? {} : { authorization }),
+        },
+        body: requestBody,
+        signal,
+      })
+    } catch (error) {
+      throw asModelOperationError(error, 'NuExtract generation failed.')
+    }
 
-  const bodyText = await response.text()
-  if (!response.ok) {
-    throw new ApiError(502, 'model_operation_failed', 'NuExtract generation failed.')
-  }
-  let body: unknown
-  try {
-    body = JSON.parse(bodyText)
-  } catch (cause) {
-    throw new ApiError(502, 'invalid_model_output', 'NuExtract returned an invalid chat completion.', { cause })
-  }
-  const parsed = chatCompletionSchema.safeParse(body)
-  if (!parsed.success) {
-    throw new ApiError(502, 'invalid_model_output', 'NuExtract returned an invalid chat completion.', {
-      cause: parsed.error,
+    const bodyText = await response.text()
+    if (!response.ok) {
+      throw new ApiError(502, 'model_operation_failed', 'NuExtract generation failed.')
+    }
+    let body: unknown
+    try {
+      body = JSON.parse(bodyText)
+    } catch (cause) {
+      throw new ApiError(502, 'invalid_model_output', 'NuExtract returned an invalid chat completion.', { cause })
+    }
+    const parsed = chatCompletionSchema.safeParse(body)
+    if (!parsed.success) {
+      throw new ApiError(502, 'invalid_model_output', 'NuExtract returned an invalid chat completion.', {
+        cause: parsed.error,
+      })
+    }
+    const [choice] = parsed.data.choices
+    span.setAttributes({
+      'llm.token_count.prompt': parsed.data.usage?.prompt_tokens,
+      'llm.token_count.completion': parsed.data.usage?.completion_tokens,
+      ...(captures('responses') ? { 'output.value': choice.message.content } : {}),
     })
-  }
-  const [choice] = parsed.data.choices
-  return { response: choice.message.content }
+    return { response: choice.message.content }
+  })
 }
 
 function chatContentPart(part: DocumentContentPart) {
