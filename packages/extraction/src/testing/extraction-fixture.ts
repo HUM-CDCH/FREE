@@ -683,8 +683,8 @@ async function setup(disposableDatabaseUrl: string) {
 
   async function extractionRow(extractionId: string) {
     return db.orm.public.Extraction.select(
-      'id', 'outcome', 'failure', 'catalogRecipe', 'requestedModels', 'requestedSettings', 'resultPayload',
-      'batchExtractionId',
+      'id', 'outcome', 'failure', 'catalogRecipe', 'requestedModels', 'requestedSettings', 'requestedPages',
+      'resultPayload', 'batchExtractionId',
     ).first({ id: extractionId })
   }
 

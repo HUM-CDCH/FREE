@@ -71,6 +71,8 @@ export const extractionRequestSchema = z
     /** The saved method the start view showed: the Extraction Model Choice and this strategy's settings. Admission
      *  refuses it when the account's saved method changed since, and pins it otherwise. */
     method: extractionMethodIntentSchema,
+    /** A Sample Extraction's pages; admission checks them against the document. Absent: the whole document. */
+    pages: z.array(z.int()).optional(),
   })
   .strict()
   .refine((request) => request.catalogRecipe === undefined || request.strategy === 'CATALOG', {

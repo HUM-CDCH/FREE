@@ -32,7 +32,8 @@ const artifactFor = (admitted: AdmittedExtraction, overrides: Parameters<typeof 
   keiExpArtifact({
     run_id: RUN, generation: 'g1', strategy: strategyOf(admitted.strategy), model: 'fields-model', schema,
     options: { model: null, ...keiMethodOptions(extractionMethod(admitted.strategy, admitted.catalogRecipe,
-      admitted.requestedModels, admitted.requestedSettings)), models: admitted.requestedModels },
+      admitted.requestedModels, admitted.requestedSettings)), models: admitted.requestedModels,
+      ...(admitted.requestedPages ? { pages: admitted.requestedPages } : {}) },
     records: [{ title: 'Alpha' }], evidence: [keiExpEvidence()], ...overrides,
   })
 const bytesOf = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
@@ -475,6 +476,17 @@ describe('the admitted method', () => {
     // The step sequence it was checkpointed under replays unchanged.
     assert.deepEqual(run.names(), ['loadAdmitted', 'submitToKei', 'pollKei', 'publishResult'])
     assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')
+  })
+
+  it('a sample asks kei for its pages and accepts their echo; a checkpoint written before samples runs whole-document', async () => {
+    const sample = harness({ admitted: admittedExtraction({ requestedPages: [12, 13, 14] }) })
+    await sample.run()
+    assert.deepEqual((sample.submissions[0]!.request as KeiExtractInput).request.options, { strategy: 'article', pages: [12, 13, 14] })
+    assert.equal(sample.row.outcome?.outcome, 'SUCCEEDED')
+    const older = harness()  // `loadAdmitted` checkpointed without requestedPages
+    await older.run()
+    assert.deepEqual((older.submissions[0]!.request as KeiExtractInput).request.options, { strategy: 'article' })
+    assert.equal(older.row.outcome?.outcome, 'SUCCEEDED')
   })
 
   it('an unreadable admitted method fails the Extraction, not the workflow, and asks kei for nothing', async () => {

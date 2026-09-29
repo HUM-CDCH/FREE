@@ -289,6 +289,8 @@ export type FreshExtractionInput = Readonly<{
   catalogRecipe?: string | null
   /** The saved method the researcher saw at start: admission refuses it unless it is still the account's, then pins it. */
   method: ExtractionMethodIntent
+  /** A Sample Extraction's pages (ascending, distinct, physical, one-based, at most 30); absent: the whole document. */
+  pages?: readonly number[] | null
 }>
 
 export type RunSingleInput = FreshExtractionInput

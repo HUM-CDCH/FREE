@@ -130,6 +130,7 @@ type AdmissionPins = Readonly<{
   catalogRecipe: string | null
   requestedModels: ExtractionModelChoice | null
   requestedSettings: ActiveSettings
+  requestedPages: readonly number[] | null
   schemaTree: unknown
   preprocessId: string
 }>
@@ -172,6 +173,7 @@ async function resolveAdmission(
     catalogRecipe,
     requestedModels: method.models,
     requestedSettings: method.settings,
+    requestedPages: input.pages ?? null,
     schemaTree: schema.schemaTree,
     preprocessId: representation.preprocessId,
   }
@@ -185,10 +187,11 @@ type AdmittedIdentity = Readonly<{
   catalogRecipe: string | null
   requestedModels: unknown
   requestedSettings: unknown
+  requestedPages: unknown
   batchExtractionId: string | null
 }>
 
-/** An identical interactive request: the same pins and choices. A batch member's ID is never an interactive one. */
+/** An identical interactive request: the same pins and choices, and the same pages (scope is identity, not method). A batch member's ID is never an interactive one. */
 function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
   return row.batchExtractionId === null &&
     row.sourceDocumentId === pins.sourceDocumentId &&
@@ -198,7 +201,8 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
     row.catalogRecipe === pins.catalogRecipe &&
     isDeepStrictEqual(modelChoice(row.requestedModels), pins.requestedModels) &&
     // A NULL (historical) row was admitted before settings were recorded, so it never equals a recorded method.
-    isDeepStrictEqual(row.requestedSettings ?? null, pins.requestedSettings)
+    isDeepStrictEqual(row.requestedSettings ?? null, pins.requestedSettings) &&
+    isDeepStrictEqual(row.requestedPages ?? null, pins.requestedPages)
 }
 
 /** DBOS refused the workflow ID (workflowIDReusePolicy 'reject'): its Extraction is gone, so the ID is spent. */
@@ -222,7 +226,7 @@ export async function admitInteractiveExtraction(
       if (pins === null) return 'missing'
       const identity = () => transaction.orm.public.Extraction.select(
         'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
-        'requestedModels', 'requestedSettings', 'batchExtractionId',
+        'requestedModels', 'requestedSettings', 'requestedPages', 'batchExtractionId',
       ).first({ id: input.extractionId })
       // Another researcher's Extraction under this ID is concealed behind the same missing answer.
       const replay = async (row: AdmittedIdentity) =>
@@ -260,6 +264,7 @@ export async function admitInteractiveExtraction(
         catalogRecipe: pins.catalogRecipe,
         requestedModels: pins.requestedModels,
         requestedSettings: pins.requestedSettings,
+        requestedPages: pins.requestedPages,
         batchExtractionId: null,
       })
       await execution.enqueue(client, {

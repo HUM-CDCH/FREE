@@ -209,6 +209,22 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
     await heldByKei(input.extractionId)
   })
 
+  it("a sample's pages are its admission identity, never its method", async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    kei.holding = true
+    const module = scheduler(project.researcherAccountId)
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
+    const sample = { ...freshInput(project, randomUUID(), intent(SPANS)), pages: [1] }
+    // The start view's saved method is still the account's: the scope never makes it stale.
+    assert.equal((await module.runSingle(sample)).disposition, 'created')
+    assert.deepEqual((await extractionRow(sample.extractionId))?.requestedPages, [1])
+    assert.equal((await module.runSingle(sample)).disposition, 'replayed')
+    await assert.rejects(module.runSingle({ ...sample, pages: null }), rejectsWithCode('extraction_id_conflict'))
+    await assert.rejects(module.runSingle({ ...sample, extractionId: randomUUID(), pages: [2] }), rejectsWithCode('invalid_request'))
+    await heldByKei(sample.extractionId)
+  })
+
   it('explicit reference and service defaults are different requests under one ID', async (t) => {
     t.after(cleanup)
     const project = await seedProject()

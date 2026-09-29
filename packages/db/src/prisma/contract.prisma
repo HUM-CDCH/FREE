@@ -217,6 +217,9 @@ model Extraction {
   // service defaults), frozen at admission with `requestedModels`; execution reads only these. Null: admitted before
   // settings were recorded ("Not recorded"), never inferred from today's account configuration.
   requestedSettings              Json?
+  // A Sample Extraction's physical, one-based PDF pages (ascending, distinct, at most 30): admission identity, never
+  // method. Null: the whole document.
+  requestedPages                 Json?
   outcome                        ExtractionOutcome?
   complete                       Boolean?
   modelAttribution               Json?
