@@ -164,6 +164,14 @@ The minors both reviews deferred are resolved on `dev` after `fc2faa51`:
     `openspec/changes/archive/2026-09-29-advanced-extraction-configuration`,
     with its deltas synced into `openspec/specs/` (strict validation: 13/13).
 
-Still not run: `pnpm test:system`. It builds multi-GB images into the Docker
-data root on `/home` while study jobs were writing there, and `mkcert` is not
-installed on this host.
+`pnpm test:system` ran on the DGX Spark (`baratheon`) in a fresh clone of `dev`
+(`f114a58d`), as an isolated Compose project beside production. Its first run
+passed 12 of 16. All four failures had one cause that predates this change: the
+scripted model fixture (`tests/model-fixture.mjs`, last changed 2026-09-26) did
+not answer `/tokenize` or the Article pipeline's inventory and evidence calls.
+Those calls became required with `3df232f5` (2026-09-27). The fixture now
+speaks that protocol, like the service tier's scripted model. With it,
+`pnpm test:system` passed 16/16 on Spark: authentication, upload and parse,
+schema, extraction with Evidence, review, restart durability, deletion and
+garbage collection. The model boundary is scripted, so this is not a
+live-model run.
