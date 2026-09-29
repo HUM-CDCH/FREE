@@ -33,9 +33,12 @@ import {
   type ActiveSettings,
   type ExtractionMethodIntent,
 } from './extraction-method.js'
+import { extractionSnapshot, readAttemptRows } from './postgres-attempts.js'
 import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
-import { parseExtractionSchema } from './schema.js'
+import { resultPathKey } from './review-paths.js'
+import { unionReviewTransfer } from './review-rules.js'
+import { parseExtractionSchema, schemaNodeAtPath } from './schema.js'
 import {
   EXTRACTION_QUEUE,
   extractionAttributes,
@@ -44,6 +47,8 @@ import {
 import type {
   ExtractionModelChoice,
   ExtractionStrategy,
+  ReviewDecisionInput,
+  ReviewTransfer,
   RunSingleInput,
   ScheduleBatchInput,
   ScheduleBatchResult,
@@ -205,6 +210,60 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
     isDeepStrictEqual(row.requestedPages ?? null, pins.requestedPages)
 }
 
+/**
+ * The sample decisions a single Extraction pins (design §6): those of every sample of its document, Source
+ * Representation Revision and Extraction Schema, a finalized review's else its saved draft's, read in the admission
+ * transaction. Node ids and value types come from each sample's own Schema Revision.
+ */
+async function samplesReviewTransfer(orm: DatabaseOrm, pins: AdmissionPins): Promise<ReviewTransfer | null> {
+  const rows = (await orm.public.Extraction.where({
+    sourceDocumentId: pins.sourceDocumentId, sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
+    outcome: 'SUCCEEDED', reviewable: true,
+  }).select('id', 'requestedPages', 'reviewDraft', 'reviewDraftVersion').all()).filter((row) => row.requestedPages !== null)
+  const samples = []
+  for (const row of await readAttemptRows(orm, rows.map((each) => each.id))) {
+    const sample = await extractionSnapshot(orm, row)
+    if (sample.extractionSchemaId !== pins.extractionSchemaId) continue
+    const draft = rows.find((each) => each.id === row.id)!
+    const revision = await orm.public.SchemaRevision.select('schemaTree').first({ id: sample.schemaRevisionId })
+    const nodes = parseExtractionSchema(revision?.schemaTree).schemaNodes
+    const decisions = sample.reviewedAt ? sample.reviewDecisions : (draft.reviewDraft ?? []) as unknown as ReviewDecisionInput[]
+    const grounded = sample.diagnostics.grounded
+    samples.push({
+      extractionId: sample.extractionId,
+      createdAt: sample.createdAt,
+      segmentation: grounded?.segmentationFingerprint ?? null,
+      records: ((sample.result?.records ?? []) as unknown[]).map((_, index) => ({
+        block: grounded?.recordBlocks[index]?.block ?? null,
+        anchors: [...new Set((sample.evidence ?? []).filter((link) => link.resultPath[1] === index)
+          .map((link) => link.evidenceAnchorId))].sort(),
+      })),
+      entries: decisions.flatMap((decision) => {
+        const node = schemaNodeAtPath(nodes, decision.resultPath)
+        const record = decision.resultPath[1]
+        if (!node || typeof record !== 'number') return []
+        return [{
+          extractionId: sample.extractionId,
+          draftVersion: draft.reviewDraftVersion,
+          nodeId: node.id,
+          record,
+          sourcePathKey: resultPathKey(decision.resultPath),
+          action: decision.action,
+          modelValue: decision.resultPath.reduce<unknown>(
+            (value, key) => (value as Record<string | number, unknown> | undefined)?.[key], sample.result) ?? null,
+          reviewedValue: decision.reviewedValue,
+          valueType: node.type === 'array' && node.itemType ? node.itemType : node.type,
+          evidenceAnchorId: decision.evidenceAnchorId,
+          reviewedEvidence: decision.reviewedEvidence ?? null,
+        }]
+      }),
+    })
+  }
+  samples.sort((left, right) =>
+    left.createdAt.getTime() - right.createdAt.getTime() || left.extractionId.localeCompare(right.extractionId))
+  return unionReviewTransfer(samples)
+}
+
 /** DBOS refused the workflow ID (workflowIDReusePolicy 'reject'): its Extraction is gone, so the ID is spent. */
 function workflowIdInUse(error: unknown): boolean {
   return DBOSErrors.isWorkflowIDInUseError(error)
@@ -255,6 +314,8 @@ export async function admitInteractiveExtraction(
         { models: pins.requestedModels, settings: pins.requestedSettings })))
         return 'method-changed'
       refuseUnusableIdentityFields(pins.requestedSettings, pins.schemaTree)
+      // Pinned once, here: a replay above keeps the snapshot its first admission pinned.
+      const reviewTransfer = await samplesReviewTransfer(transaction.orm, pins)
       await transaction.orm.public.Extraction.create({
         id: input.extractionId,
         sourceDocumentId: pins.sourceDocumentId,
@@ -266,6 +327,7 @@ export async function admitInteractiveExtraction(
         requestedSettings: pins.requestedSettings,
         // Omitted, not null, for the whole document: the column stays SQL NULL, which whole-document reads filter on.
         ...(pins.requestedPages ? { requestedPages: pins.requestedPages } : {}),
+        ...(reviewTransfer ? { reviewTransfer } : {}),
         batchExtractionId: null,
       })
       await execution.enqueue(client, {

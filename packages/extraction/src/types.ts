@@ -91,6 +91,33 @@ export type ReviewDecision = ReviewDecisionInput & Readonly<{
   createdAt: Date
 }>
 
+/** A record as a review transfer aligns it: its segmentation block (recipe Catalog) and every Evidence Anchor its
+ *  values cite, sorted. */
+export type TransferRecord = Readonly<{ block: string | null; anchors: readonly string[] }>
+
+/** A sample's decision as pinned: what it decided on which value of which record (`record` indexes its sample's
+ *  `records`), by schema node id so a rename carries. */
+export type TransferEntry = Readonly<{
+  extractionId: string
+  draftVersion: number
+  nodeId: string
+  record: number
+  sourcePathKey: string
+  action: ReviewDecisionAction
+  modelValue: unknown
+  reviewedValue: unknown
+  valueType: string
+  evidenceAnchorId: string
+  reviewedEvidence: ReviewDecisionInput['reviewedEvidence'] | null
+}>
+
+/** The sample Review Decisions a single Extraction pins at admission (design §6): self-contained, so a collected
+ *  sample leaves no dangling reference, and never changed afterwards. */
+export type ReviewTransfer = Readonly<{
+  samples: readonly Readonly<{ extractionId: string; segmentation: string | null; records: readonly TransferRecord[] }>[]
+  entries: readonly TransferEntry[]
+}>
+
 export type ModelGenerationMetadata = Readonly<{
   finishReason: string | null
   inputTokens: number | null

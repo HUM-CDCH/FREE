@@ -2,7 +2,9 @@ import { ExtractionError } from './errors.js'
 import type { ParsedDocument } from './parsed-document.js'
 import { populatedContentPaths, resultPathKey } from './review-paths.js'
 import { isRecord, parseExtractionSchema, partitionSchemaNodes, restoreSchemaNodeOrder, schemaNodeAtPath } from './schema.js'
-import type { EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ReviewDecisionInput } from './types.js'
+import type {
+  EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ReviewDecisionInput, ReviewTransfer, TransferEntry, TransferRecord,
+} from './types.js'
 
 /*
  * The rules deciding whether submitted Review Decisions may finalize an Extraction's review. They run twice: against
@@ -259,4 +261,47 @@ export function reviewAuthorityMatchesExtraction(
       )
     })
   )
+}
+
+type TransferSample = ReviewTransfer['samples'][number]
+
+/**
+ * Which record of `other` each record of `records` aligns with (design §7.1): by segmentation block when both ran on
+ * the same recipe segmentation, otherwise only a one-to-one, mutual overlap of Evidence Anchors. A record in no pair is
+ * unmatched; a merge or a split pairs nothing.
+ */
+export function alignRecords(records: TransferSample, other: TransferSample): ReadonlyMap<number, number> {
+  const byBlock = records.segmentation !== null && records.segmentation === other.segmentation
+  const meets = (left: TransferRecord, right: TransferRecord) => byBlock
+    ? left.block !== null && left.block === right.block
+    : left.anchors.some((anchor) => right.anchors.includes(anchor))
+  const pairs = new Map<number, number>()
+  records.records.forEach((record, index) => {
+    const hits = other.records.flatMap((candidate, at) => meets(record, candidate) ? [at] : [])
+    if (hits.length === 1 && records.records.filter((each) => meets(each, other.records[hits[0]!]!)).length === 1)
+      pairs.set(index, hits[0]!)
+  })
+  return pairs
+}
+
+/**
+ * The union of samples' decisions, oldest sample first (design §6): where a newer sample decided a schema node of a
+ * record aligned with an older one's, the newer decision wins; every other decision is kept. Null when none is left.
+ */
+export function unionReviewTransfer(samples: readonly (TransferSample & { entries: readonly TransferEntry[] })[]): ReviewTransfer | null {
+  let entries: readonly TransferEntry[] = []
+  for (const sample of samples) {
+    const decided = new Set(sample.entries.map((entry) => `${entry.record} ${entry.nodeId}`))
+    const aligned = new Map(samples.map((older) => [older.extractionId, alignRecords(older, sample)]))
+    entries = [...entries.filter((entry) => {
+      const record = aligned.get(entry.extractionId)!.get(entry.record)
+      return record === undefined || !decided.has(`${record} ${entry.nodeId}`)
+    }), ...sample.entries]
+  }
+  if (entries.length === 0) return null
+  return {
+    samples: samples.filter((sample) => entries.some((entry) => entry.extractionId === sample.extractionId))
+      .map(({ extractionId, segmentation, records }) => ({ extractionId, segmentation, records })),
+    entries,
+  }
 }
