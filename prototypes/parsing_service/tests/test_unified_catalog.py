@@ -285,6 +285,25 @@ def test_a_boundary_text_that_is_not_unique_in_its_line_stays_unresolved():
     assert any(issue["code"] == "boundary_unplaced" for issue in result["issues"])
 
 
+def test_restarted_labels_stay_distinct_and_an_entry_continues_across_pages():
+    source = evidence("Kreis Nord\n1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein, und", "weiter Glas.\n"
+                      "Kreis Süd\n1. Cdorf. Material: Gold.")
+    result, _ = extract(source)
+    entries = result["discovery"]["entries"]
+    assert [entry["label"] for entry in entries] == ["1.", "2.", "1."] and len({entry["id"] for entry in entries}) == 3
+    assert [row["segment"] for row in entries[1]["ranges"]] == ["p1_s0", "p2_s0"]  # the entry crosses the page
+    assert text(source, entries[1]["ranges"][1]) == "weiter Glas." and entries[1]["end"] == "validated"
+    assert_accounted(source, result)
+
+
+def test_all_discovery_windows_failing_leaves_everything_unresolved_and_no_record():
+    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
+    result, _ = extract(source, Model(source, discovery=lambda user: Reply("{", 5, 4096, "length", 0.0)))
+    assert result["records"] == [] and ranges(result, "unresolved") == [("p1_s0", 0, len(source.passages[0].text))]
+    assert result["processing"]["discovery"]["failed"] >= 1 and result["complete"] is False
+    assert_accounted(source, result)
+
+
 def test_withheld_source_and_reading_order_issues_stay_visible():
     source = replace(evidence("1. Ort. Material: Holz."),
                      withheld=(passage("p1_s1", "unreadable scan", status="failed"),),
@@ -336,6 +355,32 @@ def test_a_table_cell_value_keeps_its_cell_geometry():
     result, _ = extract(source)
     (link,) = [link for link in result["evidence"] if link["path"] == ["records", 0, "material"]]
     assert link["cell"] == "r0_c1" and link["precision"] == "cell"
+
+
+def test_a_cut_off_entry_reply_is_retried_on_halves_of_the_entry():
+    source = evidence("1. Adorf.\n" + "\n".join(f"Find: F{n} ({n})." for n in range(1, 7)))
+    model = Model(source)
+
+    def crowded(system, user, schema):
+        if system.startswith("You extract structured data") and section(user, "RECORD").count("Find:") > 3:
+            return Reply('{"finds": [', 50, 4096, "length", 0.0)  # a list too long for its reply reserve
+        return model(system, user, schema)
+    result, _ = extract(source, crowded, overlap=0)
+    assert any(call["stage"] == "entry" and not call["ok"] for call in result["calls"])
+    assert result["processing"]["entries"]["failed"] == 0
+    seen = {item["name"] for item in result["records"][0]["finds"] or []} | {
+        item["value"] for item in result["proposed"] if item["path"][-1] == "name"}
+    assert seen == {f"F{n}" for n in range(1, 7)}  # every item was read; none was dropped for the cut-off reply
+
+
+def test_heading_context_that_does_not_fit_is_left_out_and_reported():
+    heading = "Kreis " + " ".join(["Beschreibung"] * 500)
+    source = evidence(f"{heading}\n1. Adorf. Material: Holz.")
+    result, chat = extract(source, input_tokens=600, output_tokens=64)
+    assert result["records"][0]["material"] == "Holz"
+    omitted = [row for row in result["context_omitted"] if row["stage"] == "entry"]
+    assert omitted and {row["kind"] for row in omitted} == {"heading"} and omitted[0]["record"] == 0
+    assert not any("Beschreibung" in call["user"] for call in chat.calls if call["system"].startswith("You extract structured"))
 
 
 def test_an_unfittable_minimum_request_is_refused():
