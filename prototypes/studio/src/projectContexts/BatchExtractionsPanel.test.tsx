@@ -631,6 +631,47 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.queryByText(message, { exact: false })).not.toBeInTheDocument()
   })
 
+  it('with the unified Catalog enabled, a Catalog batch submits the same unified method as a single run', async () => {
+    const posted: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/schema-revisions?')) return response({ revisions: [] })
+      if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [] })
+      if (url === '/api/batch-extractions' && init?.method === 'POST') {
+        posted.push(JSON.parse(String(init.body)))
+        return new Response(JSON.stringify({ error: { code: 'method_changed', message: 'Stale.' } }), {
+          status: 409, headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (url.startsWith('/api/extraction-schemas?'))
+        return response({
+          extractionSchemas: [{
+            extractionSchemaId: batch.extractionSchemaId, name: 'Places', createdAt: '2026-08-14T10:00:00.000Z',
+            currentRevision: { schemaRevisionId, revisionNumber: 1, origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z' },
+          }],
+        })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+        return response({
+          revision: {
+            schemaRevisionId, extractionSchemaId: batch.extractionSchemaId, revisionNumber: 1, origin: 'researcher-edit',
+            createdAt: '2026-08-14T10:00:00.000Z', recordDescription: 'One place record.',
+            schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+          },
+        })
+      throw new Error(`Unexpected request: ${url}`)
+    }))
+    saved.state = { status: 'ready', config: saved.config(), unifiedCatalog: true }
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await screen.findByLabelText('Extraction Schema fields')
+    fireEvent.change(screen.getByLabelText('Batch extraction strategy'), { target: { value: 'CATALOG' } })
+    expect(screen.getByText('Saved advanced settings: Unified Catalog, defaults version 1')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
+    fireEvent.click(screen.getByRole('button', { name: 'Run 1 Source Document' }))
+    await waitFor(() => expect(posted).toHaveLength(1))
+    expect(posted[0]).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 1 } } } })
+  })
+
   it('reads failed and cancelled members as Failed with their own message', async () => {
     vi.stubGlobal(
       'fetch',

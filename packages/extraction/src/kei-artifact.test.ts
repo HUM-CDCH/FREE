@@ -10,7 +10,8 @@ import { acceptKeiArtifact, type ArtifactPins, type KeiExpArtifact } from './kei
 import { keiExpArtifact, keiExpCall, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
 import type { KeiExtractInput } from './kei-handoff.js'
 import { decodeParsedDocument, type ParsedDocument } from './parsed-document.js'
-import type { EvidenceGrounding, ExtractionModelChoice, VerifiedGrounding } from './types.js'
+import { occurrenceOwnership, reviewableExtraction, reviewAuthority } from './review-rules.js'
+import type { EvidenceGrounding, ExtractionModelChoice, ExtractionSnapshot, VerifiedGrounding } from './types.js'
 
 const schema = {
   recordDescription: 'Article records.',
@@ -390,6 +391,27 @@ describe('unified Catalog artifacts', () => {
     refused(() => acceptUnified(produced(), legacy))
     refused(() => acceptUnified(keiExpArtifact({ run_id: input.run_id, generation: input.generation, strategy: 'catalog',
       model: unifiedContract.artifact.model, schema: input.request.schema as never, options: input.request.options }), input))
+  })
+
+  it('is reviewable as accepted: each populated record value has exactly one link, and each link one decision', () => {
+    const accepted = acceptUnified(produced())
+    const snapshot: ExtractionSnapshot = {
+      extractionId: pins.extractionId, sourceDocumentId: 'source', sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
+      sourceRepresentationRevisionNumber: 1, schemaRevisionId: pins.schemaRevisionId, extractionSchemaId: 'schema',
+      schemaRevisionNumber: 1, strategy: 'CATALOG', catalogRecipe: null, requestedSettings: { unified: { defaults: 1 } },
+      outcome: 'SUCCEEDED', complete: accepted.complete, modelAttribution: accepted.modelAttribution,
+      diagnostics: accepted.diagnostics, result: accepted.result, evidence: accepted.evidence, failure: null,
+      reviewable: true, batchExtractionId: null, createdAt: new Date(0), reviewedAt: null, reviewDecisions: [],
+    }
+    const owners = occurrenceOwnership(pinned)
+    const decisions = accepted.evidence!.map((link) => ({
+      resultPath: link.resultPath, evidenceAnchorId: link.evidenceAnchorId,
+      reviewedOccurrenceIds: [...(owners.get(link.evidenceAnchorId) ?? [])], action: 'APPROVED' as const, reviewedValue: null,
+    }))
+    const authority = reviewAuthority({ extraction: reviewableExtraction(snapshot), document: pinned,
+      schemaTree: input.request.schema, decisions, expectedDraftVersion: 1 })
+    assert.equal(authority.reviewDecisions.length, accepted.evidence!.length)
+    assert.ok(accepted.evidence!.some((link) => link.resultPath.includes('finds')))  // a list item's values review too
   })
 
   it('refuses evidence the pinned Source Representation does not have', () => {

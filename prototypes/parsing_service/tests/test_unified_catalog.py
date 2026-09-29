@@ -383,6 +383,43 @@ def test_heading_context_that_does_not_fit_is_left_out_and_reported():
     assert not any("Beschreibung" in call["user"] for call in chat.calls if call["system"].startswith("You extract structured"))
 
 
+def table_passage(rows: list[list[str]]) -> Passage:
+    """A table whose rows are lines and whose cells are separated by " | ", every cell with its own box."""
+    lines, cells, offset = [], [], 0
+    for row, values in enumerate(rows):
+        for column, value in enumerate(values):
+            cells.append(TableCell(cell_id=f"r{row}_c{column}", row=row, column=column, rowspan=1, colspan=1, role=None,
+                                   text=value, start=offset, end=offset + len(value),
+                                   bbox_pt=(float(column), float(row), column + 1.0, row + 1.0)))
+            offset += len(value) + 3
+        offset += 1 - 3
+        lines.append(" | ".join(values))
+    text = "\n".join(lines)
+    table = PageTable(rows=len(rows), columns=max(map(len, rows)), producer="docling", cells=cells)
+    return passage("p1_s0", text, label="Table", table=table)
+
+
+def test_a_dense_table_gives_one_entry_per_row_and_each_value_its_own_cell():
+    table = table_passage([[f"{n}. Ort{n}", f"Material: M{n}"] for n in range(1, 6)])
+    source = replace(evidence(table.text), passages=(table,))
+    result, _ = extract(source)
+    assert [record["material"] for record in result["records"]] == [f"M{n}" for n in range(1, 6)]
+    cells = [link["cell"] for link in result["evidence"] if link["path"][2] == "material"]
+    assert cells == [f"r{n}_c1" for n in range(5)] and all(
+        link["precision"] == "cell" for link in result["evidence"] if link["path"][2] == "material")
+    assert_accounted(source, result)
+
+
+def test_a_cell_larger_than_any_window_keeps_its_cell_after_the_cut():
+    table = table_passage([["1. Adorf", "Beschreibung " * 900 + "Material: Zinn"]])
+    source = replace(evidence(table.text), passages=(table,))
+    result, _ = extract(source, input_tokens=600, output_tokens=64)
+    assert result["processing"]["entries"]["windows"] > 1
+    (link,) = [link for link in result["evidence"] if link["path"][2] == "material"]
+    assert (link["cell"], link["precision"], link["raw"]) == ("r0_c1", "cell", "Zinn")
+    assert_accounted(source, result)
+
+
 def test_an_unfittable_minimum_request_is_refused():
     source = evidence("1. Adorf. Material: Blei.")
     with pytest.raises(unified.BudgetRefused, match="discovery"):
