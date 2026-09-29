@@ -85,6 +85,8 @@ export type ReviewDecisionInput = Readonly<{
   reviewedValue: unknown | null
   /** An EDITED decision's own Evidence: the published passage its corrected value is printed in. */
   reviewedEvidence?: readonly Readonly<{ evidenceAnchorId: string; reviewedOccurrenceIds: readonly string[] }>[] | null
+  /** The sample decision this one was carried from; absent on the researcher's own. */
+  carriedFrom?: Readonly<{ extractionId: string; sourcePathKey: string }> | null
 }>
 
 export type ReviewDecision = ReviewDecisionInput & Readonly<{
@@ -276,6 +278,8 @@ export type ExtractionSnapshot = Readonly<{
   createdAt: Date
   reviewedAt: Date | null
   reviewDecisions: readonly ReviewDecision[]
+  /** The sample decisions pinned at admission; null (or absent) when none were. */
+  reviewTransfer?: ReviewTransfer | null
 }>
 
 export type ExtractionAttemptSnapshot = Readonly<{

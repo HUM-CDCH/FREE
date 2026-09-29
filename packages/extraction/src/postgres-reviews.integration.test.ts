@@ -71,6 +71,27 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
     assert.equal(previousDecision?.action, 'EDITED')
   })
 
+  it('seeds a run whose every value carries from a reviewed sample, and only finalization makes it authoritative', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const { module } = createRuntime(project.researcherAccountId)
+    const sample = (await module.runSingle({ ...freshInput(project), pages: [1] })).extraction.extractionId
+    await module.saveReviewDraft(sample, { version: 0, decisions: (await module.prepareReview(sample)).reviewDecisions })
+    const full = (await module.runSingle(freshInput(project))).extraction.extractionId
+    const prepared = await module.prepareReview(full)
+    const seeded = await module.readReviewDraft(full)
+    assert.deepEqual(seeded, { version: 0, decisions: prepared.reviewDecisions.map((decision) => ({
+      ...decision, carriedFrom: { extractionId: sample, sourcePathKey: JSON.stringify(decision.resultPath) },
+    })) })
+    assert.equal(seeded.decisions.length, 1)
+    assert.equal(prepared.extraction.reviewedAt, null)
+    assert.deepEqual(prepared.extraction.reviewDecisions, [])
+    assert.equal((await module.finalizeReview(full, seeded.decisions, 0)).disposition, 'reviewed')
+    const [review] = await db.orm.public.ExtractionReview.where({ extractionId: full }).select('id').all()
+    assert.deepEqual((await db.orm.public.ReviewDecision.where({ extractionReviewId: review!.id }).select('carriedFrom').all())
+      .map((decision) => decision.carriedFrom), seeded.decisions.map((decision) => decision.carriedFrom))
+  })
+
 it('projects only the active review revision into batch results after reset', async (t) => {
     t.after(cleanup)
     const project = await seedProject()

@@ -569,6 +569,8 @@ export function useExtraction({
     updateReview(draftRef.current.decisions.map((decision) => {
       if (resultPathKey(decision.resultPath) !== key) return decision
       const next = { ...decision, action, reviewedValue: action === 'EDITED' ? reviewedValue : null }
+      // The researcher's own decision now, no longer one carried from a sample.
+      delete (next as { carriedFrom?: unknown }).carriedFrom
       if (action === 'EDITED' && reviewedEvidence) return { ...next, reviewedEvidence }
       delete (next as { reviewedEvidence?: unknown }).reviewedEvidence
       return next

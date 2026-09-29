@@ -116,6 +116,8 @@ const reviewDecisionShape = {
   reviewedEvidence: z.array(z.object({
     evidenceAnchorId: z.string().min(1), reviewedOccurrenceIds: z.array(z.string().min(1)),
   }).strict()).nullable().optional(),
+  /** The sample decision this one was carried from; absent on the researcher's own. */
+  carriedFrom: z.object({ extractionId: z.string().min(1), sourcePathKey: z.string().min(1) }).strict().nullable().optional(),
 }
 
 function validateReviewDecision(

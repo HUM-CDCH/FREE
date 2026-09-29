@@ -54,7 +54,7 @@ export function readAttemptRows(orm: DatabaseOrm, extractionIds: readonly string
       'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
       'requestedModels', 'requestedSettings', 'requestedPages', 'outcome', 'complete', 'modelAttribution',
       'diagnostics', 'failure', 'resultPayload', 'evidenceLinks',
-      'reviewable', 'batchExtractionId', 'createdAt', 'reviewedAt',
+      'reviewable', 'batchExtractionId', 'createdAt', 'reviewedAt', 'reviewTransfer',
     )
     .all()
 }
@@ -173,6 +173,7 @@ export async function extractionSnapshot(orm: DatabaseOrm, row: AttemptRow): Pro
     failure: null,
     reviewable: row.reviewable,
     reviewedAt: row.reviewedAt,
+    reviewTransfer: row.reviewTransfer as ExtractionSnapshot['reviewTransfer'],
     reviewDecisions: decisions.map((decision) => ({
       resultPath: decision.resultPath as ExtractionSnapshot['reviewDecisions'][number]['resultPath'],
       evidenceAnchorId: decision.evidenceAnchorId,

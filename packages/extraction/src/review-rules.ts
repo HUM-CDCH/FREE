@@ -92,6 +92,7 @@ export function reviewAuthority(input: Readonly<{
       action: decision.action,
       reviewedValue: decision.reviewedValue,
       ...(decision.reviewedEvidence ? { reviewedEvidence: decision.reviewedEvidence } : {}),
+      ...(decision.carriedFrom ? { carriedFrom: decision.carriedFrom } : {}),
     })),
     occurrenceIdsByAnchor: occurrenceOwnership(input.document),
     evidenceResultPathKeys,
@@ -197,6 +198,9 @@ export function normalizeDecisions(decisions: ReviewAuthority['reviewDecisions']
           evidenceAnchorId: evidence.evidenceAnchorId,
           reviewedOccurrenceIds: [...new Set(evidence.reviewedOccurrenceIds)].sort(),
         })) }
+      : {}),
+    ...(decision.carriedFrom
+      ? { carriedFrom: { extractionId: decision.carriedFrom.extractionId, sourcePathKey: decision.carriedFrom.sourcePathKey } }
       : {}),
   })).sort((left, right) => left.resultPathKey.localeCompare(right.resultPathKey))
 }
