@@ -19,7 +19,7 @@
 //
 // Generate a compact JSON extraction schema for this source document. Return an object named "template". Its first member must be "_description": one concise, explicit sentence defining what constitutes ONE root record in the source document. This record description must distinguish record boundaries (for example, one entry beginning at a numbered heading or one top-level numbered article section); field names alone are not a record definition. Field values should be simple type labels such as "verbatim-string", "string", "date", "number", "integer", "boolean", nested objects, or arrays.
 //
-// When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"].
+// When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"]. Write each allowed value exactly as the source writes it, in the source's language.
 //
 // Annotations:
 // ${annotationText}`
@@ -39,7 +39,7 @@ Represent repeating values as a JSON array containing their item type, for examp
 
 Place the actual requested field names directly inside "template", for example {"template":{"_description":"One numbered entry, including its listed items.","entry_number":"verbatim-string","items":["verbatim-string"]}}. Never return a "fields" list of name/type/description descriptors. Use the researcher's requested fields and record scope when supplied.
 
-When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"].`
+When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"]. Write each allowed value exactly as the source writes it, in the source's language.`
 }
 
 /** Schema design needs examples; extraction still receives the complete source. */

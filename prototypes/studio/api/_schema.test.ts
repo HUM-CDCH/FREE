@@ -25,6 +25,7 @@ describe('schemaPrompt', () => {
     expect(prompt).toContain('Place the actual requested field names directly inside "template"')
     expect(prompt).toContain('Never return a "fields" list')
     expect(prompt).toContain('give that field a literal array of the allowed values instead of a type label')
+    expect(prompt).toContain('Write each allowed value exactly as the source writes it, in the source\'s language.')
     expect(prompt).toContain('Use the researcher\'s requested fields and record scope when supplied.')
   })
 
