@@ -1,6 +1,7 @@
 import { ExtractionError } from './errors.js'
 import type { ParsedDocument } from './parsed-document.js'
-import { populatedContentPaths, resultPathKey } from './review-paths.js'
+import { isDeepStrictEqual } from 'node:util'
+import { populatedContentPaths, resultPathKey, valueAtPath } from './review-paths.js'
 import { isRecord, parseExtractionSchema, partitionSchemaNodes, restoreSchemaNodeOrder, schemaNodeAtPath } from './schema.js'
 import type {
   EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ReviewDecisionInput, ReviewTransfer, TransferEntry, TransferRecord,
@@ -265,6 +266,49 @@ export function reviewAuthorityMatchesExtraction(
 
 type TransferSample = ReviewTransfer['samples'][number]
 
+/** An Extraction's records as a transfer aligns them: segmentation block and the sorted anchors its values cite. */
+export function transferSample(
+  extraction: Pick<ExtractionSnapshot, 'extractionId' | 'result' | 'evidence' | 'diagnostics'>,
+): TransferSample {
+  const grounded = extraction.diagnostics.grounded
+  return {
+    extractionId: extraction.extractionId,
+    segmentation: grounded?.segmentationFingerprint ?? null,
+    records: ((extraction.result?.records ?? []) as unknown[]).map((_, index) => ({
+      block: grounded?.recordBlocks[index]?.block ?? null,
+      anchors: [...new Set((extraction.evidence ?? []).filter((link) => link.resultPath[1] === index)
+        .map((link) => link.evidenceAnchorId))].sort(),
+    })),
+  }
+}
+
+/** A sample's decisions as pinned entries, by node id and value type of the sample's own Schema Revision. */
+export function transferEntries(
+  sample: Pick<ExtractionSnapshot, 'extractionId' | 'result'>,
+  decisions: readonly ReviewDecisionInput[],
+  nodes: readonly ExtractionSchemaNode[],
+  draftVersion: number,
+): TransferEntry[] {
+  return decisions.flatMap((decision) => {
+    const node = schemaNodeAtPath(nodes, decision.resultPath)
+    const record = decision.resultPath[1]
+    if (!node || typeof record !== 'number') return []
+    return [{
+      extractionId: sample.extractionId,
+      draftVersion,
+      nodeId: node.id,
+      record,
+      sourcePathKey: resultPathKey(decision.resultPath),
+      action: decision.action,
+      modelValue: valueAtPath(sample.result, decision.resultPath) ?? null,
+      reviewedValue: decision.reviewedValue,
+      valueType: node.type === 'array' && node.itemType ? node.itemType : node.type,
+      evidenceAnchorId: decision.evidenceAnchorId,
+      reviewedEvidence: decision.reviewedEvidence ?? null,
+    }]
+  })
+}
+
 /**
  * Which record of `other` each record of `records` aligns with (design §7.1): by segmentation block when both ran on
  * the same recipe segmentation, otherwise only a one-to-one, mutual overlap of Evidence Anchors. A record in no pair is
@@ -304,4 +348,76 @@ export function unionReviewTransfer(samples: readonly (TransferSample & { entrie
       .map(({ extractionId, segmentation, records }) => ({ extractionId, segmentation, records })),
     entries,
   }
+}
+
+/** How a destination value compares with the pinned review, and the decision it starts its review draft with. */
+export type TransferVerdict = Readonly<{
+  status: 'fixed' | 'reviewed' | 'changed' | 'unmatched'
+  entry: TransferEntry | null
+  decision: Pick<ReviewDecisionInput, 'action' | 'reviewedValue' | 'reviewedEvidence'> | null
+}>
+
+/** `value` in a field of `type` when it converts without loss, else undefined. */
+function losslessly(value: unknown, type: string): unknown {
+  if (value === null) return null
+  const text = String(value)
+  if (type === 'integer' || type === 'number') {
+    const number = Number(text)
+    return text !== '' && String(number) === text && (type === 'number' || Number.isInteger(number)) ? number : undefined
+  }
+  if (type === 'boolean') return text === 'true' ? true : text === 'false' ? false : undefined
+  return text
+}
+
+/**
+ * Each grounded destination value's verdict against the pinned review (design §7): records align first, fields by
+ * schema node id, array items by their anchor inside the record, never by index. After lossless conversion to the
+ * destination type, an approval carries on the same value and anchor; a correction carries as an approval (fixed) on
+ * the corrected value at its reviewed Evidence, and as itself when the model repeats the corrected value on the same
+ * anchor; a rejection carries on the same value and anchor. Anything else under a decision is changed; a record that
+ * shares a decided record's anchors without aligning is unmatched. A value without a verdict is to review.
+ */
+export function transferVerdicts(
+  transfer: ReviewTransfer,
+  destination: Parameters<typeof transferSample>[0],
+  nodes: readonly ExtractionSchemaNode[],
+): ReadonlyMap<string, TransferVerdict> {
+  const target = transferSample(destination)
+  const pairs = new Map(transfer.samples.map((sample) => [sample.extractionId, alignRecords(target, sample)]))
+  const sampleOf = (entry: TransferEntry) => transfer.samples.find((sample) => sample.extractionId === entry.extractionId)!
+  const verdicts = new Map<string, TransferVerdict>()
+  for (const link of destination.evidence ?? []) {
+    const [, record, ...inRecord] = link.resultPath
+    const node = schemaNodeAtPath(nodes, link.resultPath)
+    if (typeof record !== 'number' || !node) continue
+    const item = inRecord.some((segment) => typeof segment === 'number')
+    // The newest decision on this node of an aligned record (on this item's anchor, for an array item).
+    const entry = transfer.entries.findLast((each) =>
+      each.nodeId === node.id && pairs.get(each.extractionId)!.get(record) === each.record &&
+      (!item || [each.evidenceAnchorId, ...(each.reviewedEvidence ?? []).map((evidence) => evidence.evidenceAnchorId)]
+        .includes(link.evidenceAnchorId)))
+    if (!entry) {
+      const unmatched = ![...pairs.values()].some((aligned) => aligned.has(record)) && transfer.entries.some((each) =>
+        sampleOf(each).records[each.record]!.anchors.some((anchor) => target.records[record]!.anchors.includes(anchor)))
+      if (unmatched) verdicts.set(resultPathKey(link.resultPath), { status: 'unmatched', entry: null, decision: null })
+      continue
+    }
+    const type = node.type === 'array' && node.itemType ? node.itemType : node.type
+    const value = valueAtPath(destination.result, link.resultPath)
+    const equals = (stored: unknown) => {
+      const converted = losslessly(stored, type)
+      return converted !== undefined && isDeepStrictEqual(converted, value)
+    }
+    const reviewedValue = losslessly(entry.reviewedValue, type)
+    const repeated = link.evidenceAnchorId === entry.evidenceAnchorId && equals(entry.modelValue)
+    const fixed = entry.action === 'EDITED' && entry.reviewedEvidence?.length === 1 &&
+      entry.reviewedEvidence[0]!.evidenceAnchorId === link.evidenceAnchorId && equals(entry.reviewedValue)
+    const decision = fixed
+      ? { action: 'APPROVED' as const, reviewedValue: null }
+      : !repeated || (entry.action === 'EDITED' && reviewedValue === undefined) ? null
+      : entry.action === 'EDITED' ? { action: entry.action, reviewedValue, reviewedEvidence: entry.reviewedEvidence }
+      : { action: entry.action, reviewedValue: null }
+    verdicts.set(resultPathKey(link.resultPath), { status: fixed ? 'fixed' : decision ? 'reviewed' : 'changed', entry, decision })
+  }
+  return verdicts
 }

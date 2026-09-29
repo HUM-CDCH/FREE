@@ -36,9 +36,8 @@ import {
 import { extractionSnapshot, readAttemptRows } from './postgres-attempts.js'
 import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
-import { resultPathKey } from './review-paths.js'
-import { unionReviewTransfer } from './review-rules.js'
-import { parseExtractionSchema, schemaNodeAtPath } from './schema.js'
+import { transferEntries, transferSample, unionReviewTransfer } from './review-rules.js'
+import { parseExtractionSchema } from './schema.js'
 import {
   EXTRACTION_QUEUE,
   extractionAttributes,
@@ -213,7 +212,7 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
 /**
  * The sample decisions a single Extraction pins (design §6): those of every sample of its document, Source
  * Representation Revision and Extraction Schema, a finalized review's else its saved draft's, read in the admission
- * transaction. Node ids and value types come from each sample's own Schema Revision.
+ * transaction.
  */
 async function samplesReviewTransfer(orm: DatabaseOrm, pins: AdmissionPins): Promise<ReviewTransfer | null> {
   const rows = (await orm.public.Extraction.where({
@@ -228,35 +227,10 @@ async function samplesReviewTransfer(orm: DatabaseOrm, pins: AdmissionPins): Pro
     const revision = await orm.public.SchemaRevision.select('schemaTree').first({ id: sample.schemaRevisionId })
     const nodes = parseExtractionSchema(revision?.schemaTree).schemaNodes
     const decisions = sample.reviewedAt ? sample.reviewDecisions : (draft.reviewDraft ?? []) as unknown as ReviewDecisionInput[]
-    const grounded = sample.diagnostics.grounded
     samples.push({
-      extractionId: sample.extractionId,
+      ...transferSample(sample),
       createdAt: sample.createdAt,
-      segmentation: grounded?.segmentationFingerprint ?? null,
-      records: ((sample.result?.records ?? []) as unknown[]).map((_, index) => ({
-        block: grounded?.recordBlocks[index]?.block ?? null,
-        anchors: [...new Set((sample.evidence ?? []).filter((link) => link.resultPath[1] === index)
-          .map((link) => link.evidenceAnchorId))].sort(),
-      })),
-      entries: decisions.flatMap((decision) => {
-        const node = schemaNodeAtPath(nodes, decision.resultPath)
-        const record = decision.resultPath[1]
-        if (!node || typeof record !== 'number') return []
-        return [{
-          extractionId: sample.extractionId,
-          draftVersion: draft.reviewDraftVersion,
-          nodeId: node.id,
-          record,
-          sourcePathKey: resultPathKey(decision.resultPath),
-          action: decision.action,
-          modelValue: decision.resultPath.reduce<unknown>(
-            (value, key) => (value as Record<string | number, unknown> | undefined)?.[key], sample.result) ?? null,
-          reviewedValue: decision.reviewedValue,
-          valueType: node.type === 'array' && node.itemType ? node.itemType : node.type,
-          evidenceAnchorId: decision.evidenceAnchorId,
-          reviewedEvidence: decision.reviewedEvidence ?? null,
-        }]
-      }),
+      entries: transferEntries(sample, decisions, nodes, draft.reviewDraftVersion),
     })
   }
   samples.sort((left, right) =>

@@ -7,8 +7,13 @@ import {
   reviewableExtraction,
   reviewAuthority,
   reviewAuthorityMatchesExtraction,
+  transferEntries,
+  transferSample,
+  transferVerdicts,
+  unionReviewTransfer,
   type ReviewAuthority,
 } from './review-rules.js'
+import { parseExtractionSchema } from './schema.js'
 import type { EvidenceLink, ExtractionSnapshot, ResultPath, ReviewDecisionInput } from './types.js'
 
 const schemaTree = {
@@ -194,5 +199,76 @@ describe('Review Decision revalidation against the locked row', () => {
         '{"resultPath":["records",0,"year"],"resultPathKey":"[\\"records\\",0,\\"year\\"]","evidenceAnchorId":"anchor-year",' +
         '"reviewedOccurrenceIds":["o-3"],"action":"APPROVED","reviewedValue":null}]',
     )
+  })
+})
+
+describe('Review transfer from a sample to a later run', () => {
+  const nodes = parseExtractionSchema({
+    recordDescription: 'Catalogue entries.',
+    schemaNodes: [
+      { id: 'n-number', name: 'number', type: 'string' },
+      { id: 'n-date', name: 'date', type: 'string' },
+      { id: 'n-marks', name: 'marks', type: 'array', itemType: 'string' },
+    ],
+  }).schemaNodes
+  type Value = readonly [string, string]
+  /** An Extraction from records of `field: [value, anchor]`, or `[[value, anchor], ...]` for an array. */
+  const run = (extractionId: string, records: Record<string, Value | readonly Value[]>[]) => ({
+    extractionId,
+    diagnostics: {} as ExtractionSnapshot['diagnostics'],
+    result: { records: records.map((record) => Object.fromEntries(Object.entries(record).map(([field, value]) =>
+      [field, Array.isArray(value[0]) ? (value as Value[]).map((item) => item[0]) : value[0]]))) },
+    evidence: records.flatMap((record, index) => Object.entries(record).flatMap(([field, value]) =>
+      Array.isArray(value[0])
+        ? (value as Value[]).map((item, at) => ({ resultPath: ['records', index, field, at], evidenceAnchorId: item[1] }))
+        : [{ resultPath: ['records', index, field], evidenceAnchorId: (value as Value)[1] }])),
+  })
+  type Sample = ReturnType<typeof run>
+  const decide = (sample: Sample, path: ResultPath, action: ReviewDecisionInput['action'], reviewed: Partial<ReviewDecisionInput> = {}) => ({
+    resultPath: path, action, reviewedOccurrenceIds: [], reviewedValue: null, ...reviewed,
+    evidenceAnchorId: sample.evidence.find((each) => JSON.stringify(each.resultPath) === JSON.stringify(path))!.evidenceAnchorId,
+  })
+  /** Each destination value's status, carried action and carried value after `decisions` on `sample`. */
+  const verdicts = (sample: Sample, decisions: ReviewDecisionInput[], destination: Sample) =>
+    Object.fromEntries([...transferVerdicts(
+      unionReviewTransfer([{ ...transferSample(sample), entries: transferEntries(sample, decisions, nodes, 1) }])!,
+      destination, nodes,
+    )].map(([key, { status, decision }]) => [key, [status, decision?.action, decision?.reviewedValue].filter(Boolean).join(' ')]))
+  const date = ['records', 0, 'date']
+  const nr41 = (dateValue: string, anchor: string, extractionId = 'full') => run(extractionId, [{ number: ['41', 'a0'], date: [dateValue, anchor] }])
+  const corrected = { reviewedValue: 'um 1650', reviewedEvidence: [{ evidenceAnchorId: 'a1', reviewedOccurrenceIds: ['o1'] }] }
+
+  it('carries an approval, the same mistake, a fix and a rejection, and nothing on another anchor', () => {
+    const sample = nr41('1897', 'a2', 'sample')
+    const cell = nr41('1897', 'a_p3_s2_c4', 'sample')
+    const cases: [string, Sample, ReviewDecisionInput, Sample, string][] = [
+      ['approval', sample, decide(sample, date, 'APPROVED'), nr41('1897', 'a2'), 'reviewed APPROVED'],
+      ['same mistake', sample, decide(sample, date, 'EDITED', corrected), nr41('1897', 'a2'), 'reviewed EDITED um 1650'],
+      ['fix', sample, decide(sample, date, 'EDITED', corrected), nr41('um 1650', 'a1'), 'fixed APPROVED'],
+      ['fix without its Evidence', sample, decide(sample, date, 'EDITED', { reviewedValue: 'um 1650' }), nr41('um 1650', 'a1'), 'changed'],
+      ['rejection', sample, decide(sample, date, 'REJECTED'), nr41('1897', 'a2'), 'reviewed REJECTED'],
+      ['moved anchor', sample, decide(sample, date, 'APPROVED'), nr41('1897', 'a3'), 'changed'],
+      ['same table cell', cell, decide(cell, date, 'APPROVED'), nr41('1897', 'a_p3_s2_c4'), 'reviewed APPROVED'],
+      ['another table cell', cell, decide(cell, date, 'APPROVED'), nr41('1897', 'a_p3_s2_c5'), 'changed'],
+    ]
+    for (const [name, source, decision, destination, expected] of cases)
+      assert.equal(verdicts(source, [decision], destination)[JSON.stringify(date)], expected, name)
+  })
+
+  it('leaves merged and split Article records unmatched', () => {
+    const two = run('sample', [{ number: ['41', 'a0'], date: ['1897', 'a1'] }, { number: ['42', 'b0'], date: ['1612', 'b1'] }])
+    const both = [decide(two, date, 'APPROVED'), decide(two, ['records', 1, 'date'], 'APPROVED')]
+    assert.deepEqual(verdicts(two, both, run('full', [{ number: ['41', 'a0'], date: ['1612', 'b1'] }])),
+      { '["records",0,"number"]': 'unmatched', '["records",0,"date"]': 'unmatched' })
+    const one = nr41('1897', 'a1', 'sample')
+    assert.deepEqual(verdicts(one, [decide(one, date, 'APPROVED')], run('full', [{ number: ['41', 'a0'] }, { date: ['1897', 'a1'] }])),
+      { '["records",0,"number"]': 'unmatched', '["records",1,"date"]': 'unmatched' })
+  })
+
+  it('aligns array items by their anchors, never by index', () => {
+    const marks = run('sample', [{ number: ['41', 'a0'], marks: [['N', 'm1'], ['A', 'm2']] }])
+    const decisions = [decide(marks, ['records', 0, 'marks', 0], 'APPROVED'), decide(marks, ['records', 0, 'marks', 1], 'REJECTED')]
+    assert.deepEqual(verdicts(marks, decisions, run('full', [{ number: ['41', 'a0'], marks: [['A', 'm2'], ['N', 'm1']] }])),
+      { '["records",0,"marks",0]': 'reviewed REJECTED', '["records",0,"marks",1]': 'reviewed APPROVED' })
   })
 })
