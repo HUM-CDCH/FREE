@@ -281,6 +281,65 @@ lanes. Extraction quality is checked by integration validation, not by the
 health routes. Check the public application through the configured HTTPS proxy
 and sign-in path.
 
+## Model-call traces (Phoenix)
+
+Enable the optional Phoenix collector when deploying or updating the running
+production stack:
+
+```bash
+pnpm production -- --phoenix
+```
+
+The launcher adds `compose.phoenix.yaml` and the `phoenix` profile alongside
+the production, bundled-nginx and GPU overlays the deployment uses. It keeps
+the build-before-stop sequence and stops only Studio and the parsing API/worker;
+the model servers stay running and all existing data volumes are retained.
+Studio and the worker export to `http://phoenix:6006/v1/traces`. Nothing depends
+on the collector, so stopping it does not stop inference. Phoenix restarts with
+Docker and retains its traces in `phoenix-data`.
+
+Content capture is off by default. To record LLM input and raw output, add this
+to the existing root `.env`, then redeploy with `--phoenix`:
+
+```dotenv
+FREE_TRACE_CAPTURE=prompts,responses
+```
+
+Add `parsed` to also record FREE's interpreted output. For a single deployment,
+the process environment takes precedence over `.env`:
+
+```bash
+FREE_TRACE_CAPTURE=prompts,responses,parsed FREE_GPU=required pnpm production -- --phoenix
+```
+
+On DGX Spark, keep the existing `FREE_NGINX=container`, TLS, Entra and validated
+ARM64/GB10 `VLLM_IMAGE` settings. The pinned Phoenix image supports ARM64.
+The dashboard is published only on Spark's loopback at port 6006, never through
+nginx. From your own machine, forward it over SSH:
+
+```bash
+ssh -N -L 6006:127.0.0.1:6006 <spark-ssh-host>
+```
+
+Open http://localhost:6006, run a Schema Suggestion, Interaction or Extraction,
+and inspect its model-call spans for the opted-in input and output. Captured
+content includes source text and persists in the trace volume. Request headers
+and model keys are never recorded; model-call error messages, stacks and
+provider refusal bodies are omitted even with capture enabled. The
+[local tracing guide](local-development.md#model-call-traces-phoenix) describes
+workflow correlation, retries and recovery limits. Surya's OCR requests are not
+traced.
+
+Pass `--phoenix` on every later redeploy that should keep tracing. Running plain
+`pnpm production` disables tracing in Studio and the worker, even if
+`FREE_TRACE_CAPTURE` or `FREE_PHOENIX` is set. A previously started collector
+and its data volume remain; stop that collector separately if desired:
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml -f compose.phoenix.yaml \
+  --profile phoenix stop phoenix
+```
+
 ## Manage Researcher access
 
 Assign or remove Researchers on the Microsoft Entra enterprise application.
@@ -453,7 +512,7 @@ docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres 
 ```
 
 Add `-f compose.nginx.yaml` and `-f compose.gpu.yaml` when the deployment uses
-them.
+them. For tracing operations, also add `-f compose.phoenix.yaml --profile phoenix`.
 
 - **Cancelling.** A cancel stops a workflow at its next step boundary; a step
   already running finishes first. The Parsing Service's steps also check for a
