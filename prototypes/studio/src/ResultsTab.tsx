@@ -789,7 +789,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 <p className="font-semibold">Incomplete Extraction</p>
                 <p>Successful values remain visible. See the persisted stage diagnostics for details.</p>
                 {attempt.diagnostics?.grounding?.issueCodes.includes('text_truncated') && (
-                  <p>Part of the source was longer than the extraction's text budget and was not read; values found only there are missing.</p>
+                  <p>Some extraction calls omitted source text because of their text budget; affected values may be missing.</p>
                 )}
               </div>
             )}
