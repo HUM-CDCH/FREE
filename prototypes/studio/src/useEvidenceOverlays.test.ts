@@ -13,6 +13,36 @@ afterEach(() => {
 })
 
 describe('focused Evidence navigation', () => {
+  it('repaints after a PDF page reset and releases the focus listener on selection and source changes', () => {
+    const parsedDocument = decodeParsedDocument(parsedFixture)
+    const anchor = parsedDocument.evidence_index.anchors[0]
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0].page_number}"></div>`
+    container.scrollTo = vi.fn()
+    document.body.append(container)
+    const listeners = new Set<() => void>()
+    const viewer = { scrollPageIntoView: vi.fn(), eventBus: {
+      on: (_event: string, paint: () => void) => listeners.add(paint),
+      off: (_event: string, paint: () => void) => listeners.delete(paint),
+    } }
+    const containerRef = { current: container }, viewerRef = { current: viewer as never }
+    const { result, rerender } = renderHook(({ document }) => useEvidenceOverlays({
+      containerRef, viewerRef, parsedDocument: document, attempt: null,
+      fieldNames: [], resultPath: null, active: false,
+    }), { initialProps: { document: parsedDocument as typeof parsedDocument | null } })
+
+    act(() => result.current(anchor))
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
+    container.querySelector('.page')!.replaceChildren()
+    act(() => listeners.forEach((paint) => paint()))
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
+    act(() => result.current(anchor))
+    expect(listeners.size).toBe(1)
+    rerender({ document: null })
+    expect(listeners.size).toBe(0)
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
+  })
+
   it.each([300, 2000])('centers off-screen columns when the passage is at y=%i', (top) => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]

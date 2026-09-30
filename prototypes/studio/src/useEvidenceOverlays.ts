@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type {
   ParsedDocument,
@@ -140,6 +140,7 @@ export function useEvidenceOverlays({
   /** When given, painted passages carry their field names and a click on one picks the value it supports. */
   onPick?: (resultPath: readonly (string | number)[]) => void
 }) {
+  const stopFocusedPaint = useRef<(() => void) | null>(null)
   useEffect(() => {
     const container = containerRef.current
     const viewer = viewerRef.current
@@ -226,16 +227,20 @@ export function useEvidenceOverlays({
 
   useEffect(
     () => () => {
+      stopFocusedPaint.current?.()
+      stopFocusedPaint.current = null
       removeOverlays(containerRef.current, 'parsed-evidence-focus')
       removeOverlays(containerRef.current, 'parsed-evidence-highlight')
     },
-    [containerRef],
+    [attempt, containerRef, parsedDocument],
   )
 
   return useCallback(
     (anchor: ParsedEvidenceAnchor) => {
       const viewer = viewerRef.current
       const container = containerRef.current
+      stopFocusedPaint.current?.()
+      stopFocusedPaint.current = null
       removeOverlays(container, 'parsed-evidence-focus')
       if (!viewer || !container || !parsedDocument) return
       const occurrences = reviewedAnchorOccurrences(
@@ -244,15 +249,23 @@ export function useEvidenceOverlays({
       )
       const firstOccurrence = occurrences[0]
       if (!firstOccurrence) return
-      let firstFocus: HTMLElement | null = null
-      for (const occurrence of occurrences) {
-        const focus = appendOverlay(container, parsedDocument, occurrence, {
-          className: 'parsed-evidence-focus',
-          border: '2px solid #d97706',
-          background: 'rgb(251 191 36 / 0.22)',
-        })
-        if (focus) firstFocus ??= focus
+      // pdf.js resets an unrendered page's children; retain the selection through that render and later zooms.
+      const paintFocus = () => {
+        removeOverlays(container, 'parsed-evidence-focus')
+        let firstFocus: HTMLElement | null = null
+        for (const occurrence of occurrences) {
+          const focus = appendOverlay(container, parsedDocument, occurrence, {
+            className: 'parsed-evidence-focus',
+            border: '2px solid #d97706',
+            background: 'rgb(251 191 36 / 0.22)',
+          })
+          if (focus) firstFocus ??= focus
+        }
+        return firstFocus
       }
+      viewer.eventBus?.on('pagerendered', paintFocus)
+      stopFocusedPaint.current = () => viewer.eventBus?.off('pagerendered', paintFocus)
+      const firstFocus = paintFocus()
       if (firstFocus) scrollOverlayIntoView(container, firstFocus)
       else viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     },
