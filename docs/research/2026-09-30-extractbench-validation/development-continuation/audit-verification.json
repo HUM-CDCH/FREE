@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-30",
+  "helper_sha256": "402bc1f18020f678a1103c2880e5b65da581a62cd09d0028b11883bfcc9df51c",
+  "inference_calls": 0,
+  "read_only_review": "No remaining concrete blocker after interruption and completion-versus-coverage reporting corrections",
+  "checks": [
+    "804 possible nominal/recovery requests reconstructed from InferenceCase without gold; current caches match",
+    "completed fixture: exact fresh calls and known tokens",
+    "journal completed before cache fixture: known usage retained without a response cache",
+    "interrupted before response fixture: one charged call, unknown usage, 36864 conservative tokens",
+    "signal without exit confirmation fixture: refused before writing audit output",
+    "all four interruption fixtures project exactly 48 rows across 12 development source groups; blocked and unsealed quality scores remain empty",
+    "population table preserves 37 historical charged calls and adds only journaled continuation spending",
+    "scored-result completion and complete source-region coverage have separate population counters; incomplete-coverage fixture passed"
+  ],
+  "fixture_storage": "temporary task-owned directories under .scratch/tmp; original run unchanged"
+}
