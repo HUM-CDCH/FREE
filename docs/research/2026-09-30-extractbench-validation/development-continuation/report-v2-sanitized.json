@@ -1,0 +1,1393 @@
+{
+  "study": "extractbench-v2-development",
+  "split": "dev",
+  "variants": {
+    "base": {
+      "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+      "documents": {
+        "short--uillinois_rate_card_carpool_2024": {
+          "group": "uillinois-fleet-2024",
+          "counts": {
+            "gold_records": 29,
+            "pred_records": 29,
+            "matched_records": 29,
+            "missing_records": 0,
+            "duplicated_records": 0,
+            "documents": 1,
+            "cross_page_fragments": 0,
+            "hallucinated_records": 0,
+            "cross_page_gold": 0,
+            "cross_page_matched": 0,
+            "gold_value_fields": 86,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 86,
+            "wrong_values": 8,
+            "ev_predicted": 86,
+            "ev_value_correct": 78,
+            "ev_cited": 0,
+            "ev_page_hit": 0,
+            "ev_page_joint": 0,
+            "ev_page_annotated": 86,
+            "tp": 78,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 36,
+            "detector_tn": 78,
+            "raw_gold_records": 29,
+            "raw_pred_records": 29,
+            "raw_matched_records": 29,
+            "raw_missing_records": 0,
+            "raw_duplicated_records": 0,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 0,
+            "raw_hallucinated_records": 0,
+            "raw_cross_page_gold": 0,
+            "raw_cross_page_matched": 0,
+            "raw_gold_value_fields": 86,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 86,
+            "raw_wrong_values": 29,
+            "raw_ev_predicted": 86,
+            "raw_ev_value_correct": 57,
+            "raw_ev_cited": 0,
+            "raw_ev_page_hit": 0,
+            "raw_ev_page_joint": 0,
+            "raw_ev_page_annotated": 86,
+            "raw_tp": 57,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 57,
+            "raw_detector_tn": 57,
+            "gold_absent_fields": 28,
+            "hallucinated_fields": 28,
+            "raw_gold_absent_fields": 28,
+            "raw_hallucinated_fields": 28,
+            "repeated_gold_records": 28,
+            "repeated_pred_records": 28,
+            "repeated_matched_records": 28,
+            "repeated_missing_records": 0,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 0,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "replies_total": 1,
+            "replies_valid": 1,
+            "fresh_calls": 1,
+            "fresh_input_tokens": 1193,
+            "fresh_output_tokens": 1866,
+            "fresh_seconds": 240.998881,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.6842105263157895,
+              "recall": 0.9069767441860465,
+              "f1": 0.78,
+              "predicted_values": 114,
+              "gold_value_fields": 86,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.0,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 0,
+                "missing_record": 0
+              }
+            },
+            "records": {
+              "gold": 29,
+              "predicted": 29,
+              "matched": 29,
+              "missing": 0,
+              "hallucinated": 0,
+              "duplicated": 0,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 0,
+                "matched": 0,
+                "strict": 0,
+                "fragments": 0
+              }
+            },
+            "evidence": {
+              "annotated_fields": 86,
+              "predicted_annotated": 86,
+              "cited": 0,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.0,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 0.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 78,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 1
+            },
+            "cost": {
+              "fresh": {
+                "calls": 1,
+                "input_tokens": 1193,
+                "output_tokens": 1866,
+                "seconds": 240.998881
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.5,
+                "recall": 0.6627906976744186,
+                "f1": 0.57,
+                "predicted_values": 114,
+                "gold_value_fields": 86,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 29,
+                "predicted": 29,
+                "matched": 29,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.6842105263157895,
+                "recall": 0.9069767441860465,
+                "f1": 0.78,
+                "predicted_values": 114,
+                "gold_value_fields": 86,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 29,
+                "predicted": 29,
+                "matched": 29,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 28,
+              "pred_records": 28,
+              "matched_records": 28,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 36,
+              "tn": 78
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 1,
+            "processed": 1,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "925bc944bed70860a94263cfc68cda543d99aa518da862319f2a1869b107f029"
+          ]
+        }
+      },
+      "groups": 1,
+      "cases": 1,
+      "attempt_spend": {
+        "fresh_calls": 1,
+        "attempts": 1,
+        "not_sealed": 0
+      },
+      "missing_cells": [
+        {
+          "case": "short--caterpillar_spec_sheet_312c_excavator",
+          "status": "not_run"
+        },
+        {
+          "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+          "status": "not_run"
+        },
+        {
+          "case": "short--viega_price_list_propress_2026",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--erie_county_2017_single_audit",
+          "status": "not_run"
+        }
+      ],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.6842105263157895,
+          "recall": 0.9069767441860465,
+          "f1": 0.78,
+          "predicted_values": 114,
+          "gold_value_fields": 86,
+          "unannotated_fields": 0,
+          "optional_values_accepted": 0,
+          "absent_accuracy": 0.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 29,
+          "predicted": 29,
+          "matched": 29,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.0,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 86,
+          "predicted_annotated": 86,
+          "cited": 0,
+          "joint": null,
+          "raw_span_hit": null,
+          "annotated_page_joint": 0.0,
+          "semantic_support": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": 0.0,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 78,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 1
+        },
+        "cost": {
+          "fresh": {
+            "calls": 1,
+            "input_tokens": 1193,
+            "output_tokens": 1866,
+            "seconds": 240.998881
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        },
+        "evaluator_version": 2,
+        "raw_exact": {
+          "field": {
+            "precision": 0.5,
+            "recall": 0.6627906976744186,
+            "f1": 0.57,
+            "predicted_values": 114,
+            "gold_value_fields": 86,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.0,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 29,
+            "predicted": 29,
+            "matched": 29,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            }
+          }
+        },
+        "canonicalized": {
+          "field": {
+            "precision": 0.6842105263157895,
+            "recall": 0.9069767441860465,
+            "f1": 0.78,
+            "predicted_values": 114,
+            "gold_value_fields": 86,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.0,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 29,
+            "predicted": 29,
+            "matched": 29,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            }
+          }
+        },
+        "repeated_records": {
+          "gold_records": 28,
+          "pred_records": 28,
+          "matched_records": 28,
+          "missing_records": 0,
+          "duplicated_records": 0,
+          "hallucinated_records": 0,
+          "strict_records": 0,
+          "cross_page_gold": 0,
+          "cross_page_strict": 0
+        },
+        "verifier_error_detection": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 36,
+          "tn": 78
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.6842105263157895,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": 0.9069767441860465,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": 0.78,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 1,
+        "input_tokens": 1193,
+        "output_tokens": 1866,
+        "seconds": 240.998881
+      }
+    },
+    "A1": {
+      "config_sha256": "cc9a2380816ee0882ffa9d0715c6e39da04aeeebef8460cf6c202776a1b969f5",
+      "documents": {},
+      "groups": 0,
+      "cases": 0,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 0,
+        "not_sealed": 0
+      },
+      "missing_cells": [
+        {
+          "case": "short--caterpillar_spec_sheet_312c_excavator",
+          "status": "not_run"
+        },
+        {
+          "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+          "status": "not_run"
+        },
+        {
+          "case": "short--uillinois_rate_card_carpool_2024",
+          "status": "not_run"
+        },
+        {
+          "case": "short--viega_price_list_propress_2026",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--erie_county_2017_single_audit",
+          "status": "not_run"
+        }
+      ],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "predicted_values": 0,
+          "gold_value_fields": 0,
+          "unannotated_fields": 0,
+          "optional_values_accepted": 0,
+          "absent_accuracy": null,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 0,
+          "predicted": 0,
+          "matched": 0,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": null,
+          "strict_documents": null,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 0,
+          "predicted_annotated": 0,
+          "cited": 0,
+          "joint": null,
+          "raw_span_hit": null,
+          "annotated_page_joint": null,
+          "semantic_support": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": null,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 0,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": null,
+          "replies": 0
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        },
+        "evaluator_version": 2,
+        "raw_exact": {
+          "field": {
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "predicted_values": 0,
+            "gold_value_fields": 0,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": null,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 0,
+            "predicted": 0,
+            "matched": 0,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": null,
+            "strict_documents": null,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            }
+          }
+        },
+        "canonicalized": {
+          "field": {
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "predicted_values": 0,
+            "gold_value_fields": 0,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": null,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 0,
+            "predicted": 0,
+            "matched": 0,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": null,
+            "strict_documents": null,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            }
+          }
+        },
+        "repeated_records": {
+          "gold_records": 0,
+          "pred_records": 0,
+          "matched_records": 0,
+          "missing_records": 0,
+          "duplicated_records": 0,
+          "hallucinated_records": 0,
+          "strict_records": 0,
+          "cross_page_gold": 0,
+          "cross_page_strict": 0
+        },
+        "verifier_error_detection": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": null,
+          "interval": null,
+          "groups": 0,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": null,
+          "interval": null,
+          "groups": 0,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": null,
+          "interval": null,
+          "groups": 0,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "seconds": 0
+      }
+    },
+    "A2": {
+      "config_sha256": "9b7ec29fdcd9b7eaad37c1a0e3c99a2c9e8e1090c25e486b855f588acb7a73c1",
+      "documents": {},
+      "groups": 0,
+      "cases": 0,
+      "attempt_spend": {
+        "fresh_calls": 14,
+        "attempts": 1,
+        "not_sealed": 1
+      },
+      "missing_cells": [
+        {
+          "case": "short--caterpillar_spec_sheet_312c_excavator",
+          "status": "not_run"
+        },
+        {
+          "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+          "status": "not_run"
+        },
+        {
+          "case": "short--uillinois_rate_card_carpool_2024",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--erie_county_2017_single_audit",
+          "status": "not_run"
+        }
+      ],
+      "failed_cells": [
+        {
+          "case": "short--viega_price_list_propress_2026",
+          "status": "stopped_by_study_budget",
+          "attempt": 1,
+          "wall_seconds": 6511.5,
+          "spent": {
+            "fresh": {
+              "calls": 14,
+              "input_tokens": 24319,
+              "output_tokens": 50434,
+              "seconds": 6510.137758,
+              "failed": 0,
+              "unknown_usage": 0
+            },
+            "replayed": {
+              "calls": 0,
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "seconds": 0,
+              "failed": 0,
+              "unknown_usage": 0
+            }
+          },
+          "code_sha256": "3848aa62401d5185074fdd3321450d8ecc185c5372b17043bb291a7ac4fc1408",
+          "environment": {
+            "python": "3.13.12",
+            "system": "Linux x86_64",
+            "numpy": "2.5.3",
+            "scipy": "1.18.1",
+            "jsonschema": "4.26.0",
+            "pydantic": "2.13.5",
+            "requests": "2.34.2"
+          },
+          "error_sha256": "138b2b82fa0ff37a2288df06eee5fca8a9b17629cee737c09c81a7af94730669"
+        }
+      ],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "predicted_values": 0,
+          "gold_value_fields": 0,
+          "unannotated_fields": 0,
+          "optional_values_accepted": 0,
+          "absent_accuracy": null,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 0,
+          "predicted": 0,
+          "matched": 0,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": null,
+          "strict_documents": null,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 0,
+          "predicted_annotated": 0,
+          "cited": 0,
+          "joint": null,
+          "raw_span_hit": null,
+          "annotated_page_joint": null,
+          "semantic_support": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": null,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 0,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": null,
+          "replies": 0
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        },
+        "evaluator_version": 2,
+        "raw_exact": {
+          "field": {
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "predicted_values": 0,
+            "gold_value_fields": 0,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": null,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 0,
+            "predicted": 0,
+            "matched": 0,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": null,
+            "strict_documents": null,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            }
+          }
+        },
+        "canonicalized": {
+          "field": {
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "predicted_values": 0,
+            "gold_value_fields": 0,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": null,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 0,
+            "predicted": 0,
+            "matched": 0,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": null,
+            "strict_documents": null,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            }
+          }
+        },
+        "repeated_records": {
+          "gold_records": 0,
+          "pred_records": 0,
+          "matched_records": 0,
+          "missing_records": 0,
+          "duplicated_records": 0,
+          "hallucinated_records": 0,
+          "strict_records": 0,
+          "cross_page_gold": 0,
+          "cross_page_strict": 0
+        },
+        "verifier_error_detection": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": null,
+          "interval": null,
+          "groups": 0,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": null,
+          "interval": null,
+          "groups": 0,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": null,
+          "interval": null,
+          "groups": 0,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "seconds": 0
+      }
+    },
+    "A3": {
+      "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+      "documents": {},
+      "groups": 0,
+      "cases": 0,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 0,
+        "not_sealed": 0
+      },
+      "missing_cells": [
+        {
+          "case": "short--caterpillar_spec_sheet_312c_excavator",
+          "status": "not_run"
+        },
+        {
+          "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+          "status": "not_run"
+        },
+        {
+          "case": "short--uillinois_rate_card_carpool_2024",
+          "status": "not_run"
+        },
+        {
+          "case": "short--viega_price_list_propress_2026",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--erie_county_2017_single_audit",
+          "status": "not_run"
+        }
+      ],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "predicted_values": 0,
+          "gold_value_fields": 0,
+          "unannotated_fields": 0,
+          "optional_values_accepted": 0,
+          "absent_accuracy": null,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 0,
+          "predicted": 0,
+          "matched": 0,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": null,
+          "strict_documents": null,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 0,
+          "predicted_annotated": 0,
+          "cited": 0,
+          "joint": null,
+          "raw_span_hit": null,
+          "annotated_page_joint": null,
+          "semantic_support": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": null,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 0,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": null,
+          "replies": 0
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        },
+        "evaluator_version": 2,
+        "raw_exact": {
+          "field": {
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "predicted_values": 0,
+            "gold_value_fields": 0,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": null,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 0,
+            "predicted": 0,
+            "matched": 0,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": null,
+            "strict_documents": null,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            }
+          }
+        },
+        "canonicalized": {
+          "field": {
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "predicted_values": 0,
+            "gold_value_fields": 0,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": null,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 0,
+            "predicted": 0,
+            "matched": 0,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": null,
+            "strict_documents": null,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            }
+          }
+        },
+        "repeated_records": {
+          "gold_records": 0,
+          "pred_records": 0,
+          "matched_records": 0,
+          "missing_records": 0,
+          "duplicated_records": 0,
+          "hallucinated_records": 0,
+          "strict_records": 0,
+          "cross_page_gold": 0,
+          "cross_page_strict": 0
+        },
+        "verifier_error_detection": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": null,
+          "interval": null,
+          "groups": 0,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": null,
+          "interval": null,
+          "groups": 0,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": null,
+          "interval": null,
+          "groups": 0,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "seconds": 0
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "control": "base",
+      "treatment": "A1",
+      "factor": "merge",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 0,
+      "unpaired_groups": {
+        "uillinois-fleet-2024": "not run in the treatment"
+      },
+      "effect": {
+        "documents": 0,
+        "mean": null,
+        "percentile_95": null
+      },
+      "requests": {
+        "control_only": 0,
+        "treatment_only": 0,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 0,
+        "calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "seconds": 0
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "A2",
+      "factor": "evidence",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 0,
+      "unpaired_groups": {
+        "uillinois-fleet-2024": "not run in the treatment"
+      },
+      "effect": {
+        "documents": 0,
+        "mean": null,
+        "percentile_95": null
+      },
+      "requests": {
+        "control_only": 0,
+        "treatment_only": 0,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 0,
+        "calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "seconds": 0
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "A3",
+      "factor": "evidence",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 0,
+      "unpaired_groups": {
+        "uillinois-fleet-2024": "not run in the treatment"
+      },
+      "effect": {
+        "documents": 0,
+        "mean": null,
+        "percentile_95": null
+      },
+      "requests": {
+        "control_only": 0,
+        "treatment_only": 0,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 0,
+        "calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "seconds": 0
+      }
+    }
+  ],
+  "interactions": [],
+  "provenance": {
+    "run_code_matches_current": true,
+    "cells_by_code_sha256": {
+      "3848aa62401d5185074fdd3321450d8ecc185c5372b17043bb291a7ac4fc1408": 1
+    },
+    "current_code_sha256": "3848aa62401d5185074fdd3321450d8ecc185c5372b17043bb291a7ac4fc1408",
+    "manifest_code_matches_current": true,
+    "environment_matches_current": true,
+    "environment_at_run": {
+      "python": "3.13.12",
+      "system": "Linux x86_64",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "jsonschema": "4.26.0",
+      "pydantic": "2.13.5",
+      "requests": "2.34.2"
+    },
+    "provider": {
+      "url": "http://127.0.0.1:18080/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "served": {
+        "id": "Qwen/Qwen3.8-27B-FP8",
+        "max_model_len": 32768,
+        "root": "Qwen/Qwen3.8-27B-FP8"
+      },
+      "context_tokens": 32768,
+      "deployment": {
+        "name": "existing-local-qwen",
+        "model_revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+        "image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+        "vllm": "0.29.1rc1.dev17+gd2d649e67.d20260913",
+        "torch": "2.13.0+cu130",
+        "transformers": "5.17.0"
+      }
+    },
+    "scorer_sha256": "f1a3942b0b2119f3505b66338cf6a378fbc4c1434d4dab3ca9288fb441137ec4",
+    "evaluation_version": 2,
+    "original_evaluation_sha256": "4e6c56c77ef414e406a1743eedfe670aa7de5849b0ab7a7095316ccfbc9b38d8",
+    "rescored": false
+  },
+  "limits": [
+    "Documents of one group are resampled together; intervals over few groups are descriptive, not evidence of generalisation.",
+    "Synthetic or development data test the implementation, not real-world superiority.",
+    "Model calls are not deterministic even at temperature 0; repeats would measure serving variability.",
+    "Cost is real inference plus replayed replies at their recorded cost, for sealed cells only; what failed or unsealed attempts spent is `attempt_spend`, and cost deltas use the cases both arms completed.",
+    "Model-seconds are as recorded when each reply was made, under whatever load the server had then: compare calls and tokens, not seconds, across arms."
+  ],
+  "selection": "none: this report names no winner; a variant is chosen on split dev alone and reported once on test"
+}

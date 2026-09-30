@@ -1,0 +1,49 @@
+{
+  "at": "2026-09-30T12:50:01.712905+00:00",
+  "pre_report_commit": "30255ecc1057057c8ca8d2694849708fd499394f",
+  "stacked_base": "16819c72cf1ef54bfdf73d4159c5ee65dce048f8",
+  "stacked_base_is_ancestor": true,
+  "production_source_diff_from_base": false,
+  "all_100_frozen_source_files_match": true,
+  "source_aggregate_sha256": "3848aa62401d5185074fdd3321450d8ecc185c5372b17043bb291a7ac4fc1408",
+  "runner_exited_normally": true,
+  "runner_wall_seconds": 6753.191787,
+  "hard_wall_cap_seconds": 7200,
+  "admission_stop_record": {
+    "at": "2026-09-30T12:39:40.251749+00:00"
+  },
+  "latest_request_started_at": "2026-09-30T12:38:24.089351+00:00",
+  "all_requests_admitted_before_planned_deadline": true,
+  "request_journal_cache_and_attempt_spend_reconciled": true,
+  "all_new_request_usage_known": true,
+  "offline_audit_fresh_calls": 0,
+  "offline_audit_tokenizer_calls": 0,
+  "fast_tests_on_frozen_source": {
+    "passed": 160,
+    "live_deselected": 2,
+    "record": "prelaunch-verification.json"
+  },
+  "live_provider_tests_on_same_harness_source": {
+    "passed": 2,
+    "record": "../verification.json"
+  },
+  "server_configurations_unchanged_and_healthy": true,
+  "owned_tunnel_exited": true,
+  "holdout_inference_calls": 0,
+  "holdout_pdfs_downloaded": 0,
+  "available_cache_filesystem_bytes": 94695337984,
+  "public_copies": {
+    "audit.json": "e01bc4565260c19dac3f7d4b364e2806ce7a0bbfd4da184ea6ac9b7193a182c0",
+    "report-v2-sanitized.json": "03fc7dd0137b71ae0812f09fba9f114b0e23b729bea26b2bf525e927d8a6bbed",
+    "per-document-all-development.csv": "5bd7457b1321da865a2d2c34543c96599587fdba4d98a8c0b2177c93d00987f2",
+    "population.json": "babdbcc5af1bbb6ef2be9c3577bf2dbd4a298f638748e801b494495e054c15dd",
+    "runner-started.json": "510d4cd53b3c9b1cd9315f66eb2aa5010aa85c205c6e4f87ccb224dfd6f16f16",
+    "runner-finished.json": "415e2803d2e7cf0ee3ac58c49e6edb6e6190de146f0702a41266f1493e57d5a3",
+    "runtime-cap-stop.json": "be723510d19250ae3a37bca253ff6e6cc975c7ec455fad24bae83fb9e277832b",
+    "runtime-cap-finished.json": "48f4e3221b9d2c9948caf58bc48863b02d4b1787233d91ce3d1d0f85413aa163",
+    "detached-processes.json": "8669fc97ec6ae6bd7b63fe56ed6645e9b5585fe412a4dbd4c49c49aaa5f5cb67",
+    "tunnel-closed.json": "a7cbe022d9b2189cd4eabd44ae56a3e9c91501a591087054baa933ffbf5e4790",
+    "execution-manifest.json": "fff9172801ce5020b7a9e27712df23d95ddb489b1e6e23abde95d68928fe17ed",
+    "server-verification.json": "dc9786c5e04ffd5ecfd2682956ecd4d97c6cbb942b92408a7950aa7043ac4cae"
+  }
+}

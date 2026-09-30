@@ -1,0 +1,21 @@
+{
+  "at": "2026-09-30T10:54:38.438363+00:00",
+  "prelaunch_commit": "f166c0f70467d07fb75522574e2cfee96758f8f5",
+  "runner_pid": 290991,
+  "tunnel_pid": 290983,
+  "command": [
+    "/home/gebbaro/Progetti/FREE/prototypes/parsing_service/.venv/bin/python",
+    "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/docs/research/2026-09-30-extractbench-validation/development-continuation/run_bounded.py",
+    "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/.scratch/extractbench-v2-development",
+    "--hours",
+    "8"
+  ],
+  "source_harness_unchanged": true,
+  "admission_hours": 8,
+  "fresh_call_cap": 400,
+  "initial_queue_counters": [
+    "vllm:num_requests_running{engine=\"0\",model_name=\"Qwen/Qwen3.8-27B-FP8\"} 0.0",
+    "vllm:num_requests_waiting{engine=\"0\",model_name=\"Qwen/Qwen3.8-27B-FP8\"} 0.0"
+  ],
+  "stop_requests_file": "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/.scratch/extractbench-v2-development/STOP_REQUESTS"
+}

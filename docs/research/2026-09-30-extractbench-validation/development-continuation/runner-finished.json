@@ -1,0 +1,19 @@
+{
+  "at": "2026-09-30T12:47:12.884629+00:00",
+  "status": "finished",
+  "admission_deadline_reached": false,
+  "outcome": {
+    "cells": 24,
+    "cells_to_run": 24,
+    "projected_calls": 268,
+    "upper_bound_with_recovery": 804,
+    "budget": 400,
+    "note": "estimates for the cells not yet sealed; verification and arbitration counts use the gold's record count (a run never sees it); without --execute nothing is sent",
+    "executed": {
+      "completed": 1,
+      "stopped_by_study_budget": 1,
+      "not_run_budget_spent": 22
+    },
+    "fresh_calls_spent": 15
+  }
+}

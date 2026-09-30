@@ -1,0 +1,11 @@
+{
+  "at": "2026-09-30T10:54:39.692842+00:00",
+  "hours": 8.0,
+  "admission_deadline_utc": "2026-09-30T18:54:39.692842+00:00",
+  "fresh_call_cap": 400,
+  "drain_timeout_seconds": 900,
+  "runner_sha256": "8586a80d35d0d8ecd404d84e2a6fb7ae33b846fc793b6a5f943414db93bd53ff",
+  "launch_manifest_sha256": "c4ab36e8ade857ffbad29b0bb410c589e4a208a0f1fa983927de3e3f0fa84c1a",
+  "source_aggregate_sha256": "3848aa62401d5185074fdd3321450d8ecc185c5372b17043bb291a7ac4fc1408",
+  "stop_file": "STOP_REQUESTS"
+}

@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-30T12:48:30.721620+00:00",
+  "tunnel_pid": 290983,
+  "starttime_ticks": 1126739,
+  "recorded_command_matched": true,
+  "method": "pidfd SIGTERM followed by exit poll",
+  "tunnel_exited": true,
+  "runner_exit_confirmed_by_watcher": true,
+  "server_signaled": false,
+  "last_server_request_counters": {
+    "running": 0,
+    "waiting": 0
+  }
+}

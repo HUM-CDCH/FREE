@@ -1,0 +1,38 @@
+{
+  "selected_source_groups": 20,
+  "selected_documents": 20,
+  "development_source_groups": 12,
+  "development_documents": 12,
+  "heldout_source_groups": 8,
+  "heldout_documents": 8,
+  "related_source_documents_reserved": 75,
+  "development_related_source_documents_reserved": 27,
+  "heldout_related_source_documents_reserved": 48,
+  "development_representatives_downloaded": 12,
+  "development_native_text_ingestion_passed": 10,
+  "development_ingestion_failed": 2,
+  "development_nominal_budget_rejected": 1,
+  "development_inference_eligible": 9,
+  "development_documents_with_fresh_inference": 5,
+  "development_documents_with_a_completed_arm": 4,
+  "development_documents_with_all_four_arms_completed": 3,
+  "development_documents_with_an_arm_covering_all_source_regions": 4,
+  "development_documents_with_all_arms_covering_all_source_regions": 3,
+  "executed_documents_by_benchmark_length_category": {
+    "short": 5
+  },
+  "cell_statuses": {
+    "completed": 13,
+    "not_run": 22,
+    "stopped_by_study_budget": 1,
+    "native_text_unavailable": 8,
+    "nominal_calls_exceed_cell_cap": 4
+  },
+  "heldout_pdfs_downloaded": 0,
+  "heldout_annotations_decoded": 0,
+  "heldout_inference_calls": 0,
+  "original_smoke_csv_sha256": "498ce2bd8c6a23478b015932148ee515d544c1ecda09e91a03a69c1d8ea26ecc",
+  "selection_sha256": "02e22e24073b72debe05741e1ee2b4b7896c84de212c2170a5f1a4a987b95dd7",
+  "comparison_rule": "No pooled ranking of unequal completed subsets; no challenger selected",
+  "missing_score_policy": "Unsealed, blocked and unrun cells have no quality score, not a zero or an omitted row"
+}

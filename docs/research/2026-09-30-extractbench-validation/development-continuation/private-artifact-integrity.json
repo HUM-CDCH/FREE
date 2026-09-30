@@ -1,0 +1,435 @@
+{
+  "captured_at": "2026-09-30T12:50:01.712129+00:00",
+  "private_root": ".scratch/extractbench-v2-development",
+  "source_pdfs_gold_text_and_responses_committed": false,
+  "files": {
+    "STOP_REQUESTS": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "adapter-manifest.json": {
+      "sha256": "f10349e9b4b5e3659fe8ce110b8cca7f7f439a531ec83a0409187500000da584",
+      "bytes": 33661
+    },
+    "admitted-dataset.json": {
+      "sha256": "4b860396a63c26cad19d1654e665ef10218346f3ae26ade389562b29336ae1a7",
+      "bytes": 1892
+    },
+    "annotations/long--dd1155_schedule_continuation_0011.json": {
+      "sha256": "37d68e683da263133c311a00238b8f402ea7e7e830862cc697b0077e0f15de1a",
+      "bytes": 109205
+    },
+    "annotations/medium--1G1PC5SB6E7111015_professional_valuation.json": {
+      "sha256": "6967ce5d308cbeeb1806187a33656b072fb551b0dc43ad25a4e103f176289201",
+      "bytes": 279181
+    },
+    "annotations/medium--erie_county_2017_single_audit.json": {
+      "sha256": "0168aaebce59378b0b4bfb9ad555f8343baa8778d3d6b14c6003a485c58cf214",
+      "bytes": 1130007
+    },
+    "annotations/short--caterpillar_spec_sheet_312c_excavator.json": {
+      "sha256": "c6c8b099b337736aa689c29771a9bc59e9c7b858f507f15f8085acaad0627555",
+      "bytes": 233610
+    },
+    "annotations/short--lancaster_county_ne_requisition_po_husker_steel.json": {
+      "sha256": "d7a7ac685561948f429a35319682ba7b43efd56a9b9bca6e8ee2122685ecedbc",
+      "bytes": 51528
+    },
+    "annotations/short--uillinois_rate_card_carpool_2024.json": {
+      "sha256": "36d7c81de025aa2174004cc2eeadd571f84cf309553044bfdd98ad3c37204152",
+      "bytes": 87816
+    },
+    "annotations/short--viega_price_list_propress_2026.json": {
+      "sha256": "fa17b45eccef7214684094254ebcbab22f0070b757497cc23bee86365cb3ed77",
+      "bytes": 1325942
+    },
+    "dataset.json": {
+      "sha256": "d33d42e86f5e2024b7499e7df767e7c18c2aa95dceb68f67dee3ab01f398fc13",
+      "bytes": 2187
+    },
+    "detached-check.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "detached-processes.json": {
+      "sha256": "8669fc97ec6ae6bd7b63fe56ed6645e9b5585fe412a4dbd4c49c49aaa5f5cb67",
+      "bytes": 989
+    },
+    "execution-study.json": {
+      "sha256": "9f2e622e1fb71d1d32a1fc6e0909ccf2ac56b9a776b3ed997dc861eff1ad07f9",
+      "bytes": 1776
+    },
+    "fast-tests.log": {
+      "sha256": "cfcc6f7ccda655cac9b103c251c826947ed573e4e1cd6ddca74fb95acc583ec0",
+      "bytes": 275
+    },
+    "final-fast-tests.log": {
+      "sha256": "cb80d6e530b82b86124a9365bde432362e4c87fe1b7ce023114b83011060e6da",
+      "bytes": 275
+    },
+    "gold-roundtrips.json": {
+      "sha256": "c61479a68c66b51e2b495ae8682adcd2a875af0bd4ef5db3054f9f754bad0d45",
+      "bytes": 1499
+    },
+    "host-detached-check.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "host-detached-marker": {
+      "sha256": "84918eb1d71479da8f63e635285dbb6ed1e57a956a3cfbccf520c4a864714b9e",
+      "bytes": 19
+    },
+    "ingestion.log": {
+      "sha256": "fab001138dd5c99ff60e514a01f8f6e653c9cf30ccf4bddec1cd02ab89025d07",
+      "bytes": 605
+    },
+    "inputs/long--dd1155_schedule_continuation_0011.json": {
+      "sha256": "0256e904d3e2a476e0eae1c9536db543551253c1f3b8320199f1aed81695d488",
+      "bytes": 308687
+    },
+    "inputs/medium--1G1PC5SB6E7111015_professional_valuation.json": {
+      "sha256": "8fef23583ae5ef4b6a92490f945c60cc56d90a8a96e47dcb9a244f65b86ce6c5",
+      "bytes": 86341
+    },
+    "inputs/medium--erie_county_2017_single_audit.json": {
+      "sha256": "03e5cd73ad449e84d2e5be638b8be1d8acf086c89008abbf9ba10097a4632df9",
+      "bytes": 164410
+    },
+    "inputs/short--caterpillar_spec_sheet_312c_excavator.json": {
+      "sha256": "f7dbff234007abf7ec4eb56cb9dd664b5a9b67282bc47c62db69c859bdc02736",
+      "bytes": 8371
+    },
+    "inputs/short--lancaster_county_ne_requisition_po_husker_steel.json": {
+      "sha256": "7f5410628ef781aa2edb840058e50ea39179e27a74a4b9eaa7bbf0d9871be8d1",
+      "bytes": 15849
+    },
+    "inputs/short--uillinois_rate_card_carpool_2024.json": {
+      "sha256": "fed9fb84d9c4700fe5eb98d345aa72908c650ba9ffaa042e9837c574bf7fa857",
+      "bytes": 4370
+    },
+    "inputs/short--viega_price_list_propress_2026.json": {
+      "sha256": "9b35ed6ca8738fa30b9b139102c86a2f14654df2c4cd6712431d48d14d82073d",
+      "bytes": 40017
+    },
+    "launch-manifest.json": {
+      "sha256": "c4ab36e8ade857ffbad29b0bb410c589e4a208a0f1fa983927de3e3f0fa84c1a",
+      "bytes": 12407
+    },
+    "out/cache/0d/0dd522fab04c596c27a0795db1e7c78216eb8514d29ce79a549075433918e940.json": {
+      "sha256": "dfba57efb63cc03a710f67d4790ce13aa64699dd48020a43a4f759b4fd0746ec",
+      "bytes": 20404
+    },
+    "out/cache/45/45ef1018820f80e6f207c1905a22e9a8511eb37773673e1f24381f3c0e59e9c0.json": {
+      "sha256": "2fda9f51e644e15620e35157d43931a25a03b9d811f67c8375828f1dcd5db548",
+      "bytes": 21456
+    },
+    "out/cache/72/723eadc4b56330757c95868cdae3824360ce18714cd79548cd961a8bdfa92691.json": {
+      "sha256": "a6f4f8140f5cb9b7e364aed2c69df9d35ce879a4d40f430fd02c0e985510ad4f",
+      "bytes": 20879
+    },
+    "out/cache/92/9207d715e80738bd53ec67a6fb760f07c87992b17c93bff624358cb5a21dd5b3.json": {
+      "sha256": "7fc1ca29f534c83560daf44efcf285c95bbac9329ae93f365abbd0113c633540",
+      "bytes": 22073
+    },
+    "out/cache/92/925bc944bed70860a94263cfc68cda543d99aa518da862319f2a1869b107f029.json": {
+      "sha256": "cca8c0af933dd9642ffbf6c4aaf100a1e4fbf8b707616e155e4cc85fd264d02f",
+      "bytes": 13668
+    },
+    "out/cache/b8/b88f908bb15db2a1b78193d3f8d6de294e7855d7ec499277836182c42d8d328b.json": {
+      "sha256": "e2ade084b5268caeae2bb58fc24efcdddc9a5fb3c0d308409aae9a30faea9aa2",
+      "bytes": 22440
+    },
+    "out/cache/c3/c314dae9e414f1c2923c3bccdbf5e1eafae8920d61bc59f4e77d66f8b8be4bc6.json": {
+      "sha256": "bd2cb806c4b479823990e5162c4a66b0c1e81ece98c315d9d20b507962d0370b",
+      "bytes": 21541
+    },
+    "out/cache/c3/c3ff309ccf4e5c2282a6a2db573dda9eface231b9e58cf7557cbdb38ef13d519.json": {
+      "sha256": "5eec64d5d39eba40193bfca4852bc1232304f0d87f34a8de2b48c044f436a7f5",
+      "bytes": 20297
+    },
+    "out/cache/c5/c5cfeb6db5298f5974db22966679c95866afaad16d27ad6d210e9aee913a488c.json": {
+      "sha256": "9550dee3af9360cc679f694b83cb4266a432351d23713d746eb9791ef72d74b5",
+      "bytes": 20141
+    },
+    "out/cache/c9/c9727b2050687bc9a3190f4e57f18d4a7060e39ce488c05a7c043eba16b54fbc.json": {
+      "sha256": "96d426c42527d5d5330071e924739d096042265a8b29f784c26b8b5e63aa8b52",
+      "bytes": 13103
+    },
+    "out/cache/d4/d48eda938df004bc6f3a2e811eea64a81acffea9648a1717e4b654f66ec82f6e.json": {
+      "sha256": "5fecf17974ef4fc4e17d845a786b833a55bb7577e8c535932aeb83bdab9dfdfc",
+      "bytes": 22368
+    },
+    "out/cache/e0/e04eeafd6c03e5ea6426089cb51176d1bd4dde13e7abf5834a885b384dc2119b.json": {
+      "sha256": "b78cddf1bf8960f484d4eb112d7e7d9dec50a2b241f361af4a4464868f4e4d69",
+      "bytes": 12583
+    },
+    "out/cache/e0/e0ba90d85e026ecd4d76486582cfb8a8c475ab437549d3e1eb47d13763dfadce.json": {
+      "sha256": "d9ac28b3dab3c7a6900969c645862b7e42c690887bb26e8f7a3012f0d81b489c",
+      "bytes": 21962
+    },
+    "out/cache/fb/fbb516fcaf18906039ccb5dd2bd9ba13c29800ecda85b163473a920647275a44.json": {
+      "sha256": "e66cdc5894b083bb05bc7eaaf8b9aab6e0125bd89e05a29cab3d3f2ee54a444b",
+      "bytes": 14935
+    },
+    "out/cache/fc/fc68362dd47f6442843084e21b576bd8cc064a9949be4558bca1dbdcbc37e691.json": {
+      "sha256": "a9d3496536cdc54877b2d9d5239a499287c7528e5bade51700aa59011b4a4c92",
+      "bytes": 20507
+    },
+    "out/cells/A2--short--viega_price_list_propress_2026/.lock": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "out/cells/A2--short--viega_price_list_propress_2026/attempt-001.finished.json": {
+      "sha256": "30e5fe5788a4f91b8c808aacf6a4895a6b19df0d712aef009565a4ff14d815db",
+      "bytes": 787
+    },
+    "out/cells/A2--short--viega_price_list_propress_2026/attempt-001.started.json": {
+      "sha256": "83682bd8ae84e166498b1450081caa12203ba8c07a21f782c0094f08b8a9d0cf",
+      "bytes": 503
+    },
+    "out/cells/A2--short--viega_price_list_propress_2026/pin.json": {
+      "sha256": "b272703a06e0b0b5f359bd99ee86fa34783f683e03d3052f7374e3cc7cfd0762",
+      "bytes": 459
+    },
+    "out/cells/base--short--uillinois_rate_card_carpool_2024/.lock": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "out/cells/base--short--uillinois_rate_card_carpool_2024/attempt-001.finished.json": {
+      "sha256": "088f1c56420ff52e15f4c34153dd0116ac6db378f1591d13fde3305a7d327a27",
+      "bytes": 793
+    },
+    "out/cells/base--short--uillinois_rate_card_carpool_2024/attempt-001.started.json": {
+      "sha256": "014e5e92c94a7d44a93c42ca13efc363194bd96ae3f87e42fc0932c76b156916",
+      "bytes": 507
+    },
+    "out/cells/base--short--uillinois_rate_card_carpool_2024/pin.json": {
+      "sha256": "7bc428e3f412a19a33dccc5e97d1cda328007e25be81783a4760fe104f5a45f0",
+      "bytes": 463
+    },
+    "out/cells/base--short--uillinois_rate_card_carpool_2024/result.json": {
+      "sha256": "97abf7541cde0269558a5259768bdbbabe91e117412d81cc8d89958f78540e76",
+      "bytes": 78806
+    },
+    "out/manifest.json": {
+      "sha256": "fff9172801ce5020b7a9e27712df23d95ddb489b1e6e23abde95d68928fe17ed",
+      "bytes": 13702
+    },
+    "pdfs/long--dd1155_schedule_continuation_0011.pdf": {
+      "sha256": "92bf85531f4d525a50421f81a009b63d80987a36e7cd3481d5778f79a5d78ab5",
+      "bytes": 392408
+    },
+    "pdfs/long--gov_clin_schedule_0005.pdf": {
+      "sha256": "e0d7577e5d87907c281c0388ac96cdb00e7e794bb344af0693f358bbd1a77943",
+      "bytes": 6473305
+    },
+    "pdfs/medium--1G1PC5SB6E7111015_professional_valuation.pdf": {
+      "sha256": "305094d37586c8151d0531d1a2e5633ccdb88a8e7a6296fb7a999974fa26d313",
+      "bytes": 5746675
+    },
+    "pdfs/medium--byline_bancorp_investor_deck_q2_2023.pdf": {
+      "sha256": "7394b1341151868ef58567bef073f2892bd4ee23b81a17e47c883039e90174a7",
+      "bytes": 2527101
+    },
+    "pdfs/medium--erie_county_2017_single_audit.pdf": {
+      "sha256": "e05d3adcc305a8a1431ba0576c347dd4a5aa4903ac93588e8b158c2d0168a89f",
+      "bytes": 1374927
+    },
+    "pdfs/short--caterpillar_spec_sheet_312c_excavator.pdf": {
+      "sha256": "273da886c2e150c04d5577424a099a12369612317598aaca8f4900e5bb9a4fc7",
+      "bytes": 25115
+    },
+    "pdfs/short--lancaster_county_ne_requisition_po_husker_steel.pdf": {
+      "sha256": "f1cda8d78cc6ff55d35fed5d4277f4b6ef2421690fb61b5cb71ea772bdb51dbd",
+      "bytes": 250123
+    },
+    "pdfs/short--uillinois_rate_card_carpool_2024.pdf": {
+      "sha256": "5ecb62098487c91d4f534b7a47dd1b70b08e0556d113ae62a59cf03b815a111e",
+      "bytes": 280108
+    },
+    "pdfs/short--viega_price_list_propress_2026.pdf": {
+      "sha256": "6bff386dd9a9ae8c42b609288b9e75f39486b5a983b3b061eab82d983e87df72",
+      "bytes": 14473328
+    },
+    "pre-stop-processes-check.json": {
+      "sha256": "49adfc68fdd46ee601a06b6162c3311f4e623d3dcc7532caf77fa64a10370278",
+      "bytes": 1419
+    },
+    "preflight.json": {
+      "sha256": "aef9a5bb592d5f235025f8b09fdd2f7e55388827705f72cb9ec9a6ed60548cd9",
+      "bytes": 136932
+    },
+    "preflight.log": {
+      "sha256": "2e05b461d57dfde66125bac309f82eb83f4e1af535b13dadd6d0f70678fcd1b4",
+      "bytes": 6565
+    },
+    "report-v2.json": {
+      "sha256": "b5b5ec3599087c0a45496fa29f97420e8d833865315185c6e0bab978f5348774",
+      "bytes": 40325
+    },
+    "request-journal/request-0001.finished.json": {
+      "sha256": "8495b0952844f772aa505097a21ab555d1bde54719595e43c927b5b20d93bb1f",
+      "bytes": 196
+    },
+    "request-journal/request-0001.started.json": {
+      "sha256": "d298528b1fba4825a85a8855a217cb8ab0ebbbd89278307a7b05e51c837d7d48",
+      "bytes": 208
+    },
+    "request-journal/request-0002.finished.json": {
+      "sha256": "414b7135a14d9fa404545df7e0734068665b4c043415aaf686b2a40686405903",
+      "bytes": 196
+    },
+    "request-journal/request-0002.started.json": {
+      "sha256": "8a2d7eb4cac99e6314346d9ecdbc42aba9444c92c85a14cf1f8054fc9b303e95",
+      "bytes": 208
+    },
+    "request-journal/request-0003.finished.json": {
+      "sha256": "e513f2c2bd66aa49433076ae1a371327ff3b4500812347f33c47265965b58b7c",
+      "bytes": 195
+    },
+    "request-journal/request-0003.started.json": {
+      "sha256": "2478c084209ff2869cd34a37c3a63896f48513ce56ef7d61b578d2ba09a7b49c",
+      "bytes": 208
+    },
+    "request-journal/request-0004.finished.json": {
+      "sha256": "66cf6fe3c7f90d5af517f03eefc2d16fc1f7530aa91913ea719bd18a9218eaee",
+      "bytes": 197
+    },
+    "request-journal/request-0004.started.json": {
+      "sha256": "80b62abf1cbb5726c796f7b0392d635ca2921694012a2f387490355a72124e28",
+      "bytes": 208
+    },
+    "request-journal/request-0005.finished.json": {
+      "sha256": "828e0265a3d76573758d65ec6f5755faf2a13812654cc7cb0249e7cd17ca8b6b",
+      "bytes": 195
+    },
+    "request-journal/request-0005.started.json": {
+      "sha256": "467b1f39e72962c6128e21be8151f6ac65dabde65bab6310607dea5547398e30",
+      "bytes": 208
+    },
+    "request-journal/request-0006.finished.json": {
+      "sha256": "12071b7f4383d13eefa61cd6cd233c8a665b1fb818f50430f59efab43aaacc65",
+      "bytes": 197
+    },
+    "request-journal/request-0006.started.json": {
+      "sha256": "ef9c5067895898493c973d9c4f6ef7f2d3b9018dd0843753899642425c6cd350",
+      "bytes": 208
+    },
+    "request-journal/request-0007.finished.json": {
+      "sha256": "a5c6dcb178224434218d25c92077e250ff65556707c84c95c994232aea257193",
+      "bytes": 196
+    },
+    "request-journal/request-0007.started.json": {
+      "sha256": "9f09cf4276815356be867bb29068225748a156e3602b6fdca787dfa524068116",
+      "bytes": 208
+    },
+    "request-journal/request-0008.finished.json": {
+      "sha256": "0e03b3b786e3c206b06477788ef35073fdc072863ba6e588475186c0f711f655",
+      "bytes": 196
+    },
+    "request-journal/request-0008.started.json": {
+      "sha256": "1870ce12c3d2d848056856db403b4f97476de18c7b6261cfffba042b47f6c328",
+      "bytes": 208
+    },
+    "request-journal/request-0009.finished.json": {
+      "sha256": "e05b9ebf029779ac8d756cd1c73cf81f00cb5516f097dfe3951bbca9f2193bf2",
+      "bytes": 197
+    },
+    "request-journal/request-0009.started.json": {
+      "sha256": "9aaee31a0587733bb5550e4989918fbfcfa7e22e1b637c1c4962dd98ad658599",
+      "bytes": 208
+    },
+    "request-journal/request-0010.finished.json": {
+      "sha256": "9c533eb674bc1ec7e3f63edcca36b4c2309d055dcc12d58095ef36da4ac629af",
+      "bytes": 197
+    },
+    "request-journal/request-0010.started.json": {
+      "sha256": "9051ac3b4e86fdfb2934631a62a7d254e622fcc2453e155f63beb6ecf2a19ce8",
+      "bytes": 208
+    },
+    "request-journal/request-0011.finished.json": {
+      "sha256": "b7050afd922e5ca88f41d201bc507f82f9eb3494f69b92ded594266cbfd73a84",
+      "bytes": 197
+    },
+    "request-journal/request-0011.started.json": {
+      "sha256": "cdea37b792221be73684141f27e11dca3f4e61387bd1949bb155d651c2c660c0",
+      "bytes": 208
+    },
+    "request-journal/request-0012.finished.json": {
+      "sha256": "064126ed102775eedadc444647cba7ee65bd01341eb80253d82e37a955a1c9fa",
+      "bytes": 197
+    },
+    "request-journal/request-0012.started.json": {
+      "sha256": "c44cbbe7e5d4ad1cc5c3d8a36cd24664014c0a39d5bedd9c507f261a211350a6",
+      "bytes": 208
+    },
+    "request-journal/request-0013.finished.json": {
+      "sha256": "b255239ac0cee5ee6663387b9f6f2e6f52e468b4f3541126c452ffb9f56bb8e1",
+      "bytes": 197
+    },
+    "request-journal/request-0013.started.json": {
+      "sha256": "6e156d8deb8261e7d4ac147317e01f2fede4318f82db3e709e53e05d9cf25b76",
+      "bytes": 208
+    },
+    "request-journal/request-0014.finished.json": {
+      "sha256": "36274e48c3e07a10ee368563de7229bb6a956d239987cfb9cd378839d4b540a0",
+      "bytes": 196
+    },
+    "request-journal/request-0014.started.json": {
+      "sha256": "bfb5fdacd17233771f4da7f91cf7e4fe6f7bb4dbefd54bb02ae65769867863d4",
+      "bytes": 208
+    },
+    "request-journal/request-0015.finished.json": {
+      "sha256": "a5f47bb2337d5ac653ef0cf2e37217169c55f13133e76eef7dd25105a15371c2",
+      "bytes": 197
+    },
+    "request-journal/request-0015.started.json": {
+      "sha256": "13b33dcd83505028dba26e6211d05c109a2549f79b54de611b54c76a35fa578f",
+      "bytes": 208
+    },
+    "runner-finished.json": {
+      "sha256": "415e2803d2e7cf0ee3ac58c49e6edb6e6190de146f0702a41266f1493e57d5a3",
+      "bytes": 576
+    },
+    "runner-started.json": {
+      "sha256": "510d4cd53b3c9b1cd9315f66eb2aa5010aa85c205c6e4f87ccb224dfd6f16f16",
+      "bytes": 496
+    },
+    "runner.log": {
+      "sha256": "514b526033d2f1531fa0a238ebbb82b88b33b78a56f32986c248bb40b1187d5d",
+      "bytes": 124
+    },
+    "runtime-cap-amendment.json": {
+      "sha256": "443b02347d0f6120681c5c7c5873ae02f47924c3dbcc6e29e854cd43b4c8031e",
+      "bytes": 474
+    },
+    "runtime-cap-finished.json": {
+      "sha256": "48f4e3221b9d2c9948caf58bc48863b02d4b1787233d91ce3d1d0f85413aa163",
+      "bytes": 105
+    },
+    "runtime-cap-process.json": {
+      "sha256": "82b1ca0cf8c31e51661eb1e2cab8d7a7d5ee914107a4b8d0c870688094ce2f54",
+      "bytes": 427
+    },
+    "runtime-cap-stop.json": {
+      "sha256": "be723510d19250ae3a37bca253ff6e6cc975c7ec455fad24bae83fb9e277832b",
+      "bytes": 47
+    },
+    "runtime-cap.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "study.json": {
+      "sha256": "e27c09a90d13d75b17f8315c21e7ea274482ae2eb621d260c02cc60f64a63ae7",
+      "bytes": 1767
+    },
+    "tunnel-closed.json": {
+      "sha256": "a7cbe022d9b2189cd4eabd44ae56a3e9c91501a591087054baa933ffbf5e4790",
+      "bytes": 361
+    },
+    "tunnel.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  }
+}

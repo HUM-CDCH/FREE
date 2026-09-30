@@ -1,5 +1,9 @@
 # ExtractBench development validation, 2026-09-30
 
+> Historical smoke-only report. The later [bounded development continuation](development-continuation/README.md)
+> preserves these results and records the prospective gate amendment, two-hour cap,
+> additional execution, and the still-incomplete development comparison.
+
 The harness is checkpointed and the three-document development smoke study is
 complete. Its evidence is insufficient to recommend a technique. The remaining
 nine development documents were **not run**: one interrupted request left unknown
