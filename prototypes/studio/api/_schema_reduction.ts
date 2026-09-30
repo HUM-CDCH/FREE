@@ -16,7 +16,7 @@ function tooLarge(): never {
  */
 export async function reduceSchemas<T>(
   items: readonly { label: string; schema: T }[],
-  merge: (text: string, step: string) => Promise<T>,
+  merge: (text: string, step: string, group: readonly T[]) => Promise<T>,
   budget = EXCERPT_THRESHOLD,
 ): Promise<T> {
   let level = items.map(({ label, schema }) => ({ schema, text: block(label, schema) }))
@@ -41,7 +41,8 @@ export async function reduceSchemas<T>(
         next.push(group[0]!)
         continue
       }
-      const schema = await merge(group.map(({ text }) => text).join('\n\n'), `reduce:${depth}:${index + 1}`)
+      const schema = await merge(
+        group.map(({ text }) => text).join('\n\n'), `reduce:${depth}:${index + 1}`, group.map((item) => item.schema))
       next.push({ schema, text: block(`COMBINED ${depth}.${index + 1}`, schema) })
     }
     level = next

@@ -178,6 +178,60 @@ async function suggestMemberFromWindows(
   }
 }
 
+/**
+ * The merge past `BATCH_WINDOWED_SUGGESTION`: the sources' suggestions intersected level by level, a step per request,
+ * so every suggestion is read; a group holding a suggestion without fields stays without fields, with no call.
+ */
+async function mergeLevels(
+  input: SuggestionAttemptInput,
+  { steps, store, generate }: SuggestionWorkflowPorts,
+  definitions: readonly Extract<SourceResult, { kind: 'definition' }>[],
+): Promise<MergeResult> {
+  const { batchSchemaSuggestionId: id, attempt } = input
+  try {
+    const definition = await reduceSchemas(
+      definitions.map(({ sourceDocumentId, definition }) => ({ label: `SOURCE DOCUMENT ${sourceDocumentId}`, schema: definition })),
+      async (text, step, group) => {
+        const empty = group.find((schema) => schema.schemaNodes.length === 0)
+        if (empty) return empty
+        const result = await steps.step(`merge:${step}`, async (): Promise<{ kind: 'value'; value: SchemaDefinition } | MergeResult> => {
+          if ((await store.attemptState(id, attempt)) !== 'current') return { kind: 'stopped' }
+          const owner = await store.projectContextOwner(input.projectContextId)
+          if (owner === null) return { kind: 'stopped' }
+          try {
+            return { kind: 'value', value: await combineBatchSchemas(
+              { researcherAccountId: owner }, 'intersection', text, modelSignal(steps.cancelSignal()), generate) }
+          } catch (error) {
+            return { kind: 'failure', failure: durableFailure(error) }
+          }
+        }, STORE_STEP_RETRY)
+        if (result.kind !== 'value') throw new MergeHalt(result)
+        return result.value
+      },
+    )
+    const sourceCoverage = declaredSourceCoverage(definitions, [])
+    return {
+      kind: 'proposal',
+      result: definition.schemaNodes.length > 0
+        ? { phase: 'READY', proposal: definition, sourceCoverage, draft: definition }
+        : { phase: 'HETEROGENEOUS', sourceCoverage },
+    }
+  } catch (error) {
+    if (error instanceof MergeHalt) return error.result
+    // A suggestion that cannot fit one request, or a level where no two fit together (`reduceSchemas`).
+    if (error instanceof ApiError) return { kind: 'failure', failure: durableFailure(error) }
+    throw error
+  }
+}
+
+class MergeHalt extends Error {
+  readonly result: MergeResult
+  constructor(result: MergeResult) {
+    super(result.kind)
+    this.result = result
+  }
+}
+
 const SOURCES_FAILED: SuggestionFailure = {
   code: 'source_suggestion_failed',
   message: 'Fields could not be suggested for every selected Source Document.',
@@ -235,7 +289,7 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
     }
     definitions.push(result)
   }
-  const merged = await steps.step('merge', async (): Promise<MergeResult> => {
+  const merged = windowed ? await mergeLevels(input, ports, definitions) : await steps.step('merge', async (): Promise<MergeResult> => {
     if ((await store.attemptState(id, attempt)) !== 'current') return { kind: 'stopped' }
     const owner = await store.projectContextOwner(input.projectContextId)
     if (owner === null) return { kind: 'stopped' }

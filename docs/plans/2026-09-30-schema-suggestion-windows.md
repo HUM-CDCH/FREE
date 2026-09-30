@@ -22,7 +22,7 @@ Defaults taken for the open decisions (change here to override):
 - [x] 3. Bounded hierarchical reduction (UNION / INTERSECTION)
 - [x] 4. Full-source single generation behind a DBOS patch
 - [x] 5. Full-source batch members behind a DBOS patch
-- [ ] 6. Hierarchical intersection replaces dropping batch merges
+- [x] 6. Hierarchical intersection replaces dropping batch merges
 - [ ] 7. Guard provider truncation
 - [ ] 8. Recovery, checkpoint privacy, historical notices
 - [ ] 9. Real Beier validation (manual / needs-user)

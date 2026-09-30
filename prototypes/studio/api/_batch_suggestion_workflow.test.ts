@@ -103,7 +103,8 @@ function harness(scenario: Scenario = {}) {
     generate: async (caller, modelInput) => {
       calls.push({ caller, input: modelInput })
       const markdown = modelInput.document.markdown ?? ''
-      const key = markdown.startsWith('SOURCE DOCUMENT ') ? 'merge' : markdown.startsWith('WINDOW ') ? 'union' : markdown
+      const key = markdown.startsWith('WINDOW ') ? 'union'
+        : markdown.startsWith('SOURCE DOCUMENT ') || markdown.startsWith('COMBINED ') ? 'merge' : markdown
       if (scenario.generate) return scenario.generate(key, modelInput)
       return generated(key === 'merge' ? commonTemplate : sourceTemplate)
     },
@@ -368,7 +369,7 @@ describe('suggestSchemaBatch, patched to read every window', () => {
 
     expect(h.steps).toEqual([
       'suggestSource:source-a:window:1', 'suggestSource:source-a:window:2', 'suggestSource:source-a:window:3',
-      'suggestSource:source-a:reduce:1:1', 'suggestSource:source-b:window:1', 'merge', 'publish',
+      'suggestSource:source-a:reduce:1:1', 'suggestSource:source-b:window:1', 'merge:reduce:1:1', 'publish',
     ])
     const windowCalls = h.calls.filter((call) => call.input.window === true && !call.input.document.markdown?.startsWith('WINDOW '))
     expect(windowCalls.slice(0, 3).map((call) => call.input.document.markdown).join('')).toBe(LONG_A)
@@ -402,6 +403,48 @@ describe('suggestSchemaBatch, patched to read every window', () => {
     await h.run()
     expect(h.steps.at(-1)).toBe('publishFailure')
     expect(h.writes).toEqual([{ kind: 'fail', failure: SOURCES_FAILED }])
+  })
+
+  it('merges suggestions too long for one request level by level, reading every one', async () => {
+    // Three wide suggestions: any two fit one 48,000-character request, all three do not. Source C lacks field_7.
+    const wide = (without?: string) => Object.fromEntries([['_description', 'One article.'],
+      ...Array.from({ length: 220 }, (_, i) => [`field_${i}`, 'string']).filter(([name]) => name !== without)])
+    const intersection = (text: string) => {
+      const blocks = text.split('\n\n').map((block) => new Set([...block.matchAll(/"name":"(\w+)"/g)].map((match) => match[1]!)))
+      return Object.fromEntries([['_description', 'One article.'],
+        ...[...blocks[0]!].filter((name) => blocks.every((names) => names.has(name))).map((name) => [name, 'string'])])
+    }
+    const h = windowed({
+      members: [A, B, C],
+      readMarkdown: (revisionId) => MARKDOWN[revisionId] ?? null,
+      generate: async (markdown, call) => markdown === 'merge'
+        ? generated(intersection(call.document.markdown!))
+        : generated(markdown === '# Source C' ? wide('field_7') : wide()),
+    })
+    await h.run()
+
+    const merges = h.calls.filter((call) => /^(SOURCE DOCUMENT|COMBINED) /.test(call.input.document.markdown!))
+    expect(merges.length).toBeGreaterThan(1)
+    expect(merges.every((call) => call.input.document.markdown!.length <= 48_000)).toBe(true)
+    for (const id of ['source-a', 'source-b', 'source-c'])
+      expect(merges.some((call) => call.input.document.markdown!.includes(`SOURCE DOCUMENT ${id} SCHEMA:`))).toBe(true)
+    const [write] = h.writes
+    if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
+    expect(write.result.proposal.schemaNodes.map((node) => node.name)).not.toContain('field_7')
+    expect(write.result.proposal.schemaNodes).toHaveLength(219)
+    expect(write.result.sourceCoverage?.every((source) => source.combined)).toBe(true)
+  })
+
+  it('a combination without a common field publishes HETEROGENEOUS', async () => {
+    const h = windowed({
+      readMarkdown: (revisionId) => MARKDOWN[revisionId] ?? null,
+      generate: async (markdown) => generated(markdown === 'merge' ? emptyTemplate : sourceTemplate),
+    })
+    await h.run()
+    expect(h.writes).toEqual([{ kind: 'publish', result: { phase: 'HETEROGENEOUS', sourceCoverage: [
+      { sourceDocumentId: 'source-a', sourceCoverage: { complete: true }, combined: true },
+      { sourceDocumentId: 'source-b', sourceCoverage: { complete: true }, combined: true },
+    ] } }])
   })
 
   it('stops without a model call when its attempt is no longer current', async () => {
