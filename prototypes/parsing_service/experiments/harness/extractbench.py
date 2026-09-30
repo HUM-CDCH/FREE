@@ -172,7 +172,8 @@ def prepare(selection_path: Path, snapshot: Path, output: Path, *, smoke: bool =
                     continue
                 expected, rules = decoded(row, "expected_output"), decoded(row, "field_rules")
                 gold = [{"fields": {k: {"absent": True} if v is None else {"value": v} for k, v in expected.items()}}]
-                save(output / "inputs" / f"{identity}.json", {"schema": schema, "passages": passages})
+                # inference_schema accepts only an object root: the document is one record, whatever the chunking
+                save(output / "inputs" / f"{identity}.json", {"schema": schema, "passages": passages, "record_scope": "document"})
                 save(output / "annotations" / f"{identity}.json", {"gold": gold, "annotations": {
                     "adapter": ADAPTER, "expected_output": expected, "field_rules": rules, "original_schema": original,
                     "repeated_structure": decoded(row, "repeated_structure"), "source": source_pin}})

@@ -36,6 +36,7 @@ class InferenceCase:
     record_key: tuple[str, ...] = ()
     ocr_confidence: dict[str, float] = field(default_factory=dict)
     geometry: dict[str, tuple] = field(default_factory=dict)
+    record_scope: str = "records"
 
 
 @dataclass(frozen=True)
@@ -51,9 +52,10 @@ class Case:
     ocr_confidence: dict[str, float] = field(default_factory=dict)   # segment id -> engine confidence, when known
     geometry: dict[str, tuple] = field(default_factory=dict)         # segment id -> bbox_pt, only where the source has one
     annotations: dict = field(default_factory=dict)  # evaluator-only original annotations and source provenance
+    record_scope: str = "records"                    # "document": the schema's top level is one object per document
 
     def inference(self) -> InferenceCase:
-        return InferenceCase(self.id, self.evidence, self.schema, self.record_key, self.ocr_confidence, self.geometry)
+        return InferenceCase(self.id, self.evidence, self.schema, self.record_key, self.ocr_confidence, self.geometry, self.record_scope)
 
 
 def canon(value: Any) -> Any:
@@ -163,9 +165,12 @@ def case_of(item: dict, base: Path = Path(".")) -> Case:
     else:
         evidence, confidence, geometry = inline_evidence(item["id"], item["passages"])
     key = tuple(item.get("record_key", ()))
+    scope = item.get("record_scope", "records")
+    if scope not in ("records", "document"):
+        raise ValueError(f"{item['id']}: record_scope must be 'records' or 'document'")
     _check_gold(item["id"], schema, item["gold"], evidence, key)
     return Case(item["id"], item["group"], item["split"], evidence, schema, tuple(item["gold"]), key,
-                item.get("exhaustive", True), confidence, geometry, item.get("annotations", {}))
+                item.get("exhaustive", True), confidence, geometry, item.get("annotations", {}), scope)
 
 
 def check_splits(cases: list[Case]) -> None:

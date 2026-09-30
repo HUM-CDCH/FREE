@@ -93,6 +93,13 @@ or cited spans they share (at least `merge.min_fields`), so a sample that disagr
 hides its own dissent. Under `majority` a record that most of the samples that read its region did not find is outvoted (an
 issue, not a silent drop); under `strict` it stays, every field unresolved.
 
+Nested values of one record stated by several candidates are parts, not rival answers: objects fill in child by child (a
+null child erases nothing), collections keep every item in reading order and fold only an item another candidate already
+gave (flag `repeated_items_merged`; every chunk's own list stays in `alternatives`), and a nested scalar conflict leaves the
+field `unresolved`. A case declared `record_scope: "document"` (the ExtractBench adapter's object root) is one record per
+document, whatever the chunking. Structured scoring (evaluator 3) leaves a collection no gold record annotates unscored under
+every parent (`unscored_records`).
+
 Scoring (`evaluate.py`): field precision/recall/F1 with the abstentions, missing, duplicate and hallucinated records beside
 them, strict record and document correctness, cross-page fragments, evidence page/segment/span hits (denominators fixed by
 the gold, so abstaining cannot raise a joint rate) with the conditional rates separate, the verifier scored against

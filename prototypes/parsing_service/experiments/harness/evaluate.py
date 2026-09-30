@@ -33,7 +33,7 @@ from kei_exp.kie.extract.stages import normal
 @dataclass(frozen=True)
 class Eval:
     """Scoring rules, fixed across every variant of a study (a comparator is not a system factor)."""
-    evaluator_version: int = 2
+    evaluator_version: int = 3     # 3: a collection the gold never annotates is unscored under unpaired parents too
     comparators: dict[str, str] = field(default_factory=dict)   # field -> exact|normalized|numeric|set|deep|fuzzy
     rel_tol: float = 1e-9
     abs_tol: float = 0.0
@@ -398,7 +398,7 @@ def _ratio(numerator: float, denominator: float) -> float | None:
 def metrics(total: dict[str, int]) -> dict[str, Any]:
     canonical = _metrics(total)
     strict = _metrics({key[4:]: value for key, value in total.items() if key.startswith("raw_")})
-    return {**canonical, "evaluator_version": 2,
+    return {**canonical, "evaluator_version": 3,
             "raw_exact": {"field": strict["field"], "records": strict["records"]},
             "canonicalized": {"field": canonical["field"], "records": canonical["records"]},
             "repeated_records": {key: total.get("repeated_" + key, 0) for key in ("gold_records", "pred_records", "matched_records", "missing_records", "duplicated_records", "hallucinated_records", "strict_records", "cross_page_gold", "cross_page_strict")},
@@ -423,6 +423,7 @@ def _metrics(total: dict[str, int]) -> dict[str, Any]:
         "records": {"gold": g("gold_records", 0), "predicted": g("pred_records", 0), "matched": g("matched_records", 0),
                     "missing": g("missing_records", 0), "hallucinated": g("hallucinated_records", 0),
                     "duplicated": g("duplicated_records", 0), "unadjudicated": g("unadjudicated_records", 0),
+                    "unscored": g("unscored_records", 0),
                     "strict_correct": _ratio(g("strict_records", 0), g("gold_records", 0)),
                     "strict_documents": _ratio(g("strict_documents", 0), g("documents", 0)),
                     "cross_page": {"gold": g("cross_page_gold", 0), "matched": g("cross_page_matched", 0),
@@ -492,6 +493,7 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
 
     Flatten only evaluation views, retaining original arrays/annotations on Case. Parent records
     are aligned first; their nested arrays are then scored within that parent, never across parents.
+    A collection no gold record annotates is unscored under every parent, paired or not (`unscored_records`).
     This custom, strict leaf comparator is deliberately not the official keyless benchmark metric.
     """
     from dataclasses import replace
@@ -537,6 +539,27 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
                 "annotation_availability": {"value": True, "page": any(e.get("page") is not None for e in options),
                     "box": any(e.get("page") is not None and e.get("bbox") is not None for e in options)}}
 
+    def arrays(fields, prefix=""):      # object arrays, including those nested in scalar objects
+        for node in fields:
+            path = prefix + node.name
+            if node.type == "array" and node.children:
+                yield path, node.children
+            elif node.type == "object":
+                yield from arrays(node.children, path + ".")
+
+    def items(value, path):
+        values = get(value, path) or []
+        return [v for v in values if isinstance(v, dict)] if isinstance(values, list) else []
+
+    annotated_collections = set()       # collection paths some gold record annotates; the rest are unscored everywhere
+
+    def annotated(nodes, records, label):
+        for path, children in arrays(nodes):
+            found = [v for r in records if (v := get(r, path, missing)) is not missing]
+            if found:
+                annotated_collections.add(f"{label}.{path}")
+                annotated(children, [x for v in found if isinstance(v, list) for x in v if isinstance(x, dict)], f"{label}.{path}")
+
     def unit(nodes, gold_records, predicted, paths, evidence_rows, label, exhaustive=True):
         leaves = leaf_nodes(nodes)
         if not leaves:
@@ -576,20 +599,13 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
         outcomes.extend({**o, "collection": label} for o in result)
         pairs, _, extra = _match(virtual, gold, _Records(prediction, local_rules), kinds_for(schema, local_rules), local_rules)
         paired = {j: i for i, j in pairs.items()}
-        # Discover object arrays from schema, including those nested in scalar objects.
-        def arrays(fields, prefix=""):
-            for node in fields:
-                path = prefix + node.name
-                if node.type == "array" and node.children:
-                    yield path, node.children
-                elif node.type == "object":
-                    yield from arrays(node.children, path + ".")
         for array_path, children in arrays(nodes):
             for j, record in enumerate(gold_records):
                 i = paired.get(j)
                 annotated = get(record, array_path, missing)
                 if annotated is missing:
                     count["unannotated_collections"] = count.get("unannotated_collections", 0) + 1
+                    count["unscored_records"] = count.get("unscored_records", 0) + (len(items(predicted[i], array_path)) if i is not None else 0)
                     continue
                 gold_array = annotated or []
                 values = (get(predicted[i], array_path) or []) if i is not None else []
@@ -607,11 +623,13 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
                 unit(children, gold_array, values, [f"{paths[j]}{array_path}[{k}]." for k in range(len(gold_array))],
                      nested_rows, f"{label}.{array_path}", field_rules.get(paths[j] + array_path, {}).get("exhaustive", True))
             for i in [*extra, *(i for i in range(len(predicted)) if i not in pairs and i not in extra)]:
-                values = get(predicted[i], array_path) or []
-                values = [v for v in values if isinstance(v, dict)] if isinstance(values, list) else []
-                if values:
+                values = items(predicted[i], array_path)
+                if values and f"{label}.{array_path}" not in annotated_collections:
+                    count["unscored_records"] = count.get("unscored_records", 0) + len(values)
+                elif values:
                     owner = evidence_rows[i].get(array_path.split(".")[0], {})
                     unit(children, [], values, [], [{n.name: {**owner, "raw": v.get(n.name), "value": v.get(n.name)} for n in children} for v in values], label + "." + array_path)
+    annotated(case.schema.record_nodes, [annotation["expected_output"]], "document")
     unit(case.schema.record_nodes, [annotation["expected_output"]], pred["records"], [""],
          [{n.name: original_rows.get((i, n.name), {}) for n in case.schema.record_nodes} for i in range(len(pred["records"]))], "document")
     total = pool(totals)

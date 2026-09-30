@@ -280,3 +280,131 @@ def test_quote_refinement_preserves_offsets_when_quote_starts_inside_passage():
               for mode in ("quote", "ids")]
     assert result[0]["spans"] == result[1]["spans"] == [{"segment": "p1_s0", "start": 13, "end": 17}]
     assert result[0]["raw_spans"][0]["start"] == 7
+
+
+# --- assembly across chunks, parent/child scoring, unannotated collections ----------------------------------------------
+
+def paged_case(scope="document"):
+    schema = inference_schema({"type": "object", "properties": {"title": {"type": "string"},
+        "vendor": {"type": "object", "properties": {"name": {"type": "string"}, "city": {"type": "string"}}},
+        "items": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "quantity": {"type": "number"}}}}}})
+    expected = {"title": "Invoice", "vendor": {"name": "Acme", "city": "Rome"},
+                "items": [{"name": "A", "quantity": 1}, {"name": "B", "quantity": 2}, {"name": "A", "quantity": 3}, {"name": "C", "quantity": 1}]}
+    return case_of({"id": "paged", "group": "g", "split": "dev", "record_scope": scope, "schema": schema,
+                    "passages": [{"id": f"p{k}_s0", "page": k, "text": f"PAGE{k}"} for k in (1, 2, 3)],
+                    "gold": [{"fields": {k: {"value": v} for k, v in expected.items()}}],
+                    "annotations": {"adapter": "extractbench-v1", "expected_output": expected, "field_rules": {}}})
+
+
+PAGE_REPLIES = {    # one document read page by page: a partial vendor, an item repeated at the cut, a similar but distinct item
+    1: [{"title": "Invoice", "vendor": {"name": "Acme", "city": None}, "items": [{"name": "A", "quantity": 1}, {"name": "B", "quantity": 2}]}],
+    2: [{"title": None, "vendor": {"name": "Acme", "city": "Rome"}, "items": [{"name": "B", "quantity": 2}, {"name": "A", "quantity": 3}]}],
+    3: [{"title": None, "vendor": None, "items": [{"name": "C", "quantity": 1}]}]}
+
+
+class Pages:
+    """Answers each page's chunk with its scripted records; under continuation flags every page continues the document."""
+    model, accepts_sampling = "stub", True
+
+    def __init__(self, replies):
+        self.replies = replies
+
+    def complete(self, *, system, user, schema, **_):
+        from tests.helpers.harness_chat import sections
+        page = next(k for k in self.replies if f"PAGE{k}" in sections(user)["SOURCE"])
+        flags = {"begins_inside_record": page > 1, "ends_inside_record": page < len(self.replies)} if "begins_inside_record" in system else {}
+        return ResearchReply(json.dumps({"records": self.replies[page], **flags}), 10, 5, "stop", 0.0)
+
+
+def run_pages(case, replies=PAGE_REPLIES, **config):
+    cfg = Config.model_validate({"chunking": {"mode": "page", "max_chars": 2000}, **config})
+    return run_case(case, cfg, meter_for(Provider(Pages(replies)), cfg))
+
+
+def by_field(artifact, record=0):
+    return {r["field"]: r for r in artifact["fields"] if r["record"] == record}
+
+
+def test_a_document_root_read_in_chunks_is_one_record_that_keeps_every_nested_item():
+    case = paged_case()
+    artifact = run_pages(case)
+    assert len(artifact["records"]) == 1
+    rows = by_field(artifact)
+    assert rows["items"]["value"] == rows["items"]["raw"] == case.annotations["expected_output"]["items"]   # reading order, raw aligned
+    assert "repeated_items_merged" in rows["items"]["flags"] and len(rows["items"]["contributors"]) == 3
+    assert len(rows["items"]["alternatives"]) == 3                       # every chunk's own list stays on the record
+    assert rows["vendor"]["value"] == {"name": "Acme", "city": "Rome"}   # a null child does not erase a stated one
+    counts, _ = score_case(case, artifact, Eval())
+    assert not check_invariants(counts) and counts["tp"] == counts["gold_value_fields"] == 11
+    assert counts.get("hallucinated_records", 0) == counts.get("duplicated_records", 0) == 0
+
+
+def test_a_continuation_merge_unions_nested_items_and_a_collection_scope_keeps_chunk_records_apart():
+    case = paged_case("records")
+    joined = run_pages(case, merge={"continuation": "flags"})
+    assert len(joined["records"]) == 1 and len(joined["records"][0]["items"]) == 4   # was: a false conflict, no items
+    apart = run_pages(case)
+    assert [len(r["items"]) for r in apart["records"]] == [2, 2, 1]                   # nothing declares one record per document
+
+
+def test_a_conflicting_nested_value_is_held_and_repeats_within_one_reply_are_kept():
+    replies = {**PAGE_REPLIES, 2: [{"title": None, "vendor": {"name": "Acme", "city": "Milan"}, "items": []}],
+               3: [{"title": None, "vendor": {"name": "Acme", "city": "Rome"}, "items": [{"name": "C", "quantity": 1}, {"name": "C", "quantity": 1}]}]}
+    rows = by_field(run_pages(paged_case(), replies))
+    assert rows["vendor"]["status"] == "unresolved" and "conflict" in rows["vendor"]["flags"]
+    assert {a["value"]["city"] for a in rows["vendor"]["alternatives"]} == {"Rome", "Milan", None}
+    assert [i["name"] for i in rows["items"]["value"]] == ["A", "B", "C", "C"] and "repeated_items_merged" not in rows["items"]["flags"]
+
+
+def test_samples_of_a_document_root_align_into_one_record_even_when_they_share_nothing():
+    from experiments.harness.merge import align_samples
+    field = lambda v: {"status": "value", "value": v, "entries": []}
+    per_sample = [[{"first": (0, 0), "fields": {"title": field("A")}}], [{"first": (0, 0), "fields": {"title": field("B")}}]]
+    assert len(align_samples(per_sample, paged_case(), Config())) == 1
+    assert len(align_samples(per_sample, paged_case("records"), Config())) == 2
+
+
+def structured_prediction(*records):
+    rows = [{"record": i, "field": k, "status": "value" if v is not None else "absent", "raw": v, "value": v, "evidence": [],
+             "flags": [], "signals": {}} for i, record in enumerate(records) for k, v in record.items()]
+    return {"records": list(records), "fields": rows, "cost": {}, "validity": {}}
+
+
+def nested_case(schema, expected):
+    return case_of({"id": "n", "group": "n", "split": "dev", "passages": [{"id": "p1_s0", "page": 1, "text": "x"}],
+                    "schema": inference_schema(schema), "gold": [{"fields": {k: {"value": v} for k, v in expected.items()}}],
+                    "annotations": {"adapter": "extractbench-v1", "expected_output": expected, "field_rules": {}}})
+
+
+def test_children_are_scored_under_their_own_parent_when_parents_share_attributes():
+    spec = {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "value": {"type": "string"}}}}
+    schema = {"type": "object", "properties": {"products": {"type": "array", "items": {"type": "object", "properties": {
+        "model": {"type": "string"}, "brand": {"type": "string"}, "kind": {"type": "string"}, "specs": spec}}}}}
+    first = {"model": "312C", "brand": "CAT", "kind": "excavator", "specs": [{"label": "Weight", "value": "10 t"}, {"label": "Power", "value": "70 kW"}]}
+    second = {"model": "320C", "brand": "CAT", "kind": "excavator", "specs": [{"label": "Weight", "value": "20 t"}, {"label": "Power", "value": "100 kW"}]}
+    case = nested_case(schema, {"products": [first, second]})
+    right, _ = score_case(case, structured_prediction({"products": [first, second]}), Eval())
+    assert right["tp"] == right["gold_value_fields"] == 14
+    swapped = [{**first, "specs": second["specs"]}, {**second, "specs": first["specs"]}]      # right children, wrong parent
+    counts, _ = score_case(case, structured_prediction({"products": swapped}), Eval())
+    assert not check_invariants(counts) and counts["tp"] == 6                               # only the parents' own fields
+    assert counts["repeated_matched_records"] == 2 and counts["repeated_hallucinated_records"] == counts["repeated_missing_records"] == 4
+
+
+def test_an_unannotated_nested_collection_is_unscored_under_every_parent():
+    adjust = {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "amount": {"type": "number"}}}}
+    schema = {"type": "object", "properties": {"vehicles": {"type": "array", "items": {"type": "object", "properties": {
+        "vin": {"type": "string"}, "price": {"type": "number"}, "adjustments": adjust}}}}}
+    case = nested_case(schema, {"vehicles": [{"vin": "V1", "price": 100}, {"vin": "V2", "price": 200}]})   # adjustments never annotated
+
+    def scored(extra):
+        vehicles = [{"vin": "V1", "price": 100, "adjustments": extra[:1]}, {"vin": "V2", "price": 200, "adjustments": extra[1:2]},
+                    {"vin": "V9", "price": 900, "adjustments": extra[2:]}]                    # V9 is spurious
+        counts, _ = score_case(case, structured_prediction({"vehicles": vehicles}), Eval())
+        assert not check_invariants(counts)
+        return counts
+    many, none = scored([{"name": n, "amount": 1} for n in "abcd"]), scored([])
+    keys = ("tp", "gold_value_fields", "pred_records", "hallucinated_records", "extra_record_values", "wrong_values")
+    assert {k: many.get(k, 0) for k in keys} == {k: none.get(k, 0) for k in keys}
+    assert many["hallucinated_records"] == 1 and many["unscored_records"] == 4 and none.get("unscored_records", 0) == 0
+    assert metrics(many)["field"]["f1"] == metrics(none)["field"]["f1"]

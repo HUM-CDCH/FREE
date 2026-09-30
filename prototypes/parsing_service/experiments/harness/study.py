@@ -124,7 +124,8 @@ def case_pin(case: Case) -> str:
     return digest(canonical_json({"id": case.id, "group": case.group, "split": case.split, "source": [case.evidence.generation, case.evidence.digest],
                                   "schema": case.schema.model_dump(mode="json", by_alias=True), "gold": case.gold,
                                   "record_key": case.record_key, "exhaustive": case.exhaustive,
-                                  **({"annotations": case.annotations} if case.annotations else {})}))
+                                  **({"annotations": case.annotations} if case.annotations else {}),
+                                  **({"record_scope": case.record_scope} if case.record_scope != "records" else {})}))
 
 
 def _version(name: str) -> str | None:

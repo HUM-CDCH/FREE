@@ -9,11 +9,12 @@ transitive matches cannot merge records that disagree. A field's status keeps it
 processed region asked for it and it was not there), `unresolved` (values conflict or do not conform), `omitted` (no
 successful call covered it, or the record touches a region nobody read), `unsupported` (set later by an evidence gate).
 Set-valued fields are unions; scalar conflicts are kept with every alternative and never resolved by order or by a
-confidence number.
+confidence number. Nested objects and collections stated by several candidates of one record are parts of it (`_parts`),
+not rival answers. A case whose `record_scope` is "document" has one record per document: every candidate is a part of it.
 """
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any
 
@@ -100,6 +101,8 @@ def cluster(cands: list[dict], case: Case, cfg: Config, coverage: Coverage) -> l
         for c in members:
             c["is_first"], c["is_last"] = c["index"] == lo, c["index"] == hi
     ordered = sorted(cands, key=lambda c: (where.get(c["chunk"], 0), tuple(c.get("source_part", ())), c["group"], c["index"]))
+    if case.record_scope == "document":
+        return [ordered] if ordered else []
     clusters: list[_Cluster] = []
     by_key: dict[tuple, _Cluster] = {}
     open_end: dict[tuple, _Cluster] = {}        # (chunk, group, sample) -> the cluster of its last record, when the model says it goes on
@@ -217,6 +220,37 @@ def _union(present: list[tuple[dict, dict]], keep=lambda item, count: True) -> l
     return [items[0] for items in counts.values() if keep(items[0], len(items))]
 
 
+CONFLICT = object()
+
+
+def _parts(values: list, node: Node) -> tuple[Any, int]:
+    """One nested value from the parts candidates of one record state, and how many repeated items it folded: objects fill
+    in child by child (a null or missing child erases nothing), collections keep every item in reading order and fold an
+    item only when another candidate already gave it (the same item read twice across a cut; repeats within one reply
+    stay). CONFLICT when two parts state different scalars for one place."""
+    if len({canon(v) for v in values}) <= 1:
+        return (values[0] if values else None), 0
+    if node.type == "array" and all(isinstance(v, list) for v in values):
+        kept, seen = [], Counter()
+        for items in values:
+            here = Counter()
+            for item in items:
+                here[canon(item)] += 1
+                if here[canon(item)] > seen[canon(item)]:
+                    kept.append(item)
+            seen |= here
+        return kept, sum(map(len, values)) - len(kept)
+    if node.type == "object" and all(isinstance(v, dict) for v in values):
+        merged, folded = {}, 0
+        for child in node.children:
+            merged[child.name], n = _parts([v[child.name] for v in values if v.get(child.name) not in (None, "", [])], child)
+            if merged[child.name] is CONFLICT:
+                return CONFLICT, 0
+            folded += n
+        return merged, folded
+    return CONFLICT, 0
+
+
 def _field(members: list[dict], node: Node, coverage: Coverage) -> dict:
     """One field of a record from its contributing candidates (chunks and groups of one sample)."""
     pairs = [(m, m["fields"][node.name]) for m in members if node.name in m["fields"]]
@@ -232,6 +266,10 @@ def _field(members: list[dict], node: Node, coverage: Coverage) -> dict:
             first = present[0][1]
             return {**out, "status": "value", "value": first["value"], "raw": first["raw"], "normalized": first["normalized"],
                     "alternatives": _alternatives(groups), **_win(present)}
+        merged, folded = _parts([f["value"] for _, f in present], node) if node.children is not None else (CONFLICT, 0)
+        if merged is not CONFLICT:      # nested values are untyped, so value and raw are the same items in the same order
+            return {**out, "status": "value", "value": merged, "raw": merged, "normalized": any(f["normalized"] for _, f in present),
+                    "alternatives": _alternatives(groups), "flags": ["repeated_items_merged"] if folded else [], **_win(present)}
         return {**out, "status": "unresolved", "alternatives": _alternatives(groups), "flags": ["conflict"]}
     if invalid:
         return {**out, "status": "unresolved", "raw": invalid[0][1]["raw"], "typed": False, "flags": ["type_mismatch"]}
@@ -263,6 +301,8 @@ def align_samples(per_sample: list[list[dict]], case: Case, cfg: Config) -> list
     assignment (the evaluator's) on the values or cited spans two records share, at least `min_fields`. A record's fields may
     disagree between samples, which is what the vote is for, so agreement on a field is never a condition of being the same
     record. A record without a complete key may join one that has it, which then gains the key."""
+    if case.record_scope == "document":
+        return [[(s, rec) for s, records in enumerate(per_sample) for rec in records]] if any(per_sample) else []
     clusters: list[list[tuple[int, dict]]] = []
     keys: list[tuple | None] = []
     for s, records in enumerate(per_sample):
