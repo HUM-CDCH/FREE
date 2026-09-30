@@ -65,5 +65,5 @@ pending and is independent of manual field navigation and deterministic import.
 
 ## 10. Workflow integration acceptance
 
-- [ ] 10.1 Complete the deterministic aggregate on Spark, forward fresh/upgrade migration checks, authenticated import → sample/review → field edit → same-pages re-run → full run → collection review, Parsing Service/service tiers, and a dated validation receipt.
-- [ ] 10.2 Independently review the frozen integration candidate on Standards and Spec axes, resolve findings and revalidate. Record adjacent delivery bases/merge order. Keep PR4 and its later correction-context integration pending.
+- [x] 10.1 Complete the deterministic aggregate on Spark, forward fresh/upgrade migration checks, authenticated import → sample/review → field edit → same-pages re-run → full run → collection review, Parsing Service/service tiers, and a dated validation receipt. — `1617c51d`; [validation receipt](../../../docs/validation/2026-09-30-workbench-workflow-integration.md).
+- [x] 10.2 Independently review the frozen integration candidate on Standards and Spec axes, resolve findings and revalidate. Record adjacent delivery bases/merge order. Keep PR4 and its later correction-context integration pending. — `1617c51d`; [validation receipt](../../../docs/validation/2026-09-30-workbench-workflow-integration.md).
