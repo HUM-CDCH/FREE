@@ -206,3 +206,7 @@ The tables above are unchanged. These corrections come from
   shortcut needs exactly one.
 - **The strict-record guard used all-scope strict records.** The frozen rule text says
   "repeated-record count". Both were 0, so the verdict is unaffected and not revised.
+- **Reproduction at later commits.** From `e4c9c906` on (evaluator 3), `analyze.py` stops at
+  `verify_output` with "evaluation changed". It refuses rather than relabel the run.
+  Reproduce with a `git archive` of `2024b85c`. `run_paired.py` also refuses on the harness
+  hash; that refusal is intended.

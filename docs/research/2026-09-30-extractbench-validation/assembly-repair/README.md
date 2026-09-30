@@ -78,6 +78,9 @@ nested field:
 No option was added for the old behaviour; the historical commit and the sealed outputs
 preserve it.
 
+**Size:** source +91 / −19 lines in 6 files, tests +128. No dependency was added. Nothing
+was pushed or merged.
+
 ## Offline 2×2 comparison
 
 Same saved replies throughout. The original-assembly cells score the sealed artifacts. The
@@ -114,6 +117,9 @@ The precision/recall trade-off (A0, raw):
 - Pepco: P .20 → .47, R .55 → .45. Conflicting root scalars are now withheld as
   `unresolved` instead of scored as copies.
 - Mission: P .29 → .49, R .48 → .64.
+- Annotated fields withheld as `unresolved` (cohort; A0 / A1 / A2 / A3) rose from 0 / 0 /
+  0 / 0 to 10 / 10 / 7 / 8. Part of the precision gain is abstention: every alternative and
+  contributor is kept, but those values earn no credit.
 
 Reconciled records, cohort sums. Each scope satisfies predicted = matched + duplicated +
 spurious and gold = matched + missing; unscored is 0 everywhere, and no unannotated fields
@@ -171,6 +177,12 @@ Separated layers:
 - These describe 3 single executions: no stochastic variation was measured.
 
 ## Proposed next development experiment (not executed; needs a fresh allowance)
+
+**Prerequisite:** a new dataset revision whose inputs carry `record_scope: "document"`,
+pinned in a new contract before any request. dataset-v2 lacks the field, so a run on it
+would still fragment roots. The adapter's `save` refuses to overwrite dataset-v2, and
+re-ingesting may re-download the pinned PDFs, which is network access but not model calls.
+Not built here.
 
 **Reference:** A0 with the repaired assembly.
 
