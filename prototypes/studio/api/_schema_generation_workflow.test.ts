@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { SchemaSource } from 'db'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { holdsKey, plantedKey } from '../test/support/plantedKey.js'
 import { ApiError } from './_http.js'
@@ -17,6 +18,7 @@ const input: SchemaGenerationInput = {
   temperature: null,
 }
 const TEMPLATE = { _description: 'One entry.', title: 'string' }
+const SOURCE: SchemaSource = { markdown: '# Source A', pageSpans: [{ pageNumber: 1, start: 0, end: 10 }] }
 
 /** Steps that run at once and record their names, so the test sees what ran inside a step. */
 function recordingSteps() {
@@ -37,17 +39,17 @@ function ports(overrides: Partial<SchemaGenerationPorts> = {}) {
   const { names, steps } = recordingSteps()
   const generated = { template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2, sourceCoverage: EXCERPTED }
   const generate = vi.fn(async () => generated) as unknown as SchemaGenerationPorts['generate']
-  const readMarkdown = vi.fn(async (): Promise<string | null> => '# Source A')
-  return { names, generate, readMarkdown, ports: { steps, readMarkdown, generate, ...overrides } as SchemaGenerationPorts }
+  const readSource = vi.fn(async (): Promise<SchemaSource | null> => SOURCE)
+  return { names, generate, readSource, ports: { steps, readSource, generate, ...overrides } as SchemaGenerationPorts }
 }
 
 describe('suggestSchemaWorkflow', () => {
   it('reads the document outside the step, generates in one step named generateSchema, and returns the template with its base', async () => {
-    const { names, generate, readMarkdown, ports: p } = ports()
+    const { names, generate, readSource, ports: p } = ports()
     let namesWhenRead: string[] = ['unset']
-    readMarkdown.mockImplementation(async () => {
+    readSource.mockImplementation(async () => {
       namesWhenRead = [...names]
-      return '# Source A'
+      return SOURCE
     })
     let namesWhenGenerated: string[] = ['unset']
     vi.mocked(generate).mockImplementation((async () => {
@@ -57,7 +59,7 @@ describe('suggestSchemaWorkflow', () => {
 
     const result = await suggestSchemaWorkflow(input, p)
 
-    expect(readMarkdown).toHaveBeenCalledExactlyOnceWith(input.sourceRepresentationRevisionId)
+    expect(readSource).toHaveBeenCalledExactlyOnceWith(input.sourceRepresentationRevisionId)
     expect(namesWhenRead).toEqual([])
     expect(namesWhenGenerated).toEqual(['generateSchema'])
     expect(names).toEqual(['generateSchema'])
@@ -65,7 +67,7 @@ describe('suggestSchemaWorkflow', () => {
     expect(result).toEqual({ ok: true, template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2, sourceCoverage: { ...EXCERPTED, sourceRepresentationRevisionId: input.sourceRepresentationRevisionId }, baseSchemaRevisionId: input.baseSchemaRevisionId })
     expect(generate).toHaveBeenCalledExactlyOnceWith(
       { researcherAccountId: OWNER },
-      expect.objectContaining({ document: { file: null, pages: null, markdown: '# Source A' }, instruction: 'Catalog entries' }),
+      expect.objectContaining({ document: { file: null, pages: null, markdown: '# Source A', pageSpans: SOURCE.pageSpans }, instruction: 'Catalog entries' }),
     )
   })
 
@@ -108,8 +110,8 @@ describe('suggestSchemaWorkflow', () => {
 
   it('a document read that fails is a typed 503 persistence_unavailable and no step', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    const { names, generate, readMarkdown, ports: p } = ports()
-    readMarkdown.mockRejectedValue(new Error('connection refused at 10.0.0.1'))
+    const { names, generate, readSource, ports: p } = ports()
+    readSource.mockRejectedValue(new Error('connection refused at 10.0.0.1'))
 
     const result = await suggestSchemaWorkflow(input, p)
 
@@ -120,8 +122,8 @@ describe('suggestSchemaWorkflow', () => {
   })
 
   it('a deleted revision ends with a typed 404 and no step', async () => {
-    const { names, generate, readMarkdown, ports: p } = ports()
-    readMarkdown.mockResolvedValue(null)
+    const { names, generate, readSource, ports: p } = ports()
+    readSource.mockResolvedValue(null)
 
     await expect(suggestSchemaWorkflow(input, p)).resolves.toEqual({ ok: false, status: 404, code: 'not_found', message: 'Project model context was not found.' })
     expect(names).toEqual([])

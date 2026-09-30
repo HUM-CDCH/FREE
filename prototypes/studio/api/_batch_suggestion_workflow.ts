@@ -1,6 +1,6 @@
 import { DBOS, type StepConfig } from '@dbos-inc/dbos-sdk'
 import { MODEL_OPERATION_TIMEOUT_MS } from './_model_operation.js'
-import type { InternalProjectWorkerStore } from 'db'
+import type { InternalProjectWorkerStore, SchemaSource } from 'db'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { SchemaDefinition } from 'extraction/schema'
 import { sourceSuggestionFailure } from './_batch_schema_suggestions.js'
@@ -27,8 +27,8 @@ export type SuggestionStore = Readonly<{
   /** 'current' while this attempt is the suggestion's attempt and has no outcome; 'stopped' after an interruption, a later attempt or deletion. */
   attemptState(batchSchemaSuggestionId: string, attempt: number): Promise<'current' | 'stopped'>
   projectContextOwner(projectContextId: string): Promise<string | null>
-  /** The pinned revision's canonical Markdown, or null when the revision is gone. */
-  readMarkdown(sourceRepresentationRevisionId: string): Promise<string | null>
+  /** The pinned revision's canonical Markdown with its page spans, or null when the revision is gone. */
+  readSource(sourceRepresentationRevisionId: string): Promise<SchemaSource | null>
   publish(batchSchemaSuggestionId: string, attempt: number, result: SuggestionProposal): Promise<'published' | 'stopped'>
   fail(batchSchemaSuggestionId: string, attempt: number, failure: SuggestionFailure): Promise<'published' | 'stopped'>
 }>
@@ -40,7 +40,7 @@ export function workerSuggestionStore(worker: InternalProjectWorkerStore): Sugge
   return {
     attemptState: (id, attempt) => worker.suggestionAttemptState(id, attempt),
     projectContextOwner: (projectContextId) => worker.projectContextOwner(projectContextId),
-    readMarkdown: (revisionId) => worker.readRevisionMarkdown(revisionId),
+    readSource: (revisionId) => worker.readRevisionSchemaSource(revisionId),
     // The suggestion's `coverage` column holds the source declaration; a merge result checkpointed before the
     // declaration existed has none, so it publishes null.
     publish: (id, attempt, result) => worker.publishBatchSchemaSuggestion(id, attempt, result.phase === 'READY'
@@ -136,12 +136,12 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
     const result = await steps.step(`suggestSource:${member.sourceDocumentId}`, async (): Promise<SourceResult> => {
       if ((await store.attemptState(id, attempt)) !== 'current') return { kind: 'stopped' }
       const owner = await store.projectContextOwner(input.projectContextId)
-      const markdown = owner === null ? null : await store.readMarkdown(member.sourceRepresentationRevisionId)
-      if (owner === null || markdown === null) return { kind: 'stopped' }
+      const source = owner === null ? null : await store.readSource(member.sourceRepresentationRevisionId)
+      if (owner === null || source === null) return { kind: 'stopped' }
       try {
         // The Project Context owner's configuration and keys, resolved when the call runs; DBOS holds only the ID.
         const { definition, sourceCoverage } = await suggestBatchSource(
-          { researcherAccountId: owner }, markdown, modelSignal(steps.cancelSignal()), generate,
+          { researcherAccountId: owner }, source, modelSignal(steps.cancelSignal()), generate,
         )
         return { kind: 'definition', sourceDocumentId: member.sourceDocumentId, definition, sourceCoverage }
       } catch (error) {

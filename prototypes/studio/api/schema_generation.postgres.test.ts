@@ -52,7 +52,7 @@ keys.wait = (...args) => {
 const worker = createInternalProjectWorkerStore(db, { packages })
 const ports: SchemaGenerationPorts = {
   steps: dbosSteps,
-  readMarkdown: (id) => worker.readRevisionMarkdown(id),
+  readSource: (id) => worker.readRevisionSchemaSource(id),
   generate: (caller, input) =>
     generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs, deployment: deploymentModels({}) }),
 }

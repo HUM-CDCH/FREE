@@ -1,3 +1,4 @@
+import type { SourcePageSpan } from 'db'
 import type { SourceCoverage, SourceOmission } from '../shared/schemaSuggestionSource.contract.js'
 
 // Superseded by a free-text chat instruction (see schemaPrompt below) — schema
@@ -47,28 +48,55 @@ When a field can only take one of a small closed set of values, give that field 
 /** The longest schema-suggestion input sent whole; past it, a source is excerpted. */
 export const EXCERPT_THRESHOLD = 48_000
 const EXCERPT_BUDGET = 46_000
-const PAGE_MARKER = /^<!-- FREE:PAGE (\d+) -->/
+
+/** The UTF-16 index of each ascending UTF-8 byte offset into `text`. An offset inside a character or past the end means
+ *  the spans do not describe this Markdown, and a coverage declaration built on them would be false. */
+function utf16Indices(text: string, offsets: readonly number[]): number[] {
+  let bytes = 0
+  let index = 0
+  return offsets.map((offset) => {
+    while (bytes < offset && index < text.length) {
+      const code = text.codePointAt(index)!
+      bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4
+      index += code < 0x10000 ? 1 : 2
+    }
+    if (bytes !== offset) throw new Error(`Page span offset ${offset} is not a character boundary of the source Markdown.`)
+    return index
+  })
+}
+
+const isLowSurrogate = (text: string, index: number) => (text.charCodeAt(index) & 0xfc00) === 0xdc00
 
 /**
  * Schema design needs examples; extraction still receives the complete source. A source over the threshold is sent
- * as each physical page's head and tail, and the result declares every range it did not send.
+ * as each physical page's head and tail, and the result declares every range it did not send. Pages are the canonical
+ * `pageSpans` (UTF-8 byte offsets); without them the source is one unnumbered range.
  */
-export function schemaSourceExcerpts(markdown: string): { text: string; sourceCoverage: SourceCoverage } {
+export function schemaSourceExcerpts(
+  markdown: string,
+  pageSpans: readonly SourcePageSpan[] = [],
+): { text: string; sourceCoverage: SourceCoverage } {
   if (markdown.length <= EXCERPT_THRESHOLD) return { text: markdown, sourceCoverage: { complete: true } }
-  const pages = markdown.split(/(?=<!-- FREE:PAGE \d+ -->)/).filter(Boolean)
+  // The pages tile the source: each runs to the next one's start, the first from 0 and the last to the end.
+  const starts = utf16Indices(markdown, pageSpans.map((span) => span.start))
+  const pages = (pageSpans.length === 0
+    ? [{ page: null, start: 0, end: markdown.length }]
+    : pageSpans.map((span, i) => ({ page: span.pageNumber, start: i === 0 ? 0 : starts[i]!, end: starts[i + 1] ?? markdown.length }))
+  ).filter((page) => page.end > page.start)
   const half = Math.max(1, Math.floor(EXCERPT_BUDGET / pages.length / 2))
   const omitted: SourceOmission[] = []
-  let offset = 0
-  const excerpts = pages.map((page) => {
-    const start = offset
-    offset += page.length
-    if (page.length <= half * 2) return page
-    const marker = PAGE_MARKER.exec(page)
-    omitted.push({ page: marker ? Number(marker[1]) : null, start: start + half, end: start + page.length - half })
-    return `${page.slice(0, half)}\n[... omitted for schema design ...]\n${page.slice(-half)}`
+  const excerpts = pages.map(({ page, start, end }) => {
+    const text = markdown.slice(start, end)
+    if (text.length <= half * 2) return text
+    // A cut that would split a surrogate pair gives the character up: the pair is omitted whole, never half sent.
+    const headEnd = start + half - (isLowSurrogate(markdown, start + half) ? 1 : 0)
+    const tailStart = end - half + (isLowSurrogate(markdown, end - half) ? 1 : 0)
+    omitted.push({ page, start: headEnd, end: tailStart })
+    return `${markdown.slice(start, headEnd)}\n[... omitted for schema design ...]\n${markdown.slice(tailStart, end)}`
   })
   return {
-    text: 'Source excerpts from every physical page for schema design:\n' + excerpts.join('\n\n'),
+    text: (pageSpans.length === 0 ? 'Source excerpts for schema design:\n' : 'Source excerpts from every physical page for schema design:\n')
+      + excerpts.join('\n\n'),
     sourceCoverage: omitted.length === 0
       ? { complete: true }
       : { complete: false, sourceCharacters: markdown.length, omitted },

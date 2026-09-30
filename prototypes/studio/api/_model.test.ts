@@ -249,10 +249,16 @@ describe('generateSchemaWithModel', () => {
 
   it('bounds schema context while retaining excerpts from every physical page', async () => {
     generateTextMock.mockResolvedValue({ text: '{"_description":"One entry.","label":"string"}' })
-    const markdown = Array.from({ length: 45 }, (_, i) =>
-      `<!-- FREE:PAGE ${i + 1} -->\nStart ${i + 1}\n${'Source '.repeat(1700)}\nEnd ${i + 1}\n`,
-    ).join('\n')
-    const result = await generateSchemaWithModel(CALLER, { document: { ...document, markdown }, instruction: '' }, generalTarget)
+    // Pages as the parsing pipeline writes them: a blank line between, no marker, each with its span in UTF-8 bytes.
+    const pages = Array.from({ length: 45 }, (_, i) => `Start ${i + 1}\n${'Source '.repeat(1700)}\nEnd ${i + 1}`)
+    const markdown = pages.join('\n\n') + '\n'
+    let start = 0
+    const pageSpans = pages.map((page, i) => {
+      const span = { pageNumber: i + 1, start, end: start + new TextEncoder().encode(page).length }
+      start = span.end + 2
+      return span
+    })
+    const result = await generateSchemaWithModel(CALLER, { document: { ...document, markdown, pageSpans }, instruction: '' }, generalTarget)
     const sent = JSON.stringify(generateTextMock.mock.calls[0][0].messages)
     expect(sent.length).toBeLessThan(55_000)
     for (let i = 1; i <= 45; i += 1) {

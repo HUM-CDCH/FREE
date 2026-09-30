@@ -5,7 +5,8 @@ import { z } from 'zod'
 const sourceDocumentIdSchema = z.string().regex(CANONICAL_UUID, 'Must be a canonical lowercase UUID.')
 
 /** A range of a Source Document's canonical Markdown that Schema Suggestion did not send to the model: character
- *  offsets `[start, end)` into the whole source, and the physical page it lies on (null before the first page marker). */
+ *  offsets `[start, end)` (UTF-16 indices) into the whole source, and the physical page it lies on (null when the source's
+ *  page boundaries were unavailable). */
 export const sourceOmissionSchema = z
   .object({
     page: z.number().int().positive().nullable(),

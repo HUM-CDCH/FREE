@@ -805,12 +805,21 @@ export type ResearcherProjectStore = {
   modelOperationScopeExists(projectContextId: string, extractionSchemaId: string | null): Promise<boolean>
 }
 
+/** One page's extent in its revision's canonical Markdown: UTF-8 byte offsets, as `parsed_document.json` records them. */
+export type SourcePageSpan = { pageNumber: number; start: number; end: number }
+
+/** A revision's canonical Markdown with each page's span in it. */
+export type SchemaSource = { markdown: string; pageSpans: SourcePageSpan[] }
+
 export type InternalProjectWorkerStore = {
   /** The Researcher Account that owns the Project Context, or null when it no longer exists. Background model work
    *  resolves the owner's configuration and keys through it. */
   projectContextOwner(projectContextId: string): Promise<string | null>
   /** The revision's canonical Markdown as text, or null when the revision is gone. */
   readRevisionMarkdown(sourceRepresentationRevisionId: string): Promise<string | null>
+  /** The revision's canonical Markdown with each page's span in it (a page without Markdown has none), read from the
+   *  one pinned revision; null when the revision is gone. */
+  readRevisionSchemaSource(sourceRepresentationRevisionId: string): Promise<SchemaSource | null>
   /** A schema revision's tree, or null when the revision is gone or belongs to another Extraction Schema. */
   readSchemaRevisionTree(extractionSchemaId: string, schemaRevisionId: string): Promise<unknown | null>
   /** 'current' while `attempt` is the suggestion's attempt and has no outcome; 'stopped' after a retry, an
@@ -2211,6 +2220,24 @@ export function createInternalProjectWorkerStore(
       ).first({ id: sourceRepresentationRevisionId })
       if (!revision) return null
       return new TextDecoder().decode((await packages.read(revision, 'markdown')).bytes)
+    },
+    async readRevisionSchemaSource(sourceRepresentationRevisionId) {
+      const revision = await database.orm.public.SourceRepresentationRevision.select(
+        'artifactReference',
+        'artifactSha256',
+      ).first({ id: sourceRepresentationRevisionId })
+      if (!revision) return null
+      const decoder = new TextDecoder()
+      const [markdown, source] = await Promise.all([packages.read(revision, 'markdown'), packages.read(revision, 'source')])
+      // A package without `pages` has no spans: its excerpts are unnumbered, and the declaration says so.
+      const { pages = [] } = JSON.parse(decoder.decode(source.bytes)) as {
+        pages?: { page_number: number; markdown_span: { start: number; end: number } | null }[]
+      }
+      return {
+        markdown: decoder.decode(markdown.bytes),
+        pageSpans: pages.flatMap(({ page_number, markdown_span }) =>
+          markdown_span ? [{ pageNumber: page_number, start: markdown_span.start, end: markdown_span.end }] : []),
+      }
     },
     async readSchemaRevisionTree(extractionSchemaId, schemaRevisionId) {
       const row = await database.orm.public.SchemaRevision.select('schemaTree').first({ id: schemaRevisionId, extractionSchemaId })

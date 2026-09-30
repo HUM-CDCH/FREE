@@ -24,6 +24,7 @@ const A = { sourceDocumentId: 'source-a', sourceRepresentationRevisionId: 'revis
 const B = { sourceDocumentId: 'source-b', sourceRepresentationRevisionId: 'revision-b' }
 const C = { sourceDocumentId: 'source-c', sourceRepresentationRevisionId: 'revision-c' }
 const MARKDOWN: Record<string, string> = { 'revision-a': '# Source A', 'revision-b': '# Source B', 'revision-c': '# Source C' }
+const PAGE_SPANS = [{ pageNumber: 1, start: 0, end: 10 }]
 
 const sourceTemplate = { _description: 'One article.', title: 'string', year: 'integer' }
 const commonTemplate = { _description: 'One article.', title: 'string' }
@@ -81,8 +82,9 @@ function harness(scenario: Scenario = {}) {
         expect(id).toBe(PROJECT)
         return scenario.owner === undefined ? OWNER : scenario.owner
       },
-      async readMarkdown(revisionId) {
-        return scenario.readMarkdown ? scenario.readMarkdown(revisionId) : (MARKDOWN[revisionId] ?? null)
+      async readSource(revisionId) {
+        const markdown = scenario.readMarkdown ? scenario.readMarkdown(revisionId) : (MARKDOWN[revisionId] ?? null)
+        return markdown === null ? null : { markdown, pageSpans: PAGE_SPANS }
       },
       async publish(id, attempt, result) {
         expect([id, attempt]).toEqual([SUGGESTION, 2])
@@ -118,6 +120,8 @@ describe('suggestSchemaBatch', () => {
     expect(h.calls.map((call) => call.input.document.markdown?.split('\n')[0])).toEqual([
       '# Source A', '# Source B', 'SOURCE DOCUMENT source-a SUGGESTION:',
     ])
+    // A source's pinned page spans reach its model call; the merge's synthetic text has none.
+    expect(h.calls.map((call) => call.input.document.pageSpans)).toEqual([PAGE_SPANS, PAGE_SPANS, undefined])
     expect(h.writes).toHaveLength(1)
     const [write] = h.writes
     if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')

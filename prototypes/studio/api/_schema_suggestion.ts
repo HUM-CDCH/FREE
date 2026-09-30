@@ -12,6 +12,7 @@ import {
   type ModelDependencies,
 } from './_model_execution.js'
 import type { ExecutionTarget } from './_provider.js'
+import type { SchemaSource } from 'db'
 import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 import {
   parseBatchSuggestionDefinition,
@@ -58,7 +59,7 @@ async function suggestSchema(
   readonly sourceCoverage: SourceCoverage
 }> {
   const resolved = await resolveModelTarget('schema-suggestion', temperature, target, caller, dependencies)
-  const excerpts = document.markdown ? schemaSourceExcerpts(document.markdown) : null
+  const excerpts = document.markdown ? schemaSourceExcerpts(document.markdown, document.pageSpans) : null
   const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
   const generated = await executeSchemaSuggestion(resolved, {
     instructions:
@@ -97,12 +98,12 @@ function modelSuggestedDefinition(template: unknown): SchemaDefinition {
 /** Per-source batch call; unlike single generation, the result must be an editable batch definition. */
 export async function suggestBatchSource(
   caller: ModelCaller,
-  markdown: string,
+  source: SchemaSource,
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
 ): Promise<{ definition: SchemaDefinition; sourceCoverage: SourceCoverage }> {
   const generated = await generate(caller, {
-    document: { file: null, markdown, pages: null },
+    document: { file: null, markdown: source.markdown, pageSpans: source.pageSpans, pages: null },
     instruction: SOURCE_SUGGESTION_INSTRUCTION,
     signal,
   })

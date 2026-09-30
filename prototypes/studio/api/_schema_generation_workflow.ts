@@ -1,4 +1,5 @@
 import { DBOS } from '@dbos-inc/dbos-sdk'
+import type { SchemaSource } from 'db'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { generateSchemaWithModel } from './_schema_suggestion.js'
 import { persistenceUnavailable } from './_http.js'
@@ -30,7 +31,7 @@ export type SchemaGenerated = {
 }
 export type SchemaGenerationPorts = Readonly<{
   steps: WorkflowSteps
-  readMarkdown(sourceRepresentationRevisionId: string): Promise<string | null>
+  readSource(sourceRepresentationRevisionId: string): Promise<SchemaSource | null>
   generate: typeof generateSchemaWithModel
 }>
 
@@ -41,17 +42,17 @@ export async function suggestSchemaWorkflow(
 ): Promise<OperationResult<SchemaGenerated>> {
   // Read at workflow scope from the immutable revision: a replay reads it again, and neither the input nor any step's
   // output holds it. A storage failure is the typed 503 the handler always answered, never a workflow error.
-  let markdown: string | null
+  let source: SchemaSource | null
   try {
-    markdown = await ports.readMarkdown(input.sourceRepresentationRevisionId)
+    source = await ports.readSource(input.sourceRepresentationRevisionId)
   } catch (cause) {
     return { ok: false, ...operationFailureOf(persistenceUnavailable(cause, 'Project model context storage is unavailable.')) }
   }
-  if (markdown === null) return { ok: false, status: 404, code: 'not_found', message: 'Project model context was not found.' }
+  if (source === null) return { ok: false, status: 404, code: 'not_found', message: 'Project model context was not found.' }
   return ports.steps.step('generateSchema', async (): Promise<OperationResult<SchemaGenerated>> => {
     try {
       const generated = await ports.generate({ researcherAccountId: input.owner }, {
-        document: { file: null, pages: null, markdown },
+        document: { file: null, pages: null, markdown: source.markdown, pageSpans: source.pageSpans },
         instruction: input.instruction,
         ...(input.temperature === null ? {} : { temperature: input.temperature }),
         // The model boundary adds the step's cancel signal (Task 2).

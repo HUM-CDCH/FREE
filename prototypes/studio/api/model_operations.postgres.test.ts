@@ -43,7 +43,7 @@ const keys = createModelKeyCache()
 const worker = createInternalProjectWorkerStore(db, { packages })
 const generationPorts: SchemaGenerationPorts = {
   steps: dbosSteps,
-  readMarkdown: (id) => worker.readRevisionMarkdown(id),
+  readSource: (id) => worker.readRevisionSchemaSource(id),
   generate: (caller, input) =>
     generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs: 400, deployment: deploymentModels({}) }),
 }

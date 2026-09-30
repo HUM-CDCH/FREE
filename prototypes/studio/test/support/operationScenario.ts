@@ -65,7 +65,7 @@ export async function runOperationScenario(
   const dependencies = { keys, keyWaitMs, deployment: deploymentModels({}) }
   const generation: SchemaGenerationPorts = {
     steps,
-    readMarkdown: (id) => worker.readRevisionMarkdown(id),
+    readSource: (id) => worker.readRevisionSchemaSource(id),
     generate: (caller, input) => generateSchemaWithModel(caller, input, undefined, dependencies),
   }
   const edit: SchemaEditPorts = {

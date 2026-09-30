@@ -1,4 +1,5 @@
 // import { z } from "zod"; // only used by the commented-out annotation parsers below
+import type { SourcePageSpan } from "db";
 import { ApiError, type FormValue } from "./_http.js";
 
 const supportedMediaTypes = new Set([
@@ -15,6 +16,8 @@ export type DocumentInput = {
 	// Pre-parsed Markdown from the parsing service (the document's "index"). When
 	// present it replaces page-image rendering as the model's view of the document.
 	readonly markdown: string | null;
+	// Each page's span in `markdown`, for excerpting it by physical page.
+	readonly pageSpans?: readonly SourcePageSpan[];
 };
 
 // Superseded by the SchemaWorkbench chat-driven instruction (see parseInstruction
