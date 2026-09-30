@@ -2,9 +2,16 @@
 
 **Status: partially completed within limits.** Run `extractbench-v3-corrected-development`
 (parent `extractbench-v2-development`, closed and untouched). Frozen tooling `0834a7d1`,
-contract `a24b87e7`, both on top of the reported checkpoint `c394bc97`. There were no
-protocol deviations after the freeze. No development-supported challenger was found:
-**the evidence is insufficient**.
+contract `a24b87e7`, both on top of the reported checkpoint `c394bc97`. No
+development-supported challenger was found: **the evidence is insufficient**.
+
+**One protocol deviation, affecting accounting only.** The contract said `/tokenize` and
+`/models` requests would be journalled separately, but the runner journals completions
+only. The server's access log for 18:02:30–19:51:00Z recovers them: **43** `POST
+/v1/chat/completions`, 94 `POST /tokenize` and 3 `GET /v1/models`. One of the `/models`
+requests was the manual pre-run reachability check. This gives a fourth, independent
+completion count. It also shows that no other client ran completions on this engine
+during the run.
 
 - Eligible: 9 cases in 9 source groups (36 cells). The 12 registered development groups
   lose 2 to native-text failures. DD1155 is also excluded, because it needs 68 calls per
@@ -84,19 +91,23 @@ the caterpillar artifact described below. Do not read that number as an effect.
    continuation merge collapsed the three roots into one with **zero line items**. The
    scorer then sees fewer wrong values (precision .29→.76) and fewer found values (recall
    .48→.33); 8 of 9 gold records are missing. On pepco the merge did nothing (same 4
-   roots). On grafton it cannot act (one chunk), so A1 equals A0 there.
+   roots). On grafton it cannot act (one chunk), so A1 equals A0 there. The cached A1
+   replies were checked: the three chunk replies contained 12 + 5 + 11 line items, but
+   the sealed artifact has 0. The merge dropped them; the prompt did not suppress them.
 3. **Missing values answered as absent:** 15–16 in A0/A2/A3 and 7 in A1.
 4. **Format-only differences:** 6–12 per arm are raw-wrong but canonically right (dates,
    and numbers such as `1415` vs `1415.0`). Some remaining "wrong" values are also
    format-like but not covered by canonicalization, such as a street that differs from
    gold only by a comma.
-5. **Substantive wrong values on matched records:** 6–7 per arm, mostly wrong field
-   assignment. On pepco, the account and invoice fields take other identifiers printed on
+5. **Substantive wrong values:** 6–7 per arm on scored records, apparently mostly wrong
+   field assignment. The examples below come from all wrong outcomes. It was not
+   separately verified whether each one sits on the paired root or on an extra root. On pepco, the account and invoice fields take other identifiers printed on
    the bill, `utility_provider` takes the third-party supplier instead of the utility,
    and `previous_balance` takes another amount. On mission, `unit_price` takes extended
    amounts. On grafton, a line-item description drops its leading payee/role prefix (a
-   partial value). The values were copied from the document but assigned to the wrong
-   field. Exact values and passage IDs are in the ignored `errors-private.json`.
+   partial value). Every value cited here occurs in the source text after number and
+   punctuation normalization: it was copied from the document but put in the wrong field
+   or truncated. Exact values and passage IDs are in the ignored `errors-private.json`.
 6. **A record-matching cascade (caterpillar, unpaired).** A0/A1 appended "specifications"
    to the product title. With only one other root field shared, the root record did not
    pair (`min_matches = 2`), so all 35 specification rows became unmatched. A3's title was
@@ -105,8 +116,15 @@ the caterpillar artifact described below. Do not read that number as an effect.
 
 Schema validity was 100% in every arm, which shows that it does not measure accuracy.
 Evidence was compared only between A2 and A3, under the same alignment. A0 and A1 cite
-nothing by design. Page grounding was .644 for A2 and .635 for A3, with identical values
-on pepco and mission. A2 used about 17% more output tokens than A3, and both used about
+nothing by design. Two measures are reported separately:
+
+- Passage selection (`page_hit`, the cited page is a gold page): 1.0 / .786 / 1.0 on
+  grafton / pepco / mission for both A2 and A3.
+- Annotated page joint (correct value on the gold page): .644 for A2 and .635 for A3,
+  differing only on grafton (.889 vs .852).
+
+Refined literal localization is unavailable: `raw_span_hit` and `joint` are undefined for
+native-line input. A2 used about 17% more output tokens than A3, and both used about
 twice A0's. Semantic support and exact localization remain unavailable with native-line
 input.
 
@@ -115,7 +133,13 @@ input.
 The frozen rule (`contract.json` / final-protocol-proposal) required at least 3 complete
 groups, a mean paired raw-F1 gain, a majority of wins, canonical strict records ≥ A0 and
 region failures ≤ A0. No arm passed: A1 won 1 of 3, and A2 and A3 did not improve.
-**The evidence is insufficient**, and A0 remains the reference. Production defaults, the
+**The evidence is insufficient**, and A0 remains the reference.
+
+The completeness guard was vacuous. Strict records were 0 in every arm, so "≥ A0" passed
+for A1 even though A1 lost 8 of 9 mission records. Only the majority-of-wins clause
+rejected A1, and one more favorable group would have let it pass. Next protocol: guard on
+matched and missing repeated-record counts. That guard is proposed only and was not
+applied here. Production defaults, the
 live workflow, mandatory human review and the held-out groups were not changed.
 
 Next hypotheses, proposed and not applied:
@@ -146,7 +170,8 @@ Run from `prototypes/parsing_service` with
 ```bash
 R=../../.scratch/extractbench-v3-corrected-development
 C=../../docs/research/2026-09-30-extractbench-validation/corrected-comparison
-unshare -rn $H $C/freeze.py ../../.scratch/extractbench-schema-fidelity-2026-09-30/dataset-v2 NEW_ROOT  # offline freeze
+# freeze.py also overwrites $C/contract.json: run it only from a copy of this directory
+unshare -rn $H COPY_OF_C/freeze.py ../../.scratch/extractbench-schema-fidelity-2026-09-30/dataset-v2 NEW_ROOT
 $H $C/run_paired.py $R --groups 1   # smoke (spent); rerunning resumes the same clock, which is now past its cutoff
 $H $C/run_paired.py $R              # compare (spent)
 unshare -rn $H $C/analyze.py COPY_OF_R   # offline rescoring; refuses to overwrite existing outputs
