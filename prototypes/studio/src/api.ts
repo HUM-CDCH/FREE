@@ -310,7 +310,7 @@ export function saveExtractionReviewDraft(
     return Promise.reject(new Error(`invalid_draft: ${detail}`))
   }
   const previous = draftWrites.get(extractionId) ?? Promise.resolve({ version, decisions: [] })
-  rememberReviewDraft(extractionId, { version, decisions })
+  rememberReviewDraft(extractionId, { version, decisions, ...(pairings && { pairings }) })
   const write = previous.then(async (saved) => {
     acknowledgeReviewDraft(extractionId, saved.version)
     // A conflict is one state for every caller: the hooks key their reload path on this message.

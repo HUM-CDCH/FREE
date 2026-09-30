@@ -1,10 +1,12 @@
 import type { ExtractionPersistence } from './dependencies.js'
+import { reviewAttention } from './review-attention.js'
 import { ExtractionError } from './errors.js'
 import { resultPathKey } from './review-paths.js'
 import { decodePinnedDocument } from './parsed-document.js'
 import {
   correctionEvidenceIsPublished,
   occurrenceOwnership,
+  optionalDecisionIsPublished,
   parsePinnedSchema,
   reviewableExtraction,
   reviewAuthority,
@@ -44,7 +46,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
     if (!raw) throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is unavailable.')
     const document = decodePinnedDocument(raw)
     const occurrenceIdsByAnchor = occurrenceOwnership(document)
-    const decisions = extraction.evidence.flatMap((link) => {
+    const decisions: ReviewDecisionInput[] = extraction.evidence.flatMap((link) => {
       const occurrences = occurrenceIdsByAnchor.get(link.evidenceAnchorId)
       return occurrences
         ? [{
@@ -56,6 +58,12 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
           }]
         : []
     })
+    const inputs = await persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
+    if (inputs && extraction.result) {
+      const attention = reviewAttention(extraction.result, parsePinnedSchema(inputs.schemaTree).schemaNodes, extraction.evidence, [])
+      for (const cell of attention.cells.filter((cell) => cell.presence !== 'grounded'))
+        decisions.push({ resultPath: [...cell.resultPath], evidenceAnchorId: null, reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null })
+    }
     return { extraction, reviewDecisions: decisions, occurrenceIdsByAnchor }
   }
 
@@ -97,20 +105,25 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
     readReviewDraft: async (extractionId) => {
       const draft = await persistence.readReviewDraft(extractionId)
       if (!draft) throw new ExtractionError('not_found', 'That Extraction was not found.')
-      const pinned = (await persistence.readExtraction(extractionId))?.reviewTransfer
-      if (!pinned) return draft
-      const { extraction, reviewDecisions } = await prepareReview(extractionId)
+      const extraction = await persistence.readExtraction(extractionId)
+      if (!extraction?.result || !extraction.evidence) return draft
       const inputs = await persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
       if (!inputs) return draft
-      const verdicts = transferVerdicts(pinned, extraction, parsePinnedSchema(inputs.schemaTree).schemaNodes, draft.pairings)
-      return {
+      const nodes = parsePinnedSchema(inputs.schemaTree).schemaNodes
+      const withAttention = (value: typeof draft) => ({ ...value, attention: reviewAttention(extraction.result!, nodes, extraction.evidence!,
+        extraction.reviewedAt ? extraction.reviewDecisions : value.decisions) })
+      const pinned = extraction.reviewTransfer
+      if (!pinned) return withAttention(draft)
+      const { reviewDecisions } = await prepareReview(extractionId)
+      const verdicts = transferVerdicts(pinned, extraction, nodes, draft.pairings)
+      return withAttention({
         ...draft,
         // A review never saved starts from the decisions its pinned samples carry (design §7): draft decisions under
         // this Extraction's own paths, saved with the researcher's first edit and authoritative only once finalized.
         decisions: draft.version > 0 ? draft.decisions : carried(verdicts, reviewDecisions),
         transfer: Object.fromEntries([...verdicts].map(([key, { status, kept }]) => [key, { status, kept }])),
         sources: unmatchedSources(pinned, extraction, draft.pairings),
-      }
+      })
     },
     saveReviewDraft: async (extractionId, draft) => {
       const { extraction, reviewDecisions, occurrenceIdsByAnchor } = await prepareReview(extractionId)
@@ -123,7 +136,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       const keys = draft.decisions.map((decision) => resultPathKey(decision.resultPath))
       if (!Number.isSafeInteger(draft.version) || draft.version < 0 || new Set(keys).size !== keys.length || draft.decisions.some((decision) => {
         const expected = prepared.get(resultPathKey(decision.resultPath))
-        return !expected || expected.evidenceAnchorId !== decision.evidenceAnchorId ||
+        return !expected || (decision.evidenceAnchorId === null && !optionalDecisionIsPublished(occurrenceIdsByAnchor, decision)) || expected.evidenceAnchorId !== decision.evidenceAnchorId ||
           expected.reviewedOccurrenceIds.length !== decision.reviewedOccurrenceIds.length ||
           !expected.reviewedOccurrenceIds.every((id) => decision.reviewedOccurrenceIds.includes(id)) ||
           !reviewDecisionMatchesSchema(nodes, decision) || !correctionEvidenceIsPublished(occurrenceIdsByAnchor, decision)

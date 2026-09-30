@@ -275,7 +275,7 @@ model ReviewDecision {
   extractionReviewId    Uuid
   resultPath            Json
   resultPathKey         String
-  evidenceAnchorId      String
+  evidenceAnchorId      String?
   reviewedOccurrenceIds Json
   action                String
   reviewedValue         Json?

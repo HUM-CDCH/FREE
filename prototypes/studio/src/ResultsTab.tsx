@@ -11,6 +11,8 @@ import { extractionStateFromAttempt, type ExtractionController } from './useExtr
 import type { ExtractionState } from './extraction'
 import type { ExtractionAttempt, ReviewDecisionAction } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
+import { reviewAttention } from 'extraction/review-attention'
+import { ReviewAttention } from './ReviewAttention'
 import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import { RecipeReview } from './RecipeReview'
 import {
@@ -58,6 +60,7 @@ type ResultsTabProps = {
   currentSchemaRevision?: { schemaRevisionId: string; revisionNumber: number } | null
   inspectedAttempt?: ExtractionAttempt
   readOnly?: boolean
+  onEditField?: (nodeId: string, path: (string | number)[]) => void
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -509,7 +512,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
+function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange, onEditField }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
   // The header's single "… with current schema" run action replaces the
   // summary row's plain one whenever the result predates the Current Schema Revision.
@@ -542,6 +545,8 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     })
   }, [])
   // Decisions carried from samples never finalize on their own: the researcher saves such a review explicitly.
+  const attention = attempt?.resultPayload && pinnedSchema ? reviewAttention(attempt.resultPayload, pinnedSchema.schemaNodes, attempt.evidenceLinks ?? [],
+    attempt.reviewedAt ? attempt.reviewDecisions : controller.review.decisions.filter((decision) => controller.review.isTouched(decision.resultPath))) : null
   const carried = controller.review.decisions.filter((decision) => decision.carriedFrom).length
   const changedSinceSample = controller.review.decisions.filter((decision) => !controller.review.isTouched(decision.resultPath) &&
     controller.review.transfer[resultPathKey(decision.resultPath)]?.status === 'changed').length
@@ -550,7 +555,8 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     .map(([key]) => (JSON.parse(key) as number[])[1]!))]
   useEffect(() => {
     if (!readOnly && !inspectedAttempt && editingPaths.size === 0 &&
-      controller.review.canAccept && !controller.review.error && carried === 0)
+      controller.review.canAccept && !controller.review.error && carried === 0 &&
+      controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null))
       void controller.review.accept()
   })
   const articleRecords =
@@ -673,6 +679,8 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
         <Overline as="h2">Extraction results</Overline>
         {attempt && <AttemptDetails attempt={attempt} />}
       </div>
+      {attention && <ReviewAttention attention={attention} transfer={controller.review.transfer} onEditField={onEditField}
+        onSelect={(path) => { onResultPathChange?.(path.map(String)); const link = attempt?.evidenceLinks?.find((each) => resultPathKey(each.resultPath) === resultPathKey(path)); if (link) onSelectEvidence?.(link.evidenceAnchorId) }} />}
       <ExtractionStatus
         controller={controller}
         state={state}
@@ -742,9 +750,10 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                         : controller.review.error ? 'Review not saved'
                         : controller.review.loading ? 'Loading review…'
                         : carried > 0 ? `${carried} reviewed in sample · ${changedSinceSample} changed since sample · ${controller.review.untouchedCount - changedSinceSample} to review`
-                        : 'Review all fields to save automatically'}
+                        : controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null)
+                          ? 'Review all grounded fields to save automatically' : 'No required grounded decisions. Save review explicitly.'}
                     </span>
-                    {(controller.review.error || carried > 0) && controller.review.canAccept && (
+                    {(controller.review.error || carried > 0 || !controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null)) && controller.review.canAccept && (
                       <Button size="sm" variant={controller.review.error ? 'secondary' : 'primary'} disabled={editingPaths.size > 0}
                         onClick={() => void controller.review.accept()}>{controller.review.error ? 'Retry' : 'Save review'}</Button>
                     )}

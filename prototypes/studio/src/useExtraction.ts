@@ -134,6 +134,7 @@ function pendingDecision(
     action: decision.action,
     reviewedValue: decision.reviewedValue,
     ...(decision.reviewedEvidence ? { reviewedEvidence: decision.reviewedEvidence } : {}),
+    ...(decision.carriedFrom ? { carriedFrom: decision.carriedFrom } : {}),
   }
 }
 
@@ -307,7 +308,6 @@ export function useExtraction({
     attempt?.outcome === 'SUCCEEDED' &&
     attempt.executionStatus === 'COMPLETED' &&
     attempt.reviewable &&
-    (attempt.evidenceLinks?.length ?? 0) > 0 &&
     attempt.sourceRepresentationRevisionId === reviewTarget?.sourceRepresentationId,
   )
   const canAccept = Boolean(
@@ -315,9 +315,9 @@ export function useExtraction({
     !draftError &&
     !reviewLoading &&
     reviewAvailable &&
+    transfer.extractionId === attempt?.extractionId &&
     attempt?.reviewedAt === null &&
-    reviewDecisions.length > 0 &&
-    reviewDecisions.every((decision) => touchedPaths.has(resultPathKey(decision.resultPath)))
+    reviewDecisions.filter((decision) => decision.evidenceAnchorId !== null).every((decision) => touchedPaths.has(resultPathKey(decision.resultPath)))
   )
 
   useEffect(() => {
@@ -351,6 +351,7 @@ export function useExtraction({
         return
       }
       setReviewLoading(true)
+      setTransfer({ extractionId: '', verdicts: {}, pairings: [], sources: [] })
       setReviewDecisions([])
       setTouchedPaths(new Set())
       try {
@@ -513,7 +514,7 @@ export function useExtraction({
       await draft.pending
       const finalized = await finalizeExtractionReview(
         attempt.extractionId,
-        reviewDecisions,
+        reviewDecisions.filter((decision) => touchedPaths.has(resultPathKey(decision.resultPath))),
         draft.version,
       )
       if (saveScopeRef.current !== scope) return
@@ -533,7 +534,7 @@ export function useExtraction({
     }
   }
 
-  function updateReview(decisions: ReviewDecisionInput[], touched: ReadonlySet<string>) {
+  function updateReview(decisions: ReviewDecisionInput[], touched: ReadonlySet<string>, pairings?: ReviewPairing[]) {
     if (!attempt) return
     draftRef.current = { decisions, touched }
     setReviewDecisions(decisions)
@@ -547,8 +548,11 @@ export function useExtraction({
     setDraftSaving(true)
     setDraftError(null)
     const write = saveExtractionReviewDraft(attempt.extractionId,
-      decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), scope.version)
-    scope.pending = write.then((saved) => { scope.version = saved.version })
+      decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), scope.version, pairings)
+    scope.pending = write.then((saved) => {
+      scope.version = saved.version
+      if (pairings && draftSaveRef.current === scope) setReviewReload((value) => value + 1)
+    })
     void scope.pending.catch((error: unknown) => {
       if (draftSaveRef.current !== scope) return
       const message = error instanceof Error ? error.message : 'Draft could not be saved.'
@@ -591,13 +595,7 @@ export function useExtraction({
     const scope = draftSaveRef.current
     if (!attempt || saveScopeRef.current.saving || attempt.reviewedAt || scope.conflict) return
     const { decisions, touched } = draftRef.current
-    scope.pending = saveExtractionReviewDraft(attempt.extractionId,
-      decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), scope.version, pairings)
-      .then((saved) => {
-        scope.version = saved.version
-        setReviewReload((value) => value + 1)
-      })
-    void scope.pending.catch((error: unknown) => setDraftError(error instanceof Error ? error.message : 'Draft could not be saved.'))
+    updateReview(decisions, touched, pairings)
   }
 
   // Marks every field the researcher hasn't explicitly acted on as touched,
@@ -606,7 +604,7 @@ export function useExtraction({
   function approveAllRemaining() {
     if (saveScopeRef.current.saving || !reviewAvailable || reviewLoading || attempt?.reviewedAt) return
     const { decisions, touched } = draftRef.current
-    updateReview(decisions, new Set([...touched, ...decisions.map((decision) => resultPathKey(decision.resultPath))]))
+    updateReview(decisions, new Set([...touched, ...decisions.filter((decision) => decision.evidenceAnchorId !== null).map((decision) => resultPathKey(decision.resultPath))]))
   }
 
   return {
@@ -630,7 +628,7 @@ export function useExtraction({
       decisions: reviewDecisions,
       reviewedCount: reviewDecisions.length,
       untouchedCount: reviewDecisions.filter(
-        (decision) => !touchedPaths.has(resultPathKey(decision.resultPath)),
+        (decision) => decision.evidenceAnchorId !== null && !touchedPaths.has(resultPathKey(decision.resultPath)),
       ).length,
       isTouched: (resultPath: ReviewDecisionInput['resultPath']) =>
         touchedPaths.has(resultPathKey(resultPath)),

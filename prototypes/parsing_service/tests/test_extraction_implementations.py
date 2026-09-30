@@ -18,6 +18,23 @@ from tests.test_extract_grounded import request as recipe_request
 from tests.test_extract_stages import SCHEMA, FixedCounter, evidence, one_identity
 
 
+@pytest.mark.parametrize("kind", ["duplicates", "order"])
+def test_sample_coverage_counts_only_selected_pages(tmp_path, kind):
+    from kei_exp.kie.recipe import load_recipe
+    from kei_exp.kie.stages.segment import segment
+    case = catalogue.fixture("duplicate-ambiguous") if kind == "duplicates" else {"pages": [{"page": 1, "units": [
+        {"index": 2, "segments": ["50. Adorf. FA: G."]}, {"index": 1, "segments": ["51. Bdorf. FA: EF."]}]}]}
+    case["pages"].append({"page": 2, "units": [{"index": 3, "segments": ["52. Cdorf. FA: G."]}]})
+    given = load(catalogue.write(case, tmp_path))
+    whole = segment(given, load_recipe("numbered-catalogue-de@1"))
+    key = "potential_duplicates" if kind == "duplicates" else "reading_order_issues"
+    for pages, expected in [([1], 1), ([2], 0)]:
+        scoped = grounded._on_pages(whole, given, pages)
+        assert getattr(scoped.coverage, key) == expected
+        assert scoped.coverage.complete is (expected == 0)
+    assert getattr(whole.coverage, key) == 1
+
+
 def test_the_version_1_catalog_reads_the_evidence_it_is_given():
     def script(system, user, schema):
         if "starts" in schema["properties"]:

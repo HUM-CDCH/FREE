@@ -1328,6 +1328,26 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 })
 
 describe('SchemaPanel sample values', () => {
+  it('focuses a renamed stable field with its old type while preserving an unsaved inline edit', () => {
+    const setup = setupController({ panelNodes: [{ id: 'title', name: 'heading', type: 'integer' }] })
+    const props = { schema: setup.schema, onClearDraft: vi.fn(), sourceDocumentName: 'test.pdf' }
+    const mounted = render(<SchemaPanel {...props} />)
+    fireEvent.click(screen.getByTitle('Edit heading'))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'unsaved_name' } })
+    const before = setup.schema.snapshot().draft
+    mounted.rerender(<SchemaPanel {...props} fieldContext={{ extractionId: 'old-sample', schemaRevisionId: 'old-revision',
+      revisionNumber: 1, nodeId: 'title', nodeType: 'string', resultPaths: [['records', 0, 'title']] }} />)
+    expect(screen.getByDisplayValue('unsaved_name')).toBeInTheDocument()
+    expect(screen.getByText(/From Extraction old-sample.*string.*heading \(integer\)/)).toBeInTheDocument()
+    expect(setup.schema.snapshot().draft).toBe(before)
+    expect(setup.edits).toEqual([])
+    mounted.rerender(<SchemaPanel {...props} fieldContext={{ extractionId: 'old-sample', schemaRevisionId: 'old-revision',
+      revisionNumber: 1, nodeId: 'removed', nodeType: 'string', resultPaths: [['records', 0, 'heading']] }} />)
+    expect(screen.getByText(/This field was removed/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View historical schema' })).toBeInTheDocument()
+    expect(screen.getByDisplayValue('unsaved_name')).toBeInTheDocument()
+    expect(setup.edits).toEqual([])
+  })
   const passage = (id: string, text: string) => ({ anchor: { kind: 'text', anchor_id: id, block_id: id,
     producer_observations: [{ occurrence_id: `o-${id}`, page_number: 12 }] }, block: { kind: 'paragraph', block_id: id, text } })
   const passages = [passage('a_p12_s4', 'Silber, vergoldet'), passage('a_p12_s8', 'um 1650'),
@@ -1352,6 +1372,7 @@ describe('SchemaPanel sample values', () => {
       currentRevisionNumber: 2,
       pagesLabel: 'pp. 12',
       review: { decisions: [touched ? { ...decision, action: 'EDITED', reviewedValue: 'um 1650' } : decision],
+        canAccept: false, accept: vi.fn(),
         isTouched: () => touched, setDecision: vi.fn(), undo: vi.fn(),
         draftError: null, draftSaving: false, retryDraft: vi.fn(), error: null, reload: vi.fn(), transfer: {} },
       parsedDocument, focusedPathKey: null, onSelectEvidence: vi.fn(),
@@ -1376,12 +1397,15 @@ describe('SchemaPanel sample values', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(sample.review.setDecision).toHaveBeenLastCalledWith(title, 'EDITED', 'um 1650',
       [{ evidenceAnchorId: 'a_p12_s8', reviewedOccurrenceIds: ['o-a_p12_s8'] }])
-    // Printed twice, or only inside a longer number (1897): no Evidence, so the correction can never carry as fixed.
+    // Ambiguous/partial text requires the researcher to choose canonical Evidence.
     for (const text of ['Silber', '97']) {
       fireEvent.click(screen.getByRole('button', { name: 'Correct' }))
       fireEvent.change(screen.getByLabelText('Correct title'), { target: { value: text } })
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+      fireEvent.change(screen.getByLabelText('Evidence for title'), { target: { value: 'a_p12_s8' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-      expect(sample.review.setDecision).toHaveBeenLastCalledWith(title, 'EDITED', text, null)
+      expect(sample.review.setDecision).toHaveBeenLastCalledWith(title, 'EDITED', text,
+        [{ evidenceAnchorId: 'a_p12_s8', reviewedOccurrenceIds: ['o-a_p12_s8'] }])
     }
   })
 
@@ -1413,6 +1437,8 @@ describe('SchemaPanel sample values', () => {
     renderPanel({}, { sample: changed })
     expect(screen.getByText('Changed · was um 1650')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Keep um 1650' }))
+    expect(changed.review.setDecision).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(changed.review.setDecision).toHaveBeenLastCalledWith(title, 'EDITED', 'um 1650',
       [{ evidenceAnchorId: 'a_p12_s8', reviewedOccurrenceIds: ['o-a_p12_s8'] }])
     fireEvent.click(screen.getByRole('button', { name: 'Accept new' }))

@@ -52,7 +52,7 @@ from kei_exp.kie.extract.schema import Node, Schema, conform, json_schema, notes
 from kei_exp.kie.extract.stages import merge
 from kei_exp.kie.extract.tokens import counters_for
 from kei_exp.kie.extract.windows import units_of, windows_of
-from kei_exp.kie.passages import Evidence, text_of
+from kei_exp.kie.passages import Evidence, order_issues, text_of
 from kei_exp.kie.recipe import Recipe, load_recipe
 from kei_exp.kie.segmentation import Segmentation
 from kei_exp.kie.segmentation_run import obtain
@@ -572,10 +572,13 @@ def _on_pages(segmentation: Segmentation, evidence: Evidence, pages: list[int]) 
     lines = [line for line in segmentation.dispositions if page[line.segment_id] in pages]
     roles = collections.Counter(line.role for line in lines)
     whole = segmentation.coverage
-    # ponytail: potential duplicates and reading-order issues are whole-document counts, so one anywhere leaves a
-    # sample incomplete; scope them by their diagnostics' spans if that proves too strict.
+    duplicates = sum(diagnostic.code == "potential_duplicate" and
+                     any(page[span.segment_id] in pages for span in diagnostic.spans)
+                     for diagnostic in segmentation.diagnostics)
+    ordering = len(order_issues([passage for passage in evidence.passages if passage.page in pages]))
     coverage = whole.model_copy(update={
-        "complete": not roles["unresolved"] and not whole.potential_duplicates and not whole.reading_order_issues,
+        "complete": not roles["unresolved"] and not duplicates and not ordering,
+        "potential_duplicates": duplicates, "reading_order_issues": ordering,
         "lines": len(lines), "entries": len(blocks), "unresolved": roles["unresolved"],
         "roles": dict(sorted(roles.items())),
         "excluded": dict(sorted(collections.Counter(line.reason for line in lines if line.role == "excluded").items())),

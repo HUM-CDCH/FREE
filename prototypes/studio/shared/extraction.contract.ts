@@ -108,7 +108,7 @@ export type ReviewDecisionAction = z.infer<
 
 const reviewDecisionShape = {
   resultPath: resultPathSchema,
-  evidenceAnchorId: z.string().min(1),
+  evidenceAnchorId: z.string().min(1).nullable(),
   reviewedOccurrenceIds: z.array(z.string().min(1)),
   action: reviewDecisionActionSchema,
   reviewedValue: z.json().nullable(),
@@ -433,7 +433,7 @@ export const extractionAttemptSchema = z
       (attempt.reviewedAt !== null &&
         (attempt.outcome !== 'SUCCEEDED' ||
           !attempt.reviewable ||
-          cited.size !== reviewed.size ||
+          cited.size > reviewed.size ||
           [...cited].some(([path, anchorId]) => reviewed.get(path) !== anchorId)))
     )
       context.addIssue({
@@ -462,6 +462,11 @@ export const extractionReadResponseSchema = z
     reviewDraft: z.object({
       version: z.number().int().nonnegative(),
       decisions: z.array(reviewDecisionInputSchema),
+      attention: z.object({
+        cells: z.array(z.object({ nodeId: z.string(), resultPath: resultPathSchema, presence: z.enum(['grounded', 'ungrounded', 'missing']),
+          decision: z.object({ action: reviewDecisionActionSchema, provenance: z.enum(['explicit', 'carried']) }).nullable() })),
+        grounded: z.int().nonnegative(), ungrounded: z.int().nonnegative(), missing: z.int().nonnegative(), requiredRemaining: z.int().nonnegative(),
+      }).optional(),
       /** Each value's verdict against the sample decisions pinned at admission, by result path key. */
       transfer: z.record(z.string(), z.object({
         status: z.enum(['fixed', 'reviewed', 'changed', 'unmatched']), kept: z.json(),
@@ -476,6 +481,7 @@ export const extractionReadResponseSchema = z
   .strict()
 
 export type ReviewTransferVerdicts = NonNullable<NonNullable<z.infer<typeof extractionReadResponseSchema>['reviewDraft']>['transfer']>
+export type ReviewTransferSources = NonNullable<NonNullable<z.infer<typeof extractionReadResponseSchema>['reviewDraft']>['sources']>
 
 export const extractionReviewDraftSchema = z.object({
   version: z.number().int().nonnegative(),

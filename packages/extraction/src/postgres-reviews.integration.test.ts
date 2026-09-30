@@ -17,7 +17,10 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
     const id = extraction.extractionId
     const prepared = await module.prepareReview(id)
     const edited = [{ ...prepared.reviewDecisions[0]!, action: 'EDITED' as const, reviewedValue: 'Draft title' }]
-    assert.deepEqual(await module.readReviewDraft(id), { version: 0, decisions: [] })
+    const pending = await module.readReviewDraft(id)
+    assert.deepEqual({ version: pending.version, decisions: pending.decisions }, { version: 0, decisions: [] })
+    assert.deepEqual(pending.attention, { cells: [{ nodeId: 'title-node', resultPath: ['records', 0, 'title'], presence: 'grounded', decision: null }],
+      grounded: 1, ungrounded: 0, missing: 0, requiredRemaining: 1 })
     for (const invalid of [
       [{ ...edited[0]!, evidenceAnchorId: 'foreign-anchor' }],
       [{ ...edited[0]!, reviewedOccurrenceIds: ['foreign-occurrence'] }],
@@ -26,7 +29,10 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
     ]) await assert.rejects(module.saveReviewDraft(id, { version: 0, decisions: invalid }), rejectsWithCode('invalid_review'))
     const saved = await module.saveReviewDraft(id, { version: 0, decisions: edited })
     assert.equal(saved.version, 1)
-    assert.deepEqual(await createRuntime(project.researcherAccountId).module.readReviewDraft(id), saved)
+    const restored = await createRuntime(project.researcherAccountId).module.readReviewDraft(id)
+    assert.deepEqual({ version: restored.version, decisions: restored.decisions }, saved)
+    assert.equal(restored.attention?.requiredRemaining, 0)
+    assert.deepEqual(restored.attention?.cells[0]?.decision, { action: 'EDITED', provenance: 'explicit' })
     const unreviewed = await module.prepareReview(id)
     assert.equal(unreviewed.extraction.reviewedAt, null)
     assert.deepEqual(unreviewed.extraction.reviewDecisions, [])
@@ -55,7 +61,9 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
     await assert.rejects(module.resetReview(id, 4), rejectsWithCode('review_conflict'))
     const resets = await Promise.allSettled([module.resetReview(id, 5), module.resetReview(id, 5)])
     assert.equal(resets.filter((result) => result.status === 'fulfilled').length, 1)
-    assert.deepEqual(await module.readReviewDraft(id), { version: 6, decisions: [] })
+    const reset = await module.readReviewDraft(id)
+    assert.deepEqual({ version: reset.version, decisions: reset.decisions }, { version: 6, decisions: [] })
+    assert.equal(reset.attention?.requiredRemaining, 1)
     const reopened = await module.prepareReview(id)
     assert.equal(reopened.extraction.reviewedAt, null)
     assert.deepEqual(reopened.extraction.reviewDecisions, [])
@@ -87,6 +95,8 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
       })),
       transfer: { '["records",0,"title"]': { status: 'reviewed', kept: 'Alpha' } },
       sources: [],
+      attention: { cells: [{ nodeId: 'title-node', resultPath: ['records', 0, 'title'], presence: 'grounded',
+        decision: { action: 'APPROVED', provenance: 'carried' } }], grounded: 1, ungrounded: 0, missing: 0, requiredRemaining: 0 },
     })
     assert.equal(seeded.decisions.length, 1)
     assert.equal(prepared.extraction.reviewedAt, null)
@@ -204,6 +214,7 @@ it('finalizes a partially grounded result without manufacturing Evidence', async
       schemaNodes: [
         { id: 'title-node', name: 'title', type: 'string' },
         { id: 'note-node', name: 'note', type: 'string' },
+        ...['missing1', 'missing2', 'missing3'].map((name) => ({ id: name, name, type: 'string' as const })),
       ],
     })
     kei.respond = (request) => ({
@@ -222,15 +233,38 @@ it('finalizes a partially grounded result without manufacturing Evidence', async
     assert.equal(completed.extraction.diagnostics!.ungroundedPaths.length, 1)
 
     const prepared = await module.prepareReview(completed.extraction.extractionId)
-    assert.equal(prepared.reviewDecisions.length, 1)
+    assert.equal(prepared.reviewDecisions.length, 5)
     const reviewed = await module.finalizeReview(
       completed.extraction.extractionId,
-      prepared.reviewDecisions,
+      prepared.reviewDecisions.filter((decision) => decision.evidenceAnchorId !== null),
     )
     assert.equal(reviewed.disposition, 'reviewed')
     assert.ok(reviewed.extraction.reviewedAt)
     assert.equal(reviewed.extraction.reviewDecisions.length, 1)
     assert.equal(reviewed.extraction.diagnostics.ungroundedPaths.length, 1)
+    const final = (await module.readReviewDraft(completed.extraction.extractionId)).attention
+    assert.equal(final?.requiredRemaining, 0)
+    assert.equal(final?.missing, 3)
+    assert.equal(final?.ungrounded, 1)
+  })
+
+  it('saves and finalizes a canonical correction on a missing path with no model anchor', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject({ recordDescription: 'One record.', schemaNodes: [
+      { id: 'title-node', name: 'title', type: 'string' }, { id: 'note-node', name: 'note', type: 'string' },
+    ] })
+    const { module } = createRuntime(project.researcherAccountId)
+    const id = (await module.runSingle(freshInput(project))).extraction.extractionId
+    const prepared = (await module.prepareReview(id)).reviewDecisions
+    const grounded = prepared.find((decision) => decision.evidenceAnchorId !== null)!
+    const correction = { ...prepared.find((decision) => decision.evidenceAnchorId === null)!, action: 'EDITED' as const, reviewedValue: 'Alpha',
+      reviewedEvidence: [{ evidenceAnchorId: grounded.evidenceAnchorId!, reviewedOccurrenceIds: grounded.reviewedOccurrenceIds }] }
+    await assert.rejects(module.saveReviewDraft(id, { version: 0, decisions: [{ ...correction, reviewedEvidence: [{ evidenceAnchorId: 'foreign', reviewedOccurrenceIds: [] }] }] }), rejectsWithCode('invalid_review'))
+    const draft = await module.saveReviewDraft(id, { version: 0, decisions: [grounded, correction] })
+    assert.equal((await module.readReviewDraft(id)).attention?.missing, 1)
+    const saved = (await module.finalizeReview(id, draft.decisions, draft.version)).extraction
+    assert.equal(saved.reviewDecisions.find((decision) => decision.resultPath[2] === 'note')?.evidenceAnchorId, null)
+    assert.deepEqual((await module.prepareReview(id)).extraction.reviewDecisions, saved.reviewDecisions)
   })
 
 it('stores independent value decisions when two paths share one Evidence anchor', async (t) => {

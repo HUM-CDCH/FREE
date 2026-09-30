@@ -584,9 +584,12 @@ describe('useExtraction server-owned lifecycle', () => {
     ))))
     try {
       const earlier = attempt()
+      vi.mocked(api.readExtraction).mockResolvedValue({ extraction: earlier, pendingReviewDecisions: [] })
       const input = { ...options(earlier), onSuperseded: vi.fn() }
       const { result } = renderHook(() => useExtraction(input))
       const shown = result.current.state
+      await waitFor(() => expect(result.current.review.canAccept).toBe(true))
+      const readsBefore = vi.mocked(api.readExtraction).mock.calls.length
 
       await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
 
@@ -597,7 +600,7 @@ describe('useExtraction server-owned lifecycle', () => {
       expect(input.onError).not.toHaveBeenCalled()
       expect(input.onSuperseded).toHaveBeenCalledOnce()
       expect(input.onTerminal).not.toHaveBeenCalled()
-      expect(api.readExtraction).not.toHaveBeenCalled()
+      expect(api.readExtraction).toHaveBeenCalledTimes(readsBefore)
       expect(result.current.canRun).toBe(true)
     } finally {
       vi.unstubAllGlobals()
@@ -701,20 +704,23 @@ describe('useExtraction server-owned lifecycle', () => {
     vi.useRealTimers()
   })
 
-  it('does not offer review when no populated value has Evidence', async () => {
-    const { result } = renderHook(() => useExtraction(options(attempt())))
-
-    expect(result.current.review.available).toBe(false)
+  it('allows explicitly finalizing a loaded review with zero required grounded decisions', async () => {
+    const original = attempt()
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: original, pendingReviewDecisions: [] })
+    vi.mocked(api.finalizeExtractionReview).mockResolvedValue({ ...original, reviewedAt: '2026-09-30T00:00:00Z' })
+    const { result } = renderHook(() => useExtraction(options(original)))
+    expect(result.current.review.available).toBe(true)
     expect(result.current.review.canAccept).toBe(false)
-    await act(() => result.current.review.accept())
-    expect(api.readExtraction).not.toHaveBeenCalled()
+    await waitFor(() => expect(result.current.review.canAccept).toBe(true))
     expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+    await act(() => result.current.review.accept())
+    expect(api.finalizeExtractionReview).toHaveBeenCalledWith(original.extractionId, [], 0)
   })
 
-  it('keeps an ungrounded-only attempt visible but not reviewable', () => {
-    const { result } = renderHook(() =>
-      useExtraction(options(attempt({
+  it('keeps an ungrounded-only value visible and permits an optional Evidence correction', async () => {
+    const original = attempt({
         complete: false,
+        resultPayload: { records: [{ title: 'ungrounded' }] },
         diagnostics: {
           ...attempt().diagnostics!,
           grounding: {
@@ -724,10 +730,19 @@ describe('useExtraction server-owned lifecycle', () => {
             batches: [],
           },
         },
-      }))),
-    )
-    expect(result.current.review.available).toBe(false)
-    expect(result.current.review.canAccept).toBe(false)
+      })
+    const pending: ReviewDecisionInput = { resultPath: ['records', 0, 'title'], evidenceAnchorId: null,
+      reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null }
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: original, pendingReviewDecisions: [pending] })
+    const { result } = renderHook(() => useExtraction(options(original)))
+    await waitFor(() => expect(result.current.review.decisions).toHaveLength(1))
+    expect(result.current.review.available).toBe(true)
+    expect(result.current.review.untouchedCount).toBe(0)
+    expect(result.current.review.isTouched(pending.resultPath)).toBe(false)
+    const evidence = [{ evidenceAnchorId: 'canonical', reviewedOccurrenceIds: ['occurrence'] }]
+    act(() => result.current.review.setDecision(pending.resultPath, 'EDITED', 'corrected', evidence))
+    await waitFor(() => expect(api.saveExtractionReviewDraft).toHaveBeenCalledWith(original.extractionId,
+      [{ ...pending, action: 'EDITED', reviewedValue: 'corrected', reviewedEvidence: evidence }], 0, undefined))
   })
 
   it('uses server-derived pending decisions when finalizing review', async () => {

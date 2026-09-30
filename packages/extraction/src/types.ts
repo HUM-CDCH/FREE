@@ -79,7 +79,7 @@ export type ReviewDecisionAction = 'APPROVED' | 'EDITED' | 'REJECTED'
 
 export type ReviewDecisionInput = Readonly<{
   resultPath: ResultPath
-  evidenceAnchorId: string
+  evidenceAnchorId: string | null
   reviewedOccurrenceIds: readonly string[]
   action: ReviewDecisionAction
   reviewedValue: unknown | null
@@ -109,7 +109,7 @@ export type TransferEntry = Readonly<{
   modelValue: unknown
   reviewedValue: unknown
   valueType: string
-  evidenceAnchorId: string
+  evidenceAnchorId: string | null
   reviewedEvidence: ReviewDecisionInput['reviewedEvidence'] | null
 }>
 
@@ -354,6 +354,7 @@ export type ReviewPreparation = Readonly<{
 export type ReviewPairing = Readonly<{ record: number; extractionId: string; sourceRecord: number }>
 
 export type ReviewDraft = Readonly<{
+  attention?: ReturnType<typeof import('./review-attention.js').reviewAttention>
   version: number
   decisions: readonly ReviewDecisionInput[]
   /** Hand pairings, saved with the draft; on a save, absent keeps the stored ones. */

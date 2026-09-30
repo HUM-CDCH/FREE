@@ -94,6 +94,26 @@ describe('Review Decision rules against the read snapshot', () => {
       assert.throws(() => reviewableExtraction(extraction), refuses('invalid_review', 'The Extraction has no reviewable Extraction Result.'))
   })
 
+  it('allows optional missing/ungrounded corrections only with canonical researcher-picked Evidence', () => {
+    for (const missing of [false, true]) {
+      const original = snapshot(missing ? { result: { records: [{ title: 'Alpha', year: 1900, scale: 2.5, kind: null }] },
+        diagnostics: { ...snapshot().diagnostics, ungroundedPaths: [] } } : {})
+      const correction = approve('kind', { evidenceAnchorId: null, reviewedOccurrenceIds: [], action: 'EDITED', reviewedValue: 'chart',
+        reviewedEvidence: [{ evidenceAnchorId: 'anchor-kind', reviewedOccurrenceIds: ['o-5'] }] })
+      const decisions = [...approvals(), correction]
+      assert.equal(reviewAuthorityMatchesExtraction(reviewableExtraction(original), normalizeDecisions(decisions), authorize(original, decisions)), true)
+      assert.doesNotThrow(() => authorize(original, approvals()))
+      for (const invalid of [
+        { ...correction, action: 'APPROVED' as const, reviewedValue: null },
+        { ...correction, reviewedEvidence: [] },
+        { ...correction, reviewedEvidence: [{ evidenceAnchorId: 'anchor-kind', reviewedOccurrenceIds: ['foreign'] }] },
+        { ...correction, reviewedValue: 'disallowed' },
+        { ...correction, resultPath: ['records', 1, 'kind'] },
+      ]) assert.throws(() => authorize(original, [...approvals(), invalid]), refuses('invalid_review', DECISIONS))
+      assert.equal(transferEntries(original, decisions, parseExtractionSchema(schemaTree).schemaNodes, 1).length, 4)
+    }
+  })
+
   it('checks the schema, then the records, then the coverage, then the decisions', () => {
     const noDecisions: ReviewDecisionInput[] = []
     const uncovered = snapshot({ evidence: [link('title')] })
@@ -290,6 +310,34 @@ describe('Review transfer from a sample to a later run', () => {
   const statuses = (transfer: ReturnType<typeof twoSamples>, destination: Sample) => Object.fromEntries([...transferVerdicts(
     transfer, destination, nodes)].map(([key, { status, decision }]) => [key, [status, decision?.action].filter(Boolean).join(' ')]))
   const number = ['records', 0, 'number']
+
+  it('reserves equivalent sample records across hand pairings', () => {
+    const first = nr41('1897', 'a_p1_s1', 'first'), second = nr41('1897', 'a_p1_s1', 'second')
+    const transfer = twoSamples(first, [decide(first, number, 'APPROVED')], second, [decide(second, date, 'APPROVED')])
+    const split = run('full', [{ number: ['41', 'a0'] }, { date: ['1897', 'a_p1_s1'] }])
+    const pairing = { record: 0, extractionId: 'first', sourceRecord: 0 }
+    assert.deepEqual(unmatchedSources(transfer, split, [pairing]), [])
+    const compared = transferVerdicts(transfer, split, nodes, [pairing, { record: 1, extractionId: 'second', sourceRecord: 0 }])
+    assert.equal(compared.get(JSON.stringify(number))?.decision?.action, 'APPROVED')
+    assert.equal(compared.get('["records",1,"date"]')?.status, 'unmatched')
+    assert.equal(compared.get('["records",1,"date"]')?.decision, null)
+    assert.equal(unmatchedSources(transfer, split, []).length, 2)
+  })
+
+  it('shows a reviewed scalar that becomes missing as changed without carrying a decision', () => {
+    const sample = nr41('1897', 'a1', 'sample')
+    const destination = run('full', [{ number: ['41', 'a0'] }])
+    assert.equal(verdicts(sample, [decide(sample, date, 'APPROVED')], destination)[JSON.stringify(date)], 'changed')
+  })
+
+  it('carries a concrete Evidence correction with no model anchor as fixed, and never carries absence', () => {
+    const sample = run('sample', [{ number: ['41', 'a0'] }])
+    const correction: ReviewDecisionInput = { resultPath: date, evidenceAnchorId: null, reviewedOccurrenceIds: [], action: 'EDITED',
+      reviewedValue: 'um 1650', reviewedEvidence: [{ evidenceAnchorId: 'a1', reviewedOccurrenceIds: ['o1'] }] }
+    assert.equal(verdicts(sample, [correction], nr41('um 1650', 'a1'))[JSON.stringify(date)], 'fixed APPROVED')
+    assert.equal(verdicts(sample, [correction], sample)[JSON.stringify(date)], 'changed')
+    assert.equal(transferEntries(sample, [{ ...correction, action: 'APPROVED', reviewedValue: null }], nodes, 1).length, 0)
+  })
 
   it('aligns one record across samples: two samples\' records merged in the run are unmatched, one record sampled twice carries', () => {
     const first = run('first', [{ number: ['41', 'a0'] }])
