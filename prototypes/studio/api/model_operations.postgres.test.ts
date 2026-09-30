@@ -181,7 +181,7 @@ describe('GET and DELETE /api/model-operations on PostgreSQL', () => {
     expect(listed).toEqual([{
       kind: 'generation', workflowId, operationId: workflowId.slice('suggestion:'.length), status: 'SUCCEEDED',
       instruction: 'Catalog entries', createdAt: expect.any(String), failure: null, baseSchemaRevisionId: null,
-      template: { _description: 'One catalogue entry.', title: 'string' },
+      template: { _description: 'One catalogue entry.', title: 'string' }, sourceCoverage: { complete: true },
     }])
     expect(await operations(scope.accountId, scope.projectContextId, base.extractionSchemaId)).toEqual([])
   })
