@@ -228,6 +228,7 @@ export default function BatchExtractionsPanel({
   openBatchExtractionView,
   pilotSchemaRevisionId,
   onNavigate,
+  onReviewCommitted,
 }: {
   projectContextId: string
   sourceDocuments: readonly SourceDocument[]
@@ -239,6 +240,11 @@ export default function BatchExtractionsPanel({
    *  — opens straight into "Pilot Extraction" on this exact Revision. */
   pilotSchemaRevisionId: string | null
   onNavigate: (route: NavigableRoute) => void
+  /** Fired once a grid member's review is finalized (or reverted) — this can
+   *  move the project's workflow phase (extract -> validate), so the
+   *  caller's persisted project summary needs the same refresh cue that
+   *  `onSchemaApproved` gives the document workspace. */
+  onReviewCommitted?: () => void
 }) {
   const sourceDocumentIds = sourceDocuments.map(
     (document) => document.sourceDocumentId,
@@ -1480,7 +1486,10 @@ export default function BatchExtractionsPanel({
                 fromBatchExtractionId: openBatch.batchExtractionId,
               })
             }
-            onMemberSaved={() => setReload((value) => value + 1)}
+            onMemberSaved={() => {
+              setReload((value) => value + 1)
+              onReviewCommitted?.()
+            }}
             onEditSchemaField={(context) => editSchemaFieldFromGrid(openBatch, context)}
             onStabilised={() => {
               setPinnedBatchSchemaReload((value) => value + 1)

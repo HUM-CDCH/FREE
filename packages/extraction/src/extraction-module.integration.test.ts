@@ -1700,13 +1700,17 @@ if (!disposableDatabaseUrl) {
       assert.notEqual(freshMember?.latestExtraction?.extractionId, pilotExtractionId)
       assert.notEqual(freshMember?.latestExtraction?.extractionId, clonedExtractionId)
 
+      // The clone must be directly readable by its own id too — the Batch
+      // Extraction review grid and the single-Extraction report both call
+      // `readExtractionAttempt`, which authorizes through the ExtractionJob
+      // sharing the Extraction's id (ownsResearcherJob), the same pinning a
+      // freshly-run Extraction's own job keeps.
+      assert.ok(await module.readExtractionAttempt(clonedExtractionId))
+
       // The clone carries the reviewed correction, not the raw model value:
       // its own ExtractionReview/ReviewDecision trail (cloned alongside it)
       // must project through readBatchResults exactly like any other
-      // reviewed Extraction's does. `readExtractionAttempt` is keyed by
-      // ExtractionJob identity, not raw Extraction identity, so it cannot
-      // read an arbitrary clone id directly — readBatchResults is the real
-      // path a researcher's view goes through.
+      // reviewed Extraction's does.
       const finalResults = await module.readBatchResults({
         projectContextId: project.projectContextId,
         batchExtractionId: finalBatch.batch.batchExtractionId,

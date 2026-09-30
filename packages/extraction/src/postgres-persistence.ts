@@ -1792,14 +1792,31 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           strategy: input.strategy,
         })
         for (const { reuse, ...member } of members) {
-          const initialExtractionJobId = stableUuid(
-            'batch-member-extraction-job',
-            stableJson([batchExtractionId, member.sourceRepresentationRevisionId]),
-          )
           if (reuse) {
             const finishedAt = reuse.reviewedAt ?? new Date()
+            // Clone rather than re-point `batchExtractionId`: the reused
+            // Extraction very likely already belongs to an earlier pilot
+            // Batch Extraction, and that FK allows only one owning batch
+            // per row (design.md D6 revision). `retryOfId` links the clone
+            // back to it for lineage, reusing the existing retry-pin FK
+            // (which requires matching representation/schema/strategy —
+            // already guaranteed by the reuse query above).
+            //
+            // The ExtractionJob below shares this same id: every single-
+            // Extraction read/review endpoint authorizes through
+            // `ownsResearcherJob`, which looks up the ExtractionJob by the
+            // Extraction's own id — exactly how a freshly-run Extraction's
+            // job and result row are pinned together by the worker. Giving
+            // this job a differently-derived id (as a plain
+            // `batch-member-extraction-job` stableUuid would) leaves the
+            // reused Extraction's own id owned by no job, so reading it
+            // 404s even though the batch member shows it as reviewed.
+            const clonedExtractionId = stableUuid(
+              'batch-member-reused-extraction',
+              stableJson([batchExtractionId, member.sourceRepresentationRevisionId, reuse.id]),
+            )
             await orm.public.ExtractionJob.create({
-              id: initialExtractionJobId,
+              id: clonedExtractionId,
               kind: 'BATCH_MEMBER',
               projectContextId: input.projectContextId,
               ...member,
@@ -1821,19 +1838,8 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
             await orm.public.BatchExtractionMember.create({
               batchExtractionId,
               ...member,
-              initialExtractionJobId,
+              initialExtractionJobId: clonedExtractionId,
             })
-            // Clone rather than re-point `batchExtractionId`: the reused
-            // Extraction very likely already belongs to an earlier pilot
-            // Batch Extraction, and that FK allows only one owning batch
-            // per row (design.md D6 revision). `retryOfId` links the clone
-            // back to it for lineage, reusing the existing retry-pin FK
-            // (which requires matching representation/schema/strategy —
-            // already guaranteed by the reuse query above).
-            const clonedExtractionId = stableUuid(
-              'batch-member-reused-extraction',
-              stableJson([batchExtractionId, member.sourceRepresentationRevisionId, reuse.id]),
-            )
             await orm.public.Extraction.create({
               id: clonedExtractionId,
               ...member,
@@ -1881,6 +1887,10 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
                 })
             }
           } else {
+            const initialExtractionJobId = stableUuid(
+              'batch-member-extraction-job',
+              stableJson([batchExtractionId, member.sourceRepresentationRevisionId]),
+            )
             await orm.public.ExtractionJob.create({
               id: initialExtractionJobId,
               kind: 'BATCH_MEMBER',

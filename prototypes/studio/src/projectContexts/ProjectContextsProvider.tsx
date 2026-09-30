@@ -183,6 +183,10 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
     readProjects(new AbortController())
   }, [readProjects])
 
+  const refreshProjects = useCallback(() => {
+    readProjects(new AbortController())
+  }, [readProjects])
+
   const setBranch = useCallback(
     (projectContextId: string, branch: ProjectBranch | null) => {
       const next = { ...branchesRef.current }
@@ -282,6 +286,13 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         status: 'ready',
         detail: { ...branch.detail, sourceDocuments },
       })
+      // `sourceDocumentCount` is patched in locally above for an instant
+      // count, but the first ingested Source Document also moves this
+      // Project Context's persisted phase (ingest -> chat) — a value only
+      // the list read carries. Without this, the stepper and its "Next"
+      // button keep showing "Upload" as current until something else
+      // happens to refetch the list.
+      reloadList.current()
     },
     [setBranch],
   )
@@ -370,6 +381,9 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
               sourceDocuments.length,
             ),
           )
+          // Deleting the last Source Document moves the persisted phase back
+          // to 'ingest' — refresh the list so the stepper reflects it.
+          if (sourceDocuments.length === 0) reloadList.current()
         }
         return null
       } catch (error) {
@@ -388,6 +402,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         branches,
         loadBranch,
         retryList,
+        refreshProjects,
         createProject,
         renameProject,
         deleteProject,

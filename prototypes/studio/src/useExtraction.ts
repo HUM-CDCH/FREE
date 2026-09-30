@@ -51,6 +51,9 @@ type UseExtractionOptions = {
   indexing: boolean
   onTerminal: (attempt: ExtractionAttempt, isRerun: boolean) => void
   onError: (message: string) => void
+  /** Fired once a review is finalized (accepted) — the caller's cue that
+   *  this can move the project's workflow phase (extract -> validate). */
+  onReviewAccepted?: () => void
   initialAttempt?: ExtractionAttempt | null
   reviewTarget?: ReviewTarget | null
   /**
@@ -141,6 +144,7 @@ export function useExtraction({
   indexing,
   onTerminal,
   onError,
+  onReviewAccepted,
   initialAttempt = null,
   reviewTarget = null,
   documentKey = '',
@@ -472,6 +476,7 @@ export function useExtraction({
       forgetReviewDraft(attempt.extractionId)
       setDraftError(null)
       setAttempt(finalized)
+      onReviewAccepted?.()
     } catch (error) {
       if (saveScopeRef.current !== scope) return
       setReviewError(

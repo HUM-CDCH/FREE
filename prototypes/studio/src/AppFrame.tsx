@@ -159,7 +159,7 @@ export default function AppFrame({
         : JSON.stringify(route)
   const previousRouteFocusKey = useRef(routeFocusKey)
   const tabs = useOpenDocumentTabs()
-  const { projects } = useProjectContexts()
+  const { projects, refreshProjects } = useProjectContexts()
   useShiftWheelHorizontalScroll()
 
   useEffect(() => {
@@ -596,6 +596,8 @@ export default function AppFrame({
                   {...workspace}
                   onInitialResourceLoadFailure={onInitialResourceLoadFailure}
                   onNavigate={onNavigate}
+                  onSchemaApproved={refreshProjects}
+                  onReviewFinalized={refreshProjects}
                 />
               </Suspense>
             </RouteLoadBoundary>

@@ -124,6 +124,16 @@ export type DocumentWorkspaceProps = {
    *  the schema and returns to the project's Schemas tab. */
   fromSchemaBuilder?: boolean
   onNavigate?: (route: NavigableRoute) => void
+  /** Fired once the "Approve schema and go to next step" flush durably
+   *  commits a Schema Revision — the caller's cue to refresh whatever
+   *  persisted project summary (phase, etc.) it's holding, since this
+   *  component has no reason to know about that store itself. */
+  onSchemaApproved?: () => void
+  /** Fired once a review is finalized (accepted) on this Extraction — like
+   *  `onSchemaApproved`, this can move the project's workflow phase
+   *  (extract -> validate), so the caller's persisted summary needs the
+   *  same refresh cue. */
+  onReviewFinalized?: () => void
 }
 
 type PinnedAttemptSchema = SchemaDefinition & {
@@ -145,6 +155,8 @@ export function DocumentWorkspace({
   tabBarSlot = null,
   fromSchemaBuilder = false,
   onNavigate,
+  onSchemaApproved,
+  onReviewFinalized,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
@@ -478,6 +490,11 @@ export function DocumentWorkspace({
         acknowledged?.schemaRevisionId ??
         schemaSnap.extractableSchemaRevisionId ??
         undefined
+      // The persisted Schema Revision just moved this project's workflow
+      // phase (chat/approve -> extract) — the rail's project list only ever
+      // read that summary once, so without this it would keep showing the
+      // pre-approval phase until an unrelated write happened to refetch it.
+      onSchemaApproved?.()
       onNavigate({
         kind: 'project',
         projectContextId,
@@ -585,6 +602,7 @@ export function DocumentWorkspace({
         )
     },
     onError: () => showToast('Extraction failed — see details in Results'),
+    onReviewAccepted: onReviewFinalized,
   })
 
   // The Current Schema Revision is the acknowledged durable revision; unsaved

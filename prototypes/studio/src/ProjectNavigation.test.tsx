@@ -1193,7 +1193,9 @@ describe('Project Context navigation', () => {
       key: 'ArrowRight',
     })
     expect(within(page).getByRole('tab', { name: 'Schemas' })).toHaveFocus()
-    expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
+    expect(
+      await within(page).findByText('Build your schema from a document'),
+    ).toBeInTheDocument()
     expect(
       within(page).getByRole('tabpanel', { name: 'Schemas' }),
     ).toHaveAttribute('tabindex', '0')
@@ -1213,7 +1215,9 @@ describe('Project Context navigation', () => {
       'aria-selected',
       'true',
     )
-    expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
+    expect(
+      await within(page).findByText('Build your schema from a document'),
+    ).toBeInTheDocument()
     expect(
       within(page).queryByLabelText('Filter sources'),
     ).not.toBeInTheDocument()
@@ -1241,7 +1245,9 @@ describe('Project Context navigation', () => {
 
     back(`/projects/${projectContextId}/schemas`)
     await within(page).findByRole('tab', { name: 'Schemas', selected: true })
-    expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
+    expect(
+      await within(page).findByText('Build your schema from a document'),
+    ).toBeInTheDocument()
   })
 
   it('opens the Sources tab for a Source Document list path', async () => {
@@ -1343,10 +1349,12 @@ describe('Project Context navigation', () => {
 
     const page = await openProjectPage()
     fireEvent.click(within(page).getByRole('tab', { name: 'Schemas' }))
-    expect(await within(page).findByText('Loading schemas…')).toBeInTheDocument()
 
     pending.resolve(
       failureResponse('persistence_unavailable', 'Schema storage is unavailable.', 503),
+    )
+    fireEvent.click(
+      await within(page).findByRole('button', { name: 'Schema history' }),
     )
     expect(await within(page).findByRole('alert')).toHaveTextContent(
       'Could not load schemas. persistence_unavailable: Schema storage is unavailable.',
@@ -1411,6 +1419,9 @@ describe('Project Context navigation', () => {
     const page = await screen.findByRole('region', { name: 'Project' })
     await within(page).findByRole('heading', { name: project.name })
     fireEvent.click(within(page).getByRole('tab', { name: 'Schemas' }))
+    fireEvent.click(
+      await within(page).findByRole('button', { name: 'Schema history' }),
+    )
     await within(page).findByText('Places')
     fireEvent.click(
       within(page).getByRole('button', { name: 'Rename schema Places' }),

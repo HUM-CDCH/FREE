@@ -20,6 +20,7 @@ type DisplayStep = {
   label: string
   tab: StepTab
   status: StepStatus
+  meta?: string | null
 }
 
 const extractPhaseIndex = phaseOrder.indexOf('extract')
@@ -33,11 +34,9 @@ const extractPhaseIndex = phaseOrder.indexOf('extract')
  */
 function ProjectWorkflowSteps({
   summary,
-  activeTab,
   onNavigate,
 }: {
   summary: ProjectContext['summary']
-  activeTab: ProjectResource['tab']
   onNavigate: (tab: StepTab) => void
 }) {
   const currentPhaseIndex = phaseOrder.indexOf(summary.phase)
@@ -58,12 +57,16 @@ function ProjectWorkflowSteps({
   // The server only tracks one `extract` phase value, but it covers two
   // rounds in sequence: piloting on a small selection first, then a
   // stabilised schema unlocking the collection-scale run. The phase itself
-  // only flips to `validate` once a pilot Extraction has been reviewed, and
-  // stabilising requires exactly that review to already have happened — so
-  // `phase === 'extract'` and `schemaStabilised` never overlap; reaching
-  // `validate` is what "Pilot Extraction" being done actually means, and
-  // `schemaStabilised` is the only further signal for whether "Batch
-  // Extraction" has started or finished from there.
+  // only flips to `validate` once a pilot Extraction has been reviewed, so
+  // reaching `validate` is what "Pilot Extraction" being done actually
+  // means. `schemaStabilised` only unlocks Batch Extraction — it's set the
+  // moment a researcher clicks "Stabilise schema", before any Batch
+  // Extraction has actually run, so it must never mark "Batch Extraction"
+  // done by itself (that previously left the stepper claiming batch work
+  // was finished when none had started). `fullyValidated` — every currently
+  // extracted document reviewed — is the closest available "done" signal;
+  // `runningBatch`, when present, surfaces real progress on the "current"
+  // step instead of leaving it looking stalled.
   const pilotReviewed = currentPhaseIndex > extractPhaseIndex
   const pilotStatus: StepStatus =
     currentPhaseIndex < extractPhaseIndex
@@ -73,15 +76,19 @@ function ProjectWorkflowSteps({
         : 'current'
   const batchStatus: StepStatus = !pilotReviewed
     ? 'upcoming'
-    : summary.schemaStabilised
+    : fullyValidated
       ? 'done'
       : 'current'
+  const batchMeta =
+    batchStatus === 'current' && summary.runningBatch
+      ? `${summary.runningBatch.completedMemberCount}/${summary.runningBatch.memberCount}`
+      : null
 
   const displaySteps: readonly DisplayStep[] = phaseOrder.flatMap((phase, index) =>
     phase === 'extract'
       ? [
           { key: 'pilot', label: 'Pilot Extraction', tab: stepTab.extract, status: pilotStatus },
-          { key: 'batch', label: 'Batch Extraction', tab: stepTab.extract, status: batchStatus },
+          { key: 'batch', label: 'Batch Extraction', tab: stepTab.extract, status: batchStatus, meta: batchMeta },
         ]
       : [{ key: phase, label: phaseLabels[phase], tab: stepTab[phase], status: statusForPhase(index) }],
   )
@@ -90,10 +97,13 @@ function ProjectWorkflowSteps({
   const nextLabel =
     summary.phase === 'extract'
       ? 'Pilot Extraction'
-      : summary.phase === 'validate' && !summary.schemaStabilised
+      : summary.phase === 'validate'
         ? 'Batch Extraction'
         : phaseLabels[summary.phase]
-  const showNext = !fullyValidated && activeTab !== nextTab
+  // Stays visible even once the researcher is already on the target tab —
+  // it's a persistent "what's next" anchor, not a one-shot nudge that
+  // should vanish the moment they act on it.
+  const showNext = !fullyValidated
 
   return (
     <div className="mb-5 flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
@@ -137,12 +147,15 @@ function ProjectWorkflowSteps({
                 )}
               </span>
               <span
-                className={`min-w-0 truncate text-[11px] font-semibold ${
+                className={`line-clamp-2 min-w-0 text-[11px] font-semibold ${
                   state === 'upcoming' ? 'text-ink-faint' : 'text-ink'
                 }`}
               >
                 {step.label}
               </span>
+              {step.meta && (
+                <span className="text-[10px] text-ink-faint">{step.meta}</span>
+              )}
             </>
           )
           return (
