@@ -197,7 +197,7 @@ export function useBatchExtractionReviewGrid(
         draftWrites.current.delete(state.attempt.extractionId)
         const signal = loadControllerRef.current?.signal
         if (signal) loadMember(sourceDocumentId, state.attempt.extractionId, signal)
-      } else persistDraft(state)
+      } else persistDraft(state, true)
     }
   }
 

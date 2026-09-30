@@ -241,11 +241,14 @@ describe('useBatchExtractionReviewGrid', () => {
       [{ ...other, action: 'REJECTED' }], 3, []))
   })
 
-  it.each(['grid', 'document'] as const)('restores a recovered hand pairing and refreshes carried decisions in %s', async (view) => {
+  it.each([
+    ['grid', false], ['document', false], ['grid', true], ['document', true],
+  ] as const)('restores a recovered hand pairing in %s after transient failure: %s', async (view, retry) => {
     const pairing = { record: 0, extractionId: 'sample-1', sourceRecord: 1 }
     const carried = { ...pendingDecisions[0], carriedFrom: { extractionId: 'sample-1', sourcePathKey: '["records",1,"title"]' } }
     rememberReviewDraft(extractionId, { version: 1, decisions: [], pairings: [pairing] })
     captureSessionRecovery()
+    if (retry) vi.mocked(api.saveExtractionReviewDraft).mockRejectedValueOnce(new Error('Temporary draft failure'))
     vi.mocked(api.readExtraction).mockResolvedValueOnce({ extraction: attempt(), pendingReviewDecisions: pendingDecisions,
       reviewDraft: { version: 1, decisions: [], pairings: [] } })
       .mockResolvedValue({ extraction: attempt(), pendingReviewDecisions: pendingDecisions,
@@ -259,6 +262,10 @@ describe('useBatchExtractionReviewGrid', () => {
         pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
     }
     render(view === 'grid' ? <Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} /> : <DocumentReview />)
+    if (retry) {
+      await screen.findByText('Draft not saved: Temporary draft failure')
+      fireEvent.click(screen.getByRole('button', { name: 'Retry draft' }))
+    }
     await screen.findByText(/1 reviewed in sample/)
     expect(api.saveExtractionReviewDraft).toHaveBeenCalledWith(extractionId, [], 1, [pairing])
     expect(api.readExtraction).toHaveBeenCalledTimes(2)

@@ -377,17 +377,18 @@ export function useExtraction({
         }
         const recovered = recoverReviewDraft(attempt.extractionId, prepared.reviewDraft, prepared.pendingReviewDecisions ?? [])
         const pairings = [...recovered.pairings]
+        const pendingPairings = JSON.stringify(pairings) === JSON.stringify(prepared.reviewDraft?.pairings ?? []) ? undefined : pairings
         setTransfer({ extractionId: attempt.extractionId, verdicts: prepared.reviewDraft?.transfer ?? {},
           pairings, sources: prepared.reviewDraft?.sources ?? [] })
         draftSaveRef.current = { version: recovered.version, pending: Promise.resolve(), writes: 0, conflict: recovered.conflict }
         setDraftError(recovered.conflict ? REVIEW_DRAFT_CONFLICT : null)
         draftRef.current = { decisions: recovered.decisions, touched: recovered.touchedPaths,
-          pairings: recovered.retry || recovered.conflict ? pairings : undefined }
+          pairings: recovered.retry || recovered.conflict ? pendingPairings : undefined }
         setReviewDecisions(
           recovered.decisions,
         )
         setTouchedPaths(recovered.touchedPaths)
-        if (recovered.retry) updateReview(recovered.decisions, recovered.touchedPaths, pairings)
+        if (recovered.retry) updateReview(recovered.decisions, recovered.touchedPaths, pendingPairings)
       } catch (error) {
         if (reviewLoadRef.current !== load) return
         setReviewError(
