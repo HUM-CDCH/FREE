@@ -132,7 +132,7 @@ describe('RightRail developer UI visibility', () => {
           state: { status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0 } }}
         runExtractionDisabled={false} runExtractionStrategy={{ strategy: 'ARTICLE' }}
         inspection={{ ...defaultInspection, attempt, pinnedSchema: historical }} currentSchemaRevision={null}
-        sourceDocumentName="test.pdf" onSelectEvidence={() => {}} onResultPathChange={() => {}} />
+        sourceDocumentName="test.pdf" sourceRepresentationId="source-1" onSelectEvidence={() => {}} onResultPathChange={() => {}} />
     }
     render(<Rail />)
     fireEvent.click(screen.getByText(/1 grounded · 1 required decisions remaining/))
