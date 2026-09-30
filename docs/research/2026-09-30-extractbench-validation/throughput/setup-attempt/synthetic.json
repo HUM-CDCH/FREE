@@ -1,0 +1,162 @@
+{
+  "passages": [
+    {
+      "id": "p1_s0",
+      "page": 1,
+      "text": "Name: Synthetic instrument 01; code: SYN-001; quantity: 2; location: Room 101."
+    },
+    {
+      "id": "p1_s1",
+      "page": 1,
+      "text": "Name: Synthetic instrument 02; code: SYN-002; quantity: 3; location: Room 102."
+    },
+    {
+      "id": "p1_s2",
+      "page": 1,
+      "text": "Name: Synthetic instrument 03; code: SYN-003; quantity: 4; location: Room 103."
+    },
+    {
+      "id": "p1_s3",
+      "page": 1,
+      "text": "Name: Synthetic instrument 04; code: SYN-004; quantity: 5; location: Room 104."
+    },
+    {
+      "id": "p1_s4",
+      "page": 1,
+      "text": "Name: Synthetic instrument 05; code: SYN-005; quantity: 6; location: Room 105."
+    },
+    {
+      "id": "p1_s5",
+      "page": 1,
+      "text": "Name: Synthetic instrument 06; code: SYN-006; quantity: 7; location: Room 106."
+    },
+    {
+      "id": "p1_s6",
+      "page": 1,
+      "text": "Name: Synthetic instrument 07; code: SYN-007; quantity: 8; location: Room 107."
+    },
+    {
+      "id": "p1_s7",
+      "page": 1,
+      "text": "Name: Synthetic instrument 08; code: SYN-008; quantity: 9; location: Room 108."
+    }
+  ],
+  "schema": {
+    "recordDescription": "a synthetic instrument in a laboratory inventory",
+    "schemaNodes": [
+      {
+        "id": "name",
+        "name": "name",
+        "description": null,
+        "valueSource": null,
+        "evidencePolicy": null,
+        "type": "string",
+        "allowedValues": null,
+        "itemType": null,
+        "children": null
+      },
+      {
+        "id": "code",
+        "name": "code",
+        "description": null,
+        "valueSource": null,
+        "evidencePolicy": null,
+        "type": "string",
+        "allowedValues": null,
+        "itemType": null,
+        "children": null
+      },
+      {
+        "id": "quantity",
+        "name": "quantity",
+        "description": null,
+        "valueSource": null,
+        "evidencePolicy": null,
+        "type": "integer",
+        "allowedValues": null,
+        "itemType": null,
+        "children": null
+      },
+      {
+        "id": "location",
+        "name": "location",
+        "description": null,
+        "valueSource": null,
+        "evidencePolicy": null,
+        "type": "string",
+        "allowedValues": null,
+        "itemType": null,
+        "children": null
+      }
+    ]
+  },
+  "config": {
+    "input": {
+      "mode": "layout"
+    },
+    "chunking": {
+      "mode": "fixed",
+      "max_chars": 4000,
+      "overlap": 0
+    },
+    "retrieval": {
+      "mode": "exhaustive",
+      "top_k": 3,
+      "expand": 0
+    },
+    "decompose": {
+      "mode": "whole",
+      "groups": [],
+      "max_fields": 4
+    },
+    "output": {
+      "constraint": "schema",
+      "max_tokens": 512
+    },
+    "recovery": {
+      "retries": 0,
+      "subdivide": false,
+      "depth": 1
+    },
+    "evidence": {
+      "mode": "none",
+      "alignment": {
+        "exact": true,
+        "normalized": true,
+        "fuzzy": false,
+        "fuzzy_threshold": 0.85,
+        "fuzzy_growth": 1.25,
+        "disambiguate": "none"
+      }
+    },
+    "verification": {
+      "model": false,
+      "gate": "off"
+    },
+    "merge": {
+      "keys": false,
+      "min_fields": 2,
+      "continuation": "off",
+      "resolver": false
+    },
+    "sampling": {
+      "n": 1,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "aggregate": "strict",
+      "views": [
+        "field"
+      ]
+    },
+    "signals": {
+      "verbalized": false,
+      "top_logprobs": 0
+    },
+    "budget": {
+      "input_chars": 12000,
+      "calls": 1,
+      "tokens": 250000,
+      "workers": 1
+    }
+  }
+}

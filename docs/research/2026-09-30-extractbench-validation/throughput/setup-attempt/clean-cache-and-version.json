@@ -1,0 +1,581 @@
+{
+  "revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+  "vllm": "0.29.1rc1.dev17+gd2d649e67.d20260913",
+  "torch": "2.13.0+cu130",
+  "transformers": "5.17.0",
+  "architectures": [
+    "Qwen3_5ForConditionalGeneration"
+  ],
+  "model_type": "qwen3_5",
+  "text_config": {
+    "attention_bias": false,
+    "attention_dropout": 0.0,
+    "attn_output_gate": true,
+    "bos_token_id": 248044,
+    "dtype": "bfloat16",
+    "eos_token_id": 248044,
+    "full_attention_interval": 4,
+    "head_dim": 256,
+    "hidden_act": "silu",
+    "hidden_size": 5120,
+    "initializer_range": 0.02,
+    "intermediate_size": 17408,
+    "layer_types": [
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention",
+      "linear_attention",
+      "linear_attention",
+      "linear_attention",
+      "full_attention"
+    ],
+    "linear_conv_kernel_dim": 4,
+    "linear_key_head_dim": 128,
+    "linear_num_key_heads": 16,
+    "linear_num_value_heads": 48,
+    "linear_value_head_dim": 128,
+    "mamba_ssm_dtype": "float32",
+    "max_position_embeddings": 262144,
+    "model_type": "qwen3_5_text",
+    "mtp_num_hidden_layers": 1,
+    "mtp_use_dedicated_embeddings": false,
+    "num_attention_heads": 24,
+    "num_hidden_layers": 64,
+    "num_key_value_heads": 4,
+    "output_gate_type": "swish",
+    "pad_token_id": null,
+    "partial_rotary_factor": 0.25,
+    "rms_norm_eps": 1e-06,
+    "rope_parameters": {
+      "mrope_interleaved": true,
+      "mrope_section": [
+        11,
+        11,
+        10
+      ],
+      "partial_rotary_factor": 0.25,
+      "rope_theta": 10000000,
+      "rope_type": "default"
+    },
+    "tie_word_embeddings": false,
+    "use_cache": true,
+    "vocab_size": 248320
+  },
+  "config_sha256": "74227dd615bf1ea975aa676bdf355a0379858c12f394b5365cd9dfa5fc2c70bc",
+  "files": [
+    {
+      "name": "chat_template.jinja",
+      "target": "/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8/blobs/c0c686f9c38d70d179fb7b5f5aa7530bc913dda3",
+      "bytes": 8952,
+      "inode": 8547587
+    },
+    {
+      "name": "config.json",
+      "target": "/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8/blobs/e66d0dcb2d8066e724407f0ded85b6c3c5cb213a",
+      "bytes": 51350,
+      "inode": 8547547
+    },
+    {
+      "name": "generation_config.json",
+      "target": "/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8/blobs/023756cfadf88e5bf69eefeee3e172f38c448d64",
+      "bytes": 202,
+      "inode": 8547590
+    },
+    {
+      "name": "layers-0.safetensors",
+      "target": "/models/huggingface/hub/blobs/94/94cb43e366d97765e4e950cfabd3ea29445cf28d824f3f2a73dcabf13dfb4854",
+      "bytes": 383865448,
+      "inode": 8547601
+    },
+    {
+      "name": "layers-1.safetensors",
+      "target": "/models/huggingface/hub/blobs/03/039348c94fc34b02d7d80ef21a04e72b0d0a526860f8667ee71033982a96db38",
+      "bytes": 383865448,
+      "inode": 8547607
+    },
+    {
+      "name": "layers-10.safetensors",
+      "target": "/models/huggingface/hub/blobs/0d/0dc56698e63d1c7200e7c4e512d835b232920bca843409caf0dbb3ec24a7acd1",
+      "bytes": 383865472,
+      "inode": 8547606
+    },
+    {
+      "name": "layers-11.safetensors",
+      "target": "/models/huggingface/hub/blobs/55/559ddf0e1239b9e57b4d259ea837431622a0b26ccc940a76b37bf001a90be4fc",
+      "bytes": 372313760,
+      "inode": 8547597
+    },
+    {
+      "name": "layers-12.safetensors",
+      "target": "/models/huggingface/hub/blobs/c5/c53532085c18abd82dbd1032e24a82902f6245840ac8370b3ddcb35a868b3748",
+      "bytes": 383865472,
+      "inode": 8547610
+    },
+    {
+      "name": "layers-13.safetensors",
+      "target": "/models/huggingface/hub/blobs/45/45382ad102683a9c7a41d34ef11778150d8fa883f61b93278d1c787ddc12410b",
+      "bytes": 383865472,
+      "inode": 8547608
+    },
+    {
+      "name": "layers-14.safetensors",
+      "target": "/models/huggingface/hub/blobs/5a/5ad10e449a0d86445301fe3c90d513daf7e8d8a67914eb08c1eacd2cb24e9175",
+      "bytes": 383865472,
+      "inode": 8547609
+    },
+    {
+      "name": "layers-15.safetensors",
+      "target": "/models/huggingface/hub/blobs/ef/ef0896b5b63302f35a1d40e51dc152cecb0bd3073abbfe5d77cf5963f98252c5",
+      "bytes": 372313760,
+      "inode": 8547600
+    },
+    {
+      "name": "layers-16.safetensors",
+      "target": "/models/huggingface/hub/blobs/46/462156f5991a35ae301194fd1bad9c78bcd2eb0400173098a09783542858bcf0",
+      "bytes": 383865472,
+      "inode": 8547614
+    },
+    {
+      "name": "layers-17.safetensors",
+      "target": "/models/huggingface/hub/blobs/06/06835db89a2dd14e4766cd1760a3b54c55d9b5b9dfe1f3948031e6547fef3c71",
+      "bytes": 383865472,
+      "inode": 8547618
+    },
+    {
+      "name": "layers-18.safetensors",
+      "target": "/models/huggingface/hub/blobs/cd/cd7bbf1a853d50fce0faee707bc1148510b844bc919774ff1128480a68520fe9",
+      "bytes": 383865472,
+      "inode": 8547622
+    },
+    {
+      "name": "layers-19.safetensors",
+      "target": "/models/huggingface/hub/blobs/c7/c7cb5d69d216f150f9b7146d37305a7cb61506589656ebe140b1fac8164e0dd6",
+      "bytes": 372313760,
+      "inode": 8547626
+    },
+    {
+      "name": "layers-2.safetensors",
+      "target": "/models/huggingface/hub/blobs/20/20e706e30dce8dce1fc40a798882e83c90c0fd28988b7a188c9b9c0b86a77f78",
+      "bytes": 383865448,
+      "inode": 8547630
+    },
+    {
+      "name": "layers-20.safetensors",
+      "target": "/models/huggingface/hub/blobs/7c/7c4ed2a2e4695636e82dfcda84b9664e2aeb871510d4fa02ce1d97a21ade8d37",
+      "bytes": 383865472,
+      "inode": 8547634
+    },
+    {
+      "name": "layers-21.safetensors",
+      "target": "/models/huggingface/hub/blobs/6a/6a0275768e54cd429270c61a680355231a4a4a0aa0731dda8a54f65d2836fce7",
+      "bytes": 383865472,
+      "inode": 8547638
+    },
+    {
+      "name": "layers-22.safetensors",
+      "target": "/models/huggingface/hub/blobs/34/3497d14d1117f49f76922f629488a926fdf1eed1fdfe3264444a20baf80991d5",
+      "bytes": 383865472,
+      "inode": 8547642
+    },
+    {
+      "name": "layers-23.safetensors",
+      "target": "/models/huggingface/hub/blobs/3c/3ceb8f5919872f290ed3629bf3a1887dc0bc830803bbd3822aac492acad75a49",
+      "bytes": 372313760,
+      "inode": 8547646
+    },
+    {
+      "name": "layers-24.safetensors",
+      "target": "/models/huggingface/hub/blobs/3b/3bc2ebab61600e0f19b4c066d305780b7977328c1830d2ebd6e51a033c7e4c33",
+      "bytes": 383865472,
+      "inode": 8547650
+    },
+    {
+      "name": "layers-25.safetensors",
+      "target": "/models/huggingface/hub/blobs/69/69496a00a9341d5937554b98e41bef2b9fe6a7142aa6a0ca658daac45a2ac243",
+      "bytes": 383865472,
+      "inode": 8547654
+    },
+    {
+      "name": "layers-26.safetensors",
+      "target": "/models/huggingface/hub/blobs/3b/3b023f76f775ce17e177fc9d99b30b933a6c0f41400393737702efbe8cee17e9",
+      "bytes": 383865472,
+      "inode": 8547658
+    },
+    {
+      "name": "layers-27.safetensors",
+      "target": "/models/huggingface/hub/blobs/00/000b5be7895e453a3d647c39aa33c3f220216072124c7c1bd62947c89f24e9d1",
+      "bytes": 372313760,
+      "inode": 8547662
+    },
+    {
+      "name": "layers-28.safetensors",
+      "target": "/models/huggingface/hub/blobs/cd/cd40032f51a7d9a1916c033d91e9cee0fd148426b1d8c8489c25f227390c45f8",
+      "bytes": 383865472,
+      "inode": 8547666
+    },
+    {
+      "name": "layers-29.safetensors",
+      "target": "/models/huggingface/hub/blobs/9a/9a44495040c0d0d71b6e60715a39556dc973323e9a0e9b5a301e3b55b72031a9",
+      "bytes": 383865472,
+      "inode": 8547670
+    },
+    {
+      "name": "layers-3.safetensors",
+      "target": "/models/huggingface/hub/blobs/ed/ed4b14237c0439481d4ed0ac001be3af79c54d20d6609daff30dc765b7ffc8e6",
+      "bytes": 372313744,
+      "inode": 8547674
+    },
+    {
+      "name": "layers-30.safetensors",
+      "target": "/models/huggingface/hub/blobs/8d/8d09e54a111723355e876cf8e62603fbdc19fc509eb881e74543631a71403798",
+      "bytes": 383865472,
+      "inode": 8547678
+    },
+    {
+      "name": "layers-31.safetensors",
+      "target": "/models/huggingface/hub/blobs/44/44937bbf59991e5edda5d85f95bb4dc4a86ff94d08df0c7659195e9d248b2877",
+      "bytes": 372313760,
+      "inode": 8547682
+    },
+    {
+      "name": "layers-32.safetensors",
+      "target": "/models/huggingface/hub/blobs/6f/6fbd101805a1dc4363ba0d5f5290b41d520376c21238aafb8a4077a0f04eb838",
+      "bytes": 383865472,
+      "inode": 8547686
+    },
+    {
+      "name": "layers-33.safetensors",
+      "target": "/models/huggingface/hub/blobs/99/999b25210f4a95648308904ca2b8afae72359f10b13f00f19cb0a99324d62d11",
+      "bytes": 383865472,
+      "inode": 8547690
+    },
+    {
+      "name": "layers-34.safetensors",
+      "target": "/models/huggingface/hub/blobs/47/477562879ad5adc55a7f6c3b3d454b588edd0eeb13fee6f6a75e5179d4e5843e",
+      "bytes": 383865472,
+      "inode": 8547694
+    },
+    {
+      "name": "layers-35.safetensors",
+      "target": "/models/huggingface/hub/blobs/89/890e529b9af8a2f3812ad51055a657054ef2ee8aac2f11ffd8d1002ef5c791df",
+      "bytes": 372313760,
+      "inode": 8547698
+    },
+    {
+      "name": "layers-36.safetensors",
+      "target": "/models/huggingface/hub/blobs/bf/bfd4aeed7f40769bc2f9b110d5b1c23947969f8bb129d322e71178ac7906bb12",
+      "bytes": 383865472,
+      "inode": 8547702
+    },
+    {
+      "name": "layers-37.safetensors",
+      "target": "/models/huggingface/hub/blobs/07/07f2fa034e94c0d086f7c64e8fc0000c48da7ca5ba41f392fa04bcb1165a4866",
+      "bytes": 383865472,
+      "inode": 8547706
+    },
+    {
+      "name": "layers-38.safetensors",
+      "target": "/models/huggingface/hub/blobs/4f/4f129437758cdb013d5b2b7f58c1b87bb3f2e204bb3ca81c4f140b025b0b94d7",
+      "bytes": 383865472,
+      "inode": 8547710
+    },
+    {
+      "name": "layers-39.safetensors",
+      "target": "/models/huggingface/hub/blobs/a9/a9e02590b838f53a3047e08c47463c125ebf786e6971c6da918d627bd096fded",
+      "bytes": 372313760,
+      "inode": 8547714
+    },
+    {
+      "name": "layers-4.safetensors",
+      "target": "/models/huggingface/hub/blobs/f0/f0c52b063808235889e776df4159652ee30cfa352232e90e0b526f9bcb597c7f",
+      "bytes": 383865448,
+      "inode": 8547718
+    },
+    {
+      "name": "layers-40.safetensors",
+      "target": "/models/huggingface/hub/blobs/fa/fa00719da22d4e743fde9ee1357922eeb42815ff6d86258046215c5c8c9de079",
+      "bytes": 383865472,
+      "inode": 8547722
+    },
+    {
+      "name": "layers-41.safetensors",
+      "target": "/models/huggingface/hub/blobs/e8/e80d0cfad35da717349ff5d311491ea6c8f80fe9700e54a5259fb7dd606f54b4",
+      "bytes": 383865472,
+      "inode": 8547726
+    },
+    {
+      "name": "layers-42.safetensors",
+      "target": "/models/huggingface/hub/blobs/1a/1a5955516878f3312010f05b25b05ad798611249ccf7bf25a146864fb120946d",
+      "bytes": 383865472,
+      "inode": 8547730
+    },
+    {
+      "name": "layers-43.safetensors",
+      "target": "/models/huggingface/hub/blobs/23/23c3025944136848e6e5286f9598941f2f25773c465e053cdf82c964120755ff",
+      "bytes": 372313760,
+      "inode": 8547734
+    },
+    {
+      "name": "layers-44.safetensors",
+      "target": "/models/huggingface/hub/blobs/b5/b50c8fbd12d144aa6fd75060a9ee1044ab3c912f25ce3bb6bce134733162c1c1",
+      "bytes": 383865472,
+      "inode": 8547739
+    },
+    {
+      "name": "layers-45.safetensors",
+      "target": "/models/huggingface/hub/blobs/9c/9c6a9a225f0db1bbca79b7acdfe15a8fe8c76c4870c4ed7373a02f29a50f8664",
+      "bytes": 383865472,
+      "inode": 8547743
+    },
+    {
+      "name": "layers-46.safetensors",
+      "target": "/models/huggingface/hub/blobs/83/83a6bd91c9e0680b9bef11fb5e4f9a918f5d703d0a74a43107e1606a7f566d73",
+      "bytes": 383865472,
+      "inode": 8547747
+    },
+    {
+      "name": "layers-47.safetensors",
+      "target": "/models/huggingface/hub/blobs/2f/2f147434de93165339c23da93402f3b5692daaf30b79b9404a2bf44ae1d10c8c",
+      "bytes": 372313760,
+      "inode": 8547751
+    },
+    {
+      "name": "layers-48.safetensors",
+      "target": "/models/huggingface/hub/blobs/9d/9dff15ad10043b8af7af51b2b009a3d43ad9ee6e0bdbace52179f817e1d39a6e",
+      "bytes": 383865472,
+      "inode": 8547755
+    },
+    {
+      "name": "layers-49.safetensors",
+      "target": "/models/huggingface/hub/blobs/ac/ac21b5a29e85224c0954c2eecb4db07d345bc191dfc653f3a907fa56a450c2d9",
+      "bytes": 383865472,
+      "inode": 8547759
+    },
+    {
+      "name": "layers-5.safetensors",
+      "target": "/models/huggingface/hub/blobs/8a/8a46334d79a7291e55f93bd7acc271851e8b86d6ee11b7ba86581b84626218d0",
+      "bytes": 383865448,
+      "inode": 8547763
+    },
+    {
+      "name": "layers-50.safetensors",
+      "target": "/models/huggingface/hub/blobs/3e/3e2c6a675912317e8b1d4713c6465a0e1a3a39eba50ea304fbf2cf49b35e57a5",
+      "bytes": 383865472,
+      "inode": 8547767
+    },
+    {
+      "name": "layers-51.safetensors",
+      "target": "/models/huggingface/hub/blobs/00/00cd44f45a6a999c203b59f1664f7fc6ac53f6bb6ddc7a7ce33e4e57d015c6c7",
+      "bytes": 372313760,
+      "inode": 8547771
+    },
+    {
+      "name": "layers-52.safetensors",
+      "target": "/models/huggingface/hub/blobs/ea/ea9ca687f7acf722e6011e5fdcafb2260174a6a92cb1bf8da428f58781f46627",
+      "bytes": 383865472,
+      "inode": 8547776
+    },
+    {
+      "name": "layers-53.safetensors",
+      "target": "/models/huggingface/hub/blobs/44/44bcb8cfad69425d54a148182306af4175445149f9f9133e8d775376741eca1b",
+      "bytes": 383865472,
+      "inode": 8547780
+    },
+    {
+      "name": "layers-54.safetensors",
+      "target": "/models/huggingface/hub/blobs/4f/4f4b29461c4e169d48585f9212ded9ab419948ade0597e2ee7de2f0cf1518841",
+      "bytes": 383865472,
+      "inode": 8547784
+    },
+    {
+      "name": "layers-55.safetensors",
+      "target": "/models/huggingface/hub/blobs/aa/aa1af0c7538b9f05eb12d170c5da18dbf85ec18bab8fe953ab1d2bc1aee3a0ff",
+      "bytes": 372313760,
+      "inode": 8547788
+    },
+    {
+      "name": "layers-56.safetensors",
+      "target": "/models/huggingface/hub/blobs/0e/0e676745bb8800030c5aa44dbd8b3c00696351be0738246c3488d564c3523386",
+      "bytes": 383865472,
+      "inode": 8547792
+    },
+    {
+      "name": "layers-57.safetensors",
+      "target": "/models/huggingface/hub/blobs/cd/cd360b2ac9f823a60eab37e2a4e4db45b59ae2b23687d5d76353aaf0d564dee4",
+      "bytes": 383865472,
+      "inode": 8547796
+    },
+    {
+      "name": "layers-58.safetensors",
+      "target": "/models/huggingface/hub/blobs/f5/f5708425f101e8b57bb1fdbdfd58ebbeddfb2123d78a6e31f3a22d8e2e4050e8",
+      "bytes": 383865472,
+      "inode": 8547800
+    },
+    {
+      "name": "layers-59.safetensors",
+      "target": "/models/huggingface/hub/blobs/0b/0b09f0c6be951e76106783c7f12fe3c2d61257dcc5bcacbeb0875d5e1dc9e6da",
+      "bytes": 372313760,
+      "inode": 8547804
+    },
+    {
+      "name": "layers-6.safetensors",
+      "target": "/models/huggingface/hub/blobs/7a/7a2a204e20591fcf7663a0ef267a0106b90573ed4c858498f0c89f1cceab7028",
+      "bytes": 383865448,
+      "inode": 8547808
+    },
+    {
+      "name": "layers-60.safetensors",
+      "target": "/models/huggingface/hub/blobs/0b/0baa77b07482479919d67dee33616c2dffce34e53b688730d728fcf5ef88e0f3",
+      "bytes": 383865472,
+      "inode": 8547812
+    },
+    {
+      "name": "layers-61.safetensors",
+      "target": "/models/huggingface/hub/blobs/2c/2c3b7fad92791ff8ad2aed77ddc3ead068a9e7e60da323422385ec98ff3eae39",
+      "bytes": 383865472,
+      "inode": 8547816
+    },
+    {
+      "name": "layers-62.safetensors",
+      "target": "/models/huggingface/hub/blobs/14/14036d433af8ee7c05412fe8503a22cb8b4d2dd3662ecad57a1fa8c9251d2f24",
+      "bytes": 383865472,
+      "inode": 8547820
+    },
+    {
+      "name": "layers-63.safetensors",
+      "target": "/models/huggingface/hub/blobs/a3/a3c9d801504443b986dfb76231b1c472f5c5ec172bb25b6fe7c0de762f4abbad",
+      "bytes": 372313760,
+      "inode": 8547824
+    },
+    {
+      "name": "layers-7.safetensors",
+      "target": "/models/huggingface/hub/blobs/ea/ea3bc478bbd23344c3039d574b56cc7c27f2eae5dc0512599db39e2aa1e551d9",
+      "bytes": 372313744,
+      "inode": 8547828
+    },
+    {
+      "name": "layers-8.safetensors",
+      "target": "/models/huggingface/hub/blobs/00/00403d63599b7e177bbcf67d461968b2ae0cfeddf16828406e11e70279af0328",
+      "bytes": 383865448,
+      "inode": 8547832
+    },
+    {
+      "name": "layers-9.safetensors",
+      "target": "/models/huggingface/hub/blobs/09/096d5137da35972db165fd5f80269001b8ce0674b0c4e25413930d840fc4dc73",
+      "bytes": 383865448,
+      "inode": 8547836
+    },
+    {
+      "name": "merges.txt",
+      "target": "/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8/blobs/a494e019ca1502219fd0128658b979e5f05ae8e8",
+      "bytes": 3353259,
+      "inode": 8547578
+    },
+    {
+      "name": "model.safetensors.index.json",
+      "target": "/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8/blobs/0ecc7a25b5d40e6f0587a80c5300a92ad3e5cf22",
+      "bytes": 137335,
+      "inode": 8547593
+    },
+    {
+      "name": "mtp.safetensors",
+      "target": "/models/huggingface/hub/blobs/68/686b1381ae8675014c61c0bc004c18867e32584226869073b45999bc0f4a5ceb",
+      "bytes": 477202224,
+      "inode": 8547841
+    },
+    {
+      "name": "outside.safetensors",
+      "target": "/models/huggingface/hub/blobs/57/573efe2185786299c0931951ac42705bd35f6a557c985e8d38ab9bf4dbfd22b0",
+      "bytes": 6007102112,
+      "inode": 8547845
+    },
+    {
+      "name": "preprocessor_config.json",
+      "target": "/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8/blobs/2ea84a437d448ff71b08df68fdd949d5cc4ebb64",
+      "bytes": 390,
+      "inode": 8547553
+    },
+    {
+      "name": "tokenizer.json",
+      "target": "/models/huggingface/hub/blobs/dd/ddca7e708ff0da8902fdcef5209d5eea8bf922715733eb02f93026a37478e426",
+      "bytes": 12809320,
+      "inode": 8547581
+    },
+    {
+      "name": "tokenizer_config.json",
+      "target": "/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8/blobs/5de744b3fca2129d7186979ae47c06be33903243",
+      "bytes": 17928,
+      "inode": 8547556
+    },
+    {
+      "name": "video_preprocessor_config.json",
+      "target": "/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8/blobs/3ba673a5ad7d4d13f54155ecd38b2a94a6dac8fe",
+      "bytes": 385,
+      "inode": 8547866
+    },
+    {
+      "name": "vocab.json",
+      "target": "/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8/blobs/0aa0ce0658d60ac4a5d609f4eadb0e8e43514176",
+      "bytes": 6722759,
+      "inode": 8547559
+    }
+  ],
+  "stats_source": "/usr/local/lib/python3.12/dist-packages/vllm/v1/metrics/stats.py"
+}

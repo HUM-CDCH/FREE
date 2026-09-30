@@ -1,0 +1,68 @@
+{"condition": "direct-existing", "warmup": true, "index": 0, "input_tokens": 530, "output_tokens": 429, "finish_reason": "stop", "ttft_server_seconds": 0.29071903228759766, "decode_seconds": 54.59693949110806, "decode_tokens_per_second": 7.839267255442153, "http_e2e_seconds": 54.90349670500018, "condition_e2e_seconds": 54.903675845999715, "server_e2e_seconds": 54.88598108291626, "request_sha256": "ae6dca53a00105c528ec172c592b82ff0d4930ecaa8af56c26df82229cfec9f3", "response_text_sha256": "acf6177860e10d7ee0d12ddc9a50b4433942a1c3b221b09dc0474a8b3c322827"}
+{"condition": "direct-existing", "warmup": false, "index": 1, "input_tokens": 530, "output_tokens": 429, "finish_reason": "stop", "ttft_server_seconds": 0.34305858612060547, "decode_seconds": 54.42126880888827, "decode_tokens_per_second": 7.864572241103235, "http_e2e_seconds": 54.780246457999965, "condition_e2e_seconds": 54.78044075499929, "server_e2e_seconds": 54.76368284225464, "request_sha256": "ae6dca53a00105c528ec172c592b82ff0d4930ecaa8af56c26df82229cfec9f3", "response_text_sha256": "acf6177860e10d7ee0d12ddc9a50b4433942a1c3b221b09dc0474a8b3c322827"}
+{"condition": "direct-existing", "warmup": false, "index": 2, "input_tokens": 530, "output_tokens": 429, "finish_reason": "stop", "ttft_server_seconds": 0.30037903785705566, "decode_seconds": 54.4384333579801, "decode_tokens_per_second": 7.862092525431938, "http_e2e_seconds": 54.7564473350003, "condition_e2e_seconds": 54.75662752400058, "server_e2e_seconds": 54.73813605308533, "request_sha256": "ae6dca53a00105c528ec172c592b82ff0d4930ecaa8af56c26df82229cfec9f3", "response_text_sha256": "acf6177860e10d7ee0d12ddc9a50b4433942a1c3b221b09dc0474a8b3c322827"}
+{"condition": "direct-existing", "warmup": false, "index": 3, "input_tokens": 530, "output_tokens": 429, "finish_reason": "stop", "ttft_server_seconds": 0.32873058319091797, "decode_seconds": 54.43245288380422, "decode_tokens_per_second": 7.8629563307323735, "http_e2e_seconds": 54.7822786429997, "condition_e2e_seconds": 54.78241119999984, "server_e2e_seconds": 54.760536670684814, "request_sha256": "ae6dca53a00105c528ec172c592b82ff0d4930ecaa8af56c26df82229cfec9f3", "response_text_sha256": "acf6177860e10d7ee0d12ddc9a50b4433942a1c3b221b09dc0474a8b3c322827"}
+Fresh bare vllm serve container starting
+{"condition": "direct-clean", "warmup": true, "index": 0, "input_tokens": 530, "output_tokens": 429, "finish_reason": "stop", "ttft_server_seconds": 0.8890554904937744, "decode_seconds": 55.03778722486459, "decode_tokens_per_second": 7.776475428624084, "http_e2e_seconds": 55.94150302300022, "condition_e2e_seconds": 55.943189878999874, "server_e2e_seconds": 55.92651081085205, "request_sha256": "ae6dca53a00105c528ec172c592b82ff0d4930ecaa8af56c26df82229cfec9f3", "response_text_sha256": "acf6177860e10d7ee0d12ddc9a50b4433942a1c3b221b09dc0474a8b3c322827"}
+{"condition": "direct-clean", "warmup": false, "index": 1, "input_tokens": 530, "output_tokens": 429, "finish_reason": "stop", "ttft_server_seconds": 0.2806265354156494, "decode_seconds": 55.03081048792228, "decode_tokens_per_second": 7.777461320398579, "http_e2e_seconds": 55.40896779799914, "condition_e2e_seconds": 55.409063619000335, "server_e2e_seconds": 55.31151461601257, "request_sha256": "ae6dca53a00105c528ec172c592b82ff0d4930ecaa8af56c26df82229cfec9f3", "response_text_sha256": "acf6177860e10d7ee0d12ddc9a50b4433942a1c3b221b09dc0474a8b3c322827"}
+{"condition": "direct-clean", "warmup": false, "index": 2, "input_tokens": 530, "output_tokens": 429, "finish_reason": "stop", "ttft_server_seconds": 0.2847473621368408, "decode_seconds": 54.98766153398901, "decode_tokens_per_second": 7.783564313522304, "http_e2e_seconds": 55.45851890299946, "condition_e2e_seconds": 55.458711872000094, "server_e2e_seconds": 55.27362513542175, "request_sha256": "ae6dca53a00105c528ec172c592b82ff0d4930ecaa8af56c26df82229cfec9f3", "response_text_sha256": "acf6177860e10d7ee0d12ddc9a50b4433942a1c3b221b09dc0474a8b3c322827"}
+{"condition": "direct-clean", "warmup": false, "index": 3, "input_tokens": 530, "output_tokens": 429, "finish_reason": "stop", "ttft_server_seconds": 0.28491973876953125, "decode_seconds": 54.98292376101017, "decode_tokens_per_second": 7.784235008315545, "http_e2e_seconds": 55.28440877699995, "condition_e2e_seconds": 55.28460886999983, "server_e2e_seconds": 55.268500566482544, "request_sha256": "ae6dca53a00105c528ec172c592b82ff0d4930ecaa8af56c26df82229cfec9f3", "response_text_sha256": "acf6177860e10d7ee0d12ddc9a50b4433942a1c3b221b09dc0474a8b3c322827"}
+Traceback (most recent call last):
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/docs/research/2026-09-30-extractbench-validation/throughput/benchmark.py", line 269, in main
+    c = condition("harness-clean", "http://127.0.0.1:18181", case, cfg, payload, harness=True)
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/docs/research/2026-09-30-extractbench-validation/throughput/benchmark.py", line 163, in condition
+    artifact = run_case(case, cfg, meter, admission="vllm")
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/experiments/harness/run.py", line 100, in run_case
+    for key, batch in zip(keys, ex.run_tasks(jobs, cfg), strict=True):
+                                ~~~~~~~~~~~~^^^^^^^^^^^
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/experiments/harness/extract.py", line 346, in run_tasks
+    return [job() for job in jobs]
+            ~~~^^
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/experiments/harness/run.py", line 97, in <lambda>
+    jobs.append(lambda t=task, c=chunk, gr=group: ex.with_recovery(t, c, c.context.primary, gr, case, cfg, meter))
+                                                  ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/experiments/harness/extract.py", line 319, in with_recovery
+    result = run_field_task(task, chunk, passages, nodes, case, cfg, meter)
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/experiments/harness/extract.py", line 254, in run_field_task
+    parsed, calls, reply = ask(meter, stage="record", system=system_prompt(case, nodes, cfg, schema),
+                           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                               user=user_prompt(chunk, cfg, passages), schema=schema if cfg.output.constraint == "schema" else None,
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                               max_tokens=cfg.output.max_tokens, attempt=task.attempt, sample=task.sample,
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                               temperature=cfg.sampling.temperature, seed=seed, top_logprobs=cfg.signals.top_logprobs)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/experiments/harness/model.py", line 215, in ask
+    parsed, calls = complete(Tap(), stage=stage, record=None, system=system, user=user, schema=schema,
+                    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                             max_tokens=max_tokens, counter=meter.counter)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/src/kei_exp/kie/extract/calls.py", line 66, in complete
+    reply = chat.complete(system=system, user=user, schema=schema, max_tokens=max_tokens)
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/experiments/harness/model.py", line 211, in complete
+    seen.append(meter.complete(attempt=attempt, sample=sample, **kw, **sampling))
+                ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/experiments/harness/model.py", line 185, in complete
+    reply = provider.chat.complete(**{k: v for k, v in request.items() if k not in ("attempt", "sample")})
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/prototypes/parsing_service/experiments/harness/model.py", line 58, in complete
+    response = requests.post(self.url, json=payload, headers=self.headers, timeout=self.timeout)
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/docs/research/2026-09-30-extractbench-validation/throughput/benchmark.py", line 154, in observed_post
+    assert kwargs["json"] == payload, "harness changed the completion request"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: harness changed the completion request
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/docs/research/2026-09-30-extractbench-validation/throughput/benchmark.py", line 303, in <module>
+    main()
+    ~~~~^^
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/docs/research/2026-09-30-extractbench-validation/throughput/benchmark.py", line 289, in main
+    save("deployment-after.json", inspect(names))
+                                  ~~~~~~~^^^^^^^
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/docs/research/2026-09-30-extractbench-validation/throughput/benchmark.py", line 56, in inspect
+    raw = json.loads(remote(["docker", "inspect", *names]))
+                     ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/docs/research/2026-09-30-extractbench-validation/throughput/benchmark.py", line 50, in remote
+    raise RuntimeError(f"{command}: {r.stderr} {r.stdout}")
+RuntimeError: docker inspect failed because an unrelated temporary container had been removed. Partial inspect output omitted.

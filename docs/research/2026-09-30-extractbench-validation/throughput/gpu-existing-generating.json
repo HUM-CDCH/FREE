@@ -1,0 +1,4 @@
+{
+  "gpu": "96 %, 61, 2398 MHz, 28.45 W\n",
+  "processes": "2590501, VLLM::EngineCore, 37023 MiB\n"
+}

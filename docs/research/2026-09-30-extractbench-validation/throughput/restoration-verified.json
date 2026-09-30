@@ -1,0 +1,70 @@
+{
+  "all_original_configurations_match": true,
+  "checks": {
+    "/free-extraction_model-1": true,
+    "/free-ocr_model-1": true,
+    "/free-nuextract_model-1": true,
+    "/free-parsing_worker-1": true,
+    "/free-parsing_service-1": true,
+    "/free-studio-1": true,
+    "/free-nginx-1": true,
+    "/free-db-1": true,
+    "/free-phoenix-1": true,
+    "/free-validation-pg": true
+  },
+  "mount_comparison": "sorted by Destination; Docker array order is immaterial",
+  "states": {
+    "/free-extraction_model-1": {
+      "running": true,
+      "status": "running",
+      "health": "healthy"
+    },
+    "/free-ocr_model-1": {
+      "running": true,
+      "status": "running",
+      "health": "healthy"
+    },
+    "/free-nuextract_model-1": {
+      "running": true,
+      "status": "running",
+      "health": "healthy"
+    },
+    "/free-parsing_worker-1": {
+      "running": true,
+      "status": "running",
+      "health": null
+    },
+    "/free-parsing_service-1": {
+      "running": true,
+      "status": "running",
+      "health": "healthy"
+    },
+    "/free-studio-1": {
+      "running": true,
+      "status": "running",
+      "health": "healthy"
+    },
+    "/free-nginx-1": {
+      "running": true,
+      "status": "running",
+      "health": null
+    },
+    "/free-db-1": {
+      "running": true,
+      "status": "running",
+      "health": "healthy"
+    },
+    "/free-phoenix-1": {
+      "running": true,
+      "status": "running",
+      "health": null
+    },
+    "/free-validation-pg": {
+      "running": true,
+      "status": "running",
+      "health": null
+    }
+  },
+  "experimental_container_removed": true,
+  "nginx_root_http_status": 308
+}

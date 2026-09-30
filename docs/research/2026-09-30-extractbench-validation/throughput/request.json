@@ -1,0 +1,74 @@
+{
+  "model": "Qwen/Qwen3.8-27B-FP8",
+  "temperature": 0.0,
+  "max_tokens": 512,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You extract structured data from a source document. Use only the requested output fields. Copy values from the source as written unless the field defines normalized labels; do not invent unsupported information. A value the source does not give is null. Return only the JSON object.\nA record is: a synthetic instrument in a laboratory inventory\nExtract EVERY record that has text in the SOURCE, including one that runs on past its end or began in EARLIER TEXT (give such a record whole). Return {\"records\": [...]}, one object per record, in source order."
+    },
+    {
+      "role": "user",
+      "content": "### SOURCE\n<block id=\"p1_s0\" label=\"Text\" page=\"1\">Name: Synthetic instrument 01; code: SYN-001; quantity: 2; location: Room 101.</block>\n\n<block id=\"p1_s1\" label=\"Text\" page=\"1\">Name: Synthetic instrument 02; code: SYN-002; quantity: 3; location: Room 102.</block>\n\n<block id=\"p1_s2\" label=\"Text\" page=\"1\">Name: Synthetic instrument 03; code: SYN-003; quantity: 4; location: Room 103.</block>\n\n<block id=\"p1_s3\" label=\"Text\" page=\"1\">Name: Synthetic instrument 04; code: SYN-004; quantity: 5; location: Room 104.</block>\n\n<block id=\"p1_s4\" label=\"Text\" page=\"1\">Name: Synthetic instrument 05; code: SYN-005; quantity: 6; location: Room 105.</block>\n\n<block id=\"p1_s5\" label=\"Text\" page=\"1\">Name: Synthetic instrument 06; code: SYN-006; quantity: 7; location: Room 106.</block>\n\n<block id=\"p1_s6\" label=\"Text\" page=\"1\">Name: Synthetic instrument 07; code: SYN-007; quantity: 8; location: Room 107.</block>\n\n<block id=\"p1_s7\" label=\"Text\" page=\"1\">Name: Synthetic instrument 08; code: SYN-008; quantity: 9; location: Room 108.</block>\n\nReturn the JSON object now."
+    }
+  ],
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "seed": 20260930,
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "reply",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "quantity": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "code",
+                "quantity",
+                "location"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "records"
+        ],
+        "additionalProperties": false
+      },
+      "strict": true
+    }
+  }
+}

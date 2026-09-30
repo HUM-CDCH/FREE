@@ -1,0 +1,2739 @@
+{
+  "harness_version": 1,
+  "prompt_version": 1,
+  "case": "throughput-synthetic-20260930",
+  "config": {
+    "input": {
+      "mode": "layout"
+    },
+    "chunking": {
+      "mode": "fixed",
+      "max_chars": 4000,
+      "overlap": 0
+    },
+    "retrieval": {
+      "mode": "exhaustive",
+      "top_k": 3,
+      "expand": 0
+    },
+    "decompose": {
+      "mode": "whole",
+      "groups": [],
+      "max_fields": 4
+    },
+    "output": {
+      "constraint": "schema",
+      "max_tokens": 512
+    },
+    "recovery": {
+      "retries": 0,
+      "subdivide": false,
+      "depth": 1
+    },
+    "evidence": {
+      "mode": "none",
+      "alignment": {
+        "exact": true,
+        "normalized": true,
+        "fuzzy": false,
+        "fuzzy_threshold": 0.85,
+        "fuzzy_growth": 1.25,
+        "disambiguate": "none"
+      }
+    },
+    "verification": {
+      "model": false,
+      "gate": "off"
+    },
+    "merge": {
+      "keys": false,
+      "min_fields": 2,
+      "continuation": "off",
+      "resolver": false
+    },
+    "sampling": {
+      "n": 1,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "aggregate": "strict",
+      "views": [
+        "field"
+      ]
+    },
+    "signals": {
+      "verbalized": false,
+      "top_logprobs": 0
+    },
+    "budget": {
+      "input_chars": 12000,
+      "calls": 1,
+      "tokens": 250000,
+      "workers": 1
+    }
+  },
+  "config_sha256": "b26526260ee52293c8b4487ed08dc5b5df9918f7a8cb9c98298f917317993140",
+  "source": {
+    "generation": "inline",
+    "digest": "ed2aa67afe4b871ee3f1b86a92680bf97605137910d07f4c99ffbe8c7195a8d4"
+  },
+  "provider": {
+    "model": "Qwen/Qwen3.8-27B-FP8",
+    "identity": {
+      "url": "http://127.0.0.1:18181/v1/chat/completions"
+    },
+    "admission": "vllm"
+  },
+  "records": [
+    {
+      "name": "Synthetic instrument 01",
+      "code": "SYN-001",
+      "quantity": 2,
+      "location": "Room 101"
+    },
+    {
+      "name": "Synthetic instrument 02",
+      "code": "SYN-002",
+      "quantity": 3,
+      "location": "Room 102"
+    },
+    {
+      "name": "Synthetic instrument 03",
+      "code": "SYN-003",
+      "quantity": 4,
+      "location": "Room 103"
+    },
+    {
+      "name": "Synthetic instrument 04",
+      "code": "SYN-004",
+      "quantity": 5,
+      "location": "Room 104"
+    },
+    {
+      "name": "Synthetic instrument 05",
+      "code": "SYN-005",
+      "quantity": 6,
+      "location": "Room 105"
+    },
+    {
+      "name": "Synthetic instrument 06",
+      "code": "SYN-006",
+      "quantity": 7,
+      "location": "Room 106"
+    },
+    {
+      "name": "Synthetic instrument 07",
+      "code": "SYN-007",
+      "quantity": 8,
+      "location": "Room 107"
+    },
+    {
+      "name": "Synthetic instrument 08",
+      "code": "SYN-008",
+      "quantity": 9,
+      "location": "Room 108"
+    }
+  ],
+  "fields": [
+    {
+      "record": 0,
+      "field": "name",
+      "status": "value",
+      "raw": "Synthetic instrument 01",
+      "value": "Synthetic instrument 01",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Synthetic instrument 01",
+          "raw": "Synthetic instrument 01",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Synthetic instrument 01",
+              "value": "Synthetic instrument 01",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 0,
+          "raw": "Synthetic instrument 01",
+          "value": "Synthetic instrument 01"
+        }
+      ]
+    },
+    {
+      "record": 0,
+      "field": "code",
+      "status": "value",
+      "raw": "SYN-001",
+      "value": "SYN-001",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "SYN-001",
+          "raw": "SYN-001",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "SYN-001",
+              "value": "SYN-001",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 0,
+          "raw": "SYN-001",
+          "value": "SYN-001"
+        }
+      ]
+    },
+    {
+      "record": 0,
+      "field": "quantity",
+      "status": "value",
+      "raw": 2,
+      "value": 2,
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": 2,
+          "raw": 2,
+          "votes": 1,
+          "winners": [
+            {
+              "raw": 2,
+              "value": 2,
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 0,
+          "raw": 2,
+          "value": 2
+        }
+      ]
+    },
+    {
+      "record": 0,
+      "field": "location",
+      "status": "value",
+      "raw": "Room 101",
+      "value": "Room 101",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Room 101",
+          "raw": "Room 101",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Room 101",
+              "value": "Room 101",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 0,
+          "raw": "Room 101",
+          "value": "Room 101"
+        }
+      ]
+    },
+    {
+      "record": 1,
+      "field": "name",
+      "status": "value",
+      "raw": "Synthetic instrument 02",
+      "value": "Synthetic instrument 02",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Synthetic instrument 02",
+          "raw": "Synthetic instrument 02",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Synthetic instrument 02",
+              "value": "Synthetic instrument 02",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 1,
+          "raw": "Synthetic instrument 02",
+          "value": "Synthetic instrument 02"
+        }
+      ]
+    },
+    {
+      "record": 1,
+      "field": "code",
+      "status": "value",
+      "raw": "SYN-002",
+      "value": "SYN-002",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "SYN-002",
+          "raw": "SYN-002",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "SYN-002",
+              "value": "SYN-002",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 1,
+          "raw": "SYN-002",
+          "value": "SYN-002"
+        }
+      ]
+    },
+    {
+      "record": 1,
+      "field": "quantity",
+      "status": "value",
+      "raw": 3,
+      "value": 3,
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": 3,
+          "raw": 3,
+          "votes": 1,
+          "winners": [
+            {
+              "raw": 3,
+              "value": 3,
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 1,
+          "raw": 3,
+          "value": 3
+        }
+      ]
+    },
+    {
+      "record": 1,
+      "field": "location",
+      "status": "value",
+      "raw": "Room 102",
+      "value": "Room 102",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Room 102",
+          "raw": "Room 102",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Room 102",
+              "value": "Room 102",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 1,
+          "raw": "Room 102",
+          "value": "Room 102"
+        }
+      ]
+    },
+    {
+      "record": 2,
+      "field": "name",
+      "status": "value",
+      "raw": "Synthetic instrument 03",
+      "value": "Synthetic instrument 03",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Synthetic instrument 03",
+          "raw": "Synthetic instrument 03",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Synthetic instrument 03",
+              "value": "Synthetic instrument 03",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 2,
+          "raw": "Synthetic instrument 03",
+          "value": "Synthetic instrument 03"
+        }
+      ]
+    },
+    {
+      "record": 2,
+      "field": "code",
+      "status": "value",
+      "raw": "SYN-003",
+      "value": "SYN-003",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "SYN-003",
+          "raw": "SYN-003",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "SYN-003",
+              "value": "SYN-003",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 2,
+          "raw": "SYN-003",
+          "value": "SYN-003"
+        }
+      ]
+    },
+    {
+      "record": 2,
+      "field": "quantity",
+      "status": "value",
+      "raw": 4,
+      "value": 4,
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": 4,
+          "raw": 4,
+          "votes": 1,
+          "winners": [
+            {
+              "raw": 4,
+              "value": 4,
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 2,
+          "raw": 4,
+          "value": 4
+        }
+      ]
+    },
+    {
+      "record": 2,
+      "field": "location",
+      "status": "value",
+      "raw": "Room 103",
+      "value": "Room 103",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Room 103",
+          "raw": "Room 103",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Room 103",
+              "value": "Room 103",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 2,
+          "raw": "Room 103",
+          "value": "Room 103"
+        }
+      ]
+    },
+    {
+      "record": 3,
+      "field": "name",
+      "status": "value",
+      "raw": "Synthetic instrument 04",
+      "value": "Synthetic instrument 04",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Synthetic instrument 04",
+          "raw": "Synthetic instrument 04",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Synthetic instrument 04",
+              "value": "Synthetic instrument 04",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 3,
+          "raw": "Synthetic instrument 04",
+          "value": "Synthetic instrument 04"
+        }
+      ]
+    },
+    {
+      "record": 3,
+      "field": "code",
+      "status": "value",
+      "raw": "SYN-004",
+      "value": "SYN-004",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "SYN-004",
+          "raw": "SYN-004",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "SYN-004",
+              "value": "SYN-004",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 3,
+          "raw": "SYN-004",
+          "value": "SYN-004"
+        }
+      ]
+    },
+    {
+      "record": 3,
+      "field": "quantity",
+      "status": "value",
+      "raw": 5,
+      "value": 5,
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": 5,
+          "raw": 5,
+          "votes": 1,
+          "winners": [
+            {
+              "raw": 5,
+              "value": 5,
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 3,
+          "raw": 5,
+          "value": 5
+        }
+      ]
+    },
+    {
+      "record": 3,
+      "field": "location",
+      "status": "value",
+      "raw": "Room 104",
+      "value": "Room 104",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Room 104",
+          "raw": "Room 104",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Room 104",
+              "value": "Room 104",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 3,
+          "raw": "Room 104",
+          "value": "Room 104"
+        }
+      ]
+    },
+    {
+      "record": 4,
+      "field": "name",
+      "status": "value",
+      "raw": "Synthetic instrument 05",
+      "value": "Synthetic instrument 05",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Synthetic instrument 05",
+          "raw": "Synthetic instrument 05",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Synthetic instrument 05",
+              "value": "Synthetic instrument 05",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 4,
+          "raw": "Synthetic instrument 05",
+          "value": "Synthetic instrument 05"
+        }
+      ]
+    },
+    {
+      "record": 4,
+      "field": "code",
+      "status": "value",
+      "raw": "SYN-005",
+      "value": "SYN-005",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "SYN-005",
+          "raw": "SYN-005",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "SYN-005",
+              "value": "SYN-005",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 4,
+          "raw": "SYN-005",
+          "value": "SYN-005"
+        }
+      ]
+    },
+    {
+      "record": 4,
+      "field": "quantity",
+      "status": "value",
+      "raw": 6,
+      "value": 6,
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": 6,
+          "raw": 6,
+          "votes": 1,
+          "winners": [
+            {
+              "raw": 6,
+              "value": 6,
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 4,
+          "raw": 6,
+          "value": 6
+        }
+      ]
+    },
+    {
+      "record": 4,
+      "field": "location",
+      "status": "value",
+      "raw": "Room 105",
+      "value": "Room 105",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Room 105",
+          "raw": "Room 105",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Room 105",
+              "value": "Room 105",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 4,
+          "raw": "Room 105",
+          "value": "Room 105"
+        }
+      ]
+    },
+    {
+      "record": 5,
+      "field": "name",
+      "status": "value",
+      "raw": "Synthetic instrument 06",
+      "value": "Synthetic instrument 06",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Synthetic instrument 06",
+          "raw": "Synthetic instrument 06",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Synthetic instrument 06",
+              "value": "Synthetic instrument 06",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 5,
+          "raw": "Synthetic instrument 06",
+          "value": "Synthetic instrument 06"
+        }
+      ]
+    },
+    {
+      "record": 5,
+      "field": "code",
+      "status": "value",
+      "raw": "SYN-006",
+      "value": "SYN-006",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "SYN-006",
+          "raw": "SYN-006",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "SYN-006",
+              "value": "SYN-006",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 5,
+          "raw": "SYN-006",
+          "value": "SYN-006"
+        }
+      ]
+    },
+    {
+      "record": 5,
+      "field": "quantity",
+      "status": "value",
+      "raw": 7,
+      "value": 7,
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": 7,
+          "raw": 7,
+          "votes": 1,
+          "winners": [
+            {
+              "raw": 7,
+              "value": 7,
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 5,
+          "raw": 7,
+          "value": 7
+        }
+      ]
+    },
+    {
+      "record": 5,
+      "field": "location",
+      "status": "value",
+      "raw": "Room 106",
+      "value": "Room 106",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Room 106",
+          "raw": "Room 106",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Room 106",
+              "value": "Room 106",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 5,
+          "raw": "Room 106",
+          "value": "Room 106"
+        }
+      ]
+    },
+    {
+      "record": 6,
+      "field": "name",
+      "status": "value",
+      "raw": "Synthetic instrument 07",
+      "value": "Synthetic instrument 07",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Synthetic instrument 07",
+          "raw": "Synthetic instrument 07",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Synthetic instrument 07",
+              "value": "Synthetic instrument 07",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 6,
+          "raw": "Synthetic instrument 07",
+          "value": "Synthetic instrument 07"
+        }
+      ]
+    },
+    {
+      "record": 6,
+      "field": "code",
+      "status": "value",
+      "raw": "SYN-007",
+      "value": "SYN-007",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "SYN-007",
+          "raw": "SYN-007",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "SYN-007",
+              "value": "SYN-007",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 6,
+          "raw": "SYN-007",
+          "value": "SYN-007"
+        }
+      ]
+    },
+    {
+      "record": 6,
+      "field": "quantity",
+      "status": "value",
+      "raw": 8,
+      "value": 8,
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": 8,
+          "raw": 8,
+          "votes": 1,
+          "winners": [
+            {
+              "raw": 8,
+              "value": 8,
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 6,
+          "raw": 8,
+          "value": 8
+        }
+      ]
+    },
+    {
+      "record": 6,
+      "field": "location",
+      "status": "value",
+      "raw": "Room 107",
+      "value": "Room 107",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Room 107",
+          "raw": "Room 107",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Room 107",
+              "value": "Room 107",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 6,
+          "raw": "Room 107",
+          "value": "Room 107"
+        }
+      ]
+    },
+    {
+      "record": 7,
+      "field": "name",
+      "status": "value",
+      "raw": "Synthetic instrument 08",
+      "value": "Synthetic instrument 08",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Synthetic instrument 08",
+          "raw": "Synthetic instrument 08",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Synthetic instrument 08",
+              "value": "Synthetic instrument 08",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 7,
+          "raw": "Synthetic instrument 08",
+          "value": "Synthetic instrument 08"
+        }
+      ]
+    },
+    {
+      "record": 7,
+      "field": "code",
+      "status": "value",
+      "raw": "SYN-008",
+      "value": "SYN-008",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "SYN-008",
+          "raw": "SYN-008",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "SYN-008",
+              "value": "SYN-008",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 7,
+          "raw": "SYN-008",
+          "value": "SYN-008"
+        }
+      ]
+    },
+    {
+      "record": 7,
+      "field": "quantity",
+      "status": "value",
+      "raw": 9,
+      "value": 9,
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": 9,
+          "raw": 9,
+          "votes": 1,
+          "winners": [
+            {
+              "raw": 9,
+              "value": 9,
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 7,
+          "raw": 9,
+          "value": 9
+        }
+      ]
+    },
+    {
+      "record": 7,
+      "field": "location",
+      "status": "value",
+      "raw": "Room 108",
+      "value": "Room 108",
+      "normalized": false,
+      "alternatives": [
+        {
+          "value": "Room 108",
+          "raw": "Room 108",
+          "votes": 1,
+          "winners": [
+            {
+              "raw": "Room 108",
+              "value": "Room 108",
+              "normalized": false,
+              "typed": true,
+              "quotes": [],
+              "ids": [],
+              "verbalized": null,
+              "stats": null,
+              "entries": [],
+              "checks": {
+                "type_ok": true,
+                "cited_exists": null,
+                "literal": null,
+                "expects_evidence": true
+              }
+            }
+          ],
+          "entries": [],
+          "verbalized": null,
+          "stats": null,
+          "checks": {
+            "type_ok": true,
+            "cited_exists": null,
+            "literal": null,
+            "expects_evidence": true
+          }
+        }
+      ],
+      "evidence": [],
+      "checks": {
+        "type_ok": true,
+        "cited_exists": null,
+        "literal": null,
+        "expects_evidence": true
+      },
+      "verdict": null,
+      "flags": [],
+      "signals": {
+        "verbalized": null,
+        "p_first": null,
+        "p_mean": null,
+        "p_span": null,
+        "margin": null,
+        "entropy_topk": null,
+        "agreement": null,
+        "view_agreement": null,
+        "align": null,
+        "verdict": null,
+        "ocr": null,
+        "conflict": 0.0,
+        "invalid": 0.0
+      },
+      "votes": null,
+      "contributors": [
+        {
+          "chunk": "c0",
+          "group": 0,
+          "sample": 0,
+          "view": "field",
+          "index": 7,
+          "raw": "Room 108",
+          "value": "Room 108"
+        }
+      ]
+    }
+  ],
+  "evidence": [],
+  "coverage": {
+    "exhaustive": true,
+    "complete": true,
+    "chunks": 1,
+    "processed": 1,
+    "partial": 0,
+    "failed": 0,
+    "refused": 0,
+    "not_retrieved": 0,
+    "recall": "unmeasured",
+    "note": "processed regions were read; that no record was missed is not established"
+  },
+  "ledger": [
+    {
+      "chunk": "c0",
+      "group": 0,
+      "retrieval": "all",
+      "score": null,
+      "first": "p1_s0",
+      "last": "p1_s7",
+      "calls": 1,
+      "status": "processed",
+      "errors": [],
+      "recovered_from": []
+    }
+  ],
+  "calls": [
+    {
+      "stage": "record",
+      "record": null,
+      "input_tokens": 530,
+      "output_tokens": 429,
+      "seconds": 55.24697780199949,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": 530,
+      "context_tokens": 32768,
+      "max_output_tokens": 512
+    }
+  ],
+  "requests": [
+    "425ecb1d7b6163140813d7f97c9e8a06397e606e91ce35c4870e1c4ac170fbb2"
+  ],
+  "tokens": {
+    "input": 530,
+    "output": 429
+  },
+  "cost": {
+    "fresh": {
+      "calls": 1,
+      "input_tokens": 530,
+      "output_tokens": 429,
+      "seconds": 55.246978,
+      "failed": 0,
+      "unknown_usage": 0
+    },
+    "replayed": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0,
+      "failed": 0,
+      "unknown_usage": 0
+    },
+    "wall_seconds": 55.319
+  },
+  "validity": {
+    "total": 1,
+    "valid": 1
+  },
+  "issues": []
+}

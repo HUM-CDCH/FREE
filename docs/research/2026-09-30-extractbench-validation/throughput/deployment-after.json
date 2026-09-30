@@ -1,0 +1,774 @@
+[
+  {
+    "Id": "a46474021e753cc2597b14f96d166d3785c2602cf6b2be908d1dc97243313304",
+    "Name": "/free-extraction_model-1",
+    "Image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+    "Running": true,
+    "Entrypoint": [
+      "vllm",
+      "serve"
+    ],
+    "Cmd": [
+      "Qwen/Qwen3.8-27B-FP8",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--language-model-only",
+      "--generation-config",
+      "vllm",
+      "--gpu-memory-utilization",
+      "0.35",
+      "--max-model-len",
+      "32768",
+      "--kv-cache-memory-bytes",
+      "8G",
+      "--max-num-seqs",
+      "4"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free_parsing-models",
+        "Source": "/var/lib/docker/volumes/free_parsing-models/_data",
+        "Destination": "/models",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": [
+      {
+        "Driver": "nvidia",
+        "Count": -1,
+        "DeviceIDs": null,
+        "Capabilities": [
+          [
+            "gpu"
+          ]
+        ],
+        "Options": null
+      }
+    ],
+    "IpcMode": "private",
+    "ShmSize": 2147483648,
+    "Networks": {
+      "free_app": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": [
+          "free-extraction_model-1",
+          "extraction_model"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "5745c9f9e94bdd4447e0539475b91dbaea68359e850328dbc38cc64e11ea902e",
+        "EndpointID": "668d4148d227ac64d3e2748544c8b16bcf83205111fcd045703287c6add56053",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.4",
+        "MacAddress": "2a:9f:02:e7:c1:1a",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-extraction_model-1",
+          "extraction_model",
+          "a46474021e75"
+        ]
+      }
+    }
+  },
+  {
+    "Id": "9decb61e13b733f198958da81cfab7bd0374dcfdb28ed0a82d65f8d2caf4279e",
+    "Name": "/free-ocr_model-1",
+    "Image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+    "Running": true,
+    "Entrypoint": [
+      "vllm",
+      "serve"
+    ],
+    "Cmd": [
+      "datalab-to/surya-ocr-2",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--gpu-memory-utilization",
+      "0.4",
+      "--kv-cache-memory-bytes",
+      "4G",
+      "--max-model-len",
+      "24576",
+      "--max-num-seqs",
+      "4"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free_parsing-models",
+        "Source": "/var/lib/docker/volumes/free_parsing-models/_data",
+        "Destination": "/models",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": [
+      {
+        "Driver": "nvidia",
+        "Count": -1,
+        "DeviceIDs": null,
+        "Capabilities": [
+          [
+            "gpu"
+          ]
+        ],
+        "Options": null
+      }
+    ],
+    "IpcMode": "private",
+    "ShmSize": 2147483648,
+    "Networks": {
+      "free_app": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": [
+          "free-ocr_model-1",
+          "ocr_model"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "5745c9f9e94bdd4447e0539475b91dbaea68359e850328dbc38cc64e11ea902e",
+        "EndpointID": "3392b0ffc9e2fca91eaf400ae5f8781306b974380b4bfdbc4898864dc6d649ab",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.5",
+        "MacAddress": "42:ee:7c:4d:96:78",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-ocr_model-1",
+          "ocr_model",
+          "9decb61e13b7"
+        ]
+      }
+    }
+  },
+  {
+    "Id": "ddeaf1aa38a11c3797247a0279e64451a63a6ffef51ced486d0d71d30a7a59cf",
+    "Name": "/free-nuextract_model-1",
+    "Image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+    "Running": true,
+    "Entrypoint": [
+      "vllm",
+      "serve"
+    ],
+    "Cmd": [
+      "numind/NuExtract3-FP8",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--trust-remote-code",
+      "--language-model-only",
+      "--chat-template-content-format",
+      "openai",
+      "--generation-config",
+      "vllm",
+      "--gpu-memory-utilization",
+      "0.35",
+      "--max-model-len",
+      "32768",
+      "--kv-cache-memory-bytes",
+      "4G",
+      "--max-num-seqs",
+      "4"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free_parsing-models",
+        "Source": "/var/lib/docker/volumes/free_parsing-models/_data",
+        "Destination": "/models",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": [
+      {
+        "Driver": "nvidia",
+        "Count": -1,
+        "DeviceIDs": null,
+        "Capabilities": [
+          [
+            "gpu"
+          ]
+        ],
+        "Options": null
+      }
+    ],
+    "IpcMode": "private",
+    "ShmSize": 2147483648,
+    "Networks": {
+      "free_app": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": [
+          "free-nuextract_model-1",
+          "nuextract_model"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "5745c9f9e94bdd4447e0539475b91dbaea68359e850328dbc38cc64e11ea902e",
+        "EndpointID": "f6dc62ca9bcb820afd52ed844ddbde2705af4f31af7363dbf9ae651e3b71a07f",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.6",
+        "MacAddress": "52:c0:e1:6f:e3:13",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-nuextract_model-1",
+          "nuextract_model",
+          "ddeaf1aa38a1"
+        ]
+      }
+    }
+  },
+  {
+    "Id": "2a0400e7fafdffc0b12dc391b57702eced3f1234aa6c04a0a28dcff7e5fa97cf",
+    "Name": "/free-parsing_worker-1",
+    "Image": "sha256:446edadda33201eb17c88a86dd9d41300c10ab8e6d32f78ef36e1ada5f8ca9cf",
+    "Running": true,
+    "Entrypoint": null,
+    "Cmd": [
+      "kei-worker",
+      "worker"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free_source-inbox",
+        "Source": "/var/lib/docker/volumes/free_source-inbox/_data",
+        "Destination": "/app/source-inbox",
+        "Driver": "local",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": ""
+      },
+      {
+        "Type": "volume",
+        "Name": "free_parsing-runs",
+        "Source": "/var/lib/docker/volumes/free_parsing-runs/_data",
+        "Destination": "/app/runs",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      },
+      {
+        "Type": "volume",
+        "Name": "free_parsing-models",
+        "Source": "/var/lib/docker/volumes/free_parsing-models/_data",
+        "Destination": "/models",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": null,
+    "IpcMode": "private",
+    "ShmSize": 67108864,
+    "Networks": {
+      "free_app": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": [
+          "free-parsing_worker-1",
+          "parsing_worker"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "5745c9f9e94bdd4447e0539475b91dbaea68359e850328dbc38cc64e11ea902e",
+        "EndpointID": "25df3e0d6bbb327c121003aa3a62fef73089b59324421247cc9c8600155c9cf0",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.8",
+        "MacAddress": "56:4c:ca:a8:5f:64",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-parsing_worker-1",
+          "parsing_worker",
+          "2a0400e7fafd"
+        ]
+      }
+    }
+  },
+  {
+    "Id": "5e34d5bedfdcb9b56effac6a49cfd4514d119b0caebd92f9dbba22f95ce861e3",
+    "Name": "/free-parsing_service-1",
+    "Image": "sha256:f48bcfe31332f4009fe4a421278f16fe94ebfe53851d8eecadfcb8ee5be7ae2a",
+    "Running": true,
+    "Entrypoint": null,
+    "Cmd": [
+      "uvicorn",
+      "kei_exp.api:app",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8001"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free_parsing-runs",
+        "Source": "/var/lib/docker/volumes/free_parsing-runs/_data",
+        "Destination": "/app/runs",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      },
+      {
+        "Type": "volume",
+        "Name": "free_parsing-models",
+        "Source": "/var/lib/docker/volumes/free_parsing-models/_data",
+        "Destination": "/models",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": null,
+    "IpcMode": "private",
+    "ShmSize": 67108864,
+    "Networks": {
+      "free_app": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": [
+          "free-parsing_service-1",
+          "parsing_service"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "5745c9f9e94bdd4447e0539475b91dbaea68359e850328dbc38cc64e11ea902e",
+        "EndpointID": "0d657e946ad1ed8a7107f03a5df409bad3b5783343e70eda1df0e39489090978",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.7",
+        "MacAddress": "12:3f:8a:9c:1c:e0",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-parsing_service-1",
+          "parsing_service",
+          "5e34d5bedfdc"
+        ]
+      }
+    }
+  },
+  {
+    "Id": "980df4202d5a1acbe69abf71f9de9174847851cb7eeca8b01be70ad037ad3a8f",
+    "Name": "/free-studio-1",
+    "Image": "sha256:8aab6af9046a4da2a821b5061f45ec22a8c191c7140ee7e0177c03a2ca9cdb3e",
+    "Running": true,
+    "Entrypoint": [
+      "/usr/local/bin/studio-entrypoint"
+    ],
+    "Cmd": [
+      "pnpm",
+      "--filter",
+      "studio",
+      "start"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free_source-inbox",
+        "Source": "/var/lib/docker/volumes/free_source-inbox/_data",
+        "Destination": "/var/lib/free/source-inbox",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      },
+      {
+        "Type": "volume",
+        "Name": "free_studio-data",
+        "Source": "/var/lib/docker/volumes/free_studio-data/_data",
+        "Destination": "/root/.local/share",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      },
+      {
+        "Type": "volume",
+        "Name": "free_studio-config",
+        "Source": "/var/lib/docker/volumes/free_studio-config/_data",
+        "Destination": "/root/.config",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      },
+      {
+        "Type": "bind",
+        "Source": "/home/geba/free-secrets/entra-client.pem",
+        "Destination": "/run/secrets/free-entra-client.pem",
+        "Mode": "",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "volume",
+        "Name": "free_studio-claude",
+        "Source": "/var/lib/docker/volumes/free_studio-claude/_data",
+        "Destination": "/root/.claude",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": null,
+    "IpcMode": "private",
+    "ShmSize": 67108864,
+    "Networks": {
+      "free_app": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": [
+          "free-studio-1",
+          "studio"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "5745c9f9e94bdd4447e0539475b91dbaea68359e850328dbc38cc64e11ea902e",
+        "EndpointID": "09f6f5d098d123bda8d4214c37f9583b03d9a87b0ca555157e34bea50a106546",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.9",
+        "MacAddress": "0a:d2:3e:98:11:a3",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-studio-1",
+          "studio",
+          "980df4202d5a"
+        ]
+      },
+      "free_proxy": {
+        "IPAMConfig": {},
+        "Links": null,
+        "Aliases": [
+          "free-studio-1",
+          "studio"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 1,
+        "NetworkID": "aa172da052c841d3daa9cc54b773fb23eaa4d66497a4703ebed5b66e332901ae",
+        "EndpointID": "02fdf7ee34d662fc5f1e83f9a8d7954526b38b5416f2fbf7c22bce1f2af5cc97",
+        "Gateway": "172.30.0.1",
+        "IPAddress": "172.30.0.2",
+        "MacAddress": "da:90:d9:d5:5c:32",
+        "IPPrefixLen": 24,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-studio-1",
+          "studio",
+          "980df4202d5a"
+        ]
+      }
+    }
+  },
+  {
+    "Id": "f0556a82df0e143bcb7fe94a88c9ac98338857bb13fd6073e6a2455a9ef05238",
+    "Name": "/free-nginx-1",
+    "Image": "sha256:2184b22a58834fc30df7a4a6dba249edc258b14858c48c81b78af22debf98cb2",
+    "Running": true,
+    "Entrypoint": [
+      "/docker-entrypoint.sh"
+    ],
+    "Cmd": [
+      "nginx",
+      "-g",
+      "daemon off;"
+    ],
+    "Mounts": [
+      {
+        "Type": "bind",
+        "Source": "/home/geba/Projects/FREE/docker/nginx/free-studio.conf.template",
+        "Destination": "/etc/nginx/templates/free-studio.conf.template",
+        "Mode": "",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "/home/geba/Projects/FREE/docker/nginx/free-studio-locations.inc.template",
+        "Destination": "/etc/nginx/templates/free-studio-locations.inc.template",
+        "Mode": "",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "/home/geba/free-secrets/studio.crt",
+        "Destination": "/etc/nginx/tls/studio.crt",
+        "Mode": "",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "/home/geba/free-secrets/studio.key",
+        "Destination": "/etc/nginx/tls/studio.key",
+        "Mode": "",
+        "RW": false,
+        "Propagation": "rprivate"
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": null,
+    "IpcMode": "private",
+    "ShmSize": 67108864,
+    "Networks": {
+      "free_proxy": {
+        "IPAMConfig": {
+          "IPv4Address": "172.30.0.10"
+        },
+        "Links": null,
+        "Aliases": [
+          "free-nginx-1",
+          "nginx"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "aa172da052c841d3daa9cc54b773fb23eaa4d66497a4703ebed5b66e332901ae",
+        "EndpointID": "cf23c1f423040f9f7d4af8c70c41edb1bc5496180c43a1760384e2be1cc92f7b",
+        "Gateway": "172.30.0.1",
+        "IPAddress": "172.30.0.10",
+        "MacAddress": "de:bc:d7:1b:5d:4b",
+        "IPPrefixLen": 24,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-nginx-1",
+          "nginx",
+          "f0556a82df0e"
+        ]
+      }
+    }
+  },
+  {
+    "Id": "f3f18d1ee34c48e136c2c36337a7849991be0ab87809979cc1b486fc54d39a45",
+    "Name": "/free-db-1",
+    "Image": "sha256:97432f980da100ebd3e419711efee84e1e97a966d62c035286a07f239ddb4d9c",
+    "Running": true,
+    "Entrypoint": [
+      "docker-entrypoint.sh"
+    ],
+    "Cmd": [
+      "postgres"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free_postgres-data",
+        "Source": "/var/lib/docker/volumes/free_postgres-data/_data",
+        "Destination": "/var/lib/postgresql/data",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": null,
+    "IpcMode": "private",
+    "ShmSize": 67108864,
+    "Networks": {
+      "free_app": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": [
+          "free-db-1",
+          "db"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "5745c9f9e94bdd4447e0539475b91dbaea68359e850328dbc38cc64e11ea902e",
+        "EndpointID": "fa056178679ccc0ba28141fed8d1be6cf5f2d3896cabcd322a420fd65768caf2",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.2",
+        "MacAddress": "e2:9d:2d:08:95:14",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-db-1",
+          "db",
+          "f3f18d1ee34c"
+        ]
+      }
+    }
+  },
+  {
+    "Id": "9e2dfad797a962d090e640647b7f7cc9611b2dcd61873ffbaacf027ba94d7cdb",
+    "Name": "/free-phoenix-1",
+    "Image": "sha256:12cc6354383597cf2cbc970863c4e19befe3beae60295f66c13eb8cc809b393a",
+    "Running": true,
+    "Entrypoint": [
+      "/usr/bin/python3.13"
+    ],
+    "Cmd": [
+      "-m",
+      "phoenix.server.main",
+      "serve"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free_phoenix-data",
+        "Source": "/var/lib/docker/volumes/free_phoenix-data/_data",
+        "Destination": "/mnt/data",
+        "Driver": "local",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": null,
+    "IpcMode": "private",
+    "ShmSize": 67108864,
+    "Networks": {
+      "free_app": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": [
+          "free-phoenix-1",
+          "phoenix"
+        ],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "5745c9f9e94bdd4447e0539475b91dbaea68359e850328dbc38cc64e11ea902e",
+        "EndpointID": "9934e2f7d6ebf8c5f5ff57b49b0636a414e638f5bdd97c3dc4ff9981774e7fd6",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.3",
+        "MacAddress": "a6:d5:1e:42:e5:89",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "free-phoenix-1",
+          "phoenix",
+          "9e2dfad797a9"
+        ]
+      }
+    }
+  },
+  {
+    "Id": "a615f29f538137dfb8a03a542fcc82bb0b7e9af92d867a2723e36f921cba5a8d",
+    "Name": "/free-validation-pg",
+    "Image": "sha256:97432f980da100ebd3e419711efee84e1e97a966d62c035286a07f239ddb4d9c",
+    "Running": true,
+    "Entrypoint": [
+      "docker-entrypoint.sh"
+    ],
+    "Cmd": [
+      "postgres"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free-validation-pg",
+        "Source": "/var/lib/docker/volumes/free-validation-pg/_data",
+        "Destination": "/var/lib/postgresql/data",
+        "Driver": "local",
+        "Mode": "z",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "unless-stopped",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": null,
+    "IpcMode": "private",
+    "ShmSize": 67108864,
+    "Networks": {
+      "bridge": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": null,
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "e600821f685d5df5ba65f8f5eb20ecfbfa4ae1dee555983473cfc0fcad1fe024",
+        "EndpointID": "4896eb625af4cae280a05096cbbc2b283b9e7321eb2b36fe326c26b0e8dcf94e",
+        "Gateway": "172.17.0.1",
+        "IPAddress": "172.17.0.2",
+        "MacAddress": "5e:c7:a1:98:3a:4f",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": null
+      }
+    }
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-30",
+  "checks": [
+    "existing experimental container name refused before any writes, stop, or removal (offline stub)",
+    "summary recomputation equals archived summary and changes no archived bytes",
+    "summary --output refuses an existing directory without writes",
+    "read-only SSH verification confirms all ten original container IDs/configurations/running states, healthy checks and nginx HTTP 308; no archived bytes changed",
+    "52 non-helper files indexed by the original integrity manifest retain their original SHA-256 checksums",
+    "all 70 staged JSON files parse; no populated credential-key patterns or private-key blocks found",
+    "git diff --cached --check passes for Python, Markdown and JSON; raw CSV CRLF and original server-log trailing spaces deliberately preserved",
+    "independent read-only standards review: no remaining code blocker"
+  ],
+  "new_completion_calls": 0,
+  "helper_archival_directory": "helpers-before-review",
+  "changed_helpers": [
+    "benchmark.py",
+    "summarize.py",
+    "verify_restoration.py"
+  ]
+}

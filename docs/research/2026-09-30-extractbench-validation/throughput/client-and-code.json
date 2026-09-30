@@ -1,0 +1,26 @@
+{
+  "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+  "executable": "/home/gebbaro/Progetti/kei-exp/.venv/bin/python",
+  "platform": "Linux-7.2.7-200.fc44.x86_64-x86_64-with-glibc2.43",
+  "git_head": "9cb4efe9d2a06417e0e4b6ffce37e15b3fba2213",
+  "packages": {
+    "requests": "2.34.2",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "pydantic": "2.13.5",
+    "jsonschema": "4.26.0"
+  },
+  "harness_source_sha256": {
+    "experiments/harness/model.py": "fe8ba586d4bd80089ee9fb11b9d582c4fc9027449b0535cb22a84e90795bb268",
+    "experiments/harness/run.py": "9798cef914fac86933d9a2357116303f3a0677805cb8380771dd95ab5431897b",
+    "experiments/harness/extract.py": "6bdb1908be36b04002f527c96427d9de1b883485d161a2768f663dd954f6252e",
+    "experiments/harness/config.py": "940a75c5253845cfada90c2d1b19a403012daaf6da5ef8a735f0f0a23c3d56d7",
+    "experiments/harness/data.py": "21183293d75af12b0701e451dc565d9ccda396999dcea19d7b8749cf499635ed",
+    "experiments/harness/merge.py": "3025e7bc7cfc5faee7bd0821d75087160bddf94aaba14fa169af2614a8c21b70",
+    "experiments/harness/evidence.py": "44c529ff33ee1069f08fca24aee4e5e8f72dd200cd6058547217d3d750f5f22f",
+    "experiments/harness/signals.py": "ff3fe0ead659a19e5564f0840ed87357f032f07b98ee40c6b7ff60b937bd2b0d",
+    "src/kei_exp/kie/extract/llm.py": "d0e61954e9f92578e6bf430682a56793afb851298a54941046d6ea49802f7d41",
+    "src/kei_exp/kie/extract/calls.py": "c3c1ebf413f260da111bb127bb772817be5d0e9c4f5731217fa502db7d4229fa",
+    "src/kei_exp/kie/extract/tokens.py": "c6255b72608c55fd27820e9a7482604937fea65488809ab0b45b1bab087ea4d4"
+  }
+}

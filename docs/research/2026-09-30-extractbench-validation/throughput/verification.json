@@ -1,0 +1,22 @@
+{
+  "harness_sources_unchanged": {
+    "experiments/harness/model.py": true,
+    "experiments/harness/run.py": true,
+    "experiments/harness/extract.py": true,
+    "experiments/harness/config.py": true,
+    "experiments/harness/data.py": true,
+    "experiments/harness/merge.py": true,
+    "experiments/harness/evidence.py": true,
+    "experiments/harness/signals.py": true,
+    "src/kei_exp/kie/extract/llm.py": true,
+    "src/kei_exp/kie/extract/calls.py": true,
+    "src/kei_exp/kie/extract/tokens.py": true
+  },
+  "final_calls": 12,
+  "completion_bodies_identical": true,
+  "response_messages_identical": true,
+  "all_harness_artifacts_valid_and_fresh": true,
+  "synthetic_records_per_artifact": 8,
+  "git_status": "?? docs/research/2026-09-30-extractbench-validation/throughput/",
+  "restoration_verified": true
+}

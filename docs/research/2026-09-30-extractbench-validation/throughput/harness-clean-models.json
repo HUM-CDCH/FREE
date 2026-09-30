@@ -1,0 +1,30 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "Qwen/Qwen3.8-27B-FP8",
+      "object": "model",
+      "created": 1790762208,
+      "owned_by": "vllm",
+      "root": "Qwen/Qwen3.8-27B-FP8",
+      "parent": null,
+      "max_model_len": 32768,
+      "permission": [
+        {
+          "id": "modelperm-809c6dd68d99da82",
+          "object": "model_permission",
+          "created": 1790762208,
+          "allow_create_engine": false,
+          "allow_sampling": true,
+          "allow_logprobs": true,
+          "allow_search_indices": false,
+          "allow_view": true,
+          "allow_fine_tuning": false,
+          "organization": "*",
+          "group": null,
+          "is_blocking": false
+        }
+      ]
+    }
+  ]
+}

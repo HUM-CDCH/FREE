@@ -1,0 +1,85 @@
+[
+  {
+    "Id": "311c57c3803e16d0ebcd72c8d3d30065edf6303b0e32afef69c91b2df057987c",
+    "Name": "/extractbench-bare-20260930",
+    "Image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+    "Running": true,
+    "Entrypoint": [
+      "vllm"
+    ],
+    "Cmd": [
+      "serve",
+      "Qwen/Qwen3.8-27B-FP8",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--language-model-only",
+      "--generation-config",
+      "vllm",
+      "--gpu-memory-utilization",
+      "0.35",
+      "--max-model-len",
+      "32768",
+      "--kv-cache-memory-bytes",
+      "8G",
+      "--max-num-seqs",
+      "4",
+      "--revision",
+      "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a"
+    ],
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Name": "free_parsing-models",
+        "Source": "/var/lib/docker/volumes/free_parsing-models/_data",
+        "Destination": "/models",
+        "Driver": "local",
+        "Mode": "z",
+        "RW": true,
+        "Propagation": ""
+      }
+    ],
+    "RestartPolicy": {
+      "Name": "no",
+      "MaximumRetryCount": 0
+    },
+    "DeviceRequests": [
+      {
+        "Driver": "",
+        "Count": -1,
+        "DeviceIDs": null,
+        "Capabilities": [
+          [
+            "gpu"
+          ]
+        ],
+        "Options": {}
+      }
+    ],
+    "IpcMode": "private",
+    "ShmSize": 2147483648,
+    "Networks": {
+      "free_app": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": null,
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "5745c9f9e94bdd4447e0539475b91dbaea68359e850328dbc38cc64e11ea902e",
+        "EndpointID": "4c0962b2479c8aae9c7203e1690b749eac62cad78871d610a45f7a14bbc9e2b4",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.4",
+        "MacAddress": "da:73:83:c1:24:4e",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "extractbench-bare-20260930",
+          "311c57c3803e"
+        ]
+      }
+    }
+  }
+]

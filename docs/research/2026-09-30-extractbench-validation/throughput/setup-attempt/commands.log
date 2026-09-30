@@ -1,0 +1,40 @@
+docker ps --format '{{.Names}}'
+docker inspect free-system-m4-53c782c3-parsing_worker-1 free-system-m4-53c782c3-nginx-1 free-system-m4-53c782c3-studio-1 free-system-m4-53c782c3-db-1 free-system-m4-53c782c3-parsing_service-1 free-system-m4-53c782c3-mock-oidc-1 free-system-m4-53c782c3-contract-model-1 free-parsing_worker-1 free-studio-1 free-parsing_service-1 free-phoenix-1 free-validation-pg free-nginx-1 free-extraction_model-1 free-nuextract_model-1 free-ocr_model-1 free-db-1
+nvidia-smi
+docker exec free-extraction_model-1 python3 -c 'import json,pathlib,hashlib,vllm,torch,transformers
+p=pathlib.Path('"'"'/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8'"'"')
+s=p/'"'"'snapshots'"'"'/p.joinpath('"'"'refs/main'"'"').read_text().strip()
+c=json.loads((s/'"'"'config.json'"'"').read_text())
+print(json.dumps({'"'"'revision'"'"':s.name,'"'"'vllm'"'"':vllm.__version__,'"'"'torch'"'"':torch.__version__,'"'"'transformers'"'"':transformers.__version__,'"'"'architectures'"'"':c.get('"'"'architectures'"'"'),'"'"'model_type'"'"':c.get('"'"'model_type'"'"'),'"'"'text_config'"'"':c.get('"'"'text_config'"'"'),'"'"'config_sha256'"'"':hashlib.sha256((s/'"'"'config.json'"'"').read_bytes()).hexdigest(),'"'"'files'"'"':[{'"'"'name'"'"':x.name,'"'"'target'"'"':str(x.resolve()),'"'"'bytes'"'"':x.stat().st_size,'"'"'inode'"'"':x.stat().st_ino} for x in sorted(s.iterdir()) if x.is_file()],'"'"'stats_source'"'"':str(pathlib.Path(vllm.__file__).parent/'"'"'v1/metrics/stats.py'"'"')},indent=2))'
+docker exec free-extraction_model-1 cat /usr/local/lib/python3.12/dist-packages/vllm/v1/metrics/stats.py
+docker exec free-extraction_model-1 python3 -c 'import requests; print('"'"'\n'"'"'.join(x for x in requests.get('"'"'http://localhost:8000/metrics'"'"').text.splitlines() if x.startswith(('"'"'vllm:num_requests_running{'"'"','"'"'vllm:num_requests_waiting{'"'"'))))'
+docker exec free-ocr_model-1 python3 -c 'import requests; print('"'"'\n'"'"'.join(x for x in requests.get('"'"'http://localhost:8000/metrics'"'"').text.splitlines() if x.startswith(('"'"'vllm:num_requests_running{'"'"','"'"'vllm:num_requests_waiting{'"'"'))))'
+docker exec free-nuextract_model-1 python3 -c 'import requests; print('"'"'\n'"'"'.join(x for x in requests.get('"'"'http://localhost:8000/metrics'"'"').text.splitlines() if x.startswith(('"'"'vllm:num_requests_running{'"'"','"'"'vllm:num_requests_waiting{'"'"'))))'
+docker stop --time 30 free-nginx-1
+docker stop --time 30 free-studio-1
+docker stop --time 30 free-parsing_worker-1
+docker stop --time 30 free-parsing_service-1
+docker stop --time 30 free-ocr_model-1
+docker stop --time 30 free-nuextract_model-1
+nvidia-smi
+docker stop --time 30 free-extraction_model-1
+nvidia-smi
+docker run -d --name extractbench-bare-20260930 --gpus all --shm-size 2g --network free_app -p 127.0.0.1:18081:8000 -v free_parsing-models:/models -e HF_HOME=/models/huggingface -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 --entrypoint vllm sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa serve Qwen/Qwen3.8-27B-FP8 --host 0.0.0.0 --port 8000 --language-model-only --generation-config vllm --gpu-memory-utilization 0.35 --max-model-len 32768 --kv-cache-memory-bytes 8G --max-num-seqs 4 --revision 017b9c7af6b5689d5dd426a76e0bc077eb5ca20a
+docker inspect extractbench-bare-20260930
+docker exec extractbench-bare-20260930 python3 -c 'import json,pathlib,hashlib,vllm,torch,transformers
+p=pathlib.Path('"'"'/models/huggingface/hub/models--Qwen--Qwen3.8-27B-FP8'"'"')
+s=p/'"'"'snapshots'"'"'/p.joinpath('"'"'refs/main'"'"').read_text().strip()
+c=json.loads((s/'"'"'config.json'"'"').read_text())
+print(json.dumps({'"'"'revision'"'"':s.name,'"'"'vllm'"'"':vllm.__version__,'"'"'torch'"'"':torch.__version__,'"'"'transformers'"'"':transformers.__version__,'"'"'architectures'"'"':c.get('"'"'architectures'"'"'),'"'"'model_type'"'"':c.get('"'"'model_type'"'"'),'"'"'text_config'"'"':c.get('"'"'text_config'"'"'),'"'"'config_sha256'"'"':hashlib.sha256((s/'"'"'config.json'"'"').read_bytes()).hexdigest(),'"'"'files'"'"':[{'"'"'name'"'"':x.name,'"'"'target'"'"':str(x.resolve()),'"'"'bytes'"'"':x.stat().st_size,'"'"'inode'"'"':x.stat().st_ino} for x in sorted(s.iterdir()) if x.is_file()],'"'"'stats_source'"'"':str(pathlib.Path(vllm.__file__).parent/'"'"'v1/metrics/stats.py'"'"')},indent=2))'
+nvidia-smi
+docker ps -a --filter 'name=^extractbench-bare-20260930$' --format '{{.Names}}'
+docker logs extractbench-bare-20260930
+docker rm -f extractbench-bare-20260930
+docker start free-extraction_model-1
+docker start free-ocr_model-1
+docker start free-nuextract_model-1
+docker start free-parsing_service-1
+docker start free-parsing_worker-1
+docker start free-studio-1
+docker start free-nginx-1
+docker inspect free-system-m4-53c782c3-parsing_worker-1 free-system-m4-53c782c3-nginx-1 free-system-m4-53c782c3-studio-1 free-system-m4-53c782c3-db-1 free-system-m4-53c782c3-parsing_service-1 free-system-m4-53c782c3-mock-oidc-1 free-system-m4-53c782c3-contract-model-1 free-parsing_worker-1 free-studio-1 free-parsing_service-1 free-phoenix-1 free-validation-pg free-nginx-1 free-extraction_model-1 free-nuextract_model-1 free-ocr_model-1 free-db-1

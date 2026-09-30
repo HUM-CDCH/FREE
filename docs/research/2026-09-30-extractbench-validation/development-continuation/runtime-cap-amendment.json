@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-30T11:04:40.013091+00:00",
+  "user_elapsed_hours": 2,
+  "runner_pid": 290991,
+  "original_start": "2026-09-30T10:54:39.692842+00:00",
+  "original_admission_hours": 8.0,
+  "admission_deadline_utc": "2026-09-30T12:39:39.692842+00:00",
+  "hard_deadline_utc": "2026-09-30T12:54:39.692842+00:00",
+  "method": "STOP_REQUESTS before drain window; pidfd SIGTERM only if still running at wall cap",
+  "fresh_call_cap": 400,
+  "inference_settings_changed": false
+}

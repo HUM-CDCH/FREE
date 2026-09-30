@@ -1,0 +1,9 @@
+{
+  "pid": 300390,
+  "command": [
+    "/usr/bin/python3",
+    "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/docs/research/2026-09-30-extractbench-validation/development-continuation/enforce_runtime_cap.py",
+    "/home/gebbaro/Progetti/FREE/.claude/worktrees/extraction-harness/.scratch/extractbench-v2-development"
+  ],
+  "script_sha256": "c961f602549f73a1c5763de7eb3943972a52084414ed70eef9cb37ff259cb5c1"
+}

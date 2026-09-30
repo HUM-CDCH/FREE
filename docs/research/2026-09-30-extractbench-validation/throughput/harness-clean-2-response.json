@@ -1,0 +1,40 @@
+{
+  "id": "chatcmpl-bb3e1286831d2b30",
+  "object": "chat.completion",
+  "created": 1790762320,
+  "model": "Qwen/Qwen3.8-27B-FP8",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\n  \"records\": [\n    {\n      \"name\": \"Synthetic instrument 01\",\n      \"code\": \"SYN-001\",\n      \"quantity\": 2,\n      \"location\": \"Room 101\"\n    },\n    {\n      \"name\": \"Synthetic instrument 02\",\n      \"code\": \"SYN-002\",\n      \"quantity\": 3,\n      \"location\": \"Room 102\"\n    },\n    {\n      \"name\": \"Synthetic instrument 03\",\n      \"code\": \"SYN-003\",\n      \"quantity\": 4,\n      \"location\": \"Room 103\"\n    },\n    {\n      \"name\": \"Synthetic instrument 04\",\n      \"code\": \"SYN-004\",\n      \"quantity\": 5,\n      \"location\": \"Room 104\"\n    },\n    {\n      \"name\": \"Synthetic instrument 05\",\n      \"code\": \"SYN-005\",\n      \"quantity\": 6,\n      \"location\": \"Room 105\"\n    },\n    {\n      \"name\": \"Synthetic instrument 06\",\n      \"code\": \"SYN-006\",\n      \"quantity\": 7,\n      \"location\": \"Room 106\"\n    },\n    {\n      \"name\": \"Synthetic instrument 07\",\n      \"code\": \"SYN-007\",\n      \"quantity\": 8,\n      \"location\": \"Room 107\"\n    },\n    {\n      \"name\": \"Synthetic instrument 08\",\n      \"code\": \"SYN-008\",\n      \"quantity\": 9,\n      \"location\": \"Room 108\"\n    }\n  ]\n}",
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "reasoning": null
+      },
+      "logprobs": null,
+      "finish_reason": "stop",
+      "stop_reason": null,
+      "token_ids": null,
+      "routed_experts": null
+    }
+  ],
+  "service_tier": null,
+  "system_fingerprint": "vllm-0.29.1rc1.dev17+gd2d649e67.d20260913-29b68abe",
+  "usage": {
+    "prompt_tokens": 530,
+    "total_tokens": 959,
+    "completion_tokens": 429,
+    "prompt_tokens_details": null,
+    "completion_tokens_details": null
+  },
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "prompt_text": null,
+  "kv_transfer_params": null,
+  "ec_transfer_params": null,
+  "metrics": null
+}

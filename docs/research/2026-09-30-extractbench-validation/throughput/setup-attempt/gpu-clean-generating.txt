@@ -1,0 +1,2 @@
+96 %, 56, 2398 MHz, 27.23 W
+2575585, VLLM::EngineCore, 39293 MiB
