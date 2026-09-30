@@ -1,0 +1,374 @@
+{
+ "contract_commit": "a24b87e7",
+ "contract_sha256": "870320e2f442127dae226360194188d60eebee53776898e1ccc6d9ad5485d252",
+ "inputs_sha256": {
+  "dataset.json": "13773431732d46073192d3943b88914ef6960ba59d4cab4c124bf94a6f64975d",
+  "execution-study.json": "00f3798404acaa0a47b640f269f150b9914f41ae8c26d2529117359c458a57cd",
+  "reply_cache": "21389a559efa19c5f90e26cb19f0ebc42f1fd6f3fb3095109944ccb7b957fab1",
+  "sealed_results": {
+   "A1--short--caterpillar_spec_sheet_312c_excavator": "f0a8426fab1f408fd1fe1f8bc36f6e047db9bc1885e0ec700ca65e03c206bbf4",
+   "A1--short--dc-pepco-residential-bill": "111c196bf500db07a4f734f2fa75060da21eec5310f3b6f32c42a66038db6f00",
+   "A1--short--grafton_isotrope_invoice_19503": "a652a91f6a59730c9acaf81720e4c73e356a8dc8b144b090b7bcbabfef1a17d8",
+   "A1--short--mission-tx-tyler-invoice": "98f6711cafa3059a5b309c2021f5a60ae92bb205b0e80897912f47714b27746c",
+   "A2--short--dc-pepco-residential-bill": "66482154a2ad314bc9da8ee4f478050b4423a316772aff63ca0a026b3d5bb947",
+   "A2--short--grafton_isotrope_invoice_19503": "0bc5222ffce8ebc8cac35a538079e9b2313ec51fa83e1c6b09e8783a854bd945",
+   "A2--short--mission-tx-tyler-invoice": "6091df59955ec1b340c37bea43b4e2333c2588b855f256c91fd0727531609d13",
+   "A3--short--caterpillar_spec_sheet_312c_excavator": "be88823d91a678c1a56a8ac78a36df9d5675f8476ce553494e237fea113b3751",
+   "A3--short--dc-pepco-residential-bill": "109a2dbe2077819d38cc53bdb166e0a2decff4702b3429cfaa2f90c764b6081d",
+   "A3--short--grafton_isotrope_invoice_19503": "91dc77bcc20027e710a1a21ba9783cf034f513e7be12b77128ccaf3e5b6b3e51",
+   "A3--short--mission-tx-tyler-invoice": "ad705c1567a0d16bcd44240b3f401f732d88e7aa8b9d61e8dc4398aee46df79b",
+   "base--short--caterpillar_spec_sheet_312c_excavator": "21d0165534acb18d4ee7cea5f8a08be94ba1ee88d36f57df08edc024ef1a2ce5",
+   "base--short--dc-pepco-residential-bill": "78422629c5157186b6b6df9797c1f3d9267bb298b94a98803194dc66bc14abc6",
+   "base--short--grafton_isotrope_invoice_19503": "751a5f5e838c39b47774989cd2af2d7c12b3be7280b212e3a4f95c8f7b23b31e",
+   "base--short--mission-tx-tyler-invoice": "26a14412c2c0cf723c90e7c96683a89315e72df48580c334cc3bc3f31a1062e2"
+  }
+ },
+ "label": "offline replay and re-scoring of saved responses; no new model observation, cost or timing",
+ "membership": {
+  "arms": [
+   "base",
+   "A1",
+   "A2",
+   "A3"
+  ],
+  "heldout_groups_opened": 0,
+  "incomplete": {
+   "A2--short--caterpillar_spec_sheet_312c_excavator": "first reply truncated; 3 recovery halves were never requested; not completed offline"
+  },
+  "not_run": [
+   "short--lancaster_county_ne_requisition_po_husker_steel",
+   "short--uillinois_rate_card_carpool_2024",
+   "short--viega_price_list_propress_2026",
+   "medium--1G1PC5SB6E7111015_professional_valuation",
+   "medium--erie_county_2017_single_audit"
+  ],
+  "paired_cohort": [
+   "short--grafton_isotrope_invoice_19503",
+   "short--dc-pepco-residential-bill",
+   "short--mission-tx-tyler-invoice"
+  ],
+  "reported_separately": "short--caterpillar_spec_sheet_312c_excavator"
+ },
+ "original_run_id": "extractbench-v3-corrected-development",
+ "original_run_root": ".scratch/extractbench-v3-corrected-development",
+ "replays": {
+  "original": {
+   "cells": {
+    "A1--short--caterpillar_spec_sheet_312c_excavator": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 2,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A1--short--dc-pepco-residential-bill": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 5,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A1--short--grafton_isotrope_invoice_19503": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 1,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A1--short--mission-tx-tyler-invoice": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 3,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A2--short--caterpillar_spec_sheet_312c_excavator": {
+     "fresh_calls": 0,
+     "original_sealed": false,
+     "replayed_calls": 1,
+     "status": "incomplete: needs uncached requests; not completed offline",
+     "uncached_requests_refused": 3
+    },
+    "A2--short--dc-pepco-residential-bill": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 5,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A2--short--grafton_isotrope_invoice_19503": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 1,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A2--short--mission-tx-tyler-invoice": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 3,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A3--short--caterpillar_spec_sheet_312c_excavator": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 2,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A3--short--dc-pepco-residential-bill": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 5,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A3--short--grafton_isotrope_invoice_19503": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 1,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A3--short--mission-tx-tyler-invoice": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 3,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "base--short--caterpillar_spec_sheet_312c_excavator": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 2,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "base--short--dc-pepco-residential-bill": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 5,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "base--short--grafton_isotrope_invoice_19503": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 1,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "base--short--mission-tx-tyler-invoice": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 3,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    }
+   },
+   "harness_source_sha256": "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673",
+   "scope": "records"
+  },
+  "repaired": {
+   "cells": {
+    "A1--short--caterpillar_spec_sheet_312c_excavator": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 2,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A1--short--dc-pepco-residential-bill": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 5,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A1--short--grafton_isotrope_invoice_19503": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 1,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A1--short--mission-tx-tyler-invoice": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 3,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A2--short--caterpillar_spec_sheet_312c_excavator": {
+     "fresh_calls": 0,
+     "original_sealed": false,
+     "replayed_calls": 1,
+     "status": "incomplete: needs uncached requests; not completed offline",
+     "uncached_requests_refused": 3
+    },
+    "A2--short--dc-pepco-residential-bill": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 5,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A2--short--grafton_isotrope_invoice_19503": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 1,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A2--short--mission-tx-tyler-invoice": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 3,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A3--short--caterpillar_spec_sheet_312c_excavator": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 2,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A3--short--dc-pepco-residential-bill": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 5,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A3--short--grafton_isotrope_invoice_19503": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 1,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "A3--short--mission-tx-tyler-invoice": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 3,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "base--short--caterpillar_spec_sheet_312c_excavator": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 2,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "base--short--dc-pepco-residential-bill": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 5,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "base--short--grafton_isotrope_invoice_19503": {
+     "artifact_identical_to_sealed": true,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 1,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    },
+    "base--short--mission-tx-tyler-invoice": {
+     "artifact_identical_to_sealed": false,
+     "fresh_calls": 0,
+     "original_sealed": true,
+     "replayed_calls": 3,
+     "requests_identical": true,
+     "status": "replayed",
+     "uncached_requests_refused": 0
+    }
+   },
+   "harness_source_sha256": "5e2c313f07e5c1a78f25b60b66e7db704c3d5824a4bc5852401ccabe2f4f4684",
+   "scope": "document"
+  }
+ },
+ "results_commits": [
+  "e2542d20",
+  "2024b85c"
+ ],
+ "revisions": {
+  "original_assembly_and_evaluator": {
+   "commit": "2024b85c",
+   "evaluator_version": 2,
+   "harness_source_sha256": "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673"
+  },
+  "repaired_assembly_and_revised_evaluator": {
+   "commit": "e4c9c906",
+   "evaluator_version": 3,
+   "harness_source_sha256": "5e2c313f07e5c1a78f25b60b66e7db704c3d5824a4bc5852401ccabe2f4f4684"
+  }
+ },
+ "score_files_sha256": {
+  "original-assembly--original-evaluator": "a925ce2d89ec6214acdf24fe31d193012df9c5f8816e0fac15b2f9a3510e5f52",
+  "original-assembly--revised-evaluator": "4b339829402f80167032cf9935722b1fd617d5b9bbe11eeb8331debd6477fa5c",
+  "repaired-assembly--original-evaluator": "51b819a67f293437dcb37da5f46ce65ff147cb06f88ee3028bcc6671f1f0c871",
+  "repaired-assembly--revised-evaluator": "88004760d14b091964a2eb35f33a6d69685f684d57acf2bd88d39b1911dd041a"
+ }
+}

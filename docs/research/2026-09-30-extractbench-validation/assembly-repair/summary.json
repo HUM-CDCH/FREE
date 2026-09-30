@@ -1,0 +1,3571 @@
+{
+  "label": "offline replay and re-scoring of saved responses; no new model observation, cost or timing",
+  "cohort": {
+    "paired_groups": [
+      "short--grafton_isotrope_invoice_19503",
+      "short--dc-pepco-residential-bill",
+      "short--mission-tx-tyler-invoice"
+    ],
+    "arms": [
+      "base",
+      "A1",
+      "A2",
+      "A3"
+    ],
+    "separate": "short--caterpillar_spec_sheet_312c_excavator"
+  },
+  "combinations": {
+    "original-assembly--original-evaluator": {
+      "evaluator_version": 2,
+      "harness_source_sha256": "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673",
+      "arms": {
+        "base": {
+          "mean_group_raw_f1": 0.49548677850564643,
+          "mean_group_canonical_f1": 0.5721461664857891,
+          "pooled_raw_f1": 0.43109540636042404,
+          "pooled_canonical_f1": 0.508833922261484,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 8,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 5,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 7,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 26,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.8301886792452831,
+              "canonical_f1": 0.9433962264150944,
+              "raw_precision": 0.8461538461538461,
+              "raw_recall": 0.8148148148148148,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 22,
+              "tp_canonical": 25,
+              "predicted_values_raw": 26,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 563
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.2972972972972973,
+              "canonical_f1": 0.32432432432432434,
+              "raw_precision": 0.2037037037037037,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 54,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 3,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1282
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.358974358974359,
+              "canonical_f1": 0.44871794871794873,
+              "raw_precision": 0.2857142857142857,
+              "raw_recall": 0.4827586206896552,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 28,
+              "tp_canonical": 35,
+              "predicted_values_raw": 98,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 3,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 2,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 5,
+                  "missing_records": 3,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 23,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3210
+            }
+          }
+        },
+        "A1": {
+          "mean_group_raw_f1": 0.5284391006145951,
+          "mean_group_canonical_f1": 0.5912482157083203,
+          "pooled_raw_f1": 0.49523809523809526,
+          "pooled_canonical_f1": 0.5523809523809524,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 6,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 5,
+              "matched_records": 2,
+              "missing_records": 8,
+              "duplicated_records": 0,
+              "hallucinated_records": 3,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.8301886792452831,
+              "canonical_f1": 0.9433962264150944,
+              "raw_precision": 0.8461538461538461,
+              "raw_recall": 0.8148148148148148,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 22,
+              "tp_canonical": 25,
+              "predicted_values_raw": 26,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 581
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.2972972972972973,
+              "canonical_f1": 0.32432432432432434,
+              "raw_precision": 0.2037037037037037,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 54,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 3,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1376
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.4578313253012048,
+              "canonical_f1": 0.5060240963855421,
+              "raw_precision": 0.76,
+              "raw_recall": 0.3275862068965517,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 19,
+              "tp_canonical": 21,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 0,
+                  "matched_records": 0,
+                  "missing_records": 8,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3612
+            }
+          }
+        },
+        "A2": {
+          "mean_group_raw_f1": 0.4765249970729423,
+          "mean_group_canonical_f1": 0.5668539983608477,
+          "pooled_raw_f1": 0.4199288256227758,
+          "pooled_canonical_f1": 0.505338078291815,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 9,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 5,
+              "hallucinated_records": 1,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 7,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 26,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.7692307692307693,
+              "canonical_f1": 0.9230769230769231,
+              "raw_precision": 0.8,
+              "raw_recall": 0.7407407407407407,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 20,
+              "tp_canonical": 24,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1369
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.3013698630136986,
+              "canonical_f1": 0.3287671232876712,
+              "raw_precision": 0.20754716981132076,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 53,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 5,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 1,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 3,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 4196
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.358974358974359,
+              "canonical_f1": 0.44871794871794873,
+              "raw_precision": 0.2857142857142857,
+              "raw_recall": 0.4827586206896552,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 28,
+              "tp_canonical": 35,
+              "predicted_values_raw": 98,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 3,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 2,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 5,
+                  "missing_records": 3,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 23,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 5402
+            }
+          }
+        },
+        "A3": {
+          "mean_group_raw_f1": 0.4751674751674752,
+          "mean_group_canonical_f1": 0.5525525525525525,
+          "pooled_raw_f1": 0.41843971631205673,
+          "pooled_canonical_f1": 0.49645390070921985,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 9,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 5,
+              "hallucinated_records": 1,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 7,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 26,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.7692307692307693,
+              "canonical_f1": 0.8846153846153846,
+              "raw_precision": 0.8,
+              "raw_recall": 0.7407407407407407,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 20,
+              "tp_canonical": 23,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1056
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.2972972972972973,
+              "canonical_f1": 0.32432432432432434,
+              "raw_precision": 0.2037037037037037,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 54,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 5,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 1,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 3,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3426
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.358974358974359,
+              "canonical_f1": 0.44871794871794873,
+              "raw_precision": 0.2857142857142857,
+              "raw_recall": 0.4827586206896552,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 28,
+              "tp_canonical": 35,
+              "predicted_values_raw": 98,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 3,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 2,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 5,
+                  "missing_records": 3,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 23,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 4880
+            }
+          }
+        }
+      },
+      "caterpillar_separate": {
+        "base": {
+          "raw_f1": 0.0,
+          "canonical_f1": 0.0,
+          "raw_precision": 0.0,
+          "raw_recall": 0.0,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 0,
+          "tp_canonical": 0,
+          "predicted_values_raw": 241,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 2,
+              "matched_records": 0,
+              "missing_records": 1,
+              "duplicated_records": 0,
+              "hallucinated_records": 2,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 0,
+              "missing_records": 35,
+              "duplicated_records": 0,
+              "hallucinated_records": 38,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 0,
+          "region_failures": 0,
+          "output_tokens": 4827
+        },
+        "A1": {
+          "raw_f1": 0.0,
+          "canonical_f1": 0.0,
+          "raw_precision": 0.0,
+          "raw_recall": 0.0,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 0,
+          "tp_canonical": 0,
+          "predicted_values_raw": 241,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 2,
+              "matched_records": 0,
+              "missing_records": 1,
+              "duplicated_records": 0,
+              "hallucinated_records": 2,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 0,
+              "missing_records": 35,
+              "duplicated_records": 0,
+              "hallucinated_records": 38,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 0,
+          "region_failures": 0,
+          "output_tokens": 4887
+        },
+        "A2": "not sealed",
+        "A3": {
+          "raw_f1": 0.3611738148984199,
+          "canonical_f1": 0.3611738148984199,
+          "raw_precision": 0.3389830508474576,
+          "raw_recall": 0.3864734299516908,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 80,
+          "tp_canonical": 80,
+          "predicted_values_raw": 236,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 2,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 1,
+              "unadjudicated_records": 0,
+              "strict_records": 1
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 35,
+              "matched_records": 26,
+              "missing_records": 9,
+              "duplicated_records": 0,
+              "hallucinated_records": 9,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 1,
+          "region_failures": 0,
+          "output_tokens": 4854
+        }
+      },
+      "v1_frozen_gate": {
+        "result": "evidence insufficient",
+        "reason": "no challenger met the frozen rule",
+        "checked": [
+          [
+            false,
+            0.5284391006145951,
+            -5569,
+            "A1"
+          ],
+          [
+            false,
+            0.4765249970729423,
+            -10967,
+            "A2"
+          ],
+          [
+            false,
+            0.4751674751674752,
+            -9362,
+            "A3"
+          ]
+        ]
+      },
+      "v2_proposed_gate_vs_base": {
+        "A1": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": -2
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 5,
+                  "matched": -5,
+                  "excess": -23
+                }
+              },
+              "no_loss": false,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": 0.032952322108948606,
+            "wins": 1,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 0,
+            "challenger": 0
+          },
+          "result": "rejected",
+          "reason": "record guards failed: ['nested.no_loss']"
+        },
+        "A2": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 1
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": false
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": -0.01896178143270416,
+            "wins": 1,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 0,
+            "challenger": 0
+          },
+          "result": "rejected",
+          "reason": "record guards failed: ['document_root.no_excess']"
+        },
+        "A3": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 1
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": false
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": -0.020319303338171262,
+            "wins": 0,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 0,
+            "challenger": 0
+          },
+          "result": "rejected",
+          "reason": "record guards failed: ['document_root.no_excess']"
+        }
+      }
+    },
+    "original-assembly--revised-evaluator": {
+      "evaluator_version": 3,
+      "harness_source_sha256": "5e2c313f07e5c1a78f25b60b66e7db704c3d5824a4bc5852401ccabe2f4f4684",
+      "arms": {
+        "base": {
+          "mean_group_raw_f1": 0.49548677850564643,
+          "mean_group_canonical_f1": 0.5721461664857891,
+          "pooled_raw_f1": 0.43109540636042404,
+          "pooled_canonical_f1": 0.508833922261484,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 8,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 5,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 7,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 26,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.8301886792452831,
+              "canonical_f1": 0.9433962264150944,
+              "raw_precision": 0.8461538461538461,
+              "raw_recall": 0.8148148148148148,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 22,
+              "tp_canonical": 25,
+              "predicted_values_raw": 26,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 563
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.2972972972972973,
+              "canonical_f1": 0.32432432432432434,
+              "raw_precision": 0.2037037037037037,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 54,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 3,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1282
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.358974358974359,
+              "canonical_f1": 0.44871794871794873,
+              "raw_precision": 0.2857142857142857,
+              "raw_recall": 0.4827586206896552,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 28,
+              "tp_canonical": 35,
+              "predicted_values_raw": 98,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 3,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 2,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 5,
+                  "missing_records": 3,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 23,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3210
+            }
+          }
+        },
+        "A1": {
+          "mean_group_raw_f1": 0.5284391006145951,
+          "mean_group_canonical_f1": 0.5912482157083203,
+          "pooled_raw_f1": 0.49523809523809526,
+          "pooled_canonical_f1": 0.5523809523809524,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 6,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 5,
+              "matched_records": 2,
+              "missing_records": 8,
+              "duplicated_records": 0,
+              "hallucinated_records": 3,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.8301886792452831,
+              "canonical_f1": 0.9433962264150944,
+              "raw_precision": 0.8461538461538461,
+              "raw_recall": 0.8148148148148148,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 22,
+              "tp_canonical": 25,
+              "predicted_values_raw": 26,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 581
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.2972972972972973,
+              "canonical_f1": 0.32432432432432434,
+              "raw_precision": 0.2037037037037037,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 54,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 3,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1376
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.4578313253012048,
+              "canonical_f1": 0.5060240963855421,
+              "raw_precision": 0.76,
+              "raw_recall": 0.3275862068965517,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 19,
+              "tp_canonical": 21,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 0,
+                  "matched_records": 0,
+                  "missing_records": 8,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3612
+            }
+          }
+        },
+        "A2": {
+          "mean_group_raw_f1": 0.4765249970729423,
+          "mean_group_canonical_f1": 0.5668539983608477,
+          "pooled_raw_f1": 0.4199288256227758,
+          "pooled_canonical_f1": 0.505338078291815,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 9,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 5,
+              "hallucinated_records": 1,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 7,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 26,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.7692307692307693,
+              "canonical_f1": 0.9230769230769231,
+              "raw_precision": 0.8,
+              "raw_recall": 0.7407407407407407,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 20,
+              "tp_canonical": 24,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1369
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.3013698630136986,
+              "canonical_f1": 0.3287671232876712,
+              "raw_precision": 0.20754716981132076,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 53,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 5,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 1,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 3,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 4196
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.358974358974359,
+              "canonical_f1": 0.44871794871794873,
+              "raw_precision": 0.2857142857142857,
+              "raw_recall": 0.4827586206896552,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 28,
+              "tp_canonical": 35,
+              "predicted_values_raw": 98,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 3,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 2,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 5,
+                  "missing_records": 3,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 23,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 5402
+            }
+          }
+        },
+        "A3": {
+          "mean_group_raw_f1": 0.4751674751674752,
+          "mean_group_canonical_f1": 0.5525525525525525,
+          "pooled_raw_f1": 0.41843971631205673,
+          "pooled_canonical_f1": 0.49645390070921985,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 9,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 5,
+              "hallucinated_records": 1,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 7,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 26,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.7692307692307693,
+              "canonical_f1": 0.8846153846153846,
+              "raw_precision": 0.8,
+              "raw_recall": 0.7407407407407407,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 20,
+              "tp_canonical": 23,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1056
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.2972972972972973,
+              "canonical_f1": 0.32432432432432434,
+              "raw_precision": 0.2037037037037037,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 54,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 5,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 1,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 3,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3426
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.358974358974359,
+              "canonical_f1": 0.44871794871794873,
+              "raw_precision": 0.2857142857142857,
+              "raw_recall": 0.4827586206896552,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 28,
+              "tp_canonical": 35,
+              "predicted_values_raw": 98,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 3,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 2,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 5,
+                  "missing_records": 3,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 23,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 4880
+            }
+          }
+        }
+      },
+      "caterpillar_separate": {
+        "base": {
+          "raw_f1": 0.0,
+          "canonical_f1": 0.0,
+          "raw_precision": 0.0,
+          "raw_recall": 0.0,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 0,
+          "tp_canonical": 0,
+          "predicted_values_raw": 241,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 2,
+              "matched_records": 0,
+              "missing_records": 1,
+              "duplicated_records": 0,
+              "hallucinated_records": 2,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 0,
+              "missing_records": 35,
+              "duplicated_records": 0,
+              "hallucinated_records": 38,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 0,
+          "region_failures": 0,
+          "output_tokens": 4827
+        },
+        "A1": {
+          "raw_f1": 0.0,
+          "canonical_f1": 0.0,
+          "raw_precision": 0.0,
+          "raw_recall": 0.0,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 0,
+          "tp_canonical": 0,
+          "predicted_values_raw": 241,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 2,
+              "matched_records": 0,
+              "missing_records": 1,
+              "duplicated_records": 0,
+              "hallucinated_records": 2,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 0,
+              "missing_records": 35,
+              "duplicated_records": 0,
+              "hallucinated_records": 38,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 0,
+          "region_failures": 0,
+          "output_tokens": 4887
+        },
+        "A2": "not sealed",
+        "A3": {
+          "raw_f1": 0.3611738148984199,
+          "canonical_f1": 0.3611738148984199,
+          "raw_precision": 0.3389830508474576,
+          "raw_recall": 0.3864734299516908,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 80,
+          "tp_canonical": 80,
+          "predicted_values_raw": 236,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 2,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 1,
+              "unadjudicated_records": 0,
+              "strict_records": 1
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 35,
+              "matched_records": 26,
+              "missing_records": 9,
+              "duplicated_records": 0,
+              "hallucinated_records": 9,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 1,
+          "region_failures": 0,
+          "output_tokens": 4854
+        }
+      },
+      "v1_frozen_gate": {
+        "result": "evidence insufficient",
+        "reason": "no challenger met the frozen rule",
+        "checked": [
+          [
+            false,
+            0.5284391006145951,
+            -5569,
+            "A1"
+          ],
+          [
+            false,
+            0.4765249970729423,
+            -10967,
+            "A2"
+          ],
+          [
+            false,
+            0.4751674751674752,
+            -9362,
+            "A3"
+          ]
+        ]
+      },
+      "v2_proposed_gate_vs_base": {
+        "A1": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": -2
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 5,
+                  "matched": -5,
+                  "excess": -23
+                }
+              },
+              "no_loss": false,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": 0.032952322108948606,
+            "wins": 1,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 0,
+            "challenger": 0
+          },
+          "result": "rejected",
+          "reason": "record guards failed: ['nested.no_loss']"
+        },
+        "A2": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 1
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": false
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": -0.01896178143270416,
+            "wins": 1,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 0,
+            "challenger": 0
+          },
+          "result": "rejected",
+          "reason": "record guards failed: ['document_root.no_excess']"
+        },
+        "A3": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 1
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": false
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": -0.020319303338171262,
+            "wins": 0,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 0,
+            "challenger": 0
+          },
+          "result": "rejected",
+          "reason": "record guards failed: ['document_root.no_excess']"
+        }
+      }
+    },
+    "repaired-assembly--original-evaluator": {
+      "evaluator_version": 2,
+      "harness_source_sha256": "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673",
+      "arms": {
+        "base": {
+          "mean_group_raw_f1": 0.6160393727424512,
+          "mean_group_canonical_f1": 0.7209945521762801,
+          "pooled_raw_f1": 0.6044444444444445,
+          "pooled_canonical_f1": 0.7288888888888889,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 3,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 10,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 20,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.8301886792452831,
+              "canonical_f1": 0.9433962264150944,
+              "raw_precision": 0.8461538461538461,
+              "raw_recall": 0.8148148148148148,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 22,
+              "tp_canonical": 25,
+              "predicted_values_raw": 26,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 563
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.46153846153846156,
+              "canonical_f1": 0.5128205128205128,
+              "raw_precision": 0.47368421052631576,
+              "raw_recall": 0.45,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 9,
+              "tp_canonical": 10,
+              "predicted_values_raw": 19,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 1,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 1,
+              "region_failures": 0,
+              "output_tokens": 1282
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.556390977443609,
+              "canonical_f1": 0.706766917293233,
+              "raw_precision": 0.49333333333333335,
+              "raw_recall": 0.6379310344827587,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 37,
+              "tp_canonical": 47,
+              "predicted_values_raw": 75,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 8,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 20,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3210
+            }
+          }
+        },
+        "A1": {
+          "mean_group_raw_f1": 0.6160393727424512,
+          "mean_group_canonical_f1": 0.7209945521762801,
+          "pooled_raw_f1": 0.6044444444444445,
+          "pooled_canonical_f1": 0.7288888888888889,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 3,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 10,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 20,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.8301886792452831,
+              "canonical_f1": 0.9433962264150944,
+              "raw_precision": 0.8461538461538461,
+              "raw_recall": 0.8148148148148148,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 22,
+              "tp_canonical": 25,
+              "predicted_values_raw": 26,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 581
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.46153846153846156,
+              "canonical_f1": 0.5128205128205128,
+              "raw_precision": 0.47368421052631576,
+              "raw_recall": 0.45,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 9,
+              "tp_canonical": 10,
+              "predicted_values_raw": 19,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 1,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 1,
+              "region_failures": 0,
+              "output_tokens": 1376
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.556390977443609,
+              "canonical_f1": 0.706766917293233,
+              "raw_precision": 0.49333333333333335,
+              "raw_recall": 0.6379310344827587,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 37,
+              "tp_canonical": 47,
+              "predicted_values_raw": 75,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 8,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 20,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3612
+            }
+          }
+        },
+        "A2": {
+          "mean_group_raw_f1": 0.6323501060343165,
+          "mean_group_canonical_f1": 0.7496304864725918,
+          "pooled_raw_f1": 0.6079295154185022,
+          "pooled_canonical_f1": 0.7400881057268722,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 3,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 10,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 20,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.7692307692307693,
+              "canonical_f1": 0.9230769230769231,
+              "raw_precision": 0.8,
+              "raw_recall": 0.7407407407407407,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 20,
+              "tp_canonical": 24,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1369
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.5714285714285714,
+              "canonical_f1": 0.6190476190476191,
+              "raw_precision": 0.5454545454545454,
+              "raw_recall": 0.6,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 12,
+              "tp_canonical": 13,
+              "predicted_values_raw": 22,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 1,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 1,
+              "region_failures": 0,
+              "output_tokens": 4196
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.556390977443609,
+              "canonical_f1": 0.706766917293233,
+              "raw_precision": 0.49333333333333335,
+              "raw_recall": 0.6379310344827587,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 37,
+              "tp_canonical": 47,
+              "predicted_values_raw": 75,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 8,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 20,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 5402
+            }
+          }
+        },
+        "A3": {
+          "mean_group_raw_f1": 0.6207357041760123,
+          "mean_group_canonical_f1": 0.7255827185223848,
+          "pooled_raw_f1": 0.6017699115044248,
+          "pooled_canonical_f1": 0.7256637168141593,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 3,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 10,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 20,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.7692307692307693,
+              "canonical_f1": 0.8846153846153846,
+              "raw_precision": 0.8,
+              "raw_recall": 0.7407407407407407,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 20,
+              "tp_canonical": 23,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1056
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.5365853658536586,
+              "canonical_f1": 0.5853658536585366,
+              "raw_precision": 0.5238095238095238,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 21,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 1,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 1,
+              "region_failures": 0,
+              "output_tokens": 3426
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.556390977443609,
+              "canonical_f1": 0.706766917293233,
+              "raw_precision": 0.49333333333333335,
+              "raw_recall": 0.6379310344827587,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 37,
+              "tp_canonical": 47,
+              "predicted_values_raw": 75,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 8,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 20,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 4880
+            }
+          }
+        }
+      },
+      "caterpillar_separate": {
+        "base": {
+          "raw_f1": 0.4419642857142857,
+          "canonical_f1": 0.4419642857142857,
+          "raw_precision": 0.4107883817427386,
+          "raw_recall": 0.4782608695652174,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 99,
+          "tp_canonical": 99,
+          "predicted_values_raw": 241,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 32,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 6,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 1,
+          "region_failures": 0,
+          "output_tokens": 4827
+        },
+        "A1": {
+          "raw_f1": 0.4419642857142857,
+          "canonical_f1": 0.4419642857142857,
+          "raw_precision": 0.4107883817427386,
+          "raw_recall": 0.4782608695652174,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 99,
+          "tp_canonical": 99,
+          "predicted_values_raw": 241,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 32,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 6,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 1,
+          "region_failures": 0,
+          "output_tokens": 4887
+        },
+        "A2": "not sealed",
+        "A3": {
+          "raw_f1": 0.44243792325056436,
+          "canonical_f1": 0.44243792325056436,
+          "raw_precision": 0.4152542372881356,
+          "raw_recall": 0.47342995169082125,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 98,
+          "tp_canonical": 98,
+          "predicted_values_raw": 236,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 1
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 35,
+              "matched_records": 32,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 3,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 1,
+          "region_failures": 0,
+          "output_tokens": 4854
+        }
+      },
+      "v1_frozen_gate": {
+        "result": "evidence insufficient",
+        "reason": "no challenger met the frozen rule",
+        "checked": [
+          [
+            false,
+            0.6160393727424512,
+            -5569,
+            "A1"
+          ],
+          [
+            false,
+            0.6323501060343165,
+            -10967,
+            "A2"
+          ],
+          [
+            false,
+            0.6207357041760123,
+            -9362,
+            "A3"
+          ]
+        ]
+      },
+      "v2_proposed_gate_vs_base": {
+        "A1": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": 0.0,
+            "wins": 0,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 1,
+            "challenger": 1
+          },
+          "result": "evidence insufficient",
+          "reason": "no mean raw F1 gain with a majority of wins"
+        },
+        "A2": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": 0.01631073329186535,
+            "wins": 1,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 1,
+            "challenger": 1
+          },
+          "result": "evidence insufficient",
+          "reason": "no mean raw F1 gain with a majority of wins"
+        },
+        "A3": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": 0.004696331433561074,
+            "wins": 1,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 1,
+            "challenger": 1
+          },
+          "result": "evidence insufficient",
+          "reason": "no mean raw F1 gain with a majority of wins"
+        }
+      }
+    },
+    "repaired-assembly--revised-evaluator": {
+      "evaluator_version": 3,
+      "harness_source_sha256": "5e2c313f07e5c1a78f25b60b66e7db704c3d5824a4bc5852401ccabe2f4f4684",
+      "arms": {
+        "base": {
+          "mean_group_raw_f1": 0.6160393727424512,
+          "mean_group_canonical_f1": 0.7209945521762801,
+          "pooled_raw_f1": 0.6044444444444445,
+          "pooled_canonical_f1": 0.7288888888888889,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 3,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 10,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 20,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.8301886792452831,
+              "canonical_f1": 0.9433962264150944,
+              "raw_precision": 0.8461538461538461,
+              "raw_recall": 0.8148148148148148,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 22,
+              "tp_canonical": 25,
+              "predicted_values_raw": 26,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 563
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.46153846153846156,
+              "canonical_f1": 0.5128205128205128,
+              "raw_precision": 0.47368421052631576,
+              "raw_recall": 0.45,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 9,
+              "tp_canonical": 10,
+              "predicted_values_raw": 19,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 1,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 1,
+              "region_failures": 0,
+              "output_tokens": 1282
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.556390977443609,
+              "canonical_f1": 0.706766917293233,
+              "raw_precision": 0.49333333333333335,
+              "raw_recall": 0.6379310344827587,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 37,
+              "tp_canonical": 47,
+              "predicted_values_raw": 75,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 8,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 20,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3210
+            }
+          }
+        },
+        "A1": {
+          "mean_group_raw_f1": 0.6160393727424512,
+          "mean_group_canonical_f1": 0.7209945521762801,
+          "pooled_raw_f1": 0.6044444444444445,
+          "pooled_canonical_f1": 0.7288888888888889,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 3,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 10,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 20,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.8301886792452831,
+              "canonical_f1": 0.9433962264150944,
+              "raw_precision": 0.8461538461538461,
+              "raw_recall": 0.8148148148148148,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 22,
+              "tp_canonical": 25,
+              "predicted_values_raw": 26,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 581
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.46153846153846156,
+              "canonical_f1": 0.5128205128205128,
+              "raw_precision": 0.47368421052631576,
+              "raw_recall": 0.45,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 9,
+              "tp_canonical": 10,
+              "predicted_values_raw": 19,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 1,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 1,
+              "region_failures": 0,
+              "output_tokens": 1376
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.556390977443609,
+              "canonical_f1": 0.706766917293233,
+              "raw_precision": 0.49333333333333335,
+              "raw_recall": 0.6379310344827587,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 37,
+              "tp_canonical": 47,
+              "predicted_values_raw": 75,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 8,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 20,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 3612
+            }
+          }
+        },
+        "A2": {
+          "mean_group_raw_f1": 0.6323501060343165,
+          "mean_group_canonical_f1": 0.7496304864725918,
+          "pooled_raw_f1": 0.6079295154185022,
+          "pooled_canonical_f1": 0.7400881057268722,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 3,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 10,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 20,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.7692307692307693,
+              "canonical_f1": 0.9230769230769231,
+              "raw_precision": 0.8,
+              "raw_recall": 0.7407407407407407,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 20,
+              "tp_canonical": 24,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1369
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.5714285714285714,
+              "canonical_f1": 0.6190476190476191,
+              "raw_precision": 0.5454545454545454,
+              "raw_recall": 0.6,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 12,
+              "tp_canonical": 13,
+              "predicted_values_raw": 22,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 1,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 1,
+              "region_failures": 0,
+              "output_tokens": 4196
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.556390977443609,
+              "canonical_f1": 0.706766917293233,
+              "raw_precision": 0.49333333333333335,
+              "raw_recall": 0.6379310344827587,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 37,
+              "tp_canonical": 47,
+              "predicted_values_raw": 75,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 8,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 20,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 5402
+            }
+          }
+        },
+        "A3": {
+          "mean_group_raw_f1": 0.6207357041760123,
+          "mean_group_canonical_f1": 0.7255827185223848,
+          "pooled_raw_f1": 0.6017699115044248,
+          "pooled_canonical_f1": 0.7256637168141593,
+          "records": {
+            "document_root": {
+              "gold_records": 3,
+              "pred_records": 3,
+              "matched_records": 3,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 10,
+              "pred_records": 33,
+              "matched_records": 10,
+              "missing_records": 0,
+              "duplicated_records": 3,
+              "hallucinated_records": 20,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "by_group": {
+            "short--grafton_isotrope_invoice_19503": {
+              "raw_f1": 0.7692307692307693,
+              "canonical_f1": 0.8846153846153846,
+              "raw_precision": 0.8,
+              "raw_recall": 0.7407407407407407,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "tp_raw": 20,
+              "tp_canonical": 23,
+              "predicted_values_raw": 25,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 1056
+            },
+            "short--dc-pepco-residential-bill": {
+              "raw_f1": 0.5365853658536586,
+              "canonical_f1": 0.5853658536585366,
+              "raw_precision": 0.5238095238095238,
+              "raw_recall": 0.55,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "tp_raw": 11,
+              "tp_canonical": 12,
+              "predicted_values_raw": 21,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 1,
+                  "pred_records": 4,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 3,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 1,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 1,
+              "region_failures": 0,
+              "output_tokens": 3426
+            },
+            "short--mission-tx-tyler-invoice": {
+              "raw_f1": 0.556390977443609,
+              "canonical_f1": 0.706766917293233,
+              "raw_precision": 0.49333333333333335,
+              "raw_recall": 0.6379310344827587,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "tp_raw": 37,
+              "tp_canonical": 47,
+              "predicted_values_raw": 75,
+              "records": {
+                "document_root": {
+                  "gold_records": 1,
+                  "pred_records": 1,
+                  "matched_records": 1,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 0,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0
+                },
+                "nested": {
+                  "gold_records": 8,
+                  "pred_records": 28,
+                  "matched_records": 8,
+                  "missing_records": 0,
+                  "duplicated_records": 0,
+                  "hallucinated_records": 20,
+                  "unadjudicated_records": 0,
+                  "strict_records": 0,
+                  "unscored_records": 0
+                }
+              },
+              "canonical_strict_records_all_scopes": 0,
+              "region_failures": 0,
+              "output_tokens": 4880
+            }
+          }
+        }
+      },
+      "caterpillar_separate": {
+        "base": {
+          "raw_f1": 0.4419642857142857,
+          "canonical_f1": 0.4419642857142857,
+          "raw_precision": 0.4107883817427386,
+          "raw_recall": 0.4782608695652174,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 99,
+          "tp_canonical": 99,
+          "predicted_values_raw": 241,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 32,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 6,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 1,
+          "region_failures": 0,
+          "output_tokens": 4827
+        },
+        "A1": {
+          "raw_f1": 0.4419642857142857,
+          "canonical_f1": 0.4419642857142857,
+          "raw_precision": 0.4107883817427386,
+          "raw_recall": 0.4782608695652174,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 99,
+          "tp_canonical": 99,
+          "predicted_values_raw": 241,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 0
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 32,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 6,
+              "unadjudicated_records": 0,
+              "strict_records": 1,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 1,
+          "region_failures": 0,
+          "output_tokens": 4887
+        },
+        "A2": "not sealed",
+        "A3": {
+          "raw_f1": 0.44243792325056436,
+          "canonical_f1": 0.44243792325056436,
+          "raw_precision": 0.4152542372881356,
+          "raw_recall": 0.47342995169082125,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "tp_raw": 98,
+          "tp_canonical": 98,
+          "predicted_values_raw": 236,
+          "records": {
+            "document_root": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "unadjudicated_records": 0,
+              "strict_records": 1
+            },
+            "nested": {
+              "gold_records": 35,
+              "pred_records": 35,
+              "matched_records": 32,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 3,
+              "unadjudicated_records": 0,
+              "strict_records": 0,
+              "unscored_records": 0
+            }
+          },
+          "canonical_strict_records_all_scopes": 1,
+          "region_failures": 0,
+          "output_tokens": 4854
+        }
+      },
+      "v1_frozen_gate": {
+        "result": "evidence insufficient",
+        "reason": "no challenger met the frozen rule",
+        "checked": [
+          [
+            false,
+            0.6160393727424512,
+            -5569,
+            "A1"
+          ],
+          [
+            false,
+            0.6323501060343165,
+            -10967,
+            "A2"
+          ],
+          [
+            false,
+            0.6207357041760123,
+            -9362,
+            "A3"
+          ]
+        ]
+      },
+      "v2_proposed_gate_vs_base": {
+        "A1": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": 0.0,
+            "wins": 0,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 1,
+            "challenger": 1
+          },
+          "result": "evidence insufficient",
+          "reason": "no mean raw F1 gain with a majority of wins"
+        },
+        "A2": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": 0.01631073329186535,
+            "wins": 1,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 1,
+            "challenger": 1
+          },
+          "result": "evidence insufficient",
+          "reason": "no mean raw F1 gain with a majority of wins"
+        },
+        "A3": {
+          "rule": "completeness-gate-v2 (proposed for a future study; not applied to any past verdict)",
+          "guards": {
+            "document_root": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            },
+            "nested": {
+              "per_group_change": {
+                "short--dc-pepco-residential-bill": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--grafton_isotrope_invoice_19503": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                },
+                "short--mission-tx-tyler-invoice": {
+                  "missing": 0,
+                  "matched": 0,
+                  "excess": 0
+                }
+              },
+              "no_loss": true,
+              "no_excess": true
+            }
+          },
+          "f1": {
+            "mean_raw_f1_delta": 0.004696331433561074,
+            "wins": 1,
+            "groups": 3
+          },
+          "supplementary_strict_nested_records": {
+            "reference": 1,
+            "challenger": 1
+          },
+          "result": "evidence insufficient",
+          "reason": "no mean raw F1 gain with a majority of wins"
+        }
+      }
+    }
+  }
+}

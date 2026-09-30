@@ -185,3 +185,24 @@ field names only. Private outputs stay under the ignored run root: cells, cache,
 journal, `errors-private.json`, and the superseded `analysis-v1/`. That first analysis
 pass pooled error categories over unpaired cells; it was replaced so that categories
 cover paired groups only, and no scores changed.
+
+## Erratum (2026-09-30, offline repair pass)
+
+The tables above are unchanged. These corrections come from
+[the offline assembly repair](../assembly-repair/README.md):
+
+- **The record column omits duplicated records and mixes scopes.** Every partition holds:
+  - A0: 41 = 10 matched + **5 duplicated** + 26 spurious.
+  - A1: 11 = 5 + 3 + 3.
+  - A2 and A3: 42 = 10 + 5 + 27.
+
+  "Gold 13" is 3 document roots plus 10 nested items. Scope-separated counts are in the
+  repair report.
+- **Mission A1's line items were withheld, not deleted.** `merge._field` treated three
+  differing object lists as a scalar conflict. The field became `unresolved` with value
+  None, and the 28 items stayed in its `alternatives`.
+- **Caterpillar A3 matched 26 specification rows plus the root** (27 records in all), not 27
+  rows. The pairing failure in A0 and A1 follows from 2 predicted roots: the fixed-root
+  shortcut needs exactly one.
+- **The strict-record guard used all-scope strict records.** The frozen rule text says
+  "repeated-record count". Both were 0, so the verdict is unaffected and not revised.
