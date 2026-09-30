@@ -100,7 +100,7 @@ it('a SUCCESS workflow over a row without an outcome reads as interrupted after 
     const { module } = createRuntime(project.researcherAccountId)
     const completed = await module.runSingle(freshInput(project))
     const id = completed.extraction.extractionId
-    assert.equal((await studioWorkflow(id))?.status, 'SUCCESS')
+    await eventually(() => studioWorkflow(id), (workflow) => workflow?.status === 'SUCCESS', 'runExtraction ends')
     // A workflow that returned SUCCESS without publishing (here: an outcome removed behind its back).
     await db.orm.public.Extraction.where({ id }).updateAll({ outcome: null })
     const read = await module.readExtractionAttempt(id)
