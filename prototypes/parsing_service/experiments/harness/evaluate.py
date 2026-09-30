@@ -33,7 +33,7 @@ from kei_exp.kie.extract.stages import normal
 @dataclass(frozen=True)
 class Eval:
     """Scoring rules, fixed across every variant of a study (a comparator is not a system factor)."""
-    evaluator_version: int = 3     # 3: a collection the gold never annotates is unscored under unpaired parents too
+    evaluator_version: int = 4     # 4: an unpaired parent's collection is scored only where its annotation is known; counts per path
     comparators: dict[str, str] = field(default_factory=dict)   # field -> exact|normalized|numeric|set|deep|fuzzy
     rel_tol: float = 1e-9
     abs_tol: float = 0.0
@@ -398,7 +398,7 @@ def _ratio(numerator: float, denominator: float) -> float | None:
 def metrics(total: dict[str, int]) -> dict[str, Any]:
     canonical = _metrics(total)
     strict = _metrics({key[4:]: value for key, value in total.items() if key.startswith("raw_")})
-    return {**canonical, "evaluator_version": 3,
+    return {**canonical, "evaluator_version": 4,
             "raw_exact": {"field": strict["field"], "records": strict["records"]},
             "canonicalized": {"field": canonical["field"], "records": canonical["records"]},
             "repeated_records": {key: total.get("repeated_" + key, 0) for key in ("gold_records", "pred_records", "matched_records", "missing_records", "duplicated_records", "hallucinated_records", "strict_records", "cross_page_gold", "cross_page_strict")},
@@ -493,7 +493,11 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
 
     Flatten only evaluation views, retaining original arrays/annotations on Case. Parent records
     are aligned first; their nested arrays are then scored within that parent, never across parents.
-    A collection no gold record annotates is unscored under every parent, paired or not (`unscored_records`).
+    A collection no gold record annotates is unscored under every parent, paired or not (`unscored_records`). An unpaired
+    parent's collection is scored only where its annotation is known: a duplicate takes its gold record's, an extra one is
+    known only when every gold parent at that place annotates it (else `unknown_availability_records`, also unscored); the
+    parent itself stays duplicated or spurious. Explicit null or [] is an annotated empty collection, never unannotated.
+    Every count is also kept per collection path (`path|<label>|<count>`), so one path's gain cannot hide another's loss.
     This custom, strict leaf comparator is deliberately not the official keyless benchmark metric.
     """
     from dataclasses import replace
@@ -552,12 +556,16 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
         return [v for v in values if isinstance(v, dict)] if isinstance(values, list) else []
 
     annotated_collections = set()       # collection paths some gold record annotates; the rest are unscored everywhere
+    partly_annotated = set()            # ... and those some other gold record at the same place leaves unannotated
+    by_path = defaultdict(lambda: defaultdict(int))     # the same counts per collection path, so paths never offset
 
     def annotated(nodes, records, label):
         for path, children in arrays(nodes):
             found = [v for r in records if (v := get(r, path, missing)) is not missing]
             if found:
                 annotated_collections.add(f"{label}.{path}")
+                if len(found) < len(records):
+                    partly_annotated.add(f"{label}.{path}")
                 annotated(children, [x for v in found if isinstance(v, list) for x in v if isinstance(x, dict)], f"{label}.{path}")
 
     def unit(nodes, gold_records, predicted, paths, evidence_rows, label, exhaustive=True):
@@ -596,16 +604,23 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
         if label != "document":
             count.update({"repeated_" + key: count.get(key, 0) for key in ("gold_records", "pred_records", "matched_records", "missing_records", "duplicated_records", "hallucinated_records", "strict_records", "cross_page_gold", "cross_page_strict")})
         totals.append(count)
+        for key, value in [*count.items(), ("units", 1)]:
+            by_path[label][key] += value
         outcomes.extend({**o, "collection": label} for o in result)
-        pairs, _, extra = _match(virtual, gold, _Records(prediction, local_rules), kinds_for(schema, local_rules), local_rules)
+        pairs, duplicates, extra = _match(virtual, gold, _Records(prediction, local_rules), kinds_for(schema, local_rules), local_rules)
         paired = {j: i for i, j in pairs.items()}
+
+        def unscored(path, n, key="unscored_records"):
+            for counter in (count, by_path[path]):
+                counter[key] = counter.get(key, 0) + n
         for array_path, children in arrays(nodes):
+            path = f"{label}.{array_path}"
             for j, record in enumerate(gold_records):
                 i = paired.get(j)
                 annotated = get(record, array_path, missing)
                 if annotated is missing:
                     count["unannotated_collections"] = count.get("unannotated_collections", 0) + 1
-                    count["unscored_records"] = count.get("unscored_records", 0) + (len(items(predicted[i], array_path)) if i is not None else 0)
+                    unscored(path, len(items(predicted[i], array_path)) if i is not None else 0)
                     continue
                 gold_array = annotated or []
                 values = (get(predicted[i], array_path) or []) if i is not None else []
@@ -622,10 +637,16 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
                 values = [v for v in values if isinstance(v, dict)]
                 unit(children, gold_array, values, [f"{paths[j]}{array_path}[{k}]." for k in range(len(gold_array))],
                      nested_rows, f"{label}.{array_path}", field_rules.get(paths[j] + array_path, {}).get("exhaustive", True))
-            for i in [*extra, *(i for i in range(len(predicted)) if i not in pairs and i not in extra)]:
+            for i in [*extra, *duplicates]:     # an unpaired parent: its own spuriousness is already counted above
                 values = items(predicted[i], array_path)
-                if values and f"{label}.{array_path}" not in annotated_collections:
-                    count["unscored_records"] = count.get("unscored_records", 0) + len(values)
+                if i in duplicates:             # a copy of a gold record has that record's annotation availability
+                    known = get(gold_records[duplicates[i]], array_path, missing) is not missing
+                else:                           # an extra one has no gold record: known only if every gold parent agrees
+                    known = path in annotated_collections and path not in partly_annotated
+                if values and not known:
+                    unscored(path, len(values))
+                    if path in partly_annotated and i not in duplicates:
+                        unscored(path, len(values), "unknown_availability_records")
                 elif values:
                     owner = evidence_rows[i].get(array_path.split(".")[0], {})
                     unit(children, [], values, [], [{n.name: {**owner, "raw": v.get(n.name), "value": v.get(n.name)} for n in children} for v in values], label + "." + array_path)
@@ -633,6 +654,7 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
     unit(case.schema.record_nodes, [annotation["expected_output"]], pred["records"], [""],
          [{n.name: original_rows.get((i, n.name), {}) for n in case.schema.record_nodes} for i in range(len(pred["records"]))], "document")
     total = pool(totals)
+    total |= {f"path|{path}|{key}": value for path, counts in by_path.items() for key, value in counts.items()}
     total["documents"] = total["raw_documents"] = 1
     total["strict_documents"] = int(all(c.get("strict_documents") for c in totals))
     total["raw_strict_documents"] = int(all(c.get("raw_strict_documents") for c in totals))

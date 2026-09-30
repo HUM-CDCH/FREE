@@ -94,11 +94,13 @@ hides its own dissent. Under `majority` a record that most of the samples that r
 issue, not a silent drop); under `strict` it stays, every field unresolved.
 
 Nested values of one record stated by several candidates are parts, not rival answers: objects fill in child by child (a
-null child erases nothing), collections keep every item in reading order and fold only an item another candidate already
-gave (flag `repeated_items_merged`; every chunk's own list stays in `alternatives`), and a nested scalar conflict leaves the
+null child erases nothing), collections keep every item of every candidate in reading order (an equal item from two
+candidates may be one row read twice or two rows that look alike, and no item has its own source reference, so both stay
+and the field is flagged `possible_repeated_items`; every chunk's own list stays in `contributors`), and a nested scalar conflict leaves the
 field `unresolved`. A case declared `record_scope: "document"` (the ExtractBench adapter's object root) is one record per
-document, whatever the chunking. Structured scoring (evaluator 3) leaves a collection no gold record annotates unscored under
-every parent (`unscored_records`).
+document, whatever the chunking. Structured scoring (evaluator 4) leaves a collection no gold record annotates unscored under
+every parent (`unscored_records`), scores an unpaired parent's collection only where its annotation is known, and keeps every
+count per collection path.
 
 Scoring (`evaluate.py`): field precision/recall/F1 with the abstentions, missing, duplicate and hallucinated records beside
 them, strict record and document correctness, cross-page fragments, evidence page/segment/span hits (denominators fixed by

@@ -330,19 +330,38 @@ def test_a_document_root_read_in_chunks_is_one_record_that_keeps_every_nested_it
     artifact = run_pages(case)
     assert len(artifact["records"]) == 1
     rows = by_field(artifact)
-    assert rows["items"]["value"] == rows["items"]["raw"] == case.annotations["expected_output"]["items"]   # reading order, raw aligned
-    assert "repeated_items_merged" in rows["items"]["flags"] and len(rows["items"]["contributors"]) == 3
-    assert len(rows["items"]["alternatives"]) == 3                       # every chunk's own list stays on the record
+    expected = case.annotations["expected_output"]["items"]
+    assert rows["items"]["value"] == rows["items"]["raw"] == [*expected[:2], expected[1], *expected[2:]]   # reading order, raw aligned
+    assert "possible_repeated_items" in rows["items"]["flags"] and len(rows["items"]["contributors"]) == 3
     assert rows["vendor"]["value"] == {"name": "Acme", "city": "Rome"}   # a null child does not erase a stated one
     counts, _ = score_case(case, artifact, Eval())
     assert not check_invariants(counts) and counts["tp"] == counts["gold_value_fields"] == 11
-    assert counts.get("hallucinated_records", 0) == counts.get("duplicated_records", 0) == 0
+    assert counts.get("hallucinated_records", 0) == 0 and counts["repeated_duplicated_records"] == 1   # B at the cut stays visible
+
+
+def items_of(replies, **config):
+    rows = by_field(run_pages(paged_case(), replies, **config))
+    return [(i["name"], i["quantity"]) for i in rows["items"]["value"]], rows["items"]["flags"]
+
+
+def test_identical_looking_rows_are_never_folded_by_value_alone():
+    row = lambda name, quantity: {"name": name, "quantity": quantity}
+    reply = lambda *items: [{"title": None, "vendor": None, "items": list(items)}]
+    within = items_of({1: reply(row("A", 1), row("A", 1)), 2: reply(), 3: reply()})
+    assert within == ([("A", 1), ("A", 1)], [])                                      # two rows of one reply
+    across = items_of({1: reply(row("A", 1)), 2: reply(row("A", 1)), 3: reply()})
+    assert across == ([("A", 1), ("A", 1)], ["possible_repeated_items"])              # equal whole lists from two chunks
+    overlap = items_of({1: reply(row("A", 1), row("B", 2)), 2: reply(row("B", 2), row("C", 1)), 3: reply()},
+                       chunking={"mode": "page", "max_chars": 2000, "overlap": 1})
+    assert overlap == ([("A", 1), ("B", 2), ("B", 2), ("C", 1)], ["possible_repeated_items"])   # B re-read through the overlap
+    similar = items_of({1: reply(row("A", 1)), 2: reply(row("A", 3)), 3: reply()})
+    assert similar == ([("A", 1), ("A", 3)], [])                                      # alike, not equal: no flag
 
 
 def test_a_continuation_merge_unions_nested_items_and_a_collection_scope_keeps_chunk_records_apart():
     case = paged_case("records")
     joined = run_pages(case, merge={"continuation": "flags"})
-    assert len(joined["records"]) == 1 and len(joined["records"][0]["items"]) == 4   # was: a false conflict, no items
+    assert len(joined["records"]) == 1 and len(joined["records"][0]["items"]) == 5   # was: a false conflict, no items; B at the cut stays twice
     apart = run_pages(case)
     assert [len(r["items"]) for r in apart["records"]] == [2, 2, 1]                   # nothing declares one record per document
 
@@ -353,7 +372,7 @@ def test_a_conflicting_nested_value_is_held_and_repeats_within_one_reply_are_kep
     rows = by_field(run_pages(paged_case(), replies))
     assert rows["vendor"]["status"] == "unresolved" and "conflict" in rows["vendor"]["flags"]
     assert {a["value"]["city"] for a in rows["vendor"]["alternatives"]} == {"Rome", "Milan", None}
-    assert [i["name"] for i in rows["items"]["value"]] == ["A", "B", "C", "C"] and "repeated_items_merged" not in rows["items"]["flags"]
+    assert [i["name"] for i in rows["items"]["value"]] == ["A", "B", "C", "C"] and "possible_repeated_items" not in rows["items"]["flags"]
 
 
 def test_samples_of_a_document_root_align_into_one_record_even_when_they_share_nothing():
@@ -408,3 +427,53 @@ def test_an_unannotated_nested_collection_is_unscored_under_every_parent():
     assert {k: many.get(k, 0) for k in keys} == {k: none.get(k, 0) for k in keys}
     assert many["hallucinated_records"] == 1 and many["unscored_records"] == 4 and none.get("unscored_records", 0) == 0
     assert metrics(many)["field"]["f1"] == metrics(none)["field"]["f1"]
+
+
+def test_a_singular_root_pairs_structurally_but_its_wrong_values_stay_wrong():
+    schema = {"type": "object", "properties": {"number": {"type": "string"}, "total": {"type": "number"}, "vendor": {"type": "string"}}}
+    case = nested_case(schema, {"number": "INV-1", "total": 10, "vendor": "Acme"})
+    counts, _ = score_case(case, structured_prediction({"number": "INV-9", "total": 99, "vendor": "Other"}), Eval())
+    assert not check_invariants(counts) and counts["matched_records"] == 1                  # an alignment decision
+    assert counts.get("tp", 0) == 0 and counts["wrong_values"] == 3 and counts.get("strict_records", 0) == 0
+
+
+def test_unannotated_and_explicitly_empty_collections_differ_under_matched_duplicate_and_extra_parents():
+    adjust = {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "amount": {"type": "number"}}}}
+    schema = {"type": "object", "properties": {"vehicles": {"type": "array", "items": {"type": "object", "properties": {
+        "vin": {"type": "string"}, "price": {"type": "number"}, "adjustments": adjust}}}}}
+    gold = [{"vin": "V1", "price": 1}, {"vin": "V2", "price": 2, "adjustments": []}, {"vin": "V3", "price": 3, "adjustments": None}]
+    case = nested_case(schema, {"vehicles": gold})         # one path, unannotated under V1 and annotated empty under V2/V3
+    one = lambda name: [{"name": name, "amount": 1}]
+    predicted = [{"vin": "V1", "price": 1, "adjustments": one("a")},   # matched, unannotated: unscored
+                 {"vin": "V2", "price": 2, "adjustments": one("b")},   # matched, explicitly empty: spurious
+                 {"vin": "V3", "price": 3, "adjustments": one("c")},   # matched, explicit null: spurious
+                 {"vin": "V1", "price": 1, "adjustments": one("d")},   # duplicate of V1: unscored like V1's
+                 {"vin": "V2", "price": 2, "adjustments": one("e")},   # duplicate of V2: spurious like V2's
+                 {"vin": "V9", "price": 9, "adjustments": one("f")}]   # extra: its availability is unknown on a mixed path
+    counts, _ = score_case(case, structured_prediction({"vehicles": predicted}), Eval())
+    assert not check_invariants(counts)
+    path = lambda key: counts.get(f"path|document.vehicles.adjustments|{key}", 0)
+    assert (path("hallucinated_records"), path("unscored_records"), path("unknown_availability_records")) == (3, 3, 1)
+    assert path("matched_records") == path("gold_records") == 0
+    parents = lambda key: counts.get(f"path|document.vehicles|{key}", 0)
+    assert (parents("matched_records"), parents("duplicated_records"), parents("hallucinated_records")) == (3, 2, 1)   # V9 stays spurious
+    assert counts["repeated_pred_records"] == 6 + 3 and counts["unscored_records"] == 3
+
+
+def test_a_nested_loss_in_one_collection_shows_in_its_own_path_counts():
+    spec = {"type": "array", "items": {"type": "object", "properties": {"k": {"type": "string"}, "v": {"type": "string"}}}}
+    schema = {"type": "object", "properties": {"id": {"type": "string"}, "left": spec, "right": spec}}
+    rows = lambda *ks: [{"k": k, "v": k} for k in ks]
+    case = nested_case(schema, {"id": "D", "left": rows("a", "b"), "right": rows("c", "d")})
+    counts, _ = score_case(case, structured_prediction({"id": "D", "left": rows("a", "b", "x", "y"), "right": []}), Eval())
+    path = lambda p, key: counts.get(f"path|document.{p}|{key}", 0)
+    assert (path("left", "matched_records"), path("right", "matched_records"), path("right", "missing_records")) == (2, 0, 2)
+    assert counts["repeated_matched_records"] == 2 and path("left", "hallucinated_records") == 2
+
+
+def test_a_collection_task_and_a_document_task_stay_distinguishable():
+    from experiments.harness.synth import catalogue
+    assert case_of(catalogue("s", records=3)).record_scope == "records"          # a collection of keyed records
+    assert paged_case().record_scope == "document"
+    with pytest.raises(ValueError, match="record_scope"):
+        paged_case("rows")

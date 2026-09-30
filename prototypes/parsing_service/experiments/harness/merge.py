@@ -224,30 +224,24 @@ CONFLICT = object()
 
 
 def _parts(values: list, node: Node) -> tuple[Any, int]:
-    """One nested value from the parts candidates of one record state, and how many repeated items it folded: objects fill
-    in child by child (a null or missing child erases nothing), collections keep every item in reading order and fold an
-    item only when another candidate already gave it (the same item read twice across a cut; repeats within one reply
-    stay). CONFLICT when two parts state different scalars for one place."""
+    """One nested value from the parts candidates of one record state, and how many of its items another candidate also
+    gave: objects fill in child by child (a null or missing child erases nothing), collections keep every item of every
+    candidate in reading order. An equal item from two candidates may be one row read twice or two rows that look alike;
+    no item carries its own source reference, so both stay and the count flags the possible repeat. CONFLICT when two
+    parts state different scalars for one place."""
+    if values and node.type == "array" and all(isinstance(v, list) for v in values):
+        given = Counter(c for items in values for c in {canon(item) for item in items})
+        return [item for items in values for item in items], sum(given[canon(item)] > 1 for items in values for item in items)
     if len({canon(v) for v in values}) <= 1:
         return (values[0] if values else None), 0
-    if node.type == "array" and all(isinstance(v, list) for v in values):
-        kept, seen = [], Counter()
-        for items in values:
-            here = Counter()
-            for item in items:
-                here[canon(item)] += 1
-                if here[canon(item)] > seen[canon(item)]:
-                    kept.append(item)
-            seen |= here
-        return kept, sum(map(len, values)) - len(kept)
     if node.type == "object" and all(isinstance(v, dict) for v in values):
-        merged, folded = {}, 0
+        merged, repeats = {}, 0
         for child in node.children:
             merged[child.name], n = _parts([v[child.name] for v in values if v.get(child.name) not in (None, "", [])], child)
             if merged[child.name] is CONFLICT:
                 return CONFLICT, 0
-            folded += n
-        return merged, folded
+            repeats += n
+        return merged, repeats
     return CONFLICT, 0
 
 
@@ -262,14 +256,14 @@ def _field(members: list[dict], node: Node, coverage: Coverage) -> dict:
         return {**out, "status": "value", "value": items, "raw": items, "normalized": any(f["normalized"] for _, f in present), **_win(present)}
     if present:
         groups = _groups(present)
-        if len(groups) == 1:
+        if len(groups) == 1 and (len(present) == 1 or node.type != "array"):    # equal collections are still two readings
             first = present[0][1]
             return {**out, "status": "value", "value": first["value"], "raw": first["raw"], "normalized": first["normalized"],
                     "alternatives": _alternatives(groups), **_win(present)}
-        merged, folded = _parts([f["value"] for _, f in present], node) if node.children is not None else (CONFLICT, 0)
+        merged, repeats = _parts([f["value"] for _, f in present], node) if node.children is not None else (CONFLICT, 0)
         if merged is not CONFLICT:      # nested values are untyped, so value and raw are the same items in the same order
             return {**out, "status": "value", "value": merged, "raw": merged, "normalized": any(f["normalized"] for _, f in present),
-                    "alternatives": _alternatives(groups), "flags": ["repeated_items_merged"] if folded else [], **_win(present)}
+                    "alternatives": _alternatives(groups), "flags": ["possible_repeated_items"] if repeats else [], **_win(present)}
         return {**out, "status": "unresolved", "alternatives": _alternatives(groups), "flags": ["conflict"]}
     if invalid:
         return {**out, "status": "unresolved", "raw": invalid[0][1]["raw"], "typed": False, "flags": ["type_mismatch"]}
