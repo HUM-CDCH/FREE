@@ -113,6 +113,25 @@ def test_token_budget_reserves_input_plus_maximum_output_before_sending():
     assert meter.spent["fresh"]["calls"] == 1
 
 
+def test_transport_failure_reports_unknown_usage_and_keeps_its_token_reservation():
+    class Chat:
+        model = "fake"
+        sent = 0
+        def complete(self, **kw):
+            self.sent += 1
+            raise OSError("connection lost after sending")
+    chat = Chat()
+    meter = Provider(chat, counter=SimpleNamespace(request_tokens=lambda *args: 100)).view(2, 140)
+    with pytest.raises(OSError, match="connection lost"):
+        meter.complete(system="s", user="u", schema=None, max_tokens=40)
+    fresh = meter.spent["fresh"]
+    assert fresh["calls"] == fresh["failed"] == fresh["unknown_usage"] == 1
+    assert fresh["input_tokens"] == fresh["output_tokens"] == 0  # lower bounds, not known zero usage
+    with pytest.raises(BudgetExceeded):
+        meter.complete(system="s", user="another", schema=None, max_tokens=40)
+    assert chat.sent == fresh["calls"] == 1
+
+
 def test_recovery_continuations_join_effective_source_parts():
     case = case_of({"id": "c", "group": "c", "split": "dev", "passages": [
         {"id": "p1_s0", "page": 1, "text": "Alice"}, {"id": "p2_s0", "page": 2, "text": "Paris"}],

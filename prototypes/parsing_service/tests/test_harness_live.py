@@ -39,6 +39,8 @@ def test_token_probabilities_under_structured_output_are_reported_and_say_which_
         else "raw (pre-constraint: a forced token looks unlikely)"
     print("\nPROBE forced-enum value stats:", forced, "| kind:", kind, "| unconstrained reply:", repr(free.text[:60]))
     print("PROBE served identity:", provider.identity)
+    print("PROBE usage:", {name: {"input_tokens": reply.input_tokens, "output_tokens": reply.output_tokens}
+                           for name, reply in (("constrained", constrained), ("free", free))})
     assert constrained.logprobs, "the server returned no token probabilities for a constrained reply"
     assert forced is not None and 0.0 < forced["p_first"] <= 1.0
 

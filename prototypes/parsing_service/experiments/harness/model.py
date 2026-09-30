@@ -155,6 +155,7 @@ class Metered:
             side["seconds"] = round(side["seconds"] + seconds, 6)
             if reply is None:
                 side["failed"] += 1
+                side["unknown_usage"] += 1
             else:
                 side["calls"] += reply.replayed
                 side["input_tokens"] += reply.input_tokens or 0
