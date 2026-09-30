@@ -23,6 +23,7 @@ const revisions: SchemaRevisionRecord[] = [
   { schemaRevisionId: REVISION_2, extractionSchemaId: SCHEMA, revisionNumber: 2, origin: 'researcher-edit', schemaTree: definition('year'), createdAt: new Date('2026-08-01T12:01:00Z') },
   { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: definition('site'), createdAt: new Date('2026-08-01T12:00:00Z') },
 ]
+const EXCERPTED = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
 
 function store(overrides: Partial<Pick<ResearcherProjectStore, 'initializeSchemaRevision' | 'appendSchemaRevision' | 'listSchemaRevisions' | 'getSchemaRevision'>> = {}) {
   return {
@@ -48,7 +49,7 @@ describe('Schema Revision routes', () => {
         expectedRevisionNumber: 1, ...policySchema }),
     }))
     expect(response.status).toBe(201)
-    expect(fixture.appendSchemaRevision).toHaveBeenCalledWith(PROJECT, SCHEMA, 1, policySchema)
+    expect(fixture.appendSchemaRevision).toHaveBeenCalledWith(PROJECT, SCHEMA, 1, policySchema, undefined)
     expect(schemaRevisionResponseSchema.parse(await response.json()).revision.schemaNodes).toEqual(policySchema.schemaNodes)
     const reopened = await GET(new Request(`http://test/api/schema-revisions/${REVISION_2}?projectContextId=${PROJECT}&extractionSchemaId=${SCHEMA}`))
     expect(reopened.status).toBe(200)
@@ -70,7 +71,7 @@ describe('Schema Revision routes', () => {
       revisionNumber: 1,
       origin: 'suggestion',
     })
-    expect(fixture.initializeSchemaRevision).toHaveBeenCalledWith(PROJECT, definition('site'))
+    expect(fixture.initializeSchemaRevision).toHaveBeenCalledWith(PROJECT, definition('site'), null)
   })
 
   it('appends a validated researcher revision and returns its identity and number', async () => {
@@ -94,7 +95,24 @@ describe('Schema Revision routes', () => {
       revisionNumber: 2,
       schemaNodes: nodes('year'),
     })
-    expect(fixture.appendSchemaRevision).toHaveBeenCalledWith(PROJECT, SCHEMA, 1, definition('year'))
+    expect(fixture.appendSchemaRevision).toHaveBeenCalledWith(PROJECT, SCHEMA, 1, definition('year'), undefined)
+  })
+
+  it('forwards the source declaration a write carries: absent inherits, null records none, a malformed one is refused', async () => {
+    const fixture = store()
+    const { POST } = createSchemaRevisionHandlers(fixture)
+    const post = (body: object) => POST(new Request('http://test/api/schema-revisions', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    }))
+    const append = { projectContextId: PROJECT, extractionSchemaId: SCHEMA, expectedRevisionNumber: 1, ...definition('year') }
+
+    for (const body of [{ ...append, sourceCoverage: EXCERPTED }, { ...append, sourceCoverage: null }, append])
+      expect((await post(body)).status).toBe(201)
+    expect((await post({ projectContextId: PROJECT, ...definition('site'), sourceCoverage: EXCERPTED })).status).toBe(201)
+    expect((await post({ ...append, sourceCoverage: { complete: false, sourceCharacters: 10, omitted: [] } })).status).toBe(422)
+
+    expect(vi.mocked(fixture.appendSchemaRevision).mock.calls.map((call) => call[4])).toEqual([EXCERPTED, null, undefined])
+    expect(fixture.initializeSchemaRevision).toHaveBeenCalledWith(PROJECT, definition('site'), EXCERPTED)
   })
 
   it('returns the winning head for a stale write without exposing persistence details', async () => {

@@ -65,11 +65,7 @@ function readySuggestionDto(
     executionStatus: 'COMPLETED',
     phase: 'READY',
     proposal: schemaTree,
-    coverage: schemaTree.schemaNodes.map((node) => ({
-      nodeId: node.id,
-      present: 2,
-      total: 2,
-    })),
+    sourceCoverage: null,
     draft,
     draftVersion,
     failure: null,

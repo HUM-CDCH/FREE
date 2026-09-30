@@ -34,7 +34,7 @@ function ready(
     executionStatus: 'COMPLETED',
     phase: 'READY',
     proposal: definition,
-    coverage: [],
+    sourceCoverage: null,
     draft: definition,
     draftVersion,
     failure: null,

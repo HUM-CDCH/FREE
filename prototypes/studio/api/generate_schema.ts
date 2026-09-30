@@ -74,7 +74,7 @@ export function createPostGenerateSchema(
       })
       const result = await awaitOperation<SchemaGenerated>(operations(), workflowID, request.signal)
       if (!result.ok) throw new ApiError(result.status, result.code, result.message)
-      return json({ template: result.template, raw: result.raw, pages: result.pages })
+      return json({ template: result.template, raw: result.raw, pages: result.pages, sourceCoverage: result.sourceCoverage ?? null })
     } catch (error) {
       return apiErrorResponse(error)
     }

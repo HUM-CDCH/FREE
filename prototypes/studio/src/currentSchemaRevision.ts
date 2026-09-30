@@ -19,6 +19,7 @@ import {
 import { sameSchemaDefinition } from './schemaDefinitionEquality'
 import { SchemaRevisionConflictError } from './schemaRevisions'
 import type { SchemaModelContext } from './api'
+import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Persistence port
@@ -30,8 +31,11 @@ import type { SchemaModelContext } from './api'
  * capabilities.
  */
 export type SchemaEditorPersistence = {
-  /** Hand each committed draft to this persistence's save engine. */
-  edit(definition: SchemaDefinition): void
+  /**
+   * Hand each committed draft to this persistence's save engine. Without `sourceCoverage` the saved revision keeps the
+   * declaration of the suggestion it was edited from; a wholesale replacement names its own, null for none.
+   */
+  edit(definition: SchemaDefinition, sourceCoverage?: SourceCoverage | null): void
   /** Durable Extraction Schema identity; absent for local drafts. */
   extractionSchemaId?(): string | null
   /** The Project Context the durable schema lives in: the scope of the model operations a reloaded page looks for. */
@@ -39,6 +43,7 @@ export type SchemaEditorPersistence = {
   initialize?(
     definition: SchemaDefinition,
     signal?: AbortSignal,
+    sourceCoverage?: SourceCoverage | null,
   ): Promise<SchemaRevision>
   flush?(): Promise<AcknowledgedSchemaRevision | null>
   saveState?(): SchemaSaveState | null
@@ -110,14 +115,17 @@ export function durableSchemaPersistence(options: {
   projectContextId: string
   initial: AcknowledgedSchemaRevision | null
   debounceMs?: number
+  /** `sourceCoverage` omitted: the new revision inherits its head's declaration (see `SchemaEditorPersistence.edit`). */
   append(
     extractionSchemaId: string,
     expectedRevisionNumber: number,
     definition: SchemaDefinition,
+    sourceCoverage?: SourceCoverage | null,
   ): Promise<SchemaRevision>
   initialize(
     definition: SchemaDefinition,
     signal?: AbortSignal,
+    sourceCoverage?: SourceCoverage | null,
   ): Promise<SchemaRevision>
   listRevisions(
     extractionSchemaId: string,
@@ -135,12 +143,17 @@ export function durableSchemaPersistence(options: {
   function notify() {
     for (const listener of listeners) listener()
   }
+  // A wholesale replacement's declaration, held until a save carries it: the save engine may merge later edits into
+  // that save, and those edits derive from the replacement. Adopting the server's head drops it.
+  let replacement: { sourceCoverage: SourceCoverage | null } | null = null
   // One append binding per coordinator; the Extraction Schema id arrives with
   // the first revision when the scope starts without one.
-  const appendCurrent = (expected: number, definition: SchemaDefinition) => {
-    if (extractionSchemaId === null)
-      return Promise.reject(new Error('No durable schema is open.'))
-    return options.append(extractionSchemaId, expected, definition)
+  const appendCurrent = async (expected: number, definition: SchemaDefinition) => {
+    if (extractionSchemaId === null) throw new Error('No durable schema is open.')
+    const carried = replacement
+    const saved = await options.append(extractionSchemaId, expected, definition, carried?.sourceCoverage)
+    if (replacement === carried) replacement = null
+    return saved
   }
   let coordinator: SchemaSaveCoordinator | null = options.initial
     ? createSchemaSaveCoordinator(options.initial, appendCurrent, options.debounceMs, notify)
@@ -156,16 +169,18 @@ export function durableSchemaPersistence(options: {
     projectContextId() {
       return options.projectContextId
     },
-    initialize(definition, signal) {
+    initialize(definition, signal, sourceCoverage) {
       if (coordinator) return Promise.reject(new Error('A durable schema is already open.'))
-      return options.initialize(definition, signal).then((revision) => {
+      return options.initialize(definition, signal, sourceCoverage).then((revision) => {
         attach(revision)
         notify()
         return revision
       })
     },
-    edit(definition) {
-      if (coordinator) coordinator.edit(definition)
+    edit(definition, sourceCoverage) {
+      if (!coordinator) return
+      if (sourceCoverage !== undefined) replacement = { sourceCoverage }
+      coordinator.edit(definition)
     },
     flush() {
       return coordinator ? coordinator.flush() : Promise.resolve(null)
@@ -174,6 +189,7 @@ export function durableSchemaPersistence(options: {
       return coordinator ? coordinator.state : null
     },
     reloadCurrent() {
+      replacement = null
       return coordinator?.reloadCurrent() ?? null
     },
     listRevisions(limit, signal) {
@@ -246,22 +262,27 @@ export type SchemaEditorSnapshot = {
   creatingFromRevisionId: string | null
   previewingRevisionId: string | null
   historicalPreview: SchemaRevision | null
+  /** What the generation behind the current draft did not read of its source: set while that generated draft stays
+   *  (edits included), null once it is replaced wholesale or when the generation read the whole source. The saved
+   *  revision keeps the declaration and edits inherit it, so a reopened schema shows it again. */
+  sourceCoverage: Extract<SourceCoverage, { complete: false }> | null
 }
 
 export type SchemaEditorController = {
   snapshot(): SchemaEditorSnapshot
   subscribe(listener: () => void): () => void
 
-  /** Runs a generation; `cancel` is what a user's Stop calls on the server, before the wait ends. */
+  /** Runs a generation; `cancel` is what a user's Stop calls on the server, before the wait ends. The request resolves
+   *  the template and may declare what of the source the model read. */
   generate(
-    request: (signal: AbortSignal) => Promise<unknown>,
+    request: (signal: AbortSignal, declareSourceCoverage: (coverage: SourceCoverage | null) => void) => Promise<unknown>,
     options?: { cancel?: () => Promise<void> },
   ): Promise<void>
   cancelGeneration(): void
   /** The durable scope a reloaded page lists model operations for; null for a local draft. */
   operationScope(): { projectContextId: string; extractionSchemaId: string | null } | null
   /** Saves a generation that finished while no tab waited for it, but only onto its base; true when it was saved. */
-  restoreGeneration(template: unknown, baseSchemaRevisionId: string | null): Promise<boolean>
+  restoreGeneration(template: unknown, baseSchemaRevisionId: string | null, sourceCoverage?: SourceCoverage | null): Promise<boolean>
 
   commit(
     mutator: (nodes: SchemaNode[]) => SchemaNode[],
@@ -300,6 +321,8 @@ export function createSchemaEditorController(
     /** Routes each committed mutation message (toasts, logs). */
     onCommitMessage?: (message: string) => void
     historyLimit?: number
+    /** The declaration saved with the revision the editor opens on (`initialDraft`); null when none was recorded. */
+    initialSourceCoverage?: SourceCoverage | null
   } = {},
 ): SchemaEditorController {
   const historyLimit = options.historyLimit ?? 20
@@ -320,6 +343,10 @@ export function createSchemaEditorController(
   let historyAbort: AbortController | null = null
   let replacementVersion = 0
   let draftVersion = 0
+  /** The adopted generation's declaration, valid for the replacement it made; a reopened revision's counts as the
+   *  replacement that opened the editor. */
+  let generatedCoverage: { coverage: SourceCoverage | null; replacementVersion: number } | null =
+    options.initialSourceCoverage ? { coverage: options.initialSourceCoverage, replacementVersion } : null
   let disposed = false
 
   const listeners = new Set<() => void>()
@@ -351,6 +378,10 @@ export function createSchemaEditorController(
       creatingFromRevisionId,
       previewingRevisionId,
       historicalPreview,
+      sourceCoverage:
+        generatedCoverage?.replacementVersion === replacementVersion && generatedCoverage.coverage?.complete === false
+          ? generatedCoverage.coverage
+          : null,
     }
   }
   function publish() {
@@ -426,12 +457,17 @@ export function createSchemaEditorController(
   }
 
   /** Joins a generated candidate to the revision chain — onto the acknowledged head when a schema exists (the save
-   *  coordinator's expected head), else as the first revision. generate() and restoreGeneration() share it. */
-  async function adoptGenerated(definition: SchemaDefinition, signal?: AbortSignal): Promise<boolean> {
+   *  coordinator's expected head), else as the first revision — with the generation's declaration, which the saved
+   *  revision keeps. generate() and restoreGeneration() share it. */
+  async function adoptGenerated(
+    definition: SchemaDefinition,
+    sourceCoverage: SourceCoverage | null,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
     if ((persistence.extractionSchemaId?.() ?? null) !== null) {
       // Keep the acknowledged current draft mounted and extractable while the generated candidate joins the revision
       // chain. The save acknowledgement is the only event allowed to replace it.
-      persistence.edit(definition)
+      persistence.edit(definition, sourceCoverage)
       const revision = await flushPersistence()
       if (!revision) throw new Error('A durable Extraction Schema is required.')
       if (draft === null || !sameSchemaDefinition(draft, revision)) {
@@ -443,7 +479,7 @@ export function createSchemaEditorController(
       return true
     }
     if (!persistence.initialize) throw new Error('Schema generation is unavailable for this draft.')
-    const revision = await persistence.initialize(definition, signal)
+    const revision = await persistence.initialize(definition, signal, sourceCoverage)
     if (signal?.aborted || disposed) return false
     replacementVersion += 1
     draft = definition
@@ -475,16 +511,24 @@ export function createSchemaEditorController(
       historicalPreview = null
       publish()
       try {
-        const generatedSchema = await request(abort.signal)
+        let declared: SourceCoverage | null = null
+        const generatedSchema = await request(abort.signal, (coverage) => {
+          declared = coverage
+        })
         if (abort.signal.aborted || disposed) return
         const parsed = templateToSchemaDefinition(generatedSchema)
         const definition = normalizeSchemaDefinition(parsed)
-        if (!(await adoptGenerated(definition, abort.signal))) return
+        if (!(await adoptGenerated(definition, declared, abort.signal))) return
+        generatedCoverage = { coverage: declared, replacementVersion }
         generating = false
         publish()
       } catch (error) {
         if (abort.signal.aborted || disposed) return
+        const failedOn = draft
         persistence.reloadCurrent?.()
+        // A save conflict's reload adopts the competing revision (the save subscription replaces the draft without a
+        // replacement); the declaration described the draft it replaced. A failure that keeps the draft keeps it.
+        if (draft !== failedOn) generatedCoverage = null
         generating = false
         generationError =
           error instanceof Error ? error.message : 'Schema generation failed.'
@@ -500,7 +544,7 @@ export function createSchemaEditorController(
     /** Saves a generation that finished while no tab waited for it (a reload or a restart), but only onto its base: the
      *  base is still the acknowledged revision of a clean draft, or no Extraction Schema exists yet. Anything else — and a
      *  conflict, meaning newer work landed first — drops it without an error (spec, *Generation*). */
-    async restoreGeneration(template, baseSchemaRevisionId) {
+    async restoreGeneration(template, baseSchemaRevisionId, sourceCoverage = null) {
       if (disposed || generating) return false
       const save = persistence.saveState?.() ?? null
       const onBase = baseSchemaRevisionId === null
@@ -515,7 +559,8 @@ export function createSchemaEditorController(
         return false
       }
       try {
-        const saved = await adoptGenerated(definition)
+        const saved = await adoptGenerated(definition, sourceCoverage)
+        if (saved) generatedCoverage = { coverage: sourceCoverage, replacementVersion }
         publish()
         return saved
       } catch (error) {
@@ -633,7 +678,8 @@ export function createSchemaEditorController(
             ? historicalPreview
             : await persistence.getRevision(schemaRevisionId)
         await flushPersistence()
-        persistence.edit(normalizeSchemaDefinition(loaded))
+        // Restored content is not the current suggestion's: the new revision records no declaration.
+        persistence.edit(normalizeSchemaDefinition(loaded), null)
         const created = await flushPersistence()
         if (!created)
           throw new Error('A durable Extraction Schema is required.')

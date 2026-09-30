@@ -176,7 +176,8 @@ prompts and interpret their own replies; every model call they make goes through
 `kie/extract/calls.py`, which routes it to its role's model, invokes the
 `llm.py` adapter and records its `Call`. When supplied a counter (as in Article),
 it also admits the request against the served context. Generic Catalog uses
-character budgets; recipe Catalog owns input-budget admission in
+character budgets and names the source text a budget cut from a call in a
+`text_truncated` issue; recipe Catalog owns input-budget admission in
 `grounded._Run.call`. The
 [pipeline map](docs/extraction-experiments.md#pipeline-map) names the owner of
 each step from the pinned request to the result Studio accepts.

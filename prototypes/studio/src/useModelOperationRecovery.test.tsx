@@ -25,7 +25,7 @@ function generation(n: number, status: ModelOperation['status'], over: Partial<G
   return {
     kind: 'generation', workflowId: `suggestion:${uuid(n)}`, operationId: uuid(n), status, instruction: `Instruction ${n}`,
     createdAt: new Date(1_700_000_000_000 - n).toISOString(), failure: null, baseSchemaRevisionId: R1,
-    template: status === 'SUCCEEDED' ? TEMPLATE : null, ...over,
+    template: status === 'SUCCEEDED' ? TEMPLATE : null, sourceCoverage: null, ...over,
   }
 }
 function proposal(n: number, status: ModelOperation['status'], over: Partial<Proposal> = {}): Proposal {
@@ -163,6 +163,17 @@ describe('useModelOperationRecovery', () => {
     await tick(2_000)
     expect(moved.appends).toEqual([1])
     expect(moved.schema.snapshot().draft?.recordDescription).toBe('One site record.')
+  })
+
+  it('a restored generation keeps its declaration of what it did not read', async () => {
+    const sourceCoverage = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+    stubFetch([[generation(1, 'RUNNING')], [generation(1, 'SUCCEEDED', { sourceCoverage })]])
+    const saved = durableSchema()
+    renderRecovery(saved.schema)
+    await tick(0)
+    await tick(2_000)
+    expect(saved.schema.snapshot().draft?.recordDescription).toBe('One restored record.')
+    expect(saved.schema.snapshot().sourceCoverage).toEqual(sourceCoverage)
   })
 
   it('a restored proposal reopens the review bar through proposalReview.start with its workflow ID', async () => {

@@ -103,6 +103,20 @@ describe('schema revision client', () => {
     expect(fetch.mock.calls[3][1]).toMatchObject({ method: 'POST' })
   })
 
+  it('writes a revision’s source declaration only when the write names one', async () => {
+    const fetch = vi.fn().mockImplementation(async () => Response.json({ revision }, { status: 201 }))
+    vi.stubGlobal('fetch', fetch)
+    const excerpted = { complete: false as const, sourceCharacters: 900, omitted: [{ page: 2, start: 400, end: 500 }] }
+
+    await initializeSchemaRevision(PROJECT, definition, excerpted)
+    await appendSchemaRevision(PROJECT, SCHEMA, 1, definition, null)
+    await appendSchemaRevision(PROJECT, SCHEMA, 2, definition)
+
+    const bodies = fetch.mock.calls.map(([, init]) => JSON.parse(init.body))
+    expect(bodies.map((body) => body.sourceCoverage)).toEqual([excerpted, null, undefined])
+    expect(bodies[2]).not.toHaveProperty('sourceCoverage')
+  })
+
   it('preserves the winning head on a conflict', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => Response.json({
       error: { code: 'revision_conflict', message: 'changed', details: { currentRevision: revision } },

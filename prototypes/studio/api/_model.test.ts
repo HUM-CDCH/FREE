@@ -252,7 +252,7 @@ describe('generateSchemaWithModel', () => {
     const markdown = Array.from({ length: 45 }, (_, i) =>
       `<!-- FREE:PAGE ${i + 1} -->\nStart ${i + 1}\n${'Source '.repeat(1700)}\nEnd ${i + 1}\n`,
     ).join('\n')
-    await generateSchemaWithModel(CALLER, { document: { ...document, markdown }, instruction: '' }, generalTarget)
+    const result = await generateSchemaWithModel(CALLER, { document: { ...document, markdown }, instruction: '' }, generalTarget)
     const sent = JSON.stringify(generateTextMock.mock.calls[0][0].messages)
     expect(sent.length).toBeLessThan(55_000)
     for (let i = 1; i <= 45; i += 1) {
@@ -260,6 +260,16 @@ describe('generateSchemaWithModel', () => {
       expect(sent).toContain(`End ${i}`)
     }
     expect(sent).toContain('excerpts')
+    // The suggestion does not claim the whole source: every excerpted page's unsent middle is declared.
+    if (result.sourceCoverage.complete) throw new Error('expected an excerpted source to be declared incomplete')
+    expect(result.sourceCoverage.sourceCharacters).toBe(markdown.length)
+    expect(result.sourceCoverage.omitted.map((omission) => omission.page)).toEqual(Array.from({ length: 45 }, (_, i) => i + 1))
+  })
+
+  it('declares a source it sent whole complete', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"_description":"One entry.","label":"string"}' })
+    const result = await generateSchemaWithModel(CALLER, { document: { ...document, markdown: '# A short register' }, instruction: '' }, generalTarget)
+    expect(result.sourceCoverage).toEqual({ complete: true })
   })
 
   it('passes cancellation to the generic model call', async () => {

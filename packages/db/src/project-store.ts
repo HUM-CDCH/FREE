@@ -60,6 +60,8 @@ type StoredSchemaRevision = {
   revisionNumber: number
   origin: 'SUGGESTION' | 'RESEARCHER_EDIT' | 'MODEL_EDIT'
   schemaTree: unknown
+  /** Selected only where a revision's source declaration is read: the append's head and the reopened revision. */
+  modelAttribution?: unknown
   createdAt: Date
 }
 
@@ -92,6 +94,20 @@ function schemaRevision(row: StoredSchemaRevision): SchemaRevisionRecord {
   }
 }
 
+/**
+ * A Schema Revision's `modelAttribution` records what the model behind its content declared: `{ sourceCoverage }`,
+ * what the Schema Suggestion that produced the content read of its source. Studio owns the declaration's shape.
+ */
+function modelAttribution(sourceCoverage: unknown): { sourceCoverage: unknown } | null {
+  return sourceCoverage === null || sourceCoverage === undefined ? null : { sourceCoverage }
+}
+
+function declaredSourceCoverage(attribution: unknown): unknown {
+  return attribution !== null && typeof attribution === 'object' && 'sourceCoverage' in attribution
+    ? (attribution.sourceCoverage ?? null)
+    : null
+}
+
 async function ownedSchemaRevision(
   transaction: DatabaseTransaction,
   researcherAccountId: string,
@@ -118,6 +134,7 @@ async function ownedSchemaRevision(
       revisionNumber: fields.schemaRevision.revisionNumber,
       origin: fields.schemaRevision.origin,
       schemaTree: fields.schemaRevision.schemaTree,
+      modelAttribution: fields.schemaRevision.modelAttribution,
       createdAt: fields.schemaRevision.createdAt,
     }))
     .where((fields, functions) =>
@@ -317,6 +334,8 @@ export type DocumentReopenSnapshot = {
     schemaRevisionId: string
     revisionNumber: number
     schemaTree: unknown
+    /** What the Schema Suggestion behind this revision read of its source (Studio validates it); null when none. */
+    sourceCoverage: unknown
   } | null
 }
 
@@ -617,10 +636,11 @@ export type BatchSchemaSuggestionRecord = {
   sources: BatchSchemaSuggestionSourceRecord[]
 }
 
-/** What one successful attempt publishes (Studio's SuggestionProposal). */
+/** What one successful attempt publishes (Studio's SuggestionProposal); `coverage` is Studio's declaration of what
+ *  each Source Document suggestion read of its source, or null. */
 export type BatchSchemaSuggestionProposal =
   | { phase: 'READY'; proposal: unknown; coverage: unknown; draft: unknown }
-  | { phase: 'HETEROGENEOUS' }
+  | { phase: 'HETEROGENEOUS'; coverage?: unknown }
 
 export type UpdateBatchSchemaSuggestionDraftResult =
   | { status: 'updated'; suggestion: BatchSchemaSuggestionRecord }
@@ -744,9 +764,11 @@ export type ResearcherProjectStore = {
     batchSchemaSuggestionId: string,
     expectedAttempt: number,
   ): Promise<RetryBatchSchemaSuggestionResult>
+  /** `sourceCoverage` is the declaration of the Schema Suggestion that produced the tree, when it made one. */
   initializeSchemaRevision(
     projectContextId: string,
     schemaTree: unknown,
+    sourceCoverage?: unknown,
   ): Promise<AppendSchemaRevisionResult | null>
   listExtractionSchemas(
     projectContextId: string,
@@ -757,11 +779,16 @@ export type ResearcherProjectStore = {
     extractionSchemaId: string,
     name: string,
   ): Promise<ExtractionSchemaRecord | null>
+  /**
+   * Omitted, `sourceCoverage` is inherited from the head: an edit keeps the declaration of the suggestion it was made
+   * from. A replacement names its own suggestion's declaration, or null for content no suggestion produced.
+   */
   appendSchemaRevision(
     projectContextId: string,
     extractionSchemaId: string,
     expectedRevisionNumber: number,
     schemaTree: unknown,
+    sourceCoverage?: unknown,
   ): Promise<AppendSchemaRevisionResult | null>
   listSchemaRevisions(
     projectContextId: string,
@@ -1529,6 +1556,7 @@ export function createResearcherProjectStore(
                   'extractionSchemaId',
                   'revisionNumber',
                   'schemaTree',
+                  'modelAttribution',
                 )
                 .orderBy((revision) => revision.revisionNumber.desc())
                 .first()
@@ -1563,6 +1591,7 @@ export function createResearcherProjectStore(
                   schemaRevisionId: currentSchemaRevision.id,
                   revisionNumber: currentSchemaRevision.revisionNumber,
                   schemaTree: currentSchemaRevision.schemaTree,
+                  sourceCoverage: declaredSourceCoverage(currentSchemaRevision.modelAttribution),
                 }
               : null,
         }
@@ -1915,7 +1944,7 @@ export function createResearcherProjectStore(
       if (!suggestion) throw new Error('Retried Batch Schema Suggestion could not be read.')
       return { status: result, suggestion }
     },
-    async initializeSchemaRevision(projectContextId, schemaTree) {
+    async initializeSchemaRevision(projectContextId, schemaTree, sourceCoverage) {
       return database.transaction(async ({ orm }) => {
         const project = await orm.public.ProjectContext.select('id').first({
           id: projectContextId,
@@ -1959,6 +1988,7 @@ export function createResearcherProjectStore(
           revisionNumber: 1,
           origin: 'SUGGESTION',
           schemaTree,
+          modelAttribution: modelAttribution(sourceCoverage),
         })
         return {
           status: 'created' as const,
@@ -2038,6 +2068,7 @@ export function createResearcherProjectStore(
       extractionSchemaId,
       expectedRevisionNumber,
       schemaTree,
+      sourceCoverage,
     ) {
       if (
         !(await ownsProjectContext(
@@ -2069,7 +2100,7 @@ export function createResearcherProjectStore(
           const row = await orm.public.SchemaRevision.where({
             extractionSchemaId,
           })
-            .select(...revisionFields)
+            .select(...revisionFields, 'modelAttribution')
             .orderBy((revision) => revision.revisionNumber.desc())
             .first()
           const head = row ? schemaRevision(row as StoredSchemaRevision) : null
@@ -2083,6 +2114,11 @@ export function createResearcherProjectStore(
             revisionNumber: expectedRevisionNumber + 1,
             origin: 'RESEARCHER_EDIT',
             schemaTree,
+            modelAttribution: modelAttribution(
+              sourceCoverage === undefined
+                ? declaredSourceCoverage((row as StoredSchemaRevision | null)?.modelAttribution)
+                : sourceCoverage,
+            ),
           })
           return {
             status: 'created' as const,
@@ -2212,7 +2248,7 @@ export function createInternalProjectWorkerStore(
                 failure: null,
                 phase: 'HETEROGENEOUS',
                 proposal: null,
-                coverage: null,
+                coverage: result.coverage ?? null,
                 draft: null,
                 draftVersion: row.draftVersion + 1,
               },

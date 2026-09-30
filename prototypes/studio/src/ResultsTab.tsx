@@ -788,6 +788,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               <div className={noticeClasses} role="status">
                 <p className="font-semibold">Incomplete Extraction</p>
                 <p>Successful values remain visible. See the persisted stage diagnostics for details.</p>
+                {attempt.diagnostics?.grounding?.issueCodes.includes('text_truncated') && (
+                  <p>Some extraction calls omitted source text because of their text budget; affected values may be missing.</p>
+                )}
               </div>
             )}
             {noReviewableResult && (

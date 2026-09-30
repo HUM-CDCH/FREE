@@ -2,6 +2,7 @@ import { CANONICAL_UUID_PATTERN } from 'studio-configuration'
 import { z } from 'zod'
 import { canonicalUuidSchema } from './projectContext.contract'
 import { schemaEditResponseSchema } from './schemaEdit.contract'
+import { sourceCoverageSchema } from './schemaSuggestionSource.contract'
 
 /** A generation or edit operation's workflow ID (spec, *Workflows*); full match, no `m` flag. */
 export const MODEL_OPERATION_WORKFLOW_ID = new RegExp(`^(suggestion|edit):(${CANONICAL_UUID_PATTERN})$`)
@@ -23,6 +24,8 @@ export const modelOperationSchema = z.discriminatedUnion('kind', [
     ...common,
     baseSchemaRevisionId: canonicalUuidSchema.nullable(),
     template: z.record(z.string(), z.unknown()).nullable(),
+    /** What the generation's model call read of the source; null while unfinished or when not recorded. */
+    sourceCoverage: sourceCoverageSchema.nullable(),
   }).strict(),
   z.object({
     kind: z.literal('proposal'),

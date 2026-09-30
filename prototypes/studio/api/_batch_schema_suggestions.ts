@@ -7,6 +7,7 @@ export function sourceSuggestionFailure(error: unknown): {
     | 'model_operation_failed'
     | 'invalid_model_output'
     | 'model_key_required'
+    | 'merge_input_too_large'
     | 'unexpected_failure'
 } {
   if (
@@ -14,7 +15,8 @@ export function sourceSuggestionFailure(error: unknown): {
     (error.code === 'invalid_model_config' ||
       error.code === 'model_operation_failed' ||
       error.code === 'invalid_model_output' ||
-      error.code === 'model_key_required')
+      error.code === 'model_key_required' ||
+      error.code === 'merge_input_too_large')
   )
     return { code: error.code }
   return { code: 'unexpected_failure' }

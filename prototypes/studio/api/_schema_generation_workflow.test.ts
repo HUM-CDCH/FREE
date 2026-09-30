@@ -31,9 +31,11 @@ function recordingSteps() {
   return { names, steps }
 }
 
+const EXCERPTED = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+
 function ports(overrides: Partial<SchemaGenerationPorts> = {}) {
   const { names, steps } = recordingSteps()
-  const generated = { template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2 }
+  const generated = { template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2, sourceCoverage: EXCERPTED }
   const generate = vi.fn(async () => generated) as unknown as SchemaGenerationPorts['generate']
   const readMarkdown = vi.fn(async (): Promise<string | null> => '# Source A')
   return { names, generate, readMarkdown, ports: { steps, readMarkdown, generate, ...overrides } as SchemaGenerationPorts }
@@ -50,7 +52,7 @@ describe('suggestSchemaWorkflow', () => {
     let namesWhenGenerated: string[] = ['unset']
     vi.mocked(generate).mockImplementation((async () => {
       namesWhenGenerated = [...names]
-      return { template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2 }
+      return { template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2, sourceCoverage: EXCERPTED }
     }) as never)
 
     const result = await suggestSchemaWorkflow(input, p)
@@ -59,7 +61,8 @@ describe('suggestSchemaWorkflow', () => {
     expect(namesWhenRead).toEqual([])
     expect(namesWhenGenerated).toEqual(['generateSchema'])
     expect(names).toEqual(['generateSchema'])
-    expect(result).toEqual({ ok: true, template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2, baseSchemaRevisionId: input.baseSchemaRevisionId })
+    // The declaration of what the model did not read is part of the persisted outcome.
+    expect(result).toEqual({ ok: true, template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2, sourceCoverage: EXCERPTED, baseSchemaRevisionId: input.baseSchemaRevisionId })
     expect(generate).toHaveBeenCalledExactlyOnceWith(
       { researcherAccountId: OWNER },
       expect.objectContaining({ document: { file: null, pages: null, markdown: '# Source A' }, instruction: 'Catalog entries' }),
@@ -89,17 +92,17 @@ describe('suggestSchemaWorkflow', () => {
     await expect(suggestSchemaWorkflow(input, keyless.ports)).resolves.toMatchObject({ ok: false, status: 409, code: 'model_key_required' })
   })
 
-  it("the step's output copies only the template, the raw text, the page count and the base", async () => {
+  it("the step's output copies only the template, the raw text, the page count, the source declaration and the base", async () => {
     const key = plantedKey()
     const { generate, ports: p } = ports()
     vi.mocked(generate).mockResolvedValue({
-      template: TEMPLATE, raw: '{}', pages: null,
+      template: TEMPLATE, raw: '{}', pages: null, sourceCoverage: { complete: true },
       providerMetadata: { synthetic: { marker: key } }, response: { headers: { 'x-echo': key } },
     } as never)
 
     const output = await suggestSchemaWorkflow(input, p)
 
-    expect(Object.keys(output).sort()).toEqual(['baseSchemaRevisionId', 'ok', 'pages', 'raw', 'template'])
+    expect(Object.keys(output).sort()).toEqual(['baseSchemaRevisionId', 'ok', 'pages', 'raw', 'sourceCoverage', 'template'])
     expect(holdsKey(output, key)).toBe(false)
   })
 

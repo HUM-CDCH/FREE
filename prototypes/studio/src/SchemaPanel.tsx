@@ -6,6 +6,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { deleteModelOperation, requestSchemaEdit } from './api'
+import { sourceCoverageNotice } from './sourceCoverageNotice'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { countTemplateFields, isRecord } from '../shared/template'
 import {
@@ -1444,6 +1445,11 @@ function SchemaPanel({
           <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2" role="status">
             <p className="text-[11px] text-ink">Regenerating. The current saved schema remains available.</p>
             <button className={genBtnCls} type="button" onClick={() => schema.cancelGeneration()}>Stop</button>
+          </div>
+        )}
+        {ready && snap.sourceCoverage && (
+          <div className="mb-3 rounded-md border border-line px-3 py-2" role="note">
+            <p className="text-[11px] text-ink-muted">{sourceCoverageNotice(snap.sourceCoverage)}</p>
           </div>
         )}
         {ready && snap.generationError && (

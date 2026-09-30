@@ -304,6 +304,21 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByRole('button', { name: 'Regenerate' })).toBeEnabled()
   })
 
+  it('says what of the source an excerpted generation did not read', async () => {
+    const setup = renderPanel()
+
+    await act(async () => {
+      await setup.schema.generate(async (_signal, declareSourceCoverage) => {
+        declareSourceCoverage({ complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] })
+        return { _description: 'One test record.', title: 'string' }
+      })
+    })
+
+    expect(
+      screen.getByText('Suggested from excerpts: the middle of page 1 was not read (4,040 of 50,040 characters).'),
+    ).toBeVisible()
+  })
+
   it('regenerates from instructions edited in the compact popover', () => {
     const onGenerateInstructions = vi.fn()
     renderPanel({}, { showRegenerate: true, onGenerateInstructions })
@@ -1179,7 +1194,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   it('a reloaded panel shows a running operation with its instruction, and Stop cancels it', async () => {
     const running: ModelOperation = {
       kind: 'generation', workflowId: 'suggestion:51000000-0000-4000-8009-0000000000f1', operationId: '51000000-0000-4000-8009-0000000000f1',
-      status: 'RUNNING', instruction: 'Catalog entries', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null,
+      status: 'RUNNING', instruction: 'Catalog entries', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null, sourceCoverage: null,
     }
     listModelOperations.mockResolvedValueOnce([running])
     renderPanel({ durableScope: true })
@@ -1197,7 +1212,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   it('a reloaded panel before its first schema shows the running first generation with a Stop', async () => {
     const running: ModelOperation = {
       kind: 'generation', workflowId: 'suggestion:51000000-0000-4000-8009-0000000000f3', operationId: '51000000-0000-4000-8009-0000000000f3',
-      status: 'RUNNING', instruction: 'First catalog', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null,
+      status: 'RUNNING', instruction: 'First catalog', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null, sourceCoverage: null,
     }
     listModelOperations.mockResolvedValueOnce([running])
     renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })

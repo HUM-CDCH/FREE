@@ -11,6 +11,7 @@ import {
   batchSchemaSuggestionRetryRequestSchema,
   batchSchemaSuggestionRunRequestSchema,
 } from '../shared/batchSchemaSuggestion.contract.js'
+import { batchSourceCoverageSchema, type BatchSourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 import { parseSchemaDefinition } from 'extraction/schema'
 import {
   ApiError,
@@ -46,6 +47,13 @@ function failureDto(value: unknown) {
   return null
 }
 
+/** The `coverage` column's source declaration. Rows published before it hold schema-path agreement counts (or
+ *  nothing), which declare nothing about the source: they read as not recorded. */
+function storedSourceCoverage(value: unknown): BatchSourceCoverage | null {
+  const declared = batchSourceCoverageSchema.safeParse(value)
+  return declared.success ? declared.data : null
+}
+
 function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
   return batchSchemaSuggestionResponseSchema.parse({
     batchSchemaSuggestion: {
@@ -59,7 +67,7 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
         suggestion.proposal === null
           ? null
           : parseSchemaDefinition(suggestion.proposal),
-      coverage: suggestion.coverage,
+      sourceCoverage: storedSourceCoverage(suggestion.coverage),
       draft:
         suggestion.draft === null ? null : parseSchemaDefinition(suggestion.draft),
       draftVersion: suggestion.draftVersion,

@@ -70,10 +70,36 @@ def _instruction(schema: Schema, nodes: Sequence) -> str:
     return "\n".join(lines)
 
 
+def pages_of(passages: Sequence[Passage]) -> str:
+    """`page 3` or `pages 3–5`: the pages a contiguous run of passages lies on."""
+    first, last = passages[0].page, passages[-1].page
+    return f"page {first}" if first == last else f"pages {first}–{last}"
+
+
+def _unshown(passages: Sequence[Passage], budget: int) -> str:
+    """The passages `text_of` places at or beyond `budget`, in segment terms: the first one cut, from the code point
+    of its own text where the cut falls, through the last one."""
+    start = 0
+    for index, passage in enumerate(passages):
+        stripped = passage.text.strip()
+        if start + len(stripped) > budget:
+            break
+        start += len(stripped) + 2  # the blank line text_of puts between passages
+    cut = passages[index:]
+    first = cut[0].id
+    if start < budget:
+        lead = len(passage.text) - len(passage.text.lstrip())
+        first += f" from code point {lead + budget - start}"
+    through = f" through {cut[-1].id}" if len(cut) > 1 else ""
+    return f"{first}{through} ({pages_of(cut)})"
+
+
 def _clipped(passages: Sequence[Passage], budget: int, issues: list[Issue], record: int | None) -> str:
+    """The passages' text cut at `budget` characters, with a `text_truncated` issue naming the source not shown."""
     text = text_of(passages)
     if len(text) > budget:
-        issues.append(Issue("text_truncated", f"{len(text)} characters of text, {budget} shown to the model", record))
+        issues.append(Issue("text_truncated", f"{len(text)} characters of text, {budget} shown to the model; "
+                            f"not shown: {_unshown(passages, budget)}", record))
         text = text[:budget]
     return text
 
