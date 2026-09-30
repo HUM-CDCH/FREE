@@ -30,7 +30,7 @@ Defaults taken for the open decisions (change here to override):
     ~150k tokens) never would. Ollama remains only as a researcher-configured provider: Ollama 0.32 silently cuts
     the middle of a prompt over `num_ctx` unless sent `truncate: false`, which its transport now sends.
 - [x] 8. Recovery, checkpoint privacy, historical notices
-- [ ] 9. Real Beier validation (manual / needs-user)
+- [~] 9. Real Beier validation: probed on the 3-page extract only; see `docs/validation/2026-09-30-schema-suggestion-windows-beier-probe.md`
 
 ### 1. Add deterministic source windows
 
