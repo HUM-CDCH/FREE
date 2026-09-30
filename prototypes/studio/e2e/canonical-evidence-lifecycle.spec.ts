@@ -633,7 +633,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   }).click()
   await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
-  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
+  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toBeEnabled()
   const retryCompletionDialog = freshPage.getByRole('dialog', { name: 'Extraction finished', exact: true })
   await expect(retryCompletionDialog).toBeVisible({ timeout: 20_000 })
   await activateWithKeyboard(
