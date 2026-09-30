@@ -619,7 +619,7 @@ def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[di
                 i = paired.get(j)
                 annotated = get(record, array_path, missing)
                 if annotated is missing:
-                    count["unannotated_collections"] = count.get("unannotated_collections", 0) + 1
+                    unscored(path, 1, "unannotated_collections")
                     unscored(path, len(items(predicted[i], array_path)) if i is not None else 0)
                     continue
                 gold_array = annotated or []

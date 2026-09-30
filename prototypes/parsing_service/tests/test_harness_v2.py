@@ -454,6 +454,7 @@ def test_unannotated_and_explicitly_empty_collections_differ_under_matched_dupli
     assert not check_invariants(counts)
     path = lambda key: counts.get(f"path|document.vehicles.adjustments|{key}", 0)
     assert (path("hallucinated_records"), path("unscored_records"), path("unknown_availability_records")) == (3, 3, 1)
+    assert path("unannotated_collections") == counts["unannotated_collections"] == 1                 # V1's, on its own path
     assert path("matched_records") == path("gold_records") == 0
     parents = lambda key: counts.get(f"path|document.vehicles|{key}", 0)
     assert (parents("matched_records"), parents("duplicated_records"), parents("hallucinated_records")) == (3, 2, 1)   # V9 stays spurious
