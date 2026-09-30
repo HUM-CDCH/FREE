@@ -1,0 +1,344 @@
+{
+  "study": "spark-ids-smoke",
+  "split": "dev",
+  "variants": {
+    "base": {
+      "config_sha256": "96151d3e0dbb51c0751d80e6130661efbbe16d1531c6424dfe63aa14b7e18252",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9263157894736842,
+          "recall": 0.7719298245614035,
+          "f1": 0.8421052631578947,
+          "predicted_values": 95,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 19
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 20,
+          "matched": 20,
+          "missing": 4,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.5416666666666666,
+          "strict_documents": 0.3333333333333333,
+          "cross_page": {
+            "gold": 3,
+            "matched": 2,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 95,
+          "cited": 0,
+          "joint": 0.0,
+          "joint_given_predicted": 0.0,
+          "span_hit_given_correct": 0.0,
+          "page_hit": 0.0,
+          "segment_hit": 0.0,
+          "span_hit": 0.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 88,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.8333333333333334,
+          "replies": 6
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 6,
+            "input_tokens": 1731,
+            "output_tokens": 3032,
+            "seconds": 387.53929300000004
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9263157894736842,
+          "interval": [
+            0.8421052631578947,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.7719298245614035,
+          "interval": [
+            0.42105263157894735,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.8421052631578947,
+          "interval": [
+            0.5614035087719298,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 6,
+        "input_tokens": 1731,
+        "output_tokens": 3032,
+        "seconds": 387.53929300000004
+      }
+    },
+    "ids": {
+      "config_sha256": "f3310528bb10093df825b13dc9bf0f62ed48198f89f429e14cafb74773effe68",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 12,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.925531914893617,
+          "recall": 0.7631578947368421,
+          "f1": 0.8365384615384616,
+          "predicted_values": 94,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 20
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 20,
+          "matched": 20,
+          "missing": 4,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.5,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 94,
+          "cited": 94,
+          "joint": 0.7631578947368421,
+          "joint_given_predicted": 0.925531914893617,
+          "span_hit_given_correct": 1.0,
+          "page_hit": 1.0,
+          "segment_hit": 1.0,
+          "span_hit": 1.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 87,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.8333333333333334,
+          "replies": 12
+        },
+        "cost": {
+          "fresh": {
+            "calls": 12,
+            "input_tokens": 3594,
+            "output_tokens": 7133,
+            "seconds": 925.6758050000001
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.925531914893617,
+          "interval": [
+            0.8571428571428571,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.7631578947368421,
+          "interval": [
+            0.631578947368421,
+            0.9210526315789473
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.8365384615384616,
+          "interval": [
+            0.7272727272727273,
+            0.9210526315789473
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 12,
+        "input_tokens": 3594,
+        "output_tokens": 7133,
+        "seconds": 925.6758050000001
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "control": "base",
+      "treatment": "ids",
+      "factor": [
+        "evidence",
+        "input"
+      ],
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": 0.01355661881977673,
+        "percentile_95": [
+          -0.2727272727272727,
+          0.2870813397129187
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 6,
+        "treatment_only": 12,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": 6,
+        "input_tokens": 1863,
+        "output_tokens": 4101,
+        "seconds": 538.136512
+      }
+    }
+  ],
+  "interactions": [],
+  "provenance": {
+    "run_code_matches_current": false,
+    "cells_by_code_sha256": {
+      "777a25782bd2658c505b9c78e6382dfa3ac35f087cdb5b4bf0d0bd1fa768d82a": 6
+    },
+    "current_code_sha256": "57ec149e59343b96a6bc56dc868168745f5caa079b77b1e9bb90a7a9cb0f23a5",
+    "manifest_code_matches_current": false,
+    "environment_matches_current": true,
+    "environment_at_run": {
+      "python": "3.13.11",
+      "system": "Linux aarch64",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "jsonschema": "4.26.0",
+      "pydantic": "2.13.5",
+      "requests": "2.34.2"
+    },
+    "provider": {
+      "url": "http://extraction_model:8000/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "served": {
+        "id": "Qwen/Qwen3.8-27B-FP8",
+        "max_model_len": 32768,
+        "root": "Qwen/Qwen3.8-27B-FP8"
+      },
+      "context_tokens": 32768
+    },
+    "scorer_sha256": "4eccb898c8c3ef6457cfb5c13cd96d0a0c1cb545689875b55768c10b6ed86eb4"
+  },
+  "limits": [
+    "Documents of one group are resampled together; intervals over few groups are descriptive, not evidence of generalisation.",
+    "Synthetic or development data test the implementation, not real-world superiority.",
+    "Model calls are not deterministic even at temperature 0; repeats would measure serving variability.",
+    "Cost is real inference plus replayed replies at their recorded cost, for sealed cells only; what failed or unsealed attempts spent is `attempt_spend`, and cost deltas use the cases both arms completed.",
+    "Model-seconds are as recorded when each reply was made, under whatever load the server had then: compare calls and tokens, not seconds, across arms."
+  ],
+  "selection": "none: this report names no winner; a variant is chosen on split dev alone and reported once on test"
+}

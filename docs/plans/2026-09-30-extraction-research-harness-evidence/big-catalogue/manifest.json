@@ -1,0 +1,204 @@
+{
+  "study": {
+    "version": 1,
+    "id": "big-catalogue-pilot",
+    "dataset": "dataset.json",
+    "provider": {
+      "url": "http://extraction_model:8000/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "counter": "vllm",
+      "timeout": 1800
+    },
+    "evaluation": {
+      "min_matches": 2,
+      "iou": 0.5
+    },
+    "base": {
+      "chunking": {
+        "mode": "fixed",
+        "max_chars": 3000
+      },
+      "output": {
+        "max_tokens": 3000
+      },
+      "signals": {
+        "top_logprobs": 3
+      },
+      "budget": {
+        "input_chars": 12000,
+        "workers": 3,
+        "calls": 200
+      },
+      "recovery": {
+        "subdivide": true,
+        "depth": 2
+      }
+    },
+    "variants": {
+      "overlap": {
+        "chunking": {
+          "overlap": 1
+        }
+      },
+      "continuation": {
+        "merge": {
+          "continuation": "flags"
+        }
+      }
+    },
+    "comparisons": [
+      {
+        "control": "base",
+        "treatment": "overlap",
+        "factor": "chunking"
+      },
+      {
+        "control": "base",
+        "treatment": "continuation",
+        "factor": "merge"
+      }
+    ],
+    "combined": {
+      "name": "combined",
+      "from": [
+        "overlap",
+        "continuation"
+      ]
+    },
+    "interactions": [
+      {
+        "baseline": "base",
+        "a": "overlap",
+        "b": "continuation",
+        "ab": "combined"
+      }
+    ],
+    "budget": {
+      "max_calls": 150
+    },
+    "final": null
+  },
+  "study_sha256": "5534b40fbb7d6bebe92d3df1f6c659dfea032f90bf4f173a51696f58201761af",
+  "dataset_sha256": "70ecdf56a4589a28c340e19bda42fb4ce78d458901048919ee5f13b7e38f56b0",
+  "evaluation_sha256": "d5e5543727f1bc25f6dec6e912713ada936706c7c156e9d4391b59c4db55fdba",
+  "provider": {
+    "url": "http://extraction_model:8000/v1/chat/completions",
+    "model": "Qwen/Qwen3.8-27B-FP8",
+    "served": {
+      "id": "Qwen/Qwen3.8-27B-FP8",
+      "max_model_len": 32768,
+      "root": "Qwen/Qwen3.8-27B-FP8"
+    },
+    "context_tokens": 32768
+  },
+  "code": {
+    "experiments/extraction/analyze.py": "1a9a6d097157fd850ee835d3f7679fac0fce7813b07980e699010a706b77d5cb",
+    "experiments/extraction/manifest.py": "35d9c39f42501bc24dfa8475ecbf786e015d777dddfb786c31320630d1e0196a",
+    "experiments/harness/__init__.py": "9f67d05872f3217a07c564592972fda9a643ffcde6fa79cfd5378e789bcce621",
+    "experiments/harness/__main__.py": "332d34290851f385e665b149b05fb43bfe942fe2f8f6aa6bd27039c073c95dd6",
+    "experiments/harness/confidence.py": "f9a485239b5bb6897b989f97961d343d96f4cfeadc6cbe1306ad6eba7a1ce71c",
+    "experiments/harness/config.py": "940a75c5253845cfada90c2d1b19a403012daaf6da5ef8a735f0f0a23c3d56d7",
+    "experiments/harness/data.py": "74e9dc0ba975505d6bcc0ed16ba471f3e96ac133cada1f29b593ea8e775e0fa2",
+    "experiments/harness/evaluate.py": "4eccb898c8c3ef6457cfb5c13cd96d0a0c1cb545689875b55768c10b6ed86eb4",
+    "experiments/harness/evidence.py": "f16f1a11c36aadd43924d97f4dd45d7bf43f20da780502342bd402e7e9490229",
+    "experiments/harness/extract.py": "13cb1c8e4c4bcfda804a5057ce8894ced21b4f2f46f5f5c2d5bb180200147e28",
+    "experiments/harness/merge.py": "7a48c2f4e6b520b4cb97ae3fbe850b2efbf1655a481fea97dfb7fb7339ae02c6",
+    "experiments/harness/model.py": "42fc35110c6a7048430db94d577c4ed74e32d8f9b3bdd427ac2205494882c2f1",
+    "experiments/harness/production.py": "abcc725df90405936ee593267808afcab86210a1a87d0f69ddb4028e21811949",
+    "experiments/harness/run.py": "8d28d05bbc1a4599320819f015344246b6df810db6940e90b71e6561db7a6215",
+    "experiments/harness/signals.py": "ff3fe0ead659a19e5564f0840ed87357f032f07b98ee40c6b7ff60b937bd2b0d",
+    "experiments/harness/study.py": "97dc5148efd10bc183fa24098b8218ecbb41a31f877ba2b3611b2de1bf46a6d3",
+    "experiments/harness/synth.py": "91e758f45da98c8c4052801a994a7207ac6d56c5e4ae7017447e29681594ac5f",
+    "src/kei_exp/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/kei_exp/_pdfium.py": "6d39084b8e972e42536d34c0dd5e0ed11ec70deda0551221ff5d9acf02585dd4",
+    "src/kei_exp/api.py": "78ea707e6352e6fbdd4f563a669fcc85e1c01ad015b5253db2dd171736adba16",
+    "src/kei_exp/canonical.py": "8cc6c81d17ec42a021c2b72b2480757527043701fdcfb8cd85c11f8c93491c87",
+    "src/kei_exp/convert.py": "fd3113c97a7d68776c0fc6f84f89ff05a1aab3f663135b5f02a093f27c8bf850",
+    "src/kei_exp/cut.py": "7cdb8013b94d0b09b0b36baf6d8a7206c0718780d880a39890f12f2f7d613a8c",
+    "src/kei_exp/failures.py": "3fb055a2b8991ff59a06fd81df1404a286fa1408cfc3d8bc8e27af703837a73e",
+    "src/kei_exp/files.py": "e0f7434c63b9a20616fcadd212d81dc492a96d7ef98adae835b015ac5afbd7aa",
+    "src/kei_exp/geometry.py": "b029b017cd062af11aaac1f477c3e7291bcd5bfcb2d8f116abd8f5a68fa40a83",
+    "src/kei_exp/kie/__init__.py": "c2eff92125e842b23afe6df6158c4842753f47139c79a4c297c197605b4190d3",
+    "src/kei_exp/kie/artifacts.py": "c3b5db10c84f59070053e315159aeb0473020dc80550e11c9eb1bcecfc5f27ee",
+    "src/kei_exp/kie/blocks.py": "42622bf230dd146f8420c8050c226712464a330ccef3c56578c6be6d6d8b7696",
+    "src/kei_exp/kie/boundaries.py": "687ba1b0d0ffd87241a98395a357190ade8542b3652eb34a31014449b659fb85",
+    "src/kei_exp/kie/extract/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/kei_exp/kie/extract/acceptance.py": "88a0327d570bb7b386a2db9ee9e841843445ec132285dbd1043e5ed3bc6f86b7",
+    "src/kei_exp/kie/extract/article.py": "db7a97907009a1d70e22a6c3fcc95a44baccbee6f5c3b64cd65c9f960ded43dd",
+    "src/kei_exp/kie/extract/assembly.py": "1d588d0e4fd7dfa662ec7c4cffec4ede31cf0354a5def5afcc85aea273fd0452",
+    "src/kei_exp/kie/extract/calls.py": "c3c1ebf413f260da111bb127bb772817be5d0e9c4f5731217fa502db7d4229fa",
+    "src/kei_exp/kie/extract/catalog.py": "51a7302dd2a8e8044c5723b6daad9f77b51dd682282bf4a956bea629d63328b3",
+    "src/kei_exp/kie/extract/catalog_result.py": "16aec5406a98a579bb05710305ad7a1ff18ca390044244c95b68f97554856732",
+    "src/kei_exp/kie/extract/contexts.py": "6b8e938e6f3f947bbe69a39c02cad912dac274a9c253e4f77576c5089079839f",
+    "src/kei_exp/kie/extract/discovery.py": "7d5b70887d0f32f74054fa5a691f51715bdd80e30502ab6ad57822593c26ce8c",
+    "src/kei_exp/kie/extract/grounded.py": "6d10f54e259222d10a2f6c4057c267117c90472764c83a29aeb276d257871510",
+    "src/kei_exp/kie/extract/grounding.py": "29b81e2e531c86ad26ad8069919e20e31a13f27b914f3477142f7bdd2dd395d3",
+    "src/kei_exp/kie/extract/llm.py": "d0e61954e9f92578e6bf430682a56793afb851298a54941046d6ea49802f7d41",
+    "src/kei_exp/kie/extract/locate.py": "bbef1d798f35289e8d4b6a9a7619c2e119f1e11b99edff753353d1d58995b328",
+    "src/kei_exp/kie/extract/method.py": "0e399e4f1c668218bc76fdb4af975722510a13b27460acab7ea0a11d611fe604",
+    "src/kei_exp/kie/extract/models.py": "9d86041776b5b8d29d865e9f0364bff0eda1385582ab5e24429339e99f9d7509",
+    "src/kei_exp/kie/extract/rendering.py": "e25101553bd950e2e860ab0931179072257eed60fb8fd9e25824b9fc67681758",
+    "src/kei_exp/kie/extract/routing.py": "e37dc588b44350108ae777d5591a449c8da5df59cd5b1d0c04a54607fdeaeb1b",
+    "src/kei_exp/kie/extract/run.py": "014d6cd6ef97e251a79db1bce19c050f4bc376fc82aaa1facbb78816a4cff48d",
+    "src/kei_exp/kie/extract/schema.py": "a5d05a96c183716d6132e8a8d0e772ddea485aaa3f8a43225d94826b92ee0d88",
+    "src/kei_exp/kie/extract/selection.py": "bfa1106b1af3fb63241cf8b50eada11d9c5443df637e48db234b788f0db179f5",
+    "src/kei_exp/kie/extract/spans.py": "c92ef20f29194a921dc616ae2fe10dd330de589e4bfb019dd1c235ca9ecbfd67",
+    "src/kei_exp/kie/extract/stages.py": "c359c684add22e02269cd9c3de45f33f14a174f33df1fe34161e57b0e8780768",
+    "src/kei_exp/kie/extract/tokens.py": "c6255b72608c55fd27820e9a7482604937fea65488809ab0b45b1bab087ea4d4",
+    "src/kei_exp/kie/extract/unified.py": "17993aeb961ca4f2259fcd1218c93df88999df471b8c1aa18d6e2c82f5f96b16",
+    "src/kei_exp/kie/extract/windows.py": "5aace8a9717d06ab170e825b62a74222a3ed7cb065944e249e12cb524ebd516a",
+    "src/kei_exp/kie/ingest_cache.py": "0ea9361d767ab356be1e404cd4df3decb4d850f226a3515be9e85c9749498b02",
+    "src/kei_exp/kie/ingest_model.py": "ad25f76caff3297d355663a69677df12b99171a1718bede7f5f0f1d5e296a856",
+    "src/kei_exp/kie/passages.py": "153007b2bdec9fbd10ee61d546d4bb09b7cbff45006b56f5866104e66231426f",
+    "src/kei_exp/kie/primitives.py": "c878cdc98c68aea4e91f8632935adc8d06f34d92e15e7dc294e6f1a17dd292a4",
+    "src/kei_exp/kie/recipe.py": "67ecd4e2805d2077b460b2bf639b6e746ecd0aa3613b90c8a8cb64100e694af4",
+    "src/kei_exp/kie/recipes/headed-graves-da.json": "d40adf8f58cc37723e2ab7ec9cda092965a83dda34f569cf267f11aef55f8439",
+    "src/kei_exp/kie/recipes/numbered-catalogue-de.json": "0080dc034e801d07ffb06375ce4313ed3fd5cf86e410ce9ec10a3871db160b59",
+    "src/kei_exp/kie/runner.py": "3b5c78a614fa3316262d7399184aaf1cb7ef3b79bed42073c4fb9cb1e76adce6",
+    "src/kei_exp/kie/segmentation.py": "db453c99f639648d82422fb8ea51c77e6d59ee1176ec75aa393b02e1d0216fad",
+    "src/kei_exp/kie/segmentation_run.py": "4f88600fd617b728e46a399b81ac0d600764cc84ee10ff2ef32ece5522081e8c",
+    "src/kei_exp/kie/stages/__init__.py": "3fe611a3f05753bc1c47e491dba3c2901ef349b40f3d081fee931118e11d907f",
+    "src/kei_exp/kie/stages/ingest.py": "dbd501842a9c3b2591fefb09a077a0f1cdedd28895ba13db4520ac65fa287606",
+    "src/kei_exp/kie/stages/layout.py": "298a4d75fcda96761b7c600ba851c796ce1635a1ea50a6442c811cfe97e7d51f",
+    "src/kei_exp/kie/stages/ocr.py": "9a035498a4cb336a019522666bca3473788477b74ecce5b956298d4d6336cfd8",
+    "src/kei_exp/kie/stages/route.py": "1eec7dcc41fa83e6ae004ffd4ab2e196bf76dc9d05d0d1ee60690bde03b8153e",
+    "src/kei_exp/kie/stages/segment.py": "a0f95c223fc970e20a87cc9a1afbacbb677957981240ec005a3d44ad8997f07a",
+    "src/kei_exp/models.py": "7c6e12185d79b7bcec83b86bd6f8e59441e0dd530a58d10f3e7e21f4b49c2e34",
+    "src/kei_exp/pagefile.py": "b53f157213b641d9dace93f5e11dee029fdca47066ddc1cd06e5fb13e334ce17",
+    "src/kei_exp/pages.py": "32bc2d8d9a0e227084335d17eb3b6aa03dd5d33d9e2e9953357f7bbcfc0801f2",
+    "src/kei_exp/progress.py": "06d355a7958b43fc353b1b449f0810bd5f31053a398597babb4571b24102866e",
+    "src/kei_exp/regions.py": "88534452c4f3419803467aedee1b7c3efd016bcc6951057158e8f1e5cfcd92cc",
+    "src/kei_exp/report.py": "14cf23d1798be49d177292e00dbc7c83f2063c73fcff5b5cd1ca1ce55989a0f2",
+    "src/kei_exp/result.py": "fe04671d16fe41fa2a43bd96fc4963cde2ec11604063a56c3a318fcaac0d14d3",
+    "src/kei_exp/runs.py": "a026b45ec7c4ef946b3150d9f66c7160cd073e5dafbb006a71788a85b4d933f7",
+    "src/kei_exp/runtime.py": "623838b55190afe50594352f1b1ffd138934288b4e8cd734bd2e3ddaf6006906",
+    "src/kei_exp/transcription/__init__.py": "4cf9b20ce09b64d24c44d741902b496cdc68f03b9bbaf046fb5b97d77d6ebeb0",
+    "src/kei_exp/transcription/native.py": "a57b37223d181490a67243668dc8e2126b849935020ef1928afcd226fe180e91",
+    "src/kei_exp/transcription/specs.py": "502acfcce5b9544552e6c119e56bb5142f9aa987f1c67be6df32fe63f96c40fe",
+    "src/kei_exp/transcription/streaming.py": "85636d05106bcc600e9203b7d3faf51397f4736b58819527f1a74e35b6565a00",
+    "src/kei_exp/transcription/surya.py": "18b019cccae16ed21bb613578225cb901f9c966ed6c95422df8aa29e991ea336",
+    "src/kei_exp/transcription/tables.py": "cd23f9cbc1bb1592791f87817eb9ea20747355a93d48ed852d06413368f3df8e",
+    "src/kei_exp/transcription/types.py": "589ed611d981ce4f9419b932d647c4f5a4e986d10b59b029ba3cd5cd33d9b044",
+    "src/kei_exp/transcription/vlm.py": "ad2c4e93080d299209d3ac587e53240de01d89eb62616ca3b0c044219736e3a7",
+    "src/kei_exp/workflows/__init__.py": "6c996e106be13d8b8e2dafba04cbbbb224ab9ae22ad701ae2a0c1c891211fdb8",
+    "src/kei_exp/workflows/boot.py": "25457ff3dcfc79995fd7fa30dcf28efe501d33bb7c65a072a4fb3be45fc05544",
+    "src/kei_exp/workflows/cancel.py": "24776dcd53acc4d0edcd866417876665856029810815e96b14e565a0bbfc9437",
+    "src/kei_exp/workflows/cli.py": "1730a195153c1a733c50367f2fa86d7c557d910b3202712d9416e6cd950c7cc8",
+    "src/kei_exp/workflows/config.py": "d5504920eb41d6f02d7ca600c72473aeedf89fb7a5a746c18b2719087ddf1252",
+    "src/kei_exp/workflows/contracts.py": "1c383c62e65615b8be3c75c5184797f641052cadc0f6f0c6d8521d0acd5f8f4a",
+    "src/kei_exp/workflows/convert.py": "414268747eb834704625eb451c14a94a685d1990d4fef527ad0998932ebc152a",
+    "src/kei_exp/workflows/extract.py": "263642dfa69d5aaf68285596501826ac224f2a6c29ad316ba43a82b04a52c366",
+    "src/kei_exp/workflows/gc.py": "7cb8390a1ace1e26128f7158263ca89b58c4830ecdf8d6fb24fa778ad3cb5ed0",
+    "src/kei_exp/workflows/registered.py": "448170d9f4223bb181e43bce7df38899e2fdd7312694c30400cc6985910325b8",
+    "src/kei_exp/workflows/slot.py": "cd3c9db6fc78784001175fe65f36dea5cc19244e4541605dde3f507ed10eed4c"
+  },
+  "environment": {
+    "python": "3.13.11",
+    "system": "Linux aarch64",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "jsonschema": "4.26.0",
+    "pydantic": "2.13.5",
+    "requests": "2.34.2"
+  }
+}

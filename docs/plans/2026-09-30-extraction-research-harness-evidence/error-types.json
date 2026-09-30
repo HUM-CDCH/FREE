@@ -1,0 +1,74 @@
+{
+ "note": "ad hoc post-hoc classification of wrong values; the study's comparator is unchanged and every reported F1 uses it",
+ "synthetic_dev": {
+  "base": {
+   "values": 111,
+   "wrong": 11,
+   "trailing punctuation": 8,
+   "other": 3
+  },
+  "overlap": {
+   "values": 102,
+   "wrong": 8,
+   "trailing punctuation": 8
+  },
+  "continuation": {
+   "values": 114,
+   "wrong": 12,
+   "trailing punctuation": 12
+  },
+  "quote": {
+   "values": 114,
+   "wrong": 5,
+   "trailing punctuation": 5
+  },
+  "verified": {
+   "values": 114,
+   "wrong": 5,
+   "trailing punctuation": 5
+  },
+  "sampled": {
+   "values": 108,
+   "wrong": 8,
+   "trailing punctuation": 8
+  },
+  "no-recovery": {
+   "values": 95,
+   "wrong": 7,
+   "other": 3,
+   "trailing punctuation": 4
+  },
+  "retry": {
+   "values": 114,
+   "wrong": 11,
+   "trailing punctuation": 8,
+   "other": 3
+  },
+  "combined": {
+   "values": 114,
+   "wrong": 11,
+   "trailing punctuation": 8,
+   "placeholder word 'value'": 3
+  }
+ },
+ "big_catalogue": {
+  "base": {
+   "values": 600,
+   "wrong": 11,
+   "trailing punctuation": 11
+  },
+  "overlap": {
+   "values": 600,
+   "wrong": 22,
+   "trailing punctuation": 22
+  },
+  "continuation": {
+   "values": 600,
+   "wrong": 0
+  },
+  "combined": {
+   "values": 600,
+   "wrong": 0
+  }
+ }
+}

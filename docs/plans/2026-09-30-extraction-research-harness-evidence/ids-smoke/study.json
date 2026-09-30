@@ -1,0 +1,55 @@
+{
+ "version": 1,
+ "id": "spark-ids-smoke",
+ "dataset": "synthetic.json",
+ "provider": {
+  "url": "http://extraction_model:8000/v1/chat/completions",
+  "model": "Qwen/Qwen3.8-27B-FP8",
+  "counter": "vllm",
+  "timeout": 900
+ },
+ "evaluation": {
+  "min_matches": 2,
+  "iou": 0.5
+ },
+ "base": {
+  "chunking": {
+   "mode": "fixed",
+   "max_chars": 300
+  },
+  "output": {
+   "max_tokens": 1500
+  },
+  "signals": {
+   "top_logprobs": 3
+  },
+  "budget": {
+   "workers": 3
+  }
+ },
+ "variants": {
+  "ids": {
+   "input": {
+    "mode": "layout"
+   },
+   "evidence": {
+    "mode": "ids"
+   }
+  }
+ },
+ "comparisons": [
+  {
+   "control": "base",
+   "treatment": "ids",
+   "factor": [
+    "evidence",
+    "input"
+   ]
+  }
+ ],
+ "interactions": [],
+ "budget": {
+  "max_calls": 60
+ },
+ "final": null
+}

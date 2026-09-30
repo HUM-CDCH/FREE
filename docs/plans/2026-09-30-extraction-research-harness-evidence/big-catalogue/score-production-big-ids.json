@@ -1,0 +1,78 @@
+{
+ "case": "big",
+ "invariant_violations": [],
+ "metrics": {
+  "field": {
+   "precision": 0.9949748743718593,
+   "recall": 0.99,
+   "f1": 0.9924812030075187,
+   "predicted_values": 597,
+   "gold_value_fields": 600,
+   "unannotated_fields": 0,
+   "absent_accuracy": null,
+   "abstained": {
+    "unresolved": 0,
+    "omitted": 0,
+    "excluded_values": 0,
+    "withheld": 3,
+    "withheld_correct": 0,
+    "missed_as_absent": 0,
+    "missing_record": 0
+   }
+  },
+  "records": {
+   "gold": 200,
+   "predicted": 200,
+   "matched": 200,
+   "missing": 0,
+   "hallucinated": 0,
+   "duplicated": 0,
+   "unadjudicated": 0,
+   "strict_correct": 0.97,
+   "strict_documents": 0.0,
+   "cross_page": {
+    "gold": 0,
+    "matched": 0,
+    "strict": 0,
+    "fragments": 0
+   }
+  },
+  "evidence": {
+   "annotated_fields": 0,
+   "predicted_annotated": 0,
+   "cited": 0,
+   "joint": null,
+   "joint_given_predicted": null,
+   "span_hit_given_correct": null,
+   "page_hit": null,
+   "segment_hit": null,
+   "span_hit": null,
+   "decoy_hit": null,
+   "correct_with_annotated_evidence": 0,
+   "verifier": {
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "tn": 0
+   }
+  },
+  "validity": {
+   "schema_valid_reply_rate": 1.0,
+   "replies": 401
+  },
+  "cost": {
+   "fresh": {
+    "calls": 401,
+    "input_tokens": 138905,
+    "output_tokens": 27869,
+    "seconds": 2756.980385
+   },
+   "replayed": {
+    "calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "seconds": 0
+   }
+  }
+ }
+}

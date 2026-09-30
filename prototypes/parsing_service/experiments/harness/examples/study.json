@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "id": "example-ablation",
+  "dataset": "synthetic.json",
+  "provider": {"url": "http://127.0.0.1:8002/v1/chat/completions", "model": "Qwen/Qwen3.8-27B-FP8", "counter": "vllm"},
+  "evaluation": {"min_matches": 2, "iou": 0.5},
+  "base": {"chunking": {"mode": "fixed", "max_chars": 300}, "output": {"max_tokens": 1500}, "signals": {"top_logprobs": 3},
+           "budget": {"workers": 3}},
+  "variants": {
+    "overlap":      {"chunking": {"overlap": 1}},
+    "quote":        {"evidence": {"mode": "quote", "alignment": {"disambiguate": "record"}}},
+    "continuation": {"merge": {"continuation": "flags"}},
+    "groups":       {"decompose": {"mode": "max_fields", "max_fields": 3}},
+    "sampled":      {"sampling": {"n": 3, "temperature": 0.7, "seed": 7, "aggregate": "majority"}}
+  },
+  "comparisons": [
+    {"control": "base", "treatment": "overlap", "factor": "chunking"},
+    {"control": "base", "treatment": "quote", "factor": "evidence"},
+    {"control": "base", "treatment": "continuation", "factor": "merge"},
+    {"control": "base", "treatment": "groups", "factor": "decompose"},
+    {"control": "base", "treatment": "sampled", "factor": "sampling"}
+  ],
+  "combined": {"name": "combined", "from": ["overlap", "quote"]},
+  "interactions": [{"baseline": "base", "a": "overlap", "b": "quote", "ab": "combined"}],
+  "budget": {"max_calls": 400},
+  "final": null
+}

@@ -1,0 +1,79 @@
+{
+ "version": 1,
+ "id": "big-catalogue-pilot",
+ "dataset": "dataset.json",
+ "provider": {
+  "url": "http://extraction_model:8000/v1/chat/completions",
+  "model": "Qwen/Qwen3.8-27B-FP8",
+  "counter": "vllm",
+  "timeout": 1800
+ },
+ "evaluation": {
+  "min_matches": 2,
+  "iou": 0.5
+ },
+ "base": {
+  "chunking": {
+   "mode": "fixed",
+   "max_chars": 3000
+  },
+  "output": {
+   "max_tokens": 3000
+  },
+  "signals": {
+   "top_logprobs": 3
+  },
+  "budget": {
+   "input_chars": 12000,
+   "workers": 3,
+   "calls": 200
+  },
+  "recovery": {
+   "subdivide": true,
+   "depth": 2
+  }
+ },
+ "variants": {
+  "overlap": {
+   "chunking": {
+    "overlap": 1
+   }
+  },
+  "continuation": {
+   "merge": {
+    "continuation": "flags"
+   }
+  }
+ },
+ "comparisons": [
+  {
+   "control": "base",
+   "treatment": "overlap",
+   "factor": "chunking"
+  },
+  {
+   "control": "base",
+   "treatment": "continuation",
+   "factor": "merge"
+  }
+ ],
+ "combined": {
+  "name": "combined",
+  "from": [
+   "overlap",
+   "continuation"
+  ]
+ },
+ "interactions": [
+  {
+   "baseline": "base",
+   "a": "overlap",
+   "b": "continuation",
+   "ab": "combined"
+  }
+ ],
+ "budget": {
+  "max_calls": 150
+ },
+ "final": null
+}

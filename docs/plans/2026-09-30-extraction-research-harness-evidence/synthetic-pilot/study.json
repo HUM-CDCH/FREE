@@ -1,0 +1,141 @@
+{
+ "version": 1,
+ "id": "spark-synthetic-pilot-final",
+ "dataset": "synthetic.json",
+ "provider": {
+  "url": "http://extraction_model:8000/v1/chat/completions",
+  "model": "Qwen/Qwen3.8-27B-FP8",
+  "counter": "vllm",
+  "timeout": 900
+ },
+ "evaluation": {
+  "min_matches": 2,
+  "iou": 0.5
+ },
+ "base": {
+  "chunking": {
+   "mode": "fixed",
+   "max_chars": 300
+  },
+  "output": {
+   "max_tokens": 1500
+  },
+  "signals": {
+   "top_logprobs": 3
+  },
+  "budget": {
+   "workers": 3
+  },
+  "recovery": {
+   "subdivide": true,
+   "depth": 2
+  }
+ },
+ "variants": {
+  "overlap": {
+   "chunking": {
+    "overlap": 1
+   }
+  },
+  "continuation": {
+   "merge": {
+    "continuation": "flags"
+   }
+  },
+  "quote": {
+   "evidence": {
+    "mode": "quote",
+    "alignment": {
+     "disambiguate": "record"
+    }
+   }
+  },
+  "verified": {
+   "evidence": {
+    "mode": "quote",
+    "alignment": {
+     "disambiguate": "record"
+    }
+   },
+   "verification": {
+    "model": true,
+    "gate": "flag"
+   }
+  },
+  "sampled": {
+   "sampling": {
+    "n": 3,
+    "temperature": 0.7,
+    "seed": 7,
+    "aggregate": "majority"
+   }
+  },
+  "no-recovery": {
+   "recovery": {
+    "subdivide": false
+   }
+  },
+  "retry": {
+   "recovery": {
+    "subdivide": false,
+    "retries": 1
+   }
+  }
+ },
+ "comparisons": [
+  {
+   "control": "base",
+   "treatment": "overlap",
+   "factor": "chunking"
+  },
+  {
+   "control": "base",
+   "treatment": "continuation",
+   "factor": "merge"
+  },
+  {
+   "control": "base",
+   "treatment": "quote",
+   "factor": "evidence"
+  },
+  {
+   "control": "quote",
+   "treatment": "verified",
+   "factor": "verification"
+  },
+  {
+   "control": "base",
+   "treatment": "sampled",
+   "factor": "sampling"
+  },
+  {
+   "control": "base",
+   "treatment": "no-recovery",
+   "factor": "recovery"
+  },
+  {
+   "control": "base",
+   "treatment": "retry",
+   "factor": "recovery"
+  }
+ ],
+ "combined": {
+  "name": "combined",
+  "from": [
+   "overlap",
+   "quote"
+  ]
+ },
+ "interactions": [
+  {
+   "baseline": "base",
+   "a": "overlap",
+   "b": "quote",
+   "ab": "combined"
+  }
+ ],
+ "budget": {
+  "max_calls": 500
+ },
+ "final": null
+}

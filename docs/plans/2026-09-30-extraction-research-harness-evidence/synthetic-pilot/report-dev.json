@@ -1,0 +1,1809 @@
+{
+  "study": "spark-synthetic-pilot-final",
+  "split": "dev",
+  "variants": {
+    "base": {
+      "config_sha256": "2f6de5c234d2c23686554080599562b9eca5c6939419b8f1bcc0ab0081d65593",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9009009009009009,
+          "recall": 0.8771929824561403,
+          "f1": 0.8888888888888888,
+          "predicted_values": 111,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 3,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.5416666666666666,
+          "strict_documents": 0.3333333333333333,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 111,
+          "cited": 0,
+          "joint": 0.0,
+          "joint_given_predicted": 0.0,
+          "span_hit_given_correct": 0.0,
+          "page_hit": 0.0,
+          "segment_hit": 0.0,
+          "span_hit": 0.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 100,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.8,
+          "replies": 10
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 10,
+            "input_tokens": 2794,
+            "output_tokens": 4978,
+            "seconds": 636.289993
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9009009009009009,
+          "interval": [
+            0.8,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.8771929824561403,
+          "interval": [
+            0.7368421052631579,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.8888888888888888,
+          "interval": [
+            0.7671232876712328,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 10,
+        "input_tokens": 2794,
+        "output_tokens": 4978,
+        "seconds": 636.289993
+      }
+    },
+    "overlap": {
+      "config_sha256": "d5ff8e2acee1e87210d507a0264effb9b3aa65b273580cb4bab7b1fe077b7126",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 15,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9215686274509803,
+          "recall": 0.8245614035087719,
+          "f1": 0.8703703703703703,
+          "predicted_values": 102,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 12,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.4166666666666667,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 102,
+          "cited": 0,
+          "joint": 0.0,
+          "joint_given_predicted": 0.0,
+          "span_hit_given_correct": 0.0,
+          "page_hit": 0.0,
+          "segment_hit": 0.0,
+          "span_hit": 0.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 94,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.6363636363636364,
+          "replies": 22
+        },
+        "cost": {
+          "fresh": {
+            "calls": 15,
+            "input_tokens": 4572,
+            "output_tokens": 10318,
+            "seconds": 1337.991504
+          },
+          "replayed": {
+            "calls": 7,
+            "input_tokens": 1934,
+            "output_tokens": 4059,
+            "seconds": 519.189666
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9215686274509803,
+          "interval": [
+            0.875,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.8245614035087719,
+          "interval": [
+            0.7368421052631579,
+            0.9210526315789473
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.8703703703703703,
+          "interval": [
+            0.8,
+            0.958904109589041
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 22,
+        "input_tokens": 6506,
+        "output_tokens": 14377,
+        "seconds": 1857.18117
+      }
+    },
+    "continuation": {
+      "config_sha256": "6264c90fbff2cbfca6abbd722d8d389f8ea8a133606ce8ff96be932a17af0d4b",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.8947368421052632,
+          "recall": 0.8947368421052632,
+          "f1": 0.8947368421052632,
+          "predicted_values": 114,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.5,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 114,
+          "cited": 0,
+          "joint": 0.0,
+          "joint_given_predicted": 0.0,
+          "span_hit_given_correct": 0.0,
+          "page_hit": 0.0,
+          "segment_hit": 0.0,
+          "span_hit": 0.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 102,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 6
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 6,
+            "input_tokens": 1953,
+            "output_tokens": 1915,
+            "seconds": 244.06286799999998
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.8947368421052632,
+          "interval": [
+            0.8947368421052632,
+            0.8947368421052632
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.8947368421052632,
+          "interval": [
+            0.8947368421052632,
+            0.8947368421052632
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.8947368421052632,
+          "interval": [
+            0.8947368421052632,
+            0.8947368421052632
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 6,
+        "input_tokens": 1953,
+        "output_tokens": 1915,
+        "seconds": 244.06286799999998
+      }
+    },
+    "quote": {
+      "config_sha256": "d64e86fef8046a99fffe2092a03bb8925cd3bbabeaf2addf56fb9bc465e4f961",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.956140350877193,
+          "recall": 0.956140350877193,
+          "f1": 0.956140350877193,
+          "predicted_values": 114,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.7916666666666666,
+          "strict_documents": 0.3333333333333333,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 114,
+          "cited": 114,
+          "joint": 0.5526315789473685,
+          "joint_given_predicted": 0.5526315789473685,
+          "span_hit_given_correct": 0.5779816513761468,
+          "page_hit": 1.0,
+          "segment_hit": 1.0,
+          "span_hit": 0.5964912280701754,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 109,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.6875,
+          "replies": 16
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 16,
+            "input_tokens": 4980,
+            "output_tokens": 13176,
+            "seconds": 1682.708556
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.956140350877193,
+          "interval": [
+            0.8947368421052632,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.956140350877193,
+          "interval": [
+            0.8947368421052632,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.956140350877193,
+          "interval": [
+            0.8947368421052632,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 16,
+        "input_tokens": 4980,
+        "output_tokens": 13176,
+        "seconds": 1682.708556
+      }
+    },
+    "verified": {
+      "config_sha256": "f6e97c8e0edda591f55903198f542369e471664e450779a872be52e90bf2e478",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.956140350877193,
+          "recall": 0.956140350877193,
+          "f1": 0.956140350877193,
+          "predicted_values": 114,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.7916666666666666,
+          "strict_documents": 0.3333333333333333,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 114,
+          "cited": 114,
+          "joint": 0.5526315789473685,
+          "joint_given_predicted": 0.5526315789473685,
+          "span_hit_given_correct": 0.5779816513761468,
+          "page_hit": 1.0,
+          "segment_hit": 1.0,
+          "span_hit": 0.5964912280701754,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 109,
+          "verifier": {
+            "tp": 63,
+            "fp": 5,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.6875,
+          "replies": 16
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 40,
+            "input_tokens": 16364,
+            "output_tokens": 17034,
+            "seconds": 2191.219982
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.956140350877193,
+          "interval": [
+            0.8947368421052632,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.956140350877193,
+          "interval": [
+            0.8947368421052632,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.956140350877193,
+          "interval": [
+            0.8947368421052632,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 40,
+        "input_tokens": 16364,
+        "output_tokens": 17034,
+        "seconds": 2191.219982
+      }
+    },
+    "sampled": {
+      "config_sha256": "618066c381ebb4b8e2d0fe847459a2dbc064ee69a950a5c9b312d5b07ff99561",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9259259259259259,
+          "recall": 0.8771929824561403,
+          "f1": 0.9009009009009009,
+          "predicted_values": 108,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 6,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.4166666666666667,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 3,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 108,
+          "cited": 0,
+          "joint": 0.0,
+          "joint_given_predicted": 0.0,
+          "span_hit_given_correct": 0.0,
+          "page_hit": 0.0,
+          "segment_hit": 0.0,
+          "span_hit": 0.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 100,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.95,
+          "replies": 20
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 20,
+            "input_tokens": 5724,
+            "output_tokens": 7045,
+            "seconds": 917.5421349999999
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9259259259259259,
+          "interval": [
+            0.8857142857142857,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.8771929824561403,
+          "interval": [
+            0.8157894736842105,
+            0.9210526315789473
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.9009009009009009,
+          "interval": [
+            0.8493150684931506,
+            0.958904109589041
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 20,
+        "input_tokens": 5724,
+        "output_tokens": 7045,
+        "seconds": 917.5421349999999
+      }
+    },
+    "no-recovery": {
+      "config_sha256": "96151d3e0dbb51c0751d80e6130661efbbe16d1531c6424dfe63aa14b7e18252",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9263157894736842,
+          "recall": 0.7719298245614035,
+          "f1": 0.8421052631578947,
+          "predicted_values": 95,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 19
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 20,
+          "matched": 20,
+          "missing": 4,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.5416666666666666,
+          "strict_documents": 0.3333333333333333,
+          "cross_page": {
+            "gold": 3,
+            "matched": 2,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 95,
+          "cited": 0,
+          "joint": 0.0,
+          "joint_given_predicted": 0.0,
+          "span_hit_given_correct": 0.0,
+          "page_hit": 0.0,
+          "segment_hit": 0.0,
+          "span_hit": 0.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 88,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.8333333333333334,
+          "replies": 6
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 6,
+            "input_tokens": 1731,
+            "output_tokens": 3032,
+            "seconds": 387.53929300000004
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9263157894736842,
+          "interval": [
+            0.8421052631578947,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.7719298245614035,
+          "interval": [
+            0.42105263157894735,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.8421052631578947,
+          "interval": [
+            0.5614035087719298,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 6,
+        "input_tokens": 1731,
+        "output_tokens": 3032,
+        "seconds": 387.53929300000004
+      }
+    },
+    "retry": {
+      "config_sha256": "fececd05ba25a50413bf9fa30e56f749c5774f8f28cc5c390bce64c15c386c5f",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 1,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9035087719298246,
+          "recall": 0.9035087719298246,
+          "f1": 0.9035087719298246,
+          "predicted_values": 114,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.5416666666666666,
+          "strict_documents": 0.3333333333333333,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 114,
+          "cited": 0,
+          "joint": 0.0,
+          "joint_given_predicted": 0.0,
+          "span_hit_given_correct": 0.0,
+          "page_hit": 0.0,
+          "segment_hit": 0.0,
+          "span_hit": 0.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 103,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.8571428571428571,
+          "replies": 7
+        },
+        "cost": {
+          "fresh": {
+            "calls": 1,
+            "input_tokens": 291,
+            "output_tokens": 301,
+            "seconds": 38.426591
+          },
+          "replayed": {
+            "calls": 6,
+            "input_tokens": 1731,
+            "output_tokens": 3032,
+            "seconds": 387.53929300000004
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9035087719298246,
+          "interval": [
+            0.8157894736842105,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.9035087719298246,
+          "interval": [
+            0.8157894736842105,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.9035087719298246,
+          "interval": [
+            0.8157894736842105,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 7,
+        "input_tokens": 2022,
+        "output_tokens": 3333,
+        "seconds": 425.9658840000001
+      }
+    },
+    "combined": {
+      "config_sha256": "e8071076e98d66a6408654ff0f5033d077aaa6509ac1c8866c160f50dee23780",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 9,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9035087719298246,
+          "recall": 0.9035087719298246,
+          "f1": 0.9035087719298246,
+          "predicted_values": 114,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.6666666666666666,
+          "strict_documents": 0.3333333333333333,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 114,
+          "cited": 114,
+          "joint": 0.49122807017543857,
+          "joint_given_predicted": 0.49122807017543857,
+          "span_hit_given_correct": 0.5436893203883495,
+          "page_hit": 1.0,
+          "segment_hit": 1.0,
+          "span_hit": 0.5263157894736842,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 103,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.65,
+          "replies": 20
+        },
+        "cost": {
+          "fresh": {
+            "calls": 9,
+            "input_tokens": 3112,
+            "output_tokens": 7487,
+            "seconds": 964.42092
+          },
+          "replayed": {
+            "calls": 11,
+            "input_tokens": 3404,
+            "output_tokens": 9188,
+            "seconds": 1175.139429
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9035087719298246,
+          "interval": [
+            0.8157894736842105,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.9035087719298246,
+          "interval": [
+            0.8157894736842105,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.9035087719298246,
+          "interval": [
+            0.8157894736842105,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 20,
+        "input_tokens": 6516,
+        "output_tokens": 16675,
+        "seconds": 2139.5603490000003
+      }
+    },
+    "combined-minus-overlap": {
+      "config_sha256": "d64e86fef8046a99fffe2092a03bb8925cd3bbabeaf2addf56fb9bc465e4f961",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.956140350877193,
+          "recall": 0.956140350877193,
+          "f1": 0.956140350877193,
+          "predicted_values": 114,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.7916666666666666,
+          "strict_documents": 0.3333333333333333,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 114,
+          "cited": 114,
+          "joint": 0.5526315789473685,
+          "joint_given_predicted": 0.5526315789473685,
+          "span_hit_given_correct": 0.5779816513761468,
+          "page_hit": 1.0,
+          "segment_hit": 1.0,
+          "span_hit": 0.5964912280701754,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 109,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.6875,
+          "replies": 16
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 16,
+            "input_tokens": 4980,
+            "output_tokens": 13176,
+            "seconds": 1682.708556
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.956140350877193,
+          "interval": [
+            0.8947368421052632,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.956140350877193,
+          "interval": [
+            0.8947368421052632,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.956140350877193,
+          "interval": [
+            0.8947368421052632,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 16,
+        "input_tokens": 4980,
+        "output_tokens": 13176,
+        "seconds": 1682.708556
+      }
+    },
+    "combined-minus-quote": {
+      "config_sha256": "d5ff8e2acee1e87210d507a0264effb9b3aa65b273580cb4bab7b1fe077b7126",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9215686274509803,
+          "recall": 0.8245614035087719,
+          "f1": 0.8703703703703703,
+          "predicted_values": 102,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 12,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.4166666666666667,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 2,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 102,
+          "cited": 0,
+          "joint": 0.0,
+          "joint_given_predicted": 0.0,
+          "span_hit_given_correct": 0.0,
+          "page_hit": 0.0,
+          "segment_hit": 0.0,
+          "span_hit": 0.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 94,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.6363636363636364,
+          "replies": 22
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 22,
+            "input_tokens": 6506,
+            "output_tokens": 14377,
+            "seconds": 1857.18117
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9215686274509803,
+          "interval": [
+            0.875,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.8245614035087719,
+          "interval": [
+            0.7368421052631579,
+            0.9210526315789473
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.8703703703703703,
+          "interval": [
+            0.8,
+            0.958904109589041
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 22,
+        "input_tokens": 6506,
+        "output_tokens": 14377,
+        "seconds": 1857.18117
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "control": "base",
+      "treatment": "overlap",
+      "factor": "chunking",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": -0.017880317231434757,
+        "percentile_95": [
+          -0.15068493150684936,
+          0.06416726748377788
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 3,
+        "treatment_only": 15,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": 12,
+        "input_tokens": 3712,
+        "output_tokens": 9399,
+        "seconds": 1220.891177
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "continuation",
+      "factor": "merge",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": 0.0074501321797644975,
+        "percentile_95": [
+          -0.10526315789473684,
+          0.12761355443403033
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 10,
+        "treatment_only": 6,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": -4,
+        "input_tokens": -841,
+        "output_tokens": -3063,
+        "seconds": -392.227125
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "quote",
+      "factor": "evidence",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": 0.06885364095169433,
+        "percentile_95": [
+          0.0,
+          0.12761355443403033
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 10,
+        "treatment_only": 16,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": 6,
+        "input_tokens": 2186,
+        "output_tokens": 8198,
+        "seconds": 1046.418563
+      }
+    },
+    {
+      "control": "quote",
+      "treatment": "verified",
+      "factor": "verification",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": 0.0,
+        "percentile_95": [
+          0.0,
+          0.0
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 0,
+        "treatment_only": 24,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": 24,
+        "input_tokens": 11384,
+        "output_tokens": 3858,
+        "seconds": 508.511426
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "sampled",
+      "factor": "sampling",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": 0.013698630136986282,
+        "percentile_95": [
+          -0.15068493150684936,
+          0.1917808219178082
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 10,
+        "treatment_only": 20,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": 10,
+        "input_tokens": 2930,
+        "output_tokens": 2067,
+        "seconds": 281.252142
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "no-recovery",
+      "factor": "recovery",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": -0.06857325963310101,
+        "percentile_95": [
+          -0.20571977889930304,
+          0.0
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 4,
+        "treatment_only": 0,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": -4,
+        "input_tokens": -1063,
+        "output_tokens": -1946,
+        "seconds": -248.7507
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "retry",
+      "factor": "recovery",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": 0.016222062004325893,
+        "percentile_95": [
+          0.0,
+          0.048666186012977675
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 4,
+        "treatment_only": 1,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": -3,
+        "input_tokens": -772,
+        "output_tokens": -1645,
+        "seconds": -210.324109
+      }
+    },
+    {
+      "control": "combined-minus-overlap",
+      "treatment": "combined",
+      "factor": [
+        "chunking"
+      ],
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": -0.05263157894736844,
+        "percentile_95": [
+          -0.1842105263157895,
+          0.02631578947368418
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 5,
+        "treatment_only": 9,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": 4,
+        "input_tokens": 1536,
+        "output_tokens": 3499,
+        "seconds": 456.851793
+      }
+    },
+    {
+      "control": "combined-minus-quote",
+      "treatment": "combined",
+      "factor": [
+        "evidence"
+      ],
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 3,
+        "mean": 0.03410237923576065,
+        "percentile_95": [
+          -0.03352559480894013,
+          0.09473684210526312
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 22,
+        "treatment_only": 20,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": -2,
+        "input_tokens": 10,
+        "output_tokens": 2298,
+        "seconds": 282.379179
+      }
+    }
+  ],
+  "interactions": [
+    {
+      "baseline": "base",
+      "a": "overlap",
+      "b": "quote",
+      "ab": "combined",
+      "unit": "group",
+      "metric": "field F1 difference of differences",
+      "groups": 3,
+      "effect": {
+        "documents": 3,
+        "mean": -0.03475126171593368,
+        "percentile_95": [
+          -0.0378514780100937,
+          -0.03287671232876721
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      }
+    }
+  ],
+  "provenance": {
+    "run_code_matches_current": false,
+    "cells_by_code_sha256": {
+      "777a25782bd2658c505b9c78e6382dfa3ac35f087cdb5b4bf0d0bd1fa768d82a": 33
+    },
+    "current_code_sha256": "57ec149e59343b96a6bc56dc868168745f5caa079b77b1e9bb90a7a9cb0f23a5",
+    "manifest_code_matches_current": false,
+    "environment_matches_current": true,
+    "environment_at_run": {
+      "python": "3.13.11",
+      "system": "Linux aarch64",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "jsonschema": "4.26.0",
+      "pydantic": "2.13.5",
+      "requests": "2.34.2"
+    },
+    "provider": {
+      "url": "http://extraction_model:8000/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "served": {
+        "id": "Qwen/Qwen3.8-27B-FP8",
+        "max_model_len": 32768,
+        "root": "Qwen/Qwen3.8-27B-FP8"
+      },
+      "context_tokens": 32768
+    },
+    "scorer_sha256": "4eccb898c8c3ef6457cfb5c13cd96d0a0c1cb545689875b55768c10b6ed86eb4"
+  },
+  "limits": [
+    "Documents of one group are resampled together; intervals over few groups are descriptive, not evidence of generalisation.",
+    "Synthetic or development data test the implementation, not real-world superiority.",
+    "Model calls are not deterministic even at temperature 0; repeats would measure serving variability.",
+    "Cost is real inference plus replayed replies at their recorded cost, for sealed cells only; what failed or unsealed attempts spent is `attempt_spend`, and cost deltas use the cases both arms completed.",
+    "Model-seconds are as recorded when each reply was made, under whatever load the server had then: compare calls and tokens, not seconds, across arms."
+  ],
+  "selection": "none: this report names no winner; a variant is chosen on split dev alone and reported once on test"
+}

@@ -1,0 +1,145 @@
+{
+  "study": "spark-synthetic-pilot-final",
+  "variant": "combined",
+  "target": "value",
+  "assessed_on": "dev",
+  "population": {
+    "fit": 184,
+    "calibration": 111,
+    "dev": 114
+  },
+  "unit": "group",
+  "provenance": {
+    "run_code_matches_current": false,
+    "cells_by_code_sha256": {
+      "777a25782bd2658c505b9c78e6382dfa3ac35f087cdb5b4bf0d0bd1fa768d82a": 11
+    },
+    "current_code_sha256": "57ec149e59343b96a6bc56dc868168745f5caa079b77b1e9bb90a7a9cb0f23a5",
+    "manifest_code_matches_current": false,
+    "environment_matches_current": true,
+    "environment_at_run": {
+      "python": "3.13.11",
+      "system": "Linux aarch64",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "jsonschema": "4.26.0",
+      "pydantic": "2.13.5",
+      "requests": "2.34.2"
+    },
+    "provider": {
+      "url": "http://extraction_model:8000/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "served": {
+        "id": "Qwen/Qwen3.8-27B-FP8",
+        "max_model_len": 32768,
+        "root": "Qwen/Qwen3.8-27B-FP8"
+      },
+      "context_tokens": 32768
+    },
+    "scorer_sha256": "4eccb898c8c3ef6457cfb5c13cd96d0a0c1cb545689875b55768c10b6ed86eb4"
+  },
+  "scores": {
+    "rank_baseline": {
+      "n": 114,
+      "error_rate": 0.09649122807017543,
+      "brier": 0.08664283356940128,
+      "ece": 0.08690456720089959,
+      "auroc": 0.7987643424536628,
+      "aurc": 0.03273181073662387,
+      "coverage_at_empirical_risk": {
+        "0.05": 0.9210526315789473,
+        "0.1": 1.0
+      },
+      "errors_captured_at_review_budget": {
+        "0.1": 0.6363636363636364,
+        "0.2": 0.6363636363636364
+      }
+    },
+    "raw:verbalized": {
+      "coverage_of_signal": 0.0
+    },
+    "raw:p_first": {
+      "coverage_of_signal": 1.0,
+      "n": 114,
+      "error_rate": 0.09649122807017543,
+      "brier": 0.09384930714024606,
+      "ece": 0.09314595933378327,
+      "auroc": 0.5070609002647838,
+      "aurc": 0.09433851426685473,
+      "coverage_at_empirical_risk": {
+        "0.05": 0.03508771929824561,
+        "0.1": 1.0
+      },
+      "errors_captured_at_review_budget": {
+        "0.1": 0.18181818181818182,
+        "0.2": 0.18181818181818182
+      }
+    },
+    "raw:p_mean": {
+      "coverage_of_signal": 1.0,
+      "n": 114,
+      "error_rate": 0.09649122807017543,
+      "brier": 0.08518894815262879,
+      "ece": 0.08545420966562403,
+      "auroc": 0.8270079435127978,
+      "aurc": 0.02590822220786215,
+      "coverage_at_empirical_risk": {
+        "0.05": 0.9035087719298246,
+        "0.1": 1.0
+      },
+      "errors_captured_at_review_budget": {
+        "0.1": 0.5454545454545454,
+        "0.2": 0.5454545454545454
+      }
+    },
+    "raw:margin": {
+      "coverage_of_signal": 1.0,
+      "n": 114,
+      "error_rate": 0.09649122807017543,
+      "brier": 0.09332940443881849,
+      "ece": 0.09465949471590697,
+      "auroc": 0.4554280670785525,
+      "aurc": 0.10733286632855518,
+      "coverage_at_empirical_risk": {
+        "0.05": 0.043859649122807015,
+        "0.1": 1.0
+      },
+      "errors_captured_at_review_budget": {
+        "0.1": 0.18181818181818182,
+        "0.2": 0.18181818181818182
+      }
+    },
+    "raw:agreement": {
+      "coverage_of_signal": 0.0
+    },
+    "raw:view_agreement": {
+      "coverage_of_signal": 0.0
+    },
+    "raw:align": {
+      "coverage_of_signal": 1.0,
+      "n": 114,
+      "error_rate": 0.09649122807017543,
+      "brier": 0.09649122807017543,
+      "ece": 0.0964912280701754,
+      "auroc": 0.5,
+      "aurc": 0.09649122807017543,
+      "coverage_at_empirical_risk": {
+        "0.05": 0.0,
+        "0.1": 1.0
+      },
+      "errors_captured_at_review_budget": {
+        "0.1": 0.10526315789473685,
+        "0.2": 0.20175438596491227
+      }
+    },
+    "raw:verdict": {
+      "coverage_of_signal": 0.0
+    }
+  },
+  "calibration": {},
+  "risk_control": {},
+  "not_estimable": {
+    "fusion, calibrators and risk control": "split fit has only right values: nothing to fit"
+  },
+  "note": "Formal statements hold only where certified; otherwise the empirical numbers above are all that is claimed. Fusion was fit on split fit, calibrators and thresholds on calibration, everything reported on dev. Raw-signal scores are descriptive: intervals over few groups are not inference."
+}

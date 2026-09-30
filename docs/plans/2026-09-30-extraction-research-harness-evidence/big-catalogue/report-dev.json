@@ -1,0 +1,881 @@
+{
+  "study": "big-catalogue-pilot",
+  "split": "dev",
+  "variants": {
+    "base": {
+      "config_sha256": "f073bc89fe64e0728f3a943644b35bbd86f2a7ef58c008275802f8ff6e0d2965",
+      "groups": 1,
+      "cases": 1,
+      "attempt_spend": {
+        "fresh_calls": 5,
+        "attempts": 1,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9816666666666667,
+          "recall": 0.9816666666666667,
+          "f1": 0.9816666666666667,
+          "predicted_values": 600,
+          "gold_value_fields": 600,
+          "unannotated_fields": 0,
+          "absent_accuracy": null,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 200,
+          "predicted": 200,
+          "matched": 200,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.945,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 0,
+          "predicted_annotated": 0,
+          "cited": 0,
+          "joint": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": null,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 0,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 5
+        },
+        "cost": {
+          "fresh": {
+            "calls": 5,
+            "input_tokens": 8344,
+            "output_tokens": 11062,
+            "seconds": 1474.249674
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9816666666666667,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": 0.9816666666666667,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": 0.9816666666666667,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 5,
+        "input_tokens": 8344,
+        "output_tokens": 11062,
+        "seconds": 1474.249674
+      }
+    },
+    "overlap": {
+      "config_sha256": "944c28ce383c20168e30bfc36760efff18ac3f271c60247b4eaeb8da83a1d31c",
+      "groups": 1,
+      "cases": 1,
+      "attempt_spend": {
+        "fresh_calls": 4,
+        "attempts": 1,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9633333333333334,
+          "recall": 0.9633333333333334,
+          "f1": 0.9633333333333334,
+          "predicted_values": 600,
+          "gold_value_fields": 600,
+          "unannotated_fields": 0,
+          "absent_accuracy": null,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 200,
+          "predicted": 200,
+          "matched": 200,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.89,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 0,
+          "predicted_annotated": 0,
+          "cited": 0,
+          "joint": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": null,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 0,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 5
+        },
+        "cost": {
+          "fresh": {
+            "calls": 4,
+            "input_tokens": 6631,
+            "output_tokens": 8624,
+            "seconds": 1143.901328
+          },
+          "replayed": {
+            "calls": 1,
+            "input_tokens": 1780,
+            "output_tokens": 2438,
+            "seconds": 325.375827
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9633333333333334,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": 0.9633333333333334,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": 0.9633333333333334,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 5,
+        "input_tokens": 8411,
+        "output_tokens": 11062,
+        "seconds": 1469.277155
+      }
+    },
+    "continuation": {
+      "config_sha256": "8eebbae745fcafbb73cda20864fc094ccab582635468a711563395128d7a6552",
+      "groups": 1,
+      "cases": 1,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 1,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "predicted_values": 600,
+          "gold_value_fields": 600,
+          "unannotated_fields": 0,
+          "absent_accuracy": null,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 200,
+          "predicted": 200,
+          "matched": 200,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 1.0,
+          "strict_documents": 1.0,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 0,
+          "predicted_annotated": 0,
+          "cited": 0,
+          "joint": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": null,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 0,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 5
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 5,
+            "input_tokens": 8529,
+            "output_tokens": 11152,
+            "seconds": 1511.052482
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 1.0,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": 1.0,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": 1.0,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 5,
+        "input_tokens": 8529,
+        "output_tokens": 11152,
+        "seconds": 1511.052482
+      }
+    },
+    "combined": {
+      "config_sha256": "29d46310ce3606d5d6316584ed4b70195312c9e235e2b50d2927328305aeb917",
+      "groups": 1,
+      "cases": 1,
+      "attempt_spend": {
+        "fresh_calls": 4,
+        "attempts": 1,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "predicted_values": 600,
+          "gold_value_fields": 600,
+          "unannotated_fields": 0,
+          "absent_accuracy": null,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 200,
+          "predicted": 200,
+          "matched": 200,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 1.0,
+          "strict_documents": 1.0,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 0,
+          "predicted_annotated": 0,
+          "cited": 0,
+          "joint": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": null,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 0,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 5
+        },
+        "cost": {
+          "fresh": {
+            "calls": 4,
+            "input_tokens": 6779,
+            "output_tokens": 8696,
+            "seconds": 1153.037276
+          },
+          "replayed": {
+            "calls": 1,
+            "input_tokens": 1817,
+            "output_tokens": 2456,
+            "seconds": 365.043864
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 1.0,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": 1.0,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": 1.0,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 5,
+        "input_tokens": 8596,
+        "output_tokens": 11152,
+        "seconds": 1518.08114
+      }
+    },
+    "combined-minus-overlap": {
+      "config_sha256": "8eebbae745fcafbb73cda20864fc094ccab582635468a711563395128d7a6552",
+      "groups": 1,
+      "cases": 1,
+      "attempt_spend": {
+        "fresh_calls": 5,
+        "attempts": 1,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "predicted_values": 600,
+          "gold_value_fields": 600,
+          "unannotated_fields": 0,
+          "absent_accuracy": null,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 200,
+          "predicted": 200,
+          "matched": 200,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 1.0,
+          "strict_documents": 1.0,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 0,
+          "predicted_annotated": 0,
+          "cited": 0,
+          "joint": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": null,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 0,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 5
+        },
+        "cost": {
+          "fresh": {
+            "calls": 5,
+            "input_tokens": 8529,
+            "output_tokens": 11152,
+            "seconds": 1511.052482
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 1.0,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": 1.0,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": 1.0,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 5,
+        "input_tokens": 8529,
+        "output_tokens": 11152,
+        "seconds": 1511.052482
+      }
+    },
+    "combined-minus-continuation": {
+      "config_sha256": "944c28ce383c20168e30bfc36760efff18ac3f271c60247b4eaeb8da83a1d31c",
+      "groups": 1,
+      "cases": 1,
+      "attempt_spend": {
+        "fresh_calls": 0,
+        "attempts": 1,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.9633333333333334,
+          "recall": 0.9633333333333334,
+          "f1": 0.9633333333333334,
+          "predicted_values": 600,
+          "gold_value_fields": 600,
+          "unannotated_fields": 0,
+          "absent_accuracy": null,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 200,
+          "predicted": 200,
+          "matched": 200,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.89,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 0,
+            "matched": 0,
+            "strict": 0,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 0,
+          "predicted_annotated": 0,
+          "cited": 0,
+          "joint": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": null,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 0,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 5
+        },
+        "cost": {
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          },
+          "replayed": {
+            "calls": 5,
+            "input_tokens": 8411,
+            "output_tokens": 11062,
+            "seconds": 1469.277155
+          }
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.9633333333333334,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "recall": {
+          "point": 0.9633333333333334,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        },
+        "f1": {
+          "point": 0.9633333333333334,
+          "interval": null,
+          "groups": 1,
+          "note": "fewer than two groups"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 5,
+        "input_tokens": 8411,
+        "output_tokens": 11062,
+        "seconds": 1469.277155
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "control": "base",
+      "treatment": "overlap",
+      "factor": "chunking",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 1,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 1,
+        "mean": -0.018333333333333313,
+        "percentile_95": [
+          -0.018333333333333313,
+          -0.018333333333333313
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 4,
+        "treatment_only": 4,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 1,
+        "calls": 0,
+        "input_tokens": 67,
+        "output_tokens": 0,
+        "seconds": -4.972519
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "continuation",
+      "factor": "merge",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 1,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 1,
+        "mean": 0.018333333333333313,
+        "percentile_95": [
+          0.018333333333333313,
+          0.018333333333333313
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 5,
+        "treatment_only": 5,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 1,
+        "calls": 0,
+        "input_tokens": 185,
+        "output_tokens": 90,
+        "seconds": 36.802808
+      }
+    },
+    {
+      "control": "combined-minus-overlap",
+      "treatment": "combined",
+      "factor": [
+        "chunking"
+      ],
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 1,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 1,
+        "mean": 0.0,
+        "percentile_95": [
+          0.0,
+          0.0
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 4,
+        "treatment_only": 4,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 1,
+        "calls": 0,
+        "input_tokens": 67,
+        "output_tokens": 0,
+        "seconds": 7.028658
+      }
+    },
+    {
+      "control": "combined-minus-continuation",
+      "treatment": "combined",
+      "factor": [
+        "merge"
+      ],
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 1,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 1,
+        "mean": 0.036666666666666625,
+        "percentile_95": [
+          0.036666666666666625,
+          0.036666666666666625
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 5,
+        "treatment_only": 5,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 1,
+        "calls": 0,
+        "input_tokens": 185,
+        "output_tokens": 90,
+        "seconds": 48.803985
+      }
+    }
+  ],
+  "interactions": [
+    {
+      "baseline": "base",
+      "a": "overlap",
+      "b": "continuation",
+      "ab": "combined",
+      "unit": "group",
+      "metric": "field F1 difference of differences",
+      "groups": 1,
+      "effect": {
+        "documents": 1,
+        "mean": 0.018333333333333313,
+        "percentile_95": [
+          0.018333333333333313,
+          0.018333333333333313
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      }
+    }
+  ],
+  "provenance": {
+    "run_code_matches_current": false,
+    "cells_by_code_sha256": {
+      "777a25782bd2658c505b9c78e6382dfa3ac35f087cdb5b4bf0d0bd1fa768d82a": 6
+    },
+    "current_code_sha256": "57ec149e59343b96a6bc56dc868168745f5caa079b77b1e9bb90a7a9cb0f23a5",
+    "manifest_code_matches_current": false,
+    "environment_matches_current": true,
+    "environment_at_run": {
+      "python": "3.13.11",
+      "system": "Linux aarch64",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "jsonschema": "4.26.0",
+      "pydantic": "2.13.5",
+      "requests": "2.34.2"
+    },
+    "provider": {
+      "url": "http://extraction_model:8000/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "served": {
+        "id": "Qwen/Qwen3.8-27B-FP8",
+        "max_model_len": 32768,
+        "root": "Qwen/Qwen3.8-27B-FP8"
+      },
+      "context_tokens": 32768
+    },
+    "scorer_sha256": "4eccb898c8c3ef6457cfb5c13cd96d0a0c1cb545689875b55768c10b6ed86eb4"
+  },
+  "limits": [
+    "Documents of one group are resampled together; intervals over few groups are descriptive, not evidence of generalisation.",
+    "Synthetic or development data test the implementation, not real-world superiority.",
+    "Model calls are not deterministic even at temperature 0; repeats would measure serving variability.",
+    "Cost is real inference plus replayed replies at their recorded cost, for sealed cells only; what failed or unsealed attempts spent is `attempt_spend`, and cost deltas use the cases both arms completed.",
+    "Model-seconds are as recorded when each reply was made, under whatever load the server had then: compare calls and tokens, not seconds, across arms."
+  ],
+  "selection": "none: this report names no winner; a variant is chosen on split dev alone and reported once on test"
+}

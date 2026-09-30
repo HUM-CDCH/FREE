@@ -28,6 +28,13 @@ dependencies = [
 kei-exp = "kei_exp.convert:main"
 kei-worker = "kei_exp.workflows.cli:main"
 
+[project.optional-dependencies]
+experiments = [
+    "scipy>=1.18.1",
+    "jsonschema>=4.26.0",
+    "requests>=2.34.2",
+]
+
 [tool.uv]
 link-mode = "copy"
 # docling's rapidocr wants opencv-python while surya-ocr wants the headless
