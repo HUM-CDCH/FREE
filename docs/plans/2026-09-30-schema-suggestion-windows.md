@@ -23,7 +23,12 @@ Defaults taken for the open decisions (change here to override):
 - [x] 4. Full-source single generation behind a DBOS patch
 - [x] 5. Full-source batch members behind a DBOS patch
 - [x] 6. Hierarchical intersection replaces dropping batch merges
-- [ ] 7. Guard provider truncation
+- [x] 7. Guard provider truncation
+  - The deployment serves models through vLLM (`compose.gpu.yaml`: instruct and NuExtract at `--max-model-len`
+    32768 tokens), which rejects a longer prompt with a 400 rather than truncating it. One 48,000-character window
+    (roughly 12–15k tokens) plus the prompt and NuExtract's 8192 output tokens fits; a whole large source (Beier,
+    ~150k tokens) never would. Ollama remains only as a researcher-configured provider: Ollama 0.32 silently cuts
+    the middle of a prompt over `num_ctx` unless sent `truncate: false`, which its transport now sends.
 - [ ] 8. Recovery, checkpoint privacy, historical notices
 - [ ] 9. Real Beier validation (manual / needs-user)
 

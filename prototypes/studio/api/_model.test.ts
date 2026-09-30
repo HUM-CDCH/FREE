@@ -272,6 +272,16 @@ describe('generateSchemaWithModel', () => {
     expect(result.sourceCoverage.omitted.map((omission) => omission.page)).toEqual(Array.from({ length: 45 }, (_, i) => i + 1))
   })
 
+  it('rejects an answer the model stopped for length, even when its JSON parses', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"_description":"One entry.","label":"string"}', finishReason: 'length' })
+    await expect(generateSchemaWithModel(CALLER, { document, instruction: '' }, generalTarget))
+      .rejects.toMatchObject({ status: 502, code: 'model_output_truncated' })
+
+    stubNuExtractResponse('{"_description":"One entry.","label":"string"}', 'length')
+    await expect(generateSchemaWithModel(CALLER, { document, instruction: '' }, nuextractTarget))
+      .rejects.toMatchObject({ status: 502, code: 'model_output_truncated' })
+  })
+
   it('sends a supplied window unchanged in one call', async () => {
     generateTextMock.mockResolvedValue({ text: '{"_description":"One entry.","label":"string"}' })
     const window = 'A'.repeat(25_000) + 'UNIQUE_MIDDLE_FIELD' + 'Z'.repeat(25_000)
