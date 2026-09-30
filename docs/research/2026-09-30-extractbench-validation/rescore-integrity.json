@@ -1,0 +1,79 @@
+[
+  {
+    "pilot": "harness-final2",
+    "original_files": {
+      "out/manifest.json": "723643929533c42980f7f15b74b742f77eee99a71fcc543f783a83ed5d13294f",
+      "out/cells/base--case008/result.json": "7a45e46c626908ea4ee61092e60137f8ec9cada0807b1331a3c397ad42bd56a9",
+      "out/cells/base--case009/result.json": "4f118063bb37891f3cb1ca0db8fe09d24bbbafe301f27d323ea35d7c06b587bf",
+      "out/cells/base--case010/result.json": "98d498541fccf2c3d0026bdbeba164edc6c641c254be81137ceeffecdf3f8586",
+      "out/cells/combined--case000/result.json": "b545d681e4af871cfa9393be42f9371cac72ac4804c0676c61f4f0df42207abd",
+      "out/cells/combined--case001/result.json": "4d619f2c7e4c4edf6af0d03e6fced9b8ad77b8e2b80d8b3e21f43ae4a560648e",
+      "out/cells/combined--case002/result.json": "e14e84616e683c836cbcf88a9b312686d08c87e739a74e092e86a45273e6127f",
+      "out/cells/combined--case003/result.json": "5365f3bd9260972887e332d53515ba988a052cf0e046992f3f5af8046f689b72",
+      "out/cells/combined--case004/result.json": "5f0f692a607c3f3089797b8f956abb2b8378108fa517b3d6f9bb874707380ec4",
+      "out/cells/combined--case005/result.json": "944bcac3ffd2f3915daa0c3bbaff024bec0940f3abefaee67dcdf96cfe84acd8",
+      "out/cells/combined--case006/result.json": "f89ecfefaa876b3dd296b7952cc144ae26abb28b5c71f05de62e92aa2b4e9b19",
+      "out/cells/combined--case007/result.json": "6b812abc50a735d273c7d7c6b8b983ebb9a105e0a816470743affc1e046816d8",
+      "out/cells/combined--case008/result.json": "441aaf37e5a64db0175b281ddf67bf218579002fab63e9bbcb60c6e9216c2308",
+      "out/cells/combined--case009/result.json": "bb1048e80406ebaf83c95c4c1c012fbead704695bce199468f9291eaaaeeb321",
+      "out/cells/combined--case010/result.json": "e96294113e86d952886b7c7b1bfe991a89cb9c732feb24bba107687282234696",
+      "out/cells/combined-minus-overlap--case008/result.json": "1f9cab763794136200c4153aee7194ae419a2f27b3db755af195b35fdeeee9a0",
+      "out/cells/combined-minus-overlap--case009/result.json": "8c551f265c7d9294800910ab15818bdb412dab50a87373a889948e7d149bc84e",
+      "out/cells/combined-minus-overlap--case010/result.json": "e48582e8cf1c8d321c62f189ffdd107f0e9daa0a7de3a68a1621de419480549f",
+      "out/cells/combined-minus-quote--case008/result.json": "7eb1cf035909da9f519750a4994e9a29372bc4056b452bb06e9e0d9699d3d25b",
+      "out/cells/combined-minus-quote--case009/result.json": "d04fdca93b926f729cd8a5ce06386306bc3c5b23e0206929e8d338fbe07c38ea",
+      "out/cells/combined-minus-quote--case010/result.json": "707da78d130aa6d3a570815a42c9cdfc9bc3a603f344a001d981f26d45507ebb",
+      "out/cells/continuation--case008/result.json": "7e14ca44f24c16a6bd31be2538e98237034b7cf2750f71ea610bca1bb700f83f",
+      "out/cells/continuation--case009/result.json": "24dfd177d6a7d7455ebf45654215f8089f30f9f866fb806a023ab17994133c2d",
+      "out/cells/continuation--case010/result.json": "a8a4ba0eb08d6e0214997cbde6c9082d0b47c23086989c7d8ce95da28e21c14d",
+      "out/cells/no-recovery--case008/result.json": "6488d4eb2b1963a549848e53d6d818fc3054bf11834d872d024d3a1a77129690",
+      "out/cells/no-recovery--case009/result.json": "4dc508528ffbd98453863edfc320b914350a9c220af2a6b4c8c124aaa7e462f9",
+      "out/cells/no-recovery--case010/result.json": "229d96dbff638e5d1665bfc6b2fd0ead1bbe141f5dd1668dfa68ef5e852ee9f0",
+      "out/cells/overlap--case008/result.json": "acbc50fbf571741f32b26250624437a68882471b62ac0752fc408847d0ec892f",
+      "out/cells/overlap--case009/result.json": "bf9bba742ecf4612ec670c35deaccbb0943699af28e279bafd85469b18e2958d",
+      "out/cells/overlap--case010/result.json": "a49b38014f823fa9e07bcc5ee617c005d57a9528b0a7e140edb71cc1a642dee4",
+      "out/cells/quote--case008/result.json": "4996878e4b6f5dd21adec0c1dc13ddaf203cfa1f1f767fbaac24fc6d115ca888",
+      "out/cells/quote--case009/result.json": "eb4ca334462f9eec780fd9727bdcc5a5ce255cc09ad6586dbe9138473db1aae6",
+      "out/cells/quote--case010/result.json": "f6f066f48cc7dc4bbf273d08ddb7cac14bc7ebab429f77f049293877fcd83cfe",
+      "out/cells/retry--case008/result.json": "ac8d7b06566209d45106de56c08ecbb04d1b5f485e692e0318403d0d412a1f2a",
+      "out/cells/retry--case009/result.json": "1c213cdb130aaa07c2e2dd974430d1fdc80562e2495aee677fd56777c9c1bfb6",
+      "out/cells/retry--case010/result.json": "6f7eb88e879870f9d30354ef40757404c37693b54e88cdac1b978b4aedbbe881",
+      "out/cells/sampled--case008/result.json": "265d0d328779273997824a51492ed3fbfec30e2b4aa246abe9d046760486569e",
+      "out/cells/sampled--case009/result.json": "2ed982f5b3ccd430ce1476759a54e67bec291841e1558789ea1e033f2650b2c1",
+      "out/cells/sampled--case010/result.json": "2bc82662df4ec6461ef7543be0e450689cbc47aa8f6981d2cf9cbe6a71bff6c5",
+      "out/cells/verified--case008/result.json": "439d44af8e9fae4b424b8bc4ceb2e80433f841b417f0bdd687de260765a76253",
+      "out/cells/verified--case009/result.json": "837eebaebc469c2580c392e420c0e252cc152d8adb51200cf6fc6768b3bc8489",
+      "out/cells/verified--case010/result.json": "adfca6295a73afc000a5782f15083e9a05c6783c2174da697072aff531c7ff02"
+    },
+    "rescore_report_sha256": "58d6c6368798159e063478df734888eda1ea16b3601ab4222a8420ad1a504b07",
+    "original_manifest_matches_preserved_pilot": true
+  },
+  {
+    "pilot": "harness-ids",
+    "original_files": {
+      "out/manifest.json": "6331471ea26982ce6203a2baf403994c3ebe0f41a5f6052efd17c0906099c4da",
+      "out/cells/base--case008/result.json": "c0c8997bd94d9db61c77888a3d68811e026b70c94e37da76eafe446c07c778f7",
+      "out/cells/base--case009/result.json": "2505199ac70c9ff7d470a75d9def222db722202ee1029ca964c10d21cd8df272",
+      "out/cells/base--case010/result.json": "fa364f46f8b7b33bc3851eb631f45b82a380abc9c8bfe663aeee57da1f631410",
+      "out/cells/ids--case008/result.json": "0b7d9a5adc2cf1de345ed7311aa4cd905f16b4ae479de0405523b5360b60eea7",
+      "out/cells/ids--case009/result.json": "e58207838e98dd27357997f8f36e09afb676c0cd391611584c0515026a90e650",
+      "out/cells/ids--case010/result.json": "3d2bda41fba0194c2c11e6e604949ab83e61bdae02e96c783f186781a2dd8977"
+    },
+    "rescore_report_sha256": "49cc2fbf648bc608611a93633ed23f20f5ac5efdbf63107899bb1e5064bae76c",
+    "original_manifest_matches_preserved_pilot": true
+  },
+  {
+    "pilot": "harness-big",
+    "original_files": {
+      "out/manifest.json": "5b32195430524004842186c90bce0654977977f6586e2692ca3428bb0e8b2eda",
+      "out/cells/base--big/result.json": "2104630c5eee074f92b06be606a8c9e49e73a93eb65ebc1ebfebc5d0ea096817",
+      "out/cells/combined--big/result.json": "3778defd0e2419689dd8d21dc090555ec223703576eee662657fe554ce45ef1d",
+      "out/cells/combined-minus-continuation--big/result.json": "71cb754da94d70706a484c8c1297fd02e744629de96b3d7e70e2eef5844ec505",
+      "out/cells/combined-minus-overlap--big/result.json": "f99f62e98d989f544da9fc6045bc8c8bc59df0e97330901060562f008f4bacd2",
+      "out/cells/continuation--big/result.json": "08e13fb080e8a999a32b0ba18b9e745e92750d0ca5f92f30cdef8f65841f7661",
+      "out/cells/overlap--big/result.json": "c117da4c904971ee39d339501c5ac56a030f995b6a4408be1aed298f3f511bcc"
+    },
+    "rescore_report_sha256": "3dd3a7fbfa9528c5e4bdbd1256cf7bb466a32cd944e38c32308c12437deff9c8",
+    "original_manifest_matches_preserved_pilot": true
+  }
+]

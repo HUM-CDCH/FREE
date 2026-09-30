@@ -1,0 +1,41 @@
+{
+  "hash_algorithm": "sha256",
+  "excluded": [
+    "artifact-integrity.json (self)"
+  ],
+  "implementation_commit": "677ec96f6fc0765d0396df977098b0d373ac0edb",
+  "smoke_execution_commit": "2a2b6d4586179919accbae7800d5071a7df6cb00",
+  "files": {
+    "README.md": "a210a191e5bc43dd3940d6655efa19e0fd360533c119884ff141077be9edb005",
+    "adapter-manifest.json": "3edbe22718761fd25e2ce6936e4bcb992af3aab3104f456f32981e92db2ccb35",
+    "adapter-smoke.json": "3edbe22718761fd25e2ce6936e4bcb992af3aab3104f456f32981e92db2ccb35",
+    "audit_smoke.py": "1492d25ac5870c2111719ef32e901c62700626ecd59f7b43068ded26e626bee1",
+    "development-smoke-audit.json": "d8f4bf4acf140431390aca36d7d28864e968e77b1b841881cfdc27687137e65c",
+    "development-smoke-report-v2.json": "18972220baa112ec4359ebc3f5c7577382fbd2ee70c0d8e70feb90027c1739b0",
+    "execution-manifest.json": "d6356a26a99f8b3de14dbab08d36901f2f5c5a3145ab5b2b94e2402f01b19640",
+    "final-code-replay.json": "3994123fd7d77c85df0393799bf06cbb9c41b6e80523637cce658e968de9ddf7",
+    "final-fast-tests.txt": "c5a8266cfe6fb3098201bb8a774c35a31745dcfab7e8049ac9b3bb23e19127bd",
+    "final-live-tests.txt": "a6c0c78ec61027c3a71a688e8971d266a2afe1c9f5cf3e6050532116d2d7a5c5",
+    "final-protocol-proposal.md": "9f4a0205220dacac2ca9b84f04e16aa2a854ebd35cba3b3a9e46e99df44c5c68",
+    "harness-big-rescore-v2.json": "e00c010d9afbf27370061a7da5c8a21b2647d0c6583b6e9efe55e828f7bf8429",
+    "harness-final2-calibration-rescore-v2.json": "ebdafac15b95a63bd41481223dea78ab8aefa419496be4a21b729f3ec1520233",
+    "harness-final2-fit-rescore-v2.json": "9efc93d2269da03b003748e3ea370575e9fd8229212b43cfbb1a81b919fb0b57",
+    "harness-final2-rescore-v2.json": "d5b651e14892cab306370a7a4f739ef2610335876775e44881264017eab4dfd7",
+    "harness-ids-rescore-v2.json": "b1ea3b0c72fee4086c62c7857c6aebe1698228ca0f744aa41b287c368fe72ead",
+    "interruption-reconciliation.json": "d41cfaa0c01f9b68368a93289f4f96d4599530e0aa9dcc357615a3bc4308bfa5",
+    "live-tests.txt": "32d8af61db26aecb2ffb17bb3ccc54d9ccc0c657807b5c2d715bf933653896fd",
+    "per-document.csv": "498ce2bd8c6a23478b015932148ee515d544c1ecda09e91a03a69c1d8ea26ecc",
+    "pilot-correction.md": "642062f5865d62998542edbce958ca1a8b9ece0f8707366c1324f15d0a90ae7d",
+    "protocol.md": "7b5bedc3b7e5d4d53456dfde1bc9094c6e021a866a25bdad62c7f4745eaec0d3",
+    "replay_check.py": "d9af82260ca63f0feb0de004e3ddbda5c9249fe7bcefc0b6f0f064d9fa3a8e74",
+    "reproduce.md": "6a1d6f80a36eebc7341f13c17a53a1a7454e32a1024149b159978d6fc62f5232",
+    "rescore-integrity.json": "b902f9c2d081ab8e7d1a79cbbf1d4f63fdf07e6a9f81f07fe2be63644608b379",
+    "serving-observation.md": "2777925b98de13ac1a657dc9becd76eab5a547115bcd85ccb8e1036230d21f35",
+    "study-development.json": "e27c09a90d13d75b17f8315c21e7ea274482ae2eb621d260c02cc60f64a63ae7",
+    "study-smoke.json": "34540db8f67e35c6ba4710d8f0fa8a024ea4f83dbac5cb034cae1f8e9213969d",
+    "verification.json": "659c6534494fcecfcb967f155eb89c5ea1b8ef3516ca4ab5c0835460f70f1353",
+    "../2026-09-30-extractbench-selection.json": "02e22e24073b72debe05741e1ee2b4b7896c84de212c2170a5f1a4a987b95dd7",
+    "../2026-09-30-extractbench-source.md": "0a90fff5f3eef3425465e79bd1787bae049a54744dbbdc8900ed4b188bc69221",
+    "../2026-09-30-extraction-harness-methods.md": "690778d8f8a2231143011fcad9e20e7e75d5820536372f63f20736b9d859d293"
+  }
+}

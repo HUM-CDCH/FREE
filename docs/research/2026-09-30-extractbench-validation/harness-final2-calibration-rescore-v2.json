@@ -1,0 +1,277 @@
+{
+  "study": "spark-synthetic-pilot-final",
+  "split": "calibration",
+  "variants": {
+    "combined": {
+      "config_sha256": "e8071076e98d66a6408654ff0f5033d077aaa6509ac1c8866c160f50dee23780",
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 22,
+        "attempts": 3,
+        "not_sealed": 0
+      },
+      "missing_cells": [],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 1.0,
+          "recall": 0.9736842105263158,
+          "f1": 0.9866666666666667,
+          "predicted_values": 111,
+          "gold_value_fields": 114,
+          "unannotated_fields": 0,
+          "optional_values_accepted": 0,
+          "absent_accuracy": 1.0,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 3,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 0,
+            "missing_record": 0
+          }
+        },
+        "records": {
+          "gold": 24,
+          "predicted": 24,
+          "matched": 24,
+          "missing": 0,
+          "hallucinated": 0,
+          "duplicated": 0,
+          "unadjudicated": 0,
+          "strict_correct": 0.8333333333333334,
+          "strict_documents": 0.6666666666666666,
+          "cross_page": {
+            "gold": 3,
+            "matched": 3,
+            "strict": 3,
+            "fragments": 0
+          }
+        },
+        "evidence": {
+          "annotated_fields": 114,
+          "predicted_annotated": 111,
+          "cited": 111,
+          "joint": 0.9736842105263158,
+          "raw_span_hit": 0.543859649122807,
+          "annotated_page_joint": 0.0,
+          "semantic_support": null,
+          "joint_given_predicted": 1.0,
+          "span_hit_given_correct": 1.0,
+          "page_hit": 1.0,
+          "segment_hit": 1.0,
+          "span_hit": 1.0,
+          "decoy_hit": 0.0,
+          "correct_with_annotated_evidence": 111,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 0.5714285714285714,
+          "replies": 28
+        },
+        "cost": {
+          "fresh": {
+            "calls": 22,
+            "input_tokens": 7180,
+            "output_tokens": 17464,
+            "seconds": 2530.5296479999997
+          },
+          "replayed": {
+            "calls": 6,
+            "input_tokens": 1968,
+            "output_tokens": 7029,
+            "seconds": 917.3171900000001
+          }
+        },
+        "evaluator_version": 2,
+        "raw_exact": {
+          "field": {
+            "precision": 1.0,
+            "recall": 0.9736842105263158,
+            "f1": 0.9866666666666667,
+            "predicted_values": 111,
+            "gold_value_fields": 114,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 1.0,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 3,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 24,
+            "predicted": 24,
+            "matched": 24,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.8333333333333334,
+            "strict_documents": 0.6666666666666666,
+            "cross_page": {
+              "gold": 3,
+              "matched": 3,
+              "strict": 3,
+              "fragments": 0
+            }
+          }
+        },
+        "canonicalized": {
+          "field": {
+            "precision": 1.0,
+            "recall": 0.9736842105263158,
+            "f1": 0.9866666666666667,
+            "predicted_values": 111,
+            "gold_value_fields": 114,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 1.0,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 3,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 0,
+              "missing_record": 0
+            }
+          },
+          "records": {
+            "gold": 24,
+            "predicted": 24,
+            "matched": 24,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.8333333333333334,
+            "strict_documents": 0.6666666666666666,
+            "cross_page": {
+              "gold": 3,
+              "matched": 3,
+              "strict": 3,
+              "fragments": 0
+            }
+          }
+        },
+        "repeated_records": {
+          "gold_records": 0,
+          "pred_records": 0,
+          "matched_records": 0,
+          "missing_records": 0,
+          "duplicated_records": 0,
+          "hallucinated_records": 0,
+          "strict_records": 0,
+          "cross_page_gold": 0,
+          "cross_page_strict": 0
+        },
+        "verifier_error_detection": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 111
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 1.0,
+          "interval": [
+            1.0,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.9736842105263158,
+          "interval": [
+            0.9210526315789473,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.9866666666666667,
+          "interval": [
+            0.958904109589041,
+            1.0
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 28,
+        "input_tokens": 9148,
+        "output_tokens": 24493,
+        "seconds": 3447.846838
+      }
+    }
+  },
+  "comparisons": [],
+  "interactions": [],
+  "provenance": {
+    "run_code_matches_current": false,
+    "cells_by_code_sha256": {
+      "777a25782bd2658c505b9c78e6382dfa3ac35f087cdb5b4bf0d0bd1fa768d82a": 3
+    },
+    "current_code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+    "manifest_code_matches_current": false,
+    "environment_matches_current": false,
+    "environment_at_run": {
+      "python": "3.13.11",
+      "system": "Linux aarch64",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "jsonschema": "4.26.0",
+      "pydantic": "2.13.5",
+      "requests": "2.34.2"
+    },
+    "provider": {
+      "url": "http://extraction_model:8000/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "served": {
+        "id": "Qwen/Qwen3.8-27B-FP8",
+        "max_model_len": 32768,
+        "root": "Qwen/Qwen3.8-27B-FP8"
+      },
+      "context_tokens": 32768
+    },
+    "scorer_sha256": "f1a3942b0b2119f3505b66338cf6a378fbc4c1434d4dab3ca9288fb441137ec4",
+    "evaluation_version": 2,
+    "original_evaluation_sha256": "d5e5543727f1bc25f6dec6e912713ada936706c7c156e9d4391b59c4db55fdba",
+    "rescored": true
+  },
+  "limits": [
+    "Documents of one group are resampled together; intervals over few groups are descriptive, not evidence of generalisation.",
+    "Synthetic or development data test the implementation, not real-world superiority.",
+    "Model calls are not deterministic even at temperature 0; repeats would measure serving variability.",
+    "Cost is real inference plus replayed replies at their recorded cost, for sealed cells only; what failed or unsealed attempts spent is `attempt_spend`, and cost deltas use the cases both arms completed.",
+    "Model-seconds are as recorded when each reply was made, under whatever load the server had then: compare calls and tokens, not seconds, across arms."
+  ],
+  "selection": "none: this report names no winner; a variant is chosen on split dev alone and reported once on test"
+}

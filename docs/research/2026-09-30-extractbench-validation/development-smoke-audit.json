@@ -1,0 +1,924 @@
+{
+  "implementation_commit": "2a2b6d4586179919accbae7800d5071a7df6cb00",
+  "config_deltas": {
+    "A1": [
+      "merge.continuation"
+    ],
+    "A2": [
+      "evidence.mode"
+    ],
+    "A3": [
+      "evidence.mode"
+    ]
+  },
+  "quote_id_alignment_equal": true,
+  "gold_excluded_from_inference_type": true,
+  "gold_roundtrips": [
+    {
+      "case": "short--dc-pepco-residential-bill",
+      "gold_value_fields": 20,
+      "raw_f1": 1,
+      "canonical_f1": 1
+    },
+    {
+      "case": "short--grafton_isotrope_invoice_19503",
+      "gold_value_fields": 27,
+      "raw_f1": 1,
+      "canonical_f1": 1
+    },
+    {
+      "case": "short--mission-tx-tyler-invoice",
+      "gold_value_fields": 58,
+      "raw_f1": 1,
+      "canonical_f1": 1
+    }
+  ],
+  "effective_requests_reconstructed_from": "Complete request caches plus the pinned ResearchChat payload adapter; not packet capture.",
+  "requests": [
+    {
+      "cell": "A1--short--dc-pepco-residential-bill",
+      "cache_key": "1813337da138cafe1afd93474e5f338ca44785a41731fb5a07fbd1d2deddf96c",
+      "effective_body_sha256": "96c3127864091be445fb89a7717aa1b461959a66880ae7e15ef744d3cbe886ed",
+      "schema_sha256": "4f8a1e52377a23870d9058d24f3dff4e3b0b3d87550a40d09a8a639c5f86c4c7",
+      "system_sha256": "33d1cad2e55e71da06d28fd11bad72d030f073cb00eb06183f52a9a2d265dab7",
+      "source_prompt_sha256": "9cb4a6b8a417c70e04f251c12e4d87381d68a4fa00b9ad6f8b14de8b5382b0fd",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 333,
+      "input_tokens": 1937,
+      "finish": "stop"
+    },
+    {
+      "cell": "A1--short--dc-pepco-residential-bill",
+      "cache_key": "4711e4e05d5887cb067105bb1d775d47c0ba9e478852a6c44dbdd353d2bba34e",
+      "effective_body_sha256": "f11b5b88f9283671270856589117c6338fad66f22e5c30e6139afc8638a1fbc8",
+      "schema_sha256": "4f8a1e52377a23870d9058d24f3dff4e3b0b3d87550a40d09a8a639c5f86c4c7",
+      "system_sha256": "33d1cad2e55e71da06d28fd11bad72d030f073cb00eb06183f52a9a2d265dab7",
+      "source_prompt_sha256": "1824e51bd218efc1ac4600d8e9185039e433a0fd47fdc60aa76c07729d54607c",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 236,
+      "input_tokens": 341,
+      "finish": "stop"
+    },
+    {
+      "cell": "A1--short--dc-pepco-residential-bill",
+      "cache_key": "5a4d1e54869b3eaf90c2c5350ff410eb02fcf637eb36e695c9908a16c68b8ab9",
+      "effective_body_sha256": "147ab6a2a23e461615e3fdc2dafb159c9bec992d058ff4e757d3b3fb8c6a7989",
+      "schema_sha256": "4f8a1e52377a23870d9058d24f3dff4e3b0b3d87550a40d09a8a639c5f86c4c7",
+      "system_sha256": "33d1cad2e55e71da06d28fd11bad72d030f073cb00eb06183f52a9a2d265dab7",
+      "source_prompt_sha256": "60b59ca7566621be5a33bbfb5839420101b623fb9a078202aa908e35b5dab40f",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 392,
+      "input_tokens": 1833,
+      "finish": "stop"
+    },
+    {
+      "cell": "A1--short--dc-pepco-residential-bill",
+      "cache_key": "6f85ed22530aab03b3e9a987f6f28947b3a19ae2914c5ce1c6b812e3760e9d6f",
+      "effective_body_sha256": "ecd41c5c6ddba25d2eb015a624a4b08be50ce736ce9a6532d55e86afb0bb46ed",
+      "schema_sha256": "4f8a1e52377a23870d9058d24f3dff4e3b0b3d87550a40d09a8a639c5f86c4c7",
+      "system_sha256": "33d1cad2e55e71da06d28fd11bad72d030f073cb00eb06183f52a9a2d265dab7",
+      "source_prompt_sha256": "6a428c2667dc9fa710747d418b08ea49e2269761cb27b609fcc97d8c0dc00654",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 290,
+      "input_tokens": 1685,
+      "finish": "stop"
+    },
+    {
+      "cell": "A1--short--dc-pepco-residential-bill",
+      "cache_key": "9bc482cd11de6df0e30d95c58afdeac0bde2b0b92f09aa005e1e6709a1150066",
+      "effective_body_sha256": "a9bc4f6f6ea96f91cb061fcfce486c1d58ef5396bd87a64e834b6e846c6f6d8b",
+      "schema_sha256": "4f8a1e52377a23870d9058d24f3dff4e3b0b3d87550a40d09a8a639c5f86c4c7",
+      "system_sha256": "33d1cad2e55e71da06d28fd11bad72d030f073cb00eb06183f52a9a2d265dab7",
+      "source_prompt_sha256": "0cae4076fde499c1b22ffb49518b3dd27b5e15568f46cbedfb5524bf5c694143",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 341,
+      "input_tokens": 1738,
+      "finish": "stop"
+    },
+    {
+      "cell": "A1--short--grafton_isotrope_invoice_19503",
+      "cache_key": "ca38c6beb36237e7488ca7ba0cef445acae8bedbb9aff7652079e43e847e4d04",
+      "effective_body_sha256": "324a727be7d302a8be50cf5dd485dff73390716c1c04bd57180b40a3e647bdea",
+      "schema_sha256": "51f995b6afd4534325b7fcea0bae88ee4da6cb0991b6c85a7510c1adb8934da2",
+      "system_sha256": "33d1cad2e55e71da06d28fd11bad72d030f073cb00eb06183f52a9a2d265dab7",
+      "source_prompt_sha256": "f7111b73f9b937abdc07aa2072d73e417ba2b4b8d8fcb92486a3183fa9389c40",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 565,
+      "input_tokens": 1340,
+      "finish": "stop"
+    },
+    {
+      "cell": "A1--short--mission-tx-tyler-invoice",
+      "cache_key": "19a7c2041f37d0e607204833fbb4f295be4087732f35be69627bfae42147afc6",
+      "effective_body_sha256": "f454307955bf1bb007d9db20aa87ff249c9b4a868a61511d2ced8039243f3032",
+      "schema_sha256": "51f995b6afd4534325b7fcea0bae88ee4da6cb0991b6c85a7510c1adb8934da2",
+      "system_sha256": "33d1cad2e55e71da06d28fd11bad72d030f073cb00eb06183f52a9a2d265dab7",
+      "source_prompt_sha256": "243ca70222cd19ebc0f5787063d44175184a1723b292a1558c444b08037da398",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1576,
+      "input_tokens": 1886,
+      "finish": "stop"
+    },
+    {
+      "cell": "A1--short--mission-tx-tyler-invoice",
+      "cache_key": "306f644f6a49ec35aa1faf3b51bcd4be75c41362ca46e45b8b9f1d75bb7b1af0",
+      "effective_body_sha256": "d2c3e5c565b1c662835ce53cdef97a77f8a07d36c7d88bb8b2fb81bf776c9fff",
+      "schema_sha256": "51f995b6afd4534325b7fcea0bae88ee4da6cb0991b6c85a7510c1adb8934da2",
+      "system_sha256": "33d1cad2e55e71da06d28fd11bad72d030f073cb00eb06183f52a9a2d265dab7",
+      "source_prompt_sha256": "1b18314fe7aa23d41953b0c3120ddbe9fab94c5e4e3d21f1b57dcd08a974c423",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 890,
+      "input_tokens": 1939,
+      "finish": "stop"
+    },
+    {
+      "cell": "A1--short--mission-tx-tyler-invoice",
+      "cache_key": "7e68b6d74077c8d5e66ce564025bb19fdc6e1a913b77178c89fc17ab60ce7105",
+      "effective_body_sha256": "800d10fbf7d0efff94d9c014b994226edd60b325357d50625aee3ada2fafacef",
+      "schema_sha256": "51f995b6afd4534325b7fcea0bae88ee4da6cb0991b6c85a7510c1adb8934da2",
+      "system_sha256": "33d1cad2e55e71da06d28fd11bad72d030f073cb00eb06183f52a9a2d265dab7",
+      "source_prompt_sha256": "86f9dafd6aa1490b016a82ade888a093473865aa2d1a66516089e21660d66711",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1114,
+      "input_tokens": 1469,
+      "finish": "stop"
+    },
+    {
+      "cell": "A2--short--dc-pepco-residential-bill",
+      "cache_key": "0bb293ee50963a4a2f0376b488b65ee4020d49186f8ae6b9a147355083e4477d",
+      "effective_body_sha256": "03a18b288a0abe7a32a8d6e8f68ff185886b31396d28f2c562c6253cbd5c28a0",
+      "schema_sha256": "8c44ce338c4395c05541c8808b318575242731effdbb692738057c97be5e64dc",
+      "system_sha256": "60e1fe6f7fde87eaba83b5a5bbcd49cc3e23e8baa8402b44ae4b6cc874b5188e",
+      "source_prompt_sha256": "6a428c2667dc9fa710747d418b08ea49e2269761cb27b609fcc97d8c0dc00654",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 612,
+      "input_tokens": 1685,
+      "finish": "stop"
+    },
+    {
+      "cell": "A2--short--dc-pepco-residential-bill",
+      "cache_key": "32c879b8091481df95e0841069cff090bc2ced019f0495923f80cc2ac4b4b253",
+      "effective_body_sha256": "2e0a0922321dfd77257e5c87bf4820248da6917006ad324aedd3353fa9555bf2",
+      "schema_sha256": "8c44ce338c4395c05541c8808b318575242731effdbb692738057c97be5e64dc",
+      "system_sha256": "60e1fe6f7fde87eaba83b5a5bbcd49cc3e23e8baa8402b44ae4b6cc874b5188e",
+      "source_prompt_sha256": "1824e51bd218efc1ac4600d8e9185039e433a0fd47fdc60aa76c07729d54607c",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 402,
+      "input_tokens": 341,
+      "finish": "stop"
+    },
+    {
+      "cell": "A2--short--dc-pepco-residential-bill",
+      "cache_key": "66adf63e338a889895dc62ebdf8934ff51476413058fb20d06fe9d7fa97f19a0",
+      "effective_body_sha256": "96383f58e6e33e74909d334d3b760eec23dfeb5327b11b8259e045c43019109a",
+      "schema_sha256": "8c44ce338c4395c05541c8808b318575242731effdbb692738057c97be5e64dc",
+      "system_sha256": "60e1fe6f7fde87eaba83b5a5bbcd49cc3e23e8baa8402b44ae4b6cc874b5188e",
+      "source_prompt_sha256": "9cb4a6b8a417c70e04f251c12e4d87381d68a4fa00b9ad6f8b14de8b5382b0fd",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 915,
+      "input_tokens": 1937,
+      "finish": "stop"
+    },
+    {
+      "cell": "A2--short--dc-pepco-residential-bill",
+      "cache_key": "82f5422e49585b9bb40fa3969d3a7066559d8616b39004bad8a8d11673c36b27",
+      "effective_body_sha256": "fbb5a166db3e8d45119b3dd27f373fc782cc4b3cb20d935b765b98f56997a32d",
+      "schema_sha256": "8c44ce338c4395c05541c8808b318575242731effdbb692738057c97be5e64dc",
+      "system_sha256": "60e1fe6f7fde87eaba83b5a5bbcd49cc3e23e8baa8402b44ae4b6cc874b5188e",
+      "source_prompt_sha256": "0cae4076fde499c1b22ffb49518b3dd27b5e15568f46cbedfb5524bf5c694143",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 975,
+      "input_tokens": 1738,
+      "finish": "stop"
+    },
+    {
+      "cell": "A2--short--dc-pepco-residential-bill",
+      "cache_key": "befbb6e526c5eafc79eb78e96d5c2b927e58c8bb83fa6bfebb64f3479160cd2b",
+      "effective_body_sha256": "55f7c98075531c0fdcd6a12ff50d67f2b81305bfc6dc5dc2555de708a4c294ed",
+      "schema_sha256": "8c44ce338c4395c05541c8808b318575242731effdbb692738057c97be5e64dc",
+      "system_sha256": "60e1fe6f7fde87eaba83b5a5bbcd49cc3e23e8baa8402b44ae4b6cc874b5188e",
+      "source_prompt_sha256": "60b59ca7566621be5a33bbfb5839420101b623fb9a078202aa908e35b5dab40f",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1069,
+      "input_tokens": 1833,
+      "finish": "stop"
+    },
+    {
+      "cell": "A2--short--grafton_isotrope_invoice_19503",
+      "cache_key": "6f05c5dee66df377f0949417615d2541fa9867b1f8905247ee23ded8f97519d8",
+      "effective_body_sha256": "32725f085292f26aa5fbd3a3a6bf356fe7795591663db0f8ce6b04552eccca87",
+      "schema_sha256": "9378fded7b42f212dc88768244079389637f77a90710b76c4ebdf44b10a961ba",
+      "system_sha256": "60e1fe6f7fde87eaba83b5a5bbcd49cc3e23e8baa8402b44ae4b6cc874b5188e",
+      "source_prompt_sha256": "f7111b73f9b937abdc07aa2072d73e417ba2b4b8d8fcb92486a3183fa9389c40",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1371,
+      "input_tokens": 1340,
+      "finish": "stop"
+    },
+    {
+      "cell": "A2--short--mission-tx-tyler-invoice",
+      "cache_key": "094df8b2c8dd9d89f182ef5b4e0d96b6191c3e2c27f13d3e652d29b11f2b829d",
+      "effective_body_sha256": "ea7d84487e0ae34556a23618c03a9477124185ac319135082dcff514930a98b0",
+      "schema_sha256": "9378fded7b42f212dc88768244079389637f77a90710b76c4ebdf44b10a961ba",
+      "system_sha256": "60e1fe6f7fde87eaba83b5a5bbcd49cc3e23e8baa8402b44ae4b6cc874b5188e",
+      "source_prompt_sha256": "86f9dafd6aa1490b016a82ade888a093473865aa2d1a66516089e21660d66711",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 165,
+      "input_tokens": 1469,
+      "finish": "stop"
+    },
+    {
+      "cell": "A2--short--mission-tx-tyler-invoice",
+      "cache_key": "bf869f6e368385848fd2e9c2db6c4d02e6b55f7aee527fba8eb1351b00ea5a18",
+      "effective_body_sha256": "6fc032fcbf2c6c5e71178bf26d164f5870617d2218d419bc7a7cdadc325939bf",
+      "schema_sha256": "9378fded7b42f212dc88768244079389637f77a90710b76c4ebdf44b10a961ba",
+      "system_sha256": "60e1fe6f7fde87eaba83b5a5bbcd49cc3e23e8baa8402b44ae4b6cc874b5188e",
+      "source_prompt_sha256": "1b18314fe7aa23d41953b0c3120ddbe9fab94c5e4e3d21f1b57dcd08a974c423",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1561,
+      "input_tokens": 1939,
+      "finish": "stop"
+    },
+    {
+      "cell": "A2--short--mission-tx-tyler-invoice",
+      "cache_key": "ffc141f576bf0de84b468b4556b035fe246074f187ee23eca0283a5eb1c18a37",
+      "effective_body_sha256": "73f58e0fbae2a035213aeda98bd654ef5aa6b13c67deaa751ae81f4bc49988d4",
+      "schema_sha256": "9378fded7b42f212dc88768244079389637f77a90710b76c4ebdf44b10a961ba",
+      "system_sha256": "60e1fe6f7fde87eaba83b5a5bbcd49cc3e23e8baa8402b44ae4b6cc874b5188e",
+      "source_prompt_sha256": "243ca70222cd19ebc0f5787063d44175184a1723b292a1558c444b08037da398",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1987,
+      "input_tokens": 1886,
+      "finish": "stop"
+    },
+    {
+      "cell": "A3--short--dc-pepco-residential-bill",
+      "cache_key": "03876403f03deb764e0d10dba75ae4d1f31e54cd6c2414a645069a7b3cbc5bb4",
+      "effective_body_sha256": "3b122b0daa5373a36a91b82643dcd52676b61e73157b60329a2c54aa8296d36d",
+      "schema_sha256": "46227f41d08b39154d700b78cb0441caf5f09176fe61391da2840dca93fef7bb",
+      "system_sha256": "baac1eb755d4187d64445d219651446aeda705d379b0eb0cc3780ae1c862c6df",
+      "source_prompt_sha256": "9cb4a6b8a417c70e04f251c12e4d87381d68a4fa00b9ad6f8b14de8b5382b0fd",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 723,
+      "input_tokens": 1923,
+      "finish": "stop"
+    },
+    {
+      "cell": "A3--short--dc-pepco-residential-bill",
+      "cache_key": "483eced05a806b39eb32224151f778e532ec44eb545f4911d2b2d9db88efa3e6",
+      "effective_body_sha256": "40a06937dd790c2ebe1258fcedc82f187cbb0de48a1a8c163ed2d312c6a20d3a",
+      "schema_sha256": "f51cc1a0c78a7cc57727f936276fb954c90f96d6c39196e84cbc3d0a153874f5",
+      "system_sha256": "baac1eb755d4187d64445d219651446aeda705d379b0eb0cc3780ae1c862c6df",
+      "source_prompt_sha256": "60b59ca7566621be5a33bbfb5839420101b623fb9a078202aa908e35b5dab40f",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 824,
+      "input_tokens": 1819,
+      "finish": "stop"
+    },
+    {
+      "cell": "A3--short--dc-pepco-residential-bill",
+      "cache_key": "75fe513a770f77a2d5a4aef8295a8a71fb1c2f1e301023c198b503475004def3",
+      "effective_body_sha256": "00c2c6be800af96a07426dcad3082a8185d4b99f3f67f2bbbe280042f62909c6",
+      "schema_sha256": "c461ab214c5ab2d364001105afbbe20fc00fc40db48a518655792f0d5378a4d1",
+      "system_sha256": "baac1eb755d4187d64445d219651446aeda705d379b0eb0cc3780ae1c862c6df",
+      "source_prompt_sha256": "0cae4076fde499c1b22ffb49518b3dd27b5e15568f46cbedfb5524bf5c694143",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 743,
+      "input_tokens": 1724,
+      "finish": "stop"
+    },
+    {
+      "cell": "A3--short--dc-pepco-residential-bill",
+      "cache_key": "894f12f64ebfdcccce9028d72f61974cd44a022deb9cd85dcbd85cba9a54b33b",
+      "effective_body_sha256": "3bec5454ed9c5389e066082be78cfeb2a3410c5d2fb23e7d13a058680bf51450",
+      "schema_sha256": "011f2039e183f85ae110a41ebab06db86d14bc3e7e2458d3970eb0a456955ab0",
+      "system_sha256": "baac1eb755d4187d64445d219651446aeda705d379b0eb0cc3780ae1c862c6df",
+      "source_prompt_sha256": "6a428c2667dc9fa710747d418b08ea49e2269761cb27b609fcc97d8c0dc00654",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 498,
+      "input_tokens": 1671,
+      "finish": "stop"
+    },
+    {
+      "cell": "A3--short--dc-pepco-residential-bill",
+      "cache_key": "fa3f3f386a6137d65a03a1861f604c4a4181fa183c07ea6847f191fa92fbb149",
+      "effective_body_sha256": "4f3deca4bed317b111ad9bc1a7477cec454ad0518e6aebb59bf9f779de18b111",
+      "schema_sha256": "ebe0870ccf9cedf473cda6d63b5d0ead5cbba95e23e7dcd77f5beafc05797de1",
+      "system_sha256": "baac1eb755d4187d64445d219651446aeda705d379b0eb0cc3780ae1c862c6df",
+      "source_prompt_sha256": "1824e51bd218efc1ac4600d8e9185039e433a0fd47fdc60aa76c07729d54607c",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 402,
+      "input_tokens": 327,
+      "finish": "stop"
+    },
+    {
+      "cell": "A3--short--grafton_isotrope_invoice_19503",
+      "cache_key": "cab2c3f9dbb3f3a137e8af4382c6e3441525b8a47aeb502ab3c35ec635a93dbc",
+      "effective_body_sha256": "d0df0a3f7518d44740fc7c6e3e3da848ef2ce82d65b5a9f31ff8edd96a707237",
+      "schema_sha256": "fffcb6c0bda4677f582aea6a31c2f9efc09e830addcd6169cba3f98d19ecf64b",
+      "system_sha256": "baac1eb755d4187d64445d219651446aeda705d379b0eb0cc3780ae1c862c6df",
+      "source_prompt_sha256": "f7111b73f9b937abdc07aa2072d73e417ba2b4b8d8fcb92486a3183fa9389c40",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1057,
+      "input_tokens": 1326,
+      "finish": "stop"
+    },
+    {
+      "cell": "A3--short--mission-tx-tyler-invoice",
+      "cache_key": "0ed8528840f83ee11accd8dfd065725b09facd54a9f171ca7f90665aca9aceef",
+      "effective_body_sha256": "3ec56bb8e0c0ff8111240b47da4c314bfb4378d4108acd3666f7507621dfcc49",
+      "schema_sha256": "3388a993847ffffd85bfe62c0c7911b811a3b6fae7ddac1ff4e5a1d0aee3bbb9",
+      "system_sha256": "baac1eb755d4187d64445d219651446aeda705d379b0eb0cc3780ae1c862c6df",
+      "source_prompt_sha256": "1b18314fe7aa23d41953b0c3120ddbe9fab94c5e4e3d21f1b57dcd08a974c423",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1379,
+      "input_tokens": 1925,
+      "finish": "stop"
+    },
+    {
+      "cell": "A3--short--mission-tx-tyler-invoice",
+      "cache_key": "1d8933e0b909e718d5d7a867186d569f5637bf313f0c8cb25d279e1a06d3adf9",
+      "effective_body_sha256": "5377834d589e789cce31867d4225eaf4d2f3983a563e7f5f71c6120c603bb3e3",
+      "schema_sha256": "15910757d51314db29b325ad769d9364dc90586483b04ae2125aed4c419850cb",
+      "system_sha256": "baac1eb755d4187d64445d219651446aeda705d379b0eb0cc3780ae1c862c6df",
+      "source_prompt_sha256": "86f9dafd6aa1490b016a82ade888a093473865aa2d1a66516089e21660d66711",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 165,
+      "input_tokens": 1455,
+      "finish": "stop"
+    },
+    {
+      "cell": "A3--short--mission-tx-tyler-invoice",
+      "cache_key": "7f3d442ecbb57a043b33ddeb792bb5b05bf9f01389df80a6ec9ccef095a0ad01",
+      "effective_body_sha256": "bcf4b979d12974dcdd25c2f7bfbb00ce5918cd23bdd17a8c5d9ff89b4aac66e4",
+      "schema_sha256": "4de8c67e39d757abe72eda12c55592a44d4ea5756aa6221d8b948444d5de0e31",
+      "system_sha256": "baac1eb755d4187d64445d219651446aeda705d379b0eb0cc3780ae1c862c6df",
+      "source_prompt_sha256": "243ca70222cd19ebc0f5787063d44175184a1723b292a1558c444b08037da398",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 2214,
+      "input_tokens": 1872,
+      "finish": "stop"
+    },
+    {
+      "cell": "base--short--dc-pepco-residential-bill",
+      "cache_key": "292b9e0e07bc92f4c2ea126e670cb35d57aeb7cba15180e727ba8bd83f1b9624",
+      "effective_body_sha256": "c9136beaf753be12ddc25d686574bf325863f66b175b50b56fed76ff9b1fa78f",
+      "schema_sha256": "869978b573378344e0745e0ee084bf96286d482bfe433b275a52a63c3e96875a",
+      "system_sha256": "c0a272058fec2ff5aa363859e61de7e1c171dace1e649f83826762e23448a131",
+      "source_prompt_sha256": "0cae4076fde499c1b22ffb49518b3dd27b5e15568f46cbedfb5524bf5c694143",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 326,
+      "input_tokens": 1701,
+      "finish": "stop"
+    },
+    {
+      "cell": "base--short--dc-pepco-residential-bill",
+      "cache_key": "3914e54dbe28409d5d310f6a2988f7e357f380535d5edafa85071d9431afb968",
+      "effective_body_sha256": "07ae2ebd386f4399f956cf41586ab24e0e31850db137eb726cca114fa235e52d",
+      "schema_sha256": "869978b573378344e0745e0ee084bf96286d482bfe433b275a52a63c3e96875a",
+      "system_sha256": "c0a272058fec2ff5aa363859e61de7e1c171dace1e649f83826762e23448a131",
+      "source_prompt_sha256": "60b59ca7566621be5a33bbfb5839420101b623fb9a078202aa908e35b5dab40f",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 374,
+      "input_tokens": 1796,
+      "finish": "stop"
+    },
+    {
+      "cell": "base--short--dc-pepco-residential-bill",
+      "cache_key": "59a67a2ddd12f640176eaa46fc0f80bd299374a0d1c91cfe7266d62ab566c7b9",
+      "effective_body_sha256": "83a58112380cffb2d0e61a391b11af8606408c3fd4a947ab2f67979607d8340c",
+      "schema_sha256": "869978b573378344e0745e0ee084bf96286d482bfe433b275a52a63c3e96875a",
+      "system_sha256": "c0a272058fec2ff5aa363859e61de7e1c171dace1e649f83826762e23448a131",
+      "source_prompt_sha256": "6a428c2667dc9fa710747d418b08ea49e2269761cb27b609fcc97d8c0dc00654",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 272,
+      "input_tokens": 1648,
+      "finish": "stop"
+    },
+    {
+      "cell": "base--short--dc-pepco-residential-bill",
+      "cache_key": "b9af073537c37b8c68c058b6895a7f092b533dd48d022b2f30fd09d71c5e45c1",
+      "effective_body_sha256": "5df44ab15c6fc29c5aeb7a69291387ac4b7e183cfa76b4c0cbbfaf82d5b4f531",
+      "schema_sha256": "869978b573378344e0745e0ee084bf96286d482bfe433b275a52a63c3e96875a",
+      "system_sha256": "c0a272058fec2ff5aa363859e61de7e1c171dace1e649f83826762e23448a131",
+      "source_prompt_sha256": "9cb4a6b8a417c70e04f251c12e4d87381d68a4fa00b9ad6f8b14de8b5382b0fd",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 312,
+      "input_tokens": 1900,
+      "finish": "stop"
+    },
+    {
+      "cell": "base--short--dc-pepco-residential-bill",
+      "cache_key": "c5a27b0c6448372f142a415146ce0a48aa8b8b4bbee5645c01becd7fb4b37535",
+      "effective_body_sha256": "f0713f71f93fa01f3772ae513fbb025274fdb454642250b26a348642087796d2",
+      "schema_sha256": "869978b573378344e0745e0ee084bf96286d482bfe433b275a52a63c3e96875a",
+      "system_sha256": "c0a272058fec2ff5aa363859e61de7e1c171dace1e649f83826762e23448a131",
+      "source_prompt_sha256": "1824e51bd218efc1ac4600d8e9185039e433a0fd47fdc60aa76c07729d54607c",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 218,
+      "input_tokens": 304,
+      "finish": "stop"
+    },
+    {
+      "cell": "base--short--grafton_isotrope_invoice_19503",
+      "cache_key": "13fb41ef83c1b176202ae0c359ec8543cb1d675ca6e3e88964ccd04e5a293722",
+      "effective_body_sha256": "cb23c729d0d4d5098fbedc80a1b880833011b4e2f3546df2d0add0171e60a8ed",
+      "schema_sha256": "e2733a7f7a6907811c5ab44e2a93c96d0c12f7787dd25e5dbdfb305c5c8cd2cd",
+      "system_sha256": "c0a272058fec2ff5aa363859e61de7e1c171dace1e649f83826762e23448a131",
+      "source_prompt_sha256": "f7111b73f9b937abdc07aa2072d73e417ba2b4b8d8fcb92486a3183fa9389c40",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 547,
+      "input_tokens": 1303,
+      "finish": "stop"
+    },
+    {
+      "cell": "base--short--mission-tx-tyler-invoice",
+      "cache_key": "0f87d86b23de9fbe57feaffa6a0fed3f6cf5169d2f68c19b0c1de5a9c9f61f66",
+      "effective_body_sha256": "4d88971540a2e654fbe4a54d7dd416c6748e6a8901f08cb5fe13e4593fb5eeb8",
+      "schema_sha256": "e2733a7f7a6907811c5ab44e2a93c96d0c12f7787dd25e5dbdfb305c5c8cd2cd",
+      "system_sha256": "c0a272058fec2ff5aa363859e61de7e1c171dace1e649f83826762e23448a131",
+      "source_prompt_sha256": "1b18314fe7aa23d41953b0c3120ddbe9fab94c5e4e3d21f1b57dcd08a974c423",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 877,
+      "input_tokens": 1902,
+      "finish": "stop"
+    },
+    {
+      "cell": "base--short--mission-tx-tyler-invoice",
+      "cache_key": "e93be4a48babaa7cafe9d24135fe02dcc2de75ee330852ad8bea5b047f817854",
+      "effective_body_sha256": "a939dd0b8a36e9be905ec0701752d24391beb17841f2f21fcafe780ad518f5e2",
+      "schema_sha256": "e2733a7f7a6907811c5ab44e2a93c96d0c12f7787dd25e5dbdfb305c5c8cd2cd",
+      "system_sha256": "c0a272058fec2ff5aa363859e61de7e1c171dace1e649f83826762e23448a131",
+      "source_prompt_sha256": "243ca70222cd19ebc0f5787063d44175184a1723b292a1558c444b08037da398",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1558,
+      "input_tokens": 1849,
+      "finish": "stop"
+    },
+    {
+      "cell": "base--short--mission-tx-tyler-invoice",
+      "cache_key": "f2b8e9aa8b2f82a6824a18a8d66ec6d76d6a1094b082cfcb1cf9f769e79270de",
+      "effective_body_sha256": "a725113289de22d9ade81214f65a3c347c3c4993fe1eecece6b79e128b335bec",
+      "schema_sha256": "e2733a7f7a6907811c5ab44e2a93c96d0c12f7787dd25e5dbdfb305c5c8cd2cd",
+      "system_sha256": "c0a272058fec2ff5aa363859e61de7e1c171dace1e649f83826762e23448a131",
+      "source_prompt_sha256": "86f9dafd6aa1490b016a82ade888a093473865aa2d1a66516089e21660d66711",
+      "max_output_tokens": 4096,
+      "temperature": 0.0,
+      "seed": 20260930,
+      "thinking": {
+        "enable_thinking": false
+      },
+      "completion_tokens": 1095,
+      "input_tokens": 1432,
+      "finish": "stop"
+    }
+  ],
+  "same_source_prompts_across_completed_arms": {
+    "short--dc-pepco-residential-bill": true,
+    "short--grafton_isotrope_invoice_19503": true,
+    "short--mission-tx-tyler-invoice": true
+  },
+  "cells": [
+    {
+      "cell": "A1--short--dc-pepco-residential-bill",
+      "files": {
+        "attempt-001.finished.json": "8df195db602d258c578f5fbe5983625bc34ee292d31dab346bbfe99290567b9a",
+        "attempt-001.started.json": "07f43c729ac5142283ce6f192f01fa8267efe95d95608859755bdb32c0736b9d",
+        "pin.json": "b5ddd2929fd2c7f16d6f5007df015873bf35d1c70641f9775b555a815e08c523",
+        "result.json": "3b66da7b3d49d97e76575a0b1339b6edc50f73cc67cc2cb8c3df608ec566db89"
+      },
+      "artifact_sha256": "2f14d512a2fdadcd1d7b2416235686e7e2f8f18a6722fbacc5a6ed41d5e8d0e4",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 0,
+      "refined_evidence_entries": 0
+    },
+    {
+      "cell": "A1--short--grafton_isotrope_invoice_19503",
+      "files": {
+        "attempt-001.finished.json": "2c74d0f658b2688749ef57d0cbe91f755dab454102e146440ebbacabdb819a2b",
+        "attempt-001.started.json": "fb0bc299bb145cb8dc098276e48885143b29b1bd503088c7b0aa708f7a14c3d1",
+        "pin.json": "8f579d5ac823be81c6f13209783a23d32dbfd64ee2f01bb5e9a5d4ee42150950",
+        "result.json": "49fa6290fb4efc8327d9e367d4b80c547871234d952c9c7f57ef1905dd2a883b"
+      },
+      "artifact_sha256": "dce79f1166382879d42c3bfc69bc47ac56094f7bb5bd82eca91c0ef8cc50ae91",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 0,
+      "refined_evidence_entries": 0
+    },
+    {
+      "cell": "A1--short--mission-tx-tyler-invoice",
+      "files": {
+        "attempt-001.finished.json": "1464462809e000a14df8ac011fff8e901c9418d3abba7f7ff0d751abaacaeaf9",
+        "attempt-001.started.json": "4a78a2148fe6c360433b5f18e316eec07f38766b2cbef4f90ccf47f7d36f3c94",
+        "pin.json": "02ce21e77a6237d930484fe88734b59bbdd0702c06a741f47b80a4fc5f596e0d",
+        "result.json": "4cd49ff71e5369db6a127108a421a50c9180260e0e706e48f37717953bf7b9ec"
+      },
+      "artifact_sha256": "f95bd6bc62df1ed571c3144543e3d4dd0df267c8098bfc1e2bac9b3f4ce75c68",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 0,
+      "refined_evidence_entries": 0
+    },
+    {
+      "cell": "A2--short--dc-pepco-residential-bill",
+      "files": {
+        "attempt-001.finished.json": "ab214550b99f3f3fd53e2d48dcfdec32f52ece707e72e1588543fa2658bbc216",
+        "attempt-001.started.json": "db714ba0166a3fc672e5c858351fc2eca1a8322e8f965ca0d9df4d42df278241",
+        "pin.json": "f38cf777d3bfd56db6c2e105665e20f4649e1d3f40e7744f53a6e9099e09eedc",
+        "result.json": "6141edb59e3dfc525a1d5954072d2993e492ea748d56ba1b0846b2deabd530e0"
+      },
+      "artifact_sha256": "bda445b68575e2f37160495386c1040cfa4b09faad798f8d2243a1321e502199",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 74,
+      "refined_evidence_entries": 56
+    },
+    {
+      "cell": "A2--short--grafton_isotrope_invoice_19503",
+      "files": {
+        "attempt-001.finished.json": "567c6618d237f99ea22eb17617776b00da55bb5ba429ae4abd4dca444d52846e",
+        "attempt-001.started.json": "77861662f3973b2ca6f285ebfb230b1219c646728e0241cf2822f076f460715e",
+        "pin.json": "6224722087eb562d4afbbbeeae96d0c75166fad332db9e04c382d99b3a179e0f",
+        "result.json": "8e2442d6690c8ae4d42a90c48d5cf674750b8113c3018ef8d43c80c409f17eb5"
+      },
+      "artifact_sha256": "08898855fd6b0f3110d5562a36f697d854d1cffbb35ef285189023b366f20173",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 24,
+      "refined_evidence_entries": 7
+    },
+    {
+      "cell": "A2--short--mission-tx-tyler-invoice",
+      "files": {
+        "attempt-001.finished.json": "a787ba9fee27aca29ea9f10ad11301379d3f22ea49327c427d9c1fdf25754562",
+        "attempt-001.started.json": "e01539bb7e3af4c16372f9cdf616d1d68a9ee3bb3cc4a80f0e7cc67b0b95df9a",
+        "pin.json": "c0ebfe682b15dda5aefd74138d865f38f555718b7bb1e87f88dd649e96069d87",
+        "result.json": "cd09adb7ad132abaccea02c2bd4718e348f45d131a58b4c77c64262b8985e2b0"
+      },
+      "artifact_sha256": "eda160b345f8c42185294ab7c2fe30882b54fa54a6b3c076c7eb6b87d7fba2b9",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 50,
+      "refined_evidence_entries": 14
+    },
+    {
+      "cell": "A3--short--dc-pepco-residential-bill",
+      "files": {
+        "attempt-001.finished.json": "67d72f2311180589ff432e80c3121a9eae44ee447a280ffb9c667dfe38bc1ebe",
+        "attempt-001.started.json": "fe90f9d0621e5d8fda18214ba603ed8740803759c3286077a69f678da0dde0d4",
+        "pin.json": "47befd2a336697afc86503f5704db06a80427851e975c1b25f4228cd753e56be",
+        "result.json": "ac499cb0df5ca903239d0aced6fa6d40e8e6c988ac29b6d7ea2372fb7df96377"
+      },
+      "artifact_sha256": "31da0fadcd3a64364b31abc060da6b60e53a193302ad32c187d316f1519b31e8",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 37,
+      "refined_evidence_entries": 31
+    },
+    {
+      "cell": "A3--short--grafton_isotrope_invoice_19503",
+      "files": {
+        "attempt-001.finished.json": "26d8263b419d277742f447e9f4f9a7cb668bacb7c1c17c468e229859d465cb1a",
+        "attempt-001.started.json": "a02ca5b219ae9aa6aa3b60eead9f6e2516f521299be37e225065b674cd97392f",
+        "pin.json": "913bca6df201c9640fd49347b7a2ba47d2d73e9c9352b3abc02561cf67d854be",
+        "result.json": "eb87908b896682e04d863d6df81af792b8cdb3af0a03b118ce79332e92bacde2"
+      },
+      "artifact_sha256": "0867c190b4072276d4afe6094c079751b5077a4784366f5b5f5c8968719933da",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 11,
+      "refined_evidence_entries": 6
+    },
+    {
+      "cell": "A3--short--mission-tx-tyler-invoice",
+      "files": {
+        "attempt-001.finished.json": "06dd76540c77eabd1ae9133a3ac788109f6ea6a78d1448960e76080eb12c450c",
+        "attempt-001.started.json": "2daf90edaf24da41b2188c94fd4e8f0877db3efbade5bedf002868d9ed8faad4",
+        "pin.json": "8a41e0965e9c28c3adb20720fc7f732ce7b1f416a6ca1efa05d72f802ccc5832",
+        "result.json": "6a99d4406423b615d037553a34d39c6c22e601b314ce33474d9007feaeae29ee"
+      },
+      "artifact_sha256": "3447bf3c147a4960bf383f52c5a755d3ab05bebd309f7dabda25cb14d345c443",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 20,
+      "refined_evidence_entries": 14
+    },
+    {
+      "cell": "base--short--dc-pepco-residential-bill",
+      "files": {
+        "attempt-001.finished.json": "de12a44dd4503692fc82a1b94d5aa6db5728dfbc11c725277112ea1bf3288f88",
+        "attempt-001.started.json": "b85d44fae5c18844250ca11ea39846022e186e5d5012a7e6a1fa7ccd250d296d",
+        "pin.json": "64437e0ab42a2cf1aa2761336c92bf64be0f8b66304c156763eebd95d753c25a",
+        "result.json": "f9d7837e2a0e6d76d7ce22ba256b87c185e2f831536fc57f7535b46b3cd46760"
+      },
+      "artifact_sha256": "f0be213d1bc3d7a2b359817d647a41685a1f887516f14279bd40621e51fb6817",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 0,
+      "refined_evidence_entries": 0
+    },
+    {
+      "cell": "base--short--grafton_isotrope_invoice_19503",
+      "files": {
+        "attempt-001.finished.json": "e3b68e0a2e0291e616a2a07dad36da488ed7a7af5042a3cac149f21d4e688471",
+        "attempt-001.started.json": "2d24f8476d4881abf3f2c1a0f2b982ccfab2dba8fca734dc667e026e49f8be4b",
+        "pin.json": "8ff71fdeaed1a9042f6695636cd57454091eddd49183d59edea8b46a31ae12ec",
+        "result.json": "7b4a829298c947195262ec4b3f57788b8c1a52f14a9ea10b35775c5706f19b3b"
+      },
+      "artifact_sha256": "78c963e049c36e82ab64814de8806647839a9e1128c6635e2c617cf64e87317e",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 0,
+      "refined_evidence_entries": 0
+    },
+    {
+      "cell": "base--short--mission-tx-tyler-invoice",
+      "files": {
+        "attempt-001.finished.json": "372def620a0da6a435fd3d121068809cd98890a2ea46dd823125c7dcd2d4a931",
+        "attempt-001.started.json": "6b045dd33bfa05622a0c3811499705e78b1379d35518eb4ca2fb58817e083c9b",
+        "attempt-002.finished.json": "589786f36a2a5c81afd3719102c06eb1213b24b531c2a15056c9972d3d528168",
+        "attempt-002.started.json": "af2a49a65b30ebf5c6f906de0ce5f2f74fd51c79a4b957dc4a102a4c4e5d3202",
+        "pin.json": "79bc1b7af7b575166ea55a18584d7b2b7830c0c254357dcf234663a312e55927",
+        "result.json": "b0a09be4f765c637306efb0ef48627fc87fa76a9481fa16c94dec0481137c159"
+      },
+      "artifact_sha256": "a7de4491690f0355c4338e6bca10690b536bdca00ef2d1212a8e2ec26641afe5",
+      "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+      "evidence_entries": 0,
+      "refined_evidence_entries": 0
+    }
+  ],
+  "operational_spend": {
+    "fresh_calls_charged_upper_bound": 37,
+    "observed_complete_responses": 36,
+    "known_input_tokens": 56213,
+    "known_output_tokens": 28378,
+    "unknown_usage_requests": 1,
+    "unknown_request_tokens_upper_bound": 36864,
+    "replayed_calls": 1,
+    "known_fresh_seconds": 3645.6378605670075
+  },
+  "gates": {
+    "ingestion": true,
+    "scoring": true,
+    "configuration": true,
+    "call_budget": true,
+    "all_twelve_smoke_cells_sealed": true,
+    "no_unfinished_attempts": true,
+    "complete_usage_accounting": false,
+    "cell_budgets": true
+  },
+  "heldout_documents_ingested": 0,
+  "heldout_documents_extracted": 0,
+  "cell_budget_checks": [
+    {
+      "cell": "A1--short--dc-pepco-residential-bill",
+      "fresh_calls_charged_upper_bound": 5,
+      "fresh_tokens_upper_bound": 9126,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "A1--short--grafton_isotrope_invoice_19503",
+      "fresh_calls_charged_upper_bound": 1,
+      "fresh_tokens_upper_bound": 1905,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "A1--short--mission-tx-tyler-invoice",
+      "fresh_calls_charged_upper_bound": 3,
+      "fresh_tokens_upper_bound": 8874,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "A2--short--dc-pepco-residential-bill",
+      "fresh_calls_charged_upper_bound": 5,
+      "fresh_tokens_upper_bound": 11507,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "A2--short--grafton_isotrope_invoice_19503",
+      "fresh_calls_charged_upper_bound": 1,
+      "fresh_tokens_upper_bound": 2711,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "A2--short--mission-tx-tyler-invoice",
+      "fresh_calls_charged_upper_bound": 3,
+      "fresh_tokens_upper_bound": 9007,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "A3--short--dc-pepco-residential-bill",
+      "fresh_calls_charged_upper_bound": 5,
+      "fresh_tokens_upper_bound": 10654,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "A3--short--grafton_isotrope_invoice_19503",
+      "fresh_calls_charged_upper_bound": 1,
+      "fresh_tokens_upper_bound": 2383,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "A3--short--mission-tx-tyler-invoice",
+      "fresh_calls_charged_upper_bound": 3,
+      "fresh_tokens_upper_bound": 9010,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "base--short--dc-pepco-residential-bill",
+      "fresh_calls_charged_upper_bound": 5,
+      "fresh_tokens_upper_bound": 8851,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "base--short--grafton_isotrope_invoice_19503",
+      "fresh_calls_charged_upper_bound": 1,
+      "fresh_tokens_upper_bound": 1850,
+      "call_cap": 60,
+      "token_cap": 250000
+    },
+    {
+      "cell": "base--short--mission-tx-tyler-invoice",
+      "fresh_calls_charged_upper_bound": 4,
+      "fresh_tokens_upper_bound": 45577,
+      "call_cap": 60,
+      "token_cap": 250000
+    }
+  ]
+}

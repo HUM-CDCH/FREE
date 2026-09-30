@@ -3,6 +3,17 @@
 Status: protocol frozen before model execution. Baseline `base` is **A0**.
 Stacked base: `16819c72cf1ef54bfdf73d4159c5ee65dce048f8` (`feat/unify-catalog-extraction`).
 Initial checkpoint: `f5827cd7ab8df2f6f63e9816608822618c4c6a6f`.
+Executed implementation: `2a2b6d4586179919accbae7800d5071a7df6cb00`;
+its 100-file source aggregate is
+`6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83`.
+After all twelve smoke cells sealed, commit
+`677ec96f6fc0765d0396df977098b0d373ac0edb` corrected unknown-usage reporting
+after transport failures. Only `model.py` among the pinned source files changed;
+the final source aggregate is
+`3848aa62401d5185074fdd3321450d8ecc185c5372b17043bb291a7ac4fc1408`.
+This correction changes neither successful requests nor scoring. Final live tests
+and a generation-disabled replay verified it; original execution artifacts remain
+pinned to the earlier revision. Later research/evidence commits change no source bytes.
 The v3 production fixture is tracked in that base. No production default changes.
 
 The [selection manifest](../2026-09-30-extractbench-selection.json) pins the dataset
@@ -58,11 +69,12 @@ errors do not authorize prompt/schema tuning.
 
 ## Evaluation version 2
 
-Raw exact is canonical JSON equality of **raw** predictions and acceptable gold:
-case, whitespace, punctuation, numeric representation and nested order are retained.
+Raw exact is canonical JSON equality of **raw** field values and acceptable gold:
+case, whitespace, punctuation, numeric representation and scalar-array order are retained.
 Canonicalized metrics are separate. Record correspondence is established with the
 canonical comparators and shared by both views, so a formatting difference does not
-change the matched population. Field policies are resolved from schema types and,
+change the matched population. Repeated object-array order is handled by that shared
+record assignment, not by comparing whole arrays as raw JSON. Field policies are resolved from schema types and,
 for public date fields only, the documented `date` comparator:
 
 | Field kind | Canonical comparison |

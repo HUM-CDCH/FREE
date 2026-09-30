@@ -1,0 +1,67 @@
+{
+  "base_commit": "16819c72cf1ef54bfdf73d4159c5ee65dce048f8",
+  "checkpoint_commit": "f5827cd7ab8df2f6f63e9816608822618c4c6a6f",
+  "review": {
+    "checkpoint": "All 44 files / 45 hunks inspected across standards and spec reviews. Fixed missing canonical source binding, interrupted-budget refunds, recovery-boundary loss and citation scope; documented pilot hash differences.",
+    "corrections": "Read-only follow-up found no remaining blocker to three-case smoke; exact-gold adapter roundtrips passed on 20/27/58 populated fields.",
+    "accounting": "Read-only follow-up approved the three-file accounting/test delta. Regression test failed before the correction and passed afterward; it also verifies no additional send after the retained token reservation exhausts the allowance.",
+    "final_evidence": "Read-only review checked all 100 source hashes at both revisions, all 12 CSV rows, report/artifact correspondence, operational spend, holdout handling and sanitation. The helper-checkout instruction and raw-array-order wording were corrected before the evidence commit."
+  },
+  "holdout": {
+    "documents_ingested": 0,
+    "documents_extracted": 0,
+    "gold_inspected": false
+  },
+  "pre_run_verification": {
+    "implementation_commit": "2a2b6d4586179919accbae7800d5071a7df6cb00",
+    "fast_tests": {
+      "passed": 154,
+      "deselected_live": 2,
+      "seconds": 30.66
+    },
+    "live_tests": {
+      "passed": 2,
+      "seconds": 111.62,
+      "fresh_calls": 4,
+      "replayed_calls": 1,
+      "details": "Two probability probes plus one baseline and one quote extraction; baseline replay sent no completion. Probe token totals were not printed by existing tests.",
+      "baseline": {
+        "input_tokens": 257,
+        "output_tokens": 225
+      },
+      "quote": {
+        "input_tokens": 294,
+        "output_tokens": 613
+      }
+    },
+    "stdout": "live-tests.txt"
+  },
+  "smoke_execution_commit": "2a2b6d4586179919accbae7800d5071a7df6cb00",
+  "final_implementation_commit": "677ec96f6fc0765d0396df977098b0d373ac0edb",
+  "final_source_aggregate_sha256": "3848aa62401d5185074fdd3321450d8ecc185c5372b17043bb291a7ac4fc1408",
+  "final_fast_tests": {
+    "passed": 155,
+    "deselected_live": 2,
+    "seconds": 25.29,
+    "stdout": "final-fast-tests.txt"
+  },
+  "final_live_tests": {
+    "passed": 2,
+    "seconds": 110.79,
+    "fresh_calls": 4,
+    "replayed_calls": 1,
+    "known_input_tokens": 617,
+    "known_output_tokens": 854,
+    "unknown_usage": 0,
+    "stdout": "final-live-tests.txt",
+    "details": "Two direct probability probes, one baseline and one quote extraction; replayed baseline is separate and sends no completion."
+  },
+  "final_cache_only_replay": {
+    "fresh_calls": 0,
+    "replayed_calls": 36,
+    "cells": 12,
+    "identical_predictions_and_quality_counts": true,
+    "evidence": "final-code-replay.json"
+  },
+  "changes_after_smoke": "Only model.py among the 100 pinned source files changed: failed requests now increment unknown_usage. Extraction, schema, prompts, alignment, evaluator and configuration bytes are unchanged. Final live tests and replay use the corrected commit."
+}

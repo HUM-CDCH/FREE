@@ -18,6 +18,12 @@ fixes recovery-boundary/citation scope, budget admission and source-binding chec
 V2 re-scoring evaluates old model predictions under the newer evaluation contract;
 it does not rerun extraction or simulate fixes to those original executions.
 
+The opening “Only dev was run” statement is also too broad: the archived synthetic
+pilot contains five fit and three calibration cells for `combined`, as its own
+table records. The new reports cover 45 development cells plus those eight cells
+(53 total), without fitting another model or using any test split. Original JSON
+reports and manifests are unchanged; `rescore-integrity.json` records their hashes.
+
 The pilot's universal “22 groups” statement is superseded by the
 [method-specific audit](../2026-09-30-extraction-harness-methods.md): for its LTT HB
 single-start fixed sequence, the zero-loss feasibility floor is

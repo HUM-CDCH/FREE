@@ -1,0 +1,50 @@
+{
+  "study_id": "extractbench-v2-smoke",
+  "variant": "base",
+  "case": "short--mission-tx-tyler-invoice",
+  "relative_attempt_path": "cells/base--short--mission-tx-tyler-invoice/attempt-001.finished.json",
+  "status": "interrupted",
+  "attempt": 1,
+  "wall_seconds": null,
+  "error": "Runner session ended with one complete cached response and at most one in-flight request. No result was sealed.",
+  "spent": {
+    "fresh": {
+      "calls": 2,
+      "input_tokens": 1902,
+      "output_tokens": 877,
+      "seconds": 112.71311756700743,
+      "failed": 1,
+      "unknown_usage": 1
+    },
+    "replayed": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0,
+      "failed": 0,
+      "unknown_usage": 0
+    }
+  },
+  "code_sha256": "6891fab53ec108e42a3dacde27ff16eac3401a8327e78b041678f251d8498b83",
+  "environment": {
+    "python": "3.13.12",
+    "system": "Linux x86_64",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "jsonschema": "4.26.0",
+    "pydantic": "2.13.5",
+    "requests": "2.34.2"
+  },
+  "reconciliation": {
+    "method": "cached response plus conservative one-in-flight charge with workers=1",
+    "fresh_calls_observed_complete": 1,
+    "fresh_calls_charged_upper_bound": 2,
+    "unknown_request_token_upper_bound": 36864,
+    "known_tokens_are_lower_bounds": true,
+    "unknown_wall_seconds": true,
+    "response_cache_sha256": "ed0de5b5ff1a7c5137a2f78a43f39e0d3ec0a718a2d104fee652642a898d2e14",
+    "response_cache_key": "0f87d86b23de9fbe57feaffa6a0fed3f6cf5169d2f68c19b0c1de5a9c9f61f66",
+    "original_started_sha256": "6b045dd33bfa05622a0c3811499705e78b1379d35518eb4ca2fb58817e083c9b",
+    "limits_unchanged": true
+  }
+}

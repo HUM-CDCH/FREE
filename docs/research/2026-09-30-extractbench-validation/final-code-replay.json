@@ -1,0 +1,103 @@
+{
+  "execution_commit": "2a2b6d4586179919accbae7800d5071a7df6cb00",
+  "compatibility_commit": "677ec96f6fc0765d0396df977098b0d373ac0edb",
+  "changed_source_files": [
+    "experiments/harness/model.py"
+  ],
+  "source_aggregate_sha256": "3848aa62401d5185074fdd3321450d8ecc185c5372b17043bb291a7ac4fc1408",
+  "cells": [
+    {
+      "cell": "A1--short--dc-pepco-residential-bill",
+      "prediction_sha256": "c7e1b93cf4ab2a5b6bd83662cee98897c5d8debc31e3bc2d0edf14c7d3d77334",
+      "fresh_calls": 0,
+      "replayed_calls": 5
+    },
+    {
+      "cell": "A1--short--grafton_isotrope_invoice_19503",
+      "prediction_sha256": "c574ca38fd971143f07f54d3dc5fb29149044a63d100951c6355f62cf6b61512",
+      "fresh_calls": 0,
+      "replayed_calls": 1
+    },
+    {
+      "cell": "A1--short--mission-tx-tyler-invoice",
+      "prediction_sha256": "4ae76058781598a48e1fddc72dbd1b6f1e9a591a5d6b52501ef34673b87a5ff5",
+      "fresh_calls": 0,
+      "replayed_calls": 3
+    },
+    {
+      "cell": "A2--short--dc-pepco-residential-bill",
+      "prediction_sha256": "48bd107411742402ee85c4a76d6fdc923c4ea441fd11062b5e4e0c098a394331",
+      "fresh_calls": 0,
+      "replayed_calls": 5
+    },
+    {
+      "cell": "A2--short--grafton_isotrope_invoice_19503",
+      "prediction_sha256": "2ef584fc9db30753d35a09534f3e5ca6b4ed15a701c8b5d0a37dad60c394dff4",
+      "fresh_calls": 0,
+      "replayed_calls": 1
+    },
+    {
+      "cell": "A2--short--mission-tx-tyler-invoice",
+      "prediction_sha256": "bc96723ebdeb147f7999045b40a7d964e935ca313780f5f91d35fd13fb343664",
+      "fresh_calls": 0,
+      "replayed_calls": 3
+    },
+    {
+      "cell": "A3--short--dc-pepco-residential-bill",
+      "prediction_sha256": "0b9e0b61e63efd16c5f1b2fe6a278313f1909aa4aa0acb6307ad3b53dd56f322",
+      "fresh_calls": 0,
+      "replayed_calls": 5
+    },
+    {
+      "cell": "A3--short--grafton_isotrope_invoice_19503",
+      "prediction_sha256": "7d2bc4131f783f85bcca46a7ff81ede6075de0b65e4e74e4771b3d489522d5c2",
+      "fresh_calls": 0,
+      "replayed_calls": 1
+    },
+    {
+      "cell": "A3--short--mission-tx-tyler-invoice",
+      "prediction_sha256": "dcd592fb4dc07b94c8620eeff467216d552c6deb94941e245f33d8b9536c830c",
+      "fresh_calls": 0,
+      "replayed_calls": 3
+    },
+    {
+      "cell": "base--short--dc-pepco-residential-bill",
+      "prediction_sha256": "b52ca77ea5a094b0d7723105dc9faf81f8535dd87bab8f222d8363202447371b",
+      "fresh_calls": 0,
+      "replayed_calls": 5
+    },
+    {
+      "cell": "base--short--grafton_isotrope_invoice_19503",
+      "prediction_sha256": "1b4027c2e230fff6de40864c9179260d32187054b5e2f1cd2172b6d9a388fde5",
+      "fresh_calls": 0,
+      "replayed_calls": 1
+    },
+    {
+      "cell": "base--short--mission-tx-tyler-invoice",
+      "prediction_sha256": "8d564ee463b0e46370097b3b6f185d6599e57f57721b1bf042ce03619ec27218",
+      "fresh_calls": 0,
+      "replayed_calls": 3
+    }
+  ],
+  "fresh_completion_calls": 0,
+  "replayed_calls": 36,
+  "prediction_and_quality_counts_unchanged": true,
+  "excluded_from_prediction_hash": [
+    "calls",
+    "tokens",
+    "cost"
+  ],
+  "usage_gate": "The original interruption and unknown usage remain; this replay does not reopen expansion.",
+  "execution": {
+    "cells": 12,
+    "cells_to_run": 12,
+    "projected_calls": 36,
+    "upper_bound_with_recovery": 108,
+    "budget": 100,
+    "note": "estimates for the cells not yet sealed; verification and arbitration counts use the gold's record count (a run never sees it); without --execute nothing is sent",
+    "executed": {
+      "completed": 12
+    },
+    "fresh_calls_spent": 0
+  }
+}

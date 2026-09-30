@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "id": "extractbench-v2-development",
+  "dataset": "dataset.json",
+  "provider": {
+    "url": "http://127.0.0.1:18080/v1/chat/completions",
+    "model": "Qwen/Qwen3.8-27B-FP8",
+    "counter": "vllm",
+    "timeout": 900,
+    "deployment": {
+      "name": "existing-local-qwen",
+      "model_revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+      "image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+      "vllm": "0.29.1rc1.dev17+gd2d649e67.d20260913",
+      "torch": "2.13.0+cu130",
+      "transformers": "5.17.0"
+    }
+  },
+  "evaluation": {
+    "min_matches": 2,
+    "iou": 0.5
+  },
+  "base": {
+    "input": {
+      "mode": "layout"
+    },
+    "chunking": {
+      "mode": "fixed",
+      "max_chars": 4000
+    },
+    "output": {
+      "max_tokens": 4096
+    },
+    "recovery": {
+      "retries": 0,
+      "subdivide": true,
+      "depth": 1
+    },
+    "evidence": {
+      "mode": "none"
+    },
+    "merge": {
+      "keys": false,
+      "continuation": "off"
+    },
+    "sampling": {
+      "temperature": 0,
+      "seed": 20260930
+    },
+    "budget": {
+      "calls": 60,
+      "tokens": 250000,
+      "workers": 1
+    }
+  },
+  "variants": {
+    "A1": {
+      "merge": {
+        "continuation": "flags"
+      }
+    },
+    "A2": {
+      "evidence": {
+        "mode": "quote"
+      }
+    },
+    "A3": {
+      "evidence": {
+        "mode": "ids"
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "control": "base",
+      "treatment": "A1",
+      "factor": "merge"
+    },
+    {
+      "control": "base",
+      "treatment": "A2",
+      "factor": "evidence"
+    },
+    {
+      "control": "base",
+      "treatment": "A3",
+      "factor": "evidence"
+    }
+  ],
+  "budget": {
+    "max_calls": 400
+  },
+  "final": null
+}

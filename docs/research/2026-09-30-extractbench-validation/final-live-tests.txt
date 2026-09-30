@@ -1,0 +1,10 @@
+
+PROBE forced-enum value stats: {'tokens': 3, 'p_first': 1.0, 'p_mean': 0.9096080386203896, 'p_span': 0.7525976697044795, 'margin': 1.0, 'entropy_topk': 0.0} | kind: processed (post-constraint: a forced token looks certain) | unconstrained reply: '{"answer": "Paris"}'
+PROBE served identity: {'url': 'http://127.0.0.1:18080/v1/chat/completions', 'model': 'Qwen/Qwen3.8-27B-FP8', 'served': {'id': 'Qwen/Qwen3.8-27B-FP8', 'max_model_len': 32768, 'root': 'Qwen/Qwen3.8-27B-FP8'}, 'context_tokens': 32768}
+PROBE usage: {'constrained': {'input_tokens': 33, 'output_tokens': 9}, 'free': {'input_tokens': 33, 'output_tokens': 7}}
+.
+LIVE baseline: complete=True F1=1.0 fresh={'calls': 1, 'input_tokens': 257, 'output_tokens': 225, 'seconds': 28.840302, 'failed': 0, 'unknown_usage': 0} evidence_span_hit=0.0
+
+LIVE quote: complete=True F1=1.0 fresh={'calls': 1, 'input_tokens': 294, 'output_tokens': 613, 'seconds': 78.224481, 'failed': 0, 'unknown_usage': 0} evidence_span_hit=0.8571428571428571
+.
+2 passed in 110.79s (0:01:50)
