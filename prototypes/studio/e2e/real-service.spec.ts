@@ -139,7 +139,7 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
     }))
     await testInfo.attach('accepted-extractions', { body: JSON.stringify(acceptedArtifacts, null, 2), contentType: 'application/json' })
     const calls = service.modelCalls()
-    if (calls !== null) expect(calls).toBe(8) // Article inventory, two records, two groundings; Catalog discovery and two records.
+    if (calls !== null) expect(calls).toBe(10) // Each strategy: discovery/inventory, two records and two groundings.
     await service.restart()
     for (const prior of acceptedArtifacts)
       expect(await (await fetch(`${service.url}/api/runs/${runId}/extractions/${prior.id}`)).json()).toEqual(prior.result)
@@ -228,9 +228,13 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
       [['records', 0, 'site_name'], 'Hill'], [['records', 1, 'site_name'], 'Valley'],
     ])
     expect(service.modelCalls()).toBe(2) // One call per entry; structural fields are never asked of the model.
-    expect(body.pendingReviewDecisions).toHaveLength(6)
+    // Optional-field templates are not decisions: approve only the six grounded values.
+    expect(body.pendingReviewDecisions).toHaveLength(8)
+    expect(body.reviewDraft?.decisions).toEqual([])
+    const groundedDecisions = body.pendingReviewDecisions!.filter((decision) => decision.evidenceAnchorId !== null)
+    expect(groundedDecisions).toHaveLength(6)
     const review = await page.request.post(`/api/extractions/${id}/review`, { headers, data: {
-      reviewDecisions: body.pendingReviewDecisions,
+      reviewDecisions: groundedDecisions,
     } })
     expect(review.ok(), await review.text()).toBeTruthy()
 
@@ -246,6 +250,7 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
     expect(service.modelCalls()).toBe(2)
     const durable = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
     expect(durable.extraction.reviewedAt).not.toBeNull()
+    expect(durable.extraction.reviewDecisions).toHaveLength(6)
     expect(durable.extraction.diagnostics!.grounded!.recipe).toBe('numbered-catalogue-de@1')
 
     await page.goto(`/projects/${projectContext.projectContextId}/documents/${source.sourceDocumentId}`)
