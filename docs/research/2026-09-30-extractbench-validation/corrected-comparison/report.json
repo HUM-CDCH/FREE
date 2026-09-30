@@ -1,0 +1,5353 @@
+{
+  "study": "extractbench-v3-corrected-development",
+  "split": "dev",
+  "variants": {
+    "base": {
+      "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+      "documents": {
+        "short--grafton_isotrope_invoice_19503": {
+          "group": "grafton-isotrope",
+          "counts": {
+            "gold_records": 2,
+            "pred_records": 2,
+            "matched_records": 2,
+            "missing_records": 0,
+            "duplicated_records": 0,
+            "documents": 1,
+            "cross_page_fragments": 0,
+            "hallucinated_records": 0,
+            "cross_page_gold": 0,
+            "cross_page_matched": 0,
+            "gold_value_fields": 27,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 27,
+            "tp": 25,
+            "ev_predicted": 26,
+            "ev_value_correct": 25,
+            "ev_cited": 0,
+            "ev_page_hit": 0,
+            "ev_page_joint": 0,
+            "ev_page_annotated": 26,
+            "gold_absent_fields": 17,
+            "absent_ok": 17,
+            "wrong_values": 1,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_tn": 25,
+            "detector_fn": 1,
+            "raw_gold_records": 2,
+            "raw_pred_records": 2,
+            "raw_matched_records": 2,
+            "raw_missing_records": 0,
+            "raw_duplicated_records": 0,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 0,
+            "raw_hallucinated_records": 0,
+            "raw_cross_page_gold": 0,
+            "raw_cross_page_matched": 0,
+            "raw_gold_value_fields": 27,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 27,
+            "raw_tp": 22,
+            "raw_ev_predicted": 26,
+            "raw_ev_value_correct": 22,
+            "raw_ev_cited": 0,
+            "raw_ev_page_hit": 0,
+            "raw_ev_page_joint": 0,
+            "raw_ev_page_annotated": 26,
+            "raw_gold_absent_fields": 17,
+            "raw_absent_ok": 17,
+            "raw_wrong_values": 4,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_tn": 22,
+            "raw_detector_fn": 4,
+            "missed_as_absent": 1,
+            "raw_missed_as_absent": 1,
+            "repeated_gold_records": 1,
+            "repeated_pred_records": 1,
+            "repeated_matched_records": 1,
+            "repeated_missing_records": 0,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 0,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "replies_total": 1,
+            "replies_valid": 1,
+            "fresh_calls": 1,
+            "fresh_input_tokens": 1375,
+            "fresh_output_tokens": 563,
+            "fresh_seconds": 72.978552,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.9615384615384616,
+              "recall": 0.9259259259259259,
+              "f1": 0.9433962264150944,
+              "predicted_values": 26,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 1.0,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 1,
+                "missing_record": 0
+              }
+            },
+            "records": {
+              "gold": 2,
+              "predicted": 2,
+              "matched": 2,
+              "missing": 0,
+              "hallucinated": 0,
+              "duplicated": 0,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 0,
+                "matched": 0,
+                "strict": 0,
+                "fragments": 0
+              }
+            },
+            "evidence": {
+              "annotated_fields": 27,
+              "predicted_annotated": 26,
+              "cited": 0,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.0,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 0.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 25,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 1
+            },
+            "cost": {
+              "fresh": {
+                "calls": 1,
+                "input_tokens": 1375,
+                "output_tokens": 563,
+                "seconds": 72.978552
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.8461538461538461,
+                "recall": 0.8148148148148148,
+                "f1": 0.8301886792452831,
+                "predicted_values": 26,
+                "gold_value_fields": 27,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 1.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 1,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 2,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.9615384615384616,
+                "recall": 0.9259259259259259,
+                "f1": 0.9433962264150944,
+                "predicted_values": 26,
+                "gold_value_fields": 27,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 1.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 1,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 2,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "tn": 25
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 1,
+            "processed": 1,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "58cb8209a2eb63d3adce3c0780ee3618545af000d073d0821b30e4ca075c07fc"
+          ]
+        },
+        "short--dc-pepco-residential-bill": {
+          "group": "pepco-residential",
+          "counts": {
+            "gold_records": 2,
+            "pred_records": 8,
+            "matched_records": 2,
+            "missing_records": 0,
+            "duplicated_records": 3,
+            "documents": 1,
+            "cross_page_fragments": 3,
+            "hallucinated_records": 3,
+            "duplicate_values": 26,
+            "cross_page_gold": 1,
+            "cross_page_matched": 1,
+            "gold_value_fields": 20,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 20,
+            "tp": 12,
+            "ev_predicted": 14,
+            "ev_value_correct": 12,
+            "ev_cited": 0,
+            "ev_page_hit": 0,
+            "ev_page_joint": 0,
+            "ev_page_annotated": 14,
+            "wrong_values": 2,
+            "missed_as_absent": 6,
+            "gold_absent_fields": 1,
+            "hallucinated_fields": 1,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 42,
+            "detector_tn": 12,
+            "raw_gold_records": 2,
+            "raw_pred_records": 8,
+            "raw_matched_records": 2,
+            "raw_missing_records": 0,
+            "raw_duplicated_records": 3,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 3,
+            "raw_hallucinated_records": 3,
+            "raw_duplicate_values": 26,
+            "raw_cross_page_gold": 1,
+            "raw_cross_page_matched": 1,
+            "raw_gold_value_fields": 20,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 20,
+            "raw_wrong_values": 3,
+            "raw_ev_predicted": 14,
+            "raw_ev_value_correct": 11,
+            "raw_ev_cited": 0,
+            "raw_ev_page_hit": 0,
+            "raw_ev_page_joint": 0,
+            "raw_ev_page_annotated": 14,
+            "raw_tp": 11,
+            "raw_missed_as_absent": 6,
+            "raw_gold_absent_fields": 1,
+            "raw_hallucinated_fields": 1,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 43,
+            "raw_detector_tn": 11,
+            "repeated_gold_records": 1,
+            "repeated_pred_records": 4,
+            "repeated_matched_records": 1,
+            "repeated_missing_records": 0,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 3,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "extra_record_values": 13,
+            "raw_extra_record_values": 13,
+            "replies_total": 5,
+            "replies_valid": 5,
+            "fresh_calls": 5,
+            "fresh_input_tokens": 7609,
+            "fresh_output_tokens": 1282,
+            "fresh_seconds": 168.229964,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.2222222222222222,
+              "recall": 0.6,
+              "f1": 0.32432432432432434,
+              "predicted_values": 54,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.0,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 6,
+                "missing_record": 0
+              }
+            },
+            "records": {
+              "gold": 2,
+              "predicted": 8,
+              "matched": 2,
+              "missing": 0,
+              "hallucinated": 3,
+              "duplicated": 3,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 1,
+                "matched": 1,
+                "strict": 0,
+                "fragments": 3
+              }
+            },
+            "evidence": {
+              "annotated_fields": 20,
+              "predicted_annotated": 14,
+              "cited": 0,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.0,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 0.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 12,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 5
+            },
+            "cost": {
+              "fresh": {
+                "calls": 5,
+                "input_tokens": 7609,
+                "output_tokens": 1282,
+                "seconds": 168.229964
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.2037037037037037,
+                "recall": 0.55,
+                "f1": 0.2972972972972973,
+                "predicted_values": 54,
+                "gold_value_fields": 20,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 6,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 8,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 3,
+                "duplicated": 3,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 1,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 3
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.2222222222222222,
+                "recall": 0.6,
+                "f1": 0.32432432432432434,
+                "predicted_values": 54,
+                "gold_value_fields": 20,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 6,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 8,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 3,
+                "duplicated": 3,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 1,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 3
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 1,
+              "pred_records": 4,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 3,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 42,
+              "tn": 12
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 5,
+            "processed": 5,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "3dfe35df9735a616be8d29e15848c2799c27118d7c8e49d27289c04344c6443f",
+            "6a0baedb44a8a73f117ecedd812b7d2ae2aeb4580962901c5e6fed397135e858",
+            "762cfa53c74ffaaaf2fea607e9fcc94e831380a7e2f53e08283a7c7e3238312c",
+            "a3740b117fcb35d191f57e9622016ac1707bc834f6b7ec45d38b847b5e3afd25",
+            "e99dbf8f084bcb7e2b791314b0f12bed7fba559424c907795797092fd99dea30"
+          ]
+        },
+        "short--mission-tx-tyler-invoice": {
+          "group": "mission-tyler",
+          "counts": {
+            "gold_records": 9,
+            "pred_records": 31,
+            "matched_records": 6,
+            "missing_records": 3,
+            "duplicated_records": 2,
+            "documents": 1,
+            "cross_page_fragments": 2,
+            "hallucinated_records": 23,
+            "duplicate_values": 27,
+            "cross_page_gold": 3,
+            "cross_page_matched": 1,
+            "gold_value_fields": 58,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 57,
+            "wrong_values": 3,
+            "ev_predicted": 37,
+            "ev_value_correct": 34,
+            "ev_cited": 0,
+            "ev_page_hit": 0,
+            "ev_page_joint": 0,
+            "ev_page_annotated": 37,
+            "tp": 35,
+            "gold_absent_fields": 42,
+            "absent_ok": 27,
+            "missed_as_absent": 8,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 63,
+            "detector_tn": 35,
+            "raw_gold_records": 9,
+            "raw_pred_records": 31,
+            "raw_matched_records": 6,
+            "raw_missing_records": 3,
+            "raw_duplicated_records": 2,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 2,
+            "raw_hallucinated_records": 23,
+            "raw_duplicate_values": 27,
+            "raw_cross_page_gold": 3,
+            "raw_cross_page_matched": 1,
+            "raw_gold_value_fields": 58,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 57,
+            "raw_wrong_values": 10,
+            "raw_ev_predicted": 37,
+            "raw_ev_value_correct": 27,
+            "raw_ev_cited": 0,
+            "raw_ev_page_hit": 0,
+            "raw_ev_page_joint": 0,
+            "raw_ev_page_annotated": 37,
+            "raw_tp": 28,
+            "raw_gold_absent_fields": 42,
+            "raw_absent_ok": 27,
+            "raw_missed_as_absent": 8,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 70,
+            "raw_detector_tn": 28,
+            "hallucinated_fields": 3,
+            "fn_missing_record": 12,
+            "raw_hallucinated_fields": 3,
+            "raw_fn_missing_record": 12,
+            "repeated_gold_records": 8,
+            "repeated_pred_records": 28,
+            "repeated_matched_records": 5,
+            "repeated_missing_records": 3,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 23,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 2,
+            "repeated_cross_page_strict": 0,
+            "extra_record_values": 30,
+            "raw_extra_record_values": 30,
+            "replies_total": 3,
+            "replies_valid": 3,
+            "fresh_calls": 3,
+            "fresh_input_tokens": 5399,
+            "fresh_output_tokens": 3210,
+            "fresh_seconds": 415.225192,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.35714285714285715,
+              "recall": 0.603448275862069,
+              "f1": 0.44871794871794873,
+              "predicted_values": 98,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.9,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 8,
+                "missing_record": 12
+              }
+            },
+            "records": {
+              "gold": 9,
+              "predicted": 31,
+              "matched": 6,
+              "missing": 3,
+              "hallucinated": 23,
+              "duplicated": 2,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 3,
+                "matched": 1,
+                "strict": 0,
+                "fragments": 2
+              }
+            },
+            "evidence": {
+              "annotated_fields": 57,
+              "predicted_annotated": 37,
+              "cited": 0,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.0,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 0.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 34,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 3
+            },
+            "cost": {
+              "fresh": {
+                "calls": 3,
+                "input_tokens": 5399,
+                "output_tokens": 3210,
+                "seconds": 415.225192
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.2857142857142857,
+                "recall": 0.4827586206896552,
+                "f1": 0.358974358974359,
+                "predicted_values": 98,
+                "gold_value_fields": 58,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.9,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 8,
+                  "missing_record": 12
+                }
+              },
+              "records": {
+                "gold": 9,
+                "predicted": 31,
+                "matched": 6,
+                "missing": 3,
+                "hallucinated": 23,
+                "duplicated": 2,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 3,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 2
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.35714285714285715,
+                "recall": 0.603448275862069,
+                "f1": 0.44871794871794873,
+                "predicted_values": 98,
+                "gold_value_fields": 58,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.9,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 8,
+                  "missing_record": 12
+                }
+              },
+              "records": {
+                "gold": 9,
+                "predicted": 31,
+                "matched": 6,
+                "missing": 3,
+                "hallucinated": 23,
+                "duplicated": 2,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 3,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 2
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 8,
+              "pred_records": 28,
+              "matched_records": 5,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 23,
+              "strict_records": 0,
+              "cross_page_gold": 2,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 63,
+              "tn": 35
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 3,
+            "processed": 3,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "2c72fbbe982a92c84150ce23673c4d65a2230768322fc0257bb9dabf5905a8e0",
+            "992ff98ed6f110679f0136c26e2aaca7fc9653bfdae23b340c40cd3cd5ea0218",
+            "b0e3027000ecfa51669452d4b2f2e1e7d0d3cf1741bc990e2edde543654337cd"
+          ]
+        },
+        "short--caterpillar_spec_sheet_312c_excavator": {
+          "group": "caterpillar-excavator-specs",
+          "counts": {
+            "gold_records": 36,
+            "pred_records": 40,
+            "matched_records": 0,
+            "missing_records": 36,
+            "duplicated_records": 0,
+            "documents": 1,
+            "cross_page_fragments": 0,
+            "hallucinated_records": 40,
+            "extra_record_values": 241,
+            "cross_page_gold": 0,
+            "cross_page_matched": 0,
+            "gold_value_fields": 207,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 207,
+            "fn_missing_record": 207,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 241,
+            "raw_gold_records": 36,
+            "raw_pred_records": 40,
+            "raw_matched_records": 0,
+            "raw_missing_records": 36,
+            "raw_duplicated_records": 0,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 0,
+            "raw_hallucinated_records": 40,
+            "raw_extra_record_values": 241,
+            "raw_cross_page_gold": 0,
+            "raw_cross_page_matched": 0,
+            "raw_gold_value_fields": 207,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 207,
+            "raw_fn_missing_record": 207,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 241,
+            "gold_absent_fields": 180,
+            "raw_gold_absent_fields": 180,
+            "repeated_gold_records": 35,
+            "repeated_pred_records": 38,
+            "repeated_matched_records": 0,
+            "repeated_missing_records": 35,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 38,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "replies_total": 2,
+            "replies_valid": 2,
+            "fresh_calls": 2,
+            "fresh_input_tokens": 2450,
+            "fresh_output_tokens": 4827,
+            "fresh_seconds": 622.347462,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "predicted_values": 241,
+              "gold_value_fields": 207,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": null,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 0,
+                "missing_record": 207
+              }
+            },
+            "records": {
+              "gold": 36,
+              "predicted": 40,
+              "matched": 0,
+              "missing": 36,
+              "hallucinated": 40,
+              "duplicated": 0,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 0,
+                "matched": 0,
+                "strict": 0,
+                "fragments": 0
+              }
+            },
+            "evidence": {
+              "annotated_fields": 207,
+              "predicted_annotated": 0,
+              "cited": 0,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.0,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": null,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 0,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 2
+            },
+            "cost": {
+              "fresh": {
+                "calls": 2,
+                "input_tokens": 2450,
+                "output_tokens": 4827,
+                "seconds": 622.347462
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0,
+                "predicted_values": 241,
+                "gold_value_fields": 207,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": null,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 207
+                }
+              },
+              "records": {
+                "gold": 36,
+                "predicted": 40,
+                "matched": 0,
+                "missing": 36,
+                "hallucinated": 40,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0,
+                "predicted_values": 241,
+                "gold_value_fields": 207,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": null,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 207
+                }
+              },
+              "records": {
+                "gold": 36,
+                "predicted": 40,
+                "matched": 0,
+                "missing": 36,
+                "hallucinated": 40,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 0,
+              "missing_records": 35,
+              "duplicated_records": 0,
+              "hallucinated_records": 38,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 241,
+              "tn": 0
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 2,
+            "processed": 2,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "575369f57d3895bca48fe631c56e90afcc17f5db2b18baff377653b335449372",
+            "c7394e878e8cb896a3ca06ce3d77ee6f0a3ee6da3ea7cc45659b2e9e1b700838"
+          ]
+        }
+      },
+      "groups": 4,
+      "cases": 4,
+      "attempt_spend": {
+        "fresh_calls": 11,
+        "attempts": 4,
+        "not_sealed": 0
+      },
+      "missing_cells": [
+        {
+          "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+          "status": "not_run"
+        },
+        {
+          "case": "short--uillinois_rate_card_carpool_2024",
+          "status": "not_run"
+        },
+        {
+          "case": "short--viega_price_list_propress_2026",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--erie_county_2017_single_audit",
+          "status": "not_run"
+        }
+      ],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.1718377088305489,
+          "recall": 0.23076923076923078,
+          "f1": 0.19699042407660738,
+          "predicted_values": 419,
+          "gold_value_fields": 312,
+          "unannotated_fields": 0,
+          "optional_values_accepted": 0,
+          "absent_accuracy": 0.9166666666666666,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 15,
+            "missing_record": 219
+          }
+        },
+        "records": {
+          "gold": 49,
+          "predicted": 81,
+          "matched": 10,
+          "missing": 39,
+          "hallucinated": 66,
+          "duplicated": 5,
+          "unadjudicated": 0,
+          "strict_correct": 0.0,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 4,
+            "matched": 2,
+            "strict": 0,
+            "fragments": 5
+          }
+        },
+        "evidence": {
+          "annotated_fields": 311,
+          "predicted_annotated": 77,
+          "cited": 0,
+          "joint": null,
+          "raw_span_hit": null,
+          "annotated_page_joint": 0.0,
+          "semantic_support": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": 0.0,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 71,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 11
+        },
+        "cost": {
+          "fresh": {
+            "calls": 11,
+            "input_tokens": 16833,
+            "output_tokens": 9882,
+            "seconds": 1278.78117
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        },
+        "evaluator_version": 2,
+        "raw_exact": {
+          "field": {
+            "precision": 0.14558472553699284,
+            "recall": 0.1955128205128205,
+            "f1": 0.16689466484268126,
+            "predicted_values": 419,
+            "gold_value_fields": 312,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.9166666666666666,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 15,
+              "missing_record": 219
+            }
+          },
+          "records": {
+            "gold": 49,
+            "predicted": 81,
+            "matched": 10,
+            "missing": 39,
+            "hallucinated": 66,
+            "duplicated": 5,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 4,
+              "matched": 2,
+              "strict": 0,
+              "fragments": 5
+            }
+          }
+        },
+        "canonicalized": {
+          "field": {
+            "precision": 0.1718377088305489,
+            "recall": 0.23076923076923078,
+            "f1": 0.19699042407660738,
+            "predicted_values": 419,
+            "gold_value_fields": 312,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.9166666666666666,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 15,
+              "missing_record": 219
+            }
+          },
+          "records": {
+            "gold": 49,
+            "predicted": 81,
+            "matched": 10,
+            "missing": 39,
+            "hallucinated": 66,
+            "duplicated": 5,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 4,
+              "matched": 2,
+              "strict": 0,
+              "fragments": 5
+            }
+          }
+        },
+        "repeated_records": {
+          "gold_records": 45,
+          "pred_records": 71,
+          "matched_records": 7,
+          "missing_records": 38,
+          "duplicated_records": 0,
+          "hallucinated_records": 64,
+          "strict_records": 0,
+          "cross_page_gold": 2,
+          "cross_page_strict": 0
+        },
+        "verifier_error_detection": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 347,
+          "tn": 72
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.1718377088305489,
+          "interval": [
+            0.03337783711615487,
+            0.625
+          ],
+          "groups": 4,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.23076923076923078,
+          "interval": [
+            0.038580246913580245,
+            0.7913669064748201
+          ],
+          "groups": 4,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.19699042407660738,
+          "interval": [
+            0.03579098067287044,
+            0.6984126984126984
+          ],
+          "groups": 4,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 11,
+        "input_tokens": 16833,
+        "output_tokens": 9882,
+        "seconds": 1278.78117
+      }
+    },
+    "A1": {
+      "config_sha256": "cc9a2380816ee0882ffa9d0715c6e39da04aeeebef8460cf6c202776a1b969f5",
+      "documents": {
+        "short--grafton_isotrope_invoice_19503": {
+          "group": "grafton-isotrope",
+          "counts": {
+            "gold_records": 2,
+            "pred_records": 2,
+            "matched_records": 2,
+            "missing_records": 0,
+            "duplicated_records": 0,
+            "documents": 1,
+            "cross_page_fragments": 0,
+            "hallucinated_records": 0,
+            "cross_page_gold": 0,
+            "cross_page_matched": 0,
+            "gold_value_fields": 27,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 27,
+            "tp": 25,
+            "ev_predicted": 26,
+            "ev_value_correct": 25,
+            "ev_cited": 0,
+            "ev_page_hit": 0,
+            "ev_page_joint": 0,
+            "ev_page_annotated": 26,
+            "gold_absent_fields": 17,
+            "absent_ok": 17,
+            "wrong_values": 1,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_tn": 25,
+            "detector_fn": 1,
+            "raw_gold_records": 2,
+            "raw_pred_records": 2,
+            "raw_matched_records": 2,
+            "raw_missing_records": 0,
+            "raw_duplicated_records": 0,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 0,
+            "raw_hallucinated_records": 0,
+            "raw_cross_page_gold": 0,
+            "raw_cross_page_matched": 0,
+            "raw_gold_value_fields": 27,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 27,
+            "raw_tp": 22,
+            "raw_ev_predicted": 26,
+            "raw_ev_value_correct": 22,
+            "raw_ev_cited": 0,
+            "raw_ev_page_hit": 0,
+            "raw_ev_page_joint": 0,
+            "raw_ev_page_annotated": 26,
+            "raw_gold_absent_fields": 17,
+            "raw_absent_ok": 17,
+            "raw_wrong_values": 4,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_tn": 22,
+            "raw_detector_fn": 4,
+            "missed_as_absent": 1,
+            "raw_missed_as_absent": 1,
+            "repeated_gold_records": 1,
+            "repeated_pred_records": 1,
+            "repeated_matched_records": 1,
+            "repeated_missing_records": 0,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 0,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "replies_total": 1,
+            "replies_valid": 1,
+            "fresh_calls": 1,
+            "fresh_input_tokens": 1412,
+            "fresh_output_tokens": 581,
+            "fresh_seconds": 75.267368,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.9615384615384616,
+              "recall": 0.9259259259259259,
+              "f1": 0.9433962264150944,
+              "predicted_values": 26,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 1.0,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 1,
+                "missing_record": 0
+              }
+            },
+            "records": {
+              "gold": 2,
+              "predicted": 2,
+              "matched": 2,
+              "missing": 0,
+              "hallucinated": 0,
+              "duplicated": 0,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 0,
+                "matched": 0,
+                "strict": 0,
+                "fragments": 0
+              }
+            },
+            "evidence": {
+              "annotated_fields": 27,
+              "predicted_annotated": 26,
+              "cited": 0,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.0,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 0.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 25,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 1
+            },
+            "cost": {
+              "fresh": {
+                "calls": 1,
+                "input_tokens": 1412,
+                "output_tokens": 581,
+                "seconds": 75.267368
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.8461538461538461,
+                "recall": 0.8148148148148148,
+                "f1": 0.8301886792452831,
+                "predicted_values": 26,
+                "gold_value_fields": 27,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 1.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 1,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 2,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.9615384615384616,
+                "recall": 0.9259259259259259,
+                "f1": 0.9433962264150944,
+                "predicted_values": 26,
+                "gold_value_fields": 27,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 1.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 1,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 2,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "tn": 25
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 1,
+            "processed": 1,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "fdb2ffbbc26b6fa06abb8f7095c558d646055dcb948c185797e7c4b11325fe6a"
+          ]
+        },
+        "short--dc-pepco-residential-bill": {
+          "group": "pepco-residential",
+          "counts": {
+            "gold_records": 2,
+            "pred_records": 8,
+            "matched_records": 2,
+            "missing_records": 0,
+            "duplicated_records": 3,
+            "documents": 1,
+            "cross_page_fragments": 3,
+            "hallucinated_records": 3,
+            "duplicate_values": 26,
+            "cross_page_gold": 1,
+            "cross_page_matched": 1,
+            "gold_value_fields": 20,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 20,
+            "tp": 12,
+            "ev_predicted": 14,
+            "ev_value_correct": 12,
+            "ev_cited": 0,
+            "ev_page_hit": 0,
+            "ev_page_joint": 0,
+            "ev_page_annotated": 14,
+            "wrong_values": 2,
+            "missed_as_absent": 6,
+            "gold_absent_fields": 1,
+            "hallucinated_fields": 1,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 42,
+            "detector_tn": 12,
+            "raw_gold_records": 2,
+            "raw_pred_records": 8,
+            "raw_matched_records": 2,
+            "raw_missing_records": 0,
+            "raw_duplicated_records": 3,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 3,
+            "raw_hallucinated_records": 3,
+            "raw_duplicate_values": 26,
+            "raw_cross_page_gold": 1,
+            "raw_cross_page_matched": 1,
+            "raw_gold_value_fields": 20,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 20,
+            "raw_wrong_values": 3,
+            "raw_ev_predicted": 14,
+            "raw_ev_value_correct": 11,
+            "raw_ev_cited": 0,
+            "raw_ev_page_hit": 0,
+            "raw_ev_page_joint": 0,
+            "raw_ev_page_annotated": 14,
+            "raw_tp": 11,
+            "raw_missed_as_absent": 6,
+            "raw_gold_absent_fields": 1,
+            "raw_hallucinated_fields": 1,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 43,
+            "raw_detector_tn": 11,
+            "repeated_gold_records": 1,
+            "repeated_pred_records": 4,
+            "repeated_matched_records": 1,
+            "repeated_missing_records": 0,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 3,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "extra_record_values": 13,
+            "raw_extra_record_values": 13,
+            "replies_total": 5,
+            "replies_valid": 5,
+            "fresh_calls": 5,
+            "fresh_input_tokens": 7794,
+            "fresh_output_tokens": 1376,
+            "fresh_seconds": 180.444377,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.2222222222222222,
+              "recall": 0.6,
+              "f1": 0.32432432432432434,
+              "predicted_values": 54,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.0,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 6,
+                "missing_record": 0
+              }
+            },
+            "records": {
+              "gold": 2,
+              "predicted": 8,
+              "matched": 2,
+              "missing": 0,
+              "hallucinated": 3,
+              "duplicated": 3,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 1,
+                "matched": 1,
+                "strict": 0,
+                "fragments": 3
+              }
+            },
+            "evidence": {
+              "annotated_fields": 20,
+              "predicted_annotated": 14,
+              "cited": 0,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.0,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 0.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 12,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 5
+            },
+            "cost": {
+              "fresh": {
+                "calls": 5,
+                "input_tokens": 7794,
+                "output_tokens": 1376,
+                "seconds": 180.444377
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.2037037037037037,
+                "recall": 0.55,
+                "f1": 0.2972972972972973,
+                "predicted_values": 54,
+                "gold_value_fields": 20,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 6,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 8,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 3,
+                "duplicated": 3,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 1,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 3
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.2222222222222222,
+                "recall": 0.6,
+                "f1": 0.32432432432432434,
+                "predicted_values": 54,
+                "gold_value_fields": 20,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 6,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 8,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 3,
+                "duplicated": 3,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 1,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 3
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 1,
+              "pred_records": 4,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 3,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 42,
+              "tn": 12
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 5,
+            "processed": 5,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "14994560c6f1f9f70a2995883553f61235695871e684b4e5d9d9ab15f086d5c6",
+            "4be181a20c448c06969074393e8cea515e33a76fb76eb19e29489bdba76763dd",
+            "6a6376c057303286420922811af6f773660fd4650aa5cfcf63a0a76a82df82f1",
+            "9b531b225f212a9880ba38bec260e1fc70ca9c71234294f17203aa818143aa74",
+            "c05787932ba6510efa4078e8f255654c391da3609420f82ce8c3e95c86484042"
+          ]
+        },
+        "short--mission-tx-tyler-invoice": {
+          "group": "mission-tyler",
+          "counts": {
+            "gold_records": 9,
+            "pred_records": 1,
+            "matched_records": 1,
+            "missing_records": 8,
+            "duplicated_records": 0,
+            "documents": 1,
+            "cross_page_fragments": 0,
+            "hallucinated_records": 0,
+            "cross_page_gold": 3,
+            "cross_page_matched": 1,
+            "gold_value_fields": 58,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 57,
+            "wrong_values": 3,
+            "ev_predicted": 23,
+            "ev_value_correct": 20,
+            "ev_cited": 0,
+            "ev_page_hit": 0,
+            "ev_page_joint": 0,
+            "ev_page_annotated": 23,
+            "tp": 21,
+            "gold_absent_fields": 42,
+            "absent_ok": 11,
+            "hallucinated_fields": 1,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 4,
+            "detector_tn": 21,
+            "raw_gold_records": 9,
+            "raw_pred_records": 1,
+            "raw_matched_records": 1,
+            "raw_missing_records": 8,
+            "raw_duplicated_records": 0,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 0,
+            "raw_hallucinated_records": 0,
+            "raw_cross_page_gold": 3,
+            "raw_cross_page_matched": 1,
+            "raw_gold_value_fields": 58,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 57,
+            "raw_wrong_values": 5,
+            "raw_ev_predicted": 23,
+            "raw_ev_value_correct": 18,
+            "raw_ev_cited": 0,
+            "raw_ev_page_hit": 0,
+            "raw_ev_page_joint": 0,
+            "raw_ev_page_annotated": 23,
+            "raw_tp": 19,
+            "raw_gold_absent_fields": 42,
+            "raw_absent_ok": 11,
+            "raw_hallucinated_fields": 1,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 6,
+            "raw_detector_tn": 19,
+            "fn_missing_record": 34,
+            "raw_fn_missing_record": 34,
+            "repeated_gold_records": 8,
+            "repeated_pred_records": 0,
+            "repeated_matched_records": 0,
+            "repeated_missing_records": 8,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 0,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 2,
+            "repeated_cross_page_strict": 0,
+            "replies_total": 3,
+            "replies_valid": 3,
+            "fresh_calls": 3,
+            "fresh_input_tokens": 5510,
+            "fresh_output_tokens": 3612,
+            "fresh_seconds": 466.886805,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.84,
+              "recall": 0.3620689655172414,
+              "f1": 0.5060240963855421,
+              "predicted_values": 25,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.9166666666666666,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 0,
+                "missing_record": 34
+              }
+            },
+            "records": {
+              "gold": 9,
+              "predicted": 1,
+              "matched": 1,
+              "missing": 8,
+              "hallucinated": 0,
+              "duplicated": 0,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 3,
+                "matched": 1,
+                "strict": 0,
+                "fragments": 0
+              }
+            },
+            "evidence": {
+              "annotated_fields": 57,
+              "predicted_annotated": 23,
+              "cited": 0,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.0,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 0.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 20,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 3
+            },
+            "cost": {
+              "fresh": {
+                "calls": 3,
+                "input_tokens": 5510,
+                "output_tokens": 3612,
+                "seconds": 466.886805
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.76,
+                "recall": 0.3275862068965517,
+                "f1": 0.4578313253012048,
+                "predicted_values": 25,
+                "gold_value_fields": 58,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.9166666666666666,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 34
+                }
+              },
+              "records": {
+                "gold": 9,
+                "predicted": 1,
+                "matched": 1,
+                "missing": 8,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 3,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.84,
+                "recall": 0.3620689655172414,
+                "f1": 0.5060240963855421,
+                "predicted_values": 25,
+                "gold_value_fields": 58,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.9166666666666666,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 34
+                }
+              },
+              "records": {
+                "gold": 9,
+                "predicted": 1,
+                "matched": 1,
+                "missing": 8,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 3,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 8,
+              "pred_records": 0,
+              "matched_records": 0,
+              "missing_records": 8,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "strict_records": 0,
+              "cross_page_gold": 2,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 4,
+              "tn": 21
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 3,
+            "processed": 3,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "115bcd4982fcc429b6fc24d00c698d45277608e70f55dce178815716eec8a407",
+            "3b776f8063cc2b6fa70f7b213d4a51f6f84fc8377ae5cec6db79fa14fa722718",
+            "f168dc2dfd3d8a32479a038fc0bdd307363a32922202a6a933a66912eabaac31"
+          ]
+        },
+        "short--caterpillar_spec_sheet_312c_excavator": {
+          "group": "caterpillar-excavator-specs",
+          "counts": {
+            "gold_records": 36,
+            "pred_records": 40,
+            "matched_records": 0,
+            "missing_records": 36,
+            "duplicated_records": 0,
+            "documents": 1,
+            "cross_page_fragments": 0,
+            "hallucinated_records": 40,
+            "extra_record_values": 241,
+            "cross_page_gold": 0,
+            "cross_page_matched": 0,
+            "gold_value_fields": 207,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 207,
+            "fn_missing_record": 207,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 241,
+            "raw_gold_records": 36,
+            "raw_pred_records": 40,
+            "raw_matched_records": 0,
+            "raw_missing_records": 36,
+            "raw_duplicated_records": 0,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 0,
+            "raw_hallucinated_records": 40,
+            "raw_extra_record_values": 241,
+            "raw_cross_page_gold": 0,
+            "raw_cross_page_matched": 0,
+            "raw_gold_value_fields": 207,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 207,
+            "raw_fn_missing_record": 207,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 241,
+            "gold_absent_fields": 180,
+            "raw_gold_absent_fields": 180,
+            "repeated_gold_records": 35,
+            "repeated_pred_records": 38,
+            "repeated_matched_records": 0,
+            "repeated_missing_records": 35,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 38,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "replies_total": 2,
+            "replies_valid": 2,
+            "fresh_calls": 2,
+            "fresh_input_tokens": 2524,
+            "fresh_output_tokens": 4887,
+            "fresh_seconds": 630.337467,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "predicted_values": 241,
+              "gold_value_fields": 207,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": null,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 0,
+                "missing_record": 207
+              }
+            },
+            "records": {
+              "gold": 36,
+              "predicted": 40,
+              "matched": 0,
+              "missing": 36,
+              "hallucinated": 40,
+              "duplicated": 0,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 0,
+                "matched": 0,
+                "strict": 0,
+                "fragments": 0
+              }
+            },
+            "evidence": {
+              "annotated_fields": 207,
+              "predicted_annotated": 0,
+              "cited": 0,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.0,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": null,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 0,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 2
+            },
+            "cost": {
+              "fresh": {
+                "calls": 2,
+                "input_tokens": 2524,
+                "output_tokens": 4887,
+                "seconds": 630.337467
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0,
+                "predicted_values": 241,
+                "gold_value_fields": 207,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": null,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 207
+                }
+              },
+              "records": {
+                "gold": 36,
+                "predicted": 40,
+                "matched": 0,
+                "missing": 36,
+                "hallucinated": 40,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0,
+                "predicted_values": 241,
+                "gold_value_fields": 207,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": null,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 207
+                }
+              },
+              "records": {
+                "gold": 36,
+                "predicted": 40,
+                "matched": 0,
+                "missing": 36,
+                "hallucinated": 40,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 35,
+              "pred_records": 38,
+              "matched_records": 0,
+              "missing_records": 35,
+              "duplicated_records": 0,
+              "hallucinated_records": 38,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 241,
+              "tn": 0
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 2,
+            "processed": 2,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "93cd3c88f2bc9d0922d144c2c4be716911328e00b2e707eaa22c073bfb241f98",
+            "ec8c32f2a7a4e98f32845f7d8856c7c918ffc9f69e83d88b4bdf1496ba131218"
+          ]
+        }
+      },
+      "groups": 4,
+      "cases": 4,
+      "attempt_spend": {
+        "fresh_calls": 11,
+        "attempts": 4,
+        "not_sealed": 0
+      },
+      "missing_cells": [
+        {
+          "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+          "status": "not_run"
+        },
+        {
+          "case": "short--uillinois_rate_card_carpool_2024",
+          "status": "not_run"
+        },
+        {
+          "case": "short--viega_price_list_propress_2026",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--erie_county_2017_single_audit",
+          "status": "not_run"
+        }
+      ],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.1676300578034682,
+          "recall": 0.1858974358974359,
+          "f1": 0.1762917933130699,
+          "predicted_values": 346,
+          "gold_value_fields": 312,
+          "unannotated_fields": 0,
+          "optional_values_accepted": 0,
+          "absent_accuracy": 0.9333333333333333,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 7,
+            "missing_record": 241
+          }
+        },
+        "records": {
+          "gold": 49,
+          "predicted": 51,
+          "matched": 5,
+          "missing": 44,
+          "hallucinated": 43,
+          "duplicated": 3,
+          "unadjudicated": 0,
+          "strict_correct": 0.0,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 4,
+            "matched": 2,
+            "strict": 0,
+            "fragments": 3
+          }
+        },
+        "evidence": {
+          "annotated_fields": 311,
+          "predicted_annotated": 63,
+          "cited": 0,
+          "joint": null,
+          "raw_span_hit": null,
+          "annotated_page_joint": 0.0,
+          "semantic_support": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": 0.0,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 57,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 11
+        },
+        "cost": {
+          "fresh": {
+            "calls": 11,
+            "input_tokens": 17240,
+            "output_tokens": 10456,
+            "seconds": 1352.936017
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        },
+        "evaluator_version": 2,
+        "raw_exact": {
+          "field": {
+            "precision": 0.15028901734104047,
+            "recall": 0.16666666666666666,
+            "f1": 0.1580547112462006,
+            "predicted_values": 346,
+            "gold_value_fields": 312,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.9333333333333333,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 7,
+              "missing_record": 241
+            }
+          },
+          "records": {
+            "gold": 49,
+            "predicted": 51,
+            "matched": 5,
+            "missing": 44,
+            "hallucinated": 43,
+            "duplicated": 3,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 4,
+              "matched": 2,
+              "strict": 0,
+              "fragments": 3
+            }
+          }
+        },
+        "canonicalized": {
+          "field": {
+            "precision": 0.1676300578034682,
+            "recall": 0.1858974358974359,
+            "f1": 0.1762917933130699,
+            "predicted_values": 346,
+            "gold_value_fields": 312,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.9333333333333333,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 7,
+              "missing_record": 241
+            }
+          },
+          "records": {
+            "gold": 49,
+            "predicted": 51,
+            "matched": 5,
+            "missing": 44,
+            "hallucinated": 43,
+            "duplicated": 3,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 4,
+              "matched": 2,
+              "strict": 0,
+              "fragments": 3
+            }
+          }
+        },
+        "repeated_records": {
+          "gold_records": 45,
+          "pred_records": 43,
+          "matched_records": 2,
+          "missing_records": 43,
+          "duplicated_records": 0,
+          "hallucinated_records": 41,
+          "strict_records": 0,
+          "cross_page_gold": 2,
+          "cross_page_strict": 0
+        },
+        "verifier_error_detection": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 288,
+          "tn": 58
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.1676300578034682,
+          "interval": [
+            0.02807486631016043,
+            0.9019607843137255
+          ],
+          "groups": 4,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.1858974358974359,
+          "interval": [
+            0.030927835051546393,
+            0.7872340425531915
+          ],
+          "groups": 4,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.1762917933130699,
+          "interval": [
+            0.02943237561317449,
+            0.7467811158798283
+          ],
+          "groups": 4,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 11,
+        "input_tokens": 17240,
+        "output_tokens": 10456,
+        "seconds": 1352.936017
+      }
+    },
+    "A2": {
+      "config_sha256": "9b7ec29fdcd9b7eaad37c1a0e3c99a2c9e8e1090c25e486b855f588acb7a73c1",
+      "documents": {
+        "short--grafton_isotrope_invoice_19503": {
+          "group": "grafton-isotrope",
+          "counts": {
+            "gold_records": 2,
+            "pred_records": 2,
+            "matched_records": 2,
+            "missing_records": 0,
+            "duplicated_records": 0,
+            "documents": 1,
+            "cross_page_fragments": 0,
+            "hallucinated_records": 0,
+            "cross_page_gold": 0,
+            "cross_page_matched": 0,
+            "gold_value_fields": 27,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 27,
+            "tp": 24,
+            "ev_predicted": 25,
+            "ev_value_correct": 24,
+            "ev_cited": 25,
+            "ev_page_hit": 25,
+            "ev_page_joint": 24,
+            "ev_page_annotated": 25,
+            "gold_absent_fields": 17,
+            "absent_ok": 17,
+            "missed_as_absent": 2,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_tn": 24,
+            "raw_gold_records": 2,
+            "raw_pred_records": 2,
+            "raw_matched_records": 2,
+            "raw_missing_records": 0,
+            "raw_duplicated_records": 0,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 0,
+            "raw_hallucinated_records": 0,
+            "raw_cross_page_gold": 0,
+            "raw_cross_page_matched": 0,
+            "raw_gold_value_fields": 27,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 27,
+            "raw_tp": 20,
+            "raw_ev_predicted": 25,
+            "raw_ev_value_correct": 20,
+            "raw_ev_cited": 25,
+            "raw_ev_page_hit": 25,
+            "raw_ev_page_joint": 20,
+            "raw_ev_page_annotated": 25,
+            "raw_gold_absent_fields": 17,
+            "raw_absent_ok": 17,
+            "raw_wrong_values": 5,
+            "raw_missed_as_absent": 2,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_tn": 20,
+            "raw_detector_fn": 5,
+            "wrong_values": 1,
+            "detector_fn": 1,
+            "repeated_gold_records": 1,
+            "repeated_pred_records": 1,
+            "repeated_matched_records": 1,
+            "repeated_missing_records": 0,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 0,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "replies_total": 1,
+            "replies_valid": 1,
+            "fresh_calls": 1,
+            "fresh_input_tokens": 1412,
+            "fresh_output_tokens": 1369,
+            "fresh_seconds": 176.590638,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.96,
+              "recall": 0.8888888888888888,
+              "f1": 0.9230769230769231,
+              "predicted_values": 25,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 1.0,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 2,
+                "missing_record": 0
+              }
+            },
+            "records": {
+              "gold": 2,
+              "predicted": 2,
+              "matched": 2,
+              "missing": 0,
+              "hallucinated": 0,
+              "duplicated": 0,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 0,
+                "matched": 0,
+                "strict": 0,
+                "fragments": 0
+              }
+            },
+            "evidence": {
+              "annotated_fields": 27,
+              "predicted_annotated": 25,
+              "cited": 25,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.8888888888888888,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 1.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 24,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 1
+            },
+            "cost": {
+              "fresh": {
+                "calls": 1,
+                "input_tokens": 1412,
+                "output_tokens": 1369,
+                "seconds": 176.590638
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.8,
+                "recall": 0.7407407407407407,
+                "f1": 0.7692307692307693,
+                "predicted_values": 25,
+                "gold_value_fields": 27,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 1.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 2,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 2,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.96,
+                "recall": 0.8888888888888888,
+                "f1": 0.9230769230769231,
+                "predicted_values": 25,
+                "gold_value_fields": 27,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 1.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 2,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 2,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "tn": 24
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 1,
+            "processed": 1,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "4f44dff0781d3fce39c83664436cbddebc8db985027be7259ca150cb91e9f231"
+          ]
+        },
+        "short--dc-pepco-residential-bill": {
+          "group": "pepco-residential",
+          "counts": {
+            "gold_records": 2,
+            "pred_records": 9,
+            "matched_records": 2,
+            "missing_records": 0,
+            "duplicated_records": 3,
+            "documents": 1,
+            "cross_page_fragments": 3,
+            "hallucinated_records": 4,
+            "duplicate_values": 25,
+            "cross_page_gold": 1,
+            "cross_page_matched": 1,
+            "gold_value_fields": 20,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 20,
+            "tp": 12,
+            "ev_predicted": 14,
+            "ev_value_correct": 12,
+            "ev_cited": 14,
+            "ev_page_hit": 11,
+            "ev_page_joint": 9,
+            "ev_page_annotated": 14,
+            "wrong_values": 2,
+            "missed_as_absent": 6,
+            "gold_absent_fields": 1,
+            "hallucinated_fields": 1,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 41,
+            "detector_tn": 12,
+            "raw_gold_records": 2,
+            "raw_pred_records": 9,
+            "raw_matched_records": 2,
+            "raw_missing_records": 0,
+            "raw_duplicated_records": 3,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 3,
+            "raw_hallucinated_records": 4,
+            "raw_duplicate_values": 25,
+            "raw_cross_page_gold": 1,
+            "raw_cross_page_matched": 1,
+            "raw_gold_value_fields": 20,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 20,
+            "raw_wrong_values": 3,
+            "raw_ev_predicted": 14,
+            "raw_ev_value_correct": 11,
+            "raw_ev_cited": 14,
+            "raw_ev_page_hit": 11,
+            "raw_ev_page_joint": 8,
+            "raw_ev_page_annotated": 14,
+            "raw_tp": 11,
+            "raw_missed_as_absent": 6,
+            "raw_gold_absent_fields": 1,
+            "raw_hallucinated_fields": 1,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 42,
+            "raw_detector_tn": 11,
+            "repeated_gold_records": 1,
+            "repeated_pred_records": 4,
+            "repeated_matched_records": 1,
+            "repeated_missing_records": 0,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 3,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "extra_record_values": 13,
+            "raw_extra_record_values": 13,
+            "replies_total": 5,
+            "replies_valid": 5,
+            "fresh_calls": 5,
+            "fresh_input_tokens": 7794,
+            "fresh_output_tokens": 4196,
+            "fresh_seconds": 542.751044,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.22641509433962265,
+              "recall": 0.6,
+              "f1": 0.3287671232876712,
+              "predicted_values": 53,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.0,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 6,
+                "missing_record": 0
+              }
+            },
+            "records": {
+              "gold": 2,
+              "predicted": 9,
+              "matched": 2,
+              "missing": 0,
+              "hallucinated": 4,
+              "duplicated": 3,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 1,
+                "matched": 1,
+                "strict": 0,
+                "fragments": 3
+              }
+            },
+            "evidence": {
+              "annotated_fields": 20,
+              "predicted_annotated": 14,
+              "cited": 14,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.45,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 0.7857142857142857,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 12,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 5
+            },
+            "cost": {
+              "fresh": {
+                "calls": 5,
+                "input_tokens": 7794,
+                "output_tokens": 4196,
+                "seconds": 542.751044
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.20754716981132076,
+                "recall": 0.55,
+                "f1": 0.3013698630136986,
+                "predicted_values": 53,
+                "gold_value_fields": 20,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 6,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 9,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 4,
+                "duplicated": 3,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 1,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 3
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.22641509433962265,
+                "recall": 0.6,
+                "f1": 0.3287671232876712,
+                "predicted_values": 53,
+                "gold_value_fields": 20,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 6,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 9,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 4,
+                "duplicated": 3,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 1,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 3
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 1,
+              "pred_records": 4,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 3,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 41,
+              "tn": 12
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 5,
+            "processed": 5,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "116b499526fa83569ec537dbea2f50ddd93790617ece2d3972fa20f6e4a7239f",
+            "2813c02e43e450bd5f49c908880f41523aef6a8e37112a7aee97ff7cae1a3ff1",
+            "6e665ddecd232380b55f81f258ea3f743e8b9797a9d48fef6bcc520485448464",
+            "a528e84aa93af8afa85c905dca4717efab0adadbbddc531de5df9a414859821c",
+            "d1b869c6499cd005dcf3ed492e1a022e41ca01ec74cf52c73f0d68774aa0fa4e"
+          ]
+        },
+        "short--mission-tx-tyler-invoice": {
+          "group": "mission-tyler",
+          "counts": {
+            "gold_records": 9,
+            "pred_records": 31,
+            "matched_records": 6,
+            "missing_records": 3,
+            "duplicated_records": 2,
+            "documents": 1,
+            "cross_page_fragments": 2,
+            "hallucinated_records": 23,
+            "duplicate_values": 27,
+            "cross_page_gold": 3,
+            "cross_page_matched": 1,
+            "gold_value_fields": 58,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 57,
+            "wrong_values": 3,
+            "ev_predicted": 37,
+            "ev_value_correct": 34,
+            "ev_cited": 37,
+            "ev_page_hit": 37,
+            "ev_page_joint": 34,
+            "ev_page_annotated": 37,
+            "tp": 35,
+            "gold_absent_fields": 42,
+            "absent_ok": 27,
+            "missed_as_absent": 8,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 63,
+            "detector_tn": 35,
+            "raw_gold_records": 9,
+            "raw_pred_records": 31,
+            "raw_matched_records": 6,
+            "raw_missing_records": 3,
+            "raw_duplicated_records": 2,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 2,
+            "raw_hallucinated_records": 23,
+            "raw_duplicate_values": 27,
+            "raw_cross_page_gold": 3,
+            "raw_cross_page_matched": 1,
+            "raw_gold_value_fields": 58,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 57,
+            "raw_wrong_values": 10,
+            "raw_ev_predicted": 37,
+            "raw_ev_value_correct": 27,
+            "raw_ev_cited": 37,
+            "raw_ev_page_hit": 37,
+            "raw_ev_page_joint": 27,
+            "raw_ev_page_annotated": 37,
+            "raw_tp": 28,
+            "raw_gold_absent_fields": 42,
+            "raw_absent_ok": 27,
+            "raw_missed_as_absent": 8,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 70,
+            "raw_detector_tn": 28,
+            "hallucinated_fields": 3,
+            "fn_missing_record": 12,
+            "raw_hallucinated_fields": 3,
+            "raw_fn_missing_record": 12,
+            "repeated_gold_records": 8,
+            "repeated_pred_records": 28,
+            "repeated_matched_records": 5,
+            "repeated_missing_records": 3,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 23,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 2,
+            "repeated_cross_page_strict": 0,
+            "extra_record_values": 30,
+            "raw_extra_record_values": 30,
+            "replies_total": 3,
+            "replies_valid": 3,
+            "fresh_calls": 3,
+            "fresh_input_tokens": 5510,
+            "fresh_output_tokens": 5402,
+            "fresh_seconds": 697.034196,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.35714285714285715,
+              "recall": 0.603448275862069,
+              "f1": 0.44871794871794873,
+              "predicted_values": 98,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.9,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 8,
+                "missing_record": 12
+              }
+            },
+            "records": {
+              "gold": 9,
+              "predicted": 31,
+              "matched": 6,
+              "missing": 3,
+              "hallucinated": 23,
+              "duplicated": 2,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 3,
+                "matched": 1,
+                "strict": 0,
+                "fragments": 2
+              }
+            },
+            "evidence": {
+              "annotated_fields": 57,
+              "predicted_annotated": 37,
+              "cited": 37,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.5964912280701754,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 1.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 34,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 3
+            },
+            "cost": {
+              "fresh": {
+                "calls": 3,
+                "input_tokens": 5510,
+                "output_tokens": 5402,
+                "seconds": 697.034196
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.2857142857142857,
+                "recall": 0.4827586206896552,
+                "f1": 0.358974358974359,
+                "predicted_values": 98,
+                "gold_value_fields": 58,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.9,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 8,
+                  "missing_record": 12
+                }
+              },
+              "records": {
+                "gold": 9,
+                "predicted": 31,
+                "matched": 6,
+                "missing": 3,
+                "hallucinated": 23,
+                "duplicated": 2,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 3,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 2
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.35714285714285715,
+                "recall": 0.603448275862069,
+                "f1": 0.44871794871794873,
+                "predicted_values": 98,
+                "gold_value_fields": 58,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.9,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 8,
+                  "missing_record": 12
+                }
+              },
+              "records": {
+                "gold": 9,
+                "predicted": 31,
+                "matched": 6,
+                "missing": 3,
+                "hallucinated": 23,
+                "duplicated": 2,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 3,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 2
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 8,
+              "pred_records": 28,
+              "matched_records": 5,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 23,
+              "strict_records": 0,
+              "cross_page_gold": 2,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 63,
+              "tn": 35
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 3,
+            "processed": 3,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "0e4b2017bb9efabf70ca18bb4d78ce5224388fb3f890eac7664567ef5ba0b07d",
+            "89e85dc8d57f2f861c872062e57e665e231e9b03ada0c1870ae1054f004bdc63",
+            "e51a791dfcd3f38ecb7bd3c7f482bc4bf875d895ce4eafe9cf2733dbe09af604"
+          ]
+        }
+      },
+      "groups": 3,
+      "cases": 3,
+      "attempt_spend": {
+        "fresh_calls": 10,
+        "attempts": 4,
+        "not_sealed": 1
+      },
+      "missing_cells": [
+        {
+          "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+          "status": "not_run"
+        },
+        {
+          "case": "short--uillinois_rate_card_carpool_2024",
+          "status": "not_run"
+        },
+        {
+          "case": "short--viega_price_list_propress_2026",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--erie_county_2017_single_audit",
+          "status": "not_run"
+        }
+      ],
+      "failed_cells": [
+        {
+          "case": "short--caterpillar_spec_sheet_312c_excavator",
+          "status": "stopped_by_study_budget",
+          "error": "the study's call allowance ran out during this cell",
+          "attempt": 1,
+          "wall_seconds": 529.047,
+          "spent": {
+            "fresh": {
+              "calls": 1,
+              "input_tokens": 1765,
+              "output_tokens": 4096,
+              "seconds": 528.875159,
+              "failed": 0,
+              "unknown_usage": 0
+            },
+            "replayed": {
+              "calls": 0,
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "seconds": 0,
+              "failed": 0,
+              "unknown_usage": 0
+            }
+          },
+          "budget_spent": {
+            "calls": 1,
+            "tokens": 5861
+          },
+          "code_sha256": "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673",
+          "environment": {
+            "python": "3.13.12",
+            "system": "Linux x86_64",
+            "numpy": "2.5.3",
+            "scipy": "1.18.1",
+            "jsonschema": "4.26.0",
+            "pydantic": "2.13.5",
+            "requests": "2.34.2"
+          }
+        }
+      ],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.4034090909090909,
+          "recall": 0.6761904761904762,
+          "f1": 0.505338078291815,
+          "predicted_values": 176,
+          "gold_value_fields": 105,
+          "unannotated_fields": 0,
+          "optional_values_accepted": 0,
+          "absent_accuracy": 0.9166666666666666,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 16,
+            "missing_record": 12
+          }
+        },
+        "records": {
+          "gold": 13,
+          "predicted": 42,
+          "matched": 10,
+          "missing": 3,
+          "hallucinated": 27,
+          "duplicated": 5,
+          "unadjudicated": 0,
+          "strict_correct": 0.0,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 4,
+            "matched": 2,
+            "strict": 0,
+            "fragments": 5
+          }
+        },
+        "evidence": {
+          "annotated_fields": 104,
+          "predicted_annotated": 76,
+          "cited": 76,
+          "joint": null,
+          "raw_span_hit": null,
+          "annotated_page_joint": 0.6442307692307693,
+          "semantic_support": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": 0.9605263157894737,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 70,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 9
+        },
+        "cost": {
+          "fresh": {
+            "calls": 9,
+            "input_tokens": 14716,
+            "output_tokens": 10967,
+            "seconds": 1416.3758779999998
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        },
+        "evaluator_version": 2,
+        "raw_exact": {
+          "field": {
+            "precision": 0.3352272727272727,
+            "recall": 0.5619047619047619,
+            "f1": 0.4199288256227758,
+            "predicted_values": 176,
+            "gold_value_fields": 105,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.9166666666666666,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 16,
+              "missing_record": 12
+            }
+          },
+          "records": {
+            "gold": 13,
+            "predicted": 42,
+            "matched": 10,
+            "missing": 3,
+            "hallucinated": 27,
+            "duplicated": 5,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 4,
+              "matched": 2,
+              "strict": 0,
+              "fragments": 5
+            }
+          }
+        },
+        "canonicalized": {
+          "field": {
+            "precision": 0.4034090909090909,
+            "recall": 0.6761904761904762,
+            "f1": 0.505338078291815,
+            "predicted_values": 176,
+            "gold_value_fields": 105,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.9166666666666666,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 16,
+              "missing_record": 12
+            }
+          },
+          "records": {
+            "gold": 13,
+            "predicted": 42,
+            "matched": 10,
+            "missing": 3,
+            "hallucinated": 27,
+            "duplicated": 5,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 4,
+              "matched": 2,
+              "strict": 0,
+              "fragments": 5
+            }
+          }
+        },
+        "repeated_records": {
+          "gold_records": 10,
+          "pred_records": 33,
+          "matched_records": 7,
+          "missing_records": 3,
+          "duplicated_records": 0,
+          "hallucinated_records": 26,
+          "strict_records": 0,
+          "cross_page_gold": 2,
+          "cross_page_strict": 0
+        },
+        "verifier_error_detection": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 105,
+          "tn": 71
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.4034090909090909,
+          "interval": [
+            0.22641509433962265,
+            0.96
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.6761904761904762,
+          "interval": [
+            0.6,
+            0.8888888888888888
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.505338078291815,
+          "interval": [
+            0.3287671232876712,
+            0.9230769230769231
+          ],
+          "groups": 3,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 9,
+        "input_tokens": 14716,
+        "output_tokens": 10967,
+        "seconds": 1416.3758779999998
+      }
+    },
+    "A3": {
+      "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+      "documents": {
+        "short--grafton_isotrope_invoice_19503": {
+          "group": "grafton-isotrope",
+          "counts": {
+            "gold_records": 2,
+            "pred_records": 2,
+            "matched_records": 2,
+            "missing_records": 0,
+            "duplicated_records": 0,
+            "documents": 1,
+            "cross_page_fragments": 0,
+            "hallucinated_records": 0,
+            "cross_page_gold": 0,
+            "cross_page_matched": 0,
+            "gold_value_fields": 27,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 27,
+            "tp": 23,
+            "ev_predicted": 25,
+            "ev_value_correct": 23,
+            "ev_cited": 25,
+            "ev_page_hit": 25,
+            "ev_page_joint": 23,
+            "ev_page_annotated": 25,
+            "gold_absent_fields": 17,
+            "absent_ok": 17,
+            "missed_as_absent": 2,
+            "wrong_values": 2,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_tn": 23,
+            "detector_fn": 2,
+            "raw_gold_records": 2,
+            "raw_pred_records": 2,
+            "raw_matched_records": 2,
+            "raw_missing_records": 0,
+            "raw_duplicated_records": 0,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 0,
+            "raw_hallucinated_records": 0,
+            "raw_cross_page_gold": 0,
+            "raw_cross_page_matched": 0,
+            "raw_gold_value_fields": 27,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 27,
+            "raw_tp": 20,
+            "raw_ev_predicted": 25,
+            "raw_ev_value_correct": 20,
+            "raw_ev_cited": 25,
+            "raw_ev_page_hit": 25,
+            "raw_ev_page_joint": 20,
+            "raw_ev_page_annotated": 25,
+            "raw_gold_absent_fields": 17,
+            "raw_absent_ok": 17,
+            "raw_wrong_values": 5,
+            "raw_missed_as_absent": 2,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_tn": 20,
+            "raw_detector_fn": 5,
+            "repeated_gold_records": 1,
+            "repeated_pred_records": 1,
+            "repeated_matched_records": 1,
+            "repeated_missing_records": 0,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 0,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "replies_total": 1,
+            "replies_valid": 1,
+            "fresh_calls": 1,
+            "fresh_input_tokens": 1398,
+            "fresh_output_tokens": 1056,
+            "fresh_seconds": 136.358626,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.92,
+              "recall": 0.8518518518518519,
+              "f1": 0.8846153846153846,
+              "predicted_values": 25,
+              "gold_value_fields": 27,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 1.0,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 2,
+                "missing_record": 0
+              }
+            },
+            "records": {
+              "gold": 2,
+              "predicted": 2,
+              "matched": 2,
+              "missing": 0,
+              "hallucinated": 0,
+              "duplicated": 0,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 0,
+                "matched": 0,
+                "strict": 0,
+                "fragments": 0
+              }
+            },
+            "evidence": {
+              "annotated_fields": 27,
+              "predicted_annotated": 25,
+              "cited": 25,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.8518518518518519,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 1.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 23,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 1
+            },
+            "cost": {
+              "fresh": {
+                "calls": 1,
+                "input_tokens": 1398,
+                "output_tokens": 1056,
+                "seconds": 136.358626
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.8,
+                "recall": 0.7407407407407407,
+                "f1": 0.7692307692307693,
+                "predicted_values": 25,
+                "gold_value_fields": 27,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 1.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 2,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 2,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.92,
+                "recall": 0.8518518518518519,
+                "f1": 0.8846153846153846,
+                "predicted_values": 25,
+                "gold_value_fields": 27,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 1.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 2,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 2,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 0,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 1,
+              "pred_records": 1,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 0,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 2,
+              "tn": 23
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 1,
+            "processed": 1,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "7adf67b97579975e25b775abb24f6d451c054f397d72059dba4dcce6c3b005ba"
+          ]
+        },
+        "short--dc-pepco-residential-bill": {
+          "group": "pepco-residential",
+          "counts": {
+            "gold_records": 2,
+            "pred_records": 9,
+            "matched_records": 2,
+            "missing_records": 0,
+            "duplicated_records": 3,
+            "documents": 1,
+            "cross_page_fragments": 3,
+            "hallucinated_records": 4,
+            "duplicate_values": 26,
+            "cross_page_gold": 1,
+            "cross_page_matched": 1,
+            "gold_value_fields": 20,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 20,
+            "tp": 12,
+            "ev_predicted": 14,
+            "ev_value_correct": 12,
+            "ev_cited": 14,
+            "ev_page_hit": 11,
+            "ev_page_joint": 9,
+            "ev_page_annotated": 14,
+            "wrong_values": 2,
+            "missed_as_absent": 6,
+            "gold_absent_fields": 1,
+            "hallucinated_fields": 1,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 42,
+            "detector_tn": 12,
+            "raw_gold_records": 2,
+            "raw_pred_records": 9,
+            "raw_matched_records": 2,
+            "raw_missing_records": 0,
+            "raw_duplicated_records": 3,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 3,
+            "raw_hallucinated_records": 4,
+            "raw_duplicate_values": 26,
+            "raw_cross_page_gold": 1,
+            "raw_cross_page_matched": 1,
+            "raw_gold_value_fields": 20,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 20,
+            "raw_wrong_values": 3,
+            "raw_ev_predicted": 14,
+            "raw_ev_value_correct": 11,
+            "raw_ev_cited": 14,
+            "raw_ev_page_hit": 11,
+            "raw_ev_page_joint": 8,
+            "raw_ev_page_annotated": 14,
+            "raw_tp": 11,
+            "raw_missed_as_absent": 6,
+            "raw_gold_absent_fields": 1,
+            "raw_hallucinated_fields": 1,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 43,
+            "raw_detector_tn": 11,
+            "repeated_gold_records": 1,
+            "repeated_pred_records": 4,
+            "repeated_matched_records": 1,
+            "repeated_missing_records": 0,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 3,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "extra_record_values": 13,
+            "raw_extra_record_values": 13,
+            "replies_total": 5,
+            "replies_valid": 5,
+            "fresh_calls": 5,
+            "fresh_input_tokens": 7724,
+            "fresh_output_tokens": 3426,
+            "fresh_seconds": 443.895716,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.2222222222222222,
+              "recall": 0.6,
+              "f1": 0.32432432432432434,
+              "predicted_values": 54,
+              "gold_value_fields": 20,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.0,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 6,
+                "missing_record": 0
+              }
+            },
+            "records": {
+              "gold": 2,
+              "predicted": 9,
+              "matched": 2,
+              "missing": 0,
+              "hallucinated": 4,
+              "duplicated": 3,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 1,
+                "matched": 1,
+                "strict": 0,
+                "fragments": 3
+              }
+            },
+            "evidence": {
+              "annotated_fields": 20,
+              "predicted_annotated": 14,
+              "cited": 14,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.45,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 0.7857142857142857,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 12,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 5
+            },
+            "cost": {
+              "fresh": {
+                "calls": 5,
+                "input_tokens": 7724,
+                "output_tokens": 3426,
+                "seconds": 443.895716
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.2037037037037037,
+                "recall": 0.55,
+                "f1": 0.2972972972972973,
+                "predicted_values": 54,
+                "gold_value_fields": 20,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 6,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 9,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 4,
+                "duplicated": 3,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 1,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 3
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.2222222222222222,
+                "recall": 0.6,
+                "f1": 0.32432432432432434,
+                "predicted_values": 54,
+                "gold_value_fields": 20,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.0,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 6,
+                  "missing_record": 0
+                }
+              },
+              "records": {
+                "gold": 2,
+                "predicted": 9,
+                "matched": 2,
+                "missing": 0,
+                "hallucinated": 4,
+                "duplicated": 3,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 1,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 3
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 1,
+              "pred_records": 4,
+              "matched_records": 1,
+              "missing_records": 0,
+              "duplicated_records": 0,
+              "hallucinated_records": 3,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 42,
+              "tn": 12
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 5,
+            "processed": 5,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "1bb369713417588837c64e98b134473c0adf7ffcd5bf4b32627b60c0dbc05162",
+            "523b5b6417427ad72e43c6bdcd5a3bd320ddde51453fbc4e11ea0c5cd836add3",
+            "9c9b10e73298a62c0f699ea8745926f73c9d80e2d9f9563e7c6f9cf1bc3fd1ec",
+            "b22b63cd285b2fad8fd6094a1f23807bc32e620b2d7965914ee6aa780eb7b4fe",
+            "f5478f3862940cdf8b4aca38a69a0080cbdc29967d42c4d18585bd15c6a56b8c"
+          ]
+        },
+        "short--mission-tx-tyler-invoice": {
+          "group": "mission-tyler",
+          "counts": {
+            "gold_records": 9,
+            "pred_records": 31,
+            "matched_records": 6,
+            "missing_records": 3,
+            "duplicated_records": 2,
+            "documents": 1,
+            "cross_page_fragments": 2,
+            "hallucinated_records": 23,
+            "duplicate_values": 27,
+            "cross_page_gold": 3,
+            "cross_page_matched": 1,
+            "gold_value_fields": 58,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 57,
+            "wrong_values": 3,
+            "ev_predicted": 37,
+            "ev_value_correct": 34,
+            "ev_cited": 37,
+            "ev_page_hit": 37,
+            "ev_page_joint": 34,
+            "ev_page_annotated": 37,
+            "tp": 35,
+            "gold_absent_fields": 42,
+            "absent_ok": 27,
+            "missed_as_absent": 8,
+            "strict_records": 0,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_fn": 63,
+            "detector_tn": 35,
+            "raw_gold_records": 9,
+            "raw_pred_records": 31,
+            "raw_matched_records": 6,
+            "raw_missing_records": 3,
+            "raw_duplicated_records": 2,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 2,
+            "raw_hallucinated_records": 23,
+            "raw_duplicate_values": 27,
+            "raw_cross_page_gold": 3,
+            "raw_cross_page_matched": 1,
+            "raw_gold_value_fields": 58,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 57,
+            "raw_wrong_values": 10,
+            "raw_ev_predicted": 37,
+            "raw_ev_value_correct": 27,
+            "raw_ev_cited": 37,
+            "raw_ev_page_hit": 37,
+            "raw_ev_page_joint": 27,
+            "raw_ev_page_annotated": 37,
+            "raw_tp": 28,
+            "raw_gold_absent_fields": 42,
+            "raw_absent_ok": 27,
+            "raw_missed_as_absent": 8,
+            "raw_strict_records": 0,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_fn": 70,
+            "raw_detector_tn": 28,
+            "hallucinated_fields": 3,
+            "fn_missing_record": 12,
+            "raw_hallucinated_fields": 3,
+            "raw_fn_missing_record": 12,
+            "repeated_gold_records": 8,
+            "repeated_pred_records": 28,
+            "repeated_matched_records": 5,
+            "repeated_missing_records": 3,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 23,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 2,
+            "repeated_cross_page_strict": 0,
+            "extra_record_values": 30,
+            "raw_extra_record_values": 30,
+            "replies_total": 3,
+            "replies_valid": 3,
+            "fresh_calls": 3,
+            "fresh_input_tokens": 5468,
+            "fresh_output_tokens": 4880,
+            "fresh_seconds": 629.882513,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.35714285714285715,
+              "recall": 0.603448275862069,
+              "f1": 0.44871794871794873,
+              "predicted_values": 98,
+              "gold_value_fields": 58,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.9,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 8,
+                "missing_record": 12
+              }
+            },
+            "records": {
+              "gold": 9,
+              "predicted": 31,
+              "matched": 6,
+              "missing": 3,
+              "hallucinated": 23,
+              "duplicated": 2,
+              "unadjudicated": 0,
+              "strict_correct": 0.0,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 3,
+                "matched": 1,
+                "strict": 0,
+                "fragments": 2
+              }
+            },
+            "evidence": {
+              "annotated_fields": 57,
+              "predicted_annotated": 37,
+              "cited": 37,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.5964912280701754,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 1.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 34,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 3
+            },
+            "cost": {
+              "fresh": {
+                "calls": 3,
+                "input_tokens": 5468,
+                "output_tokens": 4880,
+                "seconds": 629.882513
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.2857142857142857,
+                "recall": 0.4827586206896552,
+                "f1": 0.358974358974359,
+                "predicted_values": 98,
+                "gold_value_fields": 58,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.9,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 8,
+                  "missing_record": 12
+                }
+              },
+              "records": {
+                "gold": 9,
+                "predicted": 31,
+                "matched": 6,
+                "missing": 3,
+                "hallucinated": 23,
+                "duplicated": 2,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 3,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 2
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.35714285714285715,
+                "recall": 0.603448275862069,
+                "f1": 0.44871794871794873,
+                "predicted_values": 98,
+                "gold_value_fields": 58,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.9,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 8,
+                  "missing_record": 12
+                }
+              },
+              "records": {
+                "gold": 9,
+                "predicted": 31,
+                "matched": 6,
+                "missing": 3,
+                "hallucinated": 23,
+                "duplicated": 2,
+                "unadjudicated": 0,
+                "strict_correct": 0.0,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 3,
+                  "matched": 1,
+                  "strict": 0,
+                  "fragments": 2
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 8,
+              "pred_records": 28,
+              "matched_records": 5,
+              "missing_records": 3,
+              "duplicated_records": 0,
+              "hallucinated_records": 23,
+              "strict_records": 0,
+              "cross_page_gold": 2,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 63,
+              "tn": 35
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 3,
+            "processed": 3,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "1472945f7c020b1136daf0e8f54693cef3b34685d8b12e0f3f1355dd7996af27",
+            "18850adf4c052ec28d9955bceaa0d603611f0203a45c8cb14f41288d1378f8be",
+            "4071bdab3dbbd352bf51ca41ef8e4e1696fd176fa1ea434e30c9bae5450d28b0"
+          ]
+        },
+        "short--caterpillar_spec_sheet_312c_excavator": {
+          "group": "caterpillar-excavator-specs",
+          "counts": {
+            "gold_records": 36,
+            "pred_records": 37,
+            "matched_records": 27,
+            "missing_records": 9,
+            "duplicated_records": 0,
+            "documents": 1,
+            "cross_page_fragments": 0,
+            "hallucinated_records": 10,
+            "cross_page_gold": 0,
+            "cross_page_matched": 0,
+            "gold_value_fields": 207,
+            "ev_localization_gold": 0,
+            "ev_gold_fields": 207,
+            "tp": 80,
+            "ev_predicted": 155,
+            "ev_value_correct": 80,
+            "ev_cited": 155,
+            "ev_page_hit": 155,
+            "ev_page_joint": 80,
+            "ev_page_annotated": 155,
+            "strict_records": 1,
+            "cross_page_strict": 0,
+            "strict_documents": 0,
+            "detector_tn": 80,
+            "raw_gold_records": 36,
+            "raw_pred_records": 37,
+            "raw_matched_records": 27,
+            "raw_missing_records": 9,
+            "raw_duplicated_records": 0,
+            "raw_documents": 1,
+            "raw_cross_page_fragments": 0,
+            "raw_hallucinated_records": 10,
+            "raw_cross_page_gold": 0,
+            "raw_cross_page_matched": 0,
+            "raw_gold_value_fields": 207,
+            "raw_ev_localization_gold": 0,
+            "raw_ev_gold_fields": 207,
+            "raw_tp": 80,
+            "raw_ev_predicted": 155,
+            "raw_ev_value_correct": 80,
+            "raw_ev_cited": 155,
+            "raw_ev_page_hit": 155,
+            "raw_ev_page_joint": 80,
+            "raw_ev_page_annotated": 155,
+            "raw_strict_records": 1,
+            "raw_cross_page_strict": 0,
+            "raw_strict_documents": 0,
+            "raw_detector_tn": 80,
+            "gold_absent_fields": 180,
+            "hallucinated_fields": 26,
+            "absent_ok": 107,
+            "wrong_values": 75,
+            "fn_missing_record": 52,
+            "detector_fn": 156,
+            "raw_gold_absent_fields": 180,
+            "raw_hallucinated_fields": 26,
+            "raw_absent_ok": 107,
+            "raw_wrong_values": 75,
+            "raw_fn_missing_record": 52,
+            "raw_detector_fn": 156,
+            "repeated_gold_records": 35,
+            "repeated_pred_records": 35,
+            "repeated_matched_records": 26,
+            "repeated_missing_records": 9,
+            "repeated_duplicated_records": 0,
+            "repeated_hallucinated_records": 9,
+            "repeated_strict_records": 0,
+            "repeated_cross_page_gold": 0,
+            "repeated_cross_page_strict": 0,
+            "extra_record_values": 55,
+            "raw_extra_record_values": 55,
+            "replies_total": 2,
+            "replies_valid": 2,
+            "fresh_calls": 2,
+            "fresh_input_tokens": 2496,
+            "fresh_output_tokens": 4854,
+            "fresh_seconds": 626.180001,
+            "fresh_failed": 0,
+            "fresh_unknown_usage": 0,
+            "replayed_calls": 0,
+            "replayed_input_tokens": 0,
+            "replayed_output_tokens": 0,
+            "replayed_seconds": 0,
+            "replayed_failed": 0,
+            "replayed_unknown_usage": 0
+          },
+          "metrics": {
+            "field": {
+              "precision": 0.3389830508474576,
+              "recall": 0.3864734299516908,
+              "f1": 0.3611738148984199,
+              "predicted_values": 236,
+              "gold_value_fields": 207,
+              "unannotated_fields": 0,
+              "optional_values_accepted": 0,
+              "absent_accuracy": 0.8045112781954887,
+              "abstained": {
+                "unresolved": 0,
+                "omitted": 0,
+                "excluded_values": 0,
+                "withheld": 0,
+                "withheld_correct": 0,
+                "missed_as_absent": 0,
+                "missing_record": 52
+              }
+            },
+            "records": {
+              "gold": 36,
+              "predicted": 37,
+              "matched": 27,
+              "missing": 9,
+              "hallucinated": 10,
+              "duplicated": 0,
+              "unadjudicated": 0,
+              "strict_correct": 0.027777777777777776,
+              "strict_documents": 0.0,
+              "cross_page": {
+                "gold": 0,
+                "matched": 0,
+                "strict": 0,
+                "fragments": 0
+              }
+            },
+            "evidence": {
+              "annotated_fields": 207,
+              "predicted_annotated": 155,
+              "cited": 155,
+              "joint": null,
+              "raw_span_hit": null,
+              "annotated_page_joint": 0.3864734299516908,
+              "semantic_support": null,
+              "joint_given_predicted": null,
+              "span_hit_given_correct": null,
+              "page_hit": 1.0,
+              "segment_hit": null,
+              "span_hit": null,
+              "decoy_hit": null,
+              "correct_with_annotated_evidence": 80,
+              "verifier": {
+                "tp": 0,
+                "fp": 0,
+                "fn": 0,
+                "tn": 0
+              }
+            },
+            "validity": {
+              "schema_valid_reply_rate": 1.0,
+              "replies": 2
+            },
+            "cost": {
+              "fresh": {
+                "calls": 2,
+                "input_tokens": 2496,
+                "output_tokens": 4854,
+                "seconds": 626.180001
+              },
+              "replayed": {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "seconds": 0
+              }
+            },
+            "evaluator_version": 2,
+            "raw_exact": {
+              "field": {
+                "precision": 0.3389830508474576,
+                "recall": 0.3864734299516908,
+                "f1": 0.3611738148984199,
+                "predicted_values": 236,
+                "gold_value_fields": 207,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.8045112781954887,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 52
+                }
+              },
+              "records": {
+                "gold": 36,
+                "predicted": 37,
+                "matched": 27,
+                "missing": 9,
+                "hallucinated": 10,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.027777777777777776,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "canonicalized": {
+              "field": {
+                "precision": 0.3389830508474576,
+                "recall": 0.3864734299516908,
+                "f1": 0.3611738148984199,
+                "predicted_values": 236,
+                "gold_value_fields": 207,
+                "unannotated_fields": 0,
+                "optional_values_accepted": 0,
+                "absent_accuracy": 0.8045112781954887,
+                "abstained": {
+                  "unresolved": 0,
+                  "omitted": 0,
+                  "excluded_values": 0,
+                  "withheld": 0,
+                  "withheld_correct": 0,
+                  "missed_as_absent": 0,
+                  "missing_record": 52
+                }
+              },
+              "records": {
+                "gold": 36,
+                "predicted": 37,
+                "matched": 27,
+                "missing": 9,
+                "hallucinated": 10,
+                "duplicated": 0,
+                "unadjudicated": 0,
+                "strict_correct": 0.027777777777777776,
+                "strict_documents": 0.0,
+                "cross_page": {
+                  "gold": 0,
+                  "matched": 0,
+                  "strict": 0,
+                  "fragments": 0
+                }
+              }
+            },
+            "repeated_records": {
+              "gold_records": 35,
+              "pred_records": 35,
+              "matched_records": 26,
+              "missing_records": 9,
+              "duplicated_records": 0,
+              "hallucinated_records": 9,
+              "strict_records": 0,
+              "cross_page_gold": 0,
+              "cross_page_strict": 0
+            },
+            "verifier_error_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 156,
+              "tn": 80
+            }
+          },
+          "coverage": {
+            "exhaustive": true,
+            "complete": true,
+            "chunks": 2,
+            "processed": 2,
+            "partial": 0,
+            "failed": 0,
+            "refused": 0,
+            "not_retrieved": 0,
+            "recall": "unmeasured",
+            "note": "processed regions were read; that no record was missed is not established"
+          },
+          "issues": [],
+          "requests": [
+            "44d626217d7d9527dc22869e0731764053fb76bfc71d97d7a12c6d6ae8c4b102",
+            "ee28aad5559d3cb472d71aaa8558f2ef8636d721d0f4f7e9814519f23335006b"
+          ]
+        }
+      },
+      "groups": 4,
+      "cases": 4,
+      "attempt_spend": {
+        "fresh_calls": 11,
+        "attempts": 4,
+        "not_sealed": 0
+      },
+      "missing_cells": [
+        {
+          "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+          "status": "not_run"
+        },
+        {
+          "case": "short--uillinois_rate_card_carpool_2024",
+          "status": "not_run"
+        },
+        {
+          "case": "short--viega_price_list_propress_2026",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+          "status": "not_run"
+        },
+        {
+          "case": "medium--erie_county_2017_single_audit",
+          "status": "not_run"
+        }
+      ],
+      "failed_cells": [],
+      "invariant_violations": [],
+      "metrics": {
+        "field": {
+          "precision": 0.36319612590799033,
+          "recall": 0.4807692307692308,
+          "f1": 0.41379310344827586,
+          "predicted_values": 413,
+          "gold_value_fields": 312,
+          "unannotated_fields": 0,
+          "optional_values_accepted": 0,
+          "absent_accuracy": 0.8342541436464088,
+          "abstained": {
+            "unresolved": 0,
+            "omitted": 0,
+            "excluded_values": 0,
+            "withheld": 0,
+            "withheld_correct": 0,
+            "missed_as_absent": 16,
+            "missing_record": 64
+          }
+        },
+        "records": {
+          "gold": 49,
+          "predicted": 79,
+          "matched": 37,
+          "missing": 12,
+          "hallucinated": 37,
+          "duplicated": 5,
+          "unadjudicated": 0,
+          "strict_correct": 0.02040816326530612,
+          "strict_documents": 0.0,
+          "cross_page": {
+            "gold": 4,
+            "matched": 2,
+            "strict": 0,
+            "fragments": 5
+          }
+        },
+        "evidence": {
+          "annotated_fields": 311,
+          "predicted_annotated": 231,
+          "cited": 231,
+          "joint": null,
+          "raw_span_hit": null,
+          "annotated_page_joint": 0.4694533762057878,
+          "semantic_support": null,
+          "joint_given_predicted": null,
+          "span_hit_given_correct": null,
+          "page_hit": 0.987012987012987,
+          "segment_hit": null,
+          "span_hit": null,
+          "decoy_hit": null,
+          "correct_with_annotated_evidence": 149,
+          "verifier": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0
+          }
+        },
+        "validity": {
+          "schema_valid_reply_rate": 1.0,
+          "replies": 11
+        },
+        "cost": {
+          "fresh": {
+            "calls": 11,
+            "input_tokens": 17086,
+            "output_tokens": 14216,
+            "seconds": 1836.316856
+          },
+          "replayed": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "seconds": 0
+          }
+        },
+        "evaluator_version": 2,
+        "raw_exact": {
+          "field": {
+            "precision": 0.3365617433414044,
+            "recall": 0.44551282051282054,
+            "f1": 0.383448275862069,
+            "predicted_values": 413,
+            "gold_value_fields": 312,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.8342541436464088,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 16,
+              "missing_record": 64
+            }
+          },
+          "records": {
+            "gold": 49,
+            "predicted": 79,
+            "matched": 37,
+            "missing": 12,
+            "hallucinated": 37,
+            "duplicated": 5,
+            "unadjudicated": 0,
+            "strict_correct": 0.02040816326530612,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 4,
+              "matched": 2,
+              "strict": 0,
+              "fragments": 5
+            }
+          }
+        },
+        "canonicalized": {
+          "field": {
+            "precision": 0.36319612590799033,
+            "recall": 0.4807692307692308,
+            "f1": 0.41379310344827586,
+            "predicted_values": 413,
+            "gold_value_fields": 312,
+            "unannotated_fields": 0,
+            "optional_values_accepted": 0,
+            "absent_accuracy": 0.8342541436464088,
+            "abstained": {
+              "unresolved": 0,
+              "omitted": 0,
+              "excluded_values": 0,
+              "withheld": 0,
+              "withheld_correct": 0,
+              "missed_as_absent": 16,
+              "missing_record": 64
+            }
+          },
+          "records": {
+            "gold": 49,
+            "predicted": 79,
+            "matched": 37,
+            "missing": 12,
+            "hallucinated": 37,
+            "duplicated": 5,
+            "unadjudicated": 0,
+            "strict_correct": 0.02040816326530612,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 4,
+              "matched": 2,
+              "strict": 0,
+              "fragments": 5
+            }
+          }
+        },
+        "repeated_records": {
+          "gold_records": 45,
+          "pred_records": 68,
+          "matched_records": 33,
+          "missing_records": 12,
+          "duplicated_records": 0,
+          "hallucinated_records": 35,
+          "strict_records": 0,
+          "cross_page_gold": 2,
+          "cross_page_strict": 0
+        },
+        "verifier_error_detection": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 263,
+          "tn": 150
+        }
+      },
+      "intervals": {
+        "precision": {
+          "point": 0.36319612590799033,
+          "interval": [
+            0.2914572864321608,
+            0.6011560693641619
+          ],
+          "groups": 4,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "recall": {
+          "point": 0.4807692307692308,
+          "interval": [
+            0.4050073637702504,
+            0.7482014388489209
+          ],
+          "groups": 4,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        },
+        "f1": {
+          "point": 0.41379310344827586,
+          "interval": [
+            0.35589941972920697,
+            0.6666666666666666
+          ],
+          "groups": 4,
+          "draws": 2000,
+          "used_draws": 2000,
+          "seed": 20260930,
+          "unit": "group"
+        }
+      },
+      "cost_as_if_cold": {
+        "calls": 11,
+        "input_tokens": 17086,
+        "output_tokens": 14216,
+        "seconds": 1836.316856
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "control": "base",
+      "treatment": "A1",
+      "factor": "merge",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 4,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 4,
+        "mean": 0.01432653691689835,
+        "percentile_95": [
+          0.0,
+          0.04297961075069505
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 11,
+        "treatment_only": 11,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 4,
+        "calls": 0,
+        "input_tokens": 407,
+        "output_tokens": 574,
+        "seconds": 74.154847
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "A2",
+      "factor": "evidence",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 3,
+      "unpaired_groups": {
+        "caterpillar-excavator-specs": "not run in the treatment"
+      },
+      "effect": {
+        "documents": 3,
+        "mean": -0.00529216812494145,
+        "percentile_95": [
+          -0.020319303338171224,
+          0.004442798963346872
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 9,
+        "treatment_only": 9,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 3,
+        "calls": 0,
+        "input_tokens": 333,
+        "output_tokens": 5912,
+        "seconds": 759.94217
+      }
+    },
+    {
+      "control": "base",
+      "treatment": "A3",
+      "factor": "evidence",
+      "unit": "group",
+      "metric": "field F1",
+      "groups": 4,
+      "unpaired_groups": {},
+      "effect": {
+        "documents": 4,
+        "mean": 0.07559824327467753,
+        "percentile_95": [
+          -0.04408563134978233,
+          0.2708803611738149
+        ],
+        "unit": "document",
+        "bootstrap_seed": 20260927,
+        "draws": 10000
+      },
+      "requests": {
+        "control_only": 11,
+        "treatment_only": 11,
+        "identical": false,
+        "note": "identical: the configurations differ but every request sent was the same, so the treatment either changed only what happens after the model (aggregation, gate, alignment) or did nothing"
+      },
+      "cost_delta_as_if_cold": {
+        "cases": 4,
+        "calls": 0,
+        "input_tokens": 253,
+        "output_tokens": 4334,
+        "seconds": 557.535686
+      }
+    }
+  ],
+  "interactions": [],
+  "provenance": {
+    "run_code_matches_current": true,
+    "cells_by_code_sha256": {
+      "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673": 15
+    },
+    "current_code_sha256": "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673",
+    "manifest_code_matches_current": true,
+    "environment_matches_current": true,
+    "environment_at_run": {
+      "python": "3.13.12",
+      "system": "Linux x86_64",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "jsonschema": "4.26.0",
+      "pydantic": "2.13.5",
+      "requests": "2.34.2"
+    },
+    "provider": {
+      "url": "http://127.0.0.1:18080/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "served": {
+        "id": "Qwen/Qwen3.8-27B-FP8",
+        "max_model_len": 32768,
+        "root": "Qwen/Qwen3.8-27B-FP8"
+      },
+      "context_tokens": 32768,
+      "deployment": {
+        "name": "existing-local-qwen",
+        "model_revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+        "image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+        "vllm": "0.29.1rc1.dev17+gd2d649e67.d20260913",
+        "torch": "2.13.0+cu130",
+        "transformers": "5.17.0"
+      }
+    },
+    "scorer_sha256": "f1a3942b0b2119f3505b66338cf6a378fbc4c1434d4dab3ca9288fb441137ec4",
+    "evaluation_version": 2,
+    "original_evaluation_sha256": "4e6c56c77ef414e406a1743eedfe670aa7de5849b0ab7a7095316ccfbc9b38d8",
+    "rescored": false
+  },
+  "limits": [
+    "Documents of one group are resampled together; intervals over few groups are descriptive, not evidence of generalisation.",
+    "Synthetic or development data test the implementation, not real-world superiority.",
+    "Model calls are not deterministic even at temperature 0; repeats would measure serving variability.",
+    "Cost is real inference plus replayed replies at their recorded cost, for sealed cells only; what failed or unsealed attempts spent is `attempt_spend`, and cost deltas use the cases both arms completed.",
+    "Model-seconds are as recorded when each reply was made, under whatever load the server had then: compare calls and tokens, not seconds, across arms."
+  ],
+  "selection": "none: this report names no winner; a variant is chosen on split dev alone and reported once on test"
+}

@@ -1,0 +1,1802 @@
+{
+  "complete_paired_groups": [
+    "grafton-isotrope",
+    "pepco-residential",
+    "mission-tyler"
+  ],
+  "incomplete_groups": {
+    "caterpillar-excavator-specs": {
+      "base": "sealed",
+      "A1": "sealed",
+      "A2": "stopped_by_study_budget",
+      "A3": "sealed"
+    }
+  },
+  "unrun_groups": [
+    "lancaster-husker-steel",
+    "uillinois-fleet-2024",
+    "viega-propress-2026",
+    "mitchell-valuation-vin-1g1pc5sb6e7111015",
+    "erie-audit-2017"
+  ],
+  "arms": {
+    "base": {
+      "groups": 3,
+      "mean_group_raw_f1": 0.49548677850564643,
+      "mean_group_canonical_f1": 0.5721461664857891,
+      "pooled_raw_f1": 0.43109540636042404,
+      "pooled_canonical_f1": 0.508833922261484,
+      "gold_value_fields": 105,
+      "unannotated_fields": 0,
+      "records": {
+        "gold": 13,
+        "predicted": 41,
+        "matched": 10,
+        "missing": 3,
+        "hallucinated": 26,
+        "duplicated": 5,
+        "unadjudicated": 0,
+        "strict_correct": 0.0,
+        "strict_documents": 0.0,
+        "cross_page": {
+          "gold": 4,
+          "matched": 2,
+          "strict": 0,
+          "fragments": 5
+        }
+      },
+      "repeated_records": {
+        "gold_records": 10,
+        "pred_records": 33,
+        "matched_records": 7,
+        "missing_records": 3,
+        "duplicated_records": 0,
+        "hallucinated_records": 26,
+        "strict_records": 0,
+        "cross_page_gold": 2,
+        "cross_page_strict": 0
+      },
+      "canonical_strict_records": 0,
+      "raw_strict_records": 0,
+      "evidence_annotated_page_joint": 0.0,
+      "evidence_annotated_fields": 104,
+      "source_region_failures": 0,
+      "truncated_calls": 0,
+      "schema_valid_replies": [
+        9,
+        9
+      ],
+      "fresh_calls": 9,
+      "input_tokens": 14383,
+      "output_tokens": 5055
+    },
+    "A1": {
+      "groups": 3,
+      "mean_group_raw_f1": 0.5284391006145951,
+      "mean_group_canonical_f1": 0.5912482157083203,
+      "pooled_raw_f1": 0.49523809523809526,
+      "pooled_canonical_f1": 0.5523809523809524,
+      "gold_value_fields": 105,
+      "unannotated_fields": 0,
+      "records": {
+        "gold": 13,
+        "predicted": 11,
+        "matched": 5,
+        "missing": 8,
+        "hallucinated": 3,
+        "duplicated": 3,
+        "unadjudicated": 0,
+        "strict_correct": 0.0,
+        "strict_documents": 0.0,
+        "cross_page": {
+          "gold": 4,
+          "matched": 2,
+          "strict": 0,
+          "fragments": 3
+        }
+      },
+      "repeated_records": {
+        "gold_records": 10,
+        "pred_records": 5,
+        "matched_records": 2,
+        "missing_records": 8,
+        "duplicated_records": 0,
+        "hallucinated_records": 3,
+        "strict_records": 0,
+        "cross_page_gold": 2,
+        "cross_page_strict": 0
+      },
+      "canonical_strict_records": 0,
+      "raw_strict_records": 0,
+      "evidence_annotated_page_joint": 0.0,
+      "evidence_annotated_fields": 104,
+      "source_region_failures": 0,
+      "truncated_calls": 0,
+      "schema_valid_replies": [
+        9,
+        9
+      ],
+      "fresh_calls": 9,
+      "input_tokens": 14716,
+      "output_tokens": 5569
+    },
+    "A2": {
+      "groups": 3,
+      "mean_group_raw_f1": 0.4765249970729423,
+      "mean_group_canonical_f1": 0.5668539983608477,
+      "pooled_raw_f1": 0.4199288256227758,
+      "pooled_canonical_f1": 0.505338078291815,
+      "gold_value_fields": 105,
+      "unannotated_fields": 0,
+      "records": {
+        "gold": 13,
+        "predicted": 42,
+        "matched": 10,
+        "missing": 3,
+        "hallucinated": 27,
+        "duplicated": 5,
+        "unadjudicated": 0,
+        "strict_correct": 0.0,
+        "strict_documents": 0.0,
+        "cross_page": {
+          "gold": 4,
+          "matched": 2,
+          "strict": 0,
+          "fragments": 5
+        }
+      },
+      "repeated_records": {
+        "gold_records": 10,
+        "pred_records": 33,
+        "matched_records": 7,
+        "missing_records": 3,
+        "duplicated_records": 0,
+        "hallucinated_records": 26,
+        "strict_records": 0,
+        "cross_page_gold": 2,
+        "cross_page_strict": 0
+      },
+      "canonical_strict_records": 0,
+      "raw_strict_records": 0,
+      "evidence_annotated_page_joint": 0.6442307692307693,
+      "evidence_annotated_fields": 104,
+      "source_region_failures": 0,
+      "truncated_calls": 0,
+      "schema_valid_replies": [
+        9,
+        9
+      ],
+      "fresh_calls": 9,
+      "input_tokens": 14716,
+      "output_tokens": 10967
+    },
+    "A3": {
+      "groups": 3,
+      "mean_group_raw_f1": 0.4751674751674752,
+      "mean_group_canonical_f1": 0.5525525525525525,
+      "pooled_raw_f1": 0.41843971631205673,
+      "pooled_canonical_f1": 0.49645390070921985,
+      "gold_value_fields": 105,
+      "unannotated_fields": 0,
+      "records": {
+        "gold": 13,
+        "predicted": 42,
+        "matched": 10,
+        "missing": 3,
+        "hallucinated": 27,
+        "duplicated": 5,
+        "unadjudicated": 0,
+        "strict_correct": 0.0,
+        "strict_documents": 0.0,
+        "cross_page": {
+          "gold": 4,
+          "matched": 2,
+          "strict": 0,
+          "fragments": 5
+        }
+      },
+      "repeated_records": {
+        "gold_records": 10,
+        "pred_records": 33,
+        "matched_records": 7,
+        "missing_records": 3,
+        "duplicated_records": 0,
+        "hallucinated_records": 26,
+        "strict_records": 0,
+        "cross_page_gold": 2,
+        "cross_page_strict": 0
+      },
+      "canonical_strict_records": 0,
+      "raw_strict_records": 0,
+      "evidence_annotated_page_joint": 0.6346153846153846,
+      "evidence_annotated_fields": 104,
+      "source_region_failures": 0,
+      "truncated_calls": 0,
+      "schema_valid_replies": [
+        9,
+        9
+      ],
+      "fresh_calls": 9,
+      "input_tokens": 14590,
+      "output_tokens": 9362
+    }
+  },
+  "deltas_vs_base": {
+    "A1": {
+      "raw_f1_by_group": {
+        "grafton-isotrope": 0.0,
+        "pepco-residential": 0.0,
+        "mission-tyler": 0.09885696632684582
+      },
+      "mean": 0.032952322108948606,
+      "wins": 1,
+      "losses": 0
+    },
+    "A2": {
+      "raw_f1_by_group": {
+        "grafton-isotrope": -0.06095791001451378,
+        "pepco-residential": 0.0040725657164013,
+        "mission-tyler": 0.0
+      },
+      "mean": -0.01896178143270416,
+      "wins": 1,
+      "losses": 1
+    },
+    "A3": {
+      "raw_f1_by_group": {
+        "grafton-isotrope": -0.06095791001451378,
+        "pepco-residential": 0.0,
+        "mission-tyler": 0.0
+      },
+      "mean": -0.020319303338171262,
+      "wins": 0,
+      "losses": 1
+    }
+  },
+  "rows": [
+    {
+      "order": 0,
+      "case": "short--grafton_isotrope_invoice_19503",
+      "group": "grafton-isotrope",
+      "chunks": 1,
+      "a1_merge_can_act": false,
+      "arm_order": [
+        "base",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "complete_pair": true,
+      "arms": {
+        "base": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 1,
+            "input_tokens": 1375,
+            "output_tokens": 563,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.8301886792452831,
+          "canonical_f1": 0.9433962264150944,
+          "raw_precision": 0.8461538461538461,
+          "raw_recall": 0.8148148148148148,
+          "gold_value_fields": 27,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 2,
+            "predicted": 2,
+            "matched": 2,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 27,
+            "predicted_annotated": 26,
+            "annotated_page_joint": 0.0,
+            "page_hit": 0.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            1,
+            1
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 1,
+            "processed": 1,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 3,
+            "wrong_value": 1,
+            "spurious_value_where_gold_absent": 0,
+            "missing_record": 0,
+            "spurious_record": 0,
+            "duplicated_record": 0,
+            "value_lost_with_missing_record": 0,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 1,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A1": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 1,
+            "input_tokens": 1412,
+            "output_tokens": 581,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.8301886792452831,
+          "canonical_f1": 0.9433962264150944,
+          "raw_precision": 0.8461538461538461,
+          "raw_recall": 0.8148148148148148,
+          "gold_value_fields": 27,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 2,
+            "predicted": 2,
+            "matched": 2,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 27,
+            "predicted_annotated": 26,
+            "annotated_page_joint": 0.0,
+            "page_hit": 0.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            1,
+            1
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 1,
+            "processed": 1,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 3,
+            "wrong_value": 1,
+            "spurious_value_where_gold_absent": 0,
+            "missing_record": 0,
+            "spurious_record": 0,
+            "duplicated_record": 0,
+            "value_lost_with_missing_record": 0,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 1,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A2": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 1,
+            "input_tokens": 1412,
+            "output_tokens": 1369,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.7692307692307693,
+          "canonical_f1": 0.9230769230769231,
+          "raw_precision": 0.8,
+          "raw_recall": 0.7407407407407407,
+          "gold_value_fields": 27,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 2,
+            "predicted": 2,
+            "matched": 2,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 27,
+            "predicted_annotated": 25,
+            "annotated_page_joint": 0.8888888888888888,
+            "page_hit": 1.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            1,
+            1
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 1,
+            "processed": 1,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 4,
+            "wrong_value": 1,
+            "spurious_value_where_gold_absent": 0,
+            "missing_record": 0,
+            "spurious_record": 0,
+            "duplicated_record": 0,
+            "value_lost_with_missing_record": 0,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 2,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A3": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 1,
+            "input_tokens": 1398,
+            "output_tokens": 1056,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.7692307692307693,
+          "canonical_f1": 0.8846153846153846,
+          "raw_precision": 0.8,
+          "raw_recall": 0.7407407407407407,
+          "gold_value_fields": 27,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 2,
+            "predicted": 2,
+            "matched": 2,
+            "missing": 0,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 27,
+            "predicted_annotated": 25,
+            "annotated_page_joint": 0.8518518518518519,
+            "page_hit": 1.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            1,
+            1
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 1,
+            "processed": 1,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 3,
+            "wrong_value": 2,
+            "spurious_value_where_gold_absent": 0,
+            "missing_record": 0,
+            "spurious_record": 0,
+            "duplicated_record": 0,
+            "value_lost_with_missing_record": 0,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 2,
+            "schema_invalid_replies": 0
+          }
+        }
+      }
+    },
+    {
+      "order": 1,
+      "case": "short--dc-pepco-residential-bill",
+      "group": "pepco-residential",
+      "chunks": 5,
+      "a1_merge_can_act": true,
+      "arm_order": [
+        "A1",
+        "A2",
+        "A3",
+        "base"
+      ],
+      "complete_pair": true,
+      "arms": {
+        "base": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 5,
+            "input_tokens": 7609,
+            "output_tokens": 1282,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.2972972972972973,
+          "canonical_f1": 0.32432432432432434,
+          "raw_precision": 0.2037037037037037,
+          "raw_recall": 0.55,
+          "gold_value_fields": 20,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 2,
+            "predicted": 8,
+            "matched": 2,
+            "missing": 0,
+            "hallucinated": 3,
+            "duplicated": 3,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 1,
+              "matched": 1,
+              "strict": 0,
+              "fragments": 3
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 20,
+            "predicted_annotated": 14,
+            "annotated_page_joint": 0.0,
+            "page_hit": 0.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            5,
+            5
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 5,
+            "processed": 5,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 1,
+            "wrong_value": 2,
+            "spurious_value_where_gold_absent": 1,
+            "missing_record": 0,
+            "spurious_record": 3,
+            "duplicated_record": 3,
+            "value_lost_with_missing_record": 0,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 6,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A1": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 5,
+            "input_tokens": 7794,
+            "output_tokens": 1376,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.2972972972972973,
+          "canonical_f1": 0.32432432432432434,
+          "raw_precision": 0.2037037037037037,
+          "raw_recall": 0.55,
+          "gold_value_fields": 20,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 2,
+            "predicted": 8,
+            "matched": 2,
+            "missing": 0,
+            "hallucinated": 3,
+            "duplicated": 3,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 1,
+              "matched": 1,
+              "strict": 0,
+              "fragments": 3
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 20,
+            "predicted_annotated": 14,
+            "annotated_page_joint": 0.0,
+            "page_hit": 0.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            5,
+            5
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 5,
+            "processed": 5,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 1,
+            "wrong_value": 2,
+            "spurious_value_where_gold_absent": 1,
+            "missing_record": 0,
+            "spurious_record": 3,
+            "duplicated_record": 3,
+            "value_lost_with_missing_record": 0,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 6,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A2": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 5,
+            "input_tokens": 7794,
+            "output_tokens": 4196,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.3013698630136986,
+          "canonical_f1": 0.3287671232876712,
+          "raw_precision": 0.20754716981132076,
+          "raw_recall": 0.55,
+          "gold_value_fields": 20,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 2,
+            "predicted": 9,
+            "matched": 2,
+            "missing": 0,
+            "hallucinated": 4,
+            "duplicated": 3,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 1,
+              "matched": 1,
+              "strict": 0,
+              "fragments": 3
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 20,
+            "predicted_annotated": 14,
+            "annotated_page_joint": 0.45,
+            "page_hit": 0.7857142857142857,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            5,
+            5
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 5,
+            "processed": 5,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 1,
+            "wrong_value": 2,
+            "spurious_value_where_gold_absent": 1,
+            "missing_record": 0,
+            "spurious_record": 4,
+            "duplicated_record": 3,
+            "value_lost_with_missing_record": 0,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 6,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A3": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 5,
+            "input_tokens": 7724,
+            "output_tokens": 3426,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.2972972972972973,
+          "canonical_f1": 0.32432432432432434,
+          "raw_precision": 0.2037037037037037,
+          "raw_recall": 0.55,
+          "gold_value_fields": 20,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 2,
+            "predicted": 9,
+            "matched": 2,
+            "missing": 0,
+            "hallucinated": 4,
+            "duplicated": 3,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 1,
+              "matched": 1,
+              "strict": 0,
+              "fragments": 3
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 20,
+            "predicted_annotated": 14,
+            "annotated_page_joint": 0.45,
+            "page_hit": 0.7857142857142857,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            5,
+            5
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 5,
+            "processed": 5,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 1,
+            "wrong_value": 2,
+            "spurious_value_where_gold_absent": 1,
+            "missing_record": 0,
+            "spurious_record": 4,
+            "duplicated_record": 3,
+            "value_lost_with_missing_record": 0,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 6,
+            "schema_invalid_replies": 0
+          }
+        }
+      }
+    },
+    {
+      "order": 2,
+      "case": "short--mission-tx-tyler-invoice",
+      "group": "mission-tyler",
+      "chunks": 3,
+      "a1_merge_can_act": true,
+      "arm_order": [
+        "A2",
+        "A3",
+        "base",
+        "A1"
+      ],
+      "complete_pair": true,
+      "arms": {
+        "base": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 3,
+            "input_tokens": 5399,
+            "output_tokens": 3210,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.358974358974359,
+          "canonical_f1": 0.44871794871794873,
+          "raw_precision": 0.2857142857142857,
+          "raw_recall": 0.4827586206896552,
+          "gold_value_fields": 58,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 9,
+            "predicted": 31,
+            "matched": 6,
+            "missing": 3,
+            "hallucinated": 23,
+            "duplicated": 2,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 3,
+              "matched": 1,
+              "strict": 0,
+              "fragments": 2
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 57,
+            "predicted_annotated": 37,
+            "annotated_page_joint": 0.0,
+            "page_hit": 0.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            3,
+            3
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 3,
+            "processed": 3,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 7,
+            "wrong_value": 3,
+            "spurious_value_where_gold_absent": 3,
+            "missing_record": 3,
+            "spurious_record": 23,
+            "duplicated_record": 2,
+            "value_lost_with_missing_record": 12,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 8,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A1": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 3,
+            "input_tokens": 5510,
+            "output_tokens": 3612,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.4578313253012048,
+          "canonical_f1": 0.5060240963855421,
+          "raw_precision": 0.76,
+          "raw_recall": 0.3275862068965517,
+          "gold_value_fields": 58,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 9,
+            "predicted": 1,
+            "matched": 1,
+            "missing": 8,
+            "hallucinated": 0,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 3,
+              "matched": 1,
+              "strict": 0,
+              "fragments": 0
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 57,
+            "predicted_annotated": 23,
+            "annotated_page_joint": 0.0,
+            "page_hit": 0.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            3,
+            3
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 3,
+            "processed": 3,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 2,
+            "wrong_value": 3,
+            "spurious_value_where_gold_absent": 1,
+            "missing_record": 8,
+            "spurious_record": 0,
+            "duplicated_record": 0,
+            "value_lost_with_missing_record": 34,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 0,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A2": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 3,
+            "input_tokens": 5510,
+            "output_tokens": 5402,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.358974358974359,
+          "canonical_f1": 0.44871794871794873,
+          "raw_precision": 0.2857142857142857,
+          "raw_recall": 0.4827586206896552,
+          "gold_value_fields": 58,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 9,
+            "predicted": 31,
+            "matched": 6,
+            "missing": 3,
+            "hallucinated": 23,
+            "duplicated": 2,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 3,
+              "matched": 1,
+              "strict": 0,
+              "fragments": 2
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 57,
+            "predicted_annotated": 37,
+            "annotated_page_joint": 0.5964912280701754,
+            "page_hit": 1.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            3,
+            3
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 3,
+            "processed": 3,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 7,
+            "wrong_value": 3,
+            "spurious_value_where_gold_absent": 3,
+            "missing_record": 3,
+            "spurious_record": 23,
+            "duplicated_record": 2,
+            "value_lost_with_missing_record": 12,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 8,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A3": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 3,
+            "input_tokens": 5468,
+            "output_tokens": 4880,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.358974358974359,
+          "canonical_f1": 0.44871794871794873,
+          "raw_precision": 0.2857142857142857,
+          "raw_recall": 0.4827586206896552,
+          "gold_value_fields": 58,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 9,
+            "predicted": 31,
+            "matched": 6,
+            "missing": 3,
+            "hallucinated": 23,
+            "duplicated": 2,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 3,
+              "matched": 1,
+              "strict": 0,
+              "fragments": 2
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 57,
+            "predicted_annotated": 37,
+            "annotated_page_joint": 0.5964912280701754,
+            "page_hit": 1.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            3,
+            3
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 3,
+            "processed": 3,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 7,
+            "wrong_value": 3,
+            "spurious_value_where_gold_absent": 3,
+            "missing_record": 3,
+            "spurious_record": 23,
+            "duplicated_record": 2,
+            "value_lost_with_missing_record": 12,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 8,
+            "schema_invalid_replies": 0
+          }
+        }
+      }
+    },
+    {
+      "order": 3,
+      "case": "short--caterpillar_spec_sheet_312c_excavator",
+      "group": "caterpillar-excavator-specs",
+      "chunks": 2,
+      "a1_merge_can_act": true,
+      "arm_order": [
+        "A3",
+        "base",
+        "A1",
+        "A2"
+      ],
+      "complete_pair": false,
+      "arms": {
+        "base": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 2,
+            "input_tokens": 2450,
+            "output_tokens": 4827,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.0,
+          "canonical_f1": 0.0,
+          "raw_precision": 0.0,
+          "raw_recall": 0.0,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 36,
+            "predicted": 40,
+            "matched": 0,
+            "missing": 36,
+            "hallucinated": 40,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 207,
+            "predicted_annotated": 0,
+            "annotated_page_joint": 0.0,
+            "page_hit": null,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            2,
+            2
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 2,
+            "processed": 2,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 0,
+            "wrong_value": 0,
+            "spurious_value_where_gold_absent": 0,
+            "missing_record": 36,
+            "spurious_record": 40,
+            "duplicated_record": 0,
+            "value_lost_with_missing_record": 207,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 0,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A1": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 2,
+            "input_tokens": 2524,
+            "output_tokens": 4887,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.0,
+          "canonical_f1": 0.0,
+          "raw_precision": 0.0,
+          "raw_recall": 0.0,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 36,
+            "predicted": 40,
+            "matched": 0,
+            "missing": 36,
+            "hallucinated": 40,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.0,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            },
+            "raw_strict_correct": 0.0
+          },
+          "evidence": {
+            "annotated_fields": 207,
+            "predicted_annotated": 0,
+            "annotated_page_joint": 0.0,
+            "page_hit": null,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            2,
+            2
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 2,
+            "processed": 2,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 0,
+            "wrong_value": 0,
+            "spurious_value_where_gold_absent": 0,
+            "missing_record": 36,
+            "spurious_record": 40,
+            "duplicated_record": 0,
+            "value_lost_with_missing_record": 207,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 0,
+            "schema_invalid_replies": 0
+          }
+        },
+        "A2": {
+          "status": "stopped_by_study_budget",
+          "attempts": 1,
+          "fresh": {
+            "calls": 1,
+            "input_tokens": 1765,
+            "output_tokens": 4096,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A3": {
+          "status": "sealed",
+          "attempts": 1,
+          "fresh": {
+            "calls": 2,
+            "input_tokens": 2496,
+            "output_tokens": 4854,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0,
+          "raw_f1": 0.3611738148984199,
+          "canonical_f1": 0.3611738148984199,
+          "raw_precision": 0.3389830508474576,
+          "raw_recall": 0.3864734299516908,
+          "gold_value_fields": 207,
+          "unannotated_fields": 0,
+          "records": {
+            "gold": 36,
+            "predicted": 37,
+            "matched": 27,
+            "missing": 9,
+            "hallucinated": 10,
+            "duplicated": 0,
+            "unadjudicated": 0,
+            "strict_correct": 0.027777777777777776,
+            "strict_documents": 0.0,
+            "cross_page": {
+              "gold": 0,
+              "matched": 0,
+              "strict": 0,
+              "fragments": 0
+            },
+            "raw_strict_correct": 0.027777777777777776
+          },
+          "evidence": {
+            "annotated_fields": 207,
+            "predicted_annotated": 155,
+            "annotated_page_joint": 0.3864734299516908,
+            "page_hit": 1.0,
+            "raw_span_hit": null,
+            "joint": null
+          },
+          "schema_valid_replies": [
+            2,
+            2
+          ],
+          "truncated_calls": 0,
+          "coverage": {
+            "chunks": 2,
+            "processed": 2,
+            "partial": 0,
+            "failed": 0
+          },
+          "errors": {
+            "format_only_difference": 0,
+            "wrong_value": 75,
+            "spurious_value_where_gold_absent": 26,
+            "missing_record": 9,
+            "spurious_record": 10,
+            "duplicated_record": 0,
+            "value_lost_with_missing_record": 52,
+            "omitted_or_unresolved": 0,
+            "answered_absent_but_gold_has_value": 0,
+            "schema_invalid_replies": 0
+          }
+        }
+      }
+    },
+    {
+      "order": 4,
+      "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "group": "lancaster-husker-steel",
+      "chunks": 3,
+      "a1_merge_can_act": true,
+      "arm_order": [
+        "base",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "complete_pair": false,
+      "arms": {
+        "base": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A1": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A2": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A3": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        }
+      }
+    },
+    {
+      "order": 5,
+      "case": "short--uillinois_rate_card_carpool_2024",
+      "group": "uillinois-fleet-2024",
+      "chunks": 1,
+      "a1_merge_can_act": false,
+      "arm_order": [
+        "A1",
+        "A2",
+        "A3",
+        "base"
+      ],
+      "complete_pair": false,
+      "arms": {
+        "base": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A1": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A2": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A3": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        }
+      }
+    },
+    {
+      "order": 6,
+      "case": "short--viega_price_list_propress_2026",
+      "group": "viega-propress-2026",
+      "chunks": 9,
+      "a1_merge_can_act": true,
+      "arm_order": [
+        "A2",
+        "A3",
+        "base",
+        "A1"
+      ],
+      "complete_pair": false,
+      "arms": {
+        "base": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A1": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A2": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A3": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        }
+      }
+    },
+    {
+      "order": 7,
+      "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "group": "mitchell-valuation-vin-1g1pc5sb6e7111015",
+      "chunks": 16,
+      "a1_merge_can_act": true,
+      "arm_order": [
+        "A3",
+        "base",
+        "A1",
+        "A2"
+      ],
+      "complete_pair": false,
+      "arms": {
+        "base": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A1": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A2": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A3": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        }
+      }
+    },
+    {
+      "order": 8,
+      "case": "medium--erie_county_2017_single_audit",
+      "group": "erie-audit-2017",
+      "chunks": 36,
+      "a1_merge_can_act": true,
+      "arm_order": [
+        "base",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "complete_pair": false,
+      "arms": {
+        "base": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A1": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A2": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        },
+        "A3": {
+          "status": "not_run",
+          "attempts": 0,
+          "fresh": {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "failed": 0,
+            "unknown_usage": 0
+          },
+          "replayed_calls": 0
+        }
+      }
+    }
+  ],
+  "error_categories_paired_groups": {
+    "base": {
+      "format_only_difference": 11,
+      "wrong_value": 6,
+      "answered_absent_but_gold_has_value": 15,
+      "spurious_value_where_gold_absent": 4,
+      "spurious_record": 26,
+      "duplicated_record": 5,
+      "missing_record": 3,
+      "value_lost_with_missing_record": 12
+    },
+    "A1": {
+      "format_only_difference": 6,
+      "wrong_value": 6,
+      "answered_absent_but_gold_has_value": 7,
+      "spurious_value_where_gold_absent": 2,
+      "spurious_record": 3,
+      "duplicated_record": 3,
+      "missing_record": 8,
+      "value_lost_with_missing_record": 34
+    },
+    "A2": {
+      "format_only_difference": 12,
+      "wrong_value": 6,
+      "answered_absent_but_gold_has_value": 16,
+      "spurious_value_where_gold_absent": 4,
+      "spurious_record": 27,
+      "duplicated_record": 5,
+      "missing_record": 3,
+      "value_lost_with_missing_record": 12
+    },
+    "A3": {
+      "format_only_difference": 11,
+      "wrong_value": 7,
+      "answered_absent_but_gold_has_value": 16,
+      "spurious_value_where_gold_absent": 4,
+      "spurious_record": 27,
+      "duplicated_record": 5,
+      "missing_record": 3,
+      "value_lost_with_missing_record": 12
+    }
+  },
+  "decision": {
+    "result": "evidence insufficient",
+    "reason": "no challenger met the frozen rule",
+    "checked": [
+      [
+        false,
+        0.5284391006145951,
+        -5569,
+        "A1"
+      ],
+      [
+        false,
+        0.4765249970729423,
+        -10967,
+        "A2"
+      ],
+      [
+        false,
+        0.4751674751674752,
+        -9362,
+        "A3"
+      ]
+    ]
+  },
+  "ledger": {
+    "journal_started": 43,
+    "journal_finished": 43,
+    "journal_completed": 43,
+    "journal_failed": 0,
+    "journal_truncated": 1,
+    "journal_input_tokens": 67640,
+    "journal_output_tokens": 49617,
+    "cells_fresh_calls": 43,
+    "replayed_calls": 0,
+    "runner_fresh_calls": 43,
+    "invocations": [
+      {
+        "at": "2026-09-30T18:03:08.166470+00:00",
+        "groups": [
+          0
+        ],
+        "cells": 4,
+        "status": "finished",
+        "outcome": {
+          "cells": 4,
+          "cells_to_run": 4,
+          "projected_calls": 4,
+          "upper_bound_with_recovery": 12,
+          "budget": 240,
+          "note": "estimates for the cells not yet sealed; verification and arbitration counts use the gold's record count (a run never sees it); without --execute nothing is sent",
+          "executed": {
+            "completed": 4
+          },
+          "fresh_calls_spent": 4
+        },
+        "allowance_remaining": 236,
+        "allowance_denied": 0,
+        "finished_at": "2026-09-30T18:10:49.891292+00:00"
+      },
+      {
+        "at": "2026-09-30T18:11:02.078379+00:00",
+        "groups": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "cells": 36,
+        "status": "finished",
+        "outcome": {
+          "cells": 36,
+          "cells_to_run": 32,
+          "projected_calls": 300,
+          "upper_bound_with_recovery": 900,
+          "budget": 240,
+          "note": "estimates for the cells not yet sealed; verification and arbitration counts use the gold's record count (a run never sees it); without --execute nothing is sent",
+          "executed": {
+            "retained_completed": 4,
+            "completed": 11,
+            "stopped_by_study_budget": 1,
+            "not_run_budget_spent": 20
+          },
+          "fresh_calls_spent": 39
+        },
+        "allowance_remaining": 0,
+        "allowance_denied": 3,
+        "finished_at": "2026-09-30T19:50:17.753972+00:00"
+      }
+    ],
+    "clock": {
+      "started_at": "2026-09-30T18:03:08.067382+00:00",
+      "admission_cutoff_at": "2026-09-30T19:48:08.067382+00:00",
+      "deadline_at": "2026-09-30T20:03:08.067382+00:00"
+    },
+    "reconciled": true
+  }
+}
