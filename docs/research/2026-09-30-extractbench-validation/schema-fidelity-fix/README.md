@@ -46,6 +46,17 @@ Annotation files differ only in `annotations.source.inference_schema_sha256`.
 Ten gold-as-prediction round trips scored 1.0 raw/canonical; these check adapter
 and scorer consistency, not model quality.
 
+A subsequent [gold-schema audit](gold-schema-audit.json) checked the primary
+annotations against the original and adapted record schemas. All ten satisfy
+their original schemas; nine directly satisfy FREE's stricter reply shape. The
+Mitchell annotation omits `equipment_adjustments` in fourteen comparable records,
+without corresponding field rules. Completing those keys with null in an
+**evaluator-only synthetic reply** makes all ten adapted shapes valid, with
+identical scoring counts. The fourteen collections remain unannotated. No enum
+conflict, relabeling or scorer correction was found. This checks primary values
+and JSON shape, with format assertions disabled; it does not validate alternate
+readings, semantic support, human gold or extraction quality.
+
 ## Verification and interpretation
 
 The final offline suite passed **198 tests**. Ten new adapter regression cases
@@ -103,10 +114,17 @@ export HARNESS_PYTHON=/home/gebbaro/Progetti/FREE/prototypes/parsing_service/.ve
 "$HARNESS_PYTHON" -m pytest -q tests/test_harness_*.py tests/test_extract_schema.py \
   ../../docs/research/2026-09-30-extractbench-validation/development-continuation/test_run_bounded.py \
   -m 'not live_model' --basetemp=/tmp/extractbench-enum-repeat
+"$HARNESS_PYTHON" ../../docs/research/2026-09-30-extractbench-validation/schema-fidelity-fix/audit_gold_schema.py \
+  ../../docs/research/2026-09-30-extractbench-selection.json \
+  ../../.scratch/extractbench-schema-fidelity-2026-09-30/dataset-v2 \
+  ../../.scratch/gold-schema-audit-repeat.json
 ```
 
 The inventory refuses checksum mismatches and existing output files; it never
 decodes gold or held-out schemas and writes only identifiers, counts and hashes.
+The separate gold-schema audit reads development annotations solely for
+evaluation; it blocks network access and does not change annotations or call
+any inference stage. Its output contains paths and counts, with no gold values.
 Re-prepare into a fresh ignored output directory with the original
 [selection](../../2026-09-30-extractbench-selection.json), pre-seeding `pdfs/`
 with symlinks to the already verified development PDFs. The existing

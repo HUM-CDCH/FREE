@@ -1,0 +1,313 @@
+{
+  "scope": "primary expected_output only; format assertions disabled; synthetic replies, not quality",
+  "schema_policy_version": "structural-string-enums-v2",
+  "documents": [
+    {
+      "id": "short--caterpillar_spec_sheet_312c_excavator",
+      "source_group": "caterpillar-excavator-specs",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 0,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    },
+    {
+      "id": "short--dc-pepco-residential-bill",
+      "source_group": "pepco-residential",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 0,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    },
+    {
+      "id": "short--grafton_isotrope_invoice_19503",
+      "source_group": "grafton-isotrope",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 0,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    },
+    {
+      "id": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "source_group": "lancaster-husker-steel",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 0,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    },
+    {
+      "id": "short--mission-tx-tyler-invoice",
+      "source_group": "mission-tyler",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 0,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    },
+    {
+      "id": "short--uillinois_rate_card_carpool_2024",
+      "source_group": "uillinois-fleet-2024",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 0,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    },
+    {
+      "id": "short--viega_price_list_propress_2026",
+      "source_group": "viega-propress-2026",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 0,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    },
+    {
+      "id": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "source_group": "mitchell-valuation-vin-1g1pc5sb6e7111015",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 14,
+          "validators": [
+            "required"
+          ]
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [
+        [
+          "comparable_vehicles",
+          0,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          1,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          2,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          3,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          4,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          5,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          6,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          7,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          8,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          9,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          10,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          11,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          12,
+          "equipment_adjustments"
+        ],
+        [
+          "comparable_vehicles",
+          13,
+          "equipment_adjustments"
+        ]
+      ],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 14,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    },
+    {
+      "id": "medium--erie_county_2017_single_audit",
+      "source_group": "erie-audit-2017",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 0,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    },
+    {
+      "id": "long--dd1155_schedule_continuation_0011",
+      "source_group": "dd1155-schedule-family",
+      "checks": {
+        "original": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted": {
+          "errors": 0,
+          "validators": []
+        },
+        "adapted_null_shape": {
+          "errors": 0,
+          "validators": []
+        }
+      },
+      "null_completed_paths": [],
+      "scoring_counts_unchanged": true,
+      "unannotated_collections": 0,
+      "raw_roundtrip_f1": 1.0,
+      "canonical_roundtrip_f1": 1.0
+    }
+  ],
+  "development_annotation_documents_decoded": 10,
+  "heldout_annotation_decodings": 0,
+  "inference_or_tokenizer_requests": 0,
+  "network_requests": 0
+}

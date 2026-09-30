@@ -546,5 +546,21 @@
     ".scratch/extractbench-schema-fidelity-2026-09-30/keyword-inventory.json": "7b9e602af0bda82dfe7244419b010cf001efa8c6e77ba310e17dea41e1a5f1e2",
     ".scratch/extractbench-schema-fidelity-2026-09-30/dataset-v2/adapter-manifest.json": "dd765fcd181426f03ee995ba5ca77c09bb925178f61db7d3b491f5b3b61d99f4",
     ".scratch/extractbench-schema-fidelity-2026-09-30/dataset-v2/dataset.json": "1367d6ddaeb1e31507e1d3615ebe6ef36067e9ea0bb9a4af91d598235ca70d13"
+  },
+  "gold_schema_validation": {
+    "captured_at": "2026-09-30T17:10:21.658390+00:00",
+    "report": "gold-schema-audit.json",
+    "report_sha256": "715b41f1c5dead583383cdc089f7d197ca06e4766cd5dd8298b56eb4c4c9cf66",
+    "helper_sha256": "f8d7d9522eb92793ded727897b216051e1a102cd2784a8c03338951f90b3f36f",
+    "development_documents": 10,
+    "original_valid": 10,
+    "adapted_direct_valid": 9,
+    "adapted_null_shape_valid": 10,
+    "unannotated_null_completed_collections": 14,
+    "scoring_counts_unchanged": true,
+    "format_assertions": false,
+    "primary_annotations_only": true,
+    "inference_or_tokenizer_requests": 0,
+    "heldout_annotation_decodings": 0
   }
 }
