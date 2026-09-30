@@ -39,7 +39,7 @@ from experiments.harness.evaluate import Eval, bootstrap, check_invariants, metr
 from experiments.harness.extract import chunks_of, groups_of, retrieve
 from experiments.harness.model import Allowance, OutputConstraintUnsupported, Provider, ResearchChat
 from experiments.harness.production import adapt
-from experiments.harness.run import meter_for, run_case
+from experiments.harness.run import run_case
 from kei_exp.canonical import canonical_json
 
 SAFE = re.compile(r"[a-zA-Z0-9_+-]+")
@@ -178,6 +178,26 @@ def project(case: Case, cfg: Config) -> dict:
     return {"calls": tasks + extra, "upper_bound_with_recovery": tasks * per_task + extra + resolver}     # verification and arbitration counts use the gold's record count
 
 
+def _cell_budget_spent(directory: Path, cfg: Config) -> dict[str, int]:
+    """Earlier attempts consume the same cell cap. Legacy unknown usage cannot silently refund token reservations."""
+    for started in directory.glob("attempt-*.started.json"):
+        if not started.with_name(started.name.replace(".started.json", ".finished.json")).exists():
+            raise ValueError("unfinished attempts have unknown spend; reconcile them before resuming")
+    previous = {"calls": 0, "tokens": 0}
+    for finished in directory.glob("attempt-*.finished.json"):
+        record = read(finished)
+        fresh = record["spent"]["fresh"]
+        previous["calls"] += fresh["calls"]
+        charge = record.get("budget_spent")
+        if charge is None:
+            if cfg.budget.tokens is not None and fresh.get("unknown_usage", 0):
+                raise ValueError("prior attempt has unknown token usage without a durable budget charge; reconcile it before resuming")
+            previous["tokens"] += fresh["input_tokens"] + fresh["output_tokens"]
+        else:
+            previous["tokens"] += charge["tokens"]
+    return previous
+
+
 def execute_cell(out: Path, study_sha: str, name: str, cfg: Config, case: Case, provider: Provider, admission: str,
                  run_pin: dict) -> tuple[str, int]:
     """Run one sealed cell; returns its status and the fresh model calls this attempt spent (failed attempts included). A
@@ -198,10 +218,13 @@ def execute_cell(out: Path, study_sha: str, name: str, cfg: Config, case: Case, 
             if digest(canonical_json(done["artifact"])) != done["execution"]["artifact_sha256"]:
                 raise ValueError("a sealed artifact changed")
             return "retained_completed", 0
+        previous = _cell_budget_spent(directory, cfg)
         attempt = len(list(directory.glob("attempt-*.started.json"))) + 1
         prefix = directory / f"attempt-{attempt:03}"
-        write_new(prefix.with_suffix(".started.json"), {"at": datetime.now(UTC).isoformat(), **pin})
-        clock, meter = time.monotonic(), meter_for(provider, cfg)
+        write_new(prefix.with_suffix(".started.json"), {"at": datetime.now(UTC).isoformat(), **pin, "prior_budget_spent": previous})
+        clock = time.monotonic()
+        meter = provider.view(max(0, cfg.budget.calls - previous["calls"]),
+                              None if cfg.budget.tokens is None else max(0, cfg.budget.tokens - previous["tokens"]))
         denied = provider.allowance.denied if provider.allowance else 0
         artifact, terminal = None, {}
         try:
@@ -213,7 +236,8 @@ def execute_cell(out: Path, study_sha: str, name: str, cfg: Config, case: Case, 
             terminal = {"status": "unsupported", "error": str(error)[:300], "prerequisite": "a server that supports response_format json_schema"}
         except Exception as error:   # a failed cell keeps its reason; the rest of the study goes on
             terminal = {"status": "failed", "error_type": type(error).__name__, "error": str(error)[:500]}
-        terminal |= {"attempt": attempt, "wall_seconds": round(time.monotonic() - clock, 3), "spent": meter.spent, **run_pin}
+        terminal |= {"attempt": attempt, "wall_seconds": round(time.monotonic() - clock, 3),
+                     "spent": meter.spent, "budget_spent": meter.budget_spent, **run_pin}
         if artifact is not None:
             write_new(directory / "result.json", {"artifact": artifact, "execution": terminal})   # result and seal commit together
         write_new(prefix.with_suffix(".finished.json"), terminal)

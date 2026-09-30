@@ -137,6 +137,14 @@ class Metered:
         self._lock = threading.Lock()
         self._reserved_tokens = 0
 
+    @property
+    def budget_spent(self) -> dict[str, int]:
+        """This attempt's fresh charges, including reservations whose actual token usage remains unknown."""
+        with self._lock:
+            fresh = self.spent["fresh"]
+            return {"calls": fresh["calls"],
+                    "tokens": fresh["input_tokens"] + fresh["output_tokens"] + self._reserved_tokens}
+
     def _reserve(self, tokens: int = 0) -> None:
         with self._lock:
             fresh = self.spent["fresh"]

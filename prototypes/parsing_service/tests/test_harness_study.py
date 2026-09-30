@@ -10,7 +10,7 @@ from experiments.extraction.manifest import digest
 from experiments.harness import study as st
 from experiments.harness import synth
 from experiments.harness.config import Config
-from experiments.harness.model import OutputConstraintUnsupported, Provider
+from experiments.harness.model import Allowance, OutputConstraintUnsupported, Provider, ResearchReply
 from kei_exp.canonical import canonical_json
 from tests.helpers.harness_chat import Reader
 
@@ -265,6 +265,92 @@ def test_the_studys_call_allowance_is_hard_a_cut_short_cell_is_not_sealed_and_a_
     report = st.compare_study(path, out, "dev")
     assert report["variants"]["base"]["attempt_spend"]["not_sealed"] == 1 and report["variants"]["base"]["attempt_spend"]["attempts"] == 3
     assert report["variants"]["base"]["cost_as_if_cold"]["calls"] >= 2                # sealed cells only; the cut attempt is in attempt_spend
+
+
+@pytest.mark.parametrize("first_usage", ["call_cap", "known", "unknown", "partial", "transport"])
+def test_resuming_a_cell_keeps_prior_fresh_charges_and_unknown_token_reservations(tmp_path, first_usage):
+    from experiments.harness.data import case_of
+    case = case_of({"id": "resume", "group": "resume", "split": "dev", "gold": [],
+                    "schema": {"recordDescription": "record", "schemaNodes": [{"id": "v", "name": "value", "type": "string"}]},
+                    "passages": [{"id": f"p{i}_s0", "page": i, "text": f"Passage {i}: " + "a" * 220} for i in range(1, 4)]})
+
+    class Counter:
+        context_tokens = 4096
+        def request_tokens(self, *args):
+            return 10
+
+    class Chat:
+        model = "scripted"
+        calls = 0
+        def complete(self, **kw):
+            self.calls += 1
+            if self.calls == 1:
+                if first_usage == "transport":
+                    raise OSError("connection lost after admission")
+                if first_usage == "unknown":
+                    return ResearchReply('{"records": []}', None, None, "stop", 0)
+                if first_usage == "partial":
+                    return ResearchReply('{"records": []}', 10, None, "stop", 0)
+            return ResearchReply('{"records": []}', 10, kw["max_tokens"], "stop", 0)
+
+    first_charge = 532 if first_usage == "partial" else 522
+    budget = {"calls": 2} if first_usage == "call_cap" else {"calls": 10, "tokens": first_charge * 2}
+    cfg = Config.model_validate({"chunking": {"mode": "fixed", "max_chars": 300}, "output": {"max_tokens": 512},
+                                 "budget": budget, "recovery": {"retries": 0, "subdivide": False}})
+    chat = Chat()
+    provider = Provider(chat, tmp_path / "cache", counter=Counter())
+    provider.allowance = Allowance(1)
+    args = (tmp_path, "study", "base", cfg, case, provider, "counted", {})
+    assert st.execute_cell(*args) == ("stopped_by_study_budget", 1)
+    resumed = Provider(chat, tmp_path / "cache", counter=Counter())
+    resumed.allowance = Allowance(2)
+    assert st.execute_cell(tmp_path, "study", "base", cfg, case, resumed, "counted", {}) == ("completed", 1)
+    directory = tmp_path / "cells/base--resume"
+    attempts = [json.loads(p.read_text()) for p in sorted(directory.glob("attempt-*.finished.json"))]
+    assert sum(a["spent"]["fresh"]["calls"] for a in attempts) == chat.calls == 2
+    assert attempts[1]["spent"]["replayed"]["calls"] == (0 if first_usage == "transport" else 1)
+    if cfg.budget.tokens is not None:
+        assert attempts[0]["budget_spent"]["tokens"] == first_charge
+        assert sum(a["budget_spent"]["tokens"] for a in attempts) <= cfg.budget.tokens
+    artifact = json.loads((directory / "result.json").read_text())["artifact"]
+    assert not artifact["coverage"]["complete"]
+    assert any("budget exhausted" in i["detail"] for i in artifact["issues"])
+
+
+@pytest.mark.parametrize("unknown, token_cap", [(False, 1000), (True, 1000), (True, None)])
+def test_legacy_cell_charges_are_retained_and_unrecorded_unknown_token_reservations_refuse_resume(tmp_path, unknown, token_cap):
+    from experiments.harness.data import case_of
+    case = case_of(synth.catalogue("legacy", records=1))
+    cfg = Config.model_validate({"budget": {"calls": 1, "tokens": token_cap}})
+    directory = tmp_path / "cells/base--legacy"
+    directory.mkdir(parents=True)
+    (directory / "attempt-001.started.json").write_text("{}")
+    finished = {"spent": {"fresh": {"calls": 1, "input_tokens": 500, "output_tokens": 500, "unknown_usage": int(unknown)}}}
+    original = json.dumps(finished)
+    (directory / "attempt-001.finished.json").write_text(original)
+    reader = Reader()
+    args = (tmp_path, "study", "base", cfg, case, Provider(reader), "counted", {})
+    if unknown and token_cap is not None:
+        with pytest.raises(ValueError, match="unknown token usage without a durable budget charge"):
+            st.execute_cell(*args)
+        assert not (directory / "attempt-002.started.json").exists()
+    else:
+        assert st.execute_cell(*args) == ("completed", 0)
+        assert json.loads((directory / "attempt-002.started.json").read_text())["prior_budget_spent"]["calls"] == 1
+    assert reader.calls == []
+    assert (directory / "attempt-001.finished.json").read_text() == original
+
+
+def test_direct_cell_resume_refuses_an_unfinished_attempt_without_refunding_calls(tmp_path):
+    from experiments.harness.data import case_of
+    case = case_of(synth.catalogue("unfinished", records=1))
+    directory = tmp_path / "cells/base--unfinished"
+    directory.mkdir(parents=True)
+    (directory / "attempt-001.started.json").write_text("{}")
+    reader = Reader()
+    with pytest.raises(ValueError, match="unfinished attempts"):
+        st.execute_cell(tmp_path, "study", "base", Config(), case, Provider(reader), "uncounted", {})
+    assert reader.calls == [] and not (directory / "attempt-002.started.json").exists()
 
 
 def test_a_failed_cell_keeps_what_it_spent_and_the_study_goes_on(tmp_path):
