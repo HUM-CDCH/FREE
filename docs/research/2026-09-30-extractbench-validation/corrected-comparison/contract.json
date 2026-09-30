@@ -1,0 +1,1473 @@
+{
+  "identity": {
+    "run_id": "extractbench-v3-corrected-development",
+    "closed_parent_run_id": "extractbench-v2-development",
+    "parent_revision": "c394bc97",
+    "code_revision": "0834a7d1cf3c77d23bac96837bdb598d98fb36f5",
+    "harness_source_sha256": "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673",
+    "runner_sha256": "6b71010708c89599ab143c1e5d8e617fd1854aae830474e5268145ec760c1794",
+    "freeze_sha256": "33ef92239997ff8ee20a821a8453669c672ae51d5a5959b46e03140360f872e0",
+    "study_file_sha256": "00f3798404acaa0a47b640f269f150b9914f41ae8c26d2529117359c458a57cd",
+    "dataset_file_sha256": "13773431732d46073192d3943b88914ef6960ba59d4cab4c124bf94a6f64975d",
+    "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+    "adapter_manifest_sha256": "dd765fcd181426f03ee995ba5ca77c09bb925178f61db7d3b491f5b3b61d99f4",
+    "schema_policy_version": "structural-string-enums-v2",
+    "copied_files_sha256": {
+      "inputs/short--grafton_isotrope_invoice_19503.json": "f0812f2df911b3996eebcd2967e9e4013196bf57bf70d09b8f0321614bed81ab",
+      "annotations/short--grafton_isotrope_invoice_19503.json": "de347bea7488f628c313e950442e236017713395c3747ec583c970b421321bfe",
+      "inputs/short--dc-pepco-residential-bill.json": "b32ad4de0f7587c921efc1d2e2ffb3219c9b7fdab5bc215c2291b0230c21b80c",
+      "annotations/short--dc-pepco-residential-bill.json": "81820042f582d34401e539fd4a0387367adab58fb52f9a2a13106052069c45b9",
+      "inputs/short--mission-tx-tyler-invoice.json": "61bcce7aa990550ea62184256ec53be6df74436728469f4535e0c916c7f1c2d9",
+      "annotations/short--mission-tx-tyler-invoice.json": "019e3ed0a14cd8eeaf70c6e4be59b7cbc35c0e77136b0a2ebcda8386d37873fc",
+      "inputs/short--caterpillar_spec_sheet_312c_excavator.json": "f7dbff234007abf7ec4eb56cb9dd664b5a9b67282bc47c62db69c859bdc02736",
+      "annotations/short--caterpillar_spec_sheet_312c_excavator.json": "c6c8b099b337736aa689c29771a9bc59e9c7b858f507f15f8085acaad0627555",
+      "inputs/short--lancaster_county_ne_requisition_po_husker_steel.json": "7f5410628ef781aa2edb840058e50ea39179e27a74a4b9eaa7bbf0d9871be8d1",
+      "annotations/short--lancaster_county_ne_requisition_po_husker_steel.json": "d7a7ac685561948f429a35319682ba7b43efd56a9b9bca6e8ee2122685ecedbc",
+      "inputs/short--uillinois_rate_card_carpool_2024.json": "973a33d456d1ad9eb5e39ca19ad32240e4026c730ec90567c873dfdd5b1d20b5",
+      "annotations/short--uillinois_rate_card_carpool_2024.json": "bbe88f1c68b602528d4c68362e3c3a42ad82d8579d24f78c52b1c2a31b1034a5",
+      "inputs/short--viega_price_list_propress_2026.json": "9b35ed6ca8738fa30b9b139102c86a2f14654df2c4cd6712431d48d14d82073d",
+      "annotations/short--viega_price_list_propress_2026.json": "fa17b45eccef7214684094254ebcbab22f0070b757497cc23bee86365cb3ed77",
+      "inputs/medium--1G1PC5SB6E7111015_professional_valuation.json": "bbf16c2b4e232228246e00b70e23e9c9be2fb0aa9adb3a8427ee348a5a0e57af",
+      "annotations/medium--1G1PC5SB6E7111015_professional_valuation.json": "7e94646acfbcfaa3bb6b8b0ffe48ed5d9fa68282f519def77158db7f141bca87",
+      "inputs/medium--erie_county_2017_single_audit.json": "03e5cd73ad449e84d2e5be638b8be1d8acf086c89008abbf9ba10097a4632df9",
+      "annotations/medium--erie_county_2017_single_audit.json": "0168aaebce59378b0b4bfb9ad555f8343baa8778d3d6b14c6003a485c58cf214"
+    },
+    "development_membership": {
+      "selected_groups": 12,
+      "native_text_failures": [
+        "medium/byline_bancorp_investor_deck_q2_2023",
+        "long/gov_clin_schedule_0005"
+      ],
+      "excluded": {
+        "long--dd1155_schedule_continuation_0011": "nominal 68 calls per arm exceed the unchanged 60-call cell cap"
+      },
+      "eligible_cases": 9,
+      "eligible_groups": 9,
+      "cells": 36,
+      "heldout_groups_opened": 0
+    },
+    "case_order_rule": "registered smoke groups (grafton first as the one-call-per-arm smoke), then the continuation selection order; metadata only, fixed before any output"
+  },
+  "treatments": {
+    "arms": {
+      "base": {
+        "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+        "config": {
+          "input": {
+            "mode": "layout"
+          },
+          "chunking": {
+            "mode": "fixed",
+            "max_chars": 4000,
+            "overlap": 0
+          },
+          "retrieval": {
+            "mode": "exhaustive",
+            "top_k": 3,
+            "expand": 0
+          },
+          "decompose": {
+            "mode": "whole",
+            "groups": [],
+            "max_fields": 4
+          },
+          "output": {
+            "constraint": "schema",
+            "max_tokens": 4096
+          },
+          "recovery": {
+            "retries": 0,
+            "subdivide": true,
+            "depth": 1
+          },
+          "evidence": {
+            "mode": "none",
+            "alignment": {
+              "exact": true,
+              "normalized": true,
+              "fuzzy": false,
+              "fuzzy_threshold": 0.85,
+              "fuzzy_growth": 1.25,
+              "disambiguate": "none"
+            }
+          },
+          "verification": {
+            "model": false,
+            "gate": "off"
+          },
+          "merge": {
+            "keys": false,
+            "min_fields": 2,
+            "continuation": "off",
+            "resolver": false
+          },
+          "sampling": {
+            "n": 1,
+            "temperature": 0.0,
+            "seed": 20260930,
+            "aggregate": "strict",
+            "views": [
+              "field"
+            ]
+          },
+          "signals": {
+            "verbalized": false,
+            "top_logprobs": 0
+          },
+          "budget": {
+            "input_chars": 12000,
+            "calls": 60,
+            "tokens": 250000,
+            "workers": 1
+          }
+        }
+      },
+      "A1": {
+        "config_sha256": "cc9a2380816ee0882ffa9d0715c6e39da04aeeebef8460cf6c202776a1b969f5",
+        "config": {
+          "input": {
+            "mode": "layout"
+          },
+          "chunking": {
+            "mode": "fixed",
+            "max_chars": 4000,
+            "overlap": 0
+          },
+          "retrieval": {
+            "mode": "exhaustive",
+            "top_k": 3,
+            "expand": 0
+          },
+          "decompose": {
+            "mode": "whole",
+            "groups": [],
+            "max_fields": 4
+          },
+          "output": {
+            "constraint": "schema",
+            "max_tokens": 4096
+          },
+          "recovery": {
+            "retries": 0,
+            "subdivide": true,
+            "depth": 1
+          },
+          "evidence": {
+            "mode": "none",
+            "alignment": {
+              "exact": true,
+              "normalized": true,
+              "fuzzy": false,
+              "fuzzy_threshold": 0.85,
+              "fuzzy_growth": 1.25,
+              "disambiguate": "none"
+            }
+          },
+          "verification": {
+            "model": false,
+            "gate": "off"
+          },
+          "merge": {
+            "keys": false,
+            "min_fields": 2,
+            "continuation": "flags",
+            "resolver": false
+          },
+          "sampling": {
+            "n": 1,
+            "temperature": 0.0,
+            "seed": 20260930,
+            "aggregate": "strict",
+            "views": [
+              "field"
+            ]
+          },
+          "signals": {
+            "verbalized": false,
+            "top_logprobs": 0
+          },
+          "budget": {
+            "input_chars": 12000,
+            "calls": 60,
+            "tokens": 250000,
+            "workers": 1
+          }
+        }
+      },
+      "A2": {
+        "config_sha256": "9b7ec29fdcd9b7eaad37c1a0e3c99a2c9e8e1090c25e486b855f588acb7a73c1",
+        "config": {
+          "input": {
+            "mode": "layout"
+          },
+          "chunking": {
+            "mode": "fixed",
+            "max_chars": 4000,
+            "overlap": 0
+          },
+          "retrieval": {
+            "mode": "exhaustive",
+            "top_k": 3,
+            "expand": 0
+          },
+          "decompose": {
+            "mode": "whole",
+            "groups": [],
+            "max_fields": 4
+          },
+          "output": {
+            "constraint": "schema",
+            "max_tokens": 4096
+          },
+          "recovery": {
+            "retries": 0,
+            "subdivide": true,
+            "depth": 1
+          },
+          "evidence": {
+            "mode": "quote",
+            "alignment": {
+              "exact": true,
+              "normalized": true,
+              "fuzzy": false,
+              "fuzzy_threshold": 0.85,
+              "fuzzy_growth": 1.25,
+              "disambiguate": "none"
+            }
+          },
+          "verification": {
+            "model": false,
+            "gate": "off"
+          },
+          "merge": {
+            "keys": false,
+            "min_fields": 2,
+            "continuation": "off",
+            "resolver": false
+          },
+          "sampling": {
+            "n": 1,
+            "temperature": 0.0,
+            "seed": 20260930,
+            "aggregate": "strict",
+            "views": [
+              "field"
+            ]
+          },
+          "signals": {
+            "verbalized": false,
+            "top_logprobs": 0
+          },
+          "budget": {
+            "input_chars": 12000,
+            "calls": 60,
+            "tokens": 250000,
+            "workers": 1
+          }
+        }
+      },
+      "A3": {
+        "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+        "config": {
+          "input": {
+            "mode": "layout"
+          },
+          "chunking": {
+            "mode": "fixed",
+            "max_chars": 4000,
+            "overlap": 0
+          },
+          "retrieval": {
+            "mode": "exhaustive",
+            "top_k": 3,
+            "expand": 0
+          },
+          "decompose": {
+            "mode": "whole",
+            "groups": [],
+            "max_fields": 4
+          },
+          "output": {
+            "constraint": "schema",
+            "max_tokens": 4096
+          },
+          "recovery": {
+            "retries": 0,
+            "subdivide": true,
+            "depth": 1
+          },
+          "evidence": {
+            "mode": "ids",
+            "alignment": {
+              "exact": true,
+              "normalized": true,
+              "fuzzy": false,
+              "fuzzy_threshold": 0.85,
+              "fuzzy_growth": 1.25,
+              "disambiguate": "none"
+            }
+          },
+          "verification": {
+            "model": false,
+            "gate": "off"
+          },
+          "merge": {
+            "keys": false,
+            "min_fields": 2,
+            "continuation": "off",
+            "resolver": false
+          },
+          "sampling": {
+            "n": 1,
+            "temperature": 0.0,
+            "seed": 20260930,
+            "aggregate": "strict",
+            "views": [
+              "field"
+            ]
+          },
+          "signals": {
+            "verbalized": false,
+            "top_logprobs": 0
+          },
+          "budget": {
+            "input_chars": 12000,
+            "calls": 60,
+            "tokens": 250000,
+            "workers": 1
+          }
+        }
+      }
+    },
+    "deltas_from_base": {
+      "A1": [
+        "merge.continuation"
+      ],
+      "A2": [
+        "evidence.mode"
+      ],
+      "A3": [
+        "evidence.mode"
+      ]
+    },
+    "intended": {
+      "A1": "continuation flags merge records split across chunks",
+      "A2": "quote evidence per value",
+      "A3": "passage-ID evidence per value"
+    },
+    "provider": {
+      "url": "http://127.0.0.1:18080/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "counter": "vllm",
+      "timeout": 900,
+      "deployment": {
+        "name": "existing-local-qwen",
+        "model_revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+        "image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+        "vllm": "0.29.1rc1.dev17+gd2d649e67.d20260913",
+        "torch": "2.13.0+cu130",
+        "transformers": "5.17.0"
+      }
+    },
+    "decoding": "temperature 0, seed 20260930, thinking off, strict json_schema",
+    "a1_note": "on one-chunk documents A1 differs only in prompt/schema; its merge cannot act there"
+  },
+  "evaluation": {
+    "evaluator_version": 2,
+    "evaluation_sha256": "4e6c56c77ef414e406a1743eedfe670aa7de5849b0ab7a7095316ccfbc9b38d8",
+    "rules": {
+      "min_matches": 2,
+      "iou": 0.5
+    },
+    "scorer": "experiments.harness.study.compare_study (same for every arm); canonical and raw both reported",
+    "masks": "fields whose gold is unannotated are counted as unannotated_fields, never as empty, correct or wrong; identical across arms because gold is per case",
+    "failure": "a cell whose attempt did not seal a result is failed/unsealed and stays in the denominator of its group"
+  },
+  "budget": {
+    "elapsed_minutes": 120,
+    "provider_attempts": 240,
+    "workers": 1,
+    "admission_cutoff_minutes": 105,
+    "request_timeout_seconds": 900,
+    "provider_attempt_definition": "one chat-completion HTTP request, including recovery halves and failed requests; /tokenize and /models requests are auxiliary, journalled separately, not counted",
+    "hidden_retries": "none: recovery.retries 0, requests has no retry adapter; every subdivision half is one counted attempt",
+    "stopping": "no new request at or after start+105 min, at 240 attempts, or on STOP_REQUESTS; an admitted request may drain until its 900 s timeout (<= start+120 min); unsealed cells stay unsealed",
+    "projected_nominal_calls": 304,
+    "projected_upper_bound_with_recovery": 912,
+    "fit": "the full matrix does not fit: 240 < nominal calls, and at ~7.8 decode tokens/s with one worker prior short-document groups took ~8-30 min each; expect roughly 3-6 complete short groups, no medium/long"
+  },
+  "schedule": [
+    {
+      "group_index": 0,
+      "case": "short--grafton_isotrope_invoice_19503",
+      "arm": "base"
+    },
+    {
+      "group_index": 0,
+      "case": "short--grafton_isotrope_invoice_19503",
+      "arm": "A1"
+    },
+    {
+      "group_index": 0,
+      "case": "short--grafton_isotrope_invoice_19503",
+      "arm": "A2"
+    },
+    {
+      "group_index": 0,
+      "case": "short--grafton_isotrope_invoice_19503",
+      "arm": "A3"
+    },
+    {
+      "group_index": 1,
+      "case": "short--dc-pepco-residential-bill",
+      "arm": "A1"
+    },
+    {
+      "group_index": 1,
+      "case": "short--dc-pepco-residential-bill",
+      "arm": "A2"
+    },
+    {
+      "group_index": 1,
+      "case": "short--dc-pepco-residential-bill",
+      "arm": "A3"
+    },
+    {
+      "group_index": 1,
+      "case": "short--dc-pepco-residential-bill",
+      "arm": "base"
+    },
+    {
+      "group_index": 2,
+      "case": "short--mission-tx-tyler-invoice",
+      "arm": "A2"
+    },
+    {
+      "group_index": 2,
+      "case": "short--mission-tx-tyler-invoice",
+      "arm": "A3"
+    },
+    {
+      "group_index": 2,
+      "case": "short--mission-tx-tyler-invoice",
+      "arm": "base"
+    },
+    {
+      "group_index": 2,
+      "case": "short--mission-tx-tyler-invoice",
+      "arm": "A1"
+    },
+    {
+      "group_index": 3,
+      "case": "short--caterpillar_spec_sheet_312c_excavator",
+      "arm": "A3"
+    },
+    {
+      "group_index": 3,
+      "case": "short--caterpillar_spec_sheet_312c_excavator",
+      "arm": "base"
+    },
+    {
+      "group_index": 3,
+      "case": "short--caterpillar_spec_sheet_312c_excavator",
+      "arm": "A1"
+    },
+    {
+      "group_index": 3,
+      "case": "short--caterpillar_spec_sheet_312c_excavator",
+      "arm": "A2"
+    },
+    {
+      "group_index": 4,
+      "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "arm": "base"
+    },
+    {
+      "group_index": 4,
+      "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "arm": "A1"
+    },
+    {
+      "group_index": 4,
+      "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "arm": "A2"
+    },
+    {
+      "group_index": 4,
+      "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "arm": "A3"
+    },
+    {
+      "group_index": 5,
+      "case": "short--uillinois_rate_card_carpool_2024",
+      "arm": "A1"
+    },
+    {
+      "group_index": 5,
+      "case": "short--uillinois_rate_card_carpool_2024",
+      "arm": "A2"
+    },
+    {
+      "group_index": 5,
+      "case": "short--uillinois_rate_card_carpool_2024",
+      "arm": "A3"
+    },
+    {
+      "group_index": 5,
+      "case": "short--uillinois_rate_card_carpool_2024",
+      "arm": "base"
+    },
+    {
+      "group_index": 6,
+      "case": "short--viega_price_list_propress_2026",
+      "arm": "A2"
+    },
+    {
+      "group_index": 6,
+      "case": "short--viega_price_list_propress_2026",
+      "arm": "A3"
+    },
+    {
+      "group_index": 6,
+      "case": "short--viega_price_list_propress_2026",
+      "arm": "base"
+    },
+    {
+      "group_index": 6,
+      "case": "short--viega_price_list_propress_2026",
+      "arm": "A1"
+    },
+    {
+      "group_index": 7,
+      "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "arm": "A3"
+    },
+    {
+      "group_index": 7,
+      "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "arm": "base"
+    },
+    {
+      "group_index": 7,
+      "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "arm": "A1"
+    },
+    {
+      "group_index": 7,
+      "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "arm": "A2"
+    },
+    {
+      "group_index": 8,
+      "case": "medium--erie_county_2017_single_audit",
+      "arm": "base"
+    },
+    {
+      "group_index": 8,
+      "case": "medium--erie_county_2017_single_audit",
+      "arm": "A1"
+    },
+    {
+      "group_index": 8,
+      "case": "medium--erie_county_2017_single_audit",
+      "arm": "A2"
+    },
+    {
+      "group_index": 8,
+      "case": "medium--erie_county_2017_single_audit",
+      "arm": "A3"
+    }
+  ],
+  "decision_rule": "final-protocol-proposal.md: among A1-A3, the highest mean per-group raw exact value F1 over complete paired groups, provided its canonical complete repeated-record count >= A0 and source-region failures <= A0; ties by fewer completion tokens. Additionally frozen here: it must beat A0 on mean paired raw F1 and in a majority of complete paired groups, with >= 3 complete paired groups; otherwise \"evidence insufficient\".",
+  "cases": [
+    {
+      "order": 0,
+      "case": "short--grafton_isotrope_invoice_19503",
+      "group": "grafton-isotrope",
+      "case_sha256": "53d19ef792878390e7cc2bf3123f3bbf923164e63fde6076076fcb887e303eef",
+      "length": "short",
+      "arm_order": [
+        "base",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "chunks": 1,
+      "a1_merge_can_act": false,
+      "arms": {
+        "base": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 1,
+          "request_fingerprints": [
+            "5f99f4a5cdfa3247fdf8d2b2e4e5265a5cf78564a8fd16febb17f84b43453d75"
+          ],
+          "allowed_values_sha256": "b1a685b8bdcb7c6d95ae3eef0a79fb6bb3a38b574c085e1217dcb08b88a3ec5d"
+        },
+        "A1": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 1,
+          "request_fingerprints": [
+            "c6fa6efd391ab38b725f4cf752fc4c4238a3cc74bc715f7c6f38285b25195292"
+          ],
+          "allowed_values_sha256": "b1a685b8bdcb7c6d95ae3eef0a79fb6bb3a38b574c085e1217dcb08b88a3ec5d"
+        },
+        "A2": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 1,
+          "request_fingerprints": [
+            "f69268c52c343a3afdc6d35a2df60641ba4290f61f30cc92e0f4b2f7133f5b3b"
+          ],
+          "allowed_values_sha256": "b1a685b8bdcb7c6d95ae3eef0a79fb6bb3a38b574c085e1217dcb08b88a3ec5d"
+        },
+        "A3": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 1,
+          "request_fingerprints": [
+            "2126108f2cd5fc063768395d9916c17caacb1f34e671f764dcfbf1adc2b733bb"
+          ],
+          "allowed_values_sha256": "b1a685b8bdcb7c6d95ae3eef0a79fb6bb3a38b574c085e1217dcb08b88a3ec5d"
+        }
+      },
+      "allowed_value_lists": 2,
+      "reply_enum_lists": [
+        2
+      ]
+    },
+    {
+      "order": 1,
+      "case": "short--dc-pepco-residential-bill",
+      "group": "pepco-residential",
+      "case_sha256": "8707554a41a5f7ecdef76dca81e2b6f8e99407d29957e0ee62173c707a2c58b1",
+      "length": "short",
+      "arm_order": [
+        "A1",
+        "A2",
+        "A3",
+        "base"
+      ],
+      "chunks": 5,
+      "a1_merge_can_act": true,
+      "arms": {
+        "base": {
+          "calls": 5,
+          "upper_bound_with_recovery": 15,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 5,
+          "request_fingerprints": [
+            "0908cad5952b5e6edd58b365f2599caf1efefee9ca9eb87c3e57a39fd4c9b5e8",
+            "810381d95a71cf513dc51b2b7515f33d6f1086d112c1ec5ca73c5120f6245af7",
+            "6581f9238e78bae3a89d899036ad993e6e1ad0bcbf39eea5cc651382062a3b72",
+            "0fee86c27d2022deb42cd5de87c2b7b2e33a885c1953b51f72a048c461224ec6",
+            "6b3c1456a30f3756b567fb460ff4c98e91b5beb208fe9703ad2b8245e722dd45"
+          ],
+          "allowed_values_sha256": "907552a8f495add7297d60711535dd049d1ea62de0528fe6514bb147996e3bda"
+        },
+        "A1": {
+          "calls": 5,
+          "upper_bound_with_recovery": 15,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 5,
+          "request_fingerprints": [
+            "7d90a017eb74587aba2dd0b1b4ddca25411d9258c69aecd94f2056db5e22e578",
+            "6366c68a82398f644041703d1bf306072084d94c3a6f630cc79dc856abf086a7",
+            "b603bb046887cea326238bcaadcc1fafbb125b36b9aecb8751378bac8b630f76",
+            "e2094cd17b60ca4921fb8d2cd504f99a650841cbe08b2703503b725af532248f",
+            "e2bdc930be979f453d2e59542ab4a807421309e13b5e074f09b7c76c8446358f"
+          ],
+          "allowed_values_sha256": "907552a8f495add7297d60711535dd049d1ea62de0528fe6514bb147996e3bda"
+        },
+        "A2": {
+          "calls": 5,
+          "upper_bound_with_recovery": 15,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 5,
+          "request_fingerprints": [
+            "86ce643908c4b509aa3e26b84d3dbe1baf7f4690f03ed1646fd9881272dca9f9",
+            "09e9a20c6aa4790b32cf17a503a015b876a3f3ee7155eea7cf841c03d6a8c6d2",
+            "d3a6f2e3bb7faf7aaf6b8ab6c34ab12ac130eca17b3d7f3de42a7def87c3146c",
+            "13878e406d68f2944fd189971daf1c940e02532bb8ea4863a69fc044e6b4f17f",
+            "c6d3df20d3c65d8b54ff763b4edf07760cba2f319eb61e520ccee601d88c0cc2"
+          ],
+          "allowed_values_sha256": "907552a8f495add7297d60711535dd049d1ea62de0528fe6514bb147996e3bda"
+        },
+        "A3": {
+          "calls": 5,
+          "upper_bound_with_recovery": 15,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 5,
+          "request_fingerprints": [
+            "35b3f79c71cc1939a9ead78754d724fe0cd2dd9498d3c922a9bbf143a57eb782",
+            "9ba072c3e1764416e04d8b9047e8e704ba808f423645c7866ae13f8dc8d6841a",
+            "af0fa0a3ef78939f9cc49a667adbeb73d186be6b8465e58bc71e5a7d8de8c6ec",
+            "9744c1f53ae79504cf95a51bcbb7b4ccb404addae4bb77947260126a54fa06a4",
+            "e09853702fc39efebd8cfb12f67b733c9025bca451a3305aaf80fac0d1406b98"
+          ],
+          "allowed_values_sha256": "907552a8f495add7297d60711535dd049d1ea62de0528fe6514bb147996e3bda"
+        }
+      },
+      "allowed_value_lists": 2,
+      "reply_enum_lists": [
+        2
+      ]
+    },
+    {
+      "order": 2,
+      "case": "short--mission-tx-tyler-invoice",
+      "group": "mission-tyler",
+      "case_sha256": "86167902d2fe4f968d301c6537230483c53c17d919a8bf0c3d40149388db331e",
+      "length": "short",
+      "arm_order": [
+        "A2",
+        "A3",
+        "base",
+        "A1"
+      ],
+      "chunks": 3,
+      "a1_merge_can_act": true,
+      "arms": {
+        "base": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 3,
+          "request_fingerprints": [
+            "f17824e378a13fc8f3d976d11c842fcfaed4e15baf6b5e1cf3ba4a5584266a30",
+            "767990a920cebc3c308ecca169ab04d0de5297e5c8d1d444e1f5b2cffc9db2b3",
+            "0ba89d35918174223cdff423b53baa454325970f26ae22d02d032656eb4d38d0"
+          ],
+          "allowed_values_sha256": "b1a685b8bdcb7c6d95ae3eef0a79fb6bb3a38b574c085e1217dcb08b88a3ec5d"
+        },
+        "A1": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 3,
+          "request_fingerprints": [
+            "74030ca5c864caecd0fce1ce000eb078ecf0fc3b6d338f4987082b33e0ea6a1a",
+            "fa2cfdd4d4eab72607e7101e7cc7d398084de8ba7468ca5878f64643776af5b3",
+            "6385cd65c27aab2c34244589299a6374bac44cded7c4f41554caddd5f70f6a1f"
+          ],
+          "allowed_values_sha256": "b1a685b8bdcb7c6d95ae3eef0a79fb6bb3a38b574c085e1217dcb08b88a3ec5d"
+        },
+        "A2": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 3,
+          "request_fingerprints": [
+            "8ba8fd90b85a38f22cf95d65e181ad9ec09f5590753cf9000dc13176551d0bd5",
+            "5c1e58929d43981ae99236ba434f83cfad695439428c91f9774d634d7e9a9702",
+            "b5d772a888b3082e3237d266a4181b8bf21ebb8f0c01600daf748b379c5887b7"
+          ],
+          "allowed_values_sha256": "b1a685b8bdcb7c6d95ae3eef0a79fb6bb3a38b574c085e1217dcb08b88a3ec5d"
+        },
+        "A3": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "reply_enum_lists": [
+            2
+          ],
+          "chunks": 3,
+          "request_fingerprints": [
+            "b626127d76a5228f35694d76357be5836794f54015385864ebfb47e88c11afc9",
+            "59c15d8ebf12ceba39fd04ed6edcd8f5230aee2b21fcb4d5debb03febc279f3b",
+            "ce2e7bbfc908b2ba36c4a4d4e2e369f03628df9b4b148e4a033595e39d606256"
+          ],
+          "allowed_values_sha256": "b1a685b8bdcb7c6d95ae3eef0a79fb6bb3a38b574c085e1217dcb08b88a3ec5d"
+        }
+      },
+      "allowed_value_lists": 2,
+      "reply_enum_lists": [
+        2
+      ]
+    },
+    {
+      "order": 3,
+      "case": "short--caterpillar_spec_sheet_312c_excavator",
+      "group": "caterpillar-excavator-specs",
+      "case_sha256": "05ee98705dfb0aaabf061d5ee4f3e37f9ba14c7c887a340cd969d5fcb250d333",
+      "length": "short",
+      "arm_order": [
+        "A3",
+        "base",
+        "A1",
+        "A2"
+      ],
+      "chunks": 2,
+      "a1_merge_can_act": true,
+      "arms": {
+        "base": {
+          "calls": 2,
+          "upper_bound_with_recovery": 6,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 2,
+          "request_fingerprints": [
+            "e706b6e3876fd4e433b9334d0c0635f4b4542ebbee2fc41ebc8eb4b424388163",
+            "6aa7d100b370ea7dcf9b761c260d74d8318306343f9a1045fa1496ee1aee34ee"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A1": {
+          "calls": 2,
+          "upper_bound_with_recovery": 6,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 2,
+          "request_fingerprints": [
+            "c81ed29e311fa7f179d355a9f9ffdaa90f1ff4352c5d38cbf7cc6985af7aae36",
+            "4670dcac377457edf2ce78acc7330136f7f458acbaa115e0914b870e4dc0fd68"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A2": {
+          "calls": 2,
+          "upper_bound_with_recovery": 6,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 2,
+          "request_fingerprints": [
+            "702acf20efdb376ba537bd456a4eab2cbdcac822d1c70986d621ebb4c861016f",
+            "de004e6eec47b6796a3639edc58fe28b2e177d52e4e08c162c7aab7d9811bcbf"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A3": {
+          "calls": 2,
+          "upper_bound_with_recovery": 6,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 2,
+          "request_fingerprints": [
+            "d3ab9d5f8adabba1d9d22578ccc44a82f2a43bc7b08fd050b89db5fcaa377007",
+            "57a19e6f8cbb1e9d96a69ff173d6fe89077c0b31a7bd3952382dddd37d220128"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "allowed_value_lists": 0,
+      "reply_enum_lists": [
+        0
+      ]
+    },
+    {
+      "order": 4,
+      "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "group": "lancaster-husker-steel",
+      "case_sha256": "b5b21230e8caa8f66c1c80e7cc9b0834fa5f2acbc7e5f1f17208825ecbbbfc28",
+      "length": "short",
+      "arm_order": [
+        "base",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "chunks": 3,
+      "a1_merge_can_act": true,
+      "arms": {
+        "base": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 3,
+          "request_fingerprints": [
+            "fd9c3120afcfead5f08380cdc2c3b59a0c3b249c189d1a8690065b0270ffbad9",
+            "7158643e3b40aa55e273109c9ead7d746e7e8ed6614eef330ac6352a828acb9d",
+            "46ea0bdc67f4e1a478f84f8e279faa17bac5d8bd7df5784344bde6bcbaf54fd5"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A1": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 3,
+          "request_fingerprints": [
+            "efc4a22821a824f9edb68f99116cf13b95bc429971be86ae9b3e5b2bf0be468b",
+            "517b263b035adcdfa01d0ae3dac3c0b05c8b46943edd51ed41359c14e623ee93",
+            "0b087caa9b21aefb7cb45bdbea37d3f5d2f738ee45e6506ac6719050edd65b1d"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A2": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 3,
+          "request_fingerprints": [
+            "451c625c8b0d1cd3bc88358e0fccd5c9c6f24d93c5b0a9ffbbdc9212084dfa5d",
+            "e6d09c3f996bd6cd762794bc9ac71f3926220e6704a7bba163543deafa16669c",
+            "9f4253d2c1614a6fbc83e49421254d6a78712f8b7bc2bc19fa5c9463050511c6"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A3": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 3,
+          "request_fingerprints": [
+            "dffd7953e7229f4c5bdefce4edf66d06c2b4e67a1f38952f699232342b84f7a5",
+            "5026893304efd13319ec4e21c57fc32af3bc3001e83fba372ce957d97b6735d7",
+            "70a354d3c71e304bf3d7a70587e022c7108709243cc483d4e0c355462d935c94"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "allowed_value_lists": 0,
+      "reply_enum_lists": [
+        0
+      ]
+    },
+    {
+      "order": 5,
+      "case": "short--uillinois_rate_card_carpool_2024",
+      "group": "uillinois-fleet-2024",
+      "case_sha256": "c8b96864783296bf4e8890f6a54e748f467346822c76764ddd856d20b8192d1c",
+      "length": "short",
+      "arm_order": [
+        "A1",
+        "A2",
+        "A3",
+        "base"
+      ],
+      "chunks": 1,
+      "a1_merge_can_act": false,
+      "arms": {
+        "base": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "reply_enum_lists": [
+            1
+          ],
+          "chunks": 1,
+          "request_fingerprints": [
+            "4aca80da132b09f67232de01b0d5a9e4b8f1997fbf224a2cefaa02d44d7e5bcd"
+          ],
+          "allowed_values_sha256": "91ca27ba9911df5aa59b627d9daccd374d3eff8f9839eb27b54c6b9f9da63cde"
+        },
+        "A1": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "reply_enum_lists": [
+            1
+          ],
+          "chunks": 1,
+          "request_fingerprints": [
+            "39679bb0e5b1f8cb722a2ddbc4e9abec6ecfbe62ad3234298175561f7b9b1b0d"
+          ],
+          "allowed_values_sha256": "91ca27ba9911df5aa59b627d9daccd374d3eff8f9839eb27b54c6b9f9da63cde"
+        },
+        "A2": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "reply_enum_lists": [
+            1
+          ],
+          "chunks": 1,
+          "request_fingerprints": [
+            "2bc2a86699c0d2054269aa82d71a30328243cd840f5dfea26354069f0e92027f"
+          ],
+          "allowed_values_sha256": "91ca27ba9911df5aa59b627d9daccd374d3eff8f9839eb27b54c6b9f9da63cde"
+        },
+        "A3": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "reply_enum_lists": [
+            1
+          ],
+          "chunks": 1,
+          "request_fingerprints": [
+            "d9ceea49fade7f4975ee08279d08470466c9f0359611070e2bcaff6d4712c771"
+          ],
+          "allowed_values_sha256": "91ca27ba9911df5aa59b627d9daccd374d3eff8f9839eb27b54c6b9f9da63cde"
+        }
+      },
+      "allowed_value_lists": 1,
+      "reply_enum_lists": [
+        1
+      ]
+    },
+    {
+      "order": 6,
+      "case": "short--viega_price_list_propress_2026",
+      "group": "viega-propress-2026",
+      "case_sha256": "47feb0ece72beca6d29d35cf1f9cd9c17d5d7f29a85dd67d08b02994c602cc8b",
+      "length": "short",
+      "arm_order": [
+        "A2",
+        "A3",
+        "base",
+        "A1"
+      ],
+      "chunks": 9,
+      "a1_merge_can_act": true,
+      "arms": {
+        "base": {
+          "calls": 9,
+          "upper_bound_with_recovery": 27,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 9,
+          "request_fingerprints": [
+            "58a82148289fabc1190bb3ffb200f8bd1ca3e63d950141ee2a5b91ea73323d03",
+            "ab3bfbe368ba57e019900b45e5c6391bb08b8c9c3a8e5547e3a4da38331edc51",
+            "1e96ca99322b85c6384cce04f081e5a399022bfaefd0d697ce15c689f8316b0f",
+            "13832b411dff2409d5a2173b4281a0634e158852a6efebf24faf1bf8ca7916c9",
+            "2640b839be7dd3a23feefed0f6ee9fd4cde1bf8b9495e918e30e2bb43615b1e5",
+            "a8a3c28a1a5805e43735898c3940f039a90cf2a130b01d212104a3ca6915c894",
+            "003f9273d438fae2e1d6692e20cd2924ea2c2c75aa97576751eb15fa10a231d3",
+            "e03004d0d3cccd57b941d046a6a689e82f3a9b22964aa977dbcec7f582e73a54",
+            "19a40f3f0ac90fabddf0552e1e3c5e979123c6df75167cc8d683f3524b31cd95"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A1": {
+          "calls": 9,
+          "upper_bound_with_recovery": 27,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 9,
+          "request_fingerprints": [
+            "7902721849d90ab38d0ffef7231cdd96f0a901910bd3e64425aa421cf4bab665",
+            "09750008c959484d116a1beacb7306f46c7437adec5b7203064687ba92a35a96",
+            "2925571534d8d88cba84a15ccff800e8026fe2bc5d7b7917fe9355ec441efd78",
+            "29ed7f484a28c7bacd2535f6643f84a87ac7a1903024a8406dfad6a42ddd77ba",
+            "42516b535e8b427e99175b6a1225dad52c544ef7d7787e7b4a65cea9f1ea43ef",
+            "df9156e5765c14f3704a290678866b7f8c0297ebb70e061f8afe171064901b4d",
+            "8642b9e167b4061e2e6736bf2432e42a57ff4e16eb140b2cedc129210fec1744",
+            "1840095ebfe2f7b42f70d0be556ada480667967b2e313feeea783eae5d7564e2",
+            "a0f82fe8c68d89ab3167bde9e6a557287eae581dcdf2e15eec643165639610a8"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A2": {
+          "calls": 9,
+          "upper_bound_with_recovery": 27,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 9,
+          "request_fingerprints": [
+            "751730a6acbb47265b9079df0a468a43cfa51925d353a2a03be8af0a3d40a97d",
+            "8caa050bb9766319c4991046052748340846a48ae2209eba3a290ef009e12e07",
+            "049eab109c6913ee0f5ee99b07870dbc387da743dc35072b21b782b641a34bbe",
+            "7647c947b26ed0003d1d91af8f5a805dd06c4abd7fde56f0ed9943e93fc080b8",
+            "2744a365bd06a2f92d7ca194c6daf73fbfedd29c06e0f93da84487d204e8c8dc",
+            "0813d91d17f28910deaab34ab9950ca36ce0a2b0cf6ca3344afc970b54d2b670",
+            "edf7efd05e258aa6b30f1c22a6dae8308a5dd713d238bad27b247f724c0be7d8",
+            "866ae1ced277a34ac28af6e0bbe1ceff9aa9fc921ede12409cf0ac41f73f6794",
+            "b3caeed24874740b73adbcb3c9e7df6a2cf1d5dc4f3adc26f8ca3fa2bbb122d2"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A3": {
+          "calls": 9,
+          "upper_bound_with_recovery": 27,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 9,
+          "request_fingerprints": [
+            "28a8561edbe1450ef94c5078bcfab30556780b3d492f0abf7fe9db66c1a92dcb",
+            "9e5792863be5d8a9f7f1854a6b7ec982daffd029966504e7349c8b6f77166257",
+            "b3b55925b0c607ee4b2d144f09eeed1119fa2fe683bffd619fa648de1c2f2b89",
+            "07500b4ddb3c3dbe6ed012fd79ff53694f6f5d29e28195602f9df209f066c954",
+            "69d1033db1ef9922b9b8169db95ba37a7c0382af1cfde7165d050ea2432a08dc",
+            "e74716f01bb47f4d6bb238e9d70a6bb37d278fbf90540d7fa7fc5508c5c2700e",
+            "4191d2b7853a182b51132d32b2f4e3954ac251a9bdf9c632d807e2f06f198a9d",
+            "937c4147e16b596b51f74149f77cd53a46711f7cd43a56d5ed852466485ab356",
+            "d209c06516adb7feebb4f79e7cc639ade124be74160d0be8fc6c6a4b2971860c"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "allowed_value_lists": 0,
+      "reply_enum_lists": [
+        0
+      ]
+    },
+    {
+      "order": 7,
+      "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "group": "mitchell-valuation-vin-1g1pc5sb6e7111015",
+      "case_sha256": "695cde4a49fda24a062fe682070b15caa726555696b2fd5bb2b8587554db8d9b",
+      "length": "medium",
+      "arm_order": [
+        "A3",
+        "base",
+        "A1",
+        "A2"
+      ],
+      "chunks": 16,
+      "a1_merge_can_act": true,
+      "arms": {
+        "base": {
+          "calls": 16,
+          "upper_bound_with_recovery": 48,
+          "reply_enum_lists": [
+            1
+          ],
+          "chunks": 16,
+          "request_fingerprints": [
+            "e735796470408eeb29d6409bf172f627b4e04db7428b74f0425c005ba56fb84e",
+            "d2391b7446df8e8aa8afa675ddb0f4b45b31b3c2c83d63f4ae833706520a5703",
+            "59d30b54130a51a122d37f0685680d3db95e6fc960a9cae83723c963774f33be",
+            "59429883b34d060cdd56903f5c58c2399f1bf172750f16b79f84a852b4dfa433",
+            "70530f39235f04023518bad80c392d96b539b0190190cb75e8157dd6d2a8712b",
+            "1cb1f2b04fe63b6bd4837cb523ce2f58829dd5551c323307dc9a4c0ca0a6aac1",
+            "4aca149fbb0c564ddac58a26ee705df1476d8f3a62732b846cc7fc624df4daee",
+            "3a419d601466493046d8d0bc91f87f8445c66e29f9352b26940b790cf9362a45",
+            "c742885360bad5c97f231f3315893e60647e4c87031e69e8fa9a5c648ff3f0b3",
+            "2924b6567aa28dc7b3746a7f785fffc56e6d4b772bb5446b4ef2fef88bfc5057",
+            "ac2789a66336653c9ee9899a852c0148f7e26df6e36897df7b6ce83a59769c12",
+            "3be6f83b7ff49e59146e0c3aadcdfd0bfad6cc680d2982c88aab3c7661684ba3",
+            "9e9d36f9b38fdf93be3468e9d18d546f423c6751f7c5bf9f86954545c863307a",
+            "f4a01e9950b3033766b4a74165c557b4c81120db1e31b307e87f4f1a3257b298",
+            "4043762bfecadadaf64c078f66b4059bc2cddd73874fff6f106fe0f6063e14d9",
+            "c34ad05c87ebf98d2d4525d75f1fa62feed0f7b7a491114c9f7e63d48b7e78ec"
+          ],
+          "allowed_values_sha256": "04a17c5235f1ef980c8bfa44fbdff1c606ec6079bbd9ba6d8b4549e46fe0d582"
+        },
+        "A1": {
+          "calls": 16,
+          "upper_bound_with_recovery": 48,
+          "reply_enum_lists": [
+            1
+          ],
+          "chunks": 16,
+          "request_fingerprints": [
+            "7da57c43cc2bafb5748d4ad147003133805641116e540e79ae3c4e46ebbd28ae",
+            "d8ab81170f617c3a2e5fae89298c31b1736731fdd9453736f6acf0b9f48dd7d6",
+            "f3393710fcfafd4a2122b0bce3d734fbe0020dd3b15369dd9e25c4d95eeaf599",
+            "86cd881e0d698952a7163ed9278d31dac9289bae51124dfbaea87652831314ca",
+            "228ed493425e602ca4b70354b96d5ae8d9187baac0246640e83507262b45a2b1",
+            "b3a5e910e494ff6da4e1f5f675320345c457410bea64b3f67af7a8e2edba3ce3",
+            "1bf6fca8718617dc3fff7613fc38ec2087dbb162dc2c07a6a671419c75a8abb7",
+            "64bbb2d485ffd1b49f3acbce43190d05835fbd1a9ee4c05dfe1e87e9dcf21a2b",
+            "4c91b2a582aaaee0d3485d058bcf1bf9774007e9d309b3b34fea6bf5bfe236c5",
+            "d438acbbea0c79f0a3c42e778449fafb5379a6e9d65e8df310418837800febb3",
+            "f92f2efd8ae08ebfb199a45e96d5b5fe95cffc93564c82044f350f4288ace97a",
+            "fb69e3ec03aae6fb7526487d038a489b1d1fe3a8faa2c4f8ba5c1405321114ba",
+            "e1360bce3fb708f2e0898b8b19763cafcfac6f84147e7ca118e0d69c96699ed1",
+            "813365db8032bc84865cf754b469452122dfb00737d08c3bb66374f452b0afd4",
+            "5434b7678dfc2f182126e832304d41a2f1e5e183fd28daef76364aa8e08cf058",
+            "4fd8a3c8fbcf9a1cb2058b2176bb26173212aa3f3df3cb4fdfe609ad8ee9ea3c"
+          ],
+          "allowed_values_sha256": "04a17c5235f1ef980c8bfa44fbdff1c606ec6079bbd9ba6d8b4549e46fe0d582"
+        },
+        "A2": {
+          "calls": 16,
+          "upper_bound_with_recovery": 48,
+          "reply_enum_lists": [
+            1
+          ],
+          "chunks": 16,
+          "request_fingerprints": [
+            "1d637ffaf775a629a0696d9264098aa299664bbb135e8e5d9e078a0c3663cea1",
+            "6d26ced69fc9e3e007801728a94290ebbcbab3ad88601f9f6f761ef5e6722ef4",
+            "b2430c7e8823deca340a474c73cde185c14b47f7a6336600ffa29697ed79b0d2",
+            "15ad9fc932d9f5dd4514d2162f4443f8ac4b3e2f288d54ba0eea18387191ca6a",
+            "bf0f4f6b97904dad4afbb9ef8d134e5c7f0bc4c248df51b38bb0b768a0573287",
+            "583e4d96ad2889bfcd061927a55e8cd1063e798dd2350da81600cb633bd78f80",
+            "e927d526101872ff0c66e75cd413717fd24d7700c1ff714f14d6e490d188e3b5",
+            "e1a9a48e8179d789a386e0e2189967178655be33c1d462d4856c04e30114d727",
+            "9f3447ab8c18c8e25c42462488d9cfcfe2c11e340994d64438b892627dd80f10",
+            "a81bb78234772e43b70b6046c8cb25452ca0515489b0e2fd86006f30814442dd",
+            "5e6eb68935a1da3eeafe2c2a5ede9badd06acb5ca82f1ff3e4064102b896486f",
+            "efb2b9709b613c10c47319cd10b47c05aef8447b7aa4663e22350011bb96b2a6",
+            "64c1d249931c514d814915b4d5b9d4cca6c855ddb2612faaf9279c4d8fcf42b1",
+            "601f23ed6d75f44374f57a09b2cf9e89eb6917bf30a903a0b9d5bba6246d0328",
+            "c455d5c5703957de3beab79ebbb23b6915c819a4e5b546f20225b60a187c98cf",
+            "911d81cd120b83244c496ffe8695793df231030cbcb4bd33df53427ccec0094d"
+          ],
+          "allowed_values_sha256": "04a17c5235f1ef980c8bfa44fbdff1c606ec6079bbd9ba6d8b4549e46fe0d582"
+        },
+        "A3": {
+          "calls": 16,
+          "upper_bound_with_recovery": 48,
+          "reply_enum_lists": [
+            1
+          ],
+          "chunks": 16,
+          "request_fingerprints": [
+            "f40d588efcefb89a11560cfd55db8bd90b7d65fc0a081a624d8278cd7d921f92",
+            "547763482806b951f1581868808871f641491d1325f706003c55a84ca5cfa4ec",
+            "577cde998ff552578e9e53fa8921b573901a46064a2d84865bfee7a6596058df",
+            "7f16e6effc4883fe38ef16a420de2f8fc2b1f2562e036a4b4bd62961bb2df1f4",
+            "0fc7b6a25094dcffc83f65ad1b7c6f6a68a97f0f0e1afdaa4b9e7b03b337afac",
+            "9a68109dacc86e2244167c6a48ac280a27345a4ac8d510a27146d4f65c567c16",
+            "82d277475b9718a1976e0a7fa8a12445d9abef5c348dc019c45b5a5cd70bc837",
+            "a05714daa7281d9b3704bd5c47f2337de32af32e42ccd03da8fe562a8cf3b730",
+            "0f55b9e3136e7a82cc54adf8fa02b2f863ea2a6854ec2dc3b02b0a3303b9959e",
+            "6ea2493ff67e2911abee85002953d710b387e8abafefdf303b5f4ad2589ce066",
+            "7082d2575e67458d0a271cc3c784e723eecbe86f07a91011fe02bc60aaf6912f",
+            "82d8e5b9b91a346a068745be262cecf59e711f32d15ee955abe4aae75e08a3c7",
+            "ef62d5255a5ed4f784256595e612040cfbd59479a081a4e6ca487916e3429dd7",
+            "290a5b4fd82b28488cb7bba87fa14497bd8a21d69009935a923829585e2ba893",
+            "0817c4be5d5860581ac0b5106d865c94726ddeb828a24b7b611a54557e348a88",
+            "97dbdeb2ae818aea814695815e55db732607485295d2cce99fa9cd9ec6535958"
+          ],
+          "allowed_values_sha256": "04a17c5235f1ef980c8bfa44fbdff1c606ec6079bbd9ba6d8b4549e46fe0d582"
+        }
+      },
+      "allowed_value_lists": 1,
+      "reply_enum_lists": [
+        1
+      ]
+    },
+    {
+      "order": 8,
+      "case": "medium--erie_county_2017_single_audit",
+      "group": "erie-audit-2017",
+      "case_sha256": "da958f669acebbe11acf1478b8cef57c4fb2de0132a7f4cbeef5bac2587a651e",
+      "length": "medium",
+      "arm_order": [
+        "base",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "chunks": 36,
+      "a1_merge_can_act": true,
+      "arms": {
+        "base": {
+          "calls": 36,
+          "upper_bound_with_recovery": 108,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 36,
+          "request_fingerprints": [
+            "906217128ff118b2e72d6bfa59def92e412f7bd3e6878f00462b7a6a0c880d62",
+            "b09cc5a30134c4c43d09e9acd23aee996bff5eb1fc2ffb88a83d739536183c1d",
+            "bbe49df7241384e48fee5f8b1f1f98f81624c623ed3b56f40a6d3f8935b71887",
+            "10949c43b60876dbd90d6df476ffd4c713d8d4041597754ba386c47f0f2c1754",
+            "86f772805d0faeafc47a0df2b60b1dd8cf639ff260a109d2ff97eb25eff76dd9",
+            "83714ad4aceb3acb8965e6328d0227a7b51049f942348885081b6019732512dc",
+            "540909c939f96d2586f61f207d2de935aecd575ea18ac50f427322366fdce4bd",
+            "9915274ea13c5ef394135d530bc44fd754fd20a7ea4214f8926de8a2d8eb603b",
+            "31089b07149b848036734609fa3e91c5d980931ca596f9a4d46074a44ea09077",
+            "39b1d7b6fe88384db76a58432ed256643e0188a1d154bcd10d49427882c9e5cb",
+            "460185e15759a0d42c267999ce8ff42c6a78d3bf8eb6974fddb57910046a3122",
+            "1ef09d9a3bf1769556259bc80450765ed7bdcd0a330ead74c9b9c854d8383705",
+            "cd8fe9b3f922e6681fb1993c4ad1e3697698515b5541cf73d5abfc4158d3d2c0",
+            "dd3a1ef32caf4faabdcdc61d19a0ffcd141c712743b8cfb4a44c4ed36721e2e2",
+            "bc3c228a0bd92fe88ebb160d0d0740f88031c73747484e12a094d557d262fe62",
+            "8c07243095b274f28d046b71f0739bc54bcec5c1447cfb9b0a5a997a4c935038",
+            "87a154822ec49921bd32c53130a2736854bb30565e0719646b0d997d16723063",
+            "fe59c21754264919dcad1949b68513f79b590e9c8ffb4aec4c92312a05c7cd53",
+            "25794815c9c6364874dbc113eff509e5cda1acdfd913905b288abbdec261c114",
+            "eda15ff9e680237594c3abc0894ae772745a42316a10358b243f7e1acaf68f81",
+            "5bc13b68898748c0076eac5ccd0e96d2ff3954881892c1982259b24ee311213d",
+            "b76d86c5605dcaea63804f2364ee797e05ed28c3bd73423a31221dc89e4ce773",
+            "77475fdd99f3eb693ca21f0c9aac5bdad56eb73c8fd95473d682a9a7e5296b7a",
+            "00db3d20310296c0a2be0eb520c82d945210990457391da7303af072b353344f",
+            "1f48a0c32ab90a2abe448f3efde57db441b6d74bdfdbd5d2b33b27ade73b1b6f",
+            "63e0708cdbc03d316bf9695fe8e5b2f371653895649da1a251ab0bef4ca9781b",
+            "c1981b39d816a688209bcdd9f08ef5e7cd817c02f58295b1481a840136224937",
+            "b5d8c0bdbe85640d8238b2512a1c7a0fc0790a888051dd7feac25ff68f649bd3",
+            "00a3036840f7faa5156091c50c21c9663d31d3e9d1dd9277fbf8cb2770a73488",
+            "a31923ea6fa65dfa39cc885957a551112db95205990ac16f979cdd9a4e4dd442",
+            "e938978c4d2304bad2ff40e835e6924c3c013a24c538724e20a32585de786c8f",
+            "0e21a3bb95e33ceaa9cff6cfe25fdf865e0dc3465bb52944fb32a9f10a416c26",
+            "855f694ad53a390478fa31a90619f2d8e4099dddaefeafa98f5721646458a38f",
+            "ed84c24e4bba9615109ec007980b4279152b885f2eb04f65c5f81524f423bf20",
+            "f14948081d4973a74095aedeb70ca372ca1d914f00858a52c31da11bd3d59bf9",
+            "17103ebc3247f869aea8dfc5a813a6f34d142d946b01ee79eba34d56d283f921"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A1": {
+          "calls": 36,
+          "upper_bound_with_recovery": 108,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 36,
+          "request_fingerprints": [
+            "76cf59e9d8a7032a80f36e48b700d333d909c4cc503c082edc2f28b1abf92c70",
+            "25c8c54e597e49a501d5d2ac887bc6c686ce6a83f89dd44f407f32a3faff3a65",
+            "5e19e4321b64b74c0a4f60442331dc554dadae3575c993795b6904387b6b9ee2",
+            "9c48cec83feda0fe854ddeab739536bfecaeff50aee13dd4888978a9a894b43f",
+            "b8433636ccb3caa7b6caf038846e6e86a029023d3c2a18d9facf2bacb8136ad0",
+            "1751280c20a48b3139c0134bbe9a4f4d11c88e78a1814691f519c4dad9fbb949",
+            "e3cf33c7d4861329f5549177a903ea2f2e2bafcfb93b1aa897cfd6477034c7ac",
+            "56dfc0bc03dc8ff36af0ded0b40f929b6ab01044c86b686bfa9e19b7c5ae223e",
+            "6300df37de67d88f9b01e9c93df387008fe4bfa4dc8ead4b66978879b43552e8",
+            "140460caba8a05122b13eb7bc75eb399da4e8112d533b870ad8e0754e386f879",
+            "6a936b6c19b2a2b9a36d050a7d83878dd9aa5b8ac7632e9bb3cfc3157ffe38c8",
+            "1469f339a2296ab31565c146beb03fe2923c32728ac171bbf9134ff096f9ede2",
+            "a8c67bc35b4007098f039d0e8cefff53197ead715257e4cbe0108bdee5404066",
+            "1bc869263aee3a8cf5c89989c4e07a6ee101b803d3a14ccd43cce0e2c8ccf51f",
+            "8e4ba39727fe5dec1bec6b34312ec8fd85f5f83d6d724d0abd95edd786b2bb73",
+            "3acf6906bb1afd2c38ddd8fd5ee9a5e25378fcce8042b9670d85523bf40e5b82",
+            "4b4705818cced3cceee235a1860c4d58f3bb5d432c92ea126b3bddbb01fff321",
+            "a81ce48e1cd7e4bc1b7c816d2ed6759c17ac6bd293d97aec60296f9ea61c987d",
+            "f96a18d48769a42a9e1df22fd488ac2a44a365503e4c1220286e248595132861",
+            "0675669e234faf2e87bce4061348eae0c758bc967d7ee30687fd42fdb63f5e35",
+            "5fa936ef16c00b6f2df270479f90a622eaef64fe53049941d578288ed58477ae",
+            "078c79d85fbf8cbdc97a74b070bd11fea5f701c94f06d23ab35e23257d4d3424",
+            "4b0a287323b732a85de594e054121f350cdf4f5e55ab525d215e128291974cee",
+            "e4b32eff157a0ac6d5750f48b854a8f32bc7e4c024b3e566ecdf897e3e15fa31",
+            "a822617bc168fc1103a66b5c7a22af623d170d2b77c48e1b581f69b7e64590b9",
+            "dfd549b50e26553da892c3a78c37285f3342e1f4a03846d85e519377614df0e3",
+            "2cae0a8fdf174d1d98a3043b8d16c3cae17b69377c141d449c5b902853bb7550",
+            "0045291e12e32883484c0f0d8d79e44c37ca37f640ab1cd5bb13e352a5ca3449",
+            "5aafb69e5dee0a1e9af8defa2541ab35e788b6a5f0b399a33463009f3cda07c3",
+            "b33c6f396715f143f7a7ecf4273e85d727901205fdb59222a64f72ed80d5d75e",
+            "27abc286fb8bd73736012f68ba0f27cbf445f42004316b840935c2c75fb52947",
+            "f8814481c10554eaca709314e171a2a7d6cdc0fe79a11dd6b3dc2c18dfb24bcd",
+            "ce102a0d4f0cec75495d2f3a0d8edc2bf23abb57d47ed6e8ba099e234aba90df",
+            "e495c50b453f18bf23d9857fe4d231b90aba8aae3d8f6926777bf0f17ae3165e",
+            "d88abcb7df423f8880de49908fb33ab946542414aa5f6ac828d4d2452885fc97",
+            "15874be0882a03f5229c0eb1c70f06174be4eaabf058e2364ab565153bc388c7"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A2": {
+          "calls": 36,
+          "upper_bound_with_recovery": 108,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 36,
+          "request_fingerprints": [
+            "067e3280dc84020b250f213df6ad7590fa602f32484e6bbd363e1c547e89ea08",
+            "9d1ecbd872afb9b5ec8db14318240a65af43f47d187cf87c04048b96b2a62d8f",
+            "4b4f1f94b01237561c6c17352fb046c16892d9b6504d02ed7cb9fc89b01496b4",
+            "1d60da37b089ffa9b5e1cfc2a3515e51c3fcef053d113a88f95d5b6dcb6b47cd",
+            "15ead9205660ee43ea84b1cafbc5d6ae85eb66ffe383322c91713470a5c27a59",
+            "47957fbdfd7f762c57cc681c91ab80af8e4b47fa3bfd637e0ed7189a1fe1c46a",
+            "338e5d5b55cbdf709cd68fe0a825030a8c585a80a95d5a8eb4a541faff418b60",
+            "ed671cd80bb990a6ba5c288676af45163785cd0afe6db5203bf077d719cfcc7f",
+            "7328a14219bb85d14869b365f546e893a9a6c62310d387eb39891acc9c0f0622",
+            "03804379db79305679c3d7a68ef235efbbc17770c828c2989a22c67459f0ee13",
+            "853fac4261864b18bf2f1b2cb6fc01edc5533999f4877f537f9379d65c80cb3d",
+            "016ff6d8cd025b6c46afdf275da62c8d034361a85b614c8501d9b82cacfeaffc",
+            "53a64b261f7e4d3359b5482b25e35477f979fe13f61194798a631a63b362b61a",
+            "e69a3ed456b9d0969f3137cdfdf52bc1e3b9340ac1ee31f86aa946206e883fb6",
+            "8c12d6ecb13194dcc0a1a887adfc5b90c9dbe8ed3f2c07a8b04953ffb264de30",
+            "b2cd619838e006cdf8ac67d51973d63adaf0d1f7af1e24ff1324e83a4027aec0",
+            "ca9af6fc3712349675c86e975b3b602be3f59b14be4062e60ba3ddabb71e5d6e",
+            "6dd9261ac8af5faf86b9fa491a1fabe55850a3028e4774e923b601670febfd7e",
+            "265d95d9490ae1242b8f8a993cbda74e3ddf94b2e0b17e63013575fc883588bd",
+            "a38e24b1ac53927bb3251a675abfafc1f69703342420dff6050d1b0026ed3d33",
+            "aa4e50596dd7557c64b9bcf234f60e8ea14217d302e5b4d28d5cf14ae564fdcd",
+            "772b9d882e888b22f0ac1f0c8d129df2da510c469d7b3ce144b580c700292fb0",
+            "a3eb1240cfb7dc134224fe6a45f7e77b5bc15c8daa3a7c6197ad608c876fb7ad",
+            "94b1e3d68ca78296729c0a7d4fbd89606f2190d412b4213ef1cdc3bacde68f56",
+            "91161cc0cbb77d27a3657e32e65ffa14932d8736c53230015d1effcf4ab0594c",
+            "903350e4cb395f643adcb9204faa7b24e4a1f6889aebc47f1a7f7748acd18543",
+            "36c3c8b34e6532e97dd7d3a91acae841cdae42fa0419da2f7a0dcb675c414a2e",
+            "295e9b2091c873507bf2d44c0c756961309e9b3fc67bc40fe27ecc8979a5c88e",
+            "09cc198de3e9e987093d6866eedd3552a11f93d446d4ad96a0e5201710db85d8",
+            "99405e5bc154e86908f0615e88f5a716aef4c5bf5af28369abc99adee27d6a48",
+            "551bbd69e3f3b13a5d68ac2a27316fdc0c51fd419bf506c8bf2f6e383f389ff0",
+            "3f21a74450f2837c9e2c0453fe40382f34dc021ca39fa2b7f46bfb1bf566e30d",
+            "5b0098e034cf4cc57c8d330549c6efea2541b6a18c88c2500559412f4607af40",
+            "adef2e8c0c1b105ef234fcd360bd7264ca5e14604f0127247f591fcab99f2619",
+            "51bb7282df232516c6af421195ac55c0557aabf4763ffe9c610b83d412f64c4a",
+            "ea9251cc5ac07a0aefe10c21ea24126ce4993898ecbff15f10d5e8c2cfb50ecc"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "A3": {
+          "calls": 36,
+          "upper_bound_with_recovery": 108,
+          "reply_enum_lists": [
+            0
+          ],
+          "chunks": 36,
+          "request_fingerprints": [
+            "dda6bca17b43453fd2d6d9aba57f809603b845b145b319fc333e24b2b449268a",
+            "49b376a50b24e8cc1967ba7b10e511e4da3b179b4618e50d43d7b3852b62cc74",
+            "e6156bec47bca5b3b6613cc1c44cd5d1fd094809367611b32f9a758e2ae2203b",
+            "0394531d2468c834041b60465ccbf24e041d450f0bc90940c26a6e51a078f974",
+            "07bd77ad0c34f56437a7b1e512ad7aefdc32e4c8ac3e5c15056c29ac3c85db82",
+            "ed0c79584ce1b63a6e2e8d300009207f686734b0d6cc107d0c8ed70fade266e1",
+            "0d7bf737820829911984c022bff5aa87dae30b5bd5e68d935f2f661af03f274e",
+            "3d7355986b32bc2b34a7c832ebb7bf61af6391ca9c1aa6c0d13a8f60f0dd3b5b",
+            "d05ea899ecf21be38e9cef96018eeb6ebc71420a6f2bdae20955b74c8873ee7f",
+            "1f2e287b2f1d6ffedfa687d1c18362412d843c3783038117d61eee8843968022",
+            "db81a872d82c3acd82bfec53abdd83a2de7bec3c3acf0881fbe36dc1771fc1ad",
+            "030102e4ae131e5b657d5b757c970e84ac0d52e6e1f84b719a33d7d7cce21fef",
+            "6750c6371d7880b014704db8a41b067b45b3d3454a0e923408abcc08c93db767",
+            "22d41523275abe9e4f1eb360e9b46c2c5968a152f3d326bb69a231eb40c058f0",
+            "3cb4dd292258a67145a4ae3bf0295806c8a63f812a521484c81e15a10e729ad0",
+            "b083b3f431146a9d6694e6992fdcbfd80604f57059b59035711e648c40be9964",
+            "f9d59ded80782118ebf8c60c6f783e05d0754f75fa2cc564b5a7856ce80b43a6",
+            "22d8ad8a8dd8ce8d24186413e916e0ec80d5e1c80abab889c9413ac9ec2f1977",
+            "a5ebf3821f6f468e649755fa3b3d5bc65ddb22dca1c908c6ec45b6b80742e9d9",
+            "a5e937d56aa7b8650e12b00181a63b8ec185d4377abb3188ffc197e41ae8f103",
+            "a9b603416a8fca9fd0f3d228ef7a289fd6350f8e0c8bdd8a1036a4a640df1368",
+            "2cc3411d77be5948438eae25fde6b53e8cf5f42b0c420b45d36b421501fb716a",
+            "768629606b9f513a7210e642b5efe0b800fbb78f8f7ee63e177dba31f26abe15",
+            "90f1299c74c782b19885cdea30ac76f52f6cbabb265417deb41cf522487adfe1",
+            "aa363f08ee45212e6c019070f13e01cc3a1a18a5f3e54082a1a18299c3cfd64b",
+            "b089292d6d3bf08753a51499afe2abe1b8038877f98bd13d1f801ba8dc1823dc",
+            "6151d7541259289bb1cc08d18c121321667754306f38e7fd690a0bbc657ed327",
+            "3ea5403a47d147197dd67755c1e21e7f5fa99fc24bcc73df069fb8fcc5e3c8ac",
+            "26e6112511c83f975728b880f1d0f239dfa4794fd0de77ee145ec964788d7f7d",
+            "8f7b6febd356a9f52286133abb0a9c155b977fe589d38956450f404dc2fa33a2",
+            "c4dbee0f441718da45f84637071d11f2d930f7a93d4219762ffaf74643ad48e4",
+            "08248d24ac4240e1f0e83bc9af66a3c374d6ec7f6bf053ebaaceb25dc52ec1f9",
+            "73f9abc33bc4e04d4ceb9dfeb202e396802f67be93d1006b8d0874cc7cfb3925",
+            "f621dfc9db4f2eea8c912bc2ee22ed69e35054b7127368bccc47c6d479761d47",
+            "4bc51b3c1a8a2b9f6fa106d09a85f312639d96846271bc6e34238c672212288d",
+            "816eb7904577afa776664a5f5a47efd0c58e2c8d3c2903024ceaef8a730cc44d"
+          ],
+          "allowed_values_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      },
+      "allowed_value_lists": 0,
+      "reply_enum_lists": [
+        0
+      ]
+    }
+  ]
+}
