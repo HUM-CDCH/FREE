@@ -1,0 +1,1399 @@
+{
+  "adapter": "extractbench-v1",
+  "selection_sha256": "ae6370786deb0363f5ecd9ba0bb83b8fafca2991ab2116c5c0cfee3e573b656e",
+  "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+  "selected_documents": 9,
+  "ingested_documents": 7,
+  "source_groups": 9,
+  "holdout_documents_ingested": 0,
+  "documents": [
+    {
+      "source_id": "short/caterpillar_spec_sheet_312c_excavator",
+      "source_group": "caterpillar-excavator-specs",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "15928021aef2e4a94f9591fe11a0ea92c389368d9480ba5f66984a82a9d2228c",
+      "pdf_sha256": "273da886c2e150c04d5577424a099a12369612317598aaca8f4900e5bb9a4fc7",
+      "original_schema_sha256": "2393ed85e3ab1a2896b7e93aefa92aeb3af5af68bbc67632491221f079a61ae2",
+      "inference_schema_sha256": "c04398a3060e9dc063143ae50de7cb3b3108a68452c1712016b96c1a2a9b59d4",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 2085,
+            "lines": 64
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 1
+      },
+      "tags": [
+        "source:real",
+        "challenge:T3.a",
+        "length:short",
+        "slice:task_slice",
+        "domain:D5"
+      ],
+      "length_category": "short",
+      "source_sha256": "866754f289dd3d290413339284baf95255bdb9f20e9161041f0fcff028a11b10"
+    },
+    {
+      "source_id": "short/lancaster_county_ne_requisition_po_husker_steel",
+      "source_group": "lancaster-husker-steel",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "ebca6b682984b5132d4f37332ebe274be88c5bffac862599fe1fc1b8c797975b",
+      "pdf_sha256": "f1cda8d78cc6ff55d35fed5d4277f4b6ef2421690fb61b5cb71ea772bdb51dbd",
+      "original_schema_sha256": "621c2a48e924051aa0c907243a89078d9ddaeacb720b9cd6e672d08cea61a53d",
+      "inference_schema_sha256": "cadf64f03cd1391744300d8b8b95a04893f8fbedf654cd676f58ae070f3dac1d",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 1437,
+            "lines": 54
+          },
+          {
+            "page": 2,
+            "characters": 825,
+            "lines": 13
+          },
+          {
+            "page": 3,
+            "characters": 778,
+            "lines": 10
+          },
+          {
+            "page": 4,
+            "characters": 279,
+            "lines": 14
+          },
+          {
+            "page": 5,
+            "characters": 1046,
+            "lines": 26
+          },
+          {
+            "page": 6,
+            "characters": 35,
+            "lines": 2
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 6
+      },
+      "tags": [
+        "source:real",
+        "challenge:T3.b",
+        "length:short",
+        "domain:D5"
+      ],
+      "length_category": "short",
+      "source_sha256": "2eedcb258009099ad4892858329b8a4b32e5e3f745b804247e06167b8a152884"
+    },
+    {
+      "source_id": "short/uillinois_rate_card_carpool_2024",
+      "source_group": "uillinois-fleet-2024",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "46c2748bcd619eefa128281aa0ef0439dfd5f5d49209c16b3e70bf7c1edb9a8c",
+      "pdf_sha256": "5ecb62098487c91d4f534b7a47dd1b70b08e0556d113ae62a59cf03b815a111e",
+      "original_schema_sha256": "fbfcad32aa415e0842b2df49c4aec9c91bc78521c7109882d50ddf9f4539e610",
+      "inference_schema_sha256": "695ff00f1d0b9535ede80b9439e68f787c17c983cb367d21243617a84db1eebd",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 1276,
+            "lines": 30
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 1
+      },
+      "tags": [
+        "source:real",
+        "challenge:T1.a",
+        "length:short",
+        "domain:D5"
+      ],
+      "length_category": "short",
+      "source_sha256": "8320e3a7388752627d1967b9fd7783d73f65b4007ee9c57a7871b6a9a4e56f9c"
+    },
+    {
+      "source_id": "short/viega_price_list_propress_2026",
+      "source_group": "viega-propress-2026",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "1df155498357508633fcc0efdbfdb75bc77b64c57dda42fde13a37c73df90a5a",
+      "pdf_sha256": "6bff386dd9a9ae8c42b609288b9e75f39486b5a983b3b061eab82d983e87df72",
+      "original_schema_sha256": "062fb7ed4c43168769dad062082d8f23db67717e8160fc236fca11fc3764ffbb",
+      "inference_schema_sha256": "d591b7c5ebd3dac81a5d068c132b22b6aae47b609c7afac4ffe8825715b9f131",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 3621,
+            "lines": 53
+          },
+          {
+            "page": 2,
+            "characters": 3855,
+            "lines": 56
+          },
+          {
+            "page": 3,
+            "characters": 3894,
+            "lines": 56
+          },
+          {
+            "page": 4,
+            "characters": 3730,
+            "lines": 56
+          },
+          {
+            "page": 5,
+            "characters": 3996,
+            "lines": 56
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 5
+      },
+      "tags": [
+        "source:real",
+        "challenge:T1.a",
+        "challenge:T1.b",
+        "structure:S3",
+        "length:short",
+        "slice:task_slice",
+        "domain:D5"
+      ],
+      "length_category": "short",
+      "source_sha256": "171cd72a236e2a21b4e377f592f813279ce7bece704a7450abe39f5ad8b9b4c0"
+    },
+    {
+      "source_id": "medium/1G1PC5SB6E7111015_professional_valuation",
+      "source_group": "mitchell-valuation-vin-1g1pc5sb6e7111015",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "5bfd326a112dd30ee37c9578e5b50916a9fc01d6ead40f7c6de2831340e57175",
+      "pdf_sha256": "305094d37586c8151d0531d1a2e5633ccdb88a8e7a6296fb7a999974fa26d313",
+      "original_schema_sha256": "43c0928e52462108ff438b5b62fbbc799ece4d7276fb68d98572087e79d6b774",
+      "inference_schema_sha256": "be6a40e3c68b5f34580a4aa8ded5064418f9e9f8747b66d3f7553aa840493981",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 1024,
+            "lines": 47
+          },
+          {
+            "page": 2,
+            "characters": 4068,
+            "lines": 66
+          },
+          {
+            "page": 3,
+            "characters": 1628,
+            "lines": 28
+          },
+          {
+            "page": 4,
+            "characters": 1867,
+            "lines": 80
+          },
+          {
+            "page": 5,
+            "characters": 1062,
+            "lines": 37
+          },
+          {
+            "page": 6,
+            "characters": 1346,
+            "lines": 65
+          },
+          {
+            "page": 7,
+            "characters": 1486,
+            "lines": 80
+          },
+          {
+            "page": 8,
+            "characters": 1417,
+            "lines": 68
+          },
+          {
+            "page": 9,
+            "characters": 1277,
+            "lines": 63
+          },
+          {
+            "page": 10,
+            "characters": 1361,
+            "lines": 70
+          },
+          {
+            "page": 11,
+            "characters": 1415,
+            "lines": 72
+          },
+          {
+            "page": 12,
+            "characters": 1365,
+            "lines": 73
+          },
+          {
+            "page": 13,
+            "characters": 2987,
+            "lines": 36
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 13
+      },
+      "tags": [
+        "source:real",
+        "challenge:T1.a",
+        "challenge:T1.c",
+        "perception:P2",
+        "delivery:G2",
+        "length:medium",
+        "domain:D4"
+      ],
+      "length_category": "medium",
+      "source_sha256": "fae2f8ab8ce464418748b7d64a3b8356d26e235195334e1b85846a19c4afcb65"
+    },
+    {
+      "source_id": "medium/byline_bancorp_investor_deck_q2_2023",
+      "source_group": "byline-2023q2",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "2be18058a58dc95407389d1a3500f977db0640c3b4bc578a347def43469a27e7",
+      "pdf_sha256": "7394b1341151868ef58567bef073f2892bd4ee23b81a17e47c883039e90174a7",
+      "original_schema_sha256": "23dabfd42937f360b97adba3221b9016717d0fc17979a065a083b01cc40add37",
+      "inference_schema_sha256": "eb0ce2842869d2f3a9f48c2335c916ebcecde2754e4ddcebec95a78a5f868e8e",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 38,
+            "lines": 2
+          },
+          {
+            "page": 2,
+            "characters": 3000,
+            "lines": 21
+          },
+          {
+            "page": 3,
+            "characters": 1458,
+            "lines": 38
+          },
+          {
+            "page": 4,
+            "characters": 1123,
+            "lines": 69
+          },
+          {
+            "page": 5,
+            "characters": 1007,
+            "lines": 48
+          },
+          {
+            "page": 6,
+            "characters": 1171,
+            "lines": 38
+          },
+          {
+            "page": 7,
+            "characters": 931,
+            "lines": 36
+          },
+          {
+            "page": 8,
+            "characters": 991,
+            "lines": 52
+          },
+          {
+            "page": 9,
+            "characters": 1116,
+            "lines": 27
+          },
+          {
+            "page": 10,
+            "characters": 901,
+            "lines": 49
+          },
+          {
+            "page": 11,
+            "characters": 1452,
+            "lines": 84
+          },
+          {
+            "page": 12,
+            "characters": 834,
+            "lines": 27
+          },
+          {
+            "page": 13,
+            "characters": 756,
+            "lines": 29
+          },
+          {
+            "page": 14,
+            "characters": 35,
+            "lines": 1
+          },
+          {
+            "page": 15,
+            "characters": 688,
+            "lines": 41
+          },
+          {
+            "page": 16,
+            "characters": 599,
+            "lines": 27
+          },
+          {
+            "page": 17,
+            "characters": 709,
+            "lines": 43
+          },
+          {
+            "page": 18,
+            "characters": 2007,
+            "lines": 35
+          },
+          {
+            "page": 19,
+            "characters": 814,
+            "lines": 28
+          },
+          {
+            "page": 20,
+            "characters": 1802,
+            "lines": 42
+          },
+          {
+            "page": 21,
+            "characters": 2771,
+            "lines": 49
+          },
+          {
+            "page": 22,
+            "characters": 2377,
+            "lines": 49
+          },
+          {
+            "page": 23,
+            "characters": 2243,
+            "lines": 42
+          },
+          {
+            "page": 24,
+            "characters": 0,
+            "lines": 0
+          }
+        ],
+        "empty_text_pages": [
+          24
+        ],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 24
+      },
+      "tags": [
+        "source:real",
+        "challenge:T2.b",
+        "challenge:T2.d",
+        "length:medium",
+        "domain:D1"
+      ],
+      "length_category": "medium",
+      "source_sha256": "549843a9bc674c033db4b58b147b8ecaa5d82eb41795041728c028392a7aaad3"
+    },
+    {
+      "source_id": "medium/erie_county_2017_single_audit",
+      "source_group": "erie-audit-2017",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "b6da336b451479788c67b3a22052da0065c549296175f9774d5f8483ddc07bca",
+      "pdf_sha256": "e05d3adcc305a8a1431ba0576c347dd4a5aa4903ac93588e8b158c2d0168a89f",
+      "original_schema_sha256": "44ef1337cf4666dbf795f87d2bf9c2a72f4b7f342db3f3b8344ccf344b7d350b",
+      "inference_schema_sha256": "23f6fdcd45c4bcbe2e88beb0c5c47d5af0a220a1cb1b23afd89cfb2b9742480e",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 241,
+            "lines": 8
+          },
+          {
+            "page": 2,
+            "characters": 1258,
+            "lines": 26
+          },
+          {
+            "page": 3,
+            "characters": 1378,
+            "lines": 29
+          },
+          {
+            "page": 4,
+            "characters": 2521,
+            "lines": 36
+          },
+          {
+            "page": 5,
+            "characters": 2463,
+            "lines": 43
+          },
+          {
+            "page": 6,
+            "characters": 5460,
+            "lines": 55
+          },
+          {
+            "page": 7,
+            "characters": 2575,
+            "lines": 38
+          },
+          {
+            "page": 8,
+            "characters": 4285,
+            "lines": 60
+          },
+          {
+            "page": 9,
+            "characters": 3383,
+            "lines": 43
+          },
+          {
+            "page": 10,
+            "characters": 3484,
+            "lines": 50
+          },
+          {
+            "page": 11,
+            "characters": 4068,
+            "lines": 57
+          },
+          {
+            "page": 12,
+            "characters": 2821,
+            "lines": 46
+          },
+          {
+            "page": 13,
+            "characters": 2411,
+            "lines": 42
+          },
+          {
+            "page": 14,
+            "characters": 1861,
+            "lines": 29
+          },
+          {
+            "page": 15,
+            "characters": 730,
+            "lines": 18
+          },
+          {
+            "page": 16,
+            "characters": 118,
+            "lines": 4
+          },
+          {
+            "page": 17,
+            "characters": 3109,
+            "lines": 41
+          },
+          {
+            "page": 18,
+            "characters": 1572,
+            "lines": 25
+          },
+          {
+            "page": 19,
+            "characters": 2787,
+            "lines": 39
+          },
+          {
+            "page": 20,
+            "characters": 2799,
+            "lines": 37
+          },
+          {
+            "page": 21,
+            "characters": 1102,
+            "lines": 18
+          },
+          {
+            "page": 22,
+            "characters": 1473,
+            "lines": 32
+          },
+          {
+            "page": 23,
+            "characters": 1318,
+            "lines": 20
+          },
+          {
+            "page": 24,
+            "characters": 75,
+            "lines": 2
+          },
+          {
+            "page": 25,
+            "characters": 2514,
+            "lines": 40
+          },
+          {
+            "page": 26,
+            "characters": 1315,
+            "lines": 20
+          },
+          {
+            "page": 27,
+            "characters": 3703,
+            "lines": 43
+          },
+          {
+            "page": 28,
+            "characters": 534,
+            "lines": 17
+          },
+          {
+            "page": 29,
+            "characters": 1024,
+            "lines": 33
+          },
+          {
+            "page": 30,
+            "characters": 570,
+            "lines": 21
+          },
+          {
+            "page": 31,
+            "characters": 908,
+            "lines": 24
+          },
+          {
+            "page": 32,
+            "characters": 1056,
+            "lines": 31
+          },
+          {
+            "page": 33,
+            "characters": 1476,
+            "lines": 39
+          },
+          {
+            "page": 34,
+            "characters": 1431,
+            "lines": 31
+          },
+          {
+            "page": 35,
+            "characters": 758,
+            "lines": 22
+          },
+          {
+            "page": 36,
+            "characters": 1101,
+            "lines": 31
+          },
+          {
+            "page": 37,
+            "characters": 62,
+            "lines": 2
+          },
+          {
+            "page": 38,
+            "characters": 2520,
+            "lines": 40
+          },
+          {
+            "page": 39,
+            "characters": 765,
+            "lines": 15
+          },
+          {
+            "page": 40,
+            "characters": 2012,
+            "lines": 30
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 40
+      },
+      "tags": [
+        "source:real",
+        "challenge:T2.d",
+        "challenge:T1.a",
+        "challenge:T1.b",
+        "structure:S1",
+        "structure:S3",
+        "length:medium",
+        "domain:D3"
+      ],
+      "length_category": "medium",
+      "source_sha256": "64f095a1c96720affabd03d88db17f29c3d6d7be2b05e486b43186baa55a6a7e"
+    },
+    {
+      "source_id": "long/dd1155_schedule_continuation_0011",
+      "source_group": "dd1155-schedule-family",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "d19011a6bc92f644bdf3d9199baf86729ffe563755b78dac808b99340837b5ac",
+      "pdf_sha256": "92bf85531f4d525a50421f81a009b63d80987a36e7cd3481d5778f79a5d78ab5",
+      "original_schema_sha256": "04316900587e5df41389fe14fb2a2b237b1785331b7472f615991b6aac2d96c5",
+      "inference_schema_sha256": "a99c296f4d0467552fb2f25e2e02081e7b7008e3d5119efc24ec6711c182335b",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 3082,
+            "lines": 116
+          },
+          {
+            "page": 2,
+            "characters": 371,
+            "lines": 7
+          },
+          {
+            "page": 3,
+            "characters": 1477,
+            "lines": 55
+          },
+          {
+            "page": 4,
+            "characters": 1470,
+            "lines": 48
+          },
+          {
+            "page": 5,
+            "characters": 3824,
+            "lines": 40
+          },
+          {
+            "page": 6,
+            "characters": 3915,
+            "lines": 41
+          },
+          {
+            "page": 7,
+            "characters": 3533,
+            "lines": 45
+          },
+          {
+            "page": 8,
+            "characters": 2710,
+            "lines": 48
+          },
+          {
+            "page": 9,
+            "characters": 5522,
+            "lines": 47
+          },
+          {
+            "page": 10,
+            "characters": 4714,
+            "lines": 43
+          },
+          {
+            "page": 11,
+            "characters": 3077,
+            "lines": 35
+          },
+          {
+            "page": 12,
+            "characters": 4194,
+            "lines": 39
+          },
+          {
+            "page": 13,
+            "characters": 1642,
+            "lines": 52
+          },
+          {
+            "page": 14,
+            "characters": 3426,
+            "lines": 49
+          },
+          {
+            "page": 15,
+            "characters": 3902,
+            "lines": 42
+          },
+          {
+            "page": 16,
+            "characters": 2106,
+            "lines": 63
+          },
+          {
+            "page": 17,
+            "characters": 1347,
+            "lines": 36
+          },
+          {
+            "page": 18,
+            "characters": 1284,
+            "lines": 32
+          },
+          {
+            "page": 19,
+            "characters": 3314,
+            "lines": 39
+          },
+          {
+            "page": 20,
+            "characters": 4508,
+            "lines": 44
+          },
+          {
+            "page": 21,
+            "characters": 4174,
+            "lines": 42
+          },
+          {
+            "page": 22,
+            "characters": 3497,
+            "lines": 45
+          },
+          {
+            "page": 23,
+            "characters": 2762,
+            "lines": 34
+          },
+          {
+            "page": 24,
+            "characters": 1330,
+            "lines": 25
+          },
+          {
+            "page": 25,
+            "characters": 984,
+            "lines": 17
+          },
+          {
+            "page": 26,
+            "characters": 1100,
+            "lines": 29
+          },
+          {
+            "page": 27,
+            "characters": 2586,
+            "lines": 35
+          },
+          {
+            "page": 28,
+            "characters": 2101,
+            "lines": 37
+          },
+          {
+            "page": 29,
+            "characters": 2344,
+            "lines": 36
+          },
+          {
+            "page": 30,
+            "characters": 1141,
+            "lines": 71
+          },
+          {
+            "page": 31,
+            "characters": 1171,
+            "lines": 81
+          },
+          {
+            "page": 32,
+            "characters": 994,
+            "lines": 69
+          },
+          {
+            "page": 33,
+            "characters": 2526,
+            "lines": 46
+          },
+          {
+            "page": 34,
+            "characters": 1553,
+            "lines": 24
+          },
+          {
+            "page": 35,
+            "characters": 1405,
+            "lines": 19
+          },
+          {
+            "page": 36,
+            "characters": 3099,
+            "lines": 33
+          },
+          {
+            "page": 37,
+            "characters": 804,
+            "lines": 25
+          },
+          {
+            "page": 38,
+            "characters": 212,
+            "lines": 10
+          },
+          {
+            "page": 39,
+            "characters": 2841,
+            "lines": 43
+          },
+          {
+            "page": 40,
+            "characters": 3184,
+            "lines": 46
+          },
+          {
+            "page": 41,
+            "characters": 3029,
+            "lines": 47
+          },
+          {
+            "page": 42,
+            "characters": 3301,
+            "lines": 49
+          },
+          {
+            "page": 43,
+            "characters": 2641,
+            "lines": 43
+          },
+          {
+            "page": 44,
+            "characters": 4398,
+            "lines": 43
+          },
+          {
+            "page": 45,
+            "characters": 5017,
+            "lines": 47
+          },
+          {
+            "page": 46,
+            "characters": 5877,
+            "lines": 50
+          },
+          {
+            "page": 47,
+            "characters": 36,
+            "lines": 2
+          },
+          {
+            "page": 48,
+            "characters": 3178,
+            "lines": 54
+          },
+          {
+            "page": 49,
+            "characters": 3700,
+            "lines": 59
+          },
+          {
+            "page": 50,
+            "characters": 3354,
+            "lines": 38
+          },
+          {
+            "page": 51,
+            "characters": 3682,
+            "lines": 38
+          },
+          {
+            "page": 52,
+            "characters": 3428,
+            "lines": 37
+          },
+          {
+            "page": 53,
+            "characters": 3735,
+            "lines": 38
+          },
+          {
+            "page": 54,
+            "characters": 350,
+            "lines": 7
+          },
+          {
+            "page": 55,
+            "characters": 1398,
+            "lines": 31
+          },
+          {
+            "page": 56,
+            "characters": 126,
+            "lines": 5
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 56
+      },
+      "tags": [
+        "source:real",
+        "challenge:T2.a",
+        "challenge:T3.a",
+        "length:long",
+        "domain:D3"
+      ],
+      "length_category": "long",
+      "source_sha256": "de3ffe8c053dee4fda78790711b14f5e02c11d6a51d3f8890e6eaba6f5eafb0e"
+    },
+    {
+      "source_id": "long/gov_clin_schedule_0005",
+      "source_group": "dod-clin-schedule-family",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "0967a871c778a9c0dc1e531c29590ba111c4e5424419d4baab7c35abd0c18235",
+      "pdf_sha256": "e0d7577e5d87907c281c0388ac96cdb00e7e794bb344af0693f358bbd1a77943",
+      "original_schema_sha256": "f020825f4978a82ca0333bbb47d21366a3eb09d65638c4b01dbab4824cee43f6",
+      "inference_schema_sha256": "10354b6f90bbdb8d0b005ef9b9205ce0c77cb5d666bae2484f8fbb85f249f59a",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 3801,
+            "lines": 127
+          },
+          {
+            "page": 2,
+            "characters": 853,
+            "lines": 28
+          },
+          {
+            "page": 3,
+            "characters": 362,
+            "lines": 20
+          },
+          {
+            "page": 4,
+            "characters": 354,
+            "lines": 20
+          },
+          {
+            "page": 5,
+            "characters": 535,
+            "lines": 24
+          },
+          {
+            "page": 6,
+            "characters": 380,
+            "lines": 20
+          },
+          {
+            "page": 7,
+            "characters": 1240,
+            "lines": 40
+          },
+          {
+            "page": 8,
+            "characters": 1167,
+            "lines": 64
+          },
+          {
+            "page": 9,
+            "characters": 2666,
+            "lines": 38
+          },
+          {
+            "page": 10,
+            "characters": 1890,
+            "lines": 27
+          },
+          {
+            "page": 11,
+            "characters": 890,
+            "lines": 20
+          },
+          {
+            "page": 12,
+            "characters": 896,
+            "lines": 31
+          },
+          {
+            "page": 13,
+            "characters": 2338,
+            "lines": 35
+          },
+          {
+            "page": 14,
+            "characters": 1906,
+            "lines": 34
+          },
+          {
+            "page": 15,
+            "characters": 2472,
+            "lines": 25
+          },
+          {
+            "page": 16,
+            "characters": 2642,
+            "lines": 66
+          },
+          {
+            "page": 17,
+            "characters": 2688,
+            "lines": 63
+          },
+          {
+            "page": 18,
+            "characters": 2876,
+            "lines": 39
+          },
+          {
+            "page": 19,
+            "characters": 3138,
+            "lines": 37
+          },
+          {
+            "page": 20,
+            "characters": 3162,
+            "lines": 37
+          },
+          {
+            "page": 21,
+            "characters": 2515,
+            "lines": 34
+          },
+          {
+            "page": 22,
+            "characters": 4028,
+            "lines": 44
+          },
+          {
+            "page": 23,
+            "characters": 3234,
+            "lines": 40
+          },
+          {
+            "page": 24,
+            "characters": 3057,
+            "lines": 38
+          },
+          {
+            "page": 25,
+            "characters": 3818,
+            "lines": 41
+          },
+          {
+            "page": 26,
+            "characters": 3461,
+            "lines": 41
+          },
+          {
+            "page": 27,
+            "characters": 3691,
+            "lines": 41
+          },
+          {
+            "page": 28,
+            "characters": 2965,
+            "lines": 38
+          },
+          {
+            "page": 29,
+            "characters": 4052,
+            "lines": 44
+          },
+          {
+            "page": 30,
+            "characters": 1113,
+            "lines": 14
+          },
+          {
+            "page": 31,
+            "characters": 895,
+            "lines": 23
+          },
+          {
+            "page": 32,
+            "characters": 3754,
+            "lines": 72
+          },
+          {
+            "page": 33,
+            "characters": 684,
+            "lines": 24
+          },
+          {
+            "page": 34,
+            "characters": 2231,
+            "lines": 39
+          },
+          {
+            "page": 35,
+            "characters": 2320,
+            "lines": 37
+          },
+          {
+            "page": 36,
+            "characters": 2756,
+            "lines": 37
+          },
+          {
+            "page": 37,
+            "characters": 763,
+            "lines": 25
+          },
+          {
+            "page": 38,
+            "characters": 3754,
+            "lines": 72
+          },
+          {
+            "page": 39,
+            "characters": 1881,
+            "lines": 36
+          },
+          {
+            "page": 40,
+            "characters": 2440,
+            "lines": 37
+          },
+          {
+            "page": 41,
+            "characters": 3190,
+            "lines": 41
+          },
+          {
+            "page": 42,
+            "characters": 1260,
+            "lines": 38
+          },
+          {
+            "page": 43,
+            "characters": 243,
+            "lines": 8
+          },
+          {
+            "page": 44,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 45,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 46,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 47,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 48,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 49,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 50,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 51,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 52,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 53,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 54,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 55,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 56,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 57,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 58,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 59,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 60,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 61,
+            "characters": 2407,
+            "lines": 29
+          },
+          {
+            "page": 62,
+            "characters": 1596,
+            "lines": 54
+          },
+          {
+            "page": 63,
+            "characters": 487,
+            "lines": 10
+          },
+          {
+            "page": 64,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 65,
+            "characters": 0,
+            "lines": 0
+          },
+          {
+            "page": 66,
+            "characters": 0,
+            "lines": 0
+          }
+        ],
+        "empty_text_pages": [
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          64,
+          65,
+          66
+        ],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 66
+      },
+      "tags": [
+        "source:real",
+        "challenge:T2.a",
+        "challenge:T2.c",
+        "challenge:T1.b",
+        "structure:S3",
+        "length:long",
+        "domain:D3"
+      ],
+      "length_category": "long",
+      "source_sha256": "39c64e98ca3d3747bb8f5aec2e058233e44c655cea7c75f6ff3f70197ed66140"
+    }
+  ],
+  "failures": [
+    {
+      "source_id": "medium/byline_bancorp_investor_deck_q2_2023",
+      "reason": "native_text_unavailable",
+      "pages": [
+        24
+      ]
+    },
+    {
+      "source_id": "long/gov_clin_schedule_0005",
+      "reason": "native_text_unavailable",
+      "pages": [
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        64,
+        65,
+        66
+      ]
+    }
+  ],
+  "scoring": "custom harness leaf/record metrics; not official ExtractBench scores",
+  "schema_policy": "structural names and types only; descriptions/examples/defaults/enums removed before inference"
+}

@@ -1,0 +1,611 @@
+{
+  "manifest_version": 1,
+  "status": "registered_development_remainder_before_inference",
+  "created": "2026-09-30",
+  "dataset": "llamaindex/ExtractBench",
+  "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+  "official_code_revision": "c8e59696b19c50d904801390dedef8d292d529e7",
+  "selection_policy": {
+    "basis": "source:real tags, source stems/families, length category and challenge/structure metadata only; no prediction outcomes or gold values",
+    "execution_unit": "one preselected clean representative PDF per source group",
+    "related_member_policy": "reserve all listed members to the same split; related variants are not additionally scheduled in this bounded study",
+    "holdout_policy": "metadata only; no PDF ingestion, gold decoding/inspection or inference",
+    "grouping_limit": "Conservative metadata-derived groups; source PDFs have stripped metadata and row format has no upstream source URL or source-family identifier. Independence is not guaranteed without provenance audit.",
+    "selection_kind": "purposeful stratified screening sample, not random population sample"
+  },
+  "counts": {
+    "selected_source_groups": 9,
+    "selected_documents": 9,
+    "development_source_groups": 9,
+    "development_documents": 9,
+    "holdout_source_groups": 0,
+    "holdout_documents": 0,
+    "related_members_reserved": 24,
+    "development_related_members_reserved": 24,
+    "holdout_related_members_reserved": 0
+  },
+  "dataset_files": [
+    {
+      "path": "short.jsonl",
+      "sha256": "3373bfdd44077f852b8f60e1d5b878a582c0c9517b22bcc5f4ec0d28f2ada36c",
+      "bytes": 30717761,
+      "url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/short.jsonl"
+    },
+    {
+      "path": "medium.jsonl",
+      "sha256": "3fe712510db5cfaa80ff4469349ddc0071c70722dab26ed021bee218dac75b87",
+      "bytes": 64175355,
+      "url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/medium.jsonl"
+    },
+    {
+      "path": "long.jsonl",
+      "sha256": "b932c32a59a87a3e430cb475d2db94581aaf6a5589219579d2b43171cfe13b72",
+      "bytes": 163097453,
+      "url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/long.jsonl"
+    }
+  ],
+  "groups": [
+    {
+      "group_id": "viega-propress-2026",
+      "split": "development",
+      "selected_representative_id": "short/viega_price_list_propress_2026",
+      "smoke": false,
+      "grouping_rationale": "clean/degraded recaptures",
+      "related_members": [
+        {
+          "id": "short/viega_price_list_propress_2026",
+          "category": "short",
+          "pdf_path": "docs/short/viega_price_list_propress_2026.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/viega_price_list_propress_2026.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "6bff386dd9a9ae8c42b609288b9e75f39486b5a983b3b061eab82d983e87df72",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 14473328,
+          "tags": [
+            "source:real",
+            "challenge:T1.a",
+            "challenge:T1.b",
+            "structure:S3",
+            "length:short",
+            "slice:task_slice",
+            "domain:D5"
+          ]
+        },
+        {
+          "id": "short/viega_price_list_propress_2026_corrupted",
+          "category": "short",
+          "pdf_path": "docs/short/viega_price_list_propress_2026_corrupted.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/viega_price_list_propress_2026_corrupted.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "79d03eef0d990e0f4dab1c515b0c8aec42d9d1ef7b8021fcf14f920150d76947",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 2418687,
+          "tags": [
+            "source:real",
+            "challenge:T1.a",
+            "challenge:T1.b",
+            "perception:P1",
+            "structure:S3",
+            "length:short",
+            "slice:task_slice",
+            "domain:D5"
+          ]
+        }
+      ]
+    },
+    {
+      "group_id": "lancaster-husker-steel",
+      "split": "development",
+      "selected_representative_id": "short/lancaster_county_ne_requisition_po_husker_steel",
+      "smoke": false,
+      "grouping_rationale": "clean/degraded recaptures",
+      "related_members": [
+        {
+          "id": "short/lancaster_county_ne_requisition_po_husker_steel",
+          "category": "short",
+          "pdf_path": "docs/short/lancaster_county_ne_requisition_po_husker_steel.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/lancaster_county_ne_requisition_po_husker_steel.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "f1cda8d78cc6ff55d35fed5d4277f4b6ef2421690fb61b5cb71ea772bdb51dbd",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 250123,
+          "tags": [
+            "source:real",
+            "challenge:T3.b",
+            "length:short",
+            "domain:D5"
+          ]
+        },
+        {
+          "id": "short/lancaster_county_ne_requisition_po_husker_steel_corrupted",
+          "category": "short",
+          "pdf_path": "docs/short/lancaster_county_ne_requisition_po_husker_steel_corrupted.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/lancaster_county_ne_requisition_po_husker_steel_corrupted.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "47ec12bf52083e85e5bfa7197b22734195a0871e414a0e7b4db588df2b89f41c",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 1610570,
+          "tags": [
+            "source:real",
+            "challenge:T3.b",
+            "perception:P1",
+            "length:short",
+            "domain:D5"
+          ]
+        }
+      ]
+    },
+    {
+      "group_id": "caterpillar-excavator-specs",
+      "split": "development",
+      "selected_representative_id": "short/caterpillar_spec_sheet_312c_excavator",
+      "smoke": false,
+      "grouping_rationale": "both related manufacturer/model variants and recaptures",
+      "related_members": [
+        {
+          "id": "short/caterpillar_spec_sheet_312c_excavator",
+          "category": "short",
+          "pdf_path": "docs/short/caterpillar_spec_sheet_312c_excavator.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/caterpillar_spec_sheet_312c_excavator.pdf",
+          "pdf_checksum": {
+            "algorithm": "git-blob-sha1",
+            "digest": "16227acd8696301b34e0f7184eb395de0f3a9ea0",
+            "source": "Hugging Face git blob metadata; SHA1(blob <byte_count> NUL + content)"
+          },
+          "pdf_bytes": 25115,
+          "tags": [
+            "source:real",
+            "challenge:T3.a",
+            "length:short",
+            "slice:task_slice",
+            "domain:D5"
+          ]
+        },
+        {
+          "id": "short/caterpillar_spec_sheet_312c_excavator_corrupted",
+          "category": "short",
+          "pdf_path": "docs/short/caterpillar_spec_sheet_312c_excavator_corrupted.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/caterpillar_spec_sheet_312c_excavator_corrupted.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "acae3c16a4e19dd75d4f1060e0d81a6dceda4c243f1de90ffe09bdae6b5bb414",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 427761,
+          "tags": [
+            "source:real",
+            "challenge:T3.a",
+            "perception:P1",
+            "length:short",
+            "slice:task_slice",
+            "domain:D5"
+          ]
+        },
+        {
+          "id": "short/caterpillar_spec_sheet_330_excavator",
+          "category": "short",
+          "pdf_path": "docs/short/caterpillar_spec_sheet_330_excavator.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/caterpillar_spec_sheet_330_excavator.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "521739ebf245900cac628bd7b424b7c67d9aac5101ccdf4e3ef7ce20cfdd6267",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 156255,
+          "tags": [
+            "source:real",
+            "challenge:T3.a",
+            "length:short",
+            "slice:task_slice",
+            "domain:D5"
+          ]
+        },
+        {
+          "id": "short/caterpillar_spec_sheet_330_excavator_corrupted",
+          "category": "short",
+          "pdf_path": "docs/short/caterpillar_spec_sheet_330_excavator_corrupted.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/caterpillar_spec_sheet_330_excavator_corrupted.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "1823bd680846485f668443b7d969b0d2f8f25e81401006fa768ca979e007b6ab",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 231933,
+          "tags": [
+            "source:real",
+            "challenge:T3.a",
+            "perception:P1",
+            "length:short",
+            "slice:task_slice",
+            "domain:D5"
+          ]
+        }
+      ]
+    },
+    {
+      "group_id": "uillinois-fleet-2024",
+      "split": "development",
+      "selected_representative_id": "short/uillinois_rate_card_carpool_2024",
+      "smoke": false,
+      "grouping_rationale": "clean/degraded recaptures",
+      "related_members": [
+        {
+          "id": "short/uillinois_rate_card_carpool_2024",
+          "category": "short",
+          "pdf_path": "docs/short/uillinois_rate_card_carpool_2024.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/uillinois_rate_card_carpool_2024.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "5ecb62098487c91d4f534b7a47dd1b70b08e0556d113ae62a59cf03b815a111e",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 280108,
+          "tags": [
+            "source:real",
+            "challenge:T1.a",
+            "length:short",
+            "domain:D5"
+          ]
+        },
+        {
+          "id": "short/uillinois_rate_card_carpool_2024_corrupted",
+          "category": "short",
+          "pdf_path": "docs/short/uillinois_rate_card_carpool_2024_corrupted.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/uillinois_rate_card_carpool_2024_corrupted.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "2a43245fd46cc7c82643ddbcf3240df184e248ecd4dc0a9c55f401b905bc681c",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 389065,
+          "tags": [
+            "source:real",
+            "challenge:T1.a",
+            "perception:P1",
+            "length:short",
+            "domain:D5"
+          ]
+        }
+      ]
+    },
+    {
+      "group_id": "byline-2023q2",
+      "split": "development",
+      "selected_representative_id": "medium/byline_bancorp_investor_deck_q2_2023",
+      "smoke": false,
+      "grouping_rationale": "exact issuer/period stem",
+      "related_members": [
+        {
+          "id": "medium/byline_bancorp_investor_deck_q2_2023",
+          "category": "medium",
+          "pdf_path": "docs/medium/byline_bancorp_investor_deck_q2_2023.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/medium/byline_bancorp_investor_deck_q2_2023.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "7394b1341151868ef58567bef073f2892bd4ee23b81a17e47c883039e90174a7",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 2527101,
+          "tags": [
+            "source:real",
+            "challenge:T2.b",
+            "challenge:T2.d",
+            "length:medium",
+            "domain:D1"
+          ]
+        }
+      ]
+    },
+    {
+      "group_id": "erie-audit-2017",
+      "split": "development",
+      "selected_representative_id": "medium/erie_county_2017_single_audit",
+      "smoke": false,
+      "grouping_rationale": "exact source report stem",
+      "related_members": [
+        {
+          "id": "medium/erie_county_2017_single_audit",
+          "category": "medium",
+          "pdf_path": "docs/medium/erie_county_2017_single_audit.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/medium/erie_county_2017_single_audit.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "e05d3adcc305a8a1431ba0576c347dd4a5aa4903ac93588e8b158c2d0168a89f",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 1374927,
+          "tags": [
+            "source:real",
+            "challenge:T2.d",
+            "challenge:T1.a",
+            "challenge:T1.b",
+            "structure:S1",
+            "structure:S3",
+            "length:medium",
+            "domain:D3"
+          ]
+        }
+      ]
+    },
+    {
+      "group_id": "mitchell-valuation-vin-1g1pc5sb6e7111015",
+      "split": "development",
+      "selected_representative_id": "medium/1G1PC5SB6E7111015_professional_valuation",
+      "smoke": false,
+      "grouping_rationale": "same vehicle/report plus recapture",
+      "related_members": [
+        {
+          "id": "medium/1G1PC5SB6E7111015_professional_valuation",
+          "category": "medium",
+          "pdf_path": "docs/medium/1G1PC5SB6E7111015_professional_valuation.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/medium/1G1PC5SB6E7111015_professional_valuation.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "305094d37586c8151d0531d1a2e5633ccdb88a8e7a6296fb7a999974fa26d313",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 5746675,
+          "tags": [
+            "source:real",
+            "challenge:T1.a",
+            "challenge:T1.c",
+            "perception:P2",
+            "delivery:G2",
+            "length:medium",
+            "domain:D4"
+          ]
+        },
+        {
+          "id": "medium/1G1PC5SB6E7111015_professional_valuation_corrupted",
+          "category": "medium",
+          "pdf_path": "docs/medium/1G1PC5SB6E7111015_professional_valuation_corrupted.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/medium/1G1PC5SB6E7111015_professional_valuation_corrupted.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "4416e5d78772421e8042b6a2af9d0a9b0bc13dc6e8d738522b51ace4573efff8",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 4328525,
+          "tags": [
+            "source:real",
+            "challenge:T1.a",
+            "challenge:T1.c",
+            "perception:P2",
+            "perception:P1",
+            "delivery:G2",
+            "length:medium",
+            "domain:D4"
+          ]
+        }
+      ]
+    },
+    {
+      "group_id": "dd1155-schedule-family",
+      "split": "development",
+      "selected_representative_id": "long/dd1155_schedule_continuation_0011",
+      "smoke": false,
+      "grouping_rationale": "conservative full form/source family across length buckets",
+      "related_members": [
+        {
+          "id": "short/dd1155_schedule_continuation_0002",
+          "category": "short",
+          "pdf_path": "docs/short/dd1155_schedule_continuation_0002.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/dd1155_schedule_continuation_0002.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "dca8584ecda4bbba8418a0bfcfa43f3a9f97318d4b7aa64f055c3d9c12c53d5e",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 166706,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T3.a",
+            "length:short",
+            "domain:D3"
+          ]
+        },
+        {
+          "id": "short/dd1155_schedule_continuation_0008",
+          "category": "short",
+          "pdf_path": "docs/short/dd1155_schedule_continuation_0008.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/short/dd1155_schedule_continuation_0008.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "d23348a012161e4fe9f438053f082f3fed9e48a2fae09ece92c5e4d296eb5914",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 137060,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T3.a",
+            "length:short",
+            "domain:D3"
+          ]
+        },
+        {
+          "id": "medium/dd1155_schedule_continuation_0007",
+          "category": "medium",
+          "pdf_path": "docs/medium/dd1155_schedule_continuation_0007.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/medium/dd1155_schedule_continuation_0007.pdf",
+          "pdf_checksum": {
+            "algorithm": "git-blob-sha1",
+            "digest": "9334fc2a2928c62bb806a50165deb6b0d3a36049",
+            "source": "Hugging Face git blob metadata; SHA1(blob <byte_count> NUL + content)"
+          },
+          "pdf_bytes": 81251,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T3.a",
+            "length:medium",
+            "domain:D3"
+          ]
+        },
+        {
+          "id": "long/dd1155_schedule_continuation_0011",
+          "category": "long",
+          "pdf_path": "docs/long/dd1155_schedule_continuation_0011.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/long/dd1155_schedule_continuation_0011.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "92bf85531f4d525a50421f81a009b63d80987a36e7cd3481d5778f79a5d78ab5",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 392408,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T3.a",
+            "length:long",
+            "domain:D3"
+          ]
+        },
+        {
+          "id": "long/dd1155_schedule_continuation_0012",
+          "category": "long",
+          "pdf_path": "docs/long/dd1155_schedule_continuation_0012.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/long/dd1155_schedule_continuation_0012.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "8632fc7b1783beffc0f898470b9b4f1291608412b195e3c57585794437d4e2f6",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 10232566,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T3.a",
+            "length:long",
+            "domain:D3"
+          ]
+        }
+      ]
+    },
+    {
+      "group_id": "dod-clin-schedule-family",
+      "split": "development",
+      "selected_representative_id": "long/gov_clin_schedule_0005",
+      "smoke": false,
+      "grouping_rationale": "conservative full form/source family across length buckets",
+      "related_members": [
+        {
+          "id": "medium/gov_clin_schedule_0033",
+          "category": "medium",
+          "pdf_path": "docs/medium/gov_clin_schedule_0033.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/medium/gov_clin_schedule_0033.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "86e1bfea8464ba4585bd213b8b93c5b3732b46fa2645d1bca79eb52ee37df8f8",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 2402802,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T2.c",
+            "challenge:T1.b",
+            "structure:S3",
+            "length:medium",
+            "domain:D3"
+          ]
+        },
+        {
+          "id": "medium/gov_clin_schedule_0035",
+          "category": "medium",
+          "pdf_path": "docs/medium/gov_clin_schedule_0035.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/medium/gov_clin_schedule_0035.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "2db73543b475a7d29be7953be981950ee50773ba33950e502cbe34e4c6e4bdba",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 311712,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T2.c",
+            "challenge:T1.b",
+            "structure:S3",
+            "length:medium",
+            "domain:D3"
+          ]
+        },
+        {
+          "id": "medium/gov_clin_schedule_0038",
+          "category": "medium",
+          "pdf_path": "docs/medium/gov_clin_schedule_0038.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/medium/gov_clin_schedule_0038.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "3a4d5806820aec63d5eec946b50dff6a1e8cf30546089d413042233047f0ae6f",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 381754,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T2.c",
+            "challenge:T1.b",
+            "structure:S3",
+            "length:medium",
+            "domain:D3"
+          ]
+        },
+        {
+          "id": "long/gov_clin_schedule_0005",
+          "category": "long",
+          "pdf_path": "docs/long/gov_clin_schedule_0005.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/long/gov_clin_schedule_0005.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "e0d7577e5d87907c281c0388ac96cdb00e7e794bb344af0693f358bbd1a77943",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 6473305,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T2.c",
+            "challenge:T1.b",
+            "structure:S3",
+            "length:long",
+            "domain:D3"
+          ]
+        },
+        {
+          "id": "long/gov_clin_schedule_0031",
+          "category": "long",
+          "pdf_path": "docs/long/gov_clin_schedule_0031.pdf",
+          "pdf_url": "https://huggingface.co/datasets/llamaindex/ExtractBench/resolve/51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc/docs/long/gov_clin_schedule_0031.pdf",
+          "pdf_checksum": {
+            "algorithm": "sha256",
+            "digest": "80c12ae1c911f821c90ce459081fd3d51305e89c77bc124e45e701869eab81f3",
+            "source": "Hugging Face LFS metadata"
+          },
+          "pdf_bytes": 3165253,
+          "tags": [
+            "source:real",
+            "challenge:T2.a",
+            "challenge:T2.c",
+            "challenge:T1.b",
+            "structure:S3",
+            "length:long",
+            "domain:D3"
+          ]
+        }
+      ]
+    }
+  ],
+  "parent_selection_sha256": "02e22e24073b72debe05741e1ee2b4b7896c84de212c2170a5f1a4a987b95dd7",
+  "parent_selected_source_groups": 20
+}

@@ -1,0 +1,65 @@
+[
+  {
+    "case": "short--caterpillar_spec_sheet_312c_excavator",
+    "gold_fields": 207,
+    "raw_f1": 1.0,
+    "canonical_f1": 1.0,
+    "invariants": [],
+    "gold_records": 36,
+    "repeated_gold_records": 35
+  },
+  {
+    "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+    "gold_fields": 27,
+    "raw_f1": 1.0,
+    "canonical_f1": 1.0,
+    "invariants": [],
+    "gold_records": 4,
+    "repeated_gold_records": 3
+  },
+  {
+    "case": "short--uillinois_rate_card_carpool_2024",
+    "gold_fields": 86,
+    "raw_f1": 1.0,
+    "canonical_f1": 1.0,
+    "invariants": [],
+    "gold_records": 29,
+    "repeated_gold_records": 28
+  },
+  {
+    "case": "short--viega_price_list_propress_2026",
+    "gold_fields": 1389,
+    "raw_f1": 1.0,
+    "canonical_f1": 1.0,
+    "invariants": [],
+    "gold_records": 232,
+    "repeated_gold_records": 231
+  },
+  {
+    "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+    "gold_fields": 311,
+    "raw_f1": 1.0,
+    "canonical_f1": 1.0,
+    "invariants": [],
+    "gold_records": 15,
+    "repeated_gold_records": 14
+  },
+  {
+    "case": "medium--erie_county_2017_single_audit",
+    "gold_fields": 1207,
+    "raw_f1": 1.0,
+    "canonical_f1": 1.0,
+    "invariants": [],
+    "gold_records": 190,
+    "repeated_gold_records": 189
+  },
+  {
+    "case": "long--dd1155_schedule_continuation_0011",
+    "gold_fields": 86,
+    "raw_f1": 1.0,
+    "canonical_f1": 1.0,
+    "invariants": [],
+    "gold_records": 21,
+    "repeated_gold_records": 20
+  }
+]

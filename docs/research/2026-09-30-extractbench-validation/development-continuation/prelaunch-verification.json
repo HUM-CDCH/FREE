@@ -1,0 +1,23 @@
+{
+  "status": "prelaunch",
+  "source_implementation_commit": "677ec96f6fc0765d0396df977098b0d373ac0edb",
+  "source_aggregate_sha256": "3848aa62401d5185074fdd3321450d8ecc185c5372b17043bb291a7ac4fc1408",
+  "fast_tests": {
+    "passed": 160,
+    "deselected_live": 2
+  },
+  "review": "Read-only spec review approved nominal admission, conservation of historical charge, deadline/drain behavior, request and cache identity, and journal semantics. Its missing preflight-byte-hash check was added with a rejection fixture before launch.",
+  "files": {
+    "adapter-manifest.json": "f10349e9b4b5e3659fe8ce110b8cca7f7f439a531ec83a0409187500000da584",
+    "fast-tests.txt": "cb80d6e530b82b86124a9365bde432362e4c87fe1b7ce023114b83011060e6da",
+    "gold-roundtrips.json": "c61479a68c66b51e2b495ae8682adcd2a875af0bd4ef5db3054f9f754bad0d45",
+    "launch-manifest.json": "c4ab36e8ade857ffbad29b0bb410c589e4a208a0f1fa983927de3e3f0fa84c1a",
+    "preflight.json": "aef9a5bb592d5f235025f8b09fdd2f7e55388827705f72cb9ec9a6ed60548cd9",
+    "preflight.py": "c2e12d916e47d0111581368d34b62d5b9860e5d3ea62365e6b7fd6cb52a4f603",
+    "protocol-amendment.md": "64ec2c9a4f4ace49892591646e245d5e69ee2a6191f5a339e04f82c6d2fd9098",
+    "run_bounded.py": "8586a80d35d0d8ecd404d84e2a6fb7ae33b846fc793b6a5f943414db93bd53ff",
+    "selection.json": "ae6370786deb0363f5ecd9ba0bb83b8fafca2991ab2116c5c0cfee3e573b656e",
+    "study.json": "9f2e622e1fb71d1d32a1fc6e0909ccf2ac56b9a776b3ed997dc861eff1ad07f9",
+    "test_run_bounded.py": "15c6bd0dbed7b51f204311770bef6d6994af2bb54a7c8dbf0faecfe6ae3cdb15"
+  }
+}
