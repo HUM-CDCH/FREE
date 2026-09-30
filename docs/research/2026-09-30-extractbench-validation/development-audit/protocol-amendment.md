@@ -1,5 +1,11 @@
 # Development protocol disposition after sparring, 2026-09-30
 
+**Correction, later on 2026-09-30:** the prose-only vocabulary premise below
+was wrong. A subsequent pinned-schema inspection established eight discarded
+string enums and justified a small adapter correction. See the
+[dated supersession](../schema-fidelity-fix/README.md). The historical protocol
+and budget dispositions remain recorded below; no new study spending follows.
+
 Status: the earlier launch proposal is withdrawn. This records the disposition
 of a completed offline audit, not a new execution protocol. The user's original
 bounded-study and no-more-techniques constraints govern. It supplements the

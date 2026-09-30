@@ -1,5 +1,12 @@
 # Claude Code Fable 5.1 sparring decision, 2026-09-30
 
+**Correction, later on 2026-09-30:** the prose-only Illinois vocabulary claim
+below was wrong. The pinned schema declares an enum. The
+[schema-fidelity correction](../schema-fidelity-fix/README.md) supersedes the
+adapter conclusion and input-policy restriction below; it preserves this
+consultation's historical record and its withdrawn spending/guidance proposals.
+The false premise was supplied to the sparring partner by the audit.
+
 Status: completed consultation requested by the user against the original
 real-data-validation milestone. This supersedes the audit's unadopted pilot,
 quality-gate and semantic-guidance suggestions. It authorizes no new validation

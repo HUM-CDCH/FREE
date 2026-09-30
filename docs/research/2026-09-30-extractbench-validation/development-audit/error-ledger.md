@@ -1,5 +1,12 @@
 # Development error ledger, 2026-09-30
 
+**Later correction, 2026-09-30:** the adapter observations below describe the
+historical structural-only policy. Subsequent inspection established eight
+discarded string enums, including Illinois's billing-basis vocabulary; the
+[schema-fidelity correction](../schema-fidelity-fix/README.md) preserves them
+under a new input-policy version. This supersedes the no-adapter-correction
+conclusion below. Scoring diagnoses and historical results remain unchanged.
+
 Status: completed offline diagnosis against
 `406263e58c030b367af75ddf1a9e16717ac9c1e5`. Production, extraction configurations,
 the evaluator and published scores are unchanged. No fresh extraction, OCR or

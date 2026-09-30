@@ -1,0 +1,550 @@
+{
+  "captured_at": "2026-09-30T16:51:17.635135+00:00",
+  "stacked_base": "16819c72cf1ef54bfdf73d4159c5ee65dce048f8",
+  "prior_checkpoint": "9b22bd3662c8680944fd57907d93d609e198c29a",
+  "implementation_commit": "b47a7b81f3fab5ce0aa8488cac7c0808a71703d4",
+  "branch": "feat/extraction-research-harness",
+  "source": {
+    "parent_pins": "../budget-fix/verification.json#/source/code",
+    "code_sha256": "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673",
+    "changed_source_sha256": {
+      "experiments/harness/extractbench.py": "ab242d364c7dbbc10639cf2be210e8797d03af6340483709b5d8645e4d5d168e"
+    },
+    "historical_private_files_matched": 107,
+    "private_artifact_manifest_sha256": "a2b0dce706330a6e1e91603d6e5f8a6cf7202fac37a4c6dc85e3c06ff0fa6940"
+  },
+  "test_source_sha256": {
+    "prototypes/parsing_service/tests/test_harness_v2.py": "15b9c06d88ba7920c0cd084de17176105bf66950574a4edc37d788a1b33720bd",
+    "prototypes/parsing_service/tests/test_harness_live.py": "fa82663471f47c07d54d9ed4f23ad3da7a62de6cf82e27481a76986b0af4dfcd",
+    "prototypes/parsing_service/tests/test_extract_schema.py": "ca362705f8a1b6852a713fff31ec2350f8ad75a8cd67555b972d71db7b557881",
+    "prototypes/parsing_service/tests/test_harness_study.py": "5b6b4be0634026e71f9050d8037ad3979654ec2a7f243a041790c140d229b2d0",
+    "docs/research/2026-09-30-extractbench-validation/development-continuation/test_run_bounded.py": "15c6bd0dbed7b51f204311770bef6d6994af2bb54a7c8dbf0faecfe6ae3cdb15"
+  },
+  "tests": {
+    "fast": {
+      "tests": 198,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 198,
+      "seconds": 28.323
+    },
+    "live": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 3,
+      "seconds": 134.327
+    },
+    "new_adapter_regression_cases_failed_before_fix": 10
+  },
+  "live_smoke": {
+    "scope": "enum-fidelity-final-revision-smoke",
+    "max_fresh_calls": 8,
+    "max_combined_output_allowance": 3592,
+    "wall_cap_seconds": 720,
+    "code_sha256": "ccd66a84c80d89b473da913c5f2125a6a073c94be404460291344ac42320c673",
+    "environment": {
+      "python": "3.13.12",
+      "system": "Linux x86_64",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "jsonschema": "4.26.0",
+      "pydantic": "2.13.5",
+      "requests": "2.34.2"
+    },
+    "calls": [
+      {
+        "index": 1,
+        "max_tokens": 40,
+        "request_sha256": "2541e4ab3869be8552ae24df283f5abcdc97f8819590c1cd6d5f1416757e11e2",
+        "status": "completed",
+        "input_tokens": 33,
+        "output_tokens": 9,
+        "seconds": 1.300973931000044,
+        "reply_sha256": "6d3fa81f0b240cf6198a08cd771dbac08d3ecf90659f6ba05a9cb1b5740b9353"
+      },
+      {
+        "index": 2,
+        "max_tokens": 40,
+        "request_sha256": "3e47913979a17dbf396e3114ef5843057ba95245567ad51c3081f7e03c8c467c",
+        "status": "completed",
+        "input_tokens": 33,
+        "output_tokens": 7,
+        "seconds": 1.0247634049992485,
+        "reply_sha256": "8425d2b191f01d79558735a4a286c17a82e3308db9e332cebfdc958372d26e68"
+      },
+      {
+        "index": 3,
+        "max_tokens": 1500,
+        "request_sha256": "5be739cccfd80d5bb38b558aef9ea886099df8a43185d801274876ab9b68491e",
+        "status": "completed",
+        "input_tokens": 257,
+        "output_tokens": 225,
+        "seconds": 29.0551441159987,
+        "reply_sha256": "b91d222c3e5f8e7495ae3fd6cc306e01f8489cada9ae0b3fca25bb406d978aec"
+      },
+      {
+        "index": 4,
+        "max_tokens": 1500,
+        "request_sha256": "93e7221c05758a26f9cfd99a7f52fa5e2b899bbce7c7f2532e9f36229228e8d3",
+        "status": "completed",
+        "input_tokens": 294,
+        "output_tokens": 613,
+        "seconds": 79.0264038489986,
+        "reply_sha256": "517128870d41183bc3a0bcf5e9996136f180cd894a43e95724b40c8e0de7131d"
+      },
+      {
+        "index": 5,
+        "max_tokens": 128,
+        "request_sha256": "bc73dbd0edbbf34b1fe234e696afd29344dd40dba7064a52fcd49618f896a9cf",
+        "status": "completed",
+        "input_tokens": 184,
+        "output_tokens": 27,
+        "seconds": 3.5488849219982512,
+        "reply_sha256": "1a8c88fa3d8366a6de054c40f88f49c4d161b4721ed3812859f4ab36d1273a97"
+      },
+      {
+        "index": 6,
+        "max_tokens": 128,
+        "request_sha256": "469fe64eed625c94c986ec67fa090e3f63551e3d59c4918f99005dd2373bf766",
+        "status": "completed",
+        "input_tokens": 221,
+        "output_tokens": 45,
+        "seconds": 5.9209565309975005,
+        "reply_sha256": "5a115d21492c628d0f87ee1643c3d3c19c489cb667cdecf0e63e5d3a7f27c8d4"
+      },
+      {
+        "index": 7,
+        "max_tokens": 128,
+        "request_sha256": "d421c694c992d0897b35ca30fefba3ff6b156c3469f0845bb38e0680259dd8be",
+        "status": "completed",
+        "input_tokens": 221,
+        "output_tokens": 52,
+        "seconds": 6.819046530999913,
+        "reply_sha256": "0fc488cf1ecfb1b3414075ca1f642fa56006b6bdc954d67c87b45e2e310ac578"
+      },
+      {
+        "index": 8,
+        "max_tokens": 128,
+        "request_sha256": "c0fc78b0254f13395c5f0093f5b27c6206888742297aaa1b8aa9c3d898ea6e79",
+        "status": "completed",
+        "input_tokens": 207,
+        "output_tokens": 53,
+        "seconds": 7.059143993999896,
+        "reply_sha256": "9547dc2fd95bbe2b6c76f5cd4ba35631e4053c4c7773498d6bf6f2ff0085d346"
+      }
+    ],
+    "benchmark_calls": 0,
+    "pytest_exit_code": 0,
+    "wall_seconds": 134.761,
+    "fresh_calls": 8,
+    "unknown_usage_calls": 0,
+    "known_input_tokens": 1450,
+    "known_output_tokens": 1031,
+    "provider": {
+      "url": "http://127.0.0.1:18080/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "served": {
+        "id": "Qwen/Qwen3.8-27B-FP8",
+        "max_model_len": 32768,
+        "root": "Qwen/Qwen3.8-27B-FP8"
+      },
+      "context_tokens": 32768,
+      "deployment": {
+        "name": "existing-local-qwen",
+        "model_revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+        "image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+        "vllm": "0.29.1rc1.dev17+gd2d649e67.d20260913",
+        "torch": "2.13.0+cu130",
+        "transformers": "5.17.0"
+      },
+      "post_smoke_server_verification": {
+        "versions": {
+          "vllm": "0.29.1rc1.dev17+gd2d649e67.d20260913",
+          "torch": "2.13.0+cu130",
+          "transformers": "5.17.0"
+        },
+        "model_revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+        "image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa"
+      }
+    },
+    "tunnel_closed": true,
+    "verified_cache_replays": 1
+  },
+  "dataset": {
+    "revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+    "selection_manifest_sha256": "02e22e24073b72debe05741e1ee2b4b7896c84de212c2170a5f1a4a987b95dd7",
+    "evaluator_sha256": "4e6c56c77ef414e406a1743eedfe670aa7de5849b0ab7a7095316ccfbc9b38d8",
+    "scored_development_cells": 13,
+    "registered_development_cells": 48,
+    "complete_four_arm_groups": 3,
+    "evaluator_source_sha256": "f1a3942b0b2119f3505b66338cf6a378fbc4c1434d4dab3ca9288fb441137ec4",
+    "schema_policy_version": "structural-string-enums-v2",
+    "adapter_manifest_sha256": "dd765fcd181426f03ee995ba5ca77c09bb925178f61db7d3b491f5b3b61d99f4",
+    "revalidation": {
+      "selected_development_groups": 12,
+      "ingested_development_documents": 10,
+      "blocked_native_text_documents": 2,
+      "source_and_parser_pins_match": true,
+      "gold_and_field_annotations_unchanged": true,
+      "annotation_differences": [
+        "annotations.source.inference_schema_sha256"
+      ],
+      "changed_inference_schemas": [
+        "short/dc-pepco-residential-bill",
+        "short/grafton_isotrope_invoice_19503",
+        "short/mission-tx-tyler-invoice",
+        "short/uillinois_rate_card_carpool_2024",
+        "medium/1G1PC5SB6E7111015_professional_valuation"
+      ],
+      "roundtrips": [
+        {
+          "case": "short--caterpillar_spec_sheet_312c_excavator",
+          "populated_gold_leaves": 207,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        },
+        {
+          "case": "short--dc-pepco-residential-bill",
+          "populated_gold_leaves": 20,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        },
+        {
+          "case": "short--grafton_isotrope_invoice_19503",
+          "populated_gold_leaves": 27,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        },
+        {
+          "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+          "populated_gold_leaves": 27,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        },
+        {
+          "case": "short--mission-tx-tyler-invoice",
+          "populated_gold_leaves": 58,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        },
+        {
+          "case": "short--uillinois_rate_card_carpool_2024",
+          "populated_gold_leaves": 86,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        },
+        {
+          "case": "short--viega_price_list_propress_2026",
+          "populated_gold_leaves": 1389,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        },
+        {
+          "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+          "populated_gold_leaves": 311,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        },
+        {
+          "case": "medium--erie_county_2017_single_audit",
+          "populated_gold_leaves": 1207,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        },
+        {
+          "case": "long--dd1155_schedule_continuation_0011",
+          "populated_gold_leaves": 86,
+          "raw_f1": 1,
+          "canonical_f1": 1
+        }
+      ],
+      "schema_policy_version": "structural-string-enums-v2",
+      "pdfs_downloaded": 0,
+      "model_calls": 0,
+      "tokenizer_calls": 0,
+      "heldout_schema_decodings": 0,
+      "heldout_gold_decodings": 0,
+      "adapter_manifest_sha256": "dd765fcd181426f03ee995ba5ca77c09bb925178f61db7d3b491f5b3b61d99f4"
+    },
+    "schema_inventory": {
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "selection_sha256": "02e22e24073b72debe05741e1ee2b4b7896c84de212c2170a5f1a4a987b95dd7",
+      "schema_policy_version": "structural-string-enums-v2",
+      "development_schemas": 12,
+      "keyword_counts": {
+        "description": 317,
+        "enum": 8,
+        "format": 4,
+        "default": 79
+      },
+      "documents": [
+        {
+          "source_id": "short/caterpillar_spec_sheet_312c_excavator",
+          "source_group": "caterpillar-excavator-specs",
+          "original_schema_sha256": "2393ed85e3ab1a2896b7e93aefa92aeb3af5af68bbc67632491221f079a61ae2",
+          "inference_schema_sha256": "c04398a3060e9dc063143ae50de7cb3b3108a68452c1712016b96c1a2a9b59d4",
+          "keyword_counts": {
+            "description": 14
+          },
+          "prompt_note_count": 0
+        },
+        {
+          "source_id": "short/dc-pepco-residential-bill",
+          "source_group": "pepco-residential",
+          "original_schema_sha256": "baa1488caef1240bf4d684c024226325352093d784725fcf8a83038e5faaaca8",
+          "inference_schema_sha256": "05eefe499b3e3c43791461a89a3edfdae037032eb62a6ecbe4e83f818f8a8201",
+          "keyword_counts": {
+            "description": 23,
+            "enum": 2
+          },
+          "prompt_note_count": 2
+        },
+        {
+          "source_id": "short/grafton_isotrope_invoice_19503",
+          "source_group": "grafton-isotrope",
+          "original_schema_sha256": "cddb2e2a26f8a0f3f978f49c6505fd00d06fd4bf77b8ee3bd7102db79c9d2866",
+          "inference_schema_sha256": "f93aa5766189ae3915e14a351f2415d2e8701268070ba6b980e66537a04e53b7",
+          "keyword_counts": {
+            "description": 50,
+            "enum": 2,
+            "format": 2
+          },
+          "prompt_note_count": 2
+        },
+        {
+          "source_id": "short/lancaster_county_ne_requisition_po_husker_steel",
+          "source_group": "lancaster-husker-steel",
+          "original_schema_sha256": "621c2a48e924051aa0c907243a89078d9ddaeacb720b9cd6e672d08cea61a53d",
+          "inference_schema_sha256": "cadf64f03cd1391744300d8b8b95a04893f8fbedf654cd676f58ae070f3dac1d",
+          "keyword_counts": {
+            "description": 26
+          },
+          "prompt_note_count": 0
+        },
+        {
+          "source_id": "short/mission-tx-tyler-invoice",
+          "source_group": "mission-tyler",
+          "original_schema_sha256": "cddb2e2a26f8a0f3f978f49c6505fd00d06fd4bf77b8ee3bd7102db79c9d2866",
+          "inference_schema_sha256": "f93aa5766189ae3915e14a351f2415d2e8701268070ba6b980e66537a04e53b7",
+          "keyword_counts": {
+            "description": 50,
+            "enum": 2,
+            "format": 2
+          },
+          "prompt_note_count": 2
+        },
+        {
+          "source_id": "short/uillinois_rate_card_carpool_2024",
+          "source_group": "uillinois-fleet-2024",
+          "original_schema_sha256": "fbfcad32aa415e0842b2df49c4aec9c91bc78521c7109882d50ddf9f4539e610",
+          "inference_schema_sha256": "6e34d6406e2068746382cc51e9847c2e33a4d2fcc1fa8b16fce41f48ffe2cdc0",
+          "keyword_counts": {
+            "description": 9,
+            "enum": 1
+          },
+          "prompt_note_count": 1
+        },
+        {
+          "source_id": "short/viega_price_list_propress_2026",
+          "source_group": "viega-propress-2026",
+          "original_schema_sha256": "062fb7ed4c43168769dad062082d8f23db67717e8160fc236fca11fc3764ffbb",
+          "inference_schema_sha256": "d591b7c5ebd3dac81a5d068c132b22b6aae47b609c7afac4ffe8825715b9f131",
+          "keyword_counts": {
+            "description": 12
+          },
+          "prompt_note_count": 0
+        },
+        {
+          "source_id": "medium/1G1PC5SB6E7111015_professional_valuation",
+          "source_group": "mitchell-valuation-vin-1g1pc5sb6e7111015",
+          "original_schema_sha256": "43c0928e52462108ff438b5b62fbbc799ece4d7276fb68d98572087e79d6b774",
+          "inference_schema_sha256": "fdeba5aa5c788587401640d4ffda0bb028ac34701c51fe9412ab60191bcff4ea",
+          "keyword_counts": {
+            "description": 72,
+            "default": 68,
+            "enum": 1
+          },
+          "prompt_note_count": 1
+        },
+        {
+          "source_id": "medium/byline_bancorp_investor_deck_q2_2023",
+          "source_group": "byline-2023q2",
+          "original_schema_sha256": "23dabfd42937f360b97adba3221b9016717d0fc17979a065a083b01cc40add37",
+          "inference_schema_sha256": "eb0ce2842869d2f3a9f48c2335c916ebcecde2754e4ddcebec95a78a5f868e8e",
+          "keyword_counts": {
+            "description": 19
+          },
+          "prompt_note_count": 0
+        },
+        {
+          "source_id": "medium/erie_county_2017_single_audit",
+          "source_group": "erie-audit-2017",
+          "original_schema_sha256": "44ef1337cf4666dbf795f87d2bf9c2a72f4b7f342db3f3b8344ccf344b7d350b",
+          "inference_schema_sha256": "23f6fdcd45c4bcbe2e88beb0c5c47d5af0a220a1cb1b23afd89cfb2b9742480e",
+          "keyword_counts": {
+            "description": 12
+          },
+          "prompt_note_count": 0
+        },
+        {
+          "source_id": "long/dd1155_schedule_continuation_0011",
+          "source_group": "dd1155-schedule-family",
+          "original_schema_sha256": "04316900587e5df41389fe14fb2a2b237b1785331b7472f615991b6aac2d96c5",
+          "inference_schema_sha256": "a99c296f4d0467552fb2f25e2e02081e7b7008e3d5119efc24ec6711c182335b",
+          "keyword_counts": {
+            "description": 12,
+            "default": 11
+          },
+          "prompt_note_count": 0
+        },
+        {
+          "source_id": "long/gov_clin_schedule_0005",
+          "source_group": "dod-clin-schedule-family",
+          "original_schema_sha256": "f020825f4978a82ca0333bbb47d21366a3eb09d65638c4b01dbab4824cee43f6",
+          "inference_schema_sha256": "10354b6f90bbdb8d0b005ef9b9205ce0c77cb5d666bae2484f8fbb85f249f59a",
+          "keyword_counts": {
+            "description": 18
+          },
+          "prompt_note_count": 0
+        }
+      ],
+      "enums": [
+        {
+          "source_id": "short/dc-pepco-residential-bill",
+          "json_pointer": "/properties/meters/items/properties/service_type",
+          "declared_type": "string",
+          "choices": 3,
+          "nonnull_choices": 3,
+          "all_nonnull_are_strings": true,
+          "enum_sha256": "d49c92c0517479b7a66b9428e381aef97a4b123e5c81f777c479f9a5e64184eb"
+        },
+        {
+          "source_id": "short/dc-pepco-residential-bill",
+          "json_pointer": "/properties/meters/items/properties/usage_unit",
+          "declared_type": "string",
+          "choices": 4,
+          "nonnull_choices": 4,
+          "all_nonnull_are_strings": true,
+          "enum_sha256": "e1d4f12aef34bb5e992f404179e33926809fe4adeb99070643c361499676272b"
+        },
+        {
+          "source_id": "short/grafton_isotrope_invoice_19503",
+          "json_pointer": "/properties/invoice_type",
+          "declared_type": "string",
+          "choices": 3,
+          "nonnull_choices": 3,
+          "all_nonnull_are_strings": true,
+          "enum_sha256": "ae0789308ab806c144aedb573e5048da26c6ab48b13a42dc9144202624f9ddd1"
+        },
+        {
+          "source_id": "short/grafton_isotrope_invoice_19503",
+          "json_pointer": "/properties/currency",
+          "declared_type": "string",
+          "choices": 11,
+          "nonnull_choices": 11,
+          "all_nonnull_are_strings": true,
+          "enum_sha256": "322fe4e2df9a6cf3782d136df0cdf582758ce7265cd63a38caa33a3ebdb1c91c"
+        },
+        {
+          "source_id": "short/mission-tx-tyler-invoice",
+          "json_pointer": "/properties/invoice_type",
+          "declared_type": "string",
+          "choices": 3,
+          "nonnull_choices": 3,
+          "all_nonnull_are_strings": true,
+          "enum_sha256": "ae0789308ab806c144aedb573e5048da26c6ab48b13a42dc9144202624f9ddd1"
+        },
+        {
+          "source_id": "short/mission-tx-tyler-invoice",
+          "json_pointer": "/properties/currency",
+          "declared_type": "string",
+          "choices": 11,
+          "nonnull_choices": 11,
+          "all_nonnull_are_strings": true,
+          "enum_sha256": "322fe4e2df9a6cf3782d136df0cdf582758ce7265cd63a38caa33a3ebdb1c91c"
+        },
+        {
+          "source_id": "short/uillinois_rate_card_carpool_2024",
+          "json_pointer": "/$defs/RateLine/properties/rate_basis",
+          "declared_type": [
+            "string",
+            "null"
+          ],
+          "choices": 11,
+          "nonnull_choices": 10,
+          "all_nonnull_are_strings": true,
+          "enum_sha256": "fa876b6fc5a3521164d10021c350159ae502963cce8caa14bee6973188a06d0f"
+        },
+        {
+          "source_id": "medium/1G1PC5SB6E7111015_professional_valuation",
+          "json_pointer": "/$defs/ComparableVehicle/properties/price_type",
+          "declared_type": "string",
+          "choices": 2,
+          "nonnull_choices": 2,
+          "all_nonnull_are_strings": true,
+          "enum_sha256": "6ebfb024352234a788be9180698787e49658472d5f18f4b814e22a7c4ded4c9d"
+        }
+      ],
+      "gold_decodings": 0,
+      "heldout_schema_decodings": 0,
+      "network_requests": 0,
+      "model_calls": 0,
+      "tokenizer_calls": 0
+    }
+  },
+  "boundaries": {
+    "new_benchmark_calls": 0,
+    "ocr_calls": 0,
+    "serving_tokenizer_calls": 0,
+    "heldout_pdf_or_annotation_or_schema_decodings": 0,
+    "production_or_deployment_changes": 0,
+    "challenger_selected": false,
+    "fresh_development_budget_authorized": false
+  },
+  "direct_optional_dependencies": {
+    "declared_in": "prototypes/parsing_service/pyproject.toml",
+    "scipy": ">=1.18.1",
+    "jsonschema": ">=4.26.0"
+  },
+  "sparring": {
+    "model": "gpt-6-astra",
+    "user_requested": true,
+    "scope": "read-only diff and sanitized inventories; no raw PDFs or gold",
+    "blocking_implementation_findings": 0,
+    "decision": "enum correction is task fidelity, input-policy revision; quality and production suitability unestablished"
+  },
+  "bounded_self_review": {
+    "files": [
+      "experiments/harness/extractbench.py",
+      "tests/test_harness_v2.py",
+      "tests/test_harness_live.py"
+    ],
+    "additional_implementation_changes": 0,
+    "checks": [
+      "reference/nullable enum intersections",
+      "unsupported enum refusal",
+      "equal choice constraints across A0-A3",
+      "no production changes",
+      "unchanged evaluator and historical artifacts"
+    ],
+    "result": "pass"
+  },
+  "ignored_artifacts": {
+    ".scratch/extractbench-schema-fidelity-2026-09-30/frozen-fast-tests.xml": "ca122077e433b72f1ab220ce6bbac1387f45697271dd74669dbdb61b6b3b89d9",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/fast-tests.xml": "e477fb0788bfd226089a955598ef699fc73727c00b544c3a19d37a90e4623d03",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/live-tests.xml": "dd6b7431dd12a04f1495f6b344e315b61159ad7c6258f69dd7292af636402847",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/live-tests.log": "d81f7f97196d7ccb7839b8fc2f1d694c34c81039d15a29ead0e42ad56d3002d3",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/live_smoke.py": "f2164ff57fb2c87e9e3b29b9a068acbbf815b0e1f70b207cbc33bfcc9a956a4a",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/live-smoke.json": "a207e719855d299d98613d27363a903b327083fc4a38c13c11ac597e6603a945",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/server-verification.json": "f70625425c84d0b93fafd856a9d1e313baae1f392493eb9a26e696cfd63690fe",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/adapter-revalidation.json": "5ece90fb2b566d18831c1f467fa572984cf21ac0c6fe4cc641824d4b08bcac3d",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/schema-inventory-v2-checked.json": "756c97aa09eba120e79c52b227b4d3fcf0d9449446e1c0d07183528f78762933",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/enum-inventory.json": "2b6d3d1772e687a494f916607de660997c343345d5d47727a78c03a7adb258e4",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/keyword-inventory.json": "7b9e602af0bda82dfe7244419b010cf001efa8c6e77ba310e17dea41e1a5f1e2",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/dataset-v2/adapter-manifest.json": "dd765fcd181426f03ee995ba5ca77c09bb925178f61db7d3b491f5b3b61d99f4",
+    ".scratch/extractbench-schema-fidelity-2026-09-30/dataset-v2/dataset.json": "1367d6ddaeb1e31507e1d3615ebe6ef36067e9ea0bb9a4af91d598235ca70d13"
+  }
+}

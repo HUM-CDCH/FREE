@@ -66,8 +66,11 @@ evidence, then freeze A0 versus one challenger before a separately authorized
 holdout comparison. The [human-gold plan](../../2026-09-30-extraction-harness-methods.md)
 is still needed for FREE catalogue suitability. A new development time/call cap
 must be agreed before more inference; unused historical calls do not renew time.
-The earlier [sparring decision](../development-audit/sparring-decision.md) remains
-in force, including its withdrawn pilot and guidance proposals.
+The withdrawn pilot and guidance proposals in the earlier
+[sparring decision](../development-audit/sparring-decision.md) remain withdrawn.
+Its adapter conclusion was subsequently superseded by the
+[schema-fidelity correction](../schema-fidelity-fix/README.md), which documents
+the audit's incorrect prose-only Illinois vocabulary premise.
 
 ## Reproduction
 

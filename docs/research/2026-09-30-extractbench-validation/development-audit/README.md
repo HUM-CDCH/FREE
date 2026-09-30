@@ -1,5 +1,12 @@
 # Development feasibility and scoring audit, 2026-09-30
 
+**Later follow-ups, 2026-09-30:** the
+[resume-budget repair](../budget-fix/README.md) is verified, and the
+[schema-fidelity correction](../schema-fidelity-fix/README.md) supersedes this
+audit's adapter conclusion. The Illinois vocabulary was explicitly declared in
+an enum; the audit's prose-only premise was wrong. This page records the earlier
+checkpoint, whose scores and spending limits remain historical and unchanged.
+
 Status: completed offline audit of
 `406263e58c030b367af75ddf1a9e16717ac9c1e5` on
 `feat/extraction-research-harness`. This increment adds audit artifacts only.
