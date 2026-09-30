@@ -11,8 +11,10 @@ from experiments.harness.data import case_of
 from experiments.harness.evidence import entries_for
 from experiments.harness.evaluate import Eval, check_invariants, metrics, score_case
 from experiments.harness.extractbench import inference_schema
+from experiments.harness.extract import reply_schema, system_prompt
 from experiments.harness.model import BudgetExceeded, Provider, ResearchReply
 from experiments.harness.run import meter_for, run_case
+from kei_exp.kie.extract.schema import Schema, json_schema, notes
 from tests.test_harness_evaluate import make, predict, find
 
 
@@ -49,6 +51,60 @@ def test_structural_schema_discards_answer_examples_but_preserves_record_arrays(
     assert "SECRET" not in json.dumps(schema) and "page 3" not in json.dumps(schema)
     assert schema["schemaNodes"][0]["type"] == "array"
     assert schema["schemaNodes"][0]["children"][1]["type"] == "number"
+
+
+@pytest.mark.parametrize("shape", ["inline", "ref", "nullable_union", "ref_sibling", "union_sibling", "intersect_ref"])
+def test_dataset_string_choices_reach_constraints_and_prompts_without_answer_annotations(shape):
+    from jsonschema import Draft202012Validator
+    field = {"type": "string", "enum": ["open", "closed"], "description": "The answer is SECRET", "examples": ["SECRET"]}
+    defs = {}
+    if shape in ("ref", "ref_sibling", "intersect_ref"):
+        defs = {"Status": field if shape != "ref_sibling" else {"type": "string"}}
+        field = {"$ref": "#/$defs/Status"}
+        if shape in ("ref_sibling", "intersect_ref"):
+            field["enum"] = ["open", "closed", "invalid"] if shape == "intersect_ref" else ["open", "closed"]
+    elif shape in ("nullable_union", "union_sibling"):
+        field = {"anyOf": [field if shape == "nullable_union" else {"type": "string"}, {"type": "null"}]}
+        if shape == "union_sibling":
+            field["enum"] = ["open", "closed", None]
+    adapted = inference_schema({"type": "object", "properties": {"status": field}, "$defs": defs})
+    schema = Schema.model_validate(adapted)
+    assert schema.nodes[0].allowed_values == ["open", "closed"]
+    assert "SECRET" not in json.dumps(adapted)
+    assert any("open" in line and "closed" in line for line in notes(schema.nodes))
+    validator = Draft202012Validator(json_schema(schema.nodes))
+    assert not list(validator.iter_errors({"status": "open"}))
+    assert list(validator.iter_errors({"status": "invalid"}))
+    case = case_of({"id": "choices", "group": "choices", "split": "dev", "schema": adapted,
+                    "passages": [{"id": "p1_s0", "page": 1, "text": "Status: open"}], "gold": []}).inference()
+    for override in ({}, {"merge": {"continuation": "flags"}}, {"evidence": {"mode": "quote"}},
+                     {"input": {"mode": "layout"}, "evidence": {"mode": "ids"}}):
+        cfg = Config.model_validate({"chunking": {"mode": "fixed", "max_chars": 4000}, **override})
+        response = reply_schema(schema.nodes, cfg, ["p1_s0"])
+        field_response = response["properties"]["records"]["items"]["properties"]["status"]
+        constraint = field_response["properties"]["value"] if cfg.evidence.mode != "none" else field_response
+        assert constraint["enum"] == ["open", "closed", None]
+        prompt = system_prompt(case, schema.nodes, cfg, response)
+        assert "open" in prompt and "closed" in prompt and "SECRET" not in prompt
+
+
+def test_dataset_choices_survive_refs_inside_repeated_objects():
+    source = {"type": "object", "properties": {"rows": {"type": "array", "items": {"$ref": "#/$defs/Row"}}},
+              "$defs": {"Row": {"type": "object", "properties": {"status": {"type": ["string", "null"],
+                       "enum": ["open", "closed", None]}}}}}
+    schema = Schema.model_validate(inference_schema(source))
+    assert schema.nodes[0].children[0].allowed_values == ["open", "closed"]
+    assert any("rows.status" in line and "closed" in line for line in notes(schema.nodes))
+
+
+@pytest.mark.parametrize("field", [
+    {"type": "string", "enum": ["single"]},
+    {"type": "integer", "enum": [1, 2]},
+    {"type": "array", "items": {"type": "string", "enum": ["open", "closed"]}},
+])
+def test_unrepresentable_dataset_choices_refuse_instead_of_silently_relaxing_the_task(field):
+    with pytest.raises(ValueError, match="enum"):
+        inference_schema({"type": "object", "properties": {"status": field}})
 
 
 def structured_case():

@@ -1,8 +1,8 @@
 """Small pinned ExtractBench adapter. Downloads/ingests selected development PDFs only.
 
 Public JSONL categories describe length, not study splits. Original annotations stay in
-separate evaluator-only files. Inference schemas contain structural names/types only:
-upstream descriptions include document-specific answers and evidence locations.
+separate evaluator-only files. Inference schemas preserve structural names/types and
+representable string choices; descriptions contain answers and evidence locations.
 """
 from __future__ import annotations
 
@@ -17,7 +17,8 @@ from experiments.extraction.manifest import digest, write_new
 from kei_exp.canonical import canonical_json
 from kei_exp.kie.extract.schema import Schema
 
-ADAPTER = "extractbench-v1"
+ADAPTER = "extractbench-v1"  # Annotation format; schema conversion is versioned separately.
+SCHEMA_POLICY = "structural-string-enums-v2"
 
 
 def save(path: Path, data: dict) -> None:
@@ -39,7 +40,7 @@ def decoded(row: dict, key: str):
 
 
 def inference_schema(original: dict) -> dict:
-    """Preserve objects and arrays recursively. Reject ambiguous unions instead of silently flattening them."""
+    """Preserve objects, arrays and string choices; refuse unrepresentable enums and ambiguous unions."""
     def resolve(node):
         if "$ref" in node:
             ref = node["$ref"]
@@ -48,14 +49,18 @@ def inference_schema(original: dict) -> dict:
             target = original
             for key in ref[2:].split("/"):
                 target = target[key.replace("~1", "/").replace("~0", "~")]
-            return resolve(target)
-        choices = node.get("anyOf", node.get("oneOf"))
-        if choices:
+            resolved = resolve(target)
+        elif choices := node.get("anyOf", node.get("oneOf")):
             choices = [resolve(c) for c in choices if c.get("type") != "null"]
             if len(choices) != 1:
                 raise ValueError("only nullable single-type schema unions are supported")
-            return choices[0]
-        return node
+            resolved = choices[0]
+        else:
+            return node
+        if "enum" in node:
+            values = [v for v in node["enum"] if "enum" not in resolved or v in resolved["enum"]]
+            resolved = {**resolved, "enum": values}
+        return resolved
 
     def node(name, raw, path):
         raw = resolve(raw)
@@ -66,6 +71,11 @@ def inference_schema(original: dict) -> dict:
                 raise ValueError(f"ambiguous type at {path}")
             kind = kinds[0]
         out = {"id": digest(path.encode())[:16], "name": name, "type": kind}
+        if "enum" in raw:
+            values = [v for v in raw["enum"] if v is not None]
+            if kind != "string" or len(values) < 2 or not all(isinstance(v, str) for v in values):
+                raise ValueError(f"only string enums with at least two choices are supported at {path}")
+            out["allowedValues"] = values
         if kind == "object":
             out["children"] = [node(k, v, f"{path}.{k}") for k, v in raw.get("properties", {}).items()]
         elif kind == "array":
@@ -75,6 +85,8 @@ def inference_schema(original: dict) -> dict:
             elif item["type"] == "array":
                 raise ValueError(f"nested scalar arrays unsupported at {path}")
             else:
+                if "allowedValues" in item:
+                    raise ValueError(f"scalar-array item enums are unsupported at {path}")
                 out["itemType"] = item["type"]
         elif kind not in ("string", "integer", "number", "boolean"):
             raise ValueError(f"unsupported schema type {kind!r} at {path}")
@@ -82,6 +94,8 @@ def inference_schema(original: dict) -> dict:
     root = resolve(original)
     if root.get("type") != "object":
         raise ValueError("expected an object document schema")
+    if "enum" in root:
+        raise ValueError("root object enums are unsupported")
     schema = {"recordDescription": "One complete document, including all records in every repeated array.",
               "schemaNodes": [node(k, v, k) for k, v in root["properties"].items()]}
     return Schema.model_validate(schema).model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -171,6 +185,7 @@ def prepare(selection_path: Path, snapshot: Path, output: Path, *, smoke: bool =
                 "selected_documents": len(groups), "ingested_documents": len(cases), "source_groups": len(groups),
                 "holdout_documents_ingested": 0, "documents": records, "failures": failures,
                 "scoring": "custom harness leaf/record metrics; not official ExtractBench scores",
-                "schema_policy": "structural names and types only; descriptions/examples/defaults/enums removed before inference"}
+                "schema_policy_version": SCHEMA_POLICY,
+                "schema_policy": "structural names/types and representable string enums; descriptions/examples/defaults removed before inference"}
     save(output / "adapter-manifest.json", manifest)
     return manifest

@@ -13,6 +13,7 @@ from experiments.harness import synth
 from experiments.harness.config import Config
 from experiments.harness.data import case_of
 from experiments.harness.evaluate import Eval, check_invariants, metrics, pool, score_case
+from experiments.harness.extractbench import inference_schema
 from experiments.harness.run import meter_for, run_case
 
 pytestmark = [pytest.mark.live_model, pytest.mark.skipif(not os.environ.get("KEI_EXTRACT_URL"), reason="set KEI_EXTRACT_URL")]
@@ -65,3 +66,18 @@ def test_the_pipeline_runs_against_the_served_model_and_reports_cost_signals_and
     cfg = Config.model_validate({"output": {"max_tokens": 1500}, "signals": {"top_logprobs": 3}})
     again = run_case(case, cfg, meter_for(provider, cfg))
     assert again["cost"]["fresh"]["calls"] == 0 and again["cost"]["replayed"]["calls"] == 1 and again["records"] == base["records"]
+
+
+def test_public_adapter_choices_work_under_all_four_registered_evidence_modes(provider):
+    schema = inference_schema({"type": "object", "properties": {"status": {
+        "type": "string", "enum": ["open", "closed"], "description": "Excluded answer example: SECRET"}}})
+    case = case_of({"id": "live-choices", "group": "live-choices", "split": "dev", "schema": schema, "gold": [],
+                    "passages": [{"id": "p1_s0", "page": 1, "text": "Status: open."}]})
+    for name, override in (("A0", {}), ("A1", {"merge": {"continuation": "flags"}}),
+                           ("A2", {"evidence": {"mode": "quote"}}), ("A3", {"evidence": {"mode": "ids"}})):
+        cfg = Config.model_validate({"input": {"mode": "layout"}, "chunking": {"mode": "fixed", "max_chars": 4000},
+                                     "output": {"max_tokens": 128}, "budget": {"calls": 1}, **override})
+        artifact = run_case(case, cfg, meter_for(provider, cfg), admission="counted" if provider.counter else "uncounted")
+        assert artifact["records"] == [{"status": "open"}]
+        assert artifact["coverage"]["complete"] and artifact["cost"]["fresh"]["calls"] == 1
+        print(f"\nLIVE ADAPTER {name}: fresh={artifact['cost']['fresh']}")
