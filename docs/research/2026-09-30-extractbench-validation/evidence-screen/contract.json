@@ -1,0 +1,803 @@
+{
+  "identity": {
+    "run_id": "extractbench-v4-evidence-screen",
+    "prior_runs": {
+      "closed_execution": {
+        "run_id": "extractbench-v3-corrected-development",
+        "contract_commit": "a24b87e7",
+        "results_commits": [
+          "e2542d20",
+          "2024b85c"
+        ]
+      },
+      "offline_replay": {
+        "report": "assembly-repair/README.md",
+        "repair_commit": "e4c9c906",
+        "analysis_commits": [
+          "5c62481a",
+          "9c38ab92"
+        ]
+      }
+    },
+    "code_revision": "8fede430d98963b1dcf3ca6429b95c4c7606f230",
+    "dirty_tree_porcelain_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "dirty_tree_paths": [],
+    "harness_source_sha256": "63645b8c21dae90052c5e335d926242d83681e9f4121870295d65d37ca1b1247",
+    "runner_sha256": "1ebe532cbaa8e6f449024ac00b06953d7f9ac8f1256824c20c0966adab2b3e56",
+    "prior_runner_helpers_sha256": "6b71010708c89599ab143c1e5d8e617fd1854aae830474e5268145ec760c1794",
+    "analyze_sha256": "744a77abc08230e751ca00f56ef5a0061d02e7ccef8c1675d833accae998a3e6",
+    "freeze_sha256": "fa52399a7160012218504dda40763795e265f6c2bc9ff0f9f0eb0cf610301bf1",
+    "study_file_sha256": "7a6a88ddbc802400d6d1c47c5c2f7aad328a1eb528725e72fdd627567524f483",
+    "dataset_file_sha256": "50b1b1bf4435b73c0e9ce0d516eab45c436d324bb593910aac6048335be9e670",
+    "dataset_revision": {
+      "name": "dataset-v3",
+      "extractbench_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "adapter_manifest_sha256": "dd765fcd181426f03ee995ba5ca77c09bb925178f61db7d3b491f5b3b61d99f4",
+      "built_by": "experiments.harness extractbench (adapter at e4c9c906+) re-prepared offline under unshare -rn from dataset-v2 PDFs and the pinned JSONLs",
+      "delta_from_dataset_v2": {
+        "dataset.json": true,
+        "inputs": {
+          "short--caterpillar_spec_sheet_312c_excavator": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "f7dbff234007abf7ec4eb56cb9dd664b5a9b67282bc47c62db69c859bdc02736",
+            "v3_sha256": "b2cd898cb245367ef635f5c2e6b0b9fdd3b68f473346978e50a43cbbc5f532ed"
+          },
+          "short--dc-pepco-residential-bill": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "b32ad4de0f7587c921efc1d2e2ffb3219c9b7fdab5bc215c2291b0230c21b80c",
+            "v3_sha256": "f4d18a831eae4624d1e1116f66af282a8250550dc2bbc296912ad6b7774f655d"
+          },
+          "short--grafton_isotrope_invoice_19503": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "f0812f2df911b3996eebcd2967e9e4013196bf57bf70d09b8f0321614bed81ab",
+            "v3_sha256": "4fd15bc5ceac6087691c4fbe56005685d838ebf617643f1fba35a09fd1e270b6"
+          },
+          "short--lancaster_county_ne_requisition_po_husker_steel": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "7f5410628ef781aa2edb840058e50ea39179e27a74a4b9eaa7bbf0d9871be8d1",
+            "v3_sha256": "c560aee839f0ab53ad770dc46749064c5431e4a12de001c289f92d6f35a43bc7"
+          },
+          "short--mission-tx-tyler-invoice": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "61bcce7aa990550ea62184256ec53be6df74436728469f4535e0c916c7f1c2d9",
+            "v3_sha256": "ba6fe1a38e40c3ac0478f8daad3337d56d204182fa42aa06c1df3cf22cfc1841"
+          },
+          "short--uillinois_rate_card_carpool_2024": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "973a33d456d1ad9eb5e39ca19ad32240e4026c730ec90567c873dfdd5b1d20b5",
+            "v3_sha256": "010d24df1aea9152daf9f6da36d578524be06e5df47144f3a4f18449898a8a58"
+          },
+          "short--viega_price_list_propress_2026": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "9b35ed6ca8738fa30b9b139102c86a2f14654df2c4cd6712431d48d14d82073d",
+            "v3_sha256": "81a032ca7ffe8fb3f269a1d11cd12a0b34a85b5ae71605293ea1898e592b90dd"
+          },
+          "medium--1G1PC5SB6E7111015_professional_valuation": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "bbf16c2b4e232228246e00b70e23e9c9be2fb0aa9adb3a8427ee348a5a0e57af",
+            "v3_sha256": "15a50808d93f8b2851421931676798ee515f6aa6d438e53f053890dea22d7b15"
+          },
+          "medium--erie_county_2017_single_audit": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "03e5cd73ad449e84d2e5be638b8be1d8acf086c89008abbf9ba10097a4632df9",
+            "v3_sha256": "9581fd269971e3d836e1817f1c46e6da68ba2c3ac3c096ce0606c9f8829d509f"
+          },
+          "long--dd1155_schedule_continuation_0011": {
+            "added": {
+              "record_scope": "document"
+            },
+            "v2_sha256": "0256e904d3e2a476e0eae1c9536db543551253c1f3b8320199f1aed81695d488",
+            "v3_sha256": "98c69c0ee6bc9b444cd961a079285caec0bb0806ca06255786c2803b26e704fe"
+          }
+        }
+      }
+    },
+    "schema_policy_version": "structural-string-enums-v2",
+    "copied_files_sha256": {
+      "inputs/short--grafton_isotrope_invoice_19503.json": "4fd15bc5ceac6087691c4fbe56005685d838ebf617643f1fba35a09fd1e270b6",
+      "annotations/short--grafton_isotrope_invoice_19503.json": "de347bea7488f628c313e950442e236017713395c3747ec583c970b421321bfe",
+      "inputs/medium--1G1PC5SB6E7111015_professional_valuation.json": "15a50808d93f8b2851421931676798ee515f6aa6d438e53f053890dea22d7b15",
+      "annotations/medium--1G1PC5SB6E7111015_professional_valuation.json": "7e94646acfbcfaa3bb6b8b0ffe48ed5d9fa68282f519def77158db7f141bca87",
+      "inputs/short--mission-tx-tyler-invoice.json": "ba6fe1a38e40c3ac0478f8daad3337d56d204182fa42aa06c1df3cf22cfc1841",
+      "annotations/short--mission-tx-tyler-invoice.json": "019e3ed0a14cd8eeaf70c6e4be59b7cbc35c0e77136b0a2ebcda8386d37873fc",
+      "inputs/short--dc-pepco-residential-bill.json": "f4d18a831eae4624d1e1116f66af282a8250550dc2bbc296912ad6b7774f655d",
+      "annotations/short--dc-pepco-residential-bill.json": "81820042f582d34401e539fd4a0387367adab58fb52f9a2a13106052069c45b9",
+      "inputs/short--caterpillar_spec_sheet_312c_excavator.json": "b2cd898cb245367ef635f5c2e6b0b9fdd3b68f473346978e50a43cbbc5f532ed",
+      "annotations/short--caterpillar_spec_sheet_312c_excavator.json": "c6c8b099b337736aa689c29771a9bc59e9c7b858f507f15f8085acaad0627555",
+      "inputs/short--lancaster_county_ne_requisition_po_husker_steel.json": "c560aee839f0ab53ad770dc46749064c5431e4a12de001c289f92d6f35a43bc7",
+      "annotations/short--lancaster_county_ne_requisition_po_husker_steel.json": "d7a7ac685561948f429a35319682ba7b43efd56a9b9bca6e8ee2122685ecedbc"
+    },
+    "development_membership": {
+      "cases": [
+        "short--grafton_isotrope_invoice_19503",
+        "medium--1G1PC5SB6E7111015_professional_valuation",
+        "short--mission-tx-tyler-invoice",
+        "short--dc-pepco-residential-bill",
+        "short--caterpillar_spec_sheet_312c_excavator",
+        "short--lancaster_county_ne_requisition_po_husker_steel"
+      ],
+      "registered_development_groups": 12,
+      "not_selected_here": [
+        "long--dd1155_schedule_continuation_0011",
+        "medium--erie_county_2017_single_audit",
+        "short--uillinois_rate_card_carpool_2024",
+        "short--viega_price_list_propress_2026"
+      ],
+      "heldout_groups_opened": 0
+    },
+    "case_order_rule": "predeclared: grafton (smoke pair) then mitchell (medium) then mission, pepco, caterpillar, lancaster; both arms of a group before the next; first arm alternates base/A3 by group index"
+  },
+  "treatments": {
+    "arms": {
+      "base": {
+        "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+        "config": {
+          "input": {
+            "mode": "layout"
+          },
+          "chunking": {
+            "mode": "fixed",
+            "max_chars": 4000,
+            "overlap": 0
+          },
+          "retrieval": {
+            "mode": "exhaustive",
+            "top_k": 3,
+            "expand": 0
+          },
+          "decompose": {
+            "mode": "whole",
+            "groups": [],
+            "max_fields": 4
+          },
+          "output": {
+            "constraint": "schema",
+            "max_tokens": 4096
+          },
+          "recovery": {
+            "retries": 0,
+            "subdivide": true,
+            "depth": 1
+          },
+          "evidence": {
+            "mode": "none",
+            "alignment": {
+              "exact": true,
+              "normalized": true,
+              "fuzzy": false,
+              "fuzzy_threshold": 0.85,
+              "fuzzy_growth": 1.25,
+              "disambiguate": "none"
+            }
+          },
+          "verification": {
+            "model": false,
+            "gate": "off"
+          },
+          "merge": {
+            "keys": false,
+            "min_fields": 2,
+            "continuation": "off",
+            "resolver": false
+          },
+          "sampling": {
+            "n": 1,
+            "temperature": 0.0,
+            "seed": 20260930,
+            "aggregate": "strict",
+            "views": [
+              "field"
+            ]
+          },
+          "signals": {
+            "verbalized": false,
+            "top_logprobs": 0
+          },
+          "budget": {
+            "input_chars": 12000,
+            "calls": 60,
+            "tokens": 250000,
+            "workers": 1
+          }
+        }
+      },
+      "A3": {
+        "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+        "config": {
+          "input": {
+            "mode": "layout"
+          },
+          "chunking": {
+            "mode": "fixed",
+            "max_chars": 4000,
+            "overlap": 0
+          },
+          "retrieval": {
+            "mode": "exhaustive",
+            "top_k": 3,
+            "expand": 0
+          },
+          "decompose": {
+            "mode": "whole",
+            "groups": [],
+            "max_fields": 4
+          },
+          "output": {
+            "constraint": "schema",
+            "max_tokens": 4096
+          },
+          "recovery": {
+            "retries": 0,
+            "subdivide": true,
+            "depth": 1
+          },
+          "evidence": {
+            "mode": "ids",
+            "alignment": {
+              "exact": true,
+              "normalized": true,
+              "fuzzy": false,
+              "fuzzy_threshold": 0.85,
+              "fuzzy_growth": 1.25,
+              "disambiguate": "none"
+            }
+          },
+          "verification": {
+            "model": false,
+            "gate": "off"
+          },
+          "merge": {
+            "keys": false,
+            "min_fields": 2,
+            "continuation": "off",
+            "resolver": false
+          },
+          "sampling": {
+            "n": 1,
+            "temperature": 0.0,
+            "seed": 20260930,
+            "aggregate": "strict",
+            "views": [
+              "field"
+            ]
+          },
+          "signals": {
+            "verbalized": false,
+            "top_logprobs": 0
+          },
+          "budget": {
+            "input_chars": 12000,
+            "calls": 60,
+            "tokens": 250000,
+            "workers": 1
+          }
+        }
+      }
+    },
+    "deltas_from_base": {
+      "A3": [
+        "evidence.mode"
+      ]
+    },
+    "intended": {
+      "base": "A0: repaired assembly, record_scope document, no evidence, bounded recovery (subdivide depth 1)",
+      "A3": "A0 plus passage-ID evidence: the reply wraps each top-level field as {value, ids} with ids constrained to the chunk's shown block ids"
+    },
+    "effective_request_difference": "system prompt gains one evidence instruction line; reply schema wraps each top-level field in {value, ids}; output tokens grow accordingly. Nothing else.",
+    "provider": {
+      "url": "http://127.0.0.1:18080/v1/chat/completions",
+      "model": "Qwen/Qwen3.8-27B-FP8",
+      "counter": "vllm",
+      "timeout": 900,
+      "deployment": {
+        "name": "existing-local-qwen",
+        "model_revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+        "image": "sha256:8ca4c87cf4ec334bee35ac29c6bc30bf43760f17735b308ddff49dcb5fda2daa",
+        "vllm": "0.29.1rc1.dev17+gd2d649e67.d20260913",
+        "torch": "2.13.0+cu130",
+        "transformers": "5.17.0"
+      }
+    },
+    "decoding": "temperature 0, seed 20260930, thinking off, strict json_schema, n=1",
+    "recovery": "retries 0; a failed or truncated task is halved once (fields after a cut-off, else passages); each half is one counted attempt",
+    "parser_artifacts": "pdfium-native-lines-v1 passages pinned by copied_files_sha256; no re-parse at run time"
+  },
+  "evaluation": {
+    "evaluator_version": 4,
+    "evaluation_sha256": "be54ee51b79c8e2cd3ab708add0b62e88f9fdec187fe64256edaa5f14275e1a6",
+    "rules": {
+      "min_matches": 2,
+      "iou": 0.5
+    },
+    "scorer": "experiments.harness.evaluate.score_case (score_structured) for both arms; raw and canonical",
+    "annotation_semantics": "missing collection = unannotated (unscored); explicit null or [] = annotated empty; an unpaired parent's collection is scored only where its availability is known, else unscored/unknown; the parent stays spurious or duplicated",
+    "root_alignment": "the single document root is paired structurally (fixed_document_root); its matched count is an alignment, not a correctness credit; strict (fully correct) records are reported apart",
+    "grounding": "A3 only, on page-annotated gold; reported separately for top-level scalar leaves and for leaves inside objects/collections, which inherit the whole top-level field's citation (coarse); with citation specificity (distinct cited pages per cited value over document pages). Semantic support and word localization are unmeasured (native-line input, no labels). Invalid ids are impossible under the enum constraint, so validity is reported as uninformative.",
+    "decision_rule": "screen-gate-v3, applied by analyze.py to complete paired groups only (fewer than 2: \"not established\"). COMPLETENESS: in EVERY complete group and EVERY annotated nested collection path separately, A3 matched >= A0 and A3 duplicated+spurious <= A0, and each arm has exactly one root record; any failure is \"loss observed\" naming group/path (paths never offset each other; a path with no annotated records is listed \"not established\" and the result then reads \"no material loss on tested paths\", never a plain pass). VALUE QUALITY: per-group raw F1 of A3 not lower than A0 by more than 0.05 in any group, reported with precision, recall, and abstentions (unresolved/omitted) so that a gain from withholding is visible. EVIDENCE USEFULNESS (A3 only, top-level scalar leaves, page-annotated gold): the share of correct values whose citation includes an annotated page; \"useful page evidence\" on a multi-page document needs >= 0.8; a single-page document is \"uninformative\". Descriptive only: whether the cited lines print the value (checks.literal, a lower bound), ids per value, fraction of pages cited, and the inherited citations of object/collection leaves. Semantic support is unmeasured. COST: extra attempts, tokens and seconds of A3 over A0. No winner is declared; production defaults stay."
+  },
+  "budget": {
+    "elapsed_minutes": 180,
+    "provider_attempts": 180,
+    "workers": 1,
+    "request_timeout_seconds": 900,
+    "admission_cutoff_minutes": 165,
+    "cell_calls": 60,
+    "cell_tokens": 250000,
+    "provider_attempt_definition": "one chat-completion HTTP request, including recovery halves and failed requests; /tokenize and /models requests are auxiliary, journalled separately, not counted",
+    "hidden_retries": "none: recovery.retries 0, requests has no retry adapter",
+    "admission": "no new completion at or after start+165 min (deadline minus the 900 s request timeout), at 180 attempts, or once STOP_REQUESTS exists; the process runs under a hard kill at the deadline; the allowance is 180 minus every journalled attempt, so a restart never replenishes it",
+    "clock": "run-clock.json is written before the first model-service contact (including /models and /tokenize) and never moved",
+    "projected_nominal_calls": 60,
+    "projected_upper_bound_with_recovery": 180,
+    "projected_minutes_by_prior_seconds_per_call": [
+      {
+        "group": "grafton-isotrope",
+        "cumulative_projected_minutes": 4.7
+      },
+      {
+        "group": "mitchell-valuation-vin-1g1pc5sb6e7111015",
+        "cumulative_projected_minutes": 80.2
+      },
+      {
+        "group": "mission-tyler",
+        "cumulative_projected_minutes": 94.4
+      },
+      {
+        "group": "pepco-residential",
+        "cumulative_projected_minutes": 118.0
+      },
+      {
+        "group": "caterpillar-excavator-specs",
+        "cumulative_projected_minutes": 127.4
+      },
+      {
+        "group": "lancaster-husker-steel",
+        "cumulative_projected_minutes": 141.6
+      }
+    ],
+    "fit": "nominal calls fit the attempt allowance; time is the binding limit. At the prior run's mean seconds per call the full schedule is close to the 165-minute admission cutoff; medium-document output density is unmeasured, so later groups (lancaster first) may not complete. No substitution of cases."
+  },
+  "schedule": [
+    {
+      "group_index": 0,
+      "case": "short--grafton_isotrope_invoice_19503",
+      "arm": "base"
+    },
+    {
+      "group_index": 0,
+      "case": "short--grafton_isotrope_invoice_19503",
+      "arm": "A3"
+    },
+    {
+      "group_index": 1,
+      "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "arm": "A3"
+    },
+    {
+      "group_index": 1,
+      "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "arm": "base"
+    },
+    {
+      "group_index": 2,
+      "case": "short--mission-tx-tyler-invoice",
+      "arm": "base"
+    },
+    {
+      "group_index": 2,
+      "case": "short--mission-tx-tyler-invoice",
+      "arm": "A3"
+    },
+    {
+      "group_index": 3,
+      "case": "short--dc-pepco-residential-bill",
+      "arm": "A3"
+    },
+    {
+      "group_index": 3,
+      "case": "short--dc-pepco-residential-bill",
+      "arm": "base"
+    },
+    {
+      "group_index": 4,
+      "case": "short--caterpillar_spec_sheet_312c_excavator",
+      "arm": "base"
+    },
+    {
+      "group_index": 4,
+      "case": "short--caterpillar_spec_sheet_312c_excavator",
+      "arm": "A3"
+    },
+    {
+      "group_index": 5,
+      "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "arm": "A3"
+    },
+    {
+      "group_index": 5,
+      "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "arm": "base"
+    }
+  ],
+  "cases": [
+    {
+      "order": 0,
+      "case": "short--grafton_isotrope_invoice_19503",
+      "group": "grafton-isotrope",
+      "case_sha256": "056e36ac5ae59baabfceb97495088643adbea9548dc25a79b80a72c2e3005403",
+      "arm_order": [
+        "base",
+        "A3"
+      ],
+      "length_category": "short",
+      "characters": 936,
+      "passages": 35,
+      "pages": 1,
+      "chunks": 1,
+      "arms": {
+        "base": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "chunks": 1,
+          "request_fingerprints": [
+            "5f99f4a5cdfa3247fdf8d2b2e4e5265a5cf78564a8fd16febb17f84b43453d75"
+          ],
+          "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+          "requests_identical_to_prior_run": true
+        },
+        "A3": {
+          "calls": 1,
+          "upper_bound_with_recovery": 3,
+          "chunks": 1,
+          "request_fingerprints": [
+            "2126108f2cd5fc063768395d9916c17caacb1f34e671f764dcfbf1adc2b733bb"
+          ],
+          "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+          "requests_identical_to_prior_run": true
+        }
+      },
+      "annotation_availability": {
+        "document": {
+          "gold_records": 1,
+          "gold_value_fields": 22,
+          "ev_gold_fields": 22,
+          "gold_absent_fields": 14
+        },
+        "document.line_items": {
+          "gold_records": 1,
+          "gold_value_fields": 5,
+          "ev_gold_fields": 5,
+          "gold_absent_fields": 3
+        }
+      },
+      "projected_minutes": 4.7
+    },
+    {
+      "order": 1,
+      "case": "medium--1G1PC5SB6E7111015_professional_valuation",
+      "group": "mitchell-valuation-vin-1g1pc5sb6e7111015",
+      "case_sha256": "39b4c0cfaa64e15416209b5889247d02f4b05a2aa02ad6e42c2482eef1a87805",
+      "arm_order": [
+        "A3",
+        "base"
+      ],
+      "length_category": "medium",
+      "characters": 22303,
+      "passages": 785,
+      "pages": 13,
+      "chunks": 16,
+      "arms": {
+        "base": {
+          "calls": 16,
+          "upper_bound_with_recovery": 48,
+          "chunks": 16,
+          "request_fingerprints": [
+            "e735796470408eeb29d6409bf172f627b4e04db7428b74f0425c005ba56fb84e",
+            "d2391b7446df8e8aa8afa675ddb0f4b45b31b3c2c83d63f4ae833706520a5703",
+            "59d30b54130a51a122d37f0685680d3db95e6fc960a9cae83723c963774f33be",
+            "59429883b34d060cdd56903f5c58c2399f1bf172750f16b79f84a852b4dfa433",
+            "70530f39235f04023518bad80c392d96b539b0190190cb75e8157dd6d2a8712b",
+            "1cb1f2b04fe63b6bd4837cb523ce2f58829dd5551c323307dc9a4c0ca0a6aac1",
+            "4aca149fbb0c564ddac58a26ee705df1476d8f3a62732b846cc7fc624df4daee",
+            "3a419d601466493046d8d0bc91f87f8445c66e29f9352b26940b790cf9362a45",
+            "c742885360bad5c97f231f3315893e60647e4c87031e69e8fa9a5c648ff3f0b3",
+            "2924b6567aa28dc7b3746a7f785fffc56e6d4b772bb5446b4ef2fef88bfc5057",
+            "ac2789a66336653c9ee9899a852c0148f7e26df6e36897df7b6ce83a59769c12",
+            "3be6f83b7ff49e59146e0c3aadcdfd0bfad6cc680d2982c88aab3c7661684ba3",
+            "9e9d36f9b38fdf93be3468e9d18d546f423c6751f7c5bf9f86954545c863307a",
+            "f4a01e9950b3033766b4a74165c557b4c81120db1e31b307e87f4f1a3257b298",
+            "4043762bfecadadaf64c078f66b4059bc2cddd73874fff6f106fe0f6063e14d9",
+            "c34ad05c87ebf98d2d4525d75f1fa62feed0f7b7a491114c9f7e63d48b7e78ec"
+          ],
+          "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+          "requests_identical_to_prior_run": true
+        },
+        "A3": {
+          "calls": 16,
+          "upper_bound_with_recovery": 48,
+          "chunks": 16,
+          "request_fingerprints": [
+            "f40d588efcefb89a11560cfd55db8bd90b7d65fc0a081a624d8278cd7d921f92",
+            "547763482806b951f1581868808871f641491d1325f706003c55a84ca5cfa4ec",
+            "577cde998ff552578e9e53fa8921b573901a46064a2d84865bfee7a6596058df",
+            "7f16e6effc4883fe38ef16a420de2f8fc2b1f2562e036a4b4bd62961bb2df1f4",
+            "0fc7b6a25094dcffc83f65ad1b7c6f6a68a97f0f0e1afdaa4b9e7b03b337afac",
+            "9a68109dacc86e2244167c6a48ac280a27345a4ac8d510a27146d4f65c567c16",
+            "82d277475b9718a1976e0a7fa8a12445d9abef5c348dc019c45b5a5cd70bc837",
+            "a05714daa7281d9b3704bd5c47f2337de32af32e42ccd03da8fe562a8cf3b730",
+            "0f55b9e3136e7a82cc54adf8fa02b2f863ea2a6854ec2dc3b02b0a3303b9959e",
+            "6ea2493ff67e2911abee85002953d710b387e8abafefdf303b5f4ad2589ce066",
+            "7082d2575e67458d0a271cc3c784e723eecbe86f07a91011fe02bc60aaf6912f",
+            "82d8e5b9b91a346a068745be262cecf59e711f32d15ee955abe4aae75e08a3c7",
+            "ef62d5255a5ed4f784256595e612040cfbd59479a081a4e6ca487916e3429dd7",
+            "290a5b4fd82b28488cb7bba87fa14497bd8a21d69009935a923829585e2ba893",
+            "0817c4be5d5860581ac0b5106d865c94726ddeb828a24b7b611a54557e348a88",
+            "97dbdeb2ae818aea814695815e55db732607485295d2cce99fa9cd9ec6535958"
+          ],
+          "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+          "requests_identical_to_prior_run": true
+        }
+      },
+      "annotation_availability": {
+        "document": {
+          "gold_records": 1,
+          "gold_value_fields": 36,
+          "ev_gold_fields": 36,
+          "gold_absent_fields": 6
+        },
+        "document.comparable_vehicles": {
+          "gold_records": 14,
+          "gold_value_fields": 275,
+          "ev_gold_fields": 275,
+          "gold_absent_fields": 19
+        },
+        "document.comparable_vehicles.equipment_adjustments": {
+          "unannotated_collections": 14
+        }
+      },
+      "projected_minutes": 75.5
+    },
+    {
+      "order": 2,
+      "case": "short--mission-tx-tyler-invoice",
+      "group": "mission-tyler",
+      "case_sha256": "f0c673a198c305fb6eeb36caee6e2b30b6911f6ca17fb599d4acfe376900b95a",
+      "arm_order": [
+        "base",
+        "A3"
+      ],
+      "length_category": "short",
+      "characters": 3946,
+      "passages": 135,
+      "pages": 2,
+      "chunks": 3,
+      "arms": {
+        "base": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "chunks": 3,
+          "request_fingerprints": [
+            "f17824e378a13fc8f3d976d11c842fcfaed4e15baf6b5e1cf3ba4a5584266a30",
+            "767990a920cebc3c308ecca169ab04d0de5297e5c8d1d444e1f5b2cffc9db2b3",
+            "0ba89d35918174223cdff423b53baa454325970f26ae22d02d032656eb4d38d0"
+          ],
+          "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+          "requests_identical_to_prior_run": true
+        },
+        "A3": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "chunks": 3,
+          "request_fingerprints": [
+            "b626127d76a5228f35694d76357be5836794f54015385864ebfb47e88c11afc9",
+            "59c15d8ebf12ceba39fd04ed6edcd8f5230aee2b21fcb4d5debb03febc279f3b",
+            "ce2e7bbfc908b2ba36c4a4d4e2e369f03628df9b4b148e4a033595e39d606256"
+          ],
+          "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+          "requests_identical_to_prior_run": true
+        }
+      },
+      "annotation_availability": {
+        "document": {
+          "gold_records": 1,
+          "gold_value_fields": 24,
+          "ev_gold_fields": 23,
+          "gold_absent_fields": 12
+        },
+        "document.line_items": {
+          "gold_records": 8,
+          "gold_value_fields": 34,
+          "ev_gold_fields": 34,
+          "gold_absent_fields": 30
+        }
+      },
+      "projected_minutes": 14.2
+    },
+    {
+      "order": 3,
+      "case": "short--dc-pepco-residential-bill",
+      "group": "pepco-residential",
+      "case_sha256": "9519c7528e41fcf6cdf0031009a857177b7d968544104b134a4aac59e94513d2",
+      "arm_order": [
+        "A3",
+        "base"
+      ],
+      "length_category": "short",
+      "characters": 7208,
+      "passages": 176,
+      "pages": 3,
+      "chunks": 5,
+      "arms": {
+        "base": {
+          "calls": 5,
+          "upper_bound_with_recovery": 15,
+          "chunks": 5,
+          "request_fingerprints": [
+            "0908cad5952b5e6edd58b365f2599caf1efefee9ca9eb87c3e57a39fd4c9b5e8",
+            "810381d95a71cf513dc51b2b7515f33d6f1086d112c1ec5ca73c5120f6245af7",
+            "6581f9238e78bae3a89d899036ad993e6e1ad0bcbf39eea5cc651382062a3b72",
+            "0fee86c27d2022deb42cd5de87c2b7b2e33a885c1953b51f72a048c461224ec6",
+            "6b3c1456a30f3756b567fb460ff4c98e91b5beb208fe9703ad2b8245e722dd45"
+          ],
+          "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+          "requests_identical_to_prior_run": true
+        },
+        "A3": {
+          "calls": 5,
+          "upper_bound_with_recovery": 15,
+          "chunks": 5,
+          "request_fingerprints": [
+            "35b3f79c71cc1939a9ead78754d724fe0cd2dd9498d3c922a9bbf143a57eb782",
+            "9ba072c3e1764416e04d8b9047e8e704ba808f423645c7866ae13f8dc8d6841a",
+            "af0fa0a3ef78939f9cc49a667adbeb73d186be6b8465e58bc71e5a7d8de8c6ec",
+            "9744c1f53ae79504cf95a51bcbb7b4ccb404addae4bb77947260126a54fa06a4",
+            "e09853702fc39efebd8cfb12f67b733c9025bca451a3305aaf80fac0d1406b98"
+          ],
+          "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+          "requests_identical_to_prior_run": true
+        }
+      },
+      "annotation_availability": {
+        "document": {
+          "gold_records": 1,
+          "gold_value_fields": 14,
+          "ev_gold_fields": 14,
+          "gold_absent_fields": 1
+        },
+        "document.meters": {
+          "gold_records": 1,
+          "gold_value_fields": 6,
+          "ev_gold_fields": 6
+        }
+      },
+      "projected_minutes": 23.6
+    },
+    {
+      "order": 4,
+      "case": "short--caterpillar_spec_sheet_312c_excavator",
+      "group": "caterpillar-excavator-specs",
+      "case_sha256": "1f220ca14f72d1f7e25af51dc26b1a2e86b3037c710fcbbf2a126515c2438ac0",
+      "arm_order": [
+        "base",
+        "A3"
+      ],
+      "length_category": "short",
+      "characters": 2085,
+      "passages": 64,
+      "pages": 1,
+      "chunks": 2,
+      "arms": {
+        "base": {
+          "calls": 2,
+          "upper_bound_with_recovery": 6,
+          "chunks": 2,
+          "request_fingerprints": [
+            "e706b6e3876fd4e433b9334d0c0635f4b4542ebbee2fc41ebc8eb4b424388163",
+            "6aa7d100b370ea7dcf9b761c260d74d8318306343f9a1045fa1496ee1aee34ee"
+          ],
+          "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+          "requests_identical_to_prior_run": true
+        },
+        "A3": {
+          "calls": 2,
+          "upper_bound_with_recovery": 6,
+          "chunks": 2,
+          "request_fingerprints": [
+            "d3ab9d5f8adabba1d9d22578ccc44a82f2a43bc7b08fd050b89db5fcaa377007",
+            "57a19e6f8cbb1e9d96a69ff173d6fe89077c0b31a7bd3952382dddd37d220128"
+          ],
+          "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+          "requests_identical_to_prior_run": true
+        }
+      },
+      "annotation_availability": {
+        "document": {
+          "gold_records": 1,
+          "gold_value_fields": 2,
+          "ev_gold_fields": 2
+        },
+        "document.specifications": {
+          "gold_records": 35,
+          "gold_value_fields": 205,
+          "ev_gold_fields": 205,
+          "gold_absent_fields": 180
+        }
+      },
+      "projected_minutes": 9.4
+    },
+    {
+      "order": 5,
+      "case": "short--lancaster_county_ne_requisition_po_husker_steel",
+      "group": "lancaster-husker-steel",
+      "case_sha256": "ff16b79ffe458f0c6ad7c5bf8f7c96516cbcc39fdb12af027443fa0e75acaba1",
+      "arm_order": [
+        "A3",
+        "base"
+      ],
+      "length_category": "short",
+      "characters": 4400,
+      "passages": 119,
+      "pages": 6,
+      "chunks": 3,
+      "arms": {
+        "base": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "chunks": 3,
+          "request_fingerprints": [
+            "fd9c3120afcfead5f08380cdc2c3b59a0c3b249c189d1a8690065b0270ffbad9",
+            "7158643e3b40aa55e273109c9ead7d746e7e8ed6614eef330ac6352a828acb9d",
+            "46ea0bdc67f4e1a478f84f8e279faa17bac5d8bd7df5784344bde6bcbaf54fd5"
+          ],
+          "config_sha256": "1b71007e3bb924ca881f86648f696948ec653513a73e071ebcc563c56d9df13e",
+          "requests_identical_to_prior_run": true
+        },
+        "A3": {
+          "calls": 3,
+          "upper_bound_with_recovery": 9,
+          "chunks": 3,
+          "request_fingerprints": [
+            "dffd7953e7229f4c5bdefce4edf66d06c2b4e67a1f38952f699232342b84f7a5",
+            "5026893304efd13319ec4e21c57fc32af3bc3001e83fba372ce957d97b6735d7",
+            "70a354d3c71e304bf3d7a70587e022c7108709243cc483d4e0c355462d935c94"
+          ],
+          "config_sha256": "e1b0cddc47b19e8236a7693b2982c0959aaba19274329a5b597556922915247c",
+          "requests_identical_to_prior_run": true
+        }
+      },
+      "annotation_availability": {
+        "document": {
+          "gold_records": 1,
+          "gold_absent_fields": 6,
+          "gold_value_fields": 9,
+          "ev_gold_fields": 9
+        },
+        "document.line_items": {
+          "gold_records": 3,
+          "gold_value_fields": 18,
+          "ev_gold_fields": 18,
+          "gold_absent_fields": 6
+        }
+      },
+      "projected_minutes": 14.2
+    }
+  ]
+}
