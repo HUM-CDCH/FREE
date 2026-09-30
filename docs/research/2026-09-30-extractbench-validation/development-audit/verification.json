@@ -1,0 +1,82 @@
+{
+  "audit_date": "2026-09-30",
+  "verified_at": "2026-09-30T14:51:42.710985+00:00",
+  "baseline_commit": "406263e58c030b367af75ddf1a9e16717ac9c1e5",
+  "preserved_stacked_base": "16819c72cf1ef54bfdf73d4159c5ee65dce048f8",
+  "tracked_files_changed": [],
+  "launch_source_files_matched": 100,
+  "frozen_private_files_matched": 107,
+  "existing_public_audit_reproduced_byte_for_byte": true,
+  "existing_public_reproduced_files": [
+    "report-v2-sanitized.json",
+    "population.json",
+    "per-document-all-development.csv"
+  ],
+  "existing_audit_json_structurally_identical": true,
+  "local_links_checked": 55,
+  "new_artifact_whitespace_checked": true,
+  "checks": [
+    {
+      "name": "Illinois scoring audit",
+      "exit_code": 0,
+      "expected_counts_reproduced": true,
+      "raw_f1": 0.57,
+      "canonical_f1": 0.78,
+      "network_attempts": 0
+    },
+    {
+      "name": "Synthetic actual-executor cell-budget counterexample",
+      "exit_code": 0,
+      "configured_cell_call_cap": 2,
+      "cumulative_scripted_calls": 3,
+      "second_attempt_replays": 1,
+      "live_provider_calls": 0
+    },
+    {
+      "name": "Existing targeted offline tests",
+      "command": "pytest -q tests/test_harness_evaluate.py tests/test_harness_v2.py tests/test_harness_study.py -m 'not live_model'",
+      "passed": 55,
+      "elapsed_seconds": 22.08,
+      "exit_code": 0
+    },
+    {
+      "name": "Audit helper Python compile check",
+      "exit_code": 0
+    }
+  ],
+  "boundaries": {
+    "fresh_extraction_calls": 0,
+    "fresh_ocr_calls": 0,
+    "serving_tokenizer_calls": 0,
+    "heldout_pdf_or_annotation_access": 0,
+    "production_or_deployment_actions": 0,
+    "challenger_selected": false,
+    "future_execution_authorized_by_this_audit": false
+  },
+  "audit_artifact_sha256": {
+    "README.md": "88cb66ce27a358bf1a8a0194d631ef366dca6f7737efb8705f3c0ac55648465a",
+    "audit_scoring.py": "608f9fa72b7c82c59fa23396f30cb835c0215eef5e9687ef1fd383b18fb4d1ab",
+    "error-ledger.md": "4763cddc017f68b5ce151c01d0a16ad68bfe36431f5bf58d4ce8e943391f1370",
+    "protocol-amendment.md": "cfeac893c735df37dc7891a693bcea4503cee651447b319b8275f07ada6668a8",
+    "reproduce_budget_reset.py": "ba06b8079591b932230d5fa7da90ab70b92a672f16676232e969baad72793122",
+    "resource-budget.md": "bcf69b6af69f9e285907a0c51499ac373a7ce51533af7a6000f9ac013be345ea",
+    "scoring-audit.json": "bfeeae42c26b05b2ce1d329d0ec656db548a643dbc18f434ef8b71ee8e6e925e",
+    "sparring-decision.md": "8afa31aec0b4a7882798e2a71c2e2d7e91980c619f3d66d2e3767000b90a9bce",
+    "sparring-metadata.json": "f5ffc81ae72087d1424cd58d28e7880735dc38cc0ff1c7724cf93270e25d6701"
+  },
+  "pre_sparring_verified_at": "2026-09-30T14:21:07.245363+00:00",
+  "sparring_consultation": {
+    "model": "claude-fable-5-1",
+    "rounds": 3,
+    "source_implementation_unchanged": true,
+    "final_verdict_adopted": true,
+    "unsupported_claims_rejected": true,
+    "metadata": "sparring-metadata.json"
+  },
+  "proposal_disposition": {
+    "150_minute_pilot": "withdrawn",
+    "added_per_group_completeness_gate": "withdrawn",
+    "handwritten_semantic_guidance": "withdrawn",
+    "new_validation_spending": "not authorized"
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "date": "2026-09-30",
+  "cli": "Claude Code 2.1.285",
+  "user_requested_model": "Fable 5.1",
+  "resolved_model": "claude-fable-5-1",
+  "official_model_reference": "https://platform.claude.com/docs/en/models/fable-5-1/overview",
+  "scope": "Explicitly user-requested separate sparring consultation; not development extraction, provider smoke, or heldout inference",
+  "safe_mode": true,
+  "session_persistence": false,
+  "mcp_servers": [],
+  "rounds": [
+    {
+      "round": "initial",
+      "model": "claude-fable-5-1",
+      "num_turns": 1,
+      "duration_ms": 119902,
+      "status": "success",
+      "tools_available": [],
+      "prompt_sha256": "420e3ea5c666db3f1bc4c2ca3f1017cdaa90746ec846b1115b5bb01aa3b99e49",
+      "response_file_sha256": "3e7f0c62a76d31759bbf3b0ff4c360f311fba55c2dafd1e7a826328f381ad126",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 27360,
+        "cache_read_input_tokens": 531,
+        "output_tokens": 8146,
+        "output_tokens_details": {
+          "thinking_tokens": 5962
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 27360,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 8146,
+            "cache_read_input_tokens": 531,
+            "cache_creation_input_tokens": 27360,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 27360
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "model_usage": {
+        "inputTokens": 2,
+        "outputTokens": 8146,
+        "cacheReadInputTokens": 531,
+        "cacheCreationInputTokens": 27360,
+        "webSearchRequests": 0,
+        "costUSD": 0.95465275,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 5962,
+        "canonicalModel": "claude-fable-5-1",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "assessment": "unsupported claims rejected; valid observations independently checked"
+    },
+    {
+      "round": "challenge",
+      "model": "claude-fable-5-1",
+      "num_turns": 1,
+      "duration_ms": 115794,
+      "status": "success",
+      "tools_available": [],
+      "prompt_sha256": "84bbb7063499bafd67fec25f02bfddc5b3a1f8151feb288f88a2f3087ccade46",
+      "response_file_sha256": "665bfbc55d84d843e7e6961071c1c3fe3a134a7ddb8aef32a08be20e8b1f382e",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 5996,
+        "cache_read_input_tokens": 3322,
+        "output_tokens": 10134,
+        "output_tokens_details": {
+          "thinking_tokens": 897
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 5996,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 10134,
+            "cache_read_input_tokens": 3322,
+            "cache_creation_input_tokens": 5996,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 5996
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "model_usage": {
+        "inputTokens": 2,
+        "outputTokens": 10134,
+        "cacheReadInputTokens": 3322,
+        "cacheCreationInputTokens": 5996,
+        "webSearchRequests": 0,
+        "costUSD": 0.6274705,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 897,
+        "canonicalModel": "claude-fable-5-1",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "assessment": "file-inspection claims fabricated and rejected"
+    },
+    {
+      "round": "verified_facts",
+      "model": "claude-fable-5-1",
+      "num_turns": 1,
+      "duration_ms": 27331,
+      "status": "success",
+      "tools_available": [],
+      "prompt_sha256": "20c0a1a005ccf9d9e483d93d3bea4dc9b3e72c2fd1b7a5f0c72b32daf7db59e5",
+      "response_file_sha256": "9a1d0eddca670c8e4cf47a788bba6f35bc6d05b45e8f2b822a01adc812cd05c7",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 2288,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 1966,
+        "output_tokens_details": {
+          "thinking_tokens": 836
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 2288,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 1966,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 2288,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 2288
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "model_usage": {
+        "inputTokens": 2,
+        "outputTokens": 1966,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 2288,
+        "webSearchRequests": 0,
+        "costUSD": 0.14408,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 836,
+        "canonicalModel": "claude-fable-5-1",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "assessment": "adopted evidence-bounded verdict"
+    }
+  ],
+  "total_reported_list_price_estimate_usd": 1.7262032500000002,
+  "pricing_limit": "CLI list-price estimates are not a bill or a change to the local extraction provider",
+  "fresh_development_extraction_calls": 0,
+  "source_and_gold_excerpts_supplied": false,
+  "raw_prompts_and_replies_storage": "ignored .scratch/fable-sparring-2026-09-30",
+  "no_tool_execution_in_consultation": true
+}
