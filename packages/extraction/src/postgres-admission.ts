@@ -215,16 +215,19 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
  * Representation Revision and Extraction Schema, a finalized review's else its saved draft's, read in the admission
  * transaction.
  */
-async function samplesReviewTransfer(orm: DatabaseOrm, pins: AdmissionPins): Promise<ReviewTransfer | null> {
+async function samplesReviewTransfer(orm: DatabaseOrm,
+  pins: Pick<AdmissionPins, 'sourceDocumentId' | 'sourceRepresentationRevisionId' | 'extractionSchemaId'>,
+): Promise<ReviewTransfer | null> {
+  const revisions = await orm.public.SchemaRevision.where({ extractionSchemaId: pins.extractionSchemaId }).select('id').all()
   const rows = (await orm.public.Extraction.where({
     sourceDocumentId: pins.sourceDocumentId, sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
     outcome: 'SUCCEEDED', reviewable: true,
-  }).select('id', 'requestedPages', 'reviewDraft', 'reviewDraftVersion', 'reviewPairings').all())
+  }).where((row) => row.schemaRevisionId.in(revisions.map((revision) => revision.id)))
+    .select('id', 'requestedPages', 'reviewDraft', 'reviewDraftVersion', 'reviewPairings').all())
     .filter((row) => row.requestedPages !== null)
   const samples = []
   for (const row of await readAttemptRows(orm, rows.map((each) => each.id))) {
     const sample = await extractionSnapshot(orm, row)
-    if (sample.extractionSchemaId !== pins.extractionSchemaId) continue
     const draft = rows.find((each) => each.id === row.id)!
     const revision = await orm.public.SchemaRevision.select('schemaTree').first({ id: sample.schemaRevisionId })
     const nodes = parseExtractionSchema(revision?.schemaTree).schemaNodes
@@ -532,6 +535,7 @@ export async function admitBatchMember(
   member: BatchMemberAdmission,
 ): Promise<void> {
   const id = batchMemberExtractionId(member.batchExtractionId, member.sourceDocumentId)
+  const reviewTransfer = await samplesReviewTransfer(orm, member)
   await orm.public.Extraction.create({
     id,
     sourceDocumentId: member.sourceDocumentId,
@@ -542,6 +546,7 @@ export async function admitBatchMember(
     requestedModels: member.requestedModels,
     requestedSettings: member.requestedSettings,
     batchExtractionId: member.batchExtractionId,
+    ...(reviewTransfer ? { reviewTransfer } : {}),
   })
   await execution.enqueue(client, {
     workflowName: RUN_EXTRACTION,

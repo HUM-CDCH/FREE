@@ -10,6 +10,7 @@ import { ExtractionError } from './errors.js'
 import { REFERENCE_ARTICLE, type ExtractionMethodIntent } from './extraction-method.js'
 import { keiExtractWorkflowId, type KeiExtractInput } from './kei-handoff.js'
 import { createExtractionModule } from './module.js'
+import { saveStoredReviewDraft } from './postgres-reviews.js'
 import { fixture, type SeededDocument, type SeededProject } from './testing/extraction-fixture.js'
 import type { BatchRepetition } from './types.js'
 import { RUN_EXTRACTION } from './workflows.js'
@@ -25,7 +26,105 @@ describe('Extraction batches on disposable PostgreSQL', { skip: !fixture && 'set
     app, execution, seedProject, addRepresentation, scheduler,
     eventually, createRuntime, freshInput, rejectsWithCode, waitForBatch,
     heldByKei, extractionRow, cleanup, configureAccount, modelConfigurations, untilLockWait, untilSignalled, ports,
+    succeeded,
   } = fixture
+
+  async function sample(project: SeededProject, document: SeededDocument, anchor: string) {
+    const id = randomUUID(), path = ['records', 0, 'title']
+    await db.orm.public.Extraction.create({ id, sourceDocumentId: document.sourceDocumentId,
+      sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE', requestedPages: [1], outcome: 'SUCCEEDED', complete: true, reviewable: true,
+      diagnostics: succeeded(id, project).diagnostics, resultPayload: { records: [{ title: 'Alpha' }] },
+      evidenceLinks: [{ resultPath: path, evidenceAnchorId: anchor }], reviewDraftVersion: 1,
+      reviewDraft: [{ resultPath: path, evidenceAnchorId: anchor, reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null }] })
+    return id
+  }
+
+  // Observe the real pooled transaction; fail a snapshot read before its row/enqueue can commit.
+  async function observeSnapshots<T>(run: () => Promise<T>, failSource?: string) {
+    const original = pg.Client.prototype.query
+    const reads: string[] = [], counts = new Map<object, number>(), clients = new Set<object>()
+    pg.Client.prototype.query = new Proxy(original, { apply(target, client: object, args: unknown[]) {
+      counts.set(client, (counts.get(client) ?? 0) + 1)
+      const query = args[0] as string | { text?: string; values?: unknown[] }
+      const sql = typeof query === 'string' ? query : query.text ?? ''
+      const values = (typeof query === 'string' ? args[1] : query.values) as unknown[] | undefined
+      if (sql.includes('"requestedPages"') && sql.includes('"reviewDraftVersion"') && sql.includes('"reviewPairings"') && sql.startsWith('SELECT')) {
+        const source = values?.find((value) => typeof value === 'string' && selectedSources.has(value)) as string | undefined
+        assert.ok(source, 'snapshot reads must have one selected-source predicate')
+        reads.push(source); clients.add(client)
+        if (source === failSource) return Promise.reject(new Error('snapshot read failed on member4'))
+      }
+      return Reflect.apply(target, client, args)
+    } })
+    const started = performance.now()
+    try {
+      const result = await run()
+      return { result, reads, queries: [...clients].reduce((sum, client) => sum + counts.get(client)!, 0), elapsedMs: performance.now() - started }
+    } finally { pg.Client.prototype.query = original }
+  }
+  const selectedSources = new Set<string>()
+
+  for (const size of [6, 50]) it(`pins only selected-source samples for ${size} members, retaining replay snapshots`, async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, Array.from({ length: size + 1 }, (_, index) => `${index}.pdf`))
+    const selected = project.documents.slice(0, size)
+    selectedSources.clear(); selected.forEach((document) => selectedSources.add(document.sourceDocumentId))
+    kei.holding = true
+    // Two eligible samples on one source, and unrelated history that must never be queried.
+    const first = await sample(project, selected[0]!, 'a_p1_s0')
+    await sample(project, selected[0]!, 'a_p2_s0')
+    await sample(project, project.documents[size]!, 'outside-selection')
+    const request = { projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
+      sourceDocumentIds: selected.map((document) => document.sourceDocumentId), strategy: 'ARTICLE' as const,
+      repetition: 'reuse-equal-selection' as const, method: SERVICE_DEFAULTS }
+    const module = scheduler(project.researcherAccountId)
+    const measured = await observeSnapshots(() => module.scheduleBatch(request))
+    assert.equal(measured.reads.length, size)
+    assert.deepEqual(new Set(measured.reads), selectedSources)
+    const members = () => db.orm.public.Extraction.where({ batchExtractionId: measured.result.batch.batchExtractionId })
+      .select('id', 'sourceDocumentId', 'requestedPages', 'reviewTransfer').all()
+    const rows = await members(), pinned = rows.find((row) => row.sourceDocumentId === selected[0]!.sourceDocumentId)!.reviewTransfer
+    assert.equal((pinned as { entries: unknown[] }).entries.length, 2)
+    assert.equal(rows.filter((row) => row.reviewTransfer !== null).length, 1)
+    assert.ok(rows.every((row) => row.requestedPages === null))
+    t.diagnostic(JSON.stringify({ members: size, snapshotReads: measured.reads.length, queries: measured.queries,
+      elapsedMs: Math.round(measured.elapsedMs), snapshotBytes: Buffer.byteLength(JSON.stringify(pinned)) }))
+    await saveStoredReviewDraft(db as Database, project.researcherAccountId, first, { version: 1, decisions: [] })
+    assert.equal((await module.scheduleBatch(request)).disposition, 'replayed')
+    assert.deepEqual((await members()).find((row) => row.sourceDocumentId === selected[0]!.sourceDocumentId)!.reviewTransfer, pinned)
+    const fresh = await module.scheduleBatch({ ...request, repetition: 'create-new' })
+    const refreshed = await db.orm.public.Extraction.where({ batchExtractionId: fresh.batch.batchExtractionId,
+      sourceDocumentId: selected[0]!.sourceDocumentId }).select('reviewTransfer').first()
+    assert.equal((refreshed!.reviewTransfer as { entries: unknown[] }).entries.length, 1)
+  })
+
+  for (const suggested of [false, true]) it(`snapshot failure on member4 rolls back ${suggested ? 'suggested' : 'ordinary'} batch admission`, async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, Array.from({ length: 6 }, (_, index) => `${index}.pdf`))
+    const selected = [...project.documents].sort((a, b) => a.sourceDocumentId.localeCompare(b.sourceDocumentId))
+    selectedSources.clear(); selected.forEach((document) => selectedSources.add(document.sourceDocumentId))
+    kei.holding = true
+    const module = scheduler(project.researcherAccountId)
+    const suggestionId = randomUUID()
+    if (suggested) {
+      await db.orm.public.BatchSchemaSuggestion.create({ id: suggestionId, projectContextId: project.projectContextId,
+        selectionKey: sha256(strToU8(suggestionId)), outcome: 'SUCCEEDED', phase: 'READY', draft: ARTICLE_SCHEMA, draftVersion: 1 })
+      for (const document of selected) await db.orm.public.BatchSchemaSuggestionSource.create({ batchSchemaSuggestionId: suggestionId,
+        sourceDocumentId: document.sourceDocumentId, sourceRepresentationRevisionId: document.sourceRepresentationRevisionId })
+    }
+    const run = () => suggested ? module.scheduleSuggestedBatch({ projectContextId: project.projectContextId, batchSchemaSuggestionId: suggestionId,
+      strategy: 'ARTICLE', method: SERVICE_DEFAULTS }) : module.scheduleBatch({ projectContextId: project.projectContextId,
+      schemaRevisionId: project.schemaRevisionId, sourceDocumentIds: selected.map((document) => document.sourceDocumentId),
+      strategy: 'ARTICLE', repetition: 'reuse-equal-selection', method: SERVICE_DEFAULTS })
+    await assert.rejects(observeSnapshots(run, selected[3]!.sourceDocumentId), /snapshot read failed on member4/)
+    assert.deepEqual(await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all(), [])
+    for (const document of selected) assert.deepEqual(await db.orm.public.Extraction.where({ sourceDocumentId: document.sourceDocumentId }).select('id').all(), [])
+    assert.deepEqual(await app.admission.listWorkflows({ workflowName: RUN_EXTRACTION, authenticatedUser: project.researcherAccountId }), [])
+    if (suggested) assert.deepEqual(await db.orm.public.BatchSchemaSuggestion.select('confirmedSchemaRevisionId', 'batchExtractionId').first({ id: suggestionId }),
+      { confirmedSchemaRevisionId: null, batchExtractionId: null })
+    assert.equal((await run()).disposition, 'created')
+  })
 
   it('batch admission locks members in sorted order and creates one pending Extraction per member with a deterministic ID', async (t) => {
     t.after(cleanup)

@@ -79,13 +79,20 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
     assert.equal(previousDecision?.action, 'EDITED')
   })
 
-  it('seeds a run whose every value carries from a reviewed sample, and only finalization makes it authoritative', async (t) => {
+  for (const batchMember of [false, true]) it(`seeds a ${batchMember ? 'batch member' : 'single run'} whose every value carries, requiring explicit finalization`, async (t) => {
     t.after(cleanup)
     const project = await seedProject()
     const { module } = createRuntime(project.researcherAccountId)
     const sample = (await module.runSingle({ ...freshInput(project), pages: [1] })).extraction.extractionId
     await module.saveReviewDraft(sample, { version: 0, decisions: (await module.prepareReview(sample)).reviewDecisions })
-    const full = (await module.runSingle(freshInput(project))).extraction.extractionId
+    let full: string
+    if (batchMember) {
+      const scheduled = await module.scheduleBatch({ projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE', sourceDocumentIds: [project.documents[0]!.sourceDocumentId], repetition: 'create-new', method: { models: null, settings: { article: null } } })
+      const batch = await waitForBatch(module, project.projectContextId, scheduled.batch.batchExtractionId, (batch) => batch.executionStatus === 'COMPLETED')
+      full = batch.members[0]!.latestExtraction!.extractionId
+      assert.equal((await module.readExtractionAttempt(full))?.batchExtractionId, scheduled.batch.batchExtractionId)
+    } else full = (await module.runSingle(freshInput(project))).extraction.extractionId
     const prepared = await module.prepareReview(full)
     const seeded = await module.readReviewDraft(full)
     assert.deepEqual(seeded, {

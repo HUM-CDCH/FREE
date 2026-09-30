@@ -101,7 +101,7 @@ researcher picks the passage.
 
 ### 6. Transfer snapshot pinned at admission
 
-A single scoped or full Extraction admitted after samples pins
+A scoped, full or Batch Extraction member admitted after samples pins
 `Extraction.reviewTransfer Json NULL`: the union of the decisions of every sample
 of the same document, Source Representation Revision and Extraction Schema
 (explicit plus carried and not overridden). Where samples decided the same
@@ -110,8 +110,12 @@ aligned are forwarded unchanged, so a sample on pp. 12–14 followed by one on
 pp. 40–42 keeps both. Each entry records its source Extraction and review draft
 version, schema node id, record key, source path key, action, model value,
 reviewed value, value type, model anchors and reviewed Evidence. Immutable once
-admitted; each sample is bounded by the 30-page cap. Batch members pin nothing in
-this change.
+admitted; each sample is bounded by the 30-page cap. The workflow integration
+follow-up uses this same source-local snapshot in `admitBatchMember`, within the
+existing ordinary/suggested batch transaction. Replay keeps it; deliberate new
+admission captures it again. A failed read aborts admission. Collection review
+uses the common preparation, pairing and draft APIs; carried suggestions never
+finalize automatically.
 
 *Alternative:* Codex's `ReviewTransferSnapshot` table. Deferred: the snapshot
 has one owner and one reader and is read with the row, like the pinned method.

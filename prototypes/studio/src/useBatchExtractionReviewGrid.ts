@@ -10,6 +10,9 @@ import type {
   ExtractionAttempt,
   ReviewDecisionAction,
   ReviewDecisionInput,
+  ReviewPairing,
+  ReviewTransferVerdicts,
+  ReviewTransferSources,
 } from '../shared/extraction.contract'
 
 export type GridColumn = {
@@ -30,6 +33,9 @@ export type MemberReviewState =
       editable: boolean
       saving: boolean
       saveError: string | null
+      transfer: ReviewTransferVerdicts
+      pairings: readonly ReviewPairing[]
+      sources: ReviewTransferSources
     }
 
 function buildColumns(schemaNodes: readonly SchemaNode[] | null): GridColumn[] {
@@ -63,8 +69,15 @@ export function decisionMatchesColumn(path: readonly (string | number)[], column
 
 export function pendingReviewCount(state: MemberReviewState): number {
   return state.status === 'ready'
-    ? state.decisions.filter((decision) => !state.touched.has(resultPathKey(decision.resultPath))).length
+    ? state.decisions.filter((decision) => decision.evidenceAnchorId !== null && !state.touched.has(resultPathKey(decision.resultPath))).length
     : 0
+}
+
+function explicitDecision(decision: ReviewDecisionInput, action: ReviewDecisionAction = 'APPROVED', reviewedValue: ReviewDecisionInput['reviewedValue'] = null): ReviewDecisionInput {
+  const next = { ...decision, action, reviewedValue: action === 'EDITED' ? reviewedValue : null }
+  delete next.carriedFrom
+  delete next.reviewedEvidence
+  return next
 }
 
 /** The reviewed projection of one Extraction's records, ready to read cells from. */
@@ -147,7 +160,7 @@ export function useBatchExtractionReviewGrid(
     const id = state.attempt.extractionId
     const decisions = state.decisions.filter((decision) => state.touched.has(resultPathKey(decision.resultPath)))
     if (draftConflicts.current.has(id)) {
-      rememberReviewDraft(id, { version: draftVersions.current.get(id) ?? 0, decisions })
+      rememberReviewDraft(id, { version: draftVersions.current.get(id) ?? 0, decisions, pairings: state.pairings })
       return
     }
     setDraftSaving((count) => count + 1)
@@ -155,6 +168,7 @@ export function useBatchExtractionReviewGrid(
     const write = saveExtractionReviewDraft(id,
       decisions,
       draftVersions.current.get(id) ?? 0,
+      state.pairings,
     ).then((saved) => { if (scopeRef.current === scope) draftVersions.current.set(id, saved.version) })
     draftWrites.current.set(id, write)
     void write.catch((error: unknown) => {
@@ -184,7 +198,7 @@ export function useBatchExtractionReviewGrid(
 
   function loadMember(sourceDocumentId: string, extractionId: string, signal: AbortSignal) {
     setMembers((current) => new Map(current).set(sourceDocumentId, { status: 'loading' }))
-    readExtraction(extractionId, signal).then(
+    return readExtraction(extractionId, signal).then(
       ({ extraction, pendingReviewDecisions, reviewDraft }) => {
         if (signal.aborted) return
         if (extraction.reviewedAt) forgetReviewDraft(extraction.extractionId)
@@ -206,6 +220,9 @@ export function useBatchExtractionReviewGrid(
           editable: extraction.reviewable && extraction.reviewedAt === null,
           saving: false,
           saveError: null,
+          transfer: reviewDraft?.transfer ?? {},
+          pairings: recovered.pairings,
+          sources: reviewDraft?.sources ?? [],
         }
         setMembers((current) => new Map(current).set(sourceDocumentId, state))
         if (recovered.retry && state.editable) persistDraft(state)
@@ -262,13 +279,13 @@ export function useBatchExtractionReviewGrid(
     setMembers((current) => {
       const state = current.get(sourceDocumentId)
       if (!state || state.status !== 'ready' || !state.editable || state.saving) return current
-      if (!state.decisions.some((decision) => resultPathKey(decision.resultPath) === key)) return current
+      if (!state.decisions.some((decision) => decision.evidenceAnchorId !== null && resultPathKey(decision.resultPath) === key)) return current
       const next = new Map(current)
       next.set(sourceDocumentId, {
         ...state,
         decisions: state.decisions.map((decision) =>
           resultPathKey(decision.resultPath) === key
-            ? { ...decision, action, reviewedValue: action === 'EDITED' ? reviewedValue : null }
+            ? explicitDecision(decision, action, reviewedValue)
             : decision,
         ),
         touched: new Set(state.touched).add(key),
@@ -290,7 +307,7 @@ export function useBatchExtractionReviewGrid(
         ...state,
         touched: new Set([
           ...state.touched,
-          ...state.decisions.map((decision) => resultPathKey(decision.resultPath)),
+          ...state.decisions.filter((decision) => decision.evidenceAnchorId !== null).map((decision) => resultPathKey(decision.resultPath)),
         ]),
       })
       return next
@@ -308,7 +325,7 @@ export function useBatchExtractionReviewGrid(
       const state = current.get(sourceDocumentId)
       if (!state || state.status !== 'ready' || !state.editable || state.saving) return current
       const matching = state.decisions.filter(
-        (decision) => decision.resultPath[0] === 'records' && decision.resultPath[1] === recordIndex,
+        (decision) => decision.evidenceAnchorId !== null && decision.resultPath[0] === 'records' && decision.resultPath[1] === recordIndex,
       )
       if (matching.length === 0) return current
       const next = new Map(current)
@@ -332,7 +349,7 @@ export function useBatchExtractionReviewGrid(
         if (state.status !== 'ready' || !state.editable || state.saving) continue
         const matching = state.decisions.filter(
           (decision) =>
-            decisionMatchesColumn(decision.resultPath, column),
+            decision.evidenceAnchorId !== null && decisionMatchesColumn(decision.resultPath, column),
         )
         if (matching.length === 0) continue
         changed = true
@@ -363,7 +380,7 @@ export function useBatchExtractionReviewGrid(
         ...state,
         decisions: state.decisions.map((decision) =>
           resultPathKey(decision.resultPath) === key
-            ? { ...decision, action: 'APPROVED', reviewedValue: null }
+            ? explicitDecision(decision)
             : decision,
         ),
         touched,
@@ -390,7 +407,7 @@ export function useBatchExtractionReviewGrid(
         setMembers((current) => new Map(current).set(sourceDocumentId, {
           ...state,
           attempt: { ...state.attempt, reviewedAt: null, reviewDecisions: [] },
-          decisions: state.decisions.map((decision) => ({ ...decision, action: 'APPROVED', reviewedValue: null })),
+          decisions: state.decisions.map((decision) => explicitDecision(decision)),
           touched: new Set(), editable: true, saving: false, saveError: null,
         }))
         onMemberSaved?.()
@@ -410,11 +427,7 @@ export function useBatchExtractionReviewGrid(
       const next = new Map(current)
       next.set(sourceDocumentId, {
         ...state,
-        decisions: state.decisions.map((decision) => ({
-          ...decision,
-          action: 'APPROVED',
-          reviewedValue: null,
-        })),
+        decisions: state.decisions.map((decision) => explicitDecision(decision)),
         touched: new Set(),
       })
       return next
@@ -446,7 +459,7 @@ export function useBatchExtractionReviewGrid(
         ...state,
         decisions: state.decisions.map((decision) =>
           matchingKeys.has(resultPathKey(decision.resultPath))
-            ? { ...decision, action: 'APPROVED', reviewedValue: null }
+            ? explicitDecision(decision)
             : decision,
         ),
         touched,
@@ -459,7 +472,7 @@ export function useBatchExtractionReviewGrid(
     const state = membersRef.current.get(sourceDocumentId)
     if (!state || state.status !== 'ready' || !state.editable || state.saving ||
       draftConflicts.current.has(state.attempt.extractionId) ||
-      state.decisions.length === 0 || pendingReviewCount(state) > 0) return
+      pendingReviewCount(state) > 0) return
     const scope = scopeRef.current
     const isCurrent = () => {
       const latest = membersRef.current.get(sourceDocumentId)
@@ -474,12 +487,14 @@ export function useBatchExtractionReviewGrid(
     try {
       await draftWrites.current.get(state.attempt.extractionId)
       const version = draftVersions.current.get(state.attempt.extractionId) ?? 0
-      const updated = await finalizeExtractionReview(state.attempt.extractionId, state.decisions, version)
+      const updated = await finalizeExtractionReview(state.attempt.extractionId,
+        state.decisions.filter((decision) => state.touched.has(resultPathKey(decision.resultPath))), version)
       if (!isCurrent()) return
       draftVersions.current.set(state.attempt.extractionId, version + 1)
       forgetReviewDraft(state.attempt.extractionId)
       setMembers((current) =>
         new Map(current).set(sourceDocumentId, {
+          ...state,
           status: 'ready',
           attempt: updated,
           decisions: updated.reviewDecisions.map(toReviewDecisionInput),
@@ -508,6 +523,29 @@ export function useBatchExtractionReviewGrid(
     }
   }
 
+  async function pairRecords(sourceDocumentId: string, pairings: readonly ReviewPairing[]) {
+    const state = membersRef.current.get(sourceDocumentId), scope = scopeRef.current
+    if (state?.status !== 'ready' || !state.editable || state.saving || draftConflicts.current.has(state.attempt.extractionId)) return
+    const id = state.attempt.extractionId
+    const current = () => scopeRef.current === scope && membersRef.current.get(sourceDocumentId)?.status === 'ready' &&
+      (membersRef.current.get(sourceDocumentId) as typeof state).attempt.extractionId === id
+    setMembers((members) => new Map(members).set(sourceDocumentId, { ...state, saving: true, saveError: null }))
+    try {
+      await draftWrites.current.get(id)
+      const saved = await saveExtractionReviewDraft(id, state.decisions.filter((decision) => state.touched.has(resultPathKey(decision.resultPath))),
+        draftVersions.current.get(id) ?? 0, pairings)
+      if (!current()) return
+      draftVersions.current.set(id, saved.version)
+      const signal = loadControllerRef.current?.signal
+      if (signal) await loadMember(sourceDocumentId, id, signal)
+    } catch (error) {
+      if (!current()) return
+      const message = failureText(error, 'The pairing could not be saved.')
+      if (message === REVIEW_DRAFT_CONFLICT) { draftConflicts.current.add(id); setDraftError(message) }
+      setMembers((members) => new Map(members).set(sourceDocumentId, { ...state, saving: false, saveError: message }))
+    }
+  }
+
   const dirtyCount = [...members.values()]
     .filter((state) => state.status === 'ready' && state.editable && state.touched.size > 0).length
 
@@ -530,5 +568,6 @@ export function useBatchExtractionReviewGrid(
     revertRow,
     saveMember,
     retryMember,
+    pairRecords,
   }
 }

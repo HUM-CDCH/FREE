@@ -2,15 +2,52 @@
 
 ### Requirement: Reviewed sample decisions are pinned at admission
 
-When a single Extraction of a Source Document is admitted after samples of the
+When an Extraction of a Source Document is admitted after samples of the
 same document, Source Representation Revision and Extraction Schema, Studio SHALL
 pin to it an immutable snapshot of the decisions of all those samples: explicit
 decisions plus carried ones not overridden. Where two samples decided the same
 aligned record and schema node, the newer decision SHALL win; decisions on
 records no later sample aligned SHALL be kept unchanged. A later change to a
 sample's review SHALL NOT change the snapshot. Nothing SHALL be pinned across a
-different Source Representation Revision or Extraction Schema. Batch Extraction
-members SHALL NOT pin a snapshot in this change.
+different Source Representation Revision or Extraction Schema. This includes
+each freshly admitted Batch Extraction member, through the same admission
+snapshot and matcher. Every member SHALL still extract its source in full.
+Ordinary and suggested batches SHALL retain their current ownership, method,
+sorted-lock and atomic enqueue contracts. Snapshot failure SHALL abort the
+entire admission; it SHALL NOT be treated as an empty snapshot.
+
+#### Scenario: Mixed collection and explicit finalization
+
+- **WHEN** a collection includes sampled and unsampled sources
+- **THEN** each member extracts its whole source and only matching decisions
+  seed its review as drafts with sample provenance
+- **AND** a wholly carried review still requires explicit finalization
+- **AND** the grid shows carried, changed, unmatched and remaining facts and
+  supports the same one-to-one hand pairing and draft conflict rules
+
+#### Scenario: Replay and deliberate repetition
+
+- **WHEN** admitted identities replay after transport failure or DBOS recovery
+- **THEN** their snapshots remain unchanged despite later sample edits
+- **WHEN** an ordinary collection uses `repetition: create-new`
+- **THEN** its new identities capture the current eligible decisions
+- **AND** confirmation of the same suggested collection replays its identities;
+  a newly created Extraction Schema normally has no eligible samples
+
+#### Scenario: Snapshot failure in a six-source collection
+
+- **WHEN** snapshot loading fails on the fourth member
+- **THEN** no collection, member or workflow commits, including a suggested
+  schema's confirmation
+- **AND** a retry of the uncommitted admission can capture current samples
+
+#### Scenario: Bounded source-local snapshot reads
+
+- **WHEN** six or fifty sources are selected
+- **THEN** snapshot reads include only each selected source's eligible history
+  under its pinned representation and Extraction Schema
+- **AND** query growth is linear in selected sources and eligible history,
+  rather than selected sources multiplied by project history
 
 #### Scenario: Full run after a partly reviewed sample
 

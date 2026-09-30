@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { SchemaNode } from 'extraction/schema'
+import { reviewAttention } from 'extraction/review-attention'
 import type { BatchExtraction } from '../../shared/batchExtraction.contract'
 import { batchExtractionProgress } from '../../shared/batchExtraction.contract'
 import type { ReviewDecisionInput } from '../../shared/extraction.contract'
 import { parseReviewedValue, resultPathKey } from '../reviewDecisions'
 import { REVIEW_DRAFT_CONFLICT } from '../reviewDrafts'
+import { ReviewAttention } from '../ReviewAttention'
 import { Button, CheckIcon, EmptyState, Pill, PencilIcon, ProgressBar, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
 import { memberStatus } from './batchExtractionStatus'
 import { StatusPill } from './BatchExtractionScreens'
@@ -160,8 +162,9 @@ function aggregateReviewFraction(gridMembers: ReadonlyMap<string, MemberReviewSt
   let totalTouched = 0
   for (const state of gridMembers.values()) {
     if (state.status !== 'ready') continue
-    totalDecisions += state.decisions.length
-    totalTouched += state.touched.size
+    const required = state.decisions.filter((decision) => decision.evidenceAnchorId !== null)
+    totalDecisions += required.length
+    totalTouched += required.filter((decision) => state.touched.has(resultPathKey(decision.resultPath))).length
   }
   if (totalDecisions === 0) return null
   return totalTouched / totalDecisions
@@ -483,7 +486,8 @@ export default function BatchExtractionReviewGrid({
   useEffect(() => {
     if (editingCell !== null) return
     for (const [id, state] of grid.members)
-      if (state.status === 'ready' && !state.saveError) void grid.saveMember(id)
+      if (state.status === 'ready' && !state.saveError && state.decisions.some((decision) => decision.evidenceAnchorId !== null) &&
+        !state.decisions.some((decision) => decision.carriedFrom)) void grid.saveMember(id)
   })
   const progress = batchExtractionProgress(batch)
   const reviewFraction = aggregateReviewFraction(grid.members)
@@ -657,7 +661,7 @@ export default function BatchExtractionReviewGrid({
               Revert all
             </Button>
             <span role="status" className="text-[11px] text-ink-muted">
-              {savingAny ? 'Saving…' : 'Completed reviews save automatically'}
+              {savingAny ? 'Saving…' : 'Completed explicit reviews save automatically; sample drafts require finalization'}
             </span>
           </div>
         </div>
@@ -842,6 +846,31 @@ export default function BatchExtractionReviewGrid({
                           onClick={() => void (state.editable ? grid.saveMember : grid.revertMember)(row.sourceDocumentId)}>Retry</button>
                       </p>
                     )}
+                    {isFirstRecordRow && state?.status === 'ready' && schemaNodes && (() => {
+                      const decided = state.decisions.filter((decision) => state.touched.has(resultPathKey(decision.resultPath)))
+                      const attention = reviewAttention(state.attempt.resultPayload ?? {}, schemaNodes, state.attempt.evidenceLinks ?? [], decided)
+                      const unmatched = [...new Set(Object.entries(state.transfer).filter(([, verdict]) => verdict.status === 'unmatched')
+                        .map(([path]) => Number(JSON.parse(path)[1])))]
+                      return <div className="mt-2 text-xs font-normal">
+                        <p>{decided.filter((decision) => decision.carriedFrom).length} reviewed in sample · {Object.values(state.transfer).filter((verdict) => verdict.status === 'changed').length} changed · {unmatched.length} unmatched records</p>
+                        <ReviewAttention attention={attention} transfer={state.transfer} onSelect={(path) => {
+                          const cell = state.attempt.extractionId + '#' + resultPathKey(path)
+                          setActiveCell(cell)
+                          document.getElementById(cell)?.scrollIntoView?.({ block: 'nearest' })
+                        }} />
+                        {state.editable && <>
+                          <Button disabled={state.saving || editingCell !== null || pendingReviewCount(state) > 0}
+                            onClick={() => void grid.saveMember(row.sourceDocumentId)}>Finalize member review</Button>
+                          {state.pairings.map((pairing) => <p key={pairing.record}>Record {pairing.record + 1} paired by hand. <Button disabled={state.saving}
+                            onClick={() => void grid.pairRecords(row.sourceDocumentId, state.pairings.filter((each) => each !== pairing))}>Undo pairing</Button></p>)}
+                          {state.sources.length > 0 && unmatched.map((record) => <label key={record}>Record {record + 1} matches no sample record. <select
+                            aria-label={`Pair record ${record + 1}`} value="" disabled={state.saving} onChange={(event) => {
+                              const source = state.sources[Number(event.target.value)]
+                              if (source) void grid.pairRecords(row.sourceDocumentId, [...state.pairings, { record, extractionId: source.extractionId, sourceRecord: source.record }])
+                            }}><option value="">Pair with…</option>{state.sources.map((source, index) => <option key={index} value={index}>{source.label}</option>)}</select></label>)}
+                        </>}
+                      </div>
+                    })()}
                   </td>
                 )
 
@@ -902,13 +931,13 @@ export default function BatchExtractionReviewGrid({
                           const decision = state.decisions.find((candidate) => resultPathKey(candidate.resultPath) === key)
                           const indexes = path.filter((segment): segment is number => typeof segment === 'number')
                           const label = column.node.name + (indexes.length ? ' · Item ' + indexes.map((index) => index + 1).join('.') : '')
-                          return <div key={key} role="group" aria-label={label}>
+                          return <div key={key} id={cellKey} role="group" aria-label={label}>
                             {indexes.length > 0 && <p className="px-3 pt-2 text-[10px] text-ink-muted">{label}</p>}
                             <GridCell
                               value={value}
                               decision={decision}
                               touched={state.touched.has(key)}
-                              editable={state.editable && !state.saving}
+                              editable={state.editable && !state.saving && decision?.evidenceAnchorId != null}
                               active={activeCell === cellKey}
                               editing={editingCell === cellKey}
                               onActivate={() => setActiveCell(cellKey)}

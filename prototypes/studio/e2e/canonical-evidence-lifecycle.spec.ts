@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import ExcelJS from 'exceljs'
 import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
@@ -30,6 +31,7 @@ const extractionDatabaseReady = () =>
 
 /** How the kei stand-in answers the next extraction it runs; each test starts from the defaults. */
 const kei = {
+  codebook: false,
   omitGrounding: false,
   blockNextValues: false,
   blockNextResult: false,
@@ -47,8 +49,9 @@ async function extractFor(request: KeiExtractInput): Promise<StandInDecision<{ a
     return { failure: { code: 'extraction_failed', reason: 'Deterministic extraction failure.', retryable: false } }
   }
   const { schema, options } = request.request
-  const nodes = (schema as { schemaNodes: Array<{ name: string }> }).schemaNodes
-  const records = [{
+  const nodes = (schema as { schemaNodes: Array<{ name: string; type: string }> }).schemaNodes
+  const records = kei.codebook ? [Object.fromEntries(nodes.map((node) => [node.name,
+    node.type === 'integer' ? 1801 : 'Résumé, source\nline']))] : [{
     title: 'Résumé, source\nline',
     [nodes.some((node) => node.name === 'year_of_record') ? 'year_of_record' : 'year']: 1801,
     tags: ['æ', 'quoted "tag"'],
@@ -831,11 +834,12 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await fresh.close()
 })
 
-test('a sample is reviewed in the Schema tab, and its correction survives a reload without becoming the result @deterministic', async ({ page }) => {
-  test.setTimeout(120_000)
+test('import → sample/review → field edit → same-pages re-run → whole source → collection review @deterministic', async ({ page }) => {
+  test.setTimeout(180_000)
   test.skip(!extractionDatabaseReady(), 'DATABASE_URL must equal the disposable EXTRACTION_TEST_DATABASE_URL')
   Object.assign(kei, {
     omitGrounding: false, blockNextValues: false, blockNextResult: false, failNextValues: false, incompleteNextResult: false,
+    codebook: true,
   })
   const [researcherAccountId, researcherObjectId, projectContextId, sourceDocumentId, representationId, extractionSchemaId] =
     Array.from({ length: 6 }, () => randomUUID())
@@ -866,15 +870,30 @@ test('a sample is reviewed in the Schema tab, and its correction survives a relo
   await loginResearcher(page, researcherObjectId)
   await page.goto(e2eStudioPath(`/projects/${projectContextId}/documents/${sourceDocumentId}`))
   await expect(page.getByText('6 pages', { exact: true })).toBeVisible({ timeout: 20_000 })
+  const book = new ExcelJS.Workbook()
+  book.addWorksheet('Codebook').addRows([['title', 'year'], ['Report', '0012']])
+  await page.getByLabel('Import Excel codebook').setInputFiles({ name: 'codebook.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(await book.xlsx.writeBuffer()) })
+  await page.getByLabel('Import worksheet').selectOption('Codebook')
+  const previewResponse = page.waitForResponse((response) => response.url().includes('schema_import_preview') && response.url().includes('worksheet='))
+  await page.getByRole('button', { name: 'Preview worksheet' }).click()
+  const preview = await (await previewResponse).json() as { columns: Array<{ id: string }> }
+  expect(await db.orm.public.SchemaRevision.where({ extractionSchemaId }).select('id').all()).toHaveLength(1)
+  await page.getByLabel('Imported record description').fill('One imported record.')
+  await page.getByLabel('Column 2 type').selectOption('integer')
+  await page.getByRole('button', { name: 'Confirm as a new revision of the selected schema' }).click()
+  await expect.poll(async () => (await db.orm.public.SchemaRevision.where({ extractionSchemaId }).select('id').all()).length).toBe(2)
+  const imported = (await db.orm.public.SchemaRevision.where({ extractionSchemaId, revisionNumber: 2 }).select('schemaTree').first())!
+  expect((imported.schemaTree as { schemaNodes: Array<{ id: string }> }).schemaNodes.map((node) => node.id)).toEqual(preview.columns.map((column) => column.id))
   await page.getByRole('button', { name: 'This page' }).click()
   await page.getByRole('button', { name: 'Run sample on pp. 1' }).click()
   const year = page.getByRole('button', { name: '1801' })
   await expect(year).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByText('Sample · rev 1 · pp. 1').first()).toBeVisible()
+  await expect(page.getByText(/Sample · rev 2 · pp. 1/).first()).toBeVisible()
   const row = year.locator('..')
   await row.getByRole('button', { name: 'Correct' }).click()
   await page.getByLabel('Correct year').fill('1802')
-  await page.getByRole('button', { name: 'Save' }).click()
+  await page.getByLabel('Evidence for year').selectOption({ index: 1 })
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(row.getByText('1802')).toBeVisible()
   await expect.poll(async () => JSON.stringify((await db.orm.public.Extraction.where({ sourceDocumentId })
     .select('reviewDraft').first())?.reviewDraft)).toContain('1802')
@@ -886,8 +905,38 @@ test('a sample is reviewed in the Schema tab, and its correction survives a relo
 
   await page.reload()
   await expect(page.getByRole('button', { name: '1801' }).locator('..').getByText('1802')).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Right', exact: true }).click()
+  await page.getByRole('button', { name: 'Finalize sample review' }).click()
+  await expect(page.getByText('Sample review finalized for these pages.')).toBeVisible()
   // The sample is no result of the document: nothing was run on the whole of it.
   await expect(page.getByRole('button', { name: '▶ Run extraction' })).toBeVisible()
   const sample = await db.orm.public.Extraction.where({ sourceDocumentId }).select('requestedPages').first()
   expect(sample?.requestedPages).toEqual([1])
+  await page.getByRole('button', { name: 'Edit this field', exact: true }).first().click()
+  await expect(page.getByText(/From Extraction.*revision 2/)).toBeVisible()
+  await page.getByTitle('Edit title').click()
+  await page.getByPlaceholder('field_name').fill('heading')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('button', { name: 'Save and re-run these pages' }).click()
+  await expect.poll(async () => (await db.orm.public.Extraction.where({ sourceDocumentId }).select('id').all()).length).toBe(2)
+  const runs = await db.orm.public.Extraction.where({ sourceDocumentId }).select('id', 'requestedPages', 'schemaRevisionId').all()
+  expect(runs.every((run) => JSON.stringify(run.requestedPages) === '[1]')).toBe(true)
+  expect(new Set(runs.map((run) => run.id)).size).toBe(2)
+  expect(new Set(runs.map((run) => run.schemaRevisionId)).size).toBe(2)
+  await expect(page.getByText(/Sample · rev 3 · pp. 1/).first()).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: '▶ Run extraction', exact: true }).click()
+  await page.getByRole('button', { name: 'Review now', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Save review', exact: true })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Save review', exact: true }).click()
+  await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
+  await page.goto(e2eStudioPath(`/projects/${projectContextId}/extractions`))
+  await page.getByRole('button', { name: 'New Batch Extraction' }).click()
+  await page.getByRole('button', { name: 'Run 1 Source Document', exact: true }).click()
+  const completion = page.getByRole('dialog', { name: 'Batch Extraction finished' })
+  await expect(completion).toBeVisible({ timeout: 20_000 })
+  await completion.getByRole('button', { name: 'Review now', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Finalize member review', exact: true })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Finalize member review', exact: true }).click()
+  await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
+  kei.codebook = false
 })

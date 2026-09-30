@@ -220,8 +220,8 @@ model Extraction {
   // A Sample Extraction's physical, one-based PDF pages (ascending, distinct, at most 30): admission identity, never
   // method. Null: the whole document.
   requestedPages                 Json?
-  // The sample Review Decisions pinned at single admission (design §6, `ReviewTransfer`): self-contained, never
-  // changed after admission. Null: nothing to carry (no reviewed sample of this document, revision and schema; batch).
+  // The sample Review Decisions pinned at admission (design §6, `ReviewTransfer`): self-contained, never
+  // changed after admission. Null: no eligible decisions for this document, representation and schema.
   reviewTransfer                 Json?
   // The review draft's hand pairings of unmatched records (`[{record, extractionId, sourceRecord}]`, design §7.1),
   // saved with the draft under its version; null when there are none.

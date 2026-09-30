@@ -113,7 +113,7 @@ export type TransferEntry = Readonly<{
   reviewedEvidence: ReviewDecisionInput['reviewedEvidence'] | null
 }>
 
-/** The sample Review Decisions a single Extraction pins at admission (design §6): self-contained, so a collected
+/** The sample Review Decisions an Extraction pins at admission (design §6): self-contained, so a collected
  *  sample leaves no dangling reference, and never changed afterwards. */
 export type ReviewTransfer = Readonly<{
   samples: readonly Readonly<{ extractionId: string; segmentation: string | null; records: readonly TransferRecord[] }>[]
