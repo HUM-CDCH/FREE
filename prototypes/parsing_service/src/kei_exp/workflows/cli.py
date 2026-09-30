@@ -80,6 +80,9 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
         # only then does the kernel free the lock (spec, *kei worker*: held for the worker's lifetime; the boot
         # boundary relies on it). Nothing is recorded after destroy: the interrupted workflows stay PENDING and
         # recovery runs them.
+        if config.TRACES_ENDPOINT:  # each request a model call sends becomes a span under it
+            from opentelemetry.instrumentation.requests import RequestsInstrumentor
+            RequestsInstrumentor().instrument()
         try:
             DBOS(config=config.dbos_config(database_url, slot_name))
             DBOS.launch()

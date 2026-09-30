@@ -3,6 +3,7 @@ import { documentFileParts } from './_pdf.js'
 import { EXCERPT_THRESHOLD, schemaPrompt, schemaSourceExcerpts } from './_schema.js'
 import { ApiError } from './_http.js'
 import { parseTemplate } from './_model_output.js'
+import { traceModelCall } from '../server/tracing.js'
 import {
   executeSchemaSuggestion,
   resolveModelTarget,
@@ -41,7 +42,11 @@ async function documentContentParts(document: DocumentInput): Promise<{
 
 /** Complete single-source suggestion: prepare source, resolve route, call model, interpret the schema. The result
  *  declares what of the source the model received (`sourceCoverage`); a file is sent whole. */
-export async function generateSchemaWithModel(
+export function generateSchemaWithModel(...call: Parameters<typeof suggestSchema>): ReturnType<typeof suggestSchema> {
+  return traceModelCall('schema-suggestion', () => suggestSchema(...call), (result) => result.template)
+}
+
+async function suggestSchema(
   caller: ModelCaller,
   { document, instruction, temperature, signal }: SchemaModelInput,
   target?: ExecutionTarget,
