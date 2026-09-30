@@ -37,3 +37,11 @@ labels, wrong for the full catalogue's `u1`/`a29`), locality/findspot (`location
 
 The full catalogue (≈535k characters, ≈12 windows), multi-level unions, explicit field exclusions in the instruction,
 and lettered-subentry scope on the `u`/`a` entries.
+
+## Follow-up
+
+Without the researcher instruction, the union's `_description` kept the exclusions but dropped "lettered subentries stay
+within their parent entry", which the single call and the instruction-fed union kept. The researcher still edits the
+Record description before extracting (as Schema Revision 6 did); if suggested descriptions keep losing record-scope
+rules, add a separate call that writes only `_description` from the researcher instruction and the window descriptions,
+applied to that key alone so it cannot remove fields.
