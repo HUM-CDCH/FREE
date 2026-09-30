@@ -62,7 +62,7 @@ describe('suggestSchemaWorkflow', () => {
     expect(namesWhenGenerated).toEqual(['generateSchema'])
     expect(names).toEqual(['generateSchema'])
     // The declaration of what the model did not read is part of the persisted outcome.
-    expect(result).toEqual({ ok: true, template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2, sourceCoverage: EXCERPTED, baseSchemaRevisionId: input.baseSchemaRevisionId })
+    expect(result).toEqual({ ok: true, template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2, sourceCoverage: { ...EXCERPTED, sourceRepresentationRevisionId: input.sourceRepresentationRevisionId }, baseSchemaRevisionId: input.baseSchemaRevisionId })
     expect(generate).toHaveBeenCalledExactlyOnceWith(
       { researcherAccountId: OWNER },
       expect.objectContaining({ document: { file: null, pages: null, markdown: '# Source A' }, instruction: 'Catalog entries' }),

@@ -998,6 +998,7 @@ export function DocumentWorkspace({
               }}
               currentSchemaRevision={currentSchemaRevision}
               sourceDocumentName={filename}
+              sourceRepresentationId={sourceRepresentationId}
               schemaName={schemaName}
               onRenameSchema={async (name) => {
                 const extractionSchemaId = schemaSnap.extractionSchemaId

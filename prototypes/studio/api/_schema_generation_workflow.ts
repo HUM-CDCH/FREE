@@ -60,7 +60,10 @@ export async function suggestSchemaWorkflow(
       // Only the model's text, the source declaration and the base: never the provider's response, headers or metadata.
       return {
         ok: true, template: generated.template, raw: generated.raw, pages: generated.pages,
-        sourceCoverage: generated.sourceCoverage, baseSchemaRevisionId: input.baseSchemaRevisionId,
+        sourceCoverage: generated.sourceCoverage?.complete === false
+          ? { ...generated.sourceCoverage, sourceRepresentationRevisionId: input.sourceRepresentationRevisionId }
+          : generated.sourceCoverage,
+        baseSchemaRevisionId: input.baseSchemaRevisionId,
       }
     } catch (error) {
       return { ok: false, ...operationFailureOf(error) }

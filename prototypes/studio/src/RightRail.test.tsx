@@ -94,6 +94,7 @@ function renderRail({
       inspection={defaultInspection}
       currentSchemaRevision={null}
       sourceDocumentName="test.pdf"
+      sourceRepresentationId="source-representation"
       onSelectEvidence={vi.fn()}
       onResultPathChange={vi.fn()}
     />,

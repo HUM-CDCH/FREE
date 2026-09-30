@@ -44,6 +44,7 @@ type RightRailProps = {
   /** Acknowledged Current Schema Revision, for the Results panel's comparison. */
   currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
   sourceDocumentName: string
+  sourceRepresentationId: string
   schemaName?: string | null
   onRenameSchema?: (name: string) => Promise<string | null>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
@@ -78,6 +79,7 @@ function RightRail({
   inspection,
   currentSchemaRevision,
   sourceDocumentName,
+  sourceRepresentationId,
   schemaName,
   onRenameSchema,
   onSelectEvidence,
@@ -184,6 +186,7 @@ function RightRail({
           onGenerateInstructions={onGenerateInstructions}
           onClearDraft={onClearDraft}
           sourceDocumentName={sourceDocumentName}
+          sourceRepresentationId={sourceRepresentationId}
           schemaName={schemaName}
           onRenameSchema={onRenameSchema}
         />

@@ -26,6 +26,8 @@ export const sourceCoverageSchema = z.discriminatedUnion('complete', [
       complete: z.literal(false),
       sourceCharacters: z.number().int().positive(),
       omitted: z.array(sourceOmissionSchema).min(1),
+      /** The Source Representation revision it describes; absent from a declaration recorded before it was kept. */
+      sourceRepresentationRevisionId: z.string().optional(),
     })
     .strict(),
 ])

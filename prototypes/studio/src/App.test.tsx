@@ -734,8 +734,11 @@ describe('reopened Source Document workspace', () => {
     expect(schemaNodes).toHaveLength(1)
   })
 
-  it('saves a schema generated from excerpts with its declaration, and the reopened workspace shows it', async () => {
-    const excerpted = { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+  it('saves a schema generated from excerpts with its declaration, and the reopened workspace shows it beside that source only', async () => {
+    const excerpted = {
+      complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }],
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+    }
     const notice = 'Suggested from excerpts: the middle of page 1 was not read (4,040 of 50,040 characters).'
     const written: Array<Record<string, unknown>> = []
     vi.stubGlobal(
@@ -777,9 +780,10 @@ describe('reopened Source Document workspace', () => {
     generated.unmount()
 
     const saved = written[0] as { recordDescription: string; schemaNodes: SchemaNode[] }
-    render(
+    const workspace = (sourceRepresentationId: string) => (
       <DocumentWorkspace
         {...reopened}
+        sourceRepresentationId={sourceRepresentationId}
         extractionSchema={{
           extractionSchemaId: '51000000-0000-4000-8005-000000000031',
           name: 'Extraction Schema',
@@ -790,11 +794,16 @@ describe('reopened Source Document workspace', () => {
           sourceCoverage: excerpted as NonNullable<typeof reopened.extractionSchema>['sourceCoverage'],
         }}
         persistedExtraction={null}
-      />,
+      />
     )
+    const view = render(workspace(reopened.sourceRepresentationId))
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
     expect(await screen.findByText(notice)).toBeInTheDocument()
+
+    // Another Source Document of the project shares the schema, not the declaration.
+    view.rerender(workspace('51000000-0000-4000-8002-0000000000ff'))
+    await waitFor(() => expect(screen.queryByText(notice)).not.toBeInTheDocument())
   })
 
   it('keeps cancelled fields and historical previews non-mutating until explicit creation', async () => {
