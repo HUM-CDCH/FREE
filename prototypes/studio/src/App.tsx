@@ -1,3 +1,4 @@
+import { SampleFacts } from './SampleFacts'
 import {
   authenticatedFetch,
   reportAuthenticationRequired,
@@ -126,6 +127,7 @@ async function readParsedDocument(
 
 export type DocumentWorkspaceProps = {
   pdfUrl: string
+  sourceDocumentId?: string
   filename: string
   projectContextId: string
   sourceRepresentationId: string
@@ -159,6 +161,7 @@ type PinnedAttemptSchema = SchemaDefinition & {
 
 export function DocumentWorkspace({
   pdfUrl,
+  sourceDocumentId,
   filename,
   projectContextId,
   sourceRepresentationId,
@@ -728,7 +731,7 @@ export function DocumentWorkspace({
 
   /** Saves pending schema edits as the Current Schema Revision, then admits the run: a Sample Extraction on `pages`,
    *  else the whole document. A failed admission leaves the revision saved; running again only admits. */
-  async function runExtraction(pages: number[] | null = null) {
+  async function runExtraction(pages: number[] | null = null, previous?: ExtractionAttempt) {
     if (savingForRun || running || sampleRunning || !sourceRepresentationCurrent || saved.state.status !== 'ready') return
     const savedConfig = saved.state.config
     setSavingForRun(true)
@@ -742,9 +745,9 @@ export function DocumentWorkspace({
         return
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
-      const strategy = nextExtractionStrategy
-      const catalogRecipe = nextCatalogRecipe || null
-      const method = savedMethodFor(savedConfig, strategy, catalogRecipe)
+      const strategy = previous?.strategy ?? nextExtractionStrategy
+      const catalogRecipe = previous ? previous.catalogRecipe : nextCatalogRecipe || null
+      const method = previous ? { models: previous.requestedModels ?? null, settings: previous.requestedSettings! } : savedMethodFor(savedConfig, strategy, catalogRecipe)
       setMethodConflict(null)
       // The researcher asked for this run, so it is what they now inspect;
       // its schema is known before the server acknowledges the attempt.
@@ -1004,6 +1007,8 @@ export function DocumentWorkspace({
                     onClick={() => void runExtraction(samplePages)}>
                     {samplePages.length ? `Run sample on pp. ${pageRanges(samplePages)}` : 'Run sample'}
                   </Button>
+                  {shownSample?.requestedPages && <Button disabled={runExtractionUnavailable || !shownSample.requestedSettings}
+                    onClick={() => void runExtraction([...shownSample.requestedPages!], shownSample)}>Save and re-run these pages</Button>}
                   {sample.monitorError && (
                     <>
                       <span role="status" className="text-danger">{sample.monitorError}</span>
@@ -1076,13 +1081,16 @@ export function DocumentWorkspace({
           )}
           <aside
             style={{ width: effectiveRailWidth }}
-            className={`min-h-0 shrink-0 border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
+            className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
               effectiveRailOpen
                 ? 'max-[859px]:!w-[min(90vw,32rem)] max-[859px]:shadow-xl'
                 : ''
             }`}
             aria-label="Evidence, schema and results"
           >
+            {effectiveRailOpen && projectContextId && sourceDocumentId && <SampleFacts projectContextId={projectContextId} schemaRevisionId={currentSchemaRevision?.schemaRevisionId ?? null}
+              sourceDocumentIds={[sourceDocumentId]} busy={running || sampleRunning}
+              refresh={`${sourceRepresentationId}:${sample.attempt?.extractionId}:${sample.attempt?.executionStatus}:${sample.attempt?.reviewedAt}:${sample.review.draftSaving}:${extraction.attempt?.extractionId}:${extraction.attempt?.executionStatus}:${extraction.attempt?.reviewedAt}`} />}
             <RightRail
               open={effectiveRailOpen}
               onToggle={() => setRailOpen((open) => !open)}
@@ -1135,6 +1143,7 @@ export function DocumentWorkspace({
                 review: sample.review,
                 parsedDocument,
                 focusedPathKey: focusedSampleKey,
+                onFocusValue: pickSampleValue,
                 onSelectEvidence: (anchorId) => {
                   const anchor = parsedDocument?.evidence_index.anchors.find((each) => each.anchor_id === anchorId)
                   if (anchor) selectEvidenceAnchor(anchor)

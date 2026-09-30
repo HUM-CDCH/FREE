@@ -1,4 +1,5 @@
 import { authenticatedFetch } from './auth/authenticatedFetch.ts'
+import { sampleFactsResponse } from '../shared/sampleFacts.contract'
 import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 import { acknowledgeReviewDraft, forgetReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import { resultPathKey } from './reviewDecisions'
@@ -22,6 +23,13 @@ import { ingestionModelListingSchema, type IngestionModelListing } from '../shar
 import { modelOperationListingSchema, type ModelOperation } from '../shared/modelOperation.contract'
 
 export const API_BASE = '/api'
+
+export async function readSampleFacts(projectContextId: string, schemaRevisionId: string, sourceDocumentIds: string[], signal?: AbortSignal) {
+  const response = await authenticatedFetch(`${API_BASE}/sample_facts`, { method: 'POST', signal,
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectContextId, schemaRevisionId, sourceDocumentIds }) })
+  if (!response.ok) throw new Error('Sample coverage unavailable')
+  return sampleFactsResponse.parse(await response.json())
+}
 
 type TemplateOptions = {
   instruction?: string

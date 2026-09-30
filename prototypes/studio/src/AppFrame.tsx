@@ -567,6 +567,7 @@ export default function AppFrame({
                 <DocumentWorkspace
                   key={workspace.projectContextId}
                   {...workspace}
+                  sourceDocumentId={route.kind === 'document' ? route.sourceDocumentId : undefined}
                   onInitialResourceLoadFailure={onInitialResourceLoadFailure}
                 />
               </Suspense>

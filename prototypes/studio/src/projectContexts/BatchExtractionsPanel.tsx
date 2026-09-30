@@ -1,3 +1,5 @@
+import { SampleFacts } from '../SampleFacts'
+import { readSampleFacts } from '../api'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   exportBatchExtractionResults,
@@ -614,6 +616,7 @@ export default function BatchExtractionsPanel({
     setRunNotice(null)
     try {
       const savedRevision = await savedSchemaFlush.current?.()
+      await readSampleFacts(projectContextId, savedRevision?.schemaRevisionId ?? schemaRevisionId, [...selected]).catch(() => null)
       const request = {
         projectContextId,
         schemaRevisionId: savedRevision?.schemaRevisionId ?? schemaRevisionId,
@@ -949,6 +952,7 @@ export default function BatchExtractionsPanel({
               </label>
             </div>
             <div className="mb-3">
+              <SampleFacts projectContextId={projectContextId} schemaRevisionId={schemaRevisionId === SUGGEST_SCHEMA ? null : schemaRevisionId || null} sourceDocumentIds={[...selected]} />
               <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
                 method={saved.state.status === 'ready' ? savedMethodFor(saved.state.config, batchStrategy, null) : null}
                 onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />

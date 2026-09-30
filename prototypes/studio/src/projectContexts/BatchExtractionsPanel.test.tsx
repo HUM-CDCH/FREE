@@ -899,7 +899,7 @@ describe('BatchExtractionsPanel', () => {
     saved.state = { status: 'ready', config: saved.config() }
     fireEvent.click(screen.getAllByRole('checkbox')[0])
     expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeEnabled()
-    expect(posted).toEqual([])
+    expect(posted.filter((url) => url !== '/api/sample_facts')).toEqual([])
   })
 
   it('keeps an opened batch when the initial history read resolves later', async () => {
