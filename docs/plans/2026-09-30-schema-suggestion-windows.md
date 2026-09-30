@@ -17,7 +17,7 @@ Defaults taken for the open decisions (change here to override):
 
 ## Progress
 
-- [ ] 1. Deterministic source windows
+- [x] 1. Deterministic source windows
 - [ ] 2. One model call separated from source preparation
 - [ ] 3. Bounded hierarchical reduction (UNION / INTERSECTION)
 - [ ] 4. Full-source single generation behind a DBOS patch

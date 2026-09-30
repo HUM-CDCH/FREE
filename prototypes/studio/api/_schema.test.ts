@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SourcePageSpan } from 'db'
-import { schemaPrompt, schemaSourceExcerpts } from './_schema.js'
+import { EXCERPT_THRESHOLD, schemaPrompt, schemaSourceExcerpts, schemaSourceWindows } from './_schema.js'
 
 describe('schemaPrompt', () => {
   it('requires an explicit root record description', () => {
@@ -115,5 +115,35 @@ describe('schemaSourceExcerpts', () => {
 
     expect(() => schemaSourceExcerpts(markdown, [pageSpans[0]!, { ...pageSpans[1]!, start: 1 }]))
       .toThrow('not a character boundary')
+  })
+})
+
+describe('schemaSourceWindows', () => {
+  it('sends a fitting source as one window', () => {
+    expect(schemaSourceWindows('# Register\n\nOne entry.')).toEqual(['# Register\n\nOne entry.'])
+  })
+
+  it('covers a long source with bounded, gap-free windows, cut at paragraphs where it can (audit probe)', () => {
+    const marker = 'UNIQUE_MIDDLE_FIELD'
+    const paragraphs = Array.from({ length: 40 }, (_, i) => `Entry ${i}. ${'x'.repeat(3_000)}`)
+    paragraphs[20] += marker
+    const source = paragraphs.join('\n\n')
+
+    const windows = schemaSourceWindows(source)
+
+    expect(windows.join('')).toBe(source)
+    expect(windows.length).toBeGreaterThan(1)
+    expect(windows.every((window) => window.length <= EXCERPT_THRESHOLD)).toBe(true)
+    expect(windows.slice(0, -1).every((window) => window.endsWith('\n\n'))).toBe(true)
+    expect(windows.filter((window) => window.includes(marker))).toHaveLength(1)
+  })
+
+  it('hard-cuts unbroken text without splitting a surrogate pair', () => {
+    const source = 'a' + '😀'.repeat(EXCERPT_THRESHOLD)
+
+    const windows = schemaSourceWindows(source)
+
+    expect(windows.join('')).toBe(source)
+    expect(windows.every((window) => window.length <= EXCERPT_THRESHOLD && !/^[\udc00-\udfff]/.test(window))).toBe(true)
   })
 })

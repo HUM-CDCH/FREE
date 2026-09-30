@@ -68,6 +68,26 @@ function utf16Indices(text: string, offsets: readonly number[]): number[] {
 const isLowSurrogate = (text: string, index: number) => (text.charCodeAt(index) & 0xfc00) === 0xdc00
 
 /**
+ * The whole source as consecutive windows of at most `EXCERPT_THRESHOLD` characters whose concatenation is the source:
+ * each cut falls after the last paragraph break that fits, else at the limit (never inside a surrogate pair).
+ */
+export function schemaSourceWindows(markdown: string): string[] {
+  const windows: string[] = []
+  let start = 0
+  while (markdown.length - start > EXCERPT_THRESHOLD) {
+    let end = start + markdown.slice(start, start + EXCERPT_THRESHOLD).lastIndexOf('\n\n') + 2
+    if (end <= start + 2) {
+      end = start + EXCERPT_THRESHOLD
+      if (/[\udc00-\udfff]/.test(markdown[end]!)) end -= 1
+    }
+    windows.push(markdown.slice(start, end))
+    start = end
+  }
+  windows.push(markdown.slice(start))
+  return windows
+}
+
+/**
  * Schema design needs examples; extraction still receives the complete source. A source over the threshold is sent
  * as each physical page's head and tail, and the result declares every range it did not send. Pages are the canonical
  * `pageSpans` (UTF-8 byte offsets); without them the source is one unnumbered range.
