@@ -29,7 +29,7 @@ Defaults taken for the open decisions (change here to override):
     (roughly 12–15k tokens) plus the prompt and NuExtract's 8192 output tokens fits; a whole large source (Beier,
     ~150k tokens) never would. Ollama remains only as a researcher-configured provider: Ollama 0.32 silently cuts
     the middle of a prompt over `num_ctx` unless sent `truncate: false`, which its transport now sends.
-- [ ] 8. Recovery, checkpoint privacy, historical notices
+- [x] 8. Recovery, checkpoint privacy, historical notices
 - [ ] 9. Real Beier validation (manual / needs-user)
 
 ### 1. Add deterministic source windows

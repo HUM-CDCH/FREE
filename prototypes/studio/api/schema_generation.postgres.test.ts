@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DBOSClient } from '@dbos-inc/dbos-sdk'
+import { DBOS, DBOSClient } from '@dbos-inc/dbos-sdk'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createInternalProjectWorkerStore, db, pool } from 'db'
 import { dbosSteps } from 'extraction'
@@ -55,6 +55,7 @@ const ports: SchemaGenerationPorts = {
   readSource: (id) => worker.readRevisionSchemaSource(id),
   generate: (caller, input) =>
     generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs, deployment: deploymentModels({}) }),
+  patched: (name) => DBOS.patch(name),
 }
 
 function post(scope: InteractiveScope, operationId: string, fields: Record<string, string> = {}) {

@@ -63,6 +63,7 @@ export async function runOperationScenario(
   }
   const worker = createInternalProjectWorkerStore(db, { packages })
   const dependencies = { keys, keyWaitMs, deployment: deploymentModels({}) }
+  // No `patched`: these crash scenarios recover a run from before the schema-suggestion-windows patch.
   const generation: SchemaGenerationPorts = {
     steps,
     readSource: (id) => worker.readRevisionSchemaSource(id),
