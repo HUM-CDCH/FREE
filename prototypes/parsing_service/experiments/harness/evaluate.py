@@ -13,7 +13,10 @@ counts whether or not it was predicted), so abstaining cannot raise a joint rate
 from __future__ import annotations
 
 import difflib
+import copy
 import math
+import unicodedata
+from datetime import datetime
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -30,6 +33,7 @@ from kei_exp.kie.extract.stages import normal
 @dataclass(frozen=True)
 class Eval:
     """Scoring rules, fixed across every variant of a study (a comparator is not a system factor)."""
+    evaluator_version: int = 2
     comparators: dict[str, str] = field(default_factory=dict)   # field -> exact|normalized|numeric|set|deep|fuzzy
     rel_tol: float = 1e-9
     abs_tol: float = 0.0
@@ -42,7 +46,16 @@ class Eval:
         return digest(canonical_json(asdict(self)))
 
 
+def normalized(value: Any) -> str:
+    """Unicode/case/whitespace only. Punctuation is meaningful and is never discarded."""
+    return " ".join(unicodedata.normalize("NFKC", str(value)).casefold().split())
+
+
 _deep = canon
+
+
+def accepted(kind: str, pred: Any, item: dict, rules: Eval) -> bool:
+    return any(equal(kind, pred, value, rules) for value in [item.get("value"), *item.get("accepted_values", [])])
 
 
 def _items(value: Any) -> frozenset:
@@ -53,11 +66,18 @@ def equal(kind: str, pred: Any, gold: Any, rules: Eval) -> bool:
     try:
         match kind:
             case "exact":
-                if isinstance(gold, bool) or isinstance(pred, bool):
-                    return type(pred) is type(gold) and pred == gold
-                return str(pred).strip() == str(gold).strip()
+                return canonical_json(pred) == canonical_json(gold)
             case "normalized":
-                return normal(str(pred)) == normal(str(gold))
+                return normalized(pred) == normalized(gold)
+            case "date":
+                def date(value):
+                    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%B %d, %Y", "%b %d, %Y", "%d-%b-%y"):
+                        try:
+                            return datetime.strptime(str(value).strip(), fmt).date()
+                        except ValueError:
+                            pass
+                    return normalized(value)
+                return date(pred) == date(gold)
             case "numeric":
                 return math.isclose(float(str(pred).replace(",", ".")), float(str(gold).replace(",", ".")),
                                     rel_tol=rules.rel_tol, abs_tol=rules.abs_tol)
@@ -145,6 +165,8 @@ def _match(case: Case, gold: list[dict], pred: _Records, kinds: dict[str, str], 
     (or all the gold record has): ineligible edges are masked before the Hungarian assignment, so it maximises the number
     of eligible pairs first and their total agreement second. A keyless record sharing that much with an already paired
     gold record is its duplicate."""
+    if case.annotations.get("fixed_document_root") and pred.count == len(gold) == 1:
+        return {0: 0}, {}, []  # one known wrapper; wrong headers must not erase correctly extracted nested arrays
     pairs: dict[int, int] = {}
     duplicates: dict[int, int] = {}
     other: set[int] = set()
@@ -166,7 +188,7 @@ def _match(case: Case, gold: list[dict], pred: _Records, kinds: dict[str, str], 
     def shared(i: int, j: int) -> int:
         return sum(1 for name, item in gold[j]["fields"].items()
                    if gold_state(item) == "value" and (row := pred.value(i, name)) is not None
-                   and equal(kinds[name], row.get("value"), item["value"], rules))
+                   and accepted(kinds[name], row.get("value"), item, rules))
 
     def need(j: int) -> int:
         return max(1, min(rules.min_matches, sum(gold_state(item) == "value" for item in gold[j]["fields"].values())))
@@ -185,6 +207,39 @@ def _match(case: Case, gold: list[dict], pred: _Records, kinds: dict[str, str], 
 
 
 def score_case(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[dict]]:
+    """Canonicalized and untouched raw-value scores share canonical record pairing; never filter verifier flags."""
+    # Re-score old replies under the same annotation-free evidence refinement as new runs.
+    if pred.get("config", {}).get("evidence", {}).get("mode") in ("quote", "ids"):
+        from experiments.harness.config import Config
+        from experiments.harness.evidence import entries_for, disambiguate
+        cfg = Config.model_validate(pred["config"])
+        pred = copy.deepcopy(pred)
+        for row in pred["fields"]:
+            if row.get("evidence") and any(e.get("evidence_protocol") != 2 for e in row["evidence"]):
+                citations = row["evidence"]
+                candidate = {"value": row.get("value"), "raw": row.get("raw"),
+                             "quotes": list(dict.fromkeys(e["quote"] for e in citations if e.get("quote"))),
+                             "ids": list(dict.fromkeys(i for e in citations for i in e.get("ids", [])))}
+                # Quote search is confined to its originally aligned locations; no retrieval is rerun.
+                from experiments.harness.evidence import refine_entries
+                row["evidence"] = (entries_for(candidate, row.get("value"), case.inference(), case.evidence.passages, cfg)
+                                   if cfg.evidence.mode == "ids" else refine_entries(citations, row.get("value"), case.inference(), cfg.evidence.alignment))
+        if cfg.evidence.alignment.disambiguate == "record":
+            for i in range(len(pred["records"])):
+                disambiguate({r["field"]: r.get("evidence", []) for r in pred["fields"] if r["record"] == i}, case.inference())
+    if case.annotations.get("adapter") == "extractbench-v1":
+        return score_structured(case, pred, rules)
+    counts, outcomes = _score_case(case, pred, rules)
+    raw, _ = _score_case(case, pred, rules, raw=True)
+    counts.update({"raw_" + key: value for key, value in raw.items()})
+    return counts, outcomes
+
+
+def evidence_options(item: dict) -> list[dict]:
+    return [e for e in item.get("accepted_evidence", []) if e.get("page") is not None]
+
+
+def _score_case(case: Case, pred: dict, rules: Eval, *, raw: bool = False) -> tuple[dict, list[dict]]:
     """Additive counts for one document, and one outcome row per predicted value that has a defined correctness."""
     kinds = kinds_for(case.schema, rules)
     pages = {p.id: p.page for p in case.evidence.passages}
@@ -230,7 +285,11 @@ def score_case(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[dict]]:
             counted = records.value(i, name) if i is not None else None
             if state == "absent":
                 count["gold_absent_fields"] += 1
-                if counted is not None:
+                optional = item.get("accepted_values", [])
+                if counted is not None and any(equal("exact" if raw else kinds[name], counted.get("raw" if raw else "value"), value, rules) for value in optional):
+                    count["optional_values_accepted"] += 1
+                    # An optional populated reading is allowed, but does not enlarge the fixed populated-gold denominator.
+                elif counted is not None:
                     count["hallucinated_fields"] += 1
                     strict = False
                     outcomes.append({"doc": case.id, "record": i, "field": name, "correct": False, "supported": None,
@@ -243,12 +302,13 @@ def score_case(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[dict]]:
                 continue
             count["gold_value_fields"] += 1
             true = [s for s in item.get("evidence", []) if s.get("supports", True)]
-            count["ev_gold_fields"] += bool(true)        # fixed by the gold: abstaining cannot shrink it
+            count["ev_localization_gold"] += bool(true)
+            count["ev_gold_fields"] += bool(true or evidence_options(item))        # fixed by the gold: abstaining cannot shrink it
             if i is None:
                 count["fn_missing_record"] += 1
                 strict = False
             elif counted is not None:
-                right = equal(kinds[name], counted.get("value"), item["value"], rules)
+                right = accepted("exact" if raw else kinds[name], counted.get("raw" if raw else "value"), item, rules)
                 count["tp" if right else "wrong_values"] += 1
                 strict = strict and right
                 outcomes.append({"doc": case.id, "record": i, "field": name, "correct": right, "row": counted,
@@ -268,6 +328,10 @@ def score_case(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[dict]]:
     for side in ("fresh", "replayed"):
         for key, value in ((pred.get("cost") or {}).get(side) or {}).items():
             count[f"{side}_{key}"] += value
+    for outcome in outcomes:
+        flag = "unsupported" in outcome["row"].get("flags", [])
+        error = not outcome["correct"]
+        count["detector_" + {(True, True): "tp", (True, False): "fp", (False, True): "fn", (False, False): "tn"}[(flag, error)]] += 1
     return dict(count), outcomes
 
 
@@ -281,16 +345,32 @@ def _evidence(count: dict, row: dict, item: dict, right: bool, pages: dict[str, 
     cited = _spans_of(row)
     verdict = (row.get("verdict") or {}).get("supports_value")
     if verdict in (True, False) and cited:
-        if not right:
-            label: bool | None = False
-        elif true and _iou(cited, true) >= rules.iou:
-            label = True
+        if right and true and _iou(cited, true) >= rules.iou:
+            label: bool | None = True
         else:
             label = False if decoys and _overlap(cited, decoys)[0] > 0 else None
         if label is not None:
             count["verdict_" + {(True, True): "tp", (True, False): "fp", (False, True): "fn", (False, False): "tn"}[(verdict, label)]] += 1
+    options = evidence_options(item)
+    if options:
+        raw_cited = [span for e in row.get("evidence", []) for span in e.get("raw_spans", e["spans"])]
+        selected_pages = {pages.get(s["segment"]) for s in raw_cited}
+        hit_page = bool(selected_pages & {e["page"] for e in options})
+        count["ev_predicted"] += 1
+        count["ev_value_correct"] += right
+        count["ev_cited"] += bool(cited)
+        count["ev_page_hit"] += hit_page
+        count["ev_page_joint"] += right and hit_page
+        count["ev_page_annotated"] += 1
+        # PDF boxes remain original annotations. Native line text supplies no word boxes,
+        # so exact value localization and semantic support are unmeasured here.
+        return None
     if not true:
         return None
+    raw_cited = [span for e in row.get("evidence", []) for span in e.get("raw_spans", e["spans"])]
+    count["ev_raw_span_hit"] += bool(raw_cited) and _iou(raw_cited, true) >= rules.iou
+    count["ev_localization_annotated"] += 1
+    count["ev_localization_correct"] += right
     hit = bool(cited) and _iou(cited, true) >= rules.iou
     count["ev_predicted"] += 1
     count["ev_value_correct"] += right
@@ -316,6 +396,16 @@ def _ratio(numerator: float, denominator: float) -> float | None:
 
 
 def metrics(total: dict[str, int]) -> dict[str, Any]:
+    canonical = _metrics(total)
+    strict = _metrics({key[4:]: value for key, value in total.items() if key.startswith("raw_")})
+    return {**canonical, "evaluator_version": 2,
+            "raw_exact": {"field": strict["field"], "records": strict["records"]},
+            "canonicalized": {"field": canonical["field"], "records": canonical["records"]},
+            "repeated_records": {key: total.get("repeated_" + key, 0) for key in ("gold_records", "pred_records", "matched_records", "missing_records", "duplicated_records", "hallucinated_records", "strict_records", "cross_page_gold", "cross_page_strict")},
+            "verifier_error_detection": {key: total.get("detector_" + key, 0) for key in ("tp", "fp", "fn", "tn")}}
+
+
+def _metrics(total: dict[str, int]) -> dict[str, Any]:
     """Rates with their denominators beside them; a rate without a denominator is None, never zero."""
     g = total.get
     predicted = g("tp", 0) + g("wrong_values", 0) + g("hallucinated_fields", 0) + g("extra_record_values", 0) + g("duplicate_values", 0)
@@ -324,6 +414,7 @@ def metrics(total: dict[str, int]) -> dict[str, Any]:
     return {
         "field": {"precision": precision, "recall": recall, "f1": f1, "predicted_values": predicted,
                   "gold_value_fields": g("gold_value_fields", 0), "unannotated_fields": g("unannotated_fields", 0),
+                  "optional_values_accepted": g("optional_values_accepted", 0),
                   "absent_accuracy": _ratio(g("absent_ok", 0), g("absent_ok", 0) + g("hallucinated_fields", 0)),
                   "abstained": {"unresolved": g("unresolved_fields", 0), "omitted": g("omitted_fields", 0),
                                 "excluded_values": g("excluded_values", 0),
@@ -338,13 +429,16 @@ def metrics(total: dict[str, int]) -> dict[str, Any]:
                                    "strict": g("cross_page_strict", 0), "fragments": g("cross_page_fragments", 0)}},
         "evidence": {"annotated_fields": g("ev_gold_fields", 0), "predicted_annotated": g("ev_predicted", 0),
                      "cited": g("ev_cited", 0),
-                     "joint": _ratio(g("ev_joint", 0), g("ev_gold_fields", 0)),
-                     "joint_given_predicted": _ratio(g("ev_joint", 0), g("ev_predicted", 0)),
-                     "span_hit_given_correct": _ratio(g("ev_joint", 0), g("ev_value_correct", 0)),
+                     "joint": _ratio(g("ev_joint", 0), g("ev_localization_gold", 0)),
+                     "raw_span_hit": _ratio(g("ev_raw_span_hit", 0), g("ev_localization_gold", 0)),
+                     "annotated_page_joint": _ratio(g("ev_page_joint", 0), g("ev_gold_fields", 0)),
+                     "semantic_support": None,
+                     "joint_given_predicted": _ratio(g("ev_joint", 0), g("ev_localization_annotated", 0)),
+                     "span_hit_given_correct": _ratio(g("ev_joint", 0), g("ev_localization_correct", 0)),
                      "page_hit": _ratio(g("ev_page_hit", 0), g("ev_predicted", 0)),
-                     "segment_hit": _ratio(g("ev_segment_hit", 0), g("ev_predicted", 0)),
-                     "span_hit": _ratio(g("ev_span_hit", 0), g("ev_predicted", 0)),
-                     "decoy_hit": _ratio(g("ev_decoy_hit", 0), g("ev_predicted", 0)),
+                     "segment_hit": _ratio(g("ev_segment_hit", 0), g("ev_localization_annotated", 0)),
+                     "span_hit": _ratio(g("ev_span_hit", 0), g("ev_localization_annotated", 0)),
+                     "decoy_hit": _ratio(g("ev_decoy_hit", 0), g("ev_localization_annotated", 0)),
                      "correct_with_annotated_evidence": g("ev_value_correct", 0),
                      "verifier": {key: g("verdict_" + key, 0) for key in ("tp", "fp", "fn", "tn")}},
         "validity": {"schema_valid_reply_rate": _ratio(g("replies_valid", 0), g("replies_total", 0)),
@@ -391,3 +485,142 @@ def bootstrap(per_group: dict[str, dict], statistic, *, draws: int = 2000, seed:
     low, high = np.percentile(samples, [2.5, 97.5]) if samples else (None, None)
     return {"point": point, "interval": None if low is None else [float(low), float(high)], "groups": len(names),
             "draws": draws, "used_draws": len(samples), "seed": seed, "unit": "group"}
+
+
+def score_structured(case: Case, pred: dict, rules: Eval) -> tuple[dict, list[dict]]:
+    """Score nested document fields and repeated object arrays through the same record scorer.
+
+    Flatten only evaluation views, retaining original arrays/annotations on Case. Parent records
+    are aligned first; their nested arrays are then scored within that parent, never across parents.
+    This custom, strict leaf comparator is deliberately not the official keyless benchmark metric.
+    """
+    from dataclasses import replace
+    from kei_exp.kie.extract.schema import Node
+
+    annotation = case.annotations
+    field_rules = annotation["field_rules"]
+    original_rows = {(r["record"], r["field"]): r for r in pred["fields"]}
+    totals, outcomes = [], []
+    source = case.inference()
+
+    def leaf_nodes(nodes, prefix=""):
+        result = []
+        for node in nodes:
+            name = prefix + node.name
+            if node.type == "object":
+                result.extend(leaf_nodes(node.children, name + "."))
+            elif node.type != "array" or node.item_type:
+                result.append(node.model_copy(update={"name": name}))
+        return result
+
+    missing = object()
+
+    def get(value, path, default=None):
+        for part in path.split("."):
+            if value is None:
+                return None
+            if not isinstance(value, dict) or part not in value:
+                return default
+            value = value[part]
+        return value
+
+    def gold_field(value, path):
+        if value is missing:
+            return {}
+        rule = field_rules.get(path, {})
+        options = rule.get("evidence", [])
+        # Parent array evidence contains record objects, not alternate whole-array values.
+        alternatives = [e["value"] for e in options if e.get("value") is not None and not isinstance(e["value"], (dict, list))]
+        if value is None:
+            return {"absent": True, "accepted_values": alternatives, "accepted_evidence": options}
+        return {"value": value, "accepted_values": alternatives, "accepted_evidence": options,
+                "annotation_availability": {"value": True, "page": any(e.get("page") is not None for e in options),
+                    "box": any(e.get("page") is not None and e.get("bbox") is not None for e in options)}}
+
+    def unit(nodes, gold_records, predicted, paths, evidence_rows, label, exhaustive=True):
+        leaves = leaf_nodes(nodes)
+        if not leaves:
+            # A structure-only parent has no scalar annotations; its arrays are still evaluated below.
+            leaves = [Node(id="structure", name="__structure__", type="boolean")]
+        schema = Schema(recordDescription="Evaluator-only flattened record", schemaNodes=leaves)
+        gold = []
+        for i, record in enumerate(gold_records):
+            fields = {n.name: gold_field(get(record, n.name, missing), paths[i] + n.name) for n in leaves}
+            pages = {e["page"] for f in fields.values() for e in f.get("accepted_evidence", []) if e.get("page") is not None}
+            gold.append({"fields": fields, "cross_page": len(pages) > 1})
+        rows = []
+        for i, value in enumerate(predicted):
+            for n in leaves:
+                parent = evidence_rows[i].get(n.name.split(".")[0], {})
+                v = get(value, n.name)
+                raw_parent = parent.get("raw", parent.get("value"))
+                suffix = n.name.split(".", 1)
+                raw = get(raw_parent, suffix[1]) if len(suffix) > 1 else raw_parent
+                rows.append({**parent, "record": i, "field": n.name, "value": v, "raw": raw,
+                             "status": "value" if v is not None else parent.get("status", "absent") if parent.get("status") in
+                             ("omitted", "unresolved", "unsupported") else "absent"})
+        virtual = Case(case.id, case.group, case.split, source.evidence, schema, tuple(gold),
+                       exhaustive=exhaustive, annotations={"fixed_document_root": label == "document"})
+        prediction = {"records": predicted, "fields": rows}
+        policy = dict(rules.comparators)
+        for n in leaves:
+            # Date conversion is enabled by the dataset's documented field rule, never by observed model errors.
+            comparators = {field_rules.get(p + n.name, {}).get("comparator") for p in paths}
+            if comparators == {"date"}:
+                policy[n.name] = "date"
+        local_rules = replace(rules, comparators=policy)
+        count, result = score_case(virtual, prediction, local_rules)
+        if label != "document":
+            count.update({"repeated_" + key: count.get(key, 0) for key in ("gold_records", "pred_records", "matched_records", "missing_records", "duplicated_records", "hallucinated_records", "strict_records", "cross_page_gold", "cross_page_strict")})
+        totals.append(count)
+        outcomes.extend({**o, "collection": label} for o in result)
+        pairs, _, extra = _match(virtual, gold, _Records(prediction, local_rules), kinds_for(schema, local_rules), local_rules)
+        paired = {j: i for i, j in pairs.items()}
+        # Discover object arrays from schema, including those nested in scalar objects.
+        def arrays(fields, prefix=""):
+            for node in fields:
+                path = prefix + node.name
+                if node.type == "array" and node.children:
+                    yield path, node.children
+                elif node.type == "object":
+                    yield from arrays(node.children, path + ".")
+        for array_path, children in arrays(nodes):
+            for j, record in enumerate(gold_records):
+                i = paired.get(j)
+                annotated = get(record, array_path, missing)
+                if annotated is missing:
+                    count["unannotated_collections"] = count.get("unannotated_collections", 0) + 1
+                    continue
+                gold_array = annotated or []
+                values = (get(predicted[i], array_path) or []) if i is not None else []
+                if not isinstance(values, list):
+                    values = []
+                owner = evidence_rows[i].get(array_path.split(".")[0], {}) if i is not None else {}
+                raw_array = owner.get("raw")
+                if "." in array_path:
+                    raw_array = get(raw_array, array_path.split(".", 1)[1])
+                raw_array = raw_array if isinstance(raw_array, list) else []
+                nested_rows = [{n.name: {**owner, "raw": (raw_array[k].get(n.name) if k < len(raw_array) and isinstance(raw_array[k], dict) else None),
+                                         "value": v.get(n.name)} for n in children}
+                               for k, v in enumerate(values) if isinstance(v, dict)]
+                values = [v for v in values if isinstance(v, dict)]
+                unit(children, gold_array, values, [f"{paths[j]}{array_path}[{k}]." for k in range(len(gold_array))],
+                     nested_rows, f"{label}.{array_path}", field_rules.get(paths[j] + array_path, {}).get("exhaustive", True))
+            for i in [*extra, *(i for i in range(len(predicted)) if i not in pairs and i not in extra)]:
+                values = get(predicted[i], array_path) or []
+                values = [v for v in values if isinstance(v, dict)] if isinstance(values, list) else []
+                if values:
+                    owner = evidence_rows[i].get(array_path.split(".")[0], {})
+                    unit(children, [], values, [], [{n.name: {**owner, "raw": v.get(n.name), "value": v.get(n.name)} for n in children} for v in values], label + "." + array_path)
+    unit(case.schema.record_nodes, [annotation["expected_output"]], pred["records"], [""],
+         [{n.name: original_rows.get((i, n.name), {}) for n in case.schema.record_nodes} for i in range(len(pred["records"]))], "document")
+    total = pool(totals)
+    total["documents"] = total["raw_documents"] = 1
+    total["strict_documents"] = int(all(c.get("strict_documents") for c in totals))
+    total["raw_strict_documents"] = int(all(c.get("raw_strict_documents") for c in totals))
+    for key, value in (pred.get("validity") or {}).items():
+        total[f"replies_{key}"] = value
+    for side in ("fresh", "replayed"):
+        for key, value in ((pred.get("cost") or {}).get(side) or {}).items():
+            total[f"{side}_{key}"] = value
+    return total, outcomes

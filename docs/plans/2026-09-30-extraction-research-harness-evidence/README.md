@@ -1,5 +1,7 @@
 # Extraction research harness: pilot evidence
 
+Historical pilot, preserved. See the [2026-09-30 provenance and evaluator correction](../../research/2026-09-30-extractbench-validation/pilot-correction.md) before interpreting it.
+
 Real-model runs of `prototypes/parsing_service/experiments/harness/` on the DGX Spark (`baratheon`): throwaway containers of the
 production worker image, `Qwen/Qwen3.8-27B-FP8` on vLLM (`/tokenize` counted, max context 32768). Each `manifest.json` pins the
 study, the resolved dataset, the scoring rules, the served-model identity, every source file of the code that ran (99 files) and

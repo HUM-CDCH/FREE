@@ -28,6 +28,17 @@ SPLITS = ("fit", "calibration", "dev", "test")   # score fitting, calibration, s
 
 
 @dataclass(frozen=True)
+class InferenceCase:
+    """Only source and schema may cross the inference boundary; no annotation container exists here."""
+    id: str
+    evidence: Evidence
+    schema: Schema
+    record_key: tuple[str, ...] = ()
+    ocr_confidence: dict[str, float] = field(default_factory=dict)
+    geometry: dict[str, tuple] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class Case:
     id: str
     group: str                                   # one source and everything derived from it; splits never divide it
@@ -39,6 +50,10 @@ class Case:
     exhaustive: bool = True                      # false: predicted records without gold are unadjudicated, not wrong
     ocr_confidence: dict[str, float] = field(default_factory=dict)   # segment id -> engine confidence, when known
     geometry: dict[str, tuple] = field(default_factory=dict)         # segment id -> bbox_pt, only where the source has one
+    annotations: dict = field(default_factory=dict)  # evaluator-only original annotations and source provenance
+
+    def inference(self) -> InferenceCase:
+        return InferenceCase(self.id, self.evidence, self.schema, self.record_key, self.ocr_confidence, self.geometry)
 
 
 def canon(value: Any) -> Any:
@@ -133,6 +148,9 @@ def _check_gold(case_id: str, schema: Schema, gold: list[dict], evidence: Eviden
 
 
 def case_of(item: dict, base: Path = Path(".")) -> Case:
+    if "inference_file" in item:
+        item = {**item, **json.loads((base / item["inference_file"]).read_text()),
+                **json.loads((base / item["annotations_file"]).read_text())}
     schema = Schema.model_validate(item["schema"] if isinstance(item["schema"], dict)
                                    else json.loads((base / item["schema"]).read_text()))
     if "run" in item:
@@ -147,7 +165,7 @@ def case_of(item: dict, base: Path = Path(".")) -> Case:
     key = tuple(item.get("record_key", ()))
     _check_gold(item["id"], schema, item["gold"], evidence, key)
     return Case(item["id"], item["group"], item["split"], evidence, schema, tuple(item["gold"]), key,
-                item.get("exhaustive", True), confidence, geometry)
+                item.get("exhaustive", True), confidence, geometry, item.get("annotations", {}))
 
 
 def check_splits(cases: list[Case]) -> None:

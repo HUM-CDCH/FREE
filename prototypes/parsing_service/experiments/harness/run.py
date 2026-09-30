@@ -71,6 +71,7 @@ def _agree(final: dict, records: list[tuple], case: Case) -> dict[str, bool | No
 def run_case(case: Case, cfg: Config, meter: Metered, *, admission: str = "uncounted") -> dict[str, Any]:
     """Run `case` under `cfg` against `meter`'s provider. A refused configuration raises before any call; a failed or
     refused region is a ledger row and a status, never a silent gap."""
+    case = case.inference()  # gold, split labels and evaluation rules cannot reach any inference stage
     started = time.monotonic()
     groups = ex.groups_of(case, cfg)
     _check_provider(cfg, meter)
@@ -122,7 +123,7 @@ def run_case(case: Case, cfg: Config, meter: Metered, *, admission: str = "uncou
             if not result.ok:
                 continue    # a failed region is on the ledger; the valid regions beside it keep their records
             for cand in result.records:
-                shown = by_chunk[chunk_id].context.passages
+                shown = tuple(p for p in by_chunk[chunk_id].context.passages if p.id in cand["shown"])
                 per_field = {}
                 for name, f in cand["fields"].items():
                     f["entries"] = per_field[name] = ev.entries_for(f, f["value"], case, shown, cfg)

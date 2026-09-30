@@ -94,21 +94,34 @@ def cluster(cands: list[dict], case: Case, cfg: Config, coverage: Coverage) -> l
     where = {c: i for i, c in enumerate(coverage.order)}
     tasks: dict[tuple, list[dict]] = defaultdict(list)
     for cand in cands:
-        tasks[(cand["chunk"], cand["group"], cand["sample"], cand["view"])].append(cand)
+        tasks[(cand["chunk"], tuple(cand.get("source_part", ())), cand["group"], cand["sample"], cand["view"])].append(cand)
     for members in tasks.values():
         lo, hi = min(c["index"] for c in members), max(c["index"] for c in members)
         for c in members:
             c["is_first"], c["is_last"] = c["index"] == lo, c["index"] == hi
-    ordered = sorted(cands, key=lambda c: (where.get(c["chunk"], 0), c["group"], c["index"]))
+    ordered = sorted(cands, key=lambda c: (where.get(c["chunk"], 0), tuple(c.get("source_part", ())), c["group"], c["index"]))
     clusters: list[_Cluster] = []
     by_key: dict[tuple, _Cluster] = {}
     open_end: dict[tuple, _Cluster] = {}        # (chunk, group, sample) -> the cluster of its last record, when the model says it goes on
+    source_order = {p.id: i for i, p in enumerate(case.evidence.passages)}
+    bounds = {(where[c["chunk"]], tuple(c.get("source_part", ()))):
+              (min(source_order[p] for p in c["primary"]), max(source_order[p] for p in c["primary"]))
+              for c in ordered if c.get("primary")}
+    boundary_previous = {}
+    for group, sample, view in {(c["group"], c["sample"], c["view"]) for c in ordered}:
+        own = sorted({(where[c["chunk"]], tuple(c.get("source_part", ()))) for c in ordered
+                      if (c["group"], c["sample"], c["view"]) == (group, sample, view)})
+        boundary_previous.update({(boundary, group, sample, view): own[i - 1] if i else None for i, boundary in enumerate(own)})
     for cand in ordered:
+        boundary = (where[cand["chunk"]], tuple(cand.get("source_part", ())))
         key = key_of(cand, case, cfg)
         home = by_key.get(key) if key is not None else None
         if home is None and cfg.merge.continuation == "flags" and cand["is_first"] and cand.get("begins") is True:
-            previous = coverage.neighbour(cand["chunk"], -1)
-            pending = open_end.get((previous, cand["group"], cand["sample"])) if previous else None
+            previous = boundary_previous[(boundary, cand["group"], cand["sample"], cand["view"])]
+            adjacent = previous is not None and previous[0] in (boundary[0], boundary[0] - 1)
+            if previous in bounds and boundary in bounds:
+                adjacent = adjacent and bounds[previous][1] + 1 == bounds[boundary][0]
+            pending = open_end.get((previous, cand["group"], cand["sample"])) if adjacent else None
             if pending is not None and pending.compatible(cand, scalars) and (key is None or pending.key in (None, key)):
                 home = pending
         if home is None and key is None:
@@ -122,7 +135,7 @@ def cluster(cands: list[dict], case: Case, cfg: Config, coverage: Coverage) -> l
             by_key[key] = home
         home.add(cand, scalars)
         if cand["is_last"] and cand.get("ends") is True:
-            open_end[(cand["chunk"], cand["group"], cand["sample"])] = home
+            open_end[(boundary, cand["group"], cand["sample"])] = home
     return [c.members for c in clusters]
 
 

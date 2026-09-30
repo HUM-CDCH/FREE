@@ -788,8 +788,8 @@ def test_call_and_token_budgets_stop_a_case_visibly_and_never_crash_it():
             reply = super().complete(**kw)
             return ResearchReply(reply.text, 900, 200, reply.finish, reply.seconds)
     tokens, reader = run(case, {"chunking": {"mode": "fixed", "max_chars": 200}, "budget": {"tokens": 1000}}, Heavy())
-    assert len(reader.calls) == 1 and not tokens["coverage"]["complete"]                    # the second call would exceed 1000 tokens
-    assert any("tokens spent" in i["detail"] for i in tokens["issues"])
+    assert len(reader.calls) == 0 and not tokens["coverage"]["complete"]  # hard token admission needs a served counter
+    assert any("served tokenizer" in i["detail"] for i in tokens["issues"])
 
 
 def test_a_refused_output_constraint_stops_the_cell_and_is_never_a_silent_prompt_only_run():

@@ -32,7 +32,7 @@ import numpy as np
 from experiments.extraction.analyze import paired_interval
 from experiments.extraction.manifest import differences, digest, read, write_new
 from experiments.harness import confidence as cf
-from experiments.harness import synth
+from experiments.harness import synth, extractbench
 from experiments.harness.config import Config
 from experiments.harness.data import Case, load_cases
 from experiments.harness.evaluate import Eval, bootstrap, check_invariants, metrics, pool, score_case
@@ -123,7 +123,8 @@ def case_pin(case: Case) -> str:
     """One resolved case: its source snapshot, schema (wherever the dataset file got it from), gold, key, group and split."""
     return digest(canonical_json({"id": case.id, "group": case.group, "split": case.split, "source": [case.evidence.generation, case.evidence.digest],
                                   "schema": case.schema.model_dump(mode="json", by_alias=True), "gold": case.gold,
-                                  "record_key": case.record_key, "exhaustive": case.exhaustive}))
+                                  "record_key": case.record_key, "exhaustive": case.exhaustive,
+                                  **({"annotations": case.annotations} if case.annotations else {})}))
 
 
 def _version(name: str) -> str | None:
@@ -158,7 +159,8 @@ def make_provider(spec: dict, cache: Path) -> Provider:
     except (OSError, ValueError):
         pass
     return Provider(chat, cache, counter, {"url": spec["url"], "model": spec["model"], "served": served,
-                                            "context_tokens": counter.context_tokens if counter else None})
+                                            "context_tokens": counter.context_tokens if counter else None,
+                                            **({"deployment": spec["deployment"]} if "deployment" in spec else {})})
 
 
 # --- projection and cells -----------------------------------------------------------------------------------------------
@@ -242,14 +244,14 @@ def pins_of(study_path: Path, study: dict, provider_identity: dict | None) -> di
             "code": harness_pin(Path(__file__).resolve().parents[2]), "environment": environment()}
 
 
-def verify_output(study_path: Path, out: Path, study: dict) -> dict:
+def verify_output(study_path: Path, out: Path, study: dict, *, rescore: bool = False) -> dict:
     """The output's manifest, provided the study file, dataset and scoring rules are the ones the cells were made under.
     Code and environment may have moved on (a newer scorer may re-score sealed cells); the caller reports whether they did."""
     if not (out / "manifest.json").exists():
         raise ValueError("no manifest: this is not an output directory of a run")
     manifest = read(out / "manifest.json")
     now = pins_of(study_path, study, None)
-    for key in ("study_sha256", "dataset_sha256", "evaluation_sha256"):
+    for key in ("study_sha256", "dataset_sha256", *(() if rescore else ("evaluation_sha256",))):
         if manifest[key] != now[key]:
             raise ValueError(f"{key.split('_')[0]} changed since this output was made; results would be attributed to a different experiment")
     return manifest
@@ -292,6 +294,11 @@ def run_study(study_path: Path, out: Path, *, execute: bool, uncounted: bool, sp
     else:
         write_new(out / "manifest.json", {"study": study, **pins})
     run_pin = {"code_sha256": digest(canonical_json(pins["code"])), "environment": pins["environment"]}
+    unfinished = [p for p in (out / "cells").glob("*/attempt-*.started.json")
+                  if not p.with_name(p.name.replace(".started.json", ".finished.json")).exists()]
+    if unfinished:
+        raise ValueError("unfinished attempts have unknown spend; reconcile them before resuming: " +
+                         ", ".join(str(p.relative_to(out)) for p in unfinished))
     if limit is not None:    # one allowance for the study: what its earlier attempts spent is gone, and no retry can overrun it
         before = sum(read(f).get("spent", {}).get("fresh", {}).get("calls", 0) for f in (out / "cells").glob("*/attempt-*.finished.json"))
         provider.allowance = Allowance(max(0, limit - before))
@@ -321,7 +328,7 @@ def load_cells(out: Path, configs: dict[str, Config], cases: list[Case], rules: 
             if case.split not in splits:
                 continue
             slot = result.setdefault(name, {}).setdefault(case.split, {"groups": {}, "cases": {}, "outcomes": [], "missing": [], "failed": [],
-                                                                       "costs": {}, "code": {}, "requests": {}, "attempts": {"fresh_calls": 0, "attempts": 0, "not_sealed": 0}})
+                                                                       "costs": {}, "code": {}, "requests": {}, "documents": {}, "attempts": {"fresh_calls": 0, "attempts": 0, "not_sealed": 0}})
             directory = out / "cells" / f"{name}--{case.id}"
             for finished in directory.glob("attempt-*.finished.json"):      # every attempt's spending, sealed or not
                 record = read(finished)
@@ -346,6 +353,9 @@ def load_cells(out: Path, configs: dict[str, Config], cases: list[Case], rules: 
             if artifact["source"] != {"generation": case.evidence.generation, "digest": case.evidence.digest}:
                 raise ValueError(f"{directory.name}: the source snapshot changed since the run")
             counts, outcomes = score_case(case, artifact, rules)
+            slot["documents"][case.id] = {"group": case.group, "counts": counts, "metrics": metrics(counts),
+                                         "coverage": artifact.get("coverage"), "issues": artifact.get("issues", []),
+                                         "requests": artifact.get("requests", [])}
             slot["costs"][case.id] = {k: counts.get(f"fresh_{k}", 0) + counts.get(f"replayed_{k}", 0)
                                       for k in ("calls", "input_tokens", "output_tokens", "seconds")}
             slot["requests"][case.id] = set(artifact.get("requests", []))
@@ -376,12 +386,12 @@ def provenance_of(manifest: dict, slots: list[dict]) -> dict:
             "provider": manifest["provider"], "scorer_sha256": digest((Path(__file__).parent / "evaluate.py").read_bytes())}
 
 
-def compare_study(study_path: Path, out: Path, split: str) -> dict:
+def compare_study(study_path: Path, out: Path, split: str, *, rescore: bool = False) -> dict:
     study = json.loads(study_path.read_text())
     configs, comparisons = check_study(study)
     if split == "test" and not study.get("final"):
         raise ValueError("test results are reported only for a declared final variant; the split was not used to select")
-    manifest = verify_output(study_path, out, study)
+    manifest = verify_output(study_path, out, study, rescore=rescore)
     cases = load_cases(study_path.parent / study["dataset"])
     rules = Eval(**study.get("evaluation", {}))
     scored = load_cells(out, configs, cases, rules, [split], manifest)
@@ -389,7 +399,7 @@ def compare_study(study_path: Path, out: Path, split: str) -> dict:
     variants = {}
     for name, slot in shown.items():
         total = pool(list(slot["groups"].values()))
-        variants[name] = {"config_sha256": configs[name].sha256(), "groups": len(slot["groups"]),
+        variants[name] = {"config_sha256": configs[name].sha256(), "documents": slot["documents"], "groups": len(slot["groups"]),
                           "cases": sum(len(ids) for ids in slot["cases"].values()), "attempt_spend": slot["attempts"],
                           "missing_cells": slot["missing"],
                           "failed_cells": slot["failed"], "invariant_violations": check_invariants(total), "metrics": metrics(total),
@@ -436,7 +446,8 @@ def compare_study(study_path: Path, out: Path, split: str) -> dict:
                 deltas.append(f["ab"] - f["a"] - f["b"] + f["baseline"])
         interactions.append({**it, "unit": "group", "metric": "field F1 difference of differences", "groups": len(deltas), "effect": paired_interval(deltas)})
     return {"study": study["id"], "split": split, "variants": variants, "comparisons": effects, "interactions": interactions,
-            "provenance": provenance_of(manifest, list(shown.values())),
+            "provenance": {**provenance_of(manifest, list(shown.values())), "evaluation_version": 2,
+                           "original_evaluation_sha256": manifest["evaluation_sha256"], "rescored": rescore},
             "limits": ["Documents of one group are resampled together; intervals over few groups are descriptive, not evidence of generalisation.",
                        "Synthetic or development data test the implementation, not real-world superiority.",
                        "Model calls are not deterministic even at temperature 0; repeats would measure serving variability.",
@@ -499,7 +510,7 @@ def confidence_study(study_path: Path, out: Path, variant: str, alpha: float, de
                 if certificate["certified"]:
                     certificate["assessed"] = cf.micro_macro(rows[assess], shown, certificate["threshold"])
                 report["risk_control"][method] = certificate
-    report["note"] = ("Formal statements hold only where certified; otherwise the empirical numbers above are all that is claimed. "
+    report["note"] = ("Research diagnostics only: no formal certification is claimed by this screening harness. "
                       f"Fusion was fit on split fit, calibrators and thresholds on calibration, everything reported on {assess}. "
                       "Raw-signal scores are descriptive: intervals over few groups are not inference.")
     return report
@@ -533,11 +544,17 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--variant", action="append")
     r.add_argument("--force", action="store_true", help="run although the projection exceeds the study budget")
     r.add_argument("--allow-code-change", action="store_true", help="continue an output made by other harness or service code")
+    adapter = commands.add_parser("extractbench", help="prepare pinned development PDFs; holdout is never ingested")
+    adapter.add_argument("selection", type=Path)
+    adapter.add_argument("snapshot", type=Path)
+    adapter.add_argument("output", type=Path)
+    adapter.add_argument("--smoke", action="store_true")
     c = commands.add_parser("compare")
     c.add_argument("study", type=Path)
     c.add_argument("output", type=Path)
     c.add_argument("report", type=Path)
     c.add_argument("--split", default="dev", choices=("fit", "calibration", "dev", "test"))
+    c.add_argument("--rescore", action="store_true", help="new versioned score of original sealed predictions; never reruns inference")
     f = commands.add_parser("confidence")
     f.add_argument("study", type=Path)
     f.add_argument("output", type=Path)
@@ -553,7 +570,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("artifact", type=Path)
     p.add_argument("--accepted-only", action="store_true", help="leave out values the artifact kept only as proposals")
     args = parser.parse_args(argv)
-    if args.command == "score":
+    if args.command == "extractbench":
+        manifest = extractbench.prepare(args.selection, args.snapshot, args.output, smoke=args.smoke)
+        print(json.dumps({k: manifest[k] for k in ("selected_documents", "ingested_documents", "failures")}, indent=2))
+    elif args.command == "score":
         case = next(c for c in load_cases(args.dataset) if c.id == args.case)
         counts, _ = score_case(case, adapt(json.loads(args.artifact.read_text()), case), Eval(excluded_flags=("proposed",) if args.accepted_only else ()))
         print(json.dumps({"case": case.id, "invariant_violations": check_invariants(counts), "metrics": metrics(counts)}, indent=1))
@@ -564,7 +584,7 @@ def main(argv: list[str] | None = None) -> None:
                                    splits=args.split or list(DEFAULT_SPLITS), variants=args.variant, force=args.force,
                                    allow_code_change=args.allow_code_change), indent=1))
     elif args.command == "compare":
-        report = compare_study(args.study, args.output, args.split)
+        report = compare_study(args.study, args.output, args.split, rescore=args.rescore)
         write_new(args.report, report)
         for name, v in report["variants"].items():
             field = v["metrics"]["field"]

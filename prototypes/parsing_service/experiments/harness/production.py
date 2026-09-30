@@ -35,7 +35,7 @@ def adapt(artifact: dict, case: Case) -> dict[str, Any]:
     """A prediction for `case` from a production artifact. A value the artifact kept as a proposal (verification off or
     unclear) is a value row flagged `proposed`: score it with the evaluator's `excluded_flags` to see accepted-only and
     accepted-plus-proposed as separate views."""
-    if case.evidence.generation != "inline" and artifact.get("digest") not in (None, case.evidence.digest):
+    if case.evidence.generation != "inline" and artifact.get("digest") != case.evidence.digest:
         raise ValueError("the artifact was made from another source snapshot than this case's")
     unread = artifact.get("completeness", {}).get("processing") is False or artifact.get("processing", {}).get("complete") is False
     review = {"rejected": artifact.get("rejected", []), "proposed": artifact.get("proposed", [])}

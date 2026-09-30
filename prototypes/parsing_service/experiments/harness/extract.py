@@ -46,6 +46,7 @@ class Task:
     view: str = "field"
     attempt: int = 0
     depth: int = 0
+    source_part: tuple[int, ...] = ()  # passage subdivisions only; field subdivisions do not create source boundaries
     part: tuple[int, ...] = ()      # which halves of the chunk and of the group a subdivision kept: () is all of both
 
     @property
@@ -237,6 +238,7 @@ def _candidates(parsed: dict, nodes: list[Node], cfg: Config, task: Task, reply)
                                  "quotes": list((given or {}).get("quotes") or []), "ids": list((given or {}).get("ids") or []),
                                  "verbalized": (given or {}).get("confidence"), "stats": value_stats(reply, path)}
         found.append({"chunk": task.chunk, "group": task.group, "sample": task.sample, "view": task.view, "index": k,
+                      "source_part": task.source_part,
                       "begins": parsed.get("begins_inside_record"), "ends": parsed.get("ends_inside_record"), "fields": fields})
     return found
 
@@ -244,7 +246,7 @@ def _candidates(parsed: dict, nodes: list[Node], cfg: Config, task: Task, reply)
 def run_field_task(task: Task, chunk: Chunk, passages: tuple[Passage, ...], nodes: list[Node], case: Case, cfg: Config,
                    meter: Metered) -> Result:
     """One call over `passages` of a chunk for the fields `nodes`; a failed call is a failed result, never records."""
-    schema = reply_schema(nodes, cfg, [p.id for p in chunk.context.passages])
+    schema = reply_schema(nodes, cfg, [p.id for p in (*chunk.context.overlap, *passages)])
     lenient = reply_schema(nodes, cfg, None)
     seed = None if cfg.sampling.seed is None else cfg.sampling.seed + task.sample
     ids, asked = tuple(p.id for p in passages), tuple(node.name for node in nodes)
@@ -264,7 +266,11 @@ def run_field_task(task: Task, chunk: Chunk, passages: tuple[Passage, ...], node
     if problems:
         return Result(task, False, "reply does not match the schema: " + "; ".join(problems), calls=tuple(calls), passages=ids,
                       fields=asked, replies=1)
-    return Result(task, True, records=tuple(_candidates(parsed, nodes, cfg, task, reply)), begins=parsed.get("begins_inside_record"),
+    candidates = _candidates(parsed, nodes, cfg, task, reply)
+    for candidate in candidates:
+        candidate["shown"] = [p.id for p in (*chunk.context.overlap, *passages)]
+        candidate["primary"] = [p.id for p in passages]
+    return Result(task, True, records=tuple(candidates), begins=parsed.get("begins_inside_record"),
                   ends=parsed.get("ends_inside_record"), calls=tuple(calls), passages=ids, fields=asked, replies=1, valid=1)
 
 
@@ -301,7 +307,7 @@ def split_task(task: Task, passages: tuple[Passage, ...], nodes: list[Node], len
                 for i, part in enumerate((rest[:half], rest[half:]))]
     if len(passages) > 1:
         half = len(passages) // 2
-        return [(replace(task, part=(*task.part, i), depth=task.depth + 1, attempt=0), part, nodes)
+        return [(replace(task, part=(*task.part, i), source_part=(*task.source_part, i), depth=task.depth + 1, attempt=0), part, nodes)
                 for i, part in enumerate((passages[:half], passages[half:]))]
     return []
 

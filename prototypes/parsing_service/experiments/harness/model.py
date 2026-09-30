@@ -135,16 +135,18 @@ class Metered:
         self.spent = {"fresh": _side(), "replayed": _side()}
         self.requests: list[str] = []    # the key of every request this view made, replayed or fresh, in order
         self._lock = threading.Lock()
+        self._reserved_tokens = 0
 
-    def _reserve(self) -> None:
+    def _reserve(self, tokens: int = 0) -> None:
         with self._lock:
             fresh = self.spent["fresh"]
             if fresh["calls"] >= self.limit:
                 raise BudgetExceeded(f"{self.limit} fresh model calls spent")
-            if self.token_limit is not None and fresh["input_tokens"] + fresh["output_tokens"] >= self.token_limit:
+            if self.token_limit is not None and fresh["input_tokens"] + fresh["output_tokens"] + self._reserved_tokens + tokens > self.token_limit:
                 raise BudgetExceeded(f"{self.token_limit} fresh tokens spent")
             if self.provider.allowance is not None:
                 self.provider.allowance.take()
+            self._reserved_tokens += tokens
             fresh["calls"] += 1     # reserved before the call: a failed call still cost its slot
 
     def _record(self, reply: ResearchReply | None, seconds: float) -> None:
@@ -171,17 +173,26 @@ class Metered:
                 reply = replace(hit, replayed=True)
                 self._record(reply, reply.seconds)
                 return reply
-            self._reserve()
+            reserved = 0
+            if self.token_limit is not None:
+                if self.counter is None:
+                    raise BudgetExceeded("a hard token budget requires a served tokenizer")
+                reserved = self.counter.request_tokens(request["system"], request["user"], request.get("schema")) + request["max_tokens"]
+            self._reserve(reserved)
             started = time.monotonic()
             try:
                 reply = provider.chat.complete(**{k: v for k, v in request.items() if k not in ("attempt", "sample")})
             except BaseException:
                 self._record(None, time.monotonic() - started)
+                # Keep the full reservation when usage is unknown (the server may have run).
                 raise
             if not isinstance(reply, ResearchReply):
                 reply = ResearchReply(**asdict(reply))
             provider.store(key, request, reply)
             self._record(reply, reply.seconds)
+            if reply.input_tokens is not None and reply.output_tokens is not None:
+                with self._lock:
+                    self._reserved_tokens -= reserved
             return reply
 
 

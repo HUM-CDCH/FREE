@@ -157,3 +157,20 @@ arms, and the groups left out are listed.
 
 Pilot evidence (a real model on synthetic data, with the protocol deviations and what the numbers can and cannot say):
 `docs/plans/2026-09-30-extraction-research-harness-evidence/`.
+
+## Real-data validation and evaluator v2
+
+The dated [screening protocol](../../../../docs/research/2026-09-30-extractbench-validation/protocol.md)
+fixes field normalization, raw versus canonical scores, evidence selection/localization/support,
+annotation availability, the A0–A3 deltas, local provider, budgets and untouched holdout.
+It supersedes pilot scoring claims; this harness does not establish a formal certificate.
+
+```sh
+python -m experiments.harness extractbench SELECTION.json PINNED_JSONL_DIR DATA_DIR --smoke
+python -m experiments.harness compare OLD_STUDY.json OLD_OUTPUT NEW_REPORT.json --split dev --rescore
+```
+
+The adapter reads pinned public JSONLs and only downloads development representatives. It writes
+separate `inputs/` and evaluator-only `annotations/`, plus checksummed parser and dataset manifests.
+Keep those PDFs, annotations and model replies in quota-checked ignored storage. Use `TMPDIR` and
+pytest `--basetemp` there too. The eight held-out representatives have no ingestion command in this increment.

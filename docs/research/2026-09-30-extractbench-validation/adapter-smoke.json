@@ -1,0 +1,131 @@
+{
+  "adapter": "extractbench-v1",
+  "selection_sha256": "02e22e24073b72debe05741e1ee2b4b7896c84de212c2170a5f1a4a987b95dd7",
+  "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+  "selected_documents": 3,
+  "ingested_documents": 3,
+  "source_groups": 3,
+  "holdout_documents_ingested": 0,
+  "documents": [
+    {
+      "source_id": "short/dc-pepco-residential-bill",
+      "source_group": "pepco-residential",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "e1b8d5193216aa4e9c515de895b6b01b71a1a5043056ea0b01b74456e191c04f",
+      "pdf_sha256": "8796ed60843ea1a0c779b95f1564ac8130bdab3b6effba09353cec217cbac119",
+      "original_schema_sha256": "baa1488caef1240bf4d684c024226325352093d784725fcf8a83038e5faaaca8",
+      "inference_schema_sha256": "1979c98cdf8bc9d073a2fc96aca5e2451d2724e026eac5cd3c65367fe538da0b",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 2391,
+            "lines": 65
+          },
+          {
+            "page": 2,
+            "characters": 2890,
+            "lines": 59
+          },
+          {
+            "page": 3,
+            "characters": 1927,
+            "lines": 52
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 3
+      },
+      "tags": [
+        "source:real",
+        "challenge:T3.a",
+        "length:short",
+        "domain:D2"
+      ],
+      "length_category": "short",
+      "source_sha256": "4afb64c09c96e37c90b9f7068e0d55eb7ea10191344372c5cd5b7c616bca480b"
+    },
+    {
+      "source_id": "short/grafton_isotrope_invoice_19503",
+      "source_group": "grafton-isotrope",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "955fdc8eac353a49770810b08ea23596de7f0e238c407a140955fde2eddd625a",
+      "pdf_sha256": "7b6f8dba51da521091b8f14e46572fba0a50b4069bac899b51284e7970f1e519",
+      "original_schema_sha256": "cddb2e2a26f8a0f3f978f49c6505fd00d06fd4bf77b8ee3bd7102db79c9d2866",
+      "inference_schema_sha256": "95ff6339d84c05b46667acb929de0bac3083287d4f342c18fd7c707ae3c68e93",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 936,
+            "lines": 35
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 1
+      },
+      "tags": [
+        "source:real",
+        "challenge:T3.b",
+        "length:short",
+        "slice:task_slice",
+        "domain:D1"
+      ],
+      "length_category": "short",
+      "source_sha256": "8974209a8a76d69b03f09eb0d3b5d9bbb84339b3ff477e7d395e691f691f436f"
+    },
+    {
+      "source_id": "short/mission-tx-tyler-invoice",
+      "source_group": "mission-tyler",
+      "dataset_revision": "51bf3a03eb7feeaef8952be1fc2fc7f924ee72dc",
+      "row_sha256": "380d322a50d7185adbe923ae450f2e2287a5c1eb10c334460b373b5e32e144f8",
+      "pdf_sha256": "e9f18a603c0f9ce128463d30e964b04058c22aaeda7098ca0703fdabe874694a",
+      "original_schema_sha256": "cddb2e2a26f8a0f3f978f49c6505fd00d06fd4bf77b8ee3bd7102db79c9d2866",
+      "inference_schema_sha256": "95ff6339d84c05b46667acb929de0bac3083287d4f342c18fd7c707ae3c68e93",
+      "parser": {
+        "name": "pdfium-native-lines-v1",
+        "pypdfium2": "5.13.0",
+        "pdfium": "153.0.7999.0",
+        "pages": [
+          {
+            "page": 1,
+            "characters": 2093,
+            "lines": 68
+          },
+          {
+            "page": 2,
+            "characters": 1853,
+            "lines": 67
+          }
+        ],
+        "empty_text_pages": [],
+        "ocr": false,
+        "geometry": "unavailable",
+        "page_count": 2
+      },
+      "tags": [
+        "source:real",
+        "challenge:T3.b",
+        "challenge:T1.b",
+        "structure:S3",
+        "length:short",
+        "domain:D1"
+      ],
+      "length_category": "short",
+      "source_sha256": "a9e30568a9e831cf7e771f05ccbe54e393165a23017356dfafb51053d03574cf"
+    }
+  ],
+  "failures": [],
+  "scoring": "custom harness leaf/record metrics; not official ExtractBench scores",
+  "schema_policy": "structural names and types only; descriptions/examples/defaults/enums removed before inference"
+}

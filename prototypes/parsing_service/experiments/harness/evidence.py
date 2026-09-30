@@ -99,29 +99,51 @@ def entries_for(candidate: dict, value: Any, case: Case, shown: tuple[Passage, .
     if mode == "none" or candidate["value"] is None and not candidate["raw"]:
         return []
     block = block_of(shown)
+    out = []
     if mode == "quote":
-        out = []
         for quote in candidate["quotes"]:
             method, found, score = align(quote, block, cfg.evidence.alignment)
             out.append(_entry(case, quote=quote, ids=[], method=method, found=found, score=score))
-        return out
-    ids = [i for i in candidate["ids"] if isinstance(i, str)]
-    by_id = {p.id: p for p in shown}
-    cited = [by_id[i] for i in ids if i in by_id]
+    else:
+        ids = [i for i in candidate["ids"] if isinstance(i, str)]
+        by_id = {p.id: p for p in shown}
+        spans = [Span(segment_id=i, start=0, end=len(by_id[i].text)) for i in ids if i in by_id and by_id[i].text]
+        out.append(_entry(case, quote=None, ids=ids, method="passage", exists=bool(ids) and all(i in by_id for i in ids),
+                          found=[spans] if spans else [], score=None))
+        if any(i not in by_id for i in ids):
+            out[-1]["missing_ids"] = [i for i in ids if i not in by_id]
+    return refine_entries(out, value, case, cfg.evidence.alignment)
+
+
+def refine_entries(entries: list[dict], value: Any, case: Case, alignment: Alignment) -> list[dict]:
+    """The same value localization for quotes and IDs, restricted to their selected text; never reads gold.
+
+    Keep the model's selection and its ambiguity before refinement. A literal location is not a semantic verdict.
+    """
+    texts = {p.id: p.text for p in case.evidence.passages}
     literal = [text for item in (value if isinstance(value, list) else [value]) for text in forms(item)] if value is not None else []
-    inside = block_of(cited)
-    refined = []
-    for text in literal:     # the printed value inside the cited passages, when it is there, is the more precise citation
-        found = exact_spans(inside, text) or locate(inside, text)
-        if found:
-            refined.append(_entry(case, quote=text, ids=ids, method="passage+value", found=found, score=None))
-    if refined:
-        if any(i not in by_id for i in ids):   # a citation of a passage nobody showed stays visible on the refined entries
-            refined = [{**entry, "exists": False, "missing_ids": [i for i in ids if i not in by_id]} for entry in refined]
-        return refined
-    return [_entry(case, quote=None, ids=[i], method="passage", exists=i in by_id,
-                   found=[[Span(segment_id=i, start=0, end=len(by_id[i].text))]] if i in by_id and by_id[i].text else [], score=None)
-            for i in ids]
+    result = []
+    for original in entries:
+        raw = [original["spans"], *original.get("alternatives", [])]
+        refined = []
+        for text in literal:
+            found = []
+            for choice in raw:
+                inside = BlockText.of([(s["segment"], texts[s["segment"]],
+                                       Span(segment_id=s["segment"], start=s["start"], end=s["end"])) for s in choice])
+                _, located, _ = align(text, inside, alignment)
+                found += [spans_json(spans) for spans in located]
+            if found:
+                unique = list({str(spans): spans for spans in found}.values())
+                refined.append({**original, "spans": unique[0], "alternatives": unique[1:], "ambiguous": len(unique) > 1,
+                                "method": "passage+value" if original["method"] == "passage" else original["method"],
+                                **_where(case, unique[0])})
+        for entry in refined or [dict(original)]:
+            result.append({**entry, "evidence_protocol": 2, "raw_spans": raw[0], "raw_alternatives": raw[1:],
+                           "raw_method": original["method"], "refined": bool(refined),
+                           "localization": "predicted_value_in_selected_text" if refined else "not_localized",
+                           "semantic_support": None})
+    return result
 
 
 def disambiguate(entries: dict[str, list[dict]], case: Case) -> None:
@@ -138,7 +160,7 @@ def disambiguate(entries: dict[str, list[dict]], case: Case) -> None:
     top = {seg for seg, n in votes.items() if n == max(votes.values())}
     for group in entries.values():
         for e in group:
-            if not e["ambiguous"] or e["method"] not in ("exact", "normalized", "fuzzy"):
+            if not e["ambiguous"] or e["method"] not in ("exact", "normalized", "fuzzy", "passage+value"):
                 continue
             choices = options[id(e)]
             pick = next((i for i, spans in enumerate(choices) if {s["segment"] for s in spans} <= top), None)
