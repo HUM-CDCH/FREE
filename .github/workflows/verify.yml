@@ -42,6 +42,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      # The runner image ships Compose 2.38, which rejects `develop.watch.initial_sync`; the repository requires 2.40.
+      - name: Install Docker Compose
+        uses: docker/setup-compose-action@v2
+        with:
+          version: v2.40.0
+
+      - name: Verify Docker Compose
+        run: |
+          docker compose version
+          version="$(docker compose version --short)"
+          test "${version#v}" = "2.40.0"
+
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
