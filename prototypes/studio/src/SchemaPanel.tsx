@@ -1,3 +1,4 @@
+import { SchemaImport } from './SchemaImport'
 import {
   useCallback,
   useEffect,
@@ -1541,6 +1542,7 @@ function SchemaPanel({
   // ────────────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-full min-h-0 flex-col">
+      <SchemaImport schema={schema} disabled={editorReadOnly || editing !== null || openDescId !== null || snap.generating} />
 
       {/* ── Header ── */}
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5">

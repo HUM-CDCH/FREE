@@ -78,3 +78,37 @@ pins without gating admission on sample counts.
 - **THEN** Studio says no records extracted on these pages, without inferring
   source-wide absence, completeness or accuracy
 
+### Requirement: Excel schema import is bounded and explicitly confirmed
+
+An authenticated account SHALL preview an owned project's `.xlsx` workbook
+transiently, choosing a worksheet and header row explicitly. The server SHALL
+bound compressed bytes to 5 MiB, actual expanded ZIP bytes to 25 MiB, columns to
+200, data rows to 5,000 and decoded cell bytes to 64 KiB before schema writes.
+Malformed/encrypted/macro ZIPs, conflicting entry names, invalid XML and merged
+headers SHALL be refused with client validation errors. The preview SHALL expose
+representable values and bounded examples, default fields to strings, and make
+type/enum hints opt-in. Lossy identifiers SHALL remain strings. Prototype paths,
+blank/duplicate paths and leaf/group collisions SHALL be refused. Flat headers
+SHALL stay literal; nesting SHALL use the researcher's separator and edited
+unambiguous paths. Preview edits SHALL retain stable node identities.
+
+Confirmation SHALL require a record description and use ordinary schema
+initialization or an expected-head revision append. An uncertain initialization
+SHALL read/reconcile the acknowledged tree before retrying. Preview/cancel SHALL
+write no schema, workbook slot, gold record or model call. Confirmation SHALL
+enter the ordinary sample/review flow. An editor changed during preview SHALL
+remain intact and require a fresh preview.
+
+#### Scenario: Resource boundaries
+
+- **WHEN** a valid workbook has exactly 200 columns and 5,000 data rows
+- **THEN** it previews; column 201, row 5,001 and oversized compressed, actual
+  expanded or decoded-cell payloads fail explicitly, including lying ZIP sizes
+
+#### Scenario: Preview then confirm
+
+- **WHEN** the researcher previews, renames fields, selects types/constraints
+  and confirms with a record description
+- **THEN** one ordinary acknowledged revision retains the preview's node IDs
+- **AND** cancellation writes nothing; stale heads and uncertain writes reconcile
+- **AND** another account cannot preview or save into the project

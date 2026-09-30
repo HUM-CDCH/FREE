@@ -293,6 +293,18 @@ describe('Microsoft Entra authentication routes', () => {
 })
 
 describe('authentication gate and route contract', () => {
+  it.each(['', '/free'])('keeps schema import behind authentication/origin checks with its bounded body at %s', async (basePath) => {
+    const test = await fixture({ basePath: basePath || '/' })
+    const path = `${ORIGIN}${basePath}/api/schema_import_preview`
+    expect((await test.app.request(path, { method: 'POST', headers: { origin: ORIGIN }, body: 'workbook' })).status).toBe(401)
+    const signedIn = await signIn(test, '/projects', basePath)
+    const headers = { origin: ORIGIN, cookie: signedIn.sessionCookie! }
+    expect((await test.app.request(path, { method: 'POST', headers: { ...headers, origin: 'https://other.example' }, body: 'workbook' })).status).toBe(403)
+    expect((await test.app.request(path, { method: 'POST', headers, body: new Uint8Array(5 * 1024 * 1024) })).status).toBe(200)
+    expect((await test.app.request(path, { method: 'POST', headers, body: new Uint8Array(5 * 1024 * 1024 + 1) })).status).toBe(413)
+    expect((await test.app.request(`${ORIGIN}${basePath}/api/example`, { method: 'POST', headers, body: new Uint8Array(1024 * 1024 + 1) })).status).toBe(413)
+  })
+
   it('redirects protected pages, denies protected APIs, and keeps signed-out public', async () => {
     const test = await fixture()
     const page = await test.app.request(

@@ -318,6 +318,35 @@ describe('flush-before-extract', () => {
 })
 
 describe('generation lifecycle', () => {
+  it('confirms imported IDs through the ordinary expected-head append', async () => {
+    const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    const imported = definition('imported')
+    await setup.controller.confirmDefinition(imported)
+    expect(setup.appends).toEqual([{ expected: 4, definition: imported }])
+    expect(setup.events).not.toContain('initialize')
+    expect(setup.controller.snapshot().draft?.schemaNodes).toEqual(imported.schemaNodes)
+  })
+
+  it.each([true, false])('reads the head before retrying an uncertain initialization (same tree: %s)', async (matches) => {
+    const imported = definition('imported'), existing = revision(1, matches ? 'imported' : 'concurrent')
+    const initialize = vi.fn().mockRejectedValue(new TypeError('Response lost'))
+    const reconcileInitialization = vi.fn(async () => existing)
+    const persistence = durableSchemaPersistence({ projectContextId: 'project-1', initial: null, initialize, reconcileInitialization,
+      append: vi.fn(), listRevisions: async () => [], getRevision: async () => existing })
+    const controller = createSchemaEditorController(persistence)
+    await expect(controller.confirmDefinition(imported)).rejects.toThrow('Response lost')
+    if (matches) {
+      await controller.confirmDefinition(imported)
+      expect(controller.snapshot().extractableSchemaRevisionId).toBe(existing.schemaRevisionId)
+      expect(controller.snapshot().draft?.schemaNodes).toEqual(imported.schemaNodes)
+    } else {
+      await expect(controller.confirmDefinition(imported)).rejects.toBeInstanceOf(SchemaRevisionConflictError)
+      expect(controller.snapshot().draft).toBeNull()
+    }
+    expect(initialize).toHaveBeenCalledOnce()
+    expect(reconcileInitialization).toHaveBeenCalledOnce()
+    controller.dispose()
+  })
   it('initializes a fresh Extraction Schema on first generation', async () => {
     const setup = setupDurable()
 

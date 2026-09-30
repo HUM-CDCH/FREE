@@ -10,6 +10,7 @@ import {
 import { createHash } from 'node:crypto'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import { IMPORT_LIMITS } from '../shared/schemaImport.js'
 import {
   canonicalStudioBasePath,
   canonicalStudioOrigin,
@@ -442,10 +443,11 @@ export async function createStudioApp(
     maxSize: SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT,
     onError: bodyTooLarge,
   })
+  const importBodyLimit: MiddlewareHandler<StudioEnvironment> = bodyLimit({ maxSize: IMPORT_LIMITS.compressed, onError: bodyTooLarge })
   const apiBodyLimit: MiddlewareHandler<StudioEnvironment> = (context, next) =>
     (isSourceDocumentIngestionPath(new URL(context.req.url).pathname)
       ? ingestionBodyLimit
-      : generalBodyLimit)(context, next)
+      : new URL(context.req.url).pathname === '/api/schema_import_preview' ? importBodyLimit : generalBodyLimit)(context, next)
   app.use('/api', apiBodyLimit)
   app.use('/api/*', apiBodyLimit)
 

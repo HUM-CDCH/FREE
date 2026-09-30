@@ -119,6 +119,7 @@ export function durableSchemaPersistence(options: {
     definition: SchemaDefinition,
     signal?: AbortSignal,
   ): Promise<SchemaRevision>
+  reconcileInitialization?(): Promise<SchemaRevision | null>
   listRevisions(
     extractionSchemaId: string,
     limit: number,
@@ -131,6 +132,7 @@ export function durableSchemaPersistence(options: {
   ): Promise<SchemaRevision>
 }): DurableSchemaPersistence {
   let extractionSchemaId = options.initial?.extractionSchemaId ?? null
+  let uncertainInitialization = false
   const listeners = new Set<() => void>()
   function notify() {
     for (const listener of listeners) listener()
@@ -156,13 +158,21 @@ export function durableSchemaPersistence(options: {
     projectContextId() {
       return options.projectContextId
     },
-    initialize(definition, signal) {
-      if (coordinator) return Promise.reject(new Error('A durable schema is already open.'))
-      return options.initialize(definition, signal).then((revision) => {
-        attach(revision)
-        notify()
-        return revision
-      })
+    async initialize(definition, signal) {
+      if (coordinator) throw new Error('A durable schema is already open.')
+      if (uncertainInitialization) {
+        if (!options.reconcileInitialization) throw new Error('Reload the project to reconcile the uncertain schema save.')
+        const current = await options.reconcileInitialization()
+        if (current) {
+          if (!sameSchemaDefinition(current, definition)) throw new SchemaRevisionConflictError(current)
+          attach(current); notify(); return current
+        }
+        uncertainInitialization = false
+      }
+      try {
+        const revision = await options.initialize(definition, signal)
+        attach(revision); notify(); return revision
+      } catch (error) { uncertainInitialization = true; throw error }
     },
     edit(definition) {
       if (coordinator) coordinator.edit(definition)
@@ -263,6 +273,7 @@ export type SchemaEditorController = {
   /** Saves a generation that finished while no tab waited for it, but only onto its base; true when it was saved. */
   restoreGeneration(template: unknown, baseSchemaRevisionId: string | null): Promise<boolean>
 
+  confirmDefinition(definition: SchemaDefinition): Promise<void>
   commit(
     mutator: (nodes: SchemaNode[]) => SchemaNode[],
     message: string,
@@ -554,6 +565,10 @@ export function createSchemaEditorController(
       publish()
     },
 
+    async confirmDefinition(definition) {
+      await adoptGenerated(definition)
+      publish()
+    },
     commit(mutator, message) {
       if (!draft) return { ok: false, reason: 'no-draft' }
       const nextNodes = mutator(draft.schemaNodes)

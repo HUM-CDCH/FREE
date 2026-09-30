@@ -46,6 +46,7 @@
     "ai-sdk-provider-claude-code": "^4.3.1",
     "ai-sdk-provider-codex-cli": "^2.1.2",
     "db": "workspace:*",
+    "exceljs": "4.4.0",
     "extraction": "workspace:*",
     "extraction-result-export": "workspace:*",
     "hono": "^4.13.7",
@@ -55,10 +56,12 @@
     "pluralize": "^8.0.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "saxes": "6.0.0",
     "studio-configuration": "workspace:*",
     "tailwindcss": "^4.3.0",
     "xstate": "^5.32.5",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "fflate": "0.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -74,7 +77,6 @@
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "fflate": "^0.8.3",
     "globals": "^17.6.0",
     "jsdom": "^29.1.1",
     "tsx": "^4.23.4",

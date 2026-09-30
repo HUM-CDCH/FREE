@@ -5,6 +5,7 @@ import {
   getSchemaRevision,
   initializeSchemaRevision,
   listSchemaRevisions,
+  listExtractionSchemas,
 } from './schemaRevisions'
 import type { AcknowledgedSchemaRevision } from './schemaSaveCoordinator'
 import {
@@ -116,6 +117,10 @@ export function useDurableCurrentSchemaRevision(
         ),
       initialize: (definition, signal) =>
         initializeSchemaRevision(scope.projectContextId, definition, signal),
+      reconcileInitialization: async () => {
+        const latest = (await listExtractionSchemas(scope.projectContextId, 1))[0]
+        return latest?.currentRevision ? getSchemaRevision(scope.projectContextId, latest.extractionSchemaId, latest.currentRevision.schemaRevisionId) : null
+      },
       listRevisions: (extractionSchemaId, limit, signal) =>
         listSchemaRevisions(scope.projectContextId, extractionSchemaId, limit, signal),
       getRevision: (extractionSchemaId, schemaRevisionId, signal) =>
