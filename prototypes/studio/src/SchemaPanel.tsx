@@ -235,6 +235,8 @@ type SchemaPanelProps = {
   /** Clear-schema behaviour: workspace reset, batch empty-and-flush, etc. */
   onClearDraft: () => void | Promise<void>
   sourceDocumentName: string
+  /** The open Source Representation: a source declaration shows only beside the source it describes. */
+  sourceRepresentationId?: string
   schemaName?: string | null
   onRenameSchema?: (name: string) => Promise<string | null>
   readOnly?: boolean
@@ -662,6 +664,7 @@ function SchemaPanel({
   onGenerateInstructions,
   onClearDraft,
   sourceDocumentName,
+  sourceRepresentationId,
   schemaName,
   onRenameSchema,
   readOnly = false,
@@ -1647,7 +1650,7 @@ function SchemaPanel({
             <button className={genBtnCls} type="button" onClick={() => schema.cancelGeneration()}>Stop</button>
           </div>
         )}
-        {ready && snap.sourceCoverage && (
+        {ready && snap.sourceCoverage && snap.sourceCoverage.sourceRepresentationRevisionId === sourceRepresentationId && (
           <div className="mb-3 rounded-md border border-line px-3 py-2" role="note">
             <p className="text-[11px] text-ink-muted">{sourceCoverageNotice(snap.sourceCoverage)}</p>
           </div>
