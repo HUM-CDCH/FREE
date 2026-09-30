@@ -20,7 +20,7 @@ Defaults taken for the open decisions (change here to override):
 - [x] 1. Deterministic source windows
 - [x] 2. One model call separated from source preparation
 - [x] 3. Bounded hierarchical reduction (UNION / INTERSECTION)
-- [ ] 4. Full-source single generation behind a DBOS patch
+- [x] 4. Full-source single generation behind a DBOS patch
 - [ ] 5. Full-source batch members behind a DBOS patch
 - [ ] 6. Hierarchical intersection replaces dropping batch merges
 - [ ] 7. Guard provider truncation

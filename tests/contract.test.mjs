@@ -279,7 +279,7 @@ function catalogPdf(pages) {
   return Buffer.from(pdf, 'latin1')
 }
 
-test('schema suggestion: a large parsed source is excerpted page by page and declares the real pages it left out', { timeout: 900_000 }, async () => {
+test('schema suggestion: a large parsed source is read whole, window by window, and declared complete', { timeout: 900_000 }, async () => {
   const PAGES = 30
   const form = new FormData()
   form.append('file', new File([catalogPdf(PAGES)], 'catalogue.pdf', { type: 'application/pdf' }))
@@ -343,32 +343,27 @@ test('schema suggestion: a large parsed source is excerpted page by page and dec
   suggestion.append('instruction', 'Suggest the fields of one grave entry.')
   const generated = await session.api('/generate_schema', { method: 'POST', body: suggestion })
   assert.equal(generated.status, 200, JSON.stringify(generated.body).slice(0, 600))
-  const coverage = generated.body.sourceCoverage
-  console.log('coverage: ' + JSON.stringify({ ...coverage, omitted: coverage?.omitted?.length }))
-  assert.equal(coverage?.complete, false, 'a source over the threshold is declared excerpted')
-  assert.equal(coverage.sourceCharacters, markdown.length, 'sourceCharacters is the whole Markdown, in UTF-16 characters')
-  const pages = coverage.omitted.map((omission) => omission.page)
-  assert.ok(pages.every((page) => Number.isInteger(page)), `every omission names its physical page, got ${JSON.stringify(pages)}`)
-  assert.deepEqual(pages, Array.from({ length: PAGES }, (_, index) => index + 1), 'one omission per physical page, in order')
-  for (const { page, start, end } of coverage.omitted) {
-    const omitted = markdown.slice(start, end)
-    const token = String(page).padStart(2, '0')
-    assert.ok(end > start && end <= markdown.length, `page ${page}: range ${start}-${end}`)
-    assert.ok(!omitted.includes(`PAGESTART${token}`) && !omitted.includes(`PAGEEND${token}`), `page ${page}: the omitted middle holds the page's own head or tail`)
-    assert.ok(markdown.slice(0, start).includes(`PAGESTART${token}`), `page ${page}: its head precedes the omission`)
-    assert.ok(markdown.slice(end).includes(`PAGEEND${token}`), `page ${page}: its tail follows the omission`)
-  }
+  // Past the schema-suggestion-windows patch nothing of the source is left out.
+  assert.deepEqual(generated.body.sourceCoverage, { complete: true }, 'a source over the threshold is declared read whole')
 
-  // What the model actually received: the fixture logs counts only.
+  // What the model actually received across the windows and their union: the fixture logs counts only.
   const logs = compose(['logs', '--no-log-prefix', 'contract-model']).stdout
-  const sent = JSON.parse(logs.split('\n').filter((line) => line.startsWith('SUGGEST ')).at(-1).slice('SUGGEST '.length))
-  console.log('model received: ' + JSON.stringify({ ...sent, starts: sent.starts.length, ends: sent.ends.length }))
+  const calls = logs.split('\n').filter((line) => line.startsWith('SUGGEST ')).map((line) => JSON.parse(line.slice('SUGGEST '.length)))
+  // This generation's calls end with its windows, then their union(s): take the window run before the trailing unions.
+  let end = calls.length
+  while (end > 0 && calls[end - 1].union) end -= 1
+  let begin = end
+  while (begin > 0 && !calls[begin - 1].union) begin -= 1
+  const windows = calls.slice(begin, end)
+  console.log('model received: ' + JSON.stringify({ calls: calls.length, windows: windows.length, unions: calls.filter((call) => call.union).length }))
   const all = Array.from({ length: PAGES }, (_, index) => String(index + 1).padStart(2, '0'))
-  assert.equal(sent.everyPage, true, 'the prompt header claims every physical page')
-  assert.deepEqual(sent.starts, all, 'every page head reached the model')
-  assert.deepEqual(sent.ends, all, 'every page tail reached the model')
-  assert.equal(sent.omittedMarks, PAGES, 'each page was cut once')
-  assert.equal(sent.nordic, true, 'æøå survived the byte-to-character conversion')
+  const reached = (kind) => [...new Set(windows.flatMap((call) => call[kind]))].sort()
+  assert.ok(windows.length > 1, 'a source over one window is suggested from several windows')
+  assert.ok(calls.some((call) => call.union), 'the window suggestions are combined')
+  assert.deepEqual(reached('starts'), all, 'every page head reached the model')
+  assert.deepEqual(reached('ends'), all, 'every page tail reached the model')
+  assert.ok(windows.every((call) => call.omittedMarks === 0), 'no window was excerpted')
+  assert.ok(windows.some((call) => call.nordic), 'æøå reached the model')
 })
 
 test('durability: research state survives a normal restart', { timeout: 900_000 }, async () => {

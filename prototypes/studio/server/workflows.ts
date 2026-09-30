@@ -61,7 +61,12 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
   registerReprocessWorkflow(sourceConversionWorkflowPorts)
   registerSchemaGenerationWorkflow(() => {
     const worker = createInternalProjectWorkerStore()
-    return { steps: dbosSteps, readSource: (id) => worker.readRevisionSchemaSource(id), generate: generateSchemaWithModel }
+    return {
+      steps: dbosSteps,
+      readSource: (id) => worker.readRevisionSchemaSource(id),
+      generate: generateSchemaWithModel,
+      patched: (name) => DBOS.patch(name),
+    }
   })
   registerSchemaEditWorkflow(() => {
     const worker = createInternalProjectWorkerStore()

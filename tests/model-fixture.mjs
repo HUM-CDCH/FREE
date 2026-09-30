@@ -12,11 +12,12 @@ function answerFor(body) {
   // Schema Suggestion (page-span excerpts scenario): log only what the prompt carried, answer a minimal template.
   const text = body.messages.map((message) =>
     typeof message.content === 'string' ? message.content : JSON.stringify(message.content)).join('\n')
-  if (text.includes('for schema design')) {
+  if (text.includes('Generate a compact JSON extraction schema')) {
+    // Schema Suggestion (a window of the source, or a union of window suggestions): log only what the prompt carried.
     const ids = (kind) => [...new Set([...text.matchAll(new RegExp(`PAGE${kind}(\\d\\d)`, 'g'))].map((match) => match[1]))].sort()
     console.log('SUGGEST ' + JSON.stringify({
       chars: text.length,
-      everyPage: text.includes('from every physical page'),
+      union: text.includes('WINDOW 1 SCHEMA:'),
       omittedMarks: text.split('[... omitted for schema design ...]').length - 1,
       starts: ids('START'),
       ends: ids('END'),

@@ -101,11 +101,13 @@ export async function combineSchemas(
   text: string,
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
+  temperature?: number,
 ): Promise<Record<string, unknown>> {
   const generated = await generate(caller, {
     document: { file: null, markdown: text, pages: null },
     instruction: mode === 'union' ? UNION_INSTRUCTION : MERGE_INSTRUCTION,
     window: true,
+    ...(temperature === undefined ? {} : { temperature }),
     signal,
   })
   return generated.template

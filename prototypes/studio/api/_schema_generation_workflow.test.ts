@@ -4,7 +4,7 @@ import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { holdsKey, plantedKey } from '../test/support/plantedKey.js'
 import { ApiError } from './_http.js'
 import { ModelKeyRequiredError } from './_model_keys.js'
-import { suggestSchemaWorkflow, type SchemaGenerationInput, type SchemaGenerationPorts } from './_schema_generation_workflow.js'
+import { suggestSchemaWorkflow, WINDOWED_SUGGESTION, type SchemaGenerationInput, type SchemaGenerationPorts } from './_schema_generation_workflow.js'
 
 const OWNER = '51000000-0000-4000-8009-00000000000a'
 const input: SchemaGenerationInput = {
@@ -40,7 +40,7 @@ function ports(overrides: Partial<SchemaGenerationPorts> = {}) {
   const generated = { template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: 2, sourceCoverage: EXCERPTED }
   const generate = vi.fn(async () => generated) as unknown as SchemaGenerationPorts['generate']
   const readSource = vi.fn(async (): Promise<SchemaSource | null> => SOURCE)
-  return { names, generate, readSource, ports: { steps, readSource, generate, ...overrides } as SchemaGenerationPorts }
+  return { names, generate, readSource, ports: { steps, readSource, generate, patched: async () => false, ...overrides } as SchemaGenerationPorts }
 }
 
 describe('suggestSchemaWorkflow', () => {
@@ -128,5 +128,98 @@ describe('suggestSchemaWorkflow', () => {
     await expect(suggestSchemaWorkflow(input, p)).resolves.toEqual({ ok: false, status: 404, code: 'not_found', message: 'Project model context was not found.' })
     expect(names).toEqual([])
     expect(generate).not.toHaveBeenCalled()
+  })
+})
+
+describe('suggestSchemaWorkflow, patched to read every window', () => {
+  const paragraph = (i: number) => `Entry ${i}. ${'x'.repeat(3_000)}`
+  const LONG = Array.from({ length: 40 }, (_, i) => paragraph(i)).join('\n\n')
+  const windowTemplate = (markdown: string) => ({ _description: 'One entry.', [`from_${markdown.slice(0, 8).replace(/\W/g, '_')}`]: 'string' })
+
+  /** Steps checkpointed by name, as DBOS replays them; `crashAt` throws before that step runs, like a lost process. */
+  function checkpointedSteps(checkpoints: Map<string, unknown>, crashAt?: string) {
+    const names: string[] = []
+    const steps: WorkflowSteps = {
+      step: async (name, run) => {
+        names.push(name)
+        if (checkpoints.has(name)) return checkpoints.get(name) as never
+        if (name === crashAt) throw new Error('process lost')
+        const output = await run()
+        checkpoints.set(name, output)
+        return output
+      },
+      cancelSignal: () => undefined,
+    }
+    return { names, steps }
+  }
+
+  function windowedPorts(steps: WorkflowSteps) {
+    const generate = vi.fn(async (_caller: unknown, call: { document: { markdown: string }; instruction: string; window?: boolean }) => ({
+      template: call.instruction === input.instruction ? windowTemplate(call.document.markdown) : { _description: 'One entry.', union: 'string' },
+      raw: '{}', pages: null, sourceCoverage: { complete: true as const },
+    }))
+    const patched = vi.fn(async (name: string) => name === WINDOWED_SUGGESTION)
+    return { generate, patched, ports: { steps, readSource: async () => ({ markdown: LONG, pageSpans: [] }), generate, patched } as unknown as SchemaGenerationPorts }
+  }
+
+  it('suggests from every window, combines them, and resumes after a lost process without repeating a window', async () => {
+    const checkpoints = new Map<string, unknown>()
+    const first = windowedPorts(checkpointedSteps(checkpoints, 'suggestWindow:2').steps)
+    await expect(suggestSchemaWorkflow(input, first.ports)).rejects.toThrow('process lost')
+    expect(first.generate).toHaveBeenCalledOnce()
+
+    const replay = checkpointedSteps(checkpoints)
+    const second = windowedPorts(replay.steps)
+    const result = await suggestSchemaWorkflow(input, second.ports)
+
+    const windowCalls = second.generate.mock.calls.filter(([, call]) => call.instruction === input.instruction)
+    const firstWindow = first.generate.mock.calls[0]![1].document.markdown
+    expect(firstWindow + windowCalls.map(([, call]) => call.document.markdown).join('')).toBe(LONG)
+    expect(windowCalls.every(([, call]) => call.window === true)).toBe(true)
+    expect(replay.names.filter((name) => name.startsWith('suggestWindow:'))).toEqual(['suggestWindow:1', 'suggestWindow:2', 'suggestWindow:3'])
+    expect(replay.names.some((name) => name.startsWith('reduce:'))).toBe(true)
+    expect(result).toEqual({
+      ok: true, template: { _description: 'One entry.', union: 'string' }, raw: JSON.stringify({ _description: 'One entry.', union: 'string' }),
+      pages: null, sourceCoverage: { complete: true }, baseSchemaRevisionId: input.baseSchemaRevisionId,
+    })
+  })
+
+  it('sends a fitting source whole in one call and no combination', async () => {
+    const { names, steps } = checkpointedSteps(new Map())
+    const { generate, ports: p } = windowedPorts(steps)
+    const result = await suggestSchemaWorkflow(input, { ...p, readSource: async () => ({ markdown: '# Source A', pageSpans: [] }) })
+
+    expect(generate).toHaveBeenCalledOnce()
+    expect(names).toEqual(['suggestWindow:1'])
+    expect(result).toMatchObject({ ok: true, template: windowTemplate('# Source A'), sourceCoverage: { complete: true } })
+  })
+
+  it('asks every window and every combination at the requested temperature', async () => {
+    const { steps } = checkpointedSteps(new Map())
+    const { generate, ports: p } = windowedPorts(steps)
+    await suggestSchemaWorkflow({ ...input, temperature: 0.4 }, p)
+
+    expect(generate.mock.calls.length).toBeGreaterThan(3)
+    expect(generate.mock.calls.every(([, call]) => (call as { temperature?: number }).temperature === 0.4)).toBe(true)
+  })
+
+  it("asks every window with the researcher's instruction and combines them without it", async () => {
+    // A document-scope exclusion ("exclude the bibliography") read again at the union drops per-entry fields (Beier probe).
+    const { steps } = checkpointedSteps(new Map())
+    const { generate, ports: p } = windowedPorts(steps)
+    await suggestSchemaWorkflow(input, p)
+
+    const instructions = generate.mock.calls.map(([, call]) => call.instruction)
+    expect(instructions.filter((instruction) => instruction === input.instruction)).toHaveLength(3)
+    const unions = instructions.filter((instruction) => instruction !== input.instruction)
+    expect(unions.length).toBeGreaterThan(0)
+    expect(unions.every((instruction) => !instruction.includes(input.instruction))).toBe(true)
+  })
+
+  it('a failing window is the typed outcome, never thrown', async () => {
+    const { steps } = checkpointedSteps(new Map())
+    const { generate, ports: p } = windowedPorts(steps)
+    generate.mockRejectedValueOnce(new ApiError(502, 'invalid_model_output', 'x'))
+    await expect(suggestSchemaWorkflow(input, p)).resolves.toEqual({ ok: false, status: 502, code: 'invalid_model_output', message: 'x' })
   })
 })
