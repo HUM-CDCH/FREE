@@ -89,6 +89,7 @@ function xml(files: Map<string, Uint8Array>, name: string, configure: (parser: S
   if (!data) refuse(`Workbook is missing ${name}.`)
   const parser = new SaxesParser()
   parser.on('doctype', () => refuse('XML document types are unsupported.'))
+  parser.on('cdata', () => refuse('XML CDATA cell representations are unsupported.'))
   configure(parser)
   const decoder = new TextDecoder('utf-8', { fatal: true })
   for (let at = 0; at < data.length; at += 4096) parser.write(decoder.decode(data.subarray(at, at + 4096), { stream: true }))

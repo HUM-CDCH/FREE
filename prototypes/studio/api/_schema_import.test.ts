@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import ExcelJS from 'exceljs'
-import { zipSync } from 'fflate'
+import { unzipSync, zipSync } from 'fflate'
 import { preflightWorkbook, previewWorkbook } from './_schema_import.js'
 import { IMPORT_LIMITS, importDefinition, type ImportColumn } from '../shared/schemaImport.js'
 import { createResearcherApiHandlers } from './schema_import_preview.js'
@@ -39,6 +39,12 @@ describe('bounded workbook preview', () => {
     await expect(previewWorkbook(await workbook([['a'], [{ error: '#DIV/0!' }]]), 'Codebook', 1)).rejects.toThrow('Cell A2')
     await expect(previewWorkbook(await workbook([['a'], ['x'.repeat(IMPORT_LIMITS.cell + 1)]]), 'Codebook', 1)).rejects.toThrow('64 KiB')
     expect((await previewWorkbook(await workbook([['a'], ['x'.repeat(IMPORT_LIMITS.cell)]]), 'Codebook', 1)).columns).toHaveLength(1)
+  })
+  it.each(['short text', 'x'.repeat(IMPORT_LIMITS.cell + 1)])('refuses CDATA instead of silently losing a cell (%#)', async (value) => {
+    const files = unzipSync(await workbook([['a'], [value]]))
+    const xml = new TextDecoder().decode(files['xl/sharedStrings.xml'])
+    files['xl/sharedStrings.xml'] = new TextEncoder().encode(xml.replace(`<t>${value}</t>`, `<t><![CDATA[${value}]]></t>`))
+    await expect(previewWorkbook(zipSync(files), 'Codebook', 1)).rejects.toThrow('CDATA')
   })
   it('checks compressed, declared and actual ZIP limits before constructing ExcelJS', async () => {
     const reader = vi.spyOn(ExcelJS.stream.xlsx, 'WorkbookReader')

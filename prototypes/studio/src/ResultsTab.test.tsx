@@ -432,10 +432,10 @@ describe('ResultsTab grounded values', () => {
 
     expect(
       screen.getByText(
-        '2 values could not be grounded. No Review Decisions can be saved; they will remain recorded without Evidence.',
+        '2 values could not be grounded. They remain optional and recorded without model Evidence.',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText('No reviewable result')).toBeInTheDocument()
+    expect(screen.getByText('No grounded values')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save Review' })).not.toBeInTheDocument()
   })
 

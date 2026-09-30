@@ -93,6 +93,7 @@ function RightRail({
     if (!attempt || !pinned) return
     const node = enumerateFieldPaths(pinned.schemaNodes).find((field) => field.id === nodeId)?.node
     if (!node) return
+    schema.closeHistoricalPreview()
     setFieldContext({ extractionId: attempt.extractionId, schemaRevisionId: attempt.schemaRevisionId,
       revisionNumber: pinned.revisionNumber, nodeId, nodeType: node.type, resultPaths: [path] })
     onTabChange('schema')

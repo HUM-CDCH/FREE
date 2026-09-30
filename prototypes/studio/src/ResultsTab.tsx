@@ -630,7 +630,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
   const checkCount = state.status === 'ready'
     ? state.evidenceLinks.filter((link) => evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action) !== undefined).length
     : 0
-  const noReviewableResult = state.status === 'ready' && state.evidenceLinks.length === 0
+  const noGroundedValues = state.status === 'ready' && state.evidenceLinks.length === 0
 
   function navTo(newPath: string[]) {
     setBackStack(prev => [...prev, navPath])
@@ -829,16 +829,16 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 <p>Successful values remain visible. See the persisted stage diagnostics for details.</p>
               </div>
             )}
-            {noReviewableResult && (
+            {noGroundedValues && (
               <div className="mt-2 rounded-md border border-line-strong bg-surface-muted px-2.5 py-2 text-[11.5px] leading-snug text-ink" role="status">
-                <p className="font-semibold">No reviewable result</p>
-                <p className="text-ink-muted">No populated value has Evidence. Raw JSON and diagnostics remain available.</p>
+                <p className="font-semibold">No grounded values</p>
+                <p className="text-ink-muted">No populated value has model Evidence. Values remain visible; optional cells do not block finalizing a review.</p>
               </div>
             )}
             {attempt?.diagnostics?.grounded && <RecipeReview grounded={attempt.diagnostics.grounded} />}
             {state.ungroundedCount > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
-                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. {noReviewableResult ? 'No Review Decisions can be saved; ' : 'You can still save the grounded Review Decisions; '}{state.ungroundedCount === 1 ? 'it' : 'they'} will remain recorded without Evidence.
+                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. {state.ungroundedCount === 1 ? 'It remains' : 'They remain'} optional and recorded without model Evidence.
               </p>
             )}
           </div>
@@ -934,7 +934,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       return link && evidenceDetail(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action)
                     }}
                     onSelectEvidence={onSelectEvidence}
-                    review={noReviewableResult ? undefined : {
+                    review={noGroundedValues ? undefined : {
                       getDecision: (path) => reviewDecisionByPath.get(resultPathKey(absoluteReviewPath(path))),
                       getSchemaNode: (path) => pinnedSchema
                         ? schemaNodeAtResultPath(pinnedSchema.schemaNodes, absoluteReviewPath(path))

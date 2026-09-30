@@ -180,8 +180,8 @@ export function useExtraction({
   // default (every field is seeded 'APPROVED' by prepareReview) rather than a
   // decision the researcher actually made.
   const [touchedPaths, setTouchedPaths] = useState<ReadonlySet<string>>(new Set())
-  const draftRef = useRef({ decisions: reviewDecisions, touched: touchedPaths })
-  draftRef.current = { decisions: reviewDecisions, touched: touchedPaths }
+  const draftRef = useRef<{ decisions: ReviewDecisionInput[]; touched: ReadonlySet<string>; pairings?: ReviewPairing[] }>({ decisions: reviewDecisions, touched: touchedPaths })
+  draftRef.current = { ...draftRef.current, decisions: reviewDecisions, touched: touchedPaths }
   const [reviewError, setReviewError] = useState<string | null>(null)
   const draftSaveRef = useRef({ version: 0, pending: Promise.resolve(), writes: 0, conflict: false })
   const [reviewReload, setReviewReload] = useState(0)
@@ -215,6 +215,7 @@ export function useExtraction({
     // In-flight saves and draft writes belong to the previous document or attempt.
     saveScopeRef.current = { saving: false }
     draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
+    draftRef.current.pairings = undefined
     setDraftSaving(false)
     setSaving(false)
     if (documentChanged) {
@@ -374,17 +375,19 @@ export function useExtraction({
           )
           return
         }
-        setTransfer({ extractionId: attempt.extractionId, verdicts: prepared.reviewDraft?.transfer ?? {},
-          pairings: prepared.reviewDraft?.pairings ?? [], sources: prepared.reviewDraft?.sources ?? [] })
         const recovered = recoverReviewDraft(attempt.extractionId, prepared.reviewDraft, prepared.pendingReviewDecisions ?? [])
+        const pairings = [...recovered.pairings]
+        setTransfer({ extractionId: attempt.extractionId, verdicts: prepared.reviewDraft?.transfer ?? {},
+          pairings, sources: prepared.reviewDraft?.sources ?? [] })
         draftSaveRef.current = { version: recovered.version, pending: Promise.resolve(), writes: 0, conflict: recovered.conflict }
         setDraftError(recovered.conflict ? REVIEW_DRAFT_CONFLICT : null)
-        draftRef.current = { decisions: recovered.decisions, touched: recovered.touchedPaths }
+        draftRef.current = { decisions: recovered.decisions, touched: recovered.touchedPaths,
+          pairings: recovered.retry || recovered.conflict ? pairings : undefined }
         setReviewDecisions(
           recovered.decisions,
         )
         setTouchedPaths(recovered.touchedPaths)
-        if (recovered.retry) updateReview(recovered.decisions, recovered.touchedPaths)
+        if (recovered.retry) updateReview(recovered.decisions, recovered.touchedPaths, pairings)
       } catch (error) {
         if (reviewLoadRef.current !== load) return
         setReviewError(
@@ -534,14 +537,14 @@ export function useExtraction({
     }
   }
 
-  function updateReview(decisions: ReviewDecisionInput[], touched: ReadonlySet<string>, pairings?: ReviewPairing[]) {
+  function updateReview(decisions: ReviewDecisionInput[], touched: ReadonlySet<string>, pairings = draftRef.current.pairings) {
     if (!attempt) return
-    draftRef.current = { decisions, touched }
+    draftRef.current = { decisions, touched, pairings }
     setReviewDecisions(decisions)
     setTouchedPaths(touched)
     const scope = draftSaveRef.current
     if (scope.conflict) {
-      rememberReviewDraft(attempt.extractionId, { version: scope.version, decisions: decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))) })
+      rememberReviewDraft(attempt.extractionId, { version: scope.version, decisions: decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), pairings })
       return
     }
     scope.writes += 1
@@ -551,7 +554,10 @@ export function useExtraction({
       decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), scope.version, pairings)
     scope.pending = write.then((saved) => {
       scope.version = saved.version
-      if (pairings && draftSaveRef.current === scope) setReviewReload((value) => value + 1)
+      if (pairings && draftSaveRef.current === scope) {
+        if (draftRef.current.pairings === pairings) draftRef.current.pairings = undefined
+        setReviewReload((value) => value + 1)
+      }
     })
     void scope.pending.catch((error: unknown) => {
       if (draftSaveRef.current !== scope) return

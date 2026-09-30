@@ -400,4 +400,16 @@ describe('Review transfer from a sample to a later run', () => {
       .get(JSON.stringify(date))?.status, 'fixed')
     assert.equal(transferVerdicts(transfer, run('rerun', [{ date: ['um 1650', 'a_p2_s5'] }]), nodes).size, 0)
   })
+  it('offers an anchorless concrete correction for hand pairing without inferring record identity', () => {
+    const sample = { ...run('sample', [{}]), result: { records: [{ date: null }] } }
+    const correction: ReviewDecisionInput = { resultPath: date, evidenceAnchorId: null, reviewedOccurrenceIds: [], action: 'EDITED',
+      reviewedValue: '1650', reviewedEvidence: [{ evidenceAnchorId: 'a_p1_s1', reviewedOccurrenceIds: ['o1'] }] }
+    const transfer = unionReviewTransfer([{ ...transferSample(sample), entries: transferEntries(sample, [correction], nodes, 1) }])!
+    const rerun = run('rerun', [{ date: ['1650', 'a_p1_s1'] }])
+    assert.equal(transferVerdicts(transfer, rerun, nodes).get(JSON.stringify(date))?.status, 'unmatched')
+    assert.deepEqual(unmatchedSources(transfer, rerun), [{ extractionId: 'sample', record: 0, label: 'p. 1 · 1650' }])
+    assert.equal(transferVerdicts(transfer, rerun, nodes, [{ record: 0, extractionId: 'sample', sourceRecord: 0 }])
+      .get(JSON.stringify(date))?.status, 'fixed')
+    assert.deepEqual(unmatchedSources(transfer, run('other-page', [{ date: ['1650', 'a_p2_s1'] }])), [])
+  })
 })

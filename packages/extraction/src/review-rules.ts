@@ -449,6 +449,14 @@ const anchorPage = (anchorId: string) => /^a_p(\d+)_/.exec(anchorId)?.[1]
 const sharePage = (left: TransferRecord, right: TransferRecord) => left.anchors.some((anchor) =>
   right.anchors.some((other) => (anchorPage(anchor) ?? anchor) === (anchorPage(other) ?? other)))
 
+/** Correction Evidence permits hand pairing when a sample record has no model anchors; it never guesses alignment. */
+function pairableRecord(transfer: ReviewTransfer, sample: TransferSample, index: number): TransferRecord {
+  const record = sample.records[index]!
+  return record.anchors.length ? record : { ...record, anchors: transfer.entries
+    .filter((entry) => entry.extractionId === sample.extractionId && entry.record === index)
+    .flatMap((entry) => entry.reviewedEvidence?.map((evidence) => evidence.evidenceAnchorId) ?? []) }
+}
+
 /** The pinned records with decisions that share a page with a destination record without aligning or being paired,
  *  each labelled for display only by its first decided value's page and model value. */
 export function unmatchedSources(
@@ -457,12 +465,12 @@ export function unmatchedSources(
   const target = transferSample(destination)
   const pairs = transferPairs(transfer.samples, target, pairings)
   const same = sourceRecordComparer(transfer.samples)
-  return transfer.samples.flatMap((sample) => sample.records.flatMap((record, index) => {
+  return transfer.samples.flatMap((sample) => sample.records.flatMap((_, index) => {
     const first = transfer.entries.find((entry) => entry.extractionId === sample.extractionId && entry.record === index)
     if (!first || [...pairs].some(([id, used]) => [...used.values()].some((at) => same([sample.extractionId, index], [id, at]))) ||
-        !target.records.some((each) => sharePage(each, record))) return []
+        !target.records.some((each) => sharePage(each, pairableRecord(transfer, sample, index)))) return []
     const page = anchorPage(first.evidenceAnchorId ?? first.reviewedEvidence?.[0]?.evidenceAnchorId ?? '')
-    return [{ extractionId: sample.extractionId, record: index, label: `${page ? `p. ${page} · ` : ''}${String(first.modelValue)}` }]
+    return [{ extractionId: sample.extractionId, record: index, label: `${page ? `p. ${page} · ` : ''}${String(first.modelValue ?? first.reviewedValue)}` }]
   }))
 }
 
@@ -498,7 +506,7 @@ export function transferVerdicts(
         .includes(anchor)))
     if (!entry) {
       const unmatched = ![...pairs.values()].some((aligned) => aligned.has(record)) && transfer.entries.some((each) =>
-        sharePage(sampleOf(each).records[each.record]!, target.records[record]!))
+        sharePage(pairableRecord(transfer, sampleOf(each), each.record), target.records[record]!))
       if (link && unmatched) verdicts.set(resultPathKey(path), { status: 'unmatched', entry: null, decision: null, kept: null })
       continue
     }

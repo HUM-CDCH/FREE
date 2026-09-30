@@ -547,8 +547,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(
     freshPage.getByText('Running extraction…'),
   ).toBeHidden({ timeout: 30_000 })
-  await expect(freshPage.getByText('No reviewable result')).toBeVisible()
-  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
+  await expect(freshPage.getByText('No grounded values')).toBeVisible()
+  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toBeEnabled()
   await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
   const reopened = documentReopenResponseSchema.parse(

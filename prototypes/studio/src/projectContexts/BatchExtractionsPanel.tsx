@@ -1,5 +1,4 @@
 import { SampleFacts } from '../SampleFacts'
-import { readSampleFacts } from '../api'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   exportBatchExtractionResults,
@@ -204,6 +203,8 @@ export default function BatchExtractionsPanel({
   // The saved-schema editor registers its flush so opening a Batch Extraction
   // can wait for the chosen schema's pending save.
   const savedSchemaFlush = useRef<(() => Promise<AcknowledgedSchemaRevision | null>) | null>(null)
+  const sampleFactsRefresh = useRef<((revision?: string) => Promise<void>) | null>(null)
+  const [coverageRevision, setCoverageRevision] = useState<{ selected: string; current: string } | null>(null)
   const historyGeneration = useRef(0)
   const suggestionGeneration = useRef(0)
   const pendingRefreshes = useRef(0)
@@ -616,7 +617,7 @@ export default function BatchExtractionsPanel({
     setRunNotice(null)
     try {
       const savedRevision = await savedSchemaFlush.current?.()
-      await readSampleFacts(projectContextId, savedRevision?.schemaRevisionId ?? schemaRevisionId, [...selected]).catch(() => null)
+      await sampleFactsRefresh.current?.(savedRevision?.schemaRevisionId ?? schemaRevisionId)
       const request = {
         projectContextId,
         schemaRevisionId: savedRevision?.schemaRevisionId ?? schemaRevisionId,
@@ -952,7 +953,9 @@ export default function BatchExtractionsPanel({
               </label>
             </div>
             <div className="mb-3">
-              <SampleFacts projectContextId={projectContextId} schemaRevisionId={schemaRevisionId === SUGGEST_SCHEMA ? null : schemaRevisionId || null} sourceDocumentIds={[...selected]} />
+              <SampleFacts projectContextId={projectContextId}
+                schemaRevisionId={schemaRevisionId === SUGGEST_SCHEMA ? null : coverageRevision?.selected === schemaRevisionId ? coverageRevision.current : schemaRevisionId || null}
+                sourceDocumentIds={[...selected]} refreshRef={sampleFactsRefresh} />
               <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
                 method={saved.state.status === 'ready' ? savedMethodFor(saved.state.config, batchStrategy, null) : null}
                 onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
@@ -967,6 +970,7 @@ export default function BatchExtractionsPanel({
                 key={chosenSchema.schemaRevisionId}
                 projectContextId={projectContextId}
                 chosenSchema={chosenSchema}
+                onCurrentRevision={setCoverageRevision}
                 sourceDocumentName={
                   selectedSchema
                     ? `${selectedSchema.name} · Schema Revision ${chosenSchema.revisionNumber}`
@@ -1256,6 +1260,7 @@ function SavedSchemaEditor({
   chosenSchema,
   sourceDocumentName,
   registerFlush,
+  onCurrentRevision,
 }: {
   projectContextId: string
   chosenSchema: SchemaRevision
@@ -1263,6 +1268,7 @@ function SavedSchemaEditor({
   registerFlush: (
     flush: (() => Promise<AcknowledgedSchemaRevision | null>) | null,
   ) => void
+  onCurrentRevision(revision: { selected: string; current: string }): void
 }) {
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
@@ -1274,6 +1280,10 @@ function SavedSchemaEditor({
     return () => registerFlush(null)
   }, [schema, registerFlush])
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
+  const currentRevision = snap.save?.acknowledged.schemaRevisionId ?? chosenSchema.schemaRevisionId
+  useEffect(() => {
+    onCurrentRevision({ selected: chosenSchema.schemaRevisionId, current: currentRevision })
+  }, [chosenSchema.schemaRevisionId, currentRevision, onCurrentRevision])
   const failure =
     snap.save?.status === 'error'
       ? snap.save.error?.message ?? 'The schema could not be saved.'

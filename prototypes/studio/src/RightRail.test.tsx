@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RightRail from './RightRail'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionInspection } from './RightRail'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { SchemaRevision } from '../shared/schemaRevision.contract'
 import {
   createSchemaEditorController,
   localSchemaPersistence,
@@ -105,6 +108,40 @@ function renderRail({
 }
 
 describe('RightRail developer UI visibility', () => {
+  it('jumps from Results to the current draft while closing a historical preview', async () => {
+    const historical: SchemaRevision = { schemaRevisionId: 'revision-1', extractionSchemaId: 'schema-1', revisionNumber: 1,
+      origin: 'researcher-edit', createdAt: '2026-09-30T00:00:00Z', recordDescription: 'One record.',
+      schemaNodes: [{ id: 'title', name: 'title', type: 'string' }, { id: 'gender', name: 'gender', type: 'string' }] }
+    const schema = createSchemaEditorController({ ...localSchemaPersistence({ onEdit: () => {} }), getRevision: async () => historical },
+      { initialDraft: historical })
+    schema.commit((nodes) => nodes.filter((node) => node.id !== 'title'), 'Removed title')
+    const draft = schema.snapshot().draft
+    await schema.previewHistoricalRevision(historical.schemaRevisionId)
+    const attempt: ExtractionAttempt = {
+      extractionId: 'extraction-1', sourceDocumentId: 'document-1', sourceRepresentationRevisionId: 'source-1',
+      schemaRevisionId: historical.schemaRevisionId, strategy: 'ARTICLE', catalogRecipe: null, batchExtractionId: null,
+      executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true, modelAttribution: null, diagnostics: null, failure: null,
+      resultPayload: { records: [{ title: 'Report' }] }, evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }],
+      reviewable: true, createdAt: historical.createdAt, reviewedAt: null, reviewDecisions: [],
+    }
+    function Rail() {
+      const [tab, setTab] = useState<'schema' | 'results'>('results')
+      return <RightRail open onToggle={() => {}} tab={tab} onTabChange={(next) => setTab(next === 'results' ? next : 'schema')}
+        schema={schema} onClearDraft={() => {}} extraction={{ ...defaultController, attempt, hasResults: true,
+          state: { status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0 } }}
+        runExtractionDisabled={false} runExtractionStrategy={{ strategy: 'ARTICLE' }}
+        inspection={{ ...defaultInspection, attempt, pinnedSchema: historical }} currentSchemaRevision={null}
+        sourceDocumentName="test.pdf" onSelectEvidence={() => {}} onResultPathChange={() => {}} />
+    }
+    render(<Rail />)
+    fireEvent.click(screen.getByText(/1 grounded · 1 required decisions remaining/))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit this field' }))
+    expect(schema.snapshot().historicalPreview).toBeNull()
+    expect(schema.snapshot().draft).toEqual(draft)
+    expect(screen.getByText(/This field was removed. No replacement was selected/)).toBeVisible()
+    expect(screen.getByTitle('Edit gender')).toBeVisible()
+  })
+
   it('hides the Evidence tab by default', () => {
     renderRail({ open: true })
 

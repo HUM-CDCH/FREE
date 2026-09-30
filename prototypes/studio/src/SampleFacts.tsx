@@ -1,23 +1,36 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type RefObject } from 'react'
 import { readSampleFacts } from './api'
 import type { SampleFacts as Facts } from '../shared/sampleFacts.contract'
 import { Button } from './ui'
 
 /** A suggestion over current facts and the existing run capability; no saved phase or additional admission gate. */
-export function SampleFacts({ projectContextId, schemaRevisionId, sourceDocumentIds, busy = false, refresh = 0 }: {
+export function SampleFacts({ projectContextId, schemaRevisionId, sourceDocumentIds, busy = false, refresh = 0, refreshRef }: {
   projectContextId: string; schemaRevisionId: string | null; sourceDocumentIds: string[]; busy?: boolean; refresh?: string | number
+  refreshRef?: RefObject<((revision?: string) => Promise<void>) | null>
 }) {
   const [refreshCount, setRefreshCount] = useState(0)
   const key = JSON.stringify([projectContextId, schemaRevisionId, [...sourceDocumentIds].sort(), refresh, refreshCount])
   const [read, setRead] = useState<{ key: string; facts: Facts } | null>(null)
   useEffect(() => {
-    const [project, revision, sources] = JSON.parse(key) as [string, string | null, string[]]
+    const [project, revision, sources, revisionRefresh, count] = JSON.parse(key) as [string, string | null, string[], string | number, number]
     if (!revision || sources.length === 0 || sources.length > 50) return
     const controller = new AbortController()
-    void readSampleFacts(project, revision, sources, controller.signal).then((facts) => setRead({ key, facts }))
-      .catch(() => { if (!controller.signal.aborted) setRead(null) })
-    return () => controller.abort()
-  }, [key])
+    let generation = 0
+    const refreshFacts = async (currentRevision = revision) => {
+      const request = ++generation
+      try {
+        const facts = await readSampleFacts(project, currentRevision, sources, controller.signal)
+        if (!controller.signal.aborted && request === generation)
+          setRead({ key: JSON.stringify([project, currentRevision, sources, revisionRefresh, count]), facts })
+      } catch { if (!controller.signal.aborted && request === generation) setRead(null) }
+    }
+    if (refreshRef) refreshRef.current = refreshFacts
+    void refreshFacts()
+    return () => {
+      controller.abort()
+      if (refreshRef?.current === refreshFacts) refreshRef.current = null
+    }
+  }, [key, refreshRef])
   const facts = read?.key === key ? read.facts : null
   const totals = facts?.sources.reduce((sum, source) => ({ admitted: sum.admitted + source.admitted,
     drafts: sum.drafts + source.savedDrafts, finalized: sum.finalized + source.finalized,

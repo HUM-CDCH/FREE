@@ -156,7 +156,7 @@ export function useBatchExtractionReviewGrid(
     )
     .join('|')
 
-  function persistDraft(state: Extract<MemberReviewState, { status: 'ready' }>) {
+  function persistDraft(state: Extract<MemberReviewState, { status: 'ready' }>, refreshPairing = false) {
     const id = state.attempt.extractionId
     const decisions = state.decisions.filter((decision) => state.touched.has(resultPathKey(decision.resultPath)))
     if (draftConflicts.current.has(id)) {
@@ -169,7 +169,12 @@ export function useBatchExtractionReviewGrid(
       decisions,
       draftVersions.current.get(id) ?? 0,
       state.pairings,
-    ).then((saved) => { if (scopeRef.current === scope) draftVersions.current.set(id, saved.version) })
+    ).then((saved) => {
+      if (scopeRef.current !== scope) return
+      draftVersions.current.set(id, saved.version)
+      const signal = loadControllerRef.current?.signal
+      if (refreshPairing && signal) return loadMember(state.attempt.sourceDocumentId, id, signal)
+    })
     draftWrites.current.set(id, write)
     void write.catch((error: unknown) => {
       if (scopeRef.current !== scope) return
@@ -225,7 +230,8 @@ export function useBatchExtractionReviewGrid(
           sources: reviewDraft?.sources ?? [],
         }
         setMembers((current) => new Map(current).set(sourceDocumentId, state))
-        if (recovered.retry && state.editable) persistDraft(state)
+        if (recovered.retry && state.editable) persistDraft(state,
+          JSON.stringify(recovered.pairings) !== JSON.stringify(reviewDraft?.pairings ?? []))
       },
       (error: unknown) => {
         if (signal.aborted) return
@@ -409,7 +415,10 @@ export function useBatchExtractionReviewGrid(
           attempt: { ...state.attempt, reviewedAt: null, reviewDecisions: [] },
           decisions: state.decisions.map((decision) => explicitDecision(decision)),
           touched: new Set(), editable: true, saving: false, saveError: null,
+          pairings: [], transfer: {}, sources: [],
         }))
+        const signal = loadControllerRef.current?.signal
+        if (signal) await loadMember(sourceDocumentId, id, signal)
         onMemberSaved?.()
       } catch (error) {
         if (scopeRef.current !== scope) return

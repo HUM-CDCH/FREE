@@ -239,6 +239,47 @@ function suggestionFetch(
 }
 
 describe('BatchExtractionsPanel', () => {
+  it.each(['reprocessed', 'unavailable'] as const)('refreshes displayed sample coverage before admission (%s)', async (changed) => {
+    let refresh = false
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [] })
+      if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+      if (url.startsWith('/api/extraction-schemas?')) return response({ extractionSchemas: [{
+        extractionSchemaId: batch.extractionSchemaId, name: 'Places', createdAt: batch.createdAt,
+        currentRevision: { schemaRevisionId, revisionNumber: 1, origin: 'researcher-edit', createdAt: batch.createdAt },
+      }] })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`)) return response({ revision: {
+        schemaRevisionId, extractionSchemaId: batch.extractionSchemaId, revisionNumber: 1,
+        origin: 'researcher-edit', createdAt: batch.createdAt, ...suggestedDefinition,
+      } })
+      if (url.startsWith('/api/schema-revisions?')) return response({ revisions: [] })
+      if (url === '/api/sample_facts') {
+        if (refresh && changed === 'unavailable') throw new Error('Coverage read failed')
+        return response({ sources: documents.map((document, index) => ({ sourceDocumentId: document.sourceDocumentId,
+          sourceRepresentationRevisionId: refresh ? '51000000-0000-4000-8002-000000000003' : batch.members[index].sourceRepresentationRevisionId,
+          admitted: !refresh && index === 0 ? 1 : 0, savedDrafts: 0, finalized: !refresh && index === 0 ? 1 : 0,
+          fullResults: 0, pages: !refresh && index === 0 ? [1, 2] : [], reviewedPages: !refresh && index === 0 ? [1, 2] : [],
+        })) })
+      }
+      if (url === '/api/batch-extractions' && init?.method === 'POST') throw new Error('Admission failed')
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await screen.findByText(/2 unique physical pages/)
+    await screen.findByLabelText('Extraction Schema fields')
+    refresh = true
+    fireEvent.click(screen.getByRole('button', { name: 'Run 2 Source Documents' }))
+    await screen.findByText('Admission failed')
+    expect(screen.queryByText(/2 unique physical pages/)).toBeNull()
+    if (changed === 'unavailable') expect(screen.getByText('Sample coverage unavailable.')).toBeVisible()
+    else expect(screen.getByText(/0 unique physical pages/)).toBeVisible()
+    const calls = fetch.mock.calls.map(([url]) => String(url))
+    expect(calls.lastIndexOf('/api/sample_facts')).toBeLessThan(calls.indexOf('/api/batch-extractions'))
+  })
+
   it('does not abort a slow poll to start the next interval refresh', async () => {
     vi.useFakeTimers()
     const runningBatch = { ...batch, executionStatus: 'RUNNING' as const }
