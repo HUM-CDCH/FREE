@@ -127,7 +127,7 @@ export function scriptedGenerate(
     const call = modelCallOf(input.document.markdown)
     appendFileSync(log, `${call}\n`)
     before(call)
-    return { template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: null }
+    return { template: TEMPLATE, raw: JSON.stringify(TEMPLATE), pages: null, sourceCoverage: { complete: true } }
   }
 }
 

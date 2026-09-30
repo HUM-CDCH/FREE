@@ -12,6 +12,7 @@ import {
   documentReopenResponseSchema,
 } from '../shared/projectContext.contract.js'
 import { schemaDefinitionSchema } from 'extraction/schema'
+import { sourceCoverageSchema, type SourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 import { z } from 'zod'
 import {
   createResearcherExtractions,
@@ -41,6 +42,13 @@ function durable<T>(schema: z.ZodType<T>, value: unknown): T {
       'Stored research state could not be read.',
     )
   return parsed.data
+}
+
+/** A revision's source declaration is advisory: one that does not read as a declaration is not recorded, never
+ *  a reason to refuse the reopen. */
+function storedSourceCoverage(value: unknown): SourceCoverage | null {
+  const declared = sourceCoverageSchema.safeParse(value)
+  return declared.success ? declared.data : null
 }
 
 function representationResources(
@@ -152,6 +160,7 @@ async function reopenResponse(
       schemaRevisionId: snapshot.extractionSchema.schemaRevisionId,
       revisionNumber: snapshot.extractionSchema.revisionNumber,
       ...currentSchema!,
+      sourceCoverage: storedSourceCoverage(snapshot.extractionSchema.sourceCoverage),
     },
     latestAttempt: extractionDto(
       documentExtractions.latestAttempt,

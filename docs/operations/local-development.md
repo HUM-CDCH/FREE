@@ -139,10 +139,15 @@ pnpm dev -- --phoenix
 
 Phoenix opens at http://localhost:6006, published on loopback only and never
 behind nginx; the `phoenix-data` volume keeps its traces across restarts. The
-flag adds the Compose `phoenix` profile and sets
+flag adds the shared `compose.phoenix.yaml` overlay and the Compose `phoenix`
+profile, and sets
 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` for Studio and the worker; without it
 nothing is traced. Tracing never gates inference: spans are exported in the
 background, and a stopped Phoenix only loses them.
+
+Production uses the same flag and collector; see the
+[production tracing runbook](deployment.md#model-call-traces-phoenix), including
+SSH access to the loopback dashboard on DGX Spark.
 
 One trace follows a workflow: Studio's DBOS workflow and step spans, a
 logical call per model operation (`schema-suggestion`, `schema-edit`, or an

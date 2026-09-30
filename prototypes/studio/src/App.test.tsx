@@ -173,6 +173,7 @@ const reopened: DocumentWorkspaceProps = {
     revisionNumber: 1,
     recordDescription: 'One place record.',
     schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+    sourceCoverage: null,
   },
   persistedExtraction: {
     extractionId: '51000000-0000-4000-8006-000000000001',
@@ -738,6 +739,69 @@ describe('reopened Source Document workspace', () => {
     expect(schemaNodes).toHaveLength(1)
   })
 
+  it('saves a schema generated from excerpts with its declaration, and the reopened workspace shows it', async () => {
+    const excerpted = { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+    const notice = 'Suggested from excerpts: the middle of page 1 was not read (4,040 of 50,040 characters).'
+    const written: Array<Record<string, unknown>> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.endsWith('/api/generate_schema'))
+          return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1, sourceCoverage: excerpted })
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as Record<string, unknown>
+          written.push(body)
+          return Response.json({
+            revision: {
+              schemaRevisionId: '51000000-0000-4000-8005-000000000030',
+              extractionSchemaId: '51000000-0000-4000-8005-000000000031',
+              revisionNumber: 1,
+              origin: 'suggestion',
+              createdAt: '2026-08-09T10:00:00.000Z',
+              recordDescription: body.recordDescription,
+              schemaNodes: body.schemaNodes,
+            },
+          }, { status: 201 })
+        }
+        if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+        if (url.startsWith('/api/model-operations?')) return Response.json({ operations: [] })
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    const generated = render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+
+    expect(await screen.findByText(notice)).toBeInTheDocument()
+    expect(written.map((body) => body.sourceCoverage)).toEqual([excerpted])
+    generated.unmount()
+
+    const saved = written[0] as { recordDescription: string; schemaNodes: SchemaNode[] }
+    render(
+      <DocumentWorkspace
+        {...reopened}
+        extractionSchema={{
+          extractionSchemaId: '51000000-0000-4000-8005-000000000031',
+          name: 'Extraction Schema',
+          schemaRevisionId: '51000000-0000-4000-8005-000000000030',
+          revisionNumber: 1,
+          recordDescription: saved.recordDescription,
+          schemaNodes: saved.schemaNodes,
+          sourceCoverage: excerpted as NonNullable<typeof reopened.extractionSchema>['sourceCoverage'],
+        }}
+        persistedExtraction={null}
+      />,
+    )
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    expect(await screen.findByText(notice)).toBeInTheDocument()
+  })
+
   it('keeps cancelled fields and historical previews non-mutating until explicit creation', async () => {
     const currentRevisionId = '51000000-0000-4000-8005-000000000020'
     const historicalRevisionId = '51000000-0000-4000-8005-000000000019'
@@ -862,6 +926,8 @@ describe('reopened Source Document workspace', () => {
       expectedRevisionNumber: 2,
       recordDescription: 'One historical record.',
       schemaNodes: historicalNodes,
+      // Restored content is not the current suggestion's: the new revision records no source declaration.
+      sourceCoverage: null,
     })
     expect(screen.getByText('historical_group')).toBeInTheDocument()
     expect(screen.getByText('historical_title')).toBeInTheDocument()

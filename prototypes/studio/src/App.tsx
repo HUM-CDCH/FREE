@@ -496,8 +496,8 @@ export function DocumentWorkspace({
     // The tab's acknowledged head is the base: a reloaded page saves this generation only while it is still current.
     const acknowledged = schema.snapshot().save?.acknowledged ?? null
     const operationId = crypto.randomUUID() // a new user action, a new ID (spec, *Client IDs*)
-    await schema.generate((signal) =>
-      requestSchema(
+    await schema.generate(async (signal, declareSourceCoverage) => {
+      const done = await requestSchema(
         {
           projectContextId,
           sourceRepresentationRevisionId: sourceRepresentationId,
@@ -508,7 +508,10 @@ export function DocumentWorkspace({
           operationId,
           base: acknowledged && { extractionSchemaId: acknowledged.extractionSchemaId, schemaRevisionId: acknowledged.schemaRevisionId },
         },
-      ),
+      )
+      declareSourceCoverage(done.sourceCoverage)
+      return done.template
+    },
       // Stop cancels the workflow; leaving the page only detaches (the controller's dispose).
       { cancel: () => deleteModelOperation(`suggestion:${operationId}`) },
     )

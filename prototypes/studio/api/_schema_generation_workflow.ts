@@ -3,6 +3,7 @@ import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { generateSchemaWithModel } from './_schema_suggestion.js'
 import { persistenceUnavailable } from './_http.js'
 import { MODEL_OPERATION_TIMEOUT_MS, operationFailureOf, type OperationResult } from './_model_operation.js'
+import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 
 export const SUGGEST_SCHEMA = 'suggestSchema'
 
@@ -23,6 +24,8 @@ export type SchemaGenerated = {
   template: Record<string, unknown>
   raw: string
   pages: number | null
+  /** What the model received of the source; absent from an outcome recorded before the declaration existed. */
+  sourceCoverage?: SourceCoverage
   baseSchemaRevisionId: string | null
 }
 export type SchemaGenerationPorts = Readonly<{
@@ -54,8 +57,11 @@ export async function suggestSchemaWorkflow(
         // The model boundary adds the step's cancel signal (Task 2).
         signal: AbortSignal.timeout(MODEL_OPERATION_TIMEOUT_MS),
       })
-      // Only the model's text and the base: never the provider's response, headers or metadata.
-      return { ok: true, template: generated.template, raw: generated.raw, pages: generated.pages, baseSchemaRevisionId: input.baseSchemaRevisionId }
+      // Only the model's text, the source declaration and the base: never the provider's response, headers or metadata.
+      return {
+        ok: true, template: generated.template, raw: generated.raw, pages: generated.pages,
+        sourceCoverage: generated.sourceCoverage, baseSchemaRevisionId: input.baseSchemaRevisionId,
+      }
     } catch (error) {
       return { ok: false, ...operationFailureOf(error) }
     }

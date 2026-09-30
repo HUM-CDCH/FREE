@@ -20,12 +20,15 @@ import {
   developmentComposeEnvironment,
   developmentComposeFiles,
   parsingGpuComposeArguments,
+  productionComposeArguments,
+  productionComposeEnvironment,
   productionComposeFiles,
   deriveDevProfile,
   effectiveLocalEnvironment,
   ensureDevelopmentSessionSecret,
   loadLocalEntraEnvironment,
   parseDevOptions,
+  parseProductionOptions,
   renderNginxLocations,
   selectWifiAddress,
   startComposeStack,
@@ -95,15 +98,19 @@ const validEntraEnvironment = (certificatePath) => ({
 
 describe('ordered Compose startup', () => {
   const local = developmentComposeArguments(deriveDevProfile(parseDevOptions([]), {}))
-  const production = ['compose', '-f', 'compose.yaml', '-f', 'compose.prod.yaml', 'up', '--no-build', '-d', '--wait']
+  const production = productionComposeArguments({})
+  const tracedProduction = productionComposeArguments(
+    productionComposeEnvironment(parseProductionOptions(['--phoenix']), { FREE_NGINX: 'container' }),
+    ['-f', 'compose.gpu.yaml'],
+  )
 
   it('never asks development Compose for --no-build, which it rejects with --watch', () => {
     // `docker compose up --no-build --watch` fails: "--no-build and --watch are incompatible".
     assert.ok(local.includes('--watch') && !local.includes('--no-build'))
   })
 
-  for (const up of [local, production]) {
-    it(`builds before stopping schema consumers and starting ${up.includes('--watch') ? 'development' : 'production'}`, async () => {
+  for (const [target, up] of [['development', local], ['production', production], ['production with Phoenix and GPU', tracedProduction]]) {
+    it(`builds before stopping schema consumers and starting ${target}`, async () => {
       const environment = { FREE_SESSION_SECRET: 'test-only' }
       for (const existing of [false, true]) {
         const calls = []
@@ -209,11 +216,13 @@ describe('development launcher profiles', () => {
 
   it('adds the Phoenix profile and turns tracing on only with --phoenix', () => {
     const plain = deriveDevProfile(parseDevOptions([]), interfaces)
-    const phoenix = deriveDevProfile(parseDevOptions(['--phoenix']), interfaces)
+    const phoenix = deriveDevProfile(parseDevOptions(['--', '--phoenix']), interfaces)
 
     assert.ok(developmentComposeArguments(phoenix).join(' ').includes('--profile mock-oidc --profile phoenix'))
+    assert.ok(developmentComposeFiles(phoenix).includes('compose.phoenix.yaml'))
     assert.equal(developmentComposeEnvironment(phoenix, {}, 'test-secret').FREE_PHOENIX, '1')
     assert.ok(!developmentComposeArguments(plain).includes('phoenix'))
+    assert.ok(!developmentComposeFiles(plain).includes('compose.phoenix.yaml'))
     // An inherited FREE_PHOENIX cannot turn tracing on without the profile's collector.
     assert.equal(developmentComposeEnvironment(plain, { FREE_PHOENIX: '1' }, 'test-secret').FREE_PHOENIX, '')
   })
@@ -589,6 +598,50 @@ const productionEnvironment = {
   FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB'.repeat(32),
   FREE_ENTRA_CLIENT_CERT_PATH: '/srv/free-secrets/entra-client.pem',
 }
+
+describe('production model-call tracing', () => {
+  it('accepts --phoenix and rejects development and unknown options', () => {
+    assert.deepEqual(parseProductionOptions([]), { phoenix: false })
+    assert.deepEqual(parseProductionOptions(['--phoenix']), { phoenix: true })
+    assert.deepEqual(parseProductionOptions(['--', '--phoenix']), { phoenix: true })
+    for (const argument of ['--entra', '--wifi', '--host=10.0.0.8', '--phoenix=on', '--unknown'])
+      assert.throws(() => parseProductionOptions([argument]), /Unknown production option/)
+  })
+
+  it('does not enable tracing from inherited environment values', () => {
+    const inherited = {
+      ...productionEnvironment,
+      FREE_PHOENIX: '1',
+      FREE_TRACE_CAPTURE: 'prompts,responses',
+    }
+    const environment = productionComposeEnvironment(parseProductionOptions([]), inherited)
+    assert.equal(environment.FREE_PHOENIX, '')
+    assert.equal(inherited.FREE_PHOENIX, '1', 'the caller environment is not mutated')
+    assert.deepEqual(productionComposeArguments(environment), [
+      'compose', '-f', 'compose.yaml', '-f', 'compose.prod.yaml',
+      'up', '--no-build', '-d', '--wait',
+    ])
+  })
+
+  it('adds the shared collector and preserves production settings with either nginx topology', () => {
+    for (const nginx of ['host', 'container']) {
+      const configured = {
+        ...productionEnvironment,
+        FREE_NGINX: nginx,
+        FREE_TRACE_CAPTURE: 'prompts,responses,parsed',
+      }
+      const environment = productionComposeEnvironment(parseProductionOptions(['--phoenix']), configured)
+      assert.deepEqual(environment, { ...configured, FREE_PHOENIX: '1' })
+      assert.deepEqual(productionComposeArguments(environment, ['-f', 'compose.gpu.yaml']), [
+        'compose', '--profile', 'phoenix',
+        '-f', 'compose.yaml', '-f', 'compose.prod.yaml',
+        ...(nginx === 'container' ? ['-f', 'compose.nginx.yaml'] : []),
+        '-f', 'compose.phoenix.yaml', '-f', 'compose.gpu.yaml',
+        'up', '--no-build', '-d', '--wait',
+      ])
+    }
+  })
+})
 
 describe('production environment validation', () => {
   it('accepts a complete, well-formed deployment environment', () => {

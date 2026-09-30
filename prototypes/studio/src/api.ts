@@ -21,6 +21,7 @@ import {
 } from '../shared/extraction.contract'
 import { ingestionModelListingSchema, type IngestionModelListing } from '../shared/modelConfig.contract'
 import { modelOperationListingSchema, type ModelOperation } from '../shared/modelOperation.contract'
+import { sourceCoverageSchema, type SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 
 export const API_BASE = '/api'
 
@@ -47,13 +48,16 @@ export type SchemaModelContext = {
   sourceRepresentationRevisionId?: string
 }
 
-export type SchemaDone = { template: unknown; raw: string; pages: number | null }
+/** `sourceCoverage` is what the model read of the source; null when the outcome did not record it. */
+export type SchemaDone = { template: unknown; raw: string; pages: number | null; sourceCoverage: SourceCoverage | null }
 
 export function decodeSchemaDone(data: unknown): SchemaDone {
   if (!isRecord(data) || !('template' in data)) {
     throw new Error("generate_schema: response missing 'template' — API contract drift?")
   }
-  return data as SchemaDone
+  const sourceCoverage = sourceCoverageSchema.nullable().safeParse(data.sourceCoverage ?? null)
+  if (!sourceCoverage.success) throw new Error("generate_schema: invalid 'sourceCoverage' — API contract drift?")
+  return { ...(data as Omit<SchemaDone, 'sourceCoverage'>), sourceCoverage: sourceCoverage.data }
 }
 
 async function readError(response: Response): Promise<{ code: string; message: string } | null> {
@@ -176,7 +180,7 @@ export async function requestSchema(
   context: SourceModelContext,
   signal: AbortSignal | undefined,
   options: TemplateOptions & { operationId: string; base: SchemaBase | null },
-): Promise<unknown> {
+): Promise<Pick<SchemaDone, 'template' | 'sourceCoverage'>> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
   form.append(
@@ -193,7 +197,7 @@ export async function requestSchema(
   }
 
   const done = await postModelForm('/generate_schema', form, decodeSchemaDone, signal)
-  return done.template
+  return { template: done.template, sourceCoverage: done.sourceCoverage }
 }
 
 /** Thrown when a JSON endpoint (an Extraction, or a model listing) answers with an HTTP error status. */

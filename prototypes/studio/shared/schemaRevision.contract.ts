@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { canonicalUuidSchema } from './projectContext.contract.js'
+import { sourceCoverageSchema } from './schemaSuggestionSource.contract.js'
 import {
   recordDescriptionSchema,
   schemaDefinitionSchema,
@@ -88,12 +89,19 @@ export const extractionSchemaResponseSchema = z
   })
   .strict()
 
+/**
+ * What a written revision declares of the Schema Suggestion behind its content. Absent from an append, the revision
+ * inherits its head's declaration (an edit); null records none (content no suggestion produced).
+ */
+const writtenSourceCoverageSchema = sourceCoverageSchema.nullable().optional()
+
 export const appendSchemaRevisionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
     extractionSchemaId: canonicalUuidSchema,
     expectedRevisionNumber: z.number().int().nonnegative(),
     ...schemaDefinitionSchema.shape,
+    sourceCoverage: writtenSourceCoverageSchema,
   })
   .strict()
 
@@ -101,6 +109,7 @@ export const initializeSchemaRevisionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
     ...schemaDefinitionSchema.shape,
+    sourceCoverage: writtenSourceCoverageSchema,
   })
   .strict()
 

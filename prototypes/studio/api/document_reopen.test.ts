@@ -89,6 +89,7 @@ function snapshot(schemaTree: unknown = definition): DocumentReopenSnapshot {
       schemaRevisionId,
       revisionNumber: 2,
       schemaTree,
+      sourceCoverage: null,
     },
   }
 }
@@ -145,6 +146,22 @@ describe('document reopen ExtractionModule projection', () => {
         extractionSchema: { revisionNumber: 2, ...definition },
       })
     }
+  })
+
+  it('opens the current schema with the source declaration its revision was saved with; an unreadable one is not recorded', async () => {
+    const excerpted = { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+    const reopen = async (sourceCoverage: unknown) => {
+      const current = snapshot()
+      current.extractionSchema = { ...current.extractionSchema!, sourceCoverage }
+      const response = await createGetDocumentReopen({ getDocumentReopenSnapshot: vi.fn(async () => current) },
+        extractionModule())(url())
+      return documentReopenResponseSchema.parse(await response.json()).extractionSchema?.sourceCoverage
+    }
+
+    expect(await reopen(excerpted)).toEqual(excerpted)
+    expect(await reopen({ complete: true })).toEqual({ complete: true })
+    expect(await reopen(null)).toBeNull()
+    expect(await reopen([{ nodeId: 'legacy', present: 1, total: 2 }])).toBeNull()
   })
 
   it('combines source/schema state with module-owned latest attempts', async () => {

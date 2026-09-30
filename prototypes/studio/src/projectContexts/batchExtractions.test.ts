@@ -25,7 +25,7 @@ const suggestion = {
   executionStatus: 'QUEUED',
   phase: 'READY',
   proposal: definition,
-  coverage: null,
+  sourceCoverage: null,
   draft: definition,
   draftVersion: 1,
   failure: null,

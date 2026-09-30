@@ -131,7 +131,7 @@ function readySuggestion(overrides: Record<string, unknown> = {}) {
     executionStatus: 'COMPLETED',
     phase: 'READY',
     proposal: suggestedDefinition,
-    coverage: [{ nodeId: 'place', present: 1, total: 1 }],
+    sourceCoverage: null,
     draft: suggestedDefinition,
     draftVersion: 0,
     failure: null,
@@ -1547,6 +1547,75 @@ describe('BatchExtractionsPanel', () => {
     )
   })
 
+  it('says which selected Source Document was suggested from excerpts, and what was not read', async () => {
+    const excerpted = readySuggestion({
+      sourceCoverage: [
+        {
+          sourceDocumentId: failedDocumentId,
+          sourceCoverage: { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] },
+          combined: true,
+        },
+        { sourceDocumentId: cancelledDocumentId, sourceCoverage: { complete: true }, combined: true },
+      ],
+    })
+    vi.stubGlobal('fetch', suggestionFetch(() => [excerpted]))
+    renderPanel()
+
+    const suggested = await openSuggestedFields()
+    expect(within(suggested).getByText('place')).toBeVisible()
+    expect(
+      within(suggested).getByText(
+        'Failed.pdf: Suggested from excerpts: the middle of page 1 was not read (4,040 of 50,040 characters).',
+      ),
+    ).toBeVisible()
+    expect(within(suggested).queryByText(/Cancelled\.pdf/)).not.toBeInTheDocument()
+  })
+
+  it('says which Source Document suggestion the common fields left out, and one not recorded says nothing', async () => {
+    const uncombined = readySuggestion({
+      sourceCoverage: [
+        { sourceDocumentId: failedDocumentId, sourceCoverage: null, combined: true },
+        { sourceDocumentId: cancelledDocumentId, sourceCoverage: { complete: true }, combined: false },
+      ],
+    })
+    vi.stubGlobal('fetch', suggestionFetch(() => [uncombined]))
+    renderPanel()
+
+    const suggested = await openSuggestedFields()
+    expect(within(suggested).getByText('place')).toBeVisible()
+    expect(
+      within(suggested).getByText(
+        'Cancelled.pdf: Left out of the common fields: the selected suggestions together were too long to combine in one request.',
+      ),
+    ).toBeVisible()
+    expect(within(suggested).queryByText(/Failed\.pdf/)).not.toBeInTheDocument()
+  })
+
+  it('declares excerpted sources beside a heterogeneous outcome too', async () => {
+    const heterogeneous = readySuggestion({
+      phase: 'HETEROGENEOUS',
+      proposal: null,
+      draft: null,
+      sourceCoverage: [
+        {
+          sourceDocumentId: cancelledDocumentId,
+          sourceCoverage: { complete: false, sourceCharacters: 60_000, omitted: [{ page: null, start: 23_000, end: 37_000 }] },
+          combined: true,
+        },
+      ],
+    })
+    vi.stubGlobal('fetch', suggestionFetch(() => [heterogeneous]))
+    renderPanel()
+
+    const suggested = await openSuggestedFields()
+    expect(await within(suggested).findByText(/No reliable common field set was found/)).toBeVisible()
+    expect(
+      within(suggested).getByText(
+        'Cancelled.pdf: Suggested from excerpts: the middle of the source was not read (14,000 of 60,000 characters).',
+      ),
+    ).toBeVisible()
+  })
+
   it('disables editing and Run while an attempt runs and keeps the draft', async () => {
     const suggestions: unknown[] = [readySuggestion({ attempt: 2, executionStatus: 'RUNNING' })]
     const fetch = suggestionFetch(() => suggestions)
@@ -1578,7 +1647,7 @@ describe('BatchExtractionsPanel', () => {
       executionStatus: 'FAILED',
       phase: null,
       proposal: null,
-      coverage: null,
+      sourceCoverage: null,
       draft: null,
       failure: {
         code: 'model_key_required',

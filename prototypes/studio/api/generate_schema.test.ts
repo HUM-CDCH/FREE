@@ -51,12 +51,21 @@ const base = { project_context_id: PROJECT, source_representation_revision_id: S
 afterEach(() => vi.restoreAllMocks())
 
 describe('POST /api/generate_schema', () => {
+  it('answers with what the suggestion did not read of the source', async () => {
+    const sourceCoverage = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+    const { client } = operations({ ok: true, template: { _description: 'x' }, raw: '{}', pages: 3, sourceCoverage, baseSchemaRevisionId: null })
+    const response = await createPostGenerateSchema(store(), () => client)(form(base))
+
+    await expect(response.json()).resolves.toEqual({ template: { _description: 'x' }, raw: '{}', pages: 3, sourceCoverage })
+  })
+
   it("starts suggestion:<operation_id> for the owner with the scope attributes, and answers today's body", async () => {
     const { enqueued, client } = operations()
     const response = await createPostGenerateSchema(store(), () => client)(form(base))
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ template: { _description: 'x' }, raw: '{}', pages: 3 })
+    // An outcome recorded before the source declaration existed declares nothing.
+    await expect(response.json()).resolves.toEqual({ template: { _description: 'x' }, raw: '{}', pages: 3, sourceCoverage: null })
     expect(enqueued).toEqual([{
       options: {
         queueName: 'studio', workflowName: 'suggestSchema', workflowID: `suggestion:${OPERATION}`, authenticatedUser: ACCOUNT,

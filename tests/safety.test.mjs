@@ -13,6 +13,9 @@ import {
   developmentComposeEnvironment,
   deriveDevProfile,
   parseDevOptions,
+  parseProductionOptions,
+  productionComposeArguments,
+  productionComposeEnvironment,
   renderNginxLocations,
   validateProductionEnvironment,
 } from '../scripts/free.mjs'
@@ -34,7 +37,7 @@ function resetDatabase(databaseUrl) {
   )
 }
 
-function renderDevelopmentCompose(profile, entraEnvironment = null) {
+function renderDevelopmentCompose(profile, entraEnvironment = null, environment = process.env) {
   const launchArguments = developmentComposeArguments(profile)
   const result = spawnSync(
     'docker',
@@ -48,7 +51,7 @@ function renderDevelopmentCompose(profile, entraEnvironment = null) {
       cwd: ROOT,
       env: developmentComposeEnvironment(
         profile,
-        process.env,
+        environment,
         Buffer.alloc(32, 8).toString('base64'),
         entraEnvironment,
       ),
@@ -56,6 +59,28 @@ function renderDevelopmentCompose(profile, entraEnvironment = null) {
       timeout: 120_000,
     },
   )
+  assert.equal(result.status, 0, result.stderr)
+  return JSON.parse(result.stdout)
+}
+
+function renderProductionCompose(environment, phoenix, gpu = false) {
+  const composeEnvironment = productionComposeEnvironment(
+    parseProductionOptions(phoenix ? ['--phoenix'] : []),
+    { ...process.env, ...environment, COMPOSE_DISABLE_ENV_FILE: '1' },
+  )
+  const launchArguments = productionComposeArguments(
+    composeEnvironment,
+    gpu ? ['-f', 'compose.gpu.yaml'] : [],
+  )
+  const result = spawnSync('docker', [
+    ...launchArguments.slice(0, launchArguments.indexOf('up')),
+    'config', '--format', 'json',
+  ], {
+    cwd: ROOT,
+    env: composeEnvironment,
+    encoding: 'utf8',
+    timeout: 120_000,
+  })
   assert.equal(result.status, 0, result.stderr)
   return JSON.parse(result.stdout)
 }
@@ -157,6 +182,80 @@ for (const gpu of [false, true]) test(`production: compose renders with GPU acce
   assert.equal(config.services.nginx, undefined)
   assert.equal(config.services['mock-oidc'], undefined)
 
+})
+
+function assertPhoenixTracing(config, capture) {
+  const phoenix = config.services.phoenix
+  assert.equal(phoenix.image, 'arizephoenix/phoenix:version-20.16.0')
+  assert.equal(phoenix.restart, 'unless-stopped')
+  assert.deepEqual(phoenix.ports.map(({ host_ip, published, target }) => [host_ip, String(published), target]), [
+    ['127.0.0.1', '6006', 6006],
+  ])
+  assert.equal(phoenix.environment.PHOENIX_WORKING_DIR, '/mnt/data')
+  assert.ok(phoenix.volumes.some(({ source, target }) => source === 'phoenix-data' && target === '/mnt/data'))
+  assert.ok(config.volumes['phoenix-data'].name.endsWith('_phoenix-data'))
+  assert.deepEqual(Object.keys(phoenix.networks), ['app'])
+  for (const name of ['studio', 'parsing_worker']) {
+    assert.equal(config.services[name].environment.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, 'http://phoenix:6006/v1/traces')
+    assert.equal(config.services[name].environment.FREE_TRACE_CAPTURE, capture)
+  }
+  for (const service of Object.values(config.services))
+    assert.equal(service.depends_on?.phoenix, undefined, 'collector availability cannot gate another service')
+  assert.equal(config.services.parsing_service.environment.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, undefined)
+}
+
+for (const nginx of ['host', 'container']) {
+  for (const gpu of [false, true]) {
+    for (const capture of ['', 'prompts,responses']) {
+      test(`production tracing: ${nginx} nginx, GPU ${gpu}, capture ${capture || 'off'}`, (t) => {
+        const directory = mkdtempSync(join(tmpdir(), 'free-prod-tracing-'))
+        t.after(() => rmSync(directory, { recursive: true, force: true }))
+        const certificate = join(directory, 'client.pem')
+        writeFileSync(certificate, 'not-a-real-key')
+        const config = renderProductionCompose({
+          ...completeProductionEnvironment(certificate),
+          FREE_NGINX: nginx,
+          FREE_TLS_CERT_PATH: certificate,
+          FREE_TLS_KEY_PATH: certificate,
+          FREE_TRACE_CAPTURE: capture,
+        }, true, gpu)
+        assertPhoenixTracing(config, capture)
+        assertOwnedParsingTopology(config, gpu)
+        assert.equal(config.services['mock-oidc'], undefined)
+        assert.equal(config.services.studio.environment.NODE_ENV, 'production')
+        assert.equal(config.services.studio.environment.FREE_ENTRA_MOCK_ISSUER, undefined)
+        assert.equal(Boolean(config.services.nginx), nginx === 'container')
+        assert.equal(config.services.studio.environment.FREE_STUDIO_PROXY_ADDRESS,
+          nginx === 'container' ? '172.30.0.10' : '172.30.0.1')
+      })
+    }
+  }
+}
+
+test('production tracing: capture settings alone cannot enable tracing', () => {
+  const config = renderProductionCompose({
+    ...completeProductionEnvironment('/tmp/free-test-client.pem'),
+    FREE_PHOENIX: '1',
+    FREE_TRACE_CAPTURE: 'prompts,responses,parsed',
+    COMPOSE_PROFILES: 'phoenix',
+  }, false)
+  assert.equal(config.services.phoenix, undefined)
+  assert.equal(config.volumes['phoenix-data'], undefined)
+  for (const name of ['studio', 'parsing_worker']) {
+    assert.equal(config.services[name].environment.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, undefined)
+    assert.equal(config.services[name].environment.FREE_TRACE_CAPTURE, undefined)
+  }
+})
+
+test('development tracing: the shared overlay still enables LLM input and output capture', () => {
+  const profile = deriveDevProfile(parseDevOptions(['--phoenix']), {})
+  const config = renderDevelopmentCompose(profile, null, {
+    ...process.env,
+    FREE_TRACE_CAPTURE: 'prompts,responses',
+  })
+  assertPhoenixTracing(config, 'prompts,responses')
+  assert.equal(config.services.studio.environment.NODE_ENV, 'development')
+  assert.ok(config.services['mock-oidc'])
 })
 
 function assertOwnedParsingTopology(config, gpu) {

@@ -204,6 +204,87 @@ def test_a_truncated_or_unreadable_answer_is_a_failed_call_with_null_fields():
     assert not call.ok and "length" in (call.error or "") and issues[0].code == "call_failed"
 
 
+@pytest.mark.parametrize("budget, unshown", [
+    (5, "p1_s0 from code point 7 through p1_s2 (page 1)"),   # inside a passage: offsets count its leading spaces
+    (11, "p1_s1 through p1_s2 (page 1)"),                    # inside the blank line between two passages
+    (12, "p1_s1 through p1_s2 (page 1)"),                    # exactly at the next passage's first character
+    (23, "p1_s2 (page 1)"),
+    (25, "p1_s2 from code point 1 (page 1)"),
+])
+def test_a_record_over_the_text_budget_names_the_source_it_did_not_show(budget, unshown):
+    """The character budget cuts the text the model is shown; the issue names what was cut in the canonical
+    segments' own terms, so the result never claims the whole record was read."""
+    chat = FakeChat(lambda s, u, schema: {"entry_no": None})
+    _, _, issues = extract_record(passages(["  " + "a" * 10, "b" * 10, "c" * 10]), SCHEMA, chat, budget=budget,
+                                  record=3)
+    assert [(issue.code, issue.record) for issue in issues] == [("text_truncated", 3)]
+    assert issues[0].detail == f"34 characters of text, {budget} shown to the model; not shown: {unshown}"
+
+
+def test_a_record_within_the_text_budget_reports_no_cut():
+    _, _, issues = extract_record(passages(["  " + "a" * 10, "b" * 10, "c" * 10]), SCHEMA,
+                                  FakeChat(lambda s, u, schema: {"entry_no": None}), budget=34)
+    assert issues == []
+
+
+def pages_with_a_late_marker() -> list[Passage]:
+    """One record over three pages whose only site name lies on the last page."""
+    return [Passage(id=f"p{page}_s0", page=page, index=0,
+                    text=("1. Entry " if page == 1 else "") + "x" * 690 + (" Site: Marker Hill." if page == 3 else ""),
+                    label="Text", bbox_pt=(0, 0, 1, 1), extent="block") for page in (1, 2, 3)]
+
+
+def generic_catalog(record_chars: int) -> tuple[dict, list[str]]:
+    request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
+                                             "options": {"strategy": "catalog", "record_chars": record_chars}})
+    shown: list[str] = []
+
+    def script(system, user, schema):
+        properties = schema["properties"]
+        if "starts" in properties:
+            return {"starts": ["B1"], "end": None}
+        if "title" in properties:
+            return {"title": None}
+        if "entry_no" in properties:
+            shown.append(user)
+            return {"entry_no": "1", "site": "Marker Hill" if "Marker Hill" in user else None, "year": None,
+                    "finds": None}
+        return {claim: item["enum"][0] for claim, item in properties.items()}
+    return extract_over(evidence(pages_with_a_late_marker()), request, FakeChat(script)), shown
+
+
+def test_a_generic_catalog_whose_record_exceeds_its_text_budget_declares_the_pages_it_did_not_read():
+    """The audit's middle-section probe: the only site name lies beyond `record_chars`. The model never sees it,
+    and the artifact says which source it did not read for the record and for the document fields."""
+    result, shown = generic_catalog(1_000)
+    assert "Marker Hill" not in shown[0] and result["records"][0]["site"] is None
+    truncated = [(issue["record"], issue["detail"]) for issue in result["issues"] if issue["code"] == "text_truncated"]
+    unshown = "not shown: p2_s0 from code point 299 through p3_s0 (pages 2–3)"
+    assert truncated == [(None, f"2102 characters of text, 1000 shown to the model; {unshown}"),
+                         (0, f"2102 characters of text, 1000 shown to the model; {unshown}")]
+    assert result["complete"] is False
+
+
+def test_a_generic_catalog_within_its_text_budget_reads_the_whole_record_and_declares_no_cut():
+    result, shown = generic_catalog(24_000)
+    assert "Marker Hill" in shown[0] and result["records"][0]["site"] == "Marker Hill"
+    assert result["issues"] == [] and result["complete"] is True
+
+
+def test_a_failed_discovery_window_names_the_pages_it_left_unsearched():
+    """A discovery window whose call fails finds no record start on its pages; the issue says which pages and
+    labels those were, rather than only that a call failed."""
+    def script(system, user, schema):
+        shown = schema["properties"]["starts"]["items"]["enum"]
+        if shown[0] == "B3":
+            return Reply('{"starts": ["B', 5, 8192, "length", 0.1)
+        return {"starts": [shown[0]], "end": None}
+    slices, _, issues = discover(evidence(six_pages()), SCHEMA, FakeChat(script), budget=7_000)
+    unsearched = "the reply was cut off (finish_reason length); no record start was searched for on pages 3–4 (B3–B4)"
+    assert [(issue.code, issue.detail) for issue in issues] == [("call_failed", unsearched)]
+    assert [[p.id for p in group] for group in slices] == [["p1_s0", "p2_s0", "p3_s0", "p4_s0"], ["p5_s0", "p6_s0"]]
+
+
 def test_verification_asks_the_model_for_every_claim_including_a_uniquely_found_value():
     seen = {}
 

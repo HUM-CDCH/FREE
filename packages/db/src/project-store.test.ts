@@ -1454,6 +1454,44 @@ describe('ResearcherProjectStore Schema Revisions', () => {
     assert.equal(database.tables.SchemaRevision.length, 2)
   })
 
+  it('keeps a suggestion’s source declaration with its revision: an edit inherits it, a replacement names its own or none', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const excerpted = { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+
+    const first = await store.initializeSchemaRevision(EMPTY_PROJECT, nodes('site'), excerpted)
+    const schema = first?.status === 'created' ? first.revision.extractionSchemaId : ''
+    await store.appendSchemaRevision(EMPTY_PROJECT, schema, 1, nodes('year'))
+    await store.appendSchemaRevision(EMPTY_PROJECT, schema, 2, nodes('place'), { complete: true })
+    await store.appendSchemaRevision(EMPTY_PROJECT, schema, 3, nodes('site'), null)
+    await store.appendSchemaRevision(EMPTY_PROJECT, schema, 4, nodes('kept'))
+
+    assert.deepEqual(
+      database.tables.SchemaRevision.filter((row) => row.extractionSchemaId === schema)
+        .map((row) => [row.revisionNumber, row.modelAttribution]),
+      [
+        [1, { sourceCoverage: excerpted }],
+        [2, { sourceCoverage: excerpted }],
+        [3, { sourceCoverage: { complete: true } }],
+        [4, null],
+        [5, null],
+      ],
+    )
+  })
+
+  it('reopens a document with the current revision’s source declaration, and none for a revision without one', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const excerpted = { complete: false, sourceCharacters: 900, omitted: [{ page: null, start: 400, end: 500 }] }
+
+    assert.equal((await store.getDocumentReopenSnapshot(PROJECT, DOCUMENT))?.extractionSchema?.sourceCoverage, null)
+    await store.appendSchemaRevision(PROJECT, SCHEMA, 1, nodes('year'), excerpted)
+
+    const reopened = await store.getDocumentReopenSnapshot(PROJECT, DOCUMENT)
+    assert.equal(reopened?.extractionSchema?.revisionNumber, 2)
+    assert.deepEqual(reopened?.extractionSchema?.sourceCoverage, excerpted)
+  })
+
   it('gets exact revisions and lists a deterministic bounded owner-scoped window', async () => {
     const database = fakeDatabase()
     database.tables.SchemaRevision.push(

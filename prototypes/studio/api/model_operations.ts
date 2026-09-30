@@ -42,7 +42,8 @@ export function modelOperationOf(status: WorkflowStatus): ModelOperation | null 
   }
   return match[1] === 'suggestion'
     ? { kind: 'generation', ...common, baseSchemaRevisionId: input.baseSchemaRevisionId,
-        template: output?.ok ? (output as SchemaGenerated).template : null }
+        template: output?.ok ? (output as SchemaGenerated).template : null,
+        sourceCoverage: output?.ok ? ((output as SchemaGenerated).sourceCoverage ?? null) : null }
     : { kind: 'proposal', ...common, baseSchemaRevisionId: (input as SchemaEditInput).baseSchemaRevisionId,
         response: output?.ok ? (output as SchemaEditProposed).response : null }
 }

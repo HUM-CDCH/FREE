@@ -1,6 +1,7 @@
 import { CANONICAL_UUID } from 'studio-configuration'
 import { z } from 'zod'
 import { extractionAttemptSchema } from './extraction.contract'
+import { sourceCoverageSchema } from './schemaSuggestionSource.contract'
 import {
   recordDescriptionSchema,
   schemaNodesSchema,
@@ -211,6 +212,8 @@ export const documentReopenResponseSchema = z
         revisionNumber,
         recordDescription: recordDescriptionSchema,
         schemaNodes: schemaNodesSchema,
+        /** What the Schema Suggestion behind this revision read of its source; null when not recorded. */
+        sourceCoverage: sourceCoverageSchema.nullable(),
       })
       .strict()
       .nullable(),

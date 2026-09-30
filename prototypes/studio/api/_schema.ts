@@ -1,3 +1,5 @@
+import type { SourceCoverage, SourceOmission } from '../shared/schemaSuggestionSource.contract.js'
+
 // Superseded by a free-text chat instruction (see schemaPrompt below) — schema
 // generation no longer takes highlighted-passage annotations as input. Left in
 // place, commented out, rather than deleted.
@@ -42,12 +44,33 @@ Place the actual requested field names directly inside "template", for example {
 When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"]. Write each allowed value exactly as the source writes it, in the source's language.`
 }
 
-/** Schema design needs examples; extraction still receives the complete source. */
-export function schemaSourceExcerpts(markdown: string): string {
-  if (markdown.length <= 48_000) return markdown
+/** The longest schema-suggestion input sent whole; past it, a source is excerpted. */
+export const EXCERPT_THRESHOLD = 48_000
+const EXCERPT_BUDGET = 46_000
+const PAGE_MARKER = /^<!-- FREE:PAGE (\d+) -->/
+
+/**
+ * Schema design needs examples; extraction still receives the complete source. A source over the threshold is sent
+ * as each physical page's head and tail, and the result declares every range it did not send.
+ */
+export function schemaSourceExcerpts(markdown: string): { text: string; sourceCoverage: SourceCoverage } {
+  if (markdown.length <= EXCERPT_THRESHOLD) return { text: markdown, sourceCoverage: { complete: true } }
   const pages = markdown.split(/(?=<!-- FREE:PAGE \d+ -->)/).filter(Boolean)
-  const half = Math.max(1, Math.floor(46_000 / pages.length / 2))
-  return 'Source excerpts from every physical page for schema design:\n' + pages.map((page) =>
-    page.length <= half * 2 ? page : `${page.slice(0, half)}\n[... omitted for schema design ...]\n${page.slice(-half)}`,
-  ).join('\n\n')
+  const half = Math.max(1, Math.floor(EXCERPT_BUDGET / pages.length / 2))
+  const omitted: SourceOmission[] = []
+  let offset = 0
+  const excerpts = pages.map((page) => {
+    const start = offset
+    offset += page.length
+    if (page.length <= half * 2) return page
+    const marker = PAGE_MARKER.exec(page)
+    omitted.push({ page: marker ? Number(marker[1]) : null, start: start + half, end: start + page.length - half })
+    return `${page.slice(0, half)}\n[... omitted for schema design ...]\n${page.slice(-half)}`
+  })
+  return {
+    text: 'Source excerpts from every physical page for schema design:\n' + excerpts.join('\n\n'),
+    sourceCoverage: omitted.length === 0
+      ? { complete: true }
+      : { complete: false, sourceCharacters: markdown.length, omitted },
+  }
 }

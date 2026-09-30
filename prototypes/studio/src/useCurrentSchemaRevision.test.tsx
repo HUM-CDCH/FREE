@@ -3,6 +3,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AcknowledgedSchemaRevision } from './schemaSaveCoordinator'
+import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import {
   captureSessionRecovery,
@@ -35,7 +36,7 @@ function revision(
   }
 }
 
-function scope(initial: AcknowledgedSchemaRevision | null) {
+function scope(initial: (AcknowledgedSchemaRevision & { sourceCoverage?: SourceCoverage | null }) | null) {
   return {
     projectContextId: PROJECT_ID,
     extractionSchema: initial,
@@ -166,5 +167,42 @@ describe('durable schema authentication recovery', () => {
     )
     expect(reopened.result.current.snapshot().save?.status).toBe('saved')
     expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
+  })
+})
+
+describe('durable schema source declaration', () => {
+  const EXCERPTED = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
+  const saved = (revisionNumber: number, recordDescription: string) => ({
+    ...revision(revisionNumber, recordDescription),
+    origin: 'researcher-edit' as const,
+    createdAt: '2026-08-01T12:00:00.000Z',
+  })
+
+  it('opens a reopened revision with the declaration it was saved with', () => {
+    const { result } = renderHook(() =>
+      useDurableCurrentSchemaRevision(scope({ ...revision(3), sourceCoverage: EXCERPTED })),
+    )
+    expect(result.current.snapshot().sourceCoverage).toEqual(EXCERPTED)
+  })
+
+  it('saves a generation with its declaration, onto an existing schema or as its first revision', async () => {
+    vi.mocked(revisions.appendSchemaRevision).mockImplementation(async (_project, _schema, expected, definition) =>
+      saved(expected + 1, definition.recordDescription))
+    vi.mocked(revisions.initializeSchemaRevision).mockImplementation(async (_project, definition) =>
+      saved(1, definition.recordDescription))
+    const generate = async (initial: AcknowledgedSchemaRevision | null) => {
+      const { result } = renderHook(() => useDurableCurrentSchemaRevision(scope(initial)))
+      await act(() => result.current.generate(async (_signal, declareSourceCoverage) => {
+        declareSourceCoverage(EXCERPTED)
+        return { _description: 'Generated.', place: 'string' }
+      }))
+    }
+
+    await generate(revision(3))
+    await generate(null)
+
+    expect(vi.mocked(revisions.appendSchemaRevision).mock.calls.map((call) => call.slice(2, 3).concat(call.slice(4, 5))))
+      .toEqual([[3, EXCERPTED]])
+    expect(vi.mocked(revisions.initializeSchemaRevision).mock.calls.map((call) => call[2])).toEqual([EXCERPTED])
   })
 })
