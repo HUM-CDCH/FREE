@@ -128,13 +128,26 @@ export async function suggestBatchSource(
   source: SchemaSource,
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
+  window = false,
 ): Promise<{ definition: SchemaDefinition; sourceCoverage: SourceCoverage }> {
   const generated = await generate(caller, {
     document: { file: null, markdown: source.markdown, pageSpans: source.pageSpans, pages: null },
     instruction: SOURCE_SUGGESTION_INSTRUCTION,
+    window,
     signal,
   })
   return { definition: modelSuggestedDefinition(generated.template), sourceCoverage: generated.sourceCoverage }
+}
+
+/** `combineSchemas` for batch definitions: the combination must be an editable batch definition too. */
+export async function combineBatchSchemas(
+  caller: ModelCaller,
+  mode: 'union' | 'intersection',
+  text: string,
+  signal: AbortSignal,
+  generate: typeof generateSchemaWithModel = generateSchemaWithModel,
+): Promise<SchemaDefinition> {
+  return modelSuggestedDefinition(await combineSchemas(caller, mode, text, signal, generate))
 }
 
 /**

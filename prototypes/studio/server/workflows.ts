@@ -56,6 +56,7 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
     steps: dbosSteps,
     generate: generateSchemaWithModel,
     store: workerSuggestionStore(createInternalProjectWorkerStore()),
+    patched: (name) => DBOS.patch(name),
   }))
   registerIngestionWorkflow(sourceConversionWorkflowPorts)
   registerReprocessWorkflow(sourceConversionWorkflowPorts)

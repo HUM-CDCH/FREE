@@ -4,6 +4,7 @@ import type { SchemaModelInput } from './_schema_suggestion.js'
 import { ApiError } from './_http.js'
 import { ModelKeyRequiredError } from './_model_keys.js'
 import {
+  BATCH_WINDOWED_SUGGESTION,
   registerBatchSuggestionWorkflow,
   SUGGEST_SCHEMA_BATCH,
   suggestSchemaBatchWorkflow,
@@ -50,6 +51,8 @@ type Scenario = {
   checkpoints?: Map<string, unknown>
   /** Throws when this step is reached, as a crash before it would. */
   crashAt?: string
+  /** Whether the run is past the windowed-suggestion DBOS patch. */
+  patched?: boolean
 }
 
 function harness(scenario: Scenario = {}) {
@@ -100,10 +103,11 @@ function harness(scenario: Scenario = {}) {
     generate: async (caller, modelInput) => {
       calls.push({ caller, input: modelInput })
       const markdown = modelInput.document.markdown ?? ''
-      const key = markdown.startsWith('SOURCE DOCUMENT ') ? 'merge' : markdown
+      const key = markdown.startsWith('SOURCE DOCUMENT ') ? 'merge' : markdown.startsWith('WINDOW ') ? 'union' : markdown
       if (scenario.generate) return scenario.generate(key, modelInput)
       return generated(key === 'merge' ? commonTemplate : sourceTemplate)
     },
+    patched: async (name) => scenario.patched === true && name === BATCH_WINDOWED_SUGGESTION,
   }
   return { input, ports, steps, configs, writes, calls, cancel, run: () => suggestSchemaBatchWorkflow(input, ports) }
 }
@@ -342,6 +346,69 @@ describe('suggestSchemaBatch', () => {
     await fn(h.input)
     expect(ports).toHaveBeenCalledTimes(1)
     expect(h.writes.map((write) => write.kind)).toEqual(['publish'])
+  })
+})
+
+describe('suggestSchemaBatch, patched to read every window', () => {
+  const LONG_A = Array.from({ length: 40 }, (_, i) => `Entry ${i}. ${i === 30 ? 'MIDDLE ' : ''}${'x'.repeat(3_000)}`).join('\n\n')
+  const windowed = (scenario: Scenario = {}) => harness({
+    patched: true,
+    readMarkdown: (revisionId) => (revisionId === 'revision-a' ? LONG_A : (MARKDOWN[revisionId] ?? null)),
+    generate: async (markdown) => {
+      if (markdown === 'merge') return generated(commonTemplate)
+      if (markdown === 'union') return generated({ ...sourceTemplate, middle_field: 'string' })
+      return generated(markdown.includes('MIDDLE') ? { ...sourceTemplate, middle_field: 'string' } : sourceTemplate)
+    },
+    ...scenario,
+  })
+
+  it('suggests from every window of a long source, combines them, and merges the combination as fully read', async () => {
+    const h = windowed()
+    await h.run()
+
+    expect(h.steps).toEqual([
+      'suggestSource:source-a:window:1', 'suggestSource:source-a:window:2', 'suggestSource:source-a:window:3',
+      'suggestSource:source-a:reduce:1:1', 'suggestSource:source-b:window:1', 'merge', 'publish',
+    ])
+    const windowCalls = h.calls.filter((call) => call.input.window === true && !call.input.document.markdown?.startsWith('WINDOW '))
+    expect(windowCalls.slice(0, 3).map((call) => call.input.document.markdown).join('')).toBe(LONG_A)
+    expect(h.calls.find((call) => call.input.document.markdown?.startsWith('SOURCE DOCUMENT '))?.input.document.markdown).toContain('middle_field')
+    const [write] = h.writes
+    if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
+    expect(write.result.sourceCoverage).toEqual([
+      { sourceDocumentId: 'source-a', sourceCoverage: { complete: true }, combined: true },
+      { sourceDocumentId: 'source-b', sourceCoverage: { complete: true }, combined: true },
+    ])
+  })
+
+  it('recovery reuses the windows it already checkpointed', async () => {
+    const checkpoints = new Map<string, unknown>()
+    const crashed = windowed({ checkpoints, crashAt: 'suggestSource:source-a:window:2' })
+    await expect(crashed.run()).rejects.toThrow('crashed before suggestSource:source-a:window:2')
+    expect(crashed.calls).toHaveLength(1)
+
+    const recovered = windowed({ checkpoints })
+    await recovered.run()
+    expect(recovered.steps[0]).toBe('suggestSource:source-a:window:2')
+    expect(recovered.calls.filter((call) => call.input.document.markdown?.startsWith('Entry 0.'))).toHaveLength(0)
+    expect(recovered.writes.map((write) => write.kind)).toEqual(['publish'])
+  })
+
+  it('a failed window ends the attempt like a failed source', async () => {
+    const h = windowed({ generate: async (markdown) => {
+      if (markdown.includes('MIDDLE')) throw new ApiError(502, 'invalid_model_output', 'x')
+      return generated(sourceTemplate)
+    } })
+    await h.run()
+    expect(h.steps.at(-1)).toBe('publishFailure')
+    expect(h.writes).toEqual([{ kind: 'fail', failure: SOURCES_FAILED }])
+  })
+
+  it('stops without a model call when its attempt is no longer current', async () => {
+    const h = windowed({ attemptState: () => 'stopped' })
+    await h.run()
+    expect(h.calls).toEqual([])
+    expect(h.writes).toEqual([])
   })
 })
 
