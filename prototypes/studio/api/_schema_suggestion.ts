@@ -88,6 +88,29 @@ const SOURCE_SUGGESTION_INSTRUCTION =
 const MERGE_INSTRUCTION =
   'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.'
 
+const UNION_INSTRUCTION =
+  'Return one compact Extraction Schema for one Source Document from the supplied schemas, each suggested from one part of it: keep every field found in any of them, folding fields that name the same thing into one field of one supported shape, and write one _description that defines a complete root record of the whole document. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.'
+
+/**
+ * One request of `reduceSchemas`: combine labelled schemas already within one request's length into one template —
+ * the `union` of one Source Document's window suggestions, or the `intersection` (common fields) of several documents'.
+ */
+export async function combineSchemas(
+  caller: ModelCaller,
+  mode: 'union' | 'intersection',
+  text: string,
+  signal: AbortSignal,
+  generate: typeof generateSchemaWithModel = generateSchemaWithModel,
+): Promise<Record<string, unknown>> {
+  const generated = await generate(caller, {
+    document: { file: null, markdown: text, pages: null },
+    instruction: mode === 'union' ? UNION_INSTRUCTION : MERGE_INSTRUCTION,
+    window: true,
+    signal,
+  })
+  return generated.template
+}
+
 function modelSuggestedDefinition(template: unknown): SchemaDefinition {
   try {
     return parseBatchSuggestionDefinition(templateToSchemaDefinition(template))
