@@ -23,6 +23,8 @@ import {
 export type SchemaModelInput = {
   readonly document: DocumentInput
   readonly instruction: string
+  /** The Markdown is one window of the source (see `schemaSourceWindows`): send it as it is, never excerpted. */
+  readonly window?: boolean
   readonly temperature?: number
   readonly signal?: AbortSignal
 }
@@ -49,7 +51,7 @@ export function generateSchemaWithModel(...call: Parameters<typeof suggestSchema
 
 async function suggestSchema(
   caller: ModelCaller,
-  { document, instruction, temperature, signal }: SchemaModelInput,
+  { document, instruction, window, temperature, signal }: SchemaModelInput,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<{
@@ -59,7 +61,7 @@ async function suggestSchema(
   readonly sourceCoverage: SourceCoverage
 }> {
   const resolved = await resolveModelTarget('schema-suggestion', temperature, target, caller, dependencies)
-  const excerpts = document.markdown ? schemaSourceExcerpts(document.markdown, document.pageSpans) : null
+  const excerpts = document.markdown && !window ? schemaSourceExcerpts(document.markdown, document.pageSpans) : null
   const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
   const generated = await executeSchemaSuggestion(resolved, {
     instructions:

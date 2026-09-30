@@ -272,6 +272,16 @@ describe('generateSchemaWithModel', () => {
     expect(result.sourceCoverage.omitted.map((omission) => omission.page)).toEqual(Array.from({ length: 45 }, (_, i) => i + 1))
   })
 
+  it('sends a supplied window unchanged in one call', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"_description":"One entry.","label":"string"}' })
+    const window = 'A'.repeat(25_000) + 'UNIQUE_MIDDLE_FIELD' + 'Z'.repeat(25_000)
+    const result = await generateSchemaWithModel(
+      CALLER, { document: { ...document, markdown: window }, instruction: '', window: true }, generalTarget)
+    expect(generateTextMock).toHaveBeenCalledOnce()
+    expect(JSON.stringify(generateTextMock.mock.calls[0][0].messages)).toContain(window)
+    expect(result.sourceCoverage).toEqual({ complete: true })
+  })
+
   it('declares a source it sent whole complete', async () => {
     generateTextMock.mockResolvedValue({ text: '{"_description":"One entry.","label":"string"}' })
     const result = await generateSchemaWithModel(CALLER, { document: { ...document, markdown: '# A short register' }, instruction: '' }, generalTarget)
