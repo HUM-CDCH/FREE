@@ -166,7 +166,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
   const blocked = Object.keys(keyIssues).length > 0 || editor.settingsIssues.length > 0
 
   return (
-    <fieldset disabled={applying} className="mx-auto flex min-w-0 max-w-4xl flex-col rounded-2xl border border-line bg-surface shadow-page">
+    <fieldset disabled={applying} className="model-configuration mx-auto flex min-w-0 max-w-4xl flex-col rounded-2xl border border-line bg-surface shadow-page">
       {/* Below `sm` the three tabs take their own row under the title and close button, so nothing scrolls sideways. */}
       <header className="flex flex-wrap items-center gap-x-4 rounded-t-2xl border-b border-line bg-surface px-5 pt-3">
         <h2 className="mr-auto pb-3 text-[13px] font-bold text-ink sm:mr-0">Model Configuration</h2>

@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type RefObject, useId, useRef, useState } from 'react'
+import { type KeyboardEvent, type RefObject, useId, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { DeploymentModels, ModelConfig, ModelConnection, ProviderDescriptor, ProviderKind } from '../../shared/modelConfig.contract'
 import { modelKeyFor } from '../modelKeys/modelKeyStore'
@@ -6,6 +6,7 @@ import { Button } from '../ui'
 import { ProbeDot, ProbeStatusLine } from './ProbeStatus'
 import { probeCatalog, probeText, type ProbeView } from './useProbeLifecycle'
 import type { ProviderConfigDraft } from './useProviderConfigDraft'
+import { SettingsViews } from './SettingsViews'
 
 const FIELD_CLASS =
   'w-full rounded-lg border border-line-strong bg-canvas px-2.75 py-2 text-[12.5px] text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent aria-invalid:border-danger'
@@ -30,6 +31,10 @@ export function ConnectionsTab({ accountId, draft, deployment, providers, probes
   const aside = useRef<HTMLElement>(null)
   const detailHeading = useRef<HTMLHeadingElement>(null)
   const statusId = useId()
+  const connections = [...deployment.connections, ...draft.connections]
+  const pages = Array.from({ length: Math.ceil(connections.length / 4) }, (_, index) => connections.slice(index * 4, index * 4 + 4))
+  const pageTitles = pages.map((_, index) => `Connections ${index * 4 + 1}–${Math.min(index * 4 + 4, connections.length)}`)
+  const selectedPage = pages.findIndex((page) => page.some((connection) => connection.id === selected?.id))
 
   /** A new connection opens in the detail pane, and focus goes to it. */
   function add(kind: ProviderKind): void {
@@ -43,15 +48,25 @@ export function ConnectionsTab({ accountId, draft, deployment, providers, probes
   /** A deleted connection's pane is gone, so focus goes to the connection selected in its place, or to "Add". */
   function remove(id: string): void {
     flushSync(() => editor.removeConnection(id))
+    const chooser = aside.current?.querySelector<HTMLSelectElement>('select')
     const next = aside.current?.querySelector<HTMLButtonElement>('[aria-current="true"]') ?? aside.current?.querySelector<HTMLButtonElement>('button')
-    next?.focus()
+    if (chooser && chooser.getClientRects().length > 0) chooser.focus()
+    else next?.focus()
   }
 
   return (
-    <div className="grid min-h-96 grid-cols-1 md:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside ref={aside} className="flex flex-col gap-2 border-line p-3 md:border-r">
-        <ul aria-label="Connections" className="flex flex-col gap-0.5">
-          {[...deployment.connections, ...draft.connections].map((connection) => (
+    <div className="grid grid-cols-1 md:grid-cols-[15rem_minmax(0,1fr)]">
+      <aside ref={aside} className="configuration-view flex min-w-0 items-start gap-2 border-line p-3 md:flex-col md:border-r">
+        <select aria-label="Connection" value={selected?.id ?? ''} onChange={(event) => onSelect(event.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-[12px] text-ink md:hidden">
+          {connections.length === 0 && <option value="">No connections</option>}
+          {connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.name.trim() || 'Unnamed connection'}</option>)}
+        </select>
+        <div className="hidden w-full md:block">
+        <SettingsViews label="Connections page" titles={pageTitles} selected={pageTitles[selectedPage]}>
+        {pages.map((connections, index) => (
+        <ul key={index} aria-label="Connections" className="flex flex-col gap-0.5">
+          {connections.map((connection) => (
             <li key={connection.id}>
               <button
                 type="button"
@@ -77,9 +92,12 @@ export function ConnectionsTab({ accountId, draft, deployment, providers, probes
             </li>
           ))}
         </ul>
+        ))}
+        </SettingsViews>
+        </div>
         <AddConnectionMenu providers={providers.filter(({ transport }) => transport !== 'cli')} onAdd={add} />
       </aside>
-      <section aria-label="Connection details" className="min-w-0 p-5">
+      <section aria-label="Connection details" className="configuration-view min-w-0 p-3 sm:p-4">
         {!selected ? (
           <p className="text-[12px] text-ink-muted">No connections yet. Add one to choose a model from your own account or server.</p>
         ) : deployed(selected) ? (
@@ -134,9 +152,13 @@ function DeploymentConnection({
       )}
       <ProbeStatusLine probe={probe} />
       {models.length > 0 && (
-        <ul aria-label="Models" className="mt-1 flex flex-col gap-0.5 font-mono text-[12px] text-ink">
-          {models.map(({ id }) => <li key={id}>{id}</li>)}
-        </ul>
+        <SettingsViews label="Connection models page" titles={Array.from({ length: Math.ceil(models.length / 4) }, (_, index) => `Models ${index * 4 + 1}–${Math.min(index * 4 + 4, models.length)}`)}>
+          {Array.from({ length: Math.ceil(models.length / 4) }, (_, index) => (
+            <ul key={index} aria-label="Models" className="mt-1 flex flex-col gap-0.5 font-mono text-[12px] break-all text-ink">
+              {models.slice(index * 4, index * 4 + 4).map(({ id }) => <li key={id}>{id}</li>)}
+            </ul>
+          ))}
+        </SettingsViews>
       )}
     </div>
   )
@@ -165,11 +187,11 @@ function ConnectionForm({
   onDelete: () => void
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <h3 ref={headingRef} tabIndex={-1} className="text-[14px] font-bold text-ink">
         {provider?.label ?? connection.provider} connection
       </h3>
-      <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-[11px] font-semibold text-ink-muted">Name</span>
           <input
@@ -298,6 +320,36 @@ function AddConnectionMenu({ providers, onAdd }: { providers: readonly ProviderD
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLUListElement>(null)
+  useLayoutEffect(() => {
+    const anchor = button.current
+    const popup = menu.current
+    if (!open || !anchor || !popup) return
+    function position() {
+      if (!anchor || !popup) return
+      const bounds = anchor.getBoundingClientRect()
+      const dialog = anchor.closest('dialog')?.getBoundingClientRect()
+      const left = Math.max(8, dialog?.left ?? 8)
+      const right = Math.min(window.innerWidth - 8, dialog?.right ?? window.innerWidth - 8)
+      const width = Math.min(256, right - left)
+      popup.style.width = `${width}px`
+      popup.style.left = `${Math.max(left, Math.min(bounds.left, right - width))}px`
+      const height = popup.getBoundingClientRect().height
+      const below = bounds.bottom + 4
+      popup.style.top = `${below + height <= window.innerHeight - 8 ? below : Math.max(8, bounds.top - height - 4)}px`
+    }
+    position()
+    popup.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true })
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(position)
+    observer?.observe(anchor)
+    observer?.observe(popup)
+    const dialog = anchor.closest('dialog')
+    if (dialog) observer?.observe(dialog)
+    window.addEventListener('resize', position)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', position)
+    }
+  }, [open])
   const close = (returnFocus: boolean) => {
     setOpen(false)
     if (returnFocus) button.current?.focus()
@@ -348,14 +400,13 @@ function AddConnectionMenu({ providers, onAdd }: { providers: readonly ProviderD
           role="menu"
           aria-label="Add connection"
           onMouseDown={(event) => event.preventDefault()}
-          className="absolute left-0 z-30 mt-1 w-72 rounded-xl border border-line bg-surface py-1 shadow-float"
+          className="fixed z-30 rounded-xl border border-line bg-surface py-1 shadow-float"
         >
-          {providers.map((provider, index) => (
+          {providers.map((provider) => (
             <li key={provider.kind} role="none">
               <button
                 type="button"
                 role="menuitem"
-                autoFocus={index === 0}
                 onClick={() => {
                   onAdd(provider.kind)
                   close(false)

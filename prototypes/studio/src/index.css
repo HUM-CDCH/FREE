@@ -118,3 +118,34 @@
 @utility animate-spin-slow {
   animation: spin 0.8s linear infinite;
 }
+
+/* A short viewport (including browser zoom) keeps settings actions visible without an inner scroll area. */
+@media (max-height: 650px) {
+  .models-overview > :not(:last-child) { margin-bottom: 0.5rem; }
+  .models-overview .model-step { padding: 0.5rem; }
+  .model-step[data-editing="false"] .model-step-description { display: none; }
+  .model-step-summary {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+}
+
+@media (max-height: 650px) and (max-width: 639px) {
+  .models-overview .model-step-description,
+  .models-overview .model-field-hint { display: none; }
+}
+
+@media (max-height: 500px) {
+  .model-configuration > header { padding-top: 0.5rem; }
+  .model-configuration > header > h2,
+  .model-configuration > header > button { padding-bottom: 0.5rem; }
+  .model-configuration > footer,
+  .model-configuration .configuration-view { padding-block: 0.5rem; }
+  .model-configuration .settings-views { gap: 0.5rem; }
+  .model-configuration .advanced-settings { gap: 0.25rem; }
+  .models-overview .model-step-description,
+  .models-overview .model-field-hint { display: none; }
+  .models-overview .model-step-summary { -webkit-line-clamp: 1; }
+}

@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useId, useLayoutEffect, useRef, useState } from 'react'
 
 export type PickerOption = { value: string; label: string; hint?: string; disabled?: boolean }
 export type PickerGroup = {
@@ -41,9 +41,55 @@ export function ModelPicker({
   const [query, setQuery] = useState('')
   const [active, setActive] = useState<string | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
   const baseId = useId()
   const typed = query.trim()
   const search = typed.toLowerCase()
+
+  useLayoutEffect(() => {
+    const button = trigger.current
+    const popup = menu.current
+    if (!open || !button || !popup) return
+
+    // Keep the menu out of the dialog's flow: opening it must not create a scrollbar or move the header/footer.
+    function position(): void {
+      if (!button || !popup) return
+      const anchor = button.getBoundingClientRect()
+      const dialog = button.closest('dialog')?.getBoundingClientRect()
+      const left = Math.max(8, dialog?.left ?? 0)
+      const right = Math.min(window.innerWidth - 8, dialog?.right ?? window.innerWidth)
+      const top = 8
+      const bottom = window.innerHeight - 8
+      const width = Math.min(Math.max(anchor.width, 288), right - left)
+      popup.style.width = `${width}px`
+      popup.style.left = `${Math.max(left, Math.min(anchor.left, right - width))}px`
+      popup.style.maxHeight = ''
+      const height = popup.getBoundingClientRect().height
+      const below = Math.max(0, bottom - anchor.bottom - 4)
+      const above = Math.max(0, anchor.top - top - 4)
+      const dialogBelow = Math.max(0, Math.min(bottom, dialog?.bottom ?? bottom) - anchor.bottom - 4)
+      const dialogAbove = Math.max(0, anchor.top - Math.max(top, dialog?.top ?? top) - 4)
+      const upward = height > dialogBelow && dialogAbove > dialogBelow
+      const available = upward ? above : below
+      popup.style.maxHeight = `${available}px`
+      popup.style.top = `${upward ? anchor.top - 4 - Math.min(height, available) : anchor.bottom + 4}px`
+    }
+
+    position()
+    popup.querySelector('input')?.focus({ preventScroll: true })
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(position)
+    observer?.observe(popup)
+    observer?.observe(button)
+    const dialog = button.closest('dialog')
+    if (dialog) observer?.observe(dialog)
+    window.addEventListener('resize', position)
+    window.addEventListener('scroll', position, true)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', position)
+      window.removeEventListener('scroll', position, true)
+    }
+  }, [open])
 
   const resetRow: Row | null = reset && !search ? { id: `${baseId}-reset`, value: reset.value, disabled: false } : null
   const shown = groups.flatMap((group, groupIndex) => {
@@ -128,9 +174,8 @@ export function ModelPicker({
         <span aria-hidden="true" className="text-[10px] text-ink-faint">▾</span>
       </button>
       {open && (
-        <div className="absolute right-0 left-0 z-30 mt-1 min-w-72 overflow-hidden rounded-xl border border-line bg-surface shadow-float">
+        <div ref={menu} className="fixed z-30 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-float">
           <input
-            autoFocus
             role="combobox"
             aria-label={`Search ${ariaLabel}`}
             aria-expanded="true"
@@ -146,7 +191,7 @@ export function ModelPicker({
             }}
             onKeyDown={onKeyDown}
             placeholder={groups.some((group) => group.freeText) ? 'Search, or type an exact model ID' : 'Search models'}
-            className="w-full border-b border-line bg-surface px-3 py-2 text-[12px] text-ink outline-none placeholder:text-ink-faint"
+            className="w-full shrink-0 border-b border-line bg-surface px-3 py-2 text-[12px] text-ink outline-none placeholder:text-ink-faint"
           />
           {/* Clicks inside keep focus in the search box, so the list stays open until a row is picked. */}
           <ul
@@ -154,7 +199,7 @@ export function ModelPicker({
             role="listbox"
             aria-label={ariaLabel}
             onMouseDown={(event) => event.preventDefault()}
-            className="max-h-72 overflow-auto py-1"
+            className="min-h-0 max-h-72 overflow-auto overscroll-contain py-1"
           >
             {resetRow && (
               <PickerRow row={resetRow} value={value} active={active} onPick={choose}>

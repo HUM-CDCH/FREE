@@ -25,6 +25,12 @@ const explainEvidence = () => {
   return screen.getByRole('dialog', { name: 'Verification' })
 }
 
+function selectView(label: string, title: string) {
+  const select = screen.getByRole('combobox', { name: label })
+  const option = within(select).getByRole('option', { name: title }) as HTMLOptionElement
+  fireEvent.change(select, { target: { value: option.value } })
+}
+
 describe('the Explain guide', () => {
   it('opens at the section topic with Meaning, Example and Study evidence; Escape returns focus to the trigger', async () => {
     renderGuide()
@@ -32,8 +38,12 @@ describe('the Explain guide', () => {
     trigger.focus()
     fireEvent.click(trigger)
     const dialog = screen.getByRole('dialog', { name: 'Verification' })
-    for (const anchor of ['Meaning', 'Example', 'Study evidence']) expect(within(dialog).getByRole('link', { name: anchor })).toBeInTheDocument()
-    expect(within(dialog).getByText('Technical details')).toBeInTheDocument()
+    for (const title of ['Meaning', 'Example', 'Study evidence']) {
+      selectView('Topic section', title)
+      expect(within(dialog).getByRole('heading', { name: title })).toBeVisible()
+    }
+    selectView('Topic section', 'Technical details')
+    expect(within(dialog).getByText('Technical details', { selector: 'summary' })).toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: 'Apply' })).toBeNull()
     dismiss(dialog)
     await waitFor(() => expect(trigger).toHaveFocus())
@@ -42,6 +52,7 @@ describe('the Explain guide', () => {
   it('exploring the span example changes no settings and shows the exact limits', () => {
     const onUseSettings = renderGuide()
     const dialog = explainEvidence()
+    selectView('Topic section', 'Example')
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Source span E1' }))
     expect(within(dialog).getByText('Text range is exact. Highlight precision depends on available geometry.')).toBeInTheDocument()
     expect(within(dialog).getByText('E1 is a compact transport label, not the stored evidence ID.')).toBeInTheDocument()
@@ -53,6 +64,7 @@ describe('the Explain guide', () => {
   it('the span example highlights a sentence inside its passage and a cell inside its row, with each range in words', () => {
     renderGuide()
     const dialog = explainEvidence()
+    selectView('Topic section', 'Example')
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Source span E1' }))
     expect([...dialog.querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual(['ASC: 18.6 °C', '18.6'])
     const figure = within(dialog).getByRole('figure')
@@ -60,11 +72,15 @@ describe('the Explain guide', () => {
     expect(figure).toHaveAccessibleName(/exact cell; its row and column headers are context/)
   })
 
-  it('local anchors move focus to their section without adding a URL fragment', () => {
+  it('section navigation reveals one view and keeps its control focused without adding a URL fragment', () => {
     renderGuide()
     const dialog = explainEvidence()
-    fireEvent.click(within(dialog).getByRole('link', { name: 'Study evidence' }))
-    expect(within(dialog).getByRole('heading', { name: 'Study evidence' })).toHaveFocus()
+    const navigation = within(dialog).getByRole('combobox', { name: 'Topic section' })
+    navigation.focus()
+    selectView('Topic section', 'Study evidence')
+    expect(within(dialog).getByRole('heading', { name: 'Study evidence' })).toBeVisible()
+    expect(within(dialog).queryByRole('heading', { name: 'Meaning' })).toBeNull()
+    expect(navigation).toHaveFocus()
     expect(window.location.hash).toBe('')
   })
 
@@ -73,24 +89,33 @@ describe('the Explain guide', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Explain Recipe Catalog' }))
     const dialog = screen.getByRole('dialog', { name: 'Catalog' })
     expect(within(dialog).getAllByText('Not measured').length).toBeGreaterThan(0)
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Verification' }))
-    const table = within(screen.getByRole('dialog', { name: 'Verification' })).getByRole('table', { name: 'Study evidence' })
-    for (const header of ['Finding', 'Date', 'Corpus', 'Method revision', 'Evidence type', 'Limits'])
-      expect(within(table).getByRole('columnheader', { name: header })).toBeInTheDocument()
-    expect(within(table).getAllByText('2026-09-28').length).toBeGreaterThan(0)
+    selectView('Topics', 'Verification')
+    selectView('Topic section', 'Study evidence')
+    selectView('Study evidence entry', 'Study details 1')
+    const study = within(screen.getByRole('region', { name: 'Study details 1' }))
+    for (const label of ['Date', 'Corpus', 'Method revision', 'Evidence type'])
+      expect(study.getByText(label, { selector: 'dt' })).toBeVisible()
+    expect(study.getByText('2026-09-28')).toBeVisible()
+    selectView('Study evidence entry', 'Limits 1')
+    expect(screen.getByRole('region', { name: 'Limits 1' })).toBeVisible()
   })
 
-  it('keeps the selected-document pilot and the Harvey diagnostic in separate rows, each with its own corpus', () => {
+  it('keeps the selected-document pilot and the Harvey diagnostic in separate views, each with its own corpus', () => {
     renderGuide()
-    const table = within(within(explainEvidence()).getByRole('table', { name: 'Study evidence' }))
-    const rowOf = (title: string) => table.getAllByRole('row').filter((row) => row.textContent!.includes(`${title} ·`))
-    const pilot = rowOf('Grounding pilot')
-    const harvey = rowOf('Harvey grounding micro-pilot')
-    expect(pilot.length).toBeGreaterThan(0)
-    expect(harvey).toHaveLength(1)
-    for (const row of pilot) expect(row).toHaveTextContent('One selected development document')
-    expect(harvey[0]).toHaveTextContent('One previously inspected development document')
-    expect(harvey[0]).not.toHaveTextContent('selected development document')
+    explainEvidence()
+    selectView('Topic section', 'Study evidence')
+    const evidence = GUIDE_TOPICS.find((topic) => topic.id === 'grounding')!.evidence
+    const pilots = evidence.map((row, index) => ({ row, index })).filter(({ row }) => ['pilot', 'harvey'].includes(row.source))
+    expect(pilots.length).toBeGreaterThan(1)
+    for (const { row, index } of pilots) {
+      const source = EVIDENCE_SOURCES.find((item) => item.id === row.source)!
+      selectView('Study evidence entry', `Finding ${index + 1}`)
+      expect(screen.getByRole('region', { name: `Finding ${index + 1}` })).toHaveTextContent(source.title)
+      selectView('Study evidence entry', `Study details ${index + 1}`)
+      const details = screen.getByRole('region', { name: `Study details ${index + 1}` })
+      expect(details).toHaveTextContent(row.source === 'pilot' ? 'One selected development document' : 'One previously inspected development document')
+      if (row.source === 'harvey') expect(details).not.toHaveTextContent('selected development document')
+    }
   })
 
   it('every topic has a purpose, stage, example, figure text, combinations and a verbatim takeaway', () => {
@@ -126,6 +151,7 @@ describe('the Explain guide', () => {
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
     const dialog = screen.getByRole('dialog', { name: 'How this works' })
     expect(within(dialog).getByRole('figure')).toHaveAccessibleName(/Canonical Source Context feeds Context and grouping/)
+    selectView('Guide section', 'Explore spans and schema policies')
     const point = within(dialog).getByRole('region', { name: 'Explore spans and schema policies' })
     expect(within(point).getByRole('button', { name: 'Use these settings' })).toBeDisabled()
     fireEvent.click(within(point).getByRole('button', { name: 'Show changes' }))
@@ -150,6 +176,7 @@ describe('the Explain guide', () => {
   it('a starting point the draft already uses shows no changes and cannot be used again', () => {
     renderGuide(vi.fn(), { ...REFERENCE_ARTICLE })
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
+    selectView('Guide section', 'Reference controls')
     const point = within(within(screen.getByRole('dialog', { name: 'How this works' })).getByRole('region', { name: 'Reference controls' }))
     fireEvent.click(point.getByRole('button', { name: 'Show changes' }))
     expect(point.getByText('Your Article draft already uses these settings.')).toBeInTheDocument()
