@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DBOSClient } from '@dbos-inc/dbos-sdk'
+import { DBOS, DBOSClient } from '@dbos-inc/dbos-sdk'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createInternalProjectWorkerStore, db, pool } from 'db'
 import { dbosSteps } from 'extraction'
@@ -52,9 +52,10 @@ keys.wait = (...args) => {
 const worker = createInternalProjectWorkerStore(db, { packages })
 const ports: SchemaGenerationPorts = {
   steps: dbosSteps,
-  readMarkdown: (id) => worker.readRevisionMarkdown(id),
+  readSource: (id) => worker.readRevisionSchemaSource(id),
   generate: (caller, input) =>
     generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs, deployment: deploymentModels({}) }),
+  patched: (name) => DBOS.patch(name),
 }
 
 function post(scope: InteractiveScope, operationId: string, fields: Record<string, string> = {}) {
@@ -177,7 +178,7 @@ describe('suggestSchema on PostgreSQL', () => {
     expect(first.status).toBe(200)
     expect(second.status).toBe(200)
     const body = await first.json()
-    expect(body).toEqual({ template: { _description: 'One catalogue entry.', title: 'string' }, raw: TEMPLATE, pages: null })
+    expect(body).toEqual({ template: { _description: 'One catalogue entry.', title: 'string' }, raw: TEMPLATE, pages: null, sourceCoverage: { complete: true } })
     expect(await second.json()).toEqual(body)
     expect(server.calls()).toHaveLength(1)
     const recorded = await studioDbos().admission.getWorkflow(`suggestion:${operationId}`)
@@ -386,7 +387,7 @@ describe('suggestSchema on PostgreSQL', () => {
       expect(second.code).toBe(0)
       expect(JSON.parse(readFileSync(env.FREE_TEST_OUTPUT, 'utf8'))).toEqual({
         state: 'finished',
-        output: { ok: true, template: { _description: 'One catalogue entry.', title: 'string' }, raw: TEMPLATE, pages: null, baseSchemaRevisionId: null },
+        output: { ok: true, template: { _description: 'One catalogue entry.', title: 'string' }, raw: TEMPLATE, pages: null, sourceCoverage: { complete: true }, baseSchemaRevisionId: null },
       })
       expect(readFileSync(env.FREE_TEST_WAIT_COUNT, 'utf8')).toBe('0')
       expect(other.calls()).toEqual([])

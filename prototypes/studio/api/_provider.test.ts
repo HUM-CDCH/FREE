@@ -73,6 +73,20 @@ describe('provider table', () => {
     expect(result).toBeInstanceOf(NoObjectGeneratedError)
   })
 
+  it('asks Ollama to refuse a prompt longer than its context rather than cut it', async () => {
+    const request = vi.fn<(input: unknown, init?: RequestInit) => Promise<Response>>(async () => Response.json({
+      model: 'manual/model', created_at: '2026-09-10T00:00:00Z',
+      message: { role: 'assistant', content: 'ok' }, done: true, done_reason: 'stop', prompt_eval_count: 1, eval_count: 1,
+    }))
+    vi.stubGlobal('fetch', request)
+    const model = providerTable.ollama.createModel(
+      { ...connection, provider: 'ollama', baseUrl: 'http://ollama.example' }, 'manual/model', null,
+    )
+    await generateText({ model, prompt: 'Suggest fields.', maxRetries: 0 })
+
+    expect(JSON.parse(String(request.mock.calls[0]![1]!.body))).toMatchObject({ truncate: false })
+  })
+
   it('passes each Ollama request cancellation through to its HTTP transport', async () => {
     const controller = new AbortController()
     let requestSignal: AbortSignal | null | undefined

@@ -9,6 +9,22 @@ import { createServer } from 'node:http'
 const RECORD = { author: 'Margaret Cavendish', year: 1666, place: 'London' }
 
 function answerFor(body) {
+  // Schema Suggestion (page-span excerpts scenario): log only what the prompt carried, answer a minimal template.
+  const text = body.messages.map((message) =>
+    typeof message.content === 'string' ? message.content : JSON.stringify(message.content)).join('\n')
+  if (text.includes('Generate a compact JSON extraction schema')) {
+    // Schema Suggestion (a window of the source, or a union of window suggestions): log only what the prompt carried.
+    const ids = (kind) => [...new Set([...text.matchAll(new RegExp(`PAGE${kind}(\\d\\d)`, 'g'))].map((match) => match[1]))].sort()
+    console.log('SUGGEST ' + JSON.stringify({
+      chars: text.length,
+      union: text.includes('WINDOW 1 SCHEMA:'),
+      omittedMarks: text.split('[... omitted for schema design ...]').length - 1,
+      starts: ids('START'),
+      ends: ids('END'),
+      nordic: text.includes('æøå'),
+    }))
+    return { _description: 'One grave entry.', entry: 'string' }
+  }
   const prompt = body.messages.at(-1).content
   const properties = body.response_format.json_schema.schema.properties
   if (!prompt.includes('Margaret Cavendish') || !prompt.includes('1666'))

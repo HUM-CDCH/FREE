@@ -539,8 +539,38 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     assert.equal('isPackageReferenced' in researcher, false)
     assert.equal('publishBatchSchemaSuggestion' in researcher, false)
     assert.equal('readRevisionMarkdown' in researcher, false)
+    assert.equal('readRevisionSchemaSource' in researcher, false)
     assert.equal('createProjectContext' in worker, false)
     assert.equal('getSourceRepresentation' in worker, false)
+  })
+
+  it('the worker store reads a revision\'s Markdown with its page spans from the one pinned revision, or null', async () => {
+    const database = fakeDatabase()
+    const reads: string[] = []
+    const packages = {
+      async read(descriptor: { artifactReference: string }, artifact: string) {
+        reads.push(`${descriptor.artifactReference}:${artifact}`)
+        const document = { pages: [
+          { page_number: 1, markdown_span: { start: 0, end: 4 } },
+          { page_number: 2, markdown_span: null },
+          { page_number: 5, markdown_span: { start: 6, end: 9 } },
+        ] }
+        return { bytes: new TextEncoder().encode(artifact === 'markdown' ? 'æøå\n\nx' : JSON.stringify(document)), mediaType: '' }
+      },
+    }
+    const worker = createInternalProjectWorkerStore(database as never, { packages: packages as never })
+
+    assert.deepEqual(await worker.readRevisionSchemaSource('51000000-0000-4000-8002-000000000001'), {
+      markdown: 'æøå\n\nx',
+      pageSpans: [{ pageNumber: 1, start: 0, end: 4 }, { pageNumber: 5, start: 6, end: 9 }],
+    })
+    assert.deepEqual(reads.sort(), [`${OWN_PACKAGE}:markdown`, `${OWN_PACKAGE}:source`])
+    assert.equal(await worker.readRevisionSchemaSource('51000000-0000-4000-8002-000000000099'), null)
+
+    const bare = createInternalProjectWorkerStore(database as never, {
+      packages: { read: async (_descriptor: unknown, artifact: string) => ({ bytes: new TextEncoder().encode(artifact === 'markdown' ? 'text' : '{}'), mediaType: '' }) } as never,
+    })
+    assert.deepEqual(await bare.readRevisionSchemaSource('51000000-0000-4000-8002-000000000001'), { markdown: 'text', pageSpans: [] })
   })
 
   it("the worker store reads a schema revision's tree by schema and revision, or null", async () => {

@@ -133,14 +133,19 @@ async function generateWithGenericJsonPrompt(
       abortSignal: input.signal,
       ...(target.temperatureSupported ? { temperature: input.temperature ?? 0 } : {}),
     })
+    if (generated.finishReason === 'length') throw OUTPUT_TRUNCATED
     return { response: generated.text }
   } catch (error) {
     if (structuredOutput && NoObjectGeneratedError.isInstance(error)) {
+      if (error.finishReason === 'length') throw OUTPUT_TRUNCATED
       return { response: error.text ?? '' }
     }
     throw asModelOperationError(error)
   }
 }
+
+/** A schema the model stopped writing for length: even when it parses, fields may be missing, so it is not a result. */
+const OUTPUT_TRUNCATED = new ApiError(502, 'model_output_truncated', 'The model stopped before finishing its answer.')
 
 /**
  * NuExtract3 takes its task from its chat template's kwargs, which vLLM passes
@@ -214,6 +219,7 @@ async function generateWithNuExtract(
       })
     }
     const [choice] = parsed.data.choices
+    if (choice.finish_reason === 'length') throw OUTPUT_TRUNCATED
     span.setAttributes({
       'llm.token_count.prompt': parsed.data.usage?.prompt_tokens,
       'llm.token_count.completion': parsed.data.usage?.completion_tokens,

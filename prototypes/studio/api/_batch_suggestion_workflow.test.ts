@@ -4,6 +4,7 @@ import type { SchemaModelInput } from './_schema_suggestion.js'
 import { ApiError } from './_http.js'
 import { ModelKeyRequiredError } from './_model_keys.js'
 import {
+  BATCH_WINDOWED_SUGGESTION,
   registerBatchSuggestionWorkflow,
   SUGGEST_SCHEMA_BATCH,
   suggestSchemaBatchWorkflow,
@@ -24,6 +25,7 @@ const A = { sourceDocumentId: 'source-a', sourceRepresentationRevisionId: 'revis
 const B = { sourceDocumentId: 'source-b', sourceRepresentationRevisionId: 'revision-b' }
 const C = { sourceDocumentId: 'source-c', sourceRepresentationRevisionId: 'revision-c' }
 const MARKDOWN: Record<string, string> = { 'revision-a': '# Source A', 'revision-b': '# Source B', 'revision-c': '# Source C' }
+const PAGE_SPANS = [{ pageNumber: 1, start: 0, end: 10 }]
 
 const sourceTemplate = { _description: 'One article.', title: 'string', year: 'integer' }
 const commonTemplate = { _description: 'One article.', title: 'string' }
@@ -49,6 +51,8 @@ type Scenario = {
   checkpoints?: Map<string, unknown>
   /** Throws when this step is reached, as a crash before it would. */
   crashAt?: string
+  /** Whether the run is past the windowed-suggestion DBOS patch. */
+  patched?: boolean
 }
 
 function harness(scenario: Scenario = {}) {
@@ -81,8 +85,9 @@ function harness(scenario: Scenario = {}) {
         expect(id).toBe(PROJECT)
         return scenario.owner === undefined ? OWNER : scenario.owner
       },
-      async readMarkdown(revisionId) {
-        return scenario.readMarkdown ? scenario.readMarkdown(revisionId) : (MARKDOWN[revisionId] ?? null)
+      async readSource(revisionId) {
+        const markdown = scenario.readMarkdown ? scenario.readMarkdown(revisionId) : (MARKDOWN[revisionId] ?? null)
+        return markdown === null ? null : { markdown, pageSpans: PAGE_SPANS }
       },
       async publish(id, attempt, result) {
         expect([id, attempt]).toEqual([SUGGESTION, 2])
@@ -98,10 +103,12 @@ function harness(scenario: Scenario = {}) {
     generate: async (caller, modelInput) => {
       calls.push({ caller, input: modelInput })
       const markdown = modelInput.document.markdown ?? ''
-      const key = markdown.startsWith('SOURCE DOCUMENT ') ? 'merge' : markdown
+      const key = markdown.startsWith('WINDOW ') ? 'union'
+        : markdown.startsWith('SOURCE DOCUMENT ') || markdown.startsWith('COMBINED ') ? 'merge' : markdown
       if (scenario.generate) return scenario.generate(key, modelInput)
       return generated(key === 'merge' ? commonTemplate : sourceTemplate)
     },
+    patched: async (name) => scenario.patched === true && name === BATCH_WINDOWED_SUGGESTION,
   }
   return { input, ports, steps, configs, writes, calls, cancel, run: () => suggestSchemaBatchWorkflow(input, ports) }
 }
@@ -118,6 +125,8 @@ describe('suggestSchemaBatch', () => {
     expect(h.calls.map((call) => call.input.document.markdown?.split('\n')[0])).toEqual([
       '# Source A', '# Source B', 'SOURCE DOCUMENT source-a SUGGESTION:',
     ])
+    // A source's pinned page spans reach its model call; the merge's synthetic text has none.
+    expect(h.calls.map((call) => call.input.document.pageSpans)).toEqual([PAGE_SPANS, PAGE_SPANS, undefined])
     expect(h.writes).toHaveLength(1)
     const [write] = h.writes
     if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
@@ -338,6 +347,111 @@ describe('suggestSchemaBatch', () => {
     await fn(h.input)
     expect(ports).toHaveBeenCalledTimes(1)
     expect(h.writes.map((write) => write.kind)).toEqual(['publish'])
+  })
+})
+
+describe('suggestSchemaBatch, patched to read every window', () => {
+  const LONG_A = Array.from({ length: 40 }, (_, i) => `Entry ${i}. ${i === 30 ? 'MIDDLE ' : ''}${'x'.repeat(3_000)}`).join('\n\n')
+  const windowed = (scenario: Scenario = {}) => harness({
+    patched: true,
+    readMarkdown: (revisionId) => (revisionId === 'revision-a' ? LONG_A : (MARKDOWN[revisionId] ?? null)),
+    generate: async (markdown) => {
+      if (markdown === 'merge') return generated(commonTemplate)
+      if (markdown === 'union') return generated({ ...sourceTemplate, middle_field: 'string' })
+      return generated(markdown.includes('MIDDLE') ? { ...sourceTemplate, middle_field: 'string' } : sourceTemplate)
+    },
+    ...scenario,
+  })
+
+  it('suggests from every window of a long source, combines them, and merges the combination as fully read', async () => {
+    const h = windowed()
+    await h.run()
+
+    expect(h.steps).toEqual([
+      'suggestSource:source-a:window:1', 'suggestSource:source-a:window:2', 'suggestSource:source-a:window:3',
+      'suggestSource:source-a:reduce:1:1', 'suggestSource:source-b:window:1', 'merge:reduce:1:1', 'publish',
+    ])
+    const windowCalls = h.calls.filter((call) => call.input.window === true && !call.input.document.markdown?.startsWith('WINDOW '))
+    expect(windowCalls.slice(0, 3).map((call) => call.input.document.markdown).join('')).toBe(LONG_A)
+    expect(h.calls.find((call) => call.input.document.markdown?.startsWith('SOURCE DOCUMENT '))?.input.document.markdown).toContain('middle_field')
+    const [write] = h.writes
+    if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
+    expect(write.result.sourceCoverage).toEqual([
+      { sourceDocumentId: 'source-a', sourceCoverage: { complete: true }, combined: true },
+      { sourceDocumentId: 'source-b', sourceCoverage: { complete: true }, combined: true },
+    ])
+  })
+
+  it('recovery reuses the windows it already checkpointed', async () => {
+    const checkpoints = new Map<string, unknown>()
+    const crashed = windowed({ checkpoints, crashAt: 'suggestSource:source-a:window:2' })
+    await expect(crashed.run()).rejects.toThrow('crashed before suggestSource:source-a:window:2')
+    expect(crashed.calls).toHaveLength(1)
+
+    const recovered = windowed({ checkpoints })
+    await recovered.run()
+    expect(recovered.steps[0]).toBe('suggestSource:source-a:window:2')
+    expect(recovered.calls.filter((call) => call.input.document.markdown?.startsWith('Entry 0.'))).toHaveLength(0)
+    expect(recovered.writes.map((write) => write.kind)).toEqual(['publish'])
+  })
+
+  it('a failed window ends the attempt like a failed source', async () => {
+    const h = windowed({ generate: async (markdown) => {
+      if (markdown.includes('MIDDLE')) throw new ApiError(502, 'invalid_model_output', 'x')
+      return generated(sourceTemplate)
+    } })
+    await h.run()
+    expect(h.steps.at(-1)).toBe('publishFailure')
+    expect(h.writes).toEqual([{ kind: 'fail', failure: SOURCES_FAILED }])
+  })
+
+  it('merges suggestions too long for one request level by level, reading every one', async () => {
+    // Three wide suggestions: any two fit one 48,000-character request, all three do not. Source C lacks field_7.
+    const wide = (without?: string) => Object.fromEntries([['_description', 'One article.'],
+      ...Array.from({ length: 220 }, (_, i) => [`field_${i}`, 'string']).filter(([name]) => name !== without)])
+    const intersection = (text: string) => {
+      const blocks = text.split('\n\n').map((block) => new Set([...block.matchAll(/"name":"(\w+)"/g)].map((match) => match[1]!)))
+      return Object.fromEntries([['_description', 'One article.'],
+        ...[...blocks[0]!].filter((name) => blocks.every((names) => names.has(name))).map((name) => [name, 'string'])])
+    }
+    const h = windowed({
+      members: [A, B, C],
+      readMarkdown: (revisionId) => MARKDOWN[revisionId] ?? null,
+      generate: async (markdown, call) => markdown === 'merge'
+        ? generated(intersection(call.document.markdown!))
+        : generated(markdown === '# Source C' ? wide('field_7') : wide()),
+    })
+    await h.run()
+
+    const merges = h.calls.filter((call) => /^(SOURCE DOCUMENT|COMBINED) /.test(call.input.document.markdown!))
+    expect(merges.length).toBeGreaterThan(1)
+    expect(merges.every((call) => call.input.document.markdown!.length <= 48_000)).toBe(true)
+    for (const id of ['source-a', 'source-b', 'source-c'])
+      expect(merges.some((call) => call.input.document.markdown!.includes(`SOURCE DOCUMENT ${id} SCHEMA:`))).toBe(true)
+    const [write] = h.writes
+    if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
+    expect(write.result.proposal.schemaNodes.map((node) => node.name)).not.toContain('field_7')
+    expect(write.result.proposal.schemaNodes).toHaveLength(219)
+    expect(write.result.sourceCoverage?.every((source) => source.combined)).toBe(true)
+  })
+
+  it('a combination without a common field publishes HETEROGENEOUS', async () => {
+    const h = windowed({
+      readMarkdown: (revisionId) => MARKDOWN[revisionId] ?? null,
+      generate: async (markdown) => generated(markdown === 'merge' ? emptyTemplate : sourceTemplate),
+    })
+    await h.run()
+    expect(h.writes).toEqual([{ kind: 'publish', result: { phase: 'HETEROGENEOUS', sourceCoverage: [
+      { sourceDocumentId: 'source-a', sourceCoverage: { complete: true }, combined: true },
+      { sourceDocumentId: 'source-b', sourceCoverage: { complete: true }, combined: true },
+    ] } }])
+  })
+
+  it('stops without a model call when its attempt is no longer current', async () => {
+    const h = windowed({ attemptState: () => 'stopped' })
+    await h.run()
+    expect(h.calls).toEqual([])
+    expect(h.writes).toEqual([])
   })
 })
 

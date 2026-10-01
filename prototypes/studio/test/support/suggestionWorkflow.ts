@@ -7,6 +7,7 @@ import {
   workflowStatusesOf,
   type CanonicalPackageStore,
 } from 'db'
+import { DBOS } from '@dbos-inc/dbos-sdk'
 import { dbosSteps } from 'extraction'
 import { packCanonicalPackage } from '../../../../packages/db/src/artifact-store.js'
 import {
@@ -34,6 +35,7 @@ export type SeededSuggestionSources = Readonly<{
 export async function seedSuggestionSources(
   packages: CanonicalPackageStore,
   letters: readonly string[],
+  markdownOf: (letter: string) => string = (letter) => `# Source ${letter}`,
 ): Promise<SeededSuggestionSources> {
   const researcherAccountId = randomUUID()
   const projectContextId = randomUUID()
@@ -56,7 +58,7 @@ export async function seedSuggestionSources(
         document: { content_sha256: sha },
         preprocessing: { preprocess_id: preprocessId },
       },
-      markdown: `# Source ${letter}`,
+      markdown: markdownOf(letter),
     }))
     const sourceDocumentId = randomUUID()
     const sourceRepresentationRevisionId = randomUUID()
@@ -102,10 +104,20 @@ export function suggestionResearcherStore(researcherAccountId: string) {
   })
 }
 
-/** Which model call this is: a source's (its Markdown's letter) or the merge. */
+/** A source three windows long: its heading and one 40,000-character paragraph, then `Part 2` and `Part 3`, each a
+ *  window of its own (two never fit one 48,000-character window). */
+export function longSourceMarkdown(letter: string): string {
+  return `# Source ${letter}\n\n${'a'.repeat(40_000)}\n\nPart 2 ${'b'.repeat(40_000)}\n\nPart 3 ${'c'.repeat(40_000)}`
+}
+
+/** Which model call this is: a source's first window (its letter), a later window (`part N` of a long source), the
+ *  combination of a source's windows (`union`) or the merge. */
 export function modelCallOf(markdown: string | null | undefined): string {
-  if (markdown?.startsWith('SOURCE DOCUMENT ')) return 'merge'
-  const letter = /^# Source (\w+)$/.exec(markdown ?? '')?.[1]
+  if (markdown?.startsWith('SOURCE DOCUMENT ') || markdown?.startsWith('COMBINED ')) return 'merge'
+  if (markdown?.startsWith('WINDOW ')) return 'union'
+  const part = /^Part (\d+) /.exec(markdown ?? '')?.[1]
+  if (part) return `part ${part}`
+  const letter = /^# Source (\w+)(?:\n|$)/.exec(markdown ?? '')?.[1]
   if (!letter) throw new Error('The fake model was given a document it does not know.')
   return `source ${letter}`
 }
@@ -142,5 +154,6 @@ export function suggestionPorts(
     steps: dbosSteps,
     generate,
     store: store(workerSuggestionStore(createInternalProjectWorkerStore(db, { packages }))),
+    patched: (name) => DBOS.patch(name),
   }
 }

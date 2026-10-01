@@ -29,6 +29,11 @@ import { ApiError } from './_http.js'
 import { requireModelKey, studioProcess, withStepCancellation, type ModelKeyCache } from './_model_keys.js'
 
 
+function refuseTruncation(init: RequestInit | undefined): { body?: string } {
+  if (typeof init?.body !== 'string') return {}
+  return { body: JSON.stringify({ ...JSON.parse(init.body), truncate: false }) }
+}
+
 /** Internal adapter capability; routes always select output formatting automatically. */
 export type JsonOutputCapability = 'prompt' | 'schema' | 'native'
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
@@ -434,7 +439,9 @@ export const providerTable = {
       const create = (signal?: AbortSignal) => createOllama({
         baseURL: connection.baseUrl!,
         ...(credential ? { apiKey: credential } : {}),
-        fetch: (input, init) => fetch(input, { ...init, ...headers(init), ...(signal ? {
+        // `truncate: false`: Ollama answers a prompt longer than its context with an error instead of silently
+        // cutting it (the adapter has no such option), so a model call never claims text it did not read.
+        fetch: (input, init) => fetch(input, { ...init, ...headers(init), ...refuseTruncation(init), ...(signal ? {
           signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal,
         } : {}) }),
       })(modelId, { reliableObjectGeneration: false })

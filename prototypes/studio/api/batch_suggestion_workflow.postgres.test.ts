@@ -9,6 +9,7 @@ import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos 
 import { runWorkflowChild } from '../test/support/crash.js'
 import { disposableDatabaseUrl, dropSchemas, testSchemas } from '../test/support/postgres.js'
 import {
+  longSourceMarkdown,
   readModelCalls,
   removeSuggestionSources,
   scriptedGenerate,
@@ -17,6 +18,7 @@ import {
   suggestionResearcherStore,
   type SeededSuggestionSources,
 } from '../test/support/suggestionWorkflow.js'
+import { databaseHolds } from '../test/support/interactive.js'
 import { registerBatchSuggestionWorkflow } from './_batch_suggestion_workflow.js'
 
 const url = disposableDatabaseUrl()
@@ -153,6 +155,25 @@ describe('suggestSchemaBatch on PostgreSQL', () => {
     // The first source's step had checkpointed: the recovered attempt ran only the source it died in, then merged.
     expect(readModelCalls(env.FREE_TEST_MODEL_LOG)).toEqual([first, second, second, 'merge'])
     expect(await suggestionRow(sources.projectContextId)).toMatchObject({ attempt: 1, outcome: 'SUCCEEDED', phase: 'READY', draftVersion: 1 })
+  })
+
+  it('crash recovery of a long source skips its checkpointed windows and keeps the source out of DBOS', async () => {
+    const sources = await seedSuggestionSources(packages, ['A', 'L'], (letter) => letter === 'L' ? longSourceMarkdown(letter) : `# Source ${letter}`)
+    seeded.push(sources)
+    const env = childEnv(sources, { FREE_TEST_KILL_AT: 'part 2' })
+
+    const killed = await runWorkflowChild('suggestion-recover', env)
+    expect(killed.signal, killed.output).toBe('SIGKILL')
+    const recovered = await runWorkflowChild('suggestion-recover', env)
+    expect(recovered.code, recovered.output).toBe(0)
+
+    // Window 1 checkpointed before the kill: only the window the process died in runs again.
+    const calls = readModelCalls(env.FREE_TEST_MODEL_LOG)
+    const count = (call: string) => calls.filter((made) => made === call).length
+    expect([count('source A'), count('source L'), count('part 2'), count('part 3'), count('union'), count('merge')])
+      .toEqual([1, 1, 2, 1, 1, 1])
+    expect(await suggestionRow(sources.projectContextId)).toMatchObject({ outcome: 'SUCCEEDED', phase: 'READY' })
+    expect(await databaseHolds(url, 'b'.repeat(64), [env.FREE_TEST_DBOS_SCHEMA])).toEqual([])
   })
 
   it('a draft published before a kill is published once', async () => {
