@@ -1,0 +1,69 @@
+{
+  "label": "supplementary, descriptive; not part of the frozen rule",
+  "journal": {
+    "started": 57,
+    "completed": 57,
+    "finish_stop": 52,
+    "finish_length": 5
+  },
+  "cells": {
+    "A3--medium--1G1PC5SB6E7111015_professional_valuation": {
+      "replies": 20,
+      "finish_stop": 16,
+      "valid_json": 16,
+      "schema_valid": 16,
+      "prompt_new_to_prior_run": 16,
+      "finish_length": 4
+    },
+    "A3--short--dc-pepco-residential-bill": {
+      "replies": 5,
+      "finish_stop": 5,
+      "valid_json": 5,
+      "schema_valid": 5,
+      "identical_to_prior_reply": 5
+    },
+    "A3--short--grafton_isotrope_invoice_19503": {
+      "replies": 1,
+      "finish_stop": 1,
+      "valid_json": 1,
+      "schema_valid": 1,
+      "identical_to_prior_reply": 1
+    },
+    "A3--short--mission-tx-tyler-invoice": {
+      "replies": 3,
+      "finish_stop": 3,
+      "valid_json": 3,
+      "schema_valid": 3,
+      "identical_to_prior_reply": 3
+    },
+    "base--medium--1G1PC5SB6E7111015_professional_valuation": {
+      "replies": 18,
+      "finish_stop": 17,
+      "valid_json": 17,
+      "schema_valid": 17,
+      "prompt_new_to_prior_run": 17,
+      "finish_length": 1
+    },
+    "base--short--dc-pepco-residential-bill": {
+      "replies": 5,
+      "finish_stop": 5,
+      "valid_json": 5,
+      "schema_valid": 5,
+      "identical_to_prior_reply": 5
+    },
+    "base--short--grafton_isotrope_invoice_19503": {
+      "replies": 1,
+      "finish_stop": 1,
+      "valid_json": 1,
+      "schema_valid": 1,
+      "identical_to_prior_reply": 1
+    },
+    "base--short--mission-tx-tyler-invoice": {
+      "replies": 3,
+      "finish_stop": 3,
+      "valid_json": 3,
+      "schema_valid": 3,
+      "identical_to_prior_reply": 3
+    }
+  }
+}
