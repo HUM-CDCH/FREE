@@ -1,0 +1,20 @@
+[WebServer] (node:1429155) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+[WebServer] /home/gebbaro/Progetti/FREE/prototypes/studio/e2e/playwrightStack.ts:225
+[WebServer]         new Error(
+[WebServer]         ^
+[WebServer]
+[WebServer] Error: docker compose --project-name free-studio-e2e --file /home/gebbaro/Progetti/FREE/prototypes/studio/e2e/playwright.compose.yaml down --volumes --remove-orphans exited with 1.
+[WebServer]     at ChildProcess.<anonymous> (/home/gebbaro/Progetti/FREE/prototypes/studio/e2e/playwrightStack.ts:225:9)
+[WebServer]     at Object.onceWrapper (node:events:631:26)
+[WebServer]     at ChildProcess.emit (node:events:509:28)
+[WebServer]     at ChildProcess._handle.onexit (node:internal/child_process:295:12)
+[WebServer]
+[WebServer] Node.js v24.17.0
+Error: Process from config.webServer was not able to start. Exit code: 1
+
+Error: ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL
+
+  × "pnpm recursive exec" failed in /home/gebbaro/Progetti/FREE/prototypes/
+  │ studio

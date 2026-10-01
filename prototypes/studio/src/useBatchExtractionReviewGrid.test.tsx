@@ -208,6 +208,26 @@ it('keeps a saved review visible when reset fails and allows retry', async () =>
 })
 
 describe('useBatchExtractionReviewGrid', () => {
+  it('shows draft saved only after acknowledgement, and clears it while newer changes are unsaved', async () => {
+    const first = Promise.withResolvers<Awaited<ReturnType<typeof api.saveExtractionReviewDraft>>>()
+    const second = Promise.withResolvers<Awaited<ReturnType<typeof api.saveExtractionReviewDraft>>>()
+    vi.mocked(api.saveExtractionReviewDraft).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+    expect(result.current.draftSaved).toBe(false)
+    act(() => result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'REJECTED'))
+    expect(result.current.draftSaving).toBe(true)
+    expect(result.current.draftSaved).toBe(false)
+    await act(async () => first.resolve({ version: 1, decisions: [{ ...pendingDecisions[0], action: 'REJECTED' }] }))
+    expect(result.current.draftSaved).toBe(true)
+    act(() => result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'EDITED', 'Corrected'))
+    expect(result.current.draftSaving).toBe(true)
+    expect(result.current.draftSaved).toBe(false)
+    await act(async () => second.reject(new Error('Offline')))
+    expect(result.current.draftError).toBe('Offline')
+    expect(result.current.draftSaved).toBe(false)
+  })
+
   it.each(['grid', 'document'] as const)('retains recovered conflicts in %s until explicitly reloading server state', async (view) => {
     const local = [{ ...pendingDecisions[0], action: 'REJECTED' as const }]
     rememberReviewDraft(extractionId, { version: 1, decisions: local })
@@ -998,7 +1018,7 @@ it('reviews indexed scalar array values and excludes open editors from saving', 
   fireEvent.keyDown(item.getByRole('textbox'), { key: 'Enter' })
   expect(item.getByText('2002')).toBeTruthy()
   expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'Approve remaining' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Approve remaining (1)' }))
   await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledWith(extractionId, [decisions[0], { ...decisions[1], action: 'EDITED', reviewedValue: 2002 }], 2))
   expect(await screen.findByText('50% approved unchanged')).toBeTruthy()
 })

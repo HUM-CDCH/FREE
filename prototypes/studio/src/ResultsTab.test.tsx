@@ -46,13 +46,14 @@ function controller(
       saving: false,
       loading: false,
       decisions: [],
-      reviewedCount: 0,
+      requiredCount: 0,
       untouchedCount: 0,
       isTouched: () => true,
       reviewedExtractionId: null,
       error: null,
       draftError: null,
       draftSaving: false,
+      draftSaved: false,
       retryDraft: () => {},
       transfer: {},
       pairing: { pairings: [], sources: [], pair: () => {} },
@@ -432,7 +433,7 @@ describe('ResultsTab grounded values', () => {
 
     expect(
       screen.getByText(
-        '2 values could not be grounded. No Review Decisions can be saved; they will remain recorded without Evidence.',
+        '2 ungrounded values are excluded from required review and remain recorded without Evidence.',
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('No reviewable result')).toBeInTheDocument()
@@ -768,7 +769,7 @@ describe('ResultsTab grounded values', () => {
               action: 'APPROVED',
               reviewedValue: null,
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             setDecision,
           },
         )}
@@ -808,7 +809,7 @@ describe('ResultsTab grounded values', () => {
           { status: 'ready', result: articleAttempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0 },
           articleAttempt,
           {
-            available: true, canAccept: true, reviewedCount: 1, accept,
+            available: true, canAccept: true, requiredCount: 1, accept,
             decisions: [{ resultPath: path, evidenceAnchorId: 'a_p1_s0', reviewedOccurrenceIds: ['o-1'], action: 'APPROVED',
               reviewedValue: null, carriedFrom: { extractionId: 'sample', sourcePathKey: JSON.stringify(path) } }],
             transfer: { [JSON.stringify(path)]: { status: 'reviewed', kept: 'First place' } },
@@ -821,7 +822,8 @@ describe('ResultsTab grounded values', () => {
         sourceDocumentName="article.pdf"
       />,
     )
-    expect(screen.getByText('1 reviewed in sample · 0 changed since sample · 0 to review')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Review progress' })).toHaveTextContent('0 of 1 required decisions remaining · 1 carried from sample')
+    expect(screen.queryByText('Draft saved')).not.toBeInTheDocument()
     expect(accept).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Save review' }))
     expect(accept).toHaveBeenCalledOnce()
@@ -858,7 +860,7 @@ describe('ResultsTab grounded values', () => {
               available: true,
               canAccept: true,
               decisions,
-              reviewedCount: 1,
+              requiredCount: 1,
               setDecision: (path, action, reviewedValue = null) =>
                 setDecisions((current) => current.map((decision) => ({
                   ...decision,
@@ -917,7 +919,7 @@ describe('ResultsTab grounded values', () => {
               action: 'APPROVED',
               reviewedValue: null,
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             untouchedCount: 1,
             isTouched: () => false,
           },
@@ -966,7 +968,7 @@ describe('ResultsTab grounded values', () => {
               action: 'APPROVED',
               reviewedValue: null,
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             untouchedCount: 1,
             isTouched: () => false,
             approveAll,
@@ -1120,7 +1122,7 @@ describe('ResultsTab grounded values', () => {
               action: 'REJECTED',
               reviewedValue: null,
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             setDecision,
           },
         )}
@@ -1174,7 +1176,7 @@ describe('ResultsTab grounded values', () => {
               action: 'EDITED',
               reviewedValue: 'Reviewed',
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             setDecision,
           },
         )}
@@ -1337,7 +1339,7 @@ describe('ResultsTab extraction status', () => {
           {
             available: true,
             decisions: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place', reviewedOccurrenceIds: ['occurrence-place'], action: 'APPROVED', reviewedValue: null }],
-            reviewedCount: 1,
+            requiredCount: 1,
             untouchedCount: 1,
             isTouched: () => false,
             setDecision,
@@ -1669,5 +1671,113 @@ describe('Method used', () => {
   it('a historical run is Not recorded, never borrowing today\'s configuration', () => {
     renderWith({ ...articleAttempt, requestedSettings: null })
     expect(methodUsed().getAllByText('Not recorded')).toHaveLength(2)
+  })
+})
+
+describe('ResultsTab review progress', () => {
+  const schema: SchemaDefinition = {
+    recordDescription: 'One place.',
+    schemaNodes: [{ id: 'place', name: 'place', type: 'string' }, { id: 'year', name: 'year', type: 'integer' }],
+  }
+  const decisions: ReviewDecisionInput[] = ['place', 'year'].map((field) => ({
+    resultPath: ['records', 0, field], evidenceAnchorId: `anchor-${field}`,
+    reviewedOccurrenceIds: [`occurrence-${field}`], action: 'APPROVED', reviewedValue: null,
+  }))
+  const attempt: ExtractionAttempt = {
+    ...articleAttempt, resultPayload: { records: [{ place: 'Original', year: 2000, other: 'Ungrounded' }] },
+    evidenceLinks: decisions.map(({ resultPath, evidenceAnchorId }) => ({ resultPath, evidenceAnchorId })),
+  }
+  const state: ExtractionController['state'] = {
+    status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 1,
+  }
+  function scene(overrides: Partial<ExtractionController['review']> = {}, readOnly = false, displayed = attempt) {
+    return <ResultsTab {...defaultRunProps} controller={controller(state, displayed, {
+      available: true, decisions, requiredCount: 2, untouchedCount: 2, isTouched: () => false, ...overrides,
+    })} readOnly={readOnly} schemaReady pinnedSchema={schema} exportSchema={schema}
+      documentMarkdown="# Source" sourceDocumentName="progress.pdf" />
+  }
+
+  it('decrements required progress after reject and edit, independently of ungrounded values and result navigation', () => {
+    const accept = vi.fn(async () => {})
+    function Fixture() {
+      const [current, setCurrent] = useState(decisions)
+      const [touched, setTouched] = useState<Set<string>>(new Set())
+      return scene({
+        decisions: current, untouchedCount: 2 - touched.size, isTouched: (path) => touched.has(JSON.stringify(path)),
+        canAccept: touched.size === 2, accept,
+        setDecision: (path, action, reviewedValue = null) => {
+          const key = JSON.stringify(path)
+          setTouched((previous) => new Set([...previous, key]))
+          setCurrent((previous) => previous.map((decision) => JSON.stringify(decision.resultPath) === key
+            ? { ...decision, action, reviewedValue } : decision))
+        },
+      })
+    }
+    render(<Fixture />)
+    const progress = screen.getByRole('region', { name: 'Review progress' })
+    expect(progress).toHaveTextContent('2 of 2 required decisions remaining')
+    expect(within(progress).getAllByRole('status')).toHaveLength(1)
+    expect(screen.queryByText(/pending/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve remaining (2)' })).toHaveAccessibleDescription(/ungrounded values, are unchanged.*saves automatically/)
+    expect(screen.getByText('1 ungrounded value is excluded from required review and remains recorded without Evidence.')).toBeInTheDocument()
+    expect(screen.queryByText('Draft saved')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject place' }))
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining')
+    expect(screen.getByRole('button', { name: 'Approve remaining (1)' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Reverse decision for place' }))
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining')
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining')
+    fireEvent.click(screen.getByRole('tab', { name: 'Review' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit year' }))
+    const input = screen.getByLabelText('Reviewed value for year')
+    fireEvent.change(input, { target: { value: '2001' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(progress).toHaveTextContent('0 of 2 required decisions remaining')
+    expect(accept).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Approve remaining' })).toBeDisabled()
+  })
+
+  it('separates draft acknowledgement, loading, finalization and failure from decision progress', () => {
+    const { rerender } = render(scene({ untouchedCount: 1, draftSaving: true }))
+    let progress = screen.getByRole('region', { name: 'Review progress' })
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining · Saving draft…')
+    expect(within(progress).getByRole('status')).not.toHaveTextContent('Saving draft')
+    expect(screen.queryByText('Draft saved')).not.toBeInTheDocument()
+    rerender(scene({ untouchedCount: 1, draftSaved: true }))
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining · Draft saved')
+    rerender(scene({ loading: true, requiredCount: 0, untouchedCount: 0 }))
+    expect(screen.getAllByText('Loading Review Decisions…')).toHaveLength(1)
+    expect(progress).not.toHaveTextContent('0 of 0')
+    rerender(scene({ requiredCount: 0, untouchedCount: 0, error: 'Offline' }))
+    expect(progress).toHaveTextContent('Review Decisions could not be loaded')
+    expect(progress).not.toHaveTextContent('0 of 0')
+    rerender(scene({ untouchedCount: 0, saving: true, draftSaved: true }))
+    expect(progress).toHaveTextContent('0 of 2 required decisions remaining · Saving review…')
+    expect(screen.queryByText('Review saved')).not.toBeInTheDocument()
+    rerender(scene({ untouchedCount: 0, canAccept: true, error: 'Offline' }))
+    expect(progress).toHaveTextContent('0 of 2 required decisions remaining · Review not saved')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+    rerender(scene({}, true))
+    progress = screen.getByRole('region', { name: 'Review progress' })
+    expect(progress).toHaveTextContent('Not reviewed · 2 required decisions')
+    expect(within(progress).queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Approve remaining/ })).not.toBeInTheDocument()
+    rerender(scene({}, true, { ...attempt, reviewedAt: '2026-10-01T12:00:00Z',
+      reviewDecisions: decisions.map((decision) => ({ ...decision, createdAt: '2026-10-01T12:00:00Z' })) }))
+    expect(progress).toHaveTextContent('Review saved · 2 decisions')
+  })
+
+  it('counts changed sample values as remaining and requires explicit saving for carried decisions', () => {
+    const accept = vi.fn(async () => {})
+    const carried = { ...decisions[0], carriedFrom: { extractionId: 'sample', sourcePathKey: JSON.stringify(decisions[0].resultPath) } }
+    render(scene({ decisions: [carried, decisions[1]], untouchedCount: 1, accept,
+      transfer: { [JSON.stringify(decisions[1].resultPath)]: { status: 'changed', kept: 1999 } },
+    }))
+    expect(screen.getByRole('region', { name: 'Review progress' })).toHaveTextContent('1 of 2 required decisions remaining · 1 carried from sample · 1 changed since sample')
+    expect(screen.getByRole('button', { name: 'Approve remaining (1)' })).toHaveAccessibleDescription(/explicit Save review/)
+    expect(accept).not.toHaveBeenCalled()
+    expect(screen.queryByText('Draft saved')).not.toBeInTheDocument()
   })
 })
