@@ -105,6 +105,71 @@ beforeEach(() => {
 })
 
 describe('useExtraction server-owned lifecycle', () => {
+  it('distinguishes a version-zero draft from an acknowledged server draft', async () => {
+    const decision: ReviewDecisionInput = {
+      resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1',
+      reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED', reviewedValue: null,
+    }
+    const original = attempt({ evidenceLinks: [{ resultPath: decision.resultPath, evidenceAnchorId: 'anchor-1' }] })
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: original, pendingReviewDecisions: [decision],
+      reviewDraft: { version: 0, decisions: [decision] } })
+    const { result } = renderHook(() => useExtraction(options(original)))
+    await waitFor(() => expect(result.current.review.requiredCount).toBe(1))
+    expect(result.current.review.untouchedCount).toBe(0)
+    expect(result.current.review.canAccept).toBe(true)
+    expect(result.current.review.draftSaved).toBe(false)
+    expect(api.saveExtractionReviewDraft).not.toHaveBeenCalled()
+  })
+
+  it('reports a draft saved only after acknowledgement and clears that status on document changes', async () => {
+    const decision: ReviewDecisionInput = {
+      resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1',
+      reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED', reviewedValue: null,
+    }
+    const original = attempt({ evidenceLinks: [{ resultPath: decision.resultPath, evidenceAnchorId: 'anchor-1' }] })
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: original, pendingReviewDecisions: [decision] })
+    const write = Promise.withResolvers<Awaited<ReturnType<typeof api.saveExtractionReviewDraft>>>()
+    vi.mocked(api.saveExtractionReviewDraft).mockReturnValueOnce(write.promise)
+    const { result, rerender } = renderHook(({ documentKey }) => useExtraction({ ...options(original), documentKey }),
+      { initialProps: { documentKey: 'first' } })
+    await waitFor(() => expect(result.current.review.requiredCount).toBe(1))
+    expect(result.current.review.draftSaved).toBe(false)
+    act(() => result.current.review.setDecision(decision.resultPath, 'REJECTED'))
+    expect(result.current.review.untouchedCount).toBe(0)
+    expect(result.current.review.draftSaving).toBe(true)
+    expect(result.current.review.draftSaved).toBe(false)
+    await act(async () => write.resolve({ version: 1, decisions: [{ ...decision, action: 'REJECTED' }] }))
+    expect(result.current.review.draftSaving).toBe(false)
+    expect(result.current.review.draftSaved).toBe(true)
+    rerender({ documentKey: 'second' })
+    await waitFor(() => expect(result.current.review.loading).toBe(false))
+    expect(result.current.review.draftSaved).toBe(false)
+  })
+
+  it('does not mark a failed draft saved, or leak a late acknowledgement into a different document', async () => {
+    const decision: ReviewDecisionInput = {
+      resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1',
+      reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED', reviewedValue: null,
+    }
+    const original = attempt({ evidenceLinks: [{ resultPath: decision.resultPath, evidenceAnchorId: 'anchor-1' }] })
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: original, pendingReviewDecisions: [decision] })
+    vi.mocked(api.saveExtractionReviewDraft).mockRejectedValueOnce(new Error('Offline'))
+    const { result, rerender } = renderHook(({ documentKey }) => useExtraction({ ...options(original), documentKey }),
+      { initialProps: { documentKey: 'first' } })
+    await waitFor(() => expect(result.current.review.requiredCount).toBe(1))
+    act(() => result.current.review.setDecision(decision.resultPath, 'REJECTED'))
+    await waitFor(() => expect(result.current.review.draftError).toBe('Offline'))
+    expect(result.current.review.draftSaved).toBe(false)
+    const retry = Promise.withResolvers<Awaited<ReturnType<typeof api.saveExtractionReviewDraft>>>()
+    vi.mocked(api.saveExtractionReviewDraft).mockReturnValueOnce(retry.promise)
+    act(() => result.current.review.retryDraft())
+    rerender({ documentKey: 'second' })
+    await waitFor(() => expect(result.current.review.requiredCount).toBe(1))
+    await act(async () => retry.resolve({ version: 1, decisions: [{ ...decision, action: 'REJECTED' }] }))
+    expect(result.current.review.draftSaved).toBe(false)
+    expect(result.current.review.untouchedCount).toBe(1)
+  })
+
   it('retains successive decisions before React renders and clears the draft after saving', async () => {
     const pending = ['title', 'year'].map((name) => ({ resultPath: ['records', 0, name], evidenceAnchorId: 'anchor-1', reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }))
     const original = attempt({ evidenceLinks: [{ resultPath: pending[0].resultPath, evidenceAnchorId: 'anchor-1' }] })
@@ -137,6 +202,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const restored = renderHook(() => useExtraction(options(original)))
     await waitFor(() => expect(restored.result.current.review.decisions[0]?.action).toBe('REJECTED'))
     expect(restored.result.current.review.isTouched(pending[0].resultPath)).toBe(true)
+    expect(restored.result.current.review.draftSaved).toBe(true)
   })
 
   it('locks a submitted review and ignores its response after switching documents', async () => {

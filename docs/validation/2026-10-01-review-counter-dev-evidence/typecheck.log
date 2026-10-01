@@ -1,0 +1,2 @@
+> studio@0.0.0 typecheck /tmp/free-review-counters-dev-20261001/prototypes/studio
+> tsc -b --pretty false

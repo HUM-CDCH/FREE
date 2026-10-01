@@ -35,6 +35,7 @@ const kei = {
   blockNextResult: false,
   failNextValues: false,
   incompleteNextResult: false,
+  groundedLimit: null as number | null,
 }
 const resultGate: { release: (() => void) | null } = { release: null }
 const valuesGate: { release: (() => void) | null } = { release: null }
@@ -60,6 +61,9 @@ async function extractFor(request: KeiExtractInput): Promise<StandInDecision<{ a
   const ungrounded = kei.omitGrounding || kei.incompleteNextResult
   kei.incompleteNextResult = false
   const resultPaths = paths({ records })
+  const groundedPaths = ungrounded ? [] : resultPaths.slice(0, kei.groundedLimit ?? resultPaths.length)
+  const ungroundedPaths = resultPaths.slice(groundedPaths.length)
+  kei.groundedLimit = null
   const artifact = keiExpArtifact({
     run_id: request.run_id, generation: request.generation, fingerprint: randomUUID(),
     strategy: options.strategy === 'catalog' ? 'catalog' : 'article', model: 'fixture/nuextract',
@@ -67,9 +71,9 @@ async function extractFor(request: KeiExtractInput): Promise<StandInDecision<{ a
     schema: schema as { recordDescription: string; schemaNodes: unknown[] },
     // kei-exp records the options it ran under, `models` null when the run kept the deployment defaults.
     options: { model: null, models: null, ...options } as never,
-    started: new Date().toISOString(), seconds: 0.1, complete: !ungrounded, records,
-    evidence: ungrounded ? [] : resultPaths.map(path => keiExpEvidence({ path, verbatim: false, hits: 0, linked_by: 'model' })),
-    ungrounded: ungrounded ? resultPaths : [],
+    started: new Date().toISOString(), seconds: 0.1, complete: ungroundedPaths.length === 0, records,
+    evidence: groundedPaths.map(path => keiExpEvidence({ path, verbatim: false, hits: 0, linked_by: 'model' })),
+    ungrounded: ungroundedPaths,
   })
   if (kei.blockNextValues || kei.blockNextResult) {
     const gate = kei.blockNextValues ? valuesGate : resultGate
@@ -155,7 +159,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   )
 
   Object.assign(kei, {
-    omitGrounding: false, blockNextValues: false, blockNextResult: false, failNextValues: false, incompleteNextResult: false,
+    omitGrounding: false, blockNextValues: false, blockNextResult: false, failNextValues: false, incompleteNextResult: false, groundedLimit: null,
   })
   // Each Playwright config gives the stand-in its own port and points Studio's KEI_EXP_URL at it.
   const keiUrl = new URL(process.env.FREE_PLAYWRIGHT_KEI_EXP_URL!)
@@ -332,6 +336,11 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(
     page.getByRole('button', { name: 'View Evidence for title' }),
   ).toBeVisible()
+  const reviewProgress = page.getByRole('region', { name: 'Review progress', exact: true })
+  await expect(reviewProgress).toHaveText(/^(\d+) of \1 required decisions remaining$/)
+  const requiredCount = Number((await reviewProgress.textContent())!.match(/of (\d+)/)![1])
+  const approveRemaining = page.getByRole('button', { name: `Approve remaining (${requiredCount})`, exact: true })
+  await expect(approveRemaining).toHaveAccessibleDescription(/ungrounded values, are unchanged.*saves automatically/)
   for (const viewport of REQUIRED_VIEWPORTS) {
     await page.setViewportSize(viewport)
     await expectOperableInViewport(
@@ -340,6 +349,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     )
     const exportTrigger = page.getByRole('button', { name: 'Export' })
     await expectOperableInViewport(page, exportTrigger)
+    await expectOperableInViewport(page, reviewProgress)
+    await expectOperableInViewport(page, approveRemaining)
+    if (viewport.width === 390) await page.screenshot({ path: testInfo.outputPath('review-progress-mobile.png'), fullPage: true })
     await activateWithKeyboard(page, exportTrigger)
     const responsiveExportDialog = page.getByRole('dialog', {
       name: 'Export options',
@@ -355,6 +367,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // The start view's saved-method summary opens inside the viewport at every width, including 360 px.
   for (const viewport of [{ width: 360, height: 800 }, ...REQUIRED_VIEWPORTS]) {
     await page.setViewportSize(viewport)
+    await expectOperableInViewport(page, reviewProgress)
+    await expectOperableInViewport(page, approveRemaining)
     const savedSettings = page.locator('summary', { hasText: 'Saved advanced settings' })
     await expectOperableInViewport(page, savedSettings)
     await savedSettings.click()
@@ -379,10 +393,13 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(page.getByText('Reviewed, café', { exact: true })).toBeVisible()
   // Partial decisions survive a real document change and full page reload.
   await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
+  await expect(reviewProgress).toContainText(`${requiredCount - 1} of ${requiredCount} required decisions remaining`)
+  await expect(page.getByRole('button', { name: `Approve remaining (${requiredCount - 1})`, exact: true })).toBeEnabled()
   const draftTab = await page.context().newPage()
   await draftTab.goto(url)
   await draftTab.getByRole('tab', { name: /Results/ }).click()
   await expect(draftTab.getByText('Reviewed, café', { exact: true })).toBeVisible()
+  await expect(draftTab.getByRole('region', { name: 'Review progress' })).toContainText(`${requiredCount - 1} of ${requiredCount} required decisions remaining`)
   await draftTab.close()
   await page.goto(e2eStudioPath(`/projects/${projectContextId}/documents/${otherSourceDocumentId}`))
   await page.goto(url)
@@ -391,6 +408,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await page.reload()
   await page.getByRole('tab', { name: /Results/ }).click()
   await expect(page.getByText('Reviewed, café', { exact: true })).toBeVisible()
+  await expect(reviewProgress).toContainText(`${requiredCount - 1} of ${requiredCount} required decisions remaining`)
   expect(await page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.startsWith('free.review-draft.')))).toEqual([])
   await page.getByRole('tab', { name: 'Raw JSON' }).click()
   const rawResult = await page.locator('pre').filter({ hasText: 'Reviewed, café' }).textContent()
@@ -400,6 +418,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(page.getByRole('button', { name: /Save/ })).toHaveCount(0)
   await activateWithKeyboard(page, page.getByRole('button', { name: /Approve remaining/ }))
   await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
+  await expect(reviewProgress).toHaveText(`Review saved · ${requiredCount} decisions`)
   await page.screenshot({
     path: testInfo.outputPath('canonical-reviewed-results.png'),
     fullPage: true,
@@ -476,6 +495,31 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     reviewedValue: { value: 'Reviewed, café' },
     createdAt: expect.any(Date),
   })
+
+  // A mixed result never counts ungrounded values as required review work.
+  kei.groundedLimit = 2
+  const mixedId = randomUUID()
+  const mixedRequest = await page.request.post(e2eStudioPath('/api/extractions'), {
+    headers: { Origin: E2E_ORIGIN },
+    data: { id: mixedId, sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: firstSchemaRevisionId,
+      strategy, method: savedMethod },
+  })
+  expect(mixedRequest.status()).toBe(201)
+  const mixed = await waitForExtraction(page.request, mixedId, (attempt) => attempt.executionStatus === 'COMPLETED')
+  expect(mixed.evidenceLinks).toHaveLength(2)
+  await page.goto(url)
+  await page.getByRole('tab', { name: /Results/ }).click()
+  await expect(reviewProgress).toHaveText('2 of 2 required decisions remaining')
+  await expect(page.getByText('6 ungrounded values are excluded from required review and remain recorded without Evidence.', { exact: true })).toBeVisible()
+  await expect(page.getByText('Draft saved', { exact: true })).toHaveCount(0)
+  await page.getByRole('group', { name: 'Review title' }).getByRole('button', { name: 'Reject title' }).click()
+  await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
+  await expect(reviewProgress).toContainText('1 of 2 required decisions remaining')
+  await expect(page.getByRole('button', { name: 'Approve remaining (1)', exact: true })).toBeEnabled()
+  await page.reload()
+  await page.getByRole('tab', { name: /Results/ }).click()
+  await expect(reviewProgress).toContainText('1 of 2 required decisions remaining')
+  // Leave this partial review unfinalized: latest reviewed still means the earlier complete review.
 
   const secondPackage = await canonicalPackage('newer-unreviewed.pdf')
   const secondDescriptor = await packageStore.save(secondPackage.bytes)

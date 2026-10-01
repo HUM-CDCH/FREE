@@ -178,6 +178,7 @@ export function useExtraction({
   const draftSaveRef = useRef({ version: 0, pending: Promise.resolve(), writes: 0, conflict: false })
   const [reviewReload, setReviewReload] = useState(0)
   const [draftSaving, setDraftSaving] = useState(false)
+  const [draftSaved, setDraftSaved] = useState(false)
   const [draftError, setDraftError] = useState<string | null>(null)
   const [cancellationRequested, setCancellationRequested] = useState(false)
   const [cancellationError, setCancellationError] = useState<string | null>(null)
@@ -204,6 +205,7 @@ export function useExtraction({
     saveScopeRef.current = { saving: false }
     draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
     setDraftSaving(false)
+    setDraftSaved(false)
     setSaving(false)
     if (documentChanged) {
       // Orphaned reads notice the missing monitor and drop their response.
@@ -339,6 +341,7 @@ export function useExtraction({
         return
       }
       setReviewLoading(true)
+      setDraftSaved(false)
       setReviewDecisions([])
       setTouchedPaths(new Set())
       try {
@@ -363,6 +366,8 @@ export function useExtraction({
         }
         const recovered = recoverReviewDraft(attempt.extractionId, prepared.reviewDraft, prepared.pendingReviewDecisions ?? [])
         draftSaveRef.current = { version: recovered.version, pending: Promise.resolve(), writes: 0, conflict: recovered.conflict }
+        // Version-zero drafts have not been acknowledged by the server.
+        setDraftSaved(!recovered.conflict && !recovered.retry && (prepared.reviewDraft?.version ?? 0) > 0)
         setDraftError(recovered.conflict ? REVIEW_DRAFT_CONFLICT : null)
         draftRef.current = { decisions: recovered.decisions, touched: recovered.touchedPaths }
         setReviewDecisions(
@@ -523,10 +528,14 @@ export function useExtraction({
     }
     scope.writes += 1
     setDraftSaving(true)
+    setDraftSaved(false)
     setDraftError(null)
     const write = saveExtractionReviewDraft(attempt.extractionId,
       decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), scope.version)
-    scope.pending = write.then((saved) => { scope.version = saved.version })
+    scope.pending = write.then((saved) => {
+      scope.version = saved.version
+      if (draftSaveRef.current === scope) setDraftSaved(true)
+    })
     void scope.pending.catch((error: unknown) => {
       if (draftSaveRef.current !== scope) return
       const message = error instanceof Error ? error.message : 'Draft could not be saved.'
@@ -582,7 +591,8 @@ export function useExtraction({
       saving,
       loading: reviewLoading,
       decisions: reviewDecisions,
-      reviewedCount: reviewDecisions.length,
+      /** The server prepares one required decision per grounded value. */
+      requiredCount: reviewDecisions.length,
       untouchedCount: reviewDecisions.filter(
         (decision) => !touchedPaths.has(resultPathKey(decision.resultPath)),
       ).length,
@@ -594,6 +604,9 @@ export function useExtraction({
       error: reviewError,
       draftError,
       draftSaving,
+      draftSaved: draftSaved && !draftSaving && !draftError,
+      /** Reads the review again after it failed to load. */
+      reload: () => setReviewReload((value) => value + 1),
       retryDraft: () => {
         if (draftSaveRef.current.conflict && attempt) {
           forgetReviewDraft(attempt.extractionId)

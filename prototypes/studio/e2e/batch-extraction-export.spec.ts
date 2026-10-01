@@ -920,6 +920,8 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
   await expect(page.getByText('Review data is temporarily unavailable.')).toBeVisible()
   await page.getByRole('button', { name: 'Retry' }).click()
   await expect(page.getByText('Ellekilde', { exact: true })).toBeVisible()
+  await expect(page.getByText('4 of 4 required decisions remaining', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Approve remaining (4)', exact: true })).toHaveAccessibleDescription(/all loaded Source Documents.*rows hidden by a filter.*save automatically/)
 
   await expect(page.getByRole('button', { name: /Save completed/ })).toHaveCount(0)
   await page.getByText('Ellekilde', { exact: true }).click()
@@ -928,11 +930,16 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
   await placeInput.fill('Milan')
   await placeInput.press('Enter')
   await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
+  await expect(page.getByText('3 of 4 required decisions remaining', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Needs review (1)', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Approve remaining (3)', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'All (2)', exact: true }).click()
   await page.getByRole('button', { name: /Back to results/ }).click()
   await panel(page).getByRole('button', { name: 'Review grid' }).click()
   await expect(page.getByText('Milan', { exact: true })).toBeVisible()
   await page.reload()
   await expect(page.getByText('Milan', { exact: true })).toBeVisible()
+  await expect(page.getByText('3 of 4 required decisions remaining', { exact: true })).toBeVisible()
   await page.getByText('1801', { exact: true }).click()
   await page.getByRole('button', { name: 'Reject', exact: true }).click()
   const material = page.getByRole('group', { name: 'material · Item 1', exact: true })
@@ -941,8 +948,10 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
   await material.getByRole('textbox').fill('Copper')
   await material.getByRole('textbox').press('Enter')
   expect(savedReview).toBeNull()
-  await page.getByRole('button', { name: 'Approve remaining', exact: true }).click()
+  await expect(page.getByText('1 of 4 required decisions remaining', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Approve remaining (1)', exact: true }).click()
   await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
+  await expect(page.getByText('0 of 4 required decisions remaining', { exact: true })).toBeVisible()
   expect(savedReview).toMatchObject({
     reviewDecisions: expect.arrayContaining([
       expect.objectContaining({ reviewedValue: 'Milan' }),

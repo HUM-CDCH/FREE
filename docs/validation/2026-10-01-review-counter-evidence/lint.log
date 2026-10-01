@@ -1,0 +1,6 @@
+
+/home/gebbaro/Progetti/FREE/prototypes/studio/src/useExtraction.ts
+  288:6  warning  React Hook useEffect has missing dependencies: 'initialAttempt' and 'watch'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  405:6  warning  React Hook useEffect has a missing dependency: 'updateReview'. Either include it or remove the dependency array                  react-hooks/exhaustive-deps
+
+✖ 2 problems (0 errors, 2 warnings)
