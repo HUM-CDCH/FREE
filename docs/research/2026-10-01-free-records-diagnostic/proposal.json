@@ -1,0 +1,209 @@
+{
+  "version": 1,
+  "status": "annotation_preparation; not frozen; no inference authorized",
+  "base_commit": "3ea3aadc",
+  "dataset_format_version": 1,
+  "dataset_revision": "free-records-v1-pending",
+  "schema": "existing grave-entry.json required; do not reconstruct from model output",
+  "harness_version": 2,
+  "prompt_version": 1,
+  "evidence_protocol": 2,
+  "evidence_shape_change": false,
+  "evaluator": {
+    "version": 4,
+    "sha256": "be54ee51b79c8e2cd3ab708add0b62e88f9fdec187fe64256edaa5f14275e1a6"
+  },
+  "scopes": [
+    {
+      "id": "ellekilde",
+      "pdf": "examples/Beretning_Ellekilde_8_13.pdf",
+      "source_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+      "physical_pages": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "evaluation_scope": "complete supplied PDF; grave-description records only",
+      "whole_original_report_claim": false,
+      "native_text_chars": 20491,
+      "native_text_is_canonical": false,
+      "gold_status": "pending_human_review",
+      "canonical_status": "missing",
+      "schema_status": "missing",
+      "identity_scope": "document-local grave heading identifier; not find/bone number; subject to source inventory review",
+      "entry_no_is_declared_identity": false
+    },
+    {
+      "id": "hvissinge",
+      "pdf": "examples/graves/Hvissinge_Ost_TAK_1728.pdf",
+      "source_sha256": "3d97b9587b519ca39050e0cb12c3c537cb385e7384f382a6b1eca5de40182201",
+      "physical_pages": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21
+      ],
+      "evaluation_scope": "complete supplied PDF; grave-description records only",
+      "whole_original_report_claim": false,
+      "native_text_chars": 12879,
+      "native_text_is_canonical": false,
+      "gold_status": "pending_human_review",
+      "canonical_status": "missing",
+      "schema_status": "missing",
+      "identity_scope": "document-local grave heading identifier; not find/bone number; subject to source inventory review",
+      "entry_no_is_declared_identity": false
+    }
+  ],
+  "private_dataset": ".scratch/records-diagnostic-2026-10-01/dataset-v1",
+  "study": {
+    "version": 1,
+    "id": "free-records-v1-proposed",
+    "dataset": "dataset.reviewed.json",
+    "provider": null,
+    "base": {
+      "input": {
+        "mode": "layout"
+      },
+      "chunking": {
+        "mode": "fixed",
+        "max_chars": 4000,
+        "overlap": 0
+      },
+      "output": {
+        "constraint": "schema",
+        "max_tokens": 4096
+      },
+      "recovery": {
+        "retries": 0,
+        "subdivide": true,
+        "depth": 1
+      },
+      "merge": {
+        "keys": true,
+        "continuation": "off",
+        "resolver": false
+      },
+      "sampling": {
+        "n": 1,
+        "temperature": 0,
+        "seed": 20260930
+      },
+      "evidence": {
+        "mode": "none"
+      },
+      "verification": {
+        "model": false,
+        "gate": "off"
+      },
+      "budget": {
+        "workers": 1,
+        "calls": 60,
+        "input_chars": 12000
+      }
+    },
+    "variants": {
+      "item_ids_v2": {
+        "evidence": {
+          "mode": "ids"
+        }
+      }
+    },
+    "comparisons": [
+      {
+        "control": "base",
+        "treatment": "item_ids_v2",
+        "factor": "evidence"
+      }
+    ],
+    "evaluation": {
+      "evaluator_version": 4,
+      "min_matches": 2,
+      "iou": 0.5
+    },
+    "final": null,
+    "budget": {
+      "max_calls": 0
+    },
+    "status": "annotation_pending_no_allowance"
+  },
+  "proposed_config_sha256": {
+    "base": "dc66993b87a18ef84a68fdabb8de7981c7168355691210fde6e4d547af34cfa4",
+    "item_ids_v2": "8e26672d0dce17a8f827ffb76cb353cdf6f97a5c6a5592fa9918847a0fa83e0f"
+  },
+  "missing_inputs": [
+    "dataset-v1/schema/grave-entry.json: approved FREE grave-entry schema revision",
+    "dataset-v1/canonical/ellekilde/result/result.json and all referenced hashed page JSON files",
+    "dataset-v1/canonical/hvissinge/result/result.json and all referenced hashed page JSON files"
+  ],
+  "future_outputs": "new private run root, separate from pending labels, reviewed gold, synthetic fixtures and historical cells",
+  "cost_estimates": {
+    "status": "uncertain planning scenarios; no tokenizer or provider queried",
+    "shape": "records[i][field] = value versus {value, ids:[stable segment references]}",
+    "wrapper_bytes_one_id": 26,
+    "required_final_estimate": "load verified canonical inputs and approved schema; use chunks_of/render/reply_schema offline; then freeze before allowance",
+    "ellekilde": {
+      "native_chars": 20491,
+      "tentative_source_record_count": 7,
+      "canonical_layout_chars_scenario": [
+        24000,
+        36000
+      ],
+      "base_calls_scenario": [
+        6,
+        10
+      ],
+      "two_arms_calls_scenario": [
+        12,
+        20
+      ],
+      "depth1_worst_calls_scenario": [
+        36,
+        60
+      ]
+    },
+    "hvissinge": {
+      "native_chars": 12879,
+      "tentative_source_record_count": 6,
+      "native_layer_omits_body": true,
+      "canonical_layout_chars_scenario": [
+        40000,
+        65000
+      ],
+      "base_calls_scenario": [
+        10,
+        17
+      ],
+      "two_arms_calls_scenario": [
+        20,
+        34
+      ],
+      "depth1_worst_calls_scenario": [
+        60,
+        102
+      ]
+    },
+    "tokens": "For each arm: (total rendered input + repeated prompt/schema chars + serialized records chars)/3..5 is a heuristic, not tokenizer output.",
+    "evidence_extra": "26 compact bytes per populated field selecting one p1_s0-length ID, plus 8..16 bytes per additional ID; no evidence span cap",
+    "clock": "No clock created. Provisional request: at most 162 total calls if these source scenarios hold; recompute from actual canonical shape and schema before requesting any allowance."
+  }
+}

@@ -57,6 +57,15 @@ cost is reported apart from real inference and `cost_as_if_cold` adds them, neve
 
 ## Configuration switches (`config.py`; recorded and hashed; unsupported values are refused with the prerequisite)
 
+Harness version 2 preserves distinct reply occurrences. Equal normalized values
+only flag ambiguity; they do not merge keyless candidates. Repeated extracted
+keys within a reply remain disputed. Cross-reply span identity requires a resolved,
+unambiguous declared identity-field occurrence. Field subdivisions retain their
+reply identity, and the ledger retains required and processed/failed source
+passages. Historical version-1 artifacts keep their original implementation pins.
+The [two-catalogue preparation](../../../../docs/research/2026-10-01-free-records-diagnostic/README.md)
+records offline checks and pending annotation inputs; it grants no inference.
+
 | Section | Switch | Effect |
 | --- | --- | --- |
 | `input` | `mode`: `text` \| `layout` | plain text, or `<block id label page>` markup with table cells (`images`, `text+images`: unsupported) |
