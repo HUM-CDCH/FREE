@@ -189,6 +189,7 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   await expect(page.getByText(/^(Request failed|Error):/).first()).toBeVisible({ timeout: 30_000 })
   await requestEdit(page, 'Rename title to heading')
   await expect(page.getByRole('button', { name: 'Apply changes' })).toBeVisible({ timeout: 30_000 })
+  expect(stack.model.calls()).toHaveLength(2)
   // The proposal stays open: Discard would delete its history before the sweep inspects it.
 
   // A generation: refused once (a new operation follows), then answered.
@@ -198,9 +199,10 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   await regenerate(page, 'Catalog entries')
   await expect(page.getByText('heading', { exact: true }).first()).toBeVisible({ timeout: 30_000 })
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
+  expect(stack.model.calls()).toHaveLength(4)
 
-  // A Batch Schema Suggestion over the document: its first attempt is refused, the retry's source and merge answer.
-  stack.model.reply(refusal, { text: TEMPLATE, headers: echo }, { text: TEMPLATE, headers: echo })
+  // A Batch Schema Suggestion over one document: refused once, then answered. A lone source needs no merge call.
+  stack.model.reply(refusal, { text: TEMPLATE, headers: echo })
   const mutation = { headers: { origin: E2E_ORIGIN } } // Studio's CSRF check: mutations name the page's origin
   const created = await page.request.post(e2eStudioPath('/api/batch-schema-suggestions'), {
     ...mutation,
@@ -221,7 +223,7 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   expect((await suggestion()).proposal).not.toBeNull()
 
   // Every model call carried the key, which is the only place it belongs on the server side of this test.
-  expect(stack.model.calls().length).toBeGreaterThanOrEqual(7)
+  expect(stack.model.calls()).toHaveLength(6)
   for (const call of stack.model.calls()) expect(call.authorization === `Bearer ${key}`, 'every model call carried the key').toBe(true)
 
   // The operations whose history the sweep must see: both edits (the refused one is a typed failure in a SUCCESS

@@ -1339,6 +1339,59 @@ describe('reopened Source Document workspace', () => {
     expect(await screen.findByText('Ellekilde')).toBeInTheDocument()
   })
 
+  it.each(['QUEUED', 'RUNNING'] as const)('offers status and cancellation for a reopened %s sample without cancelling the whole-document result', async (executionStatus) => {
+    const { sourceRepresentation, extractionSchema, ...previousAttempt } = reopened.persistedExtraction!
+    const activeSample: ExtractionAttempt = {
+      ...previousAttempt,
+      extractionId: '51000000-0000-4000-8006-000000000002',
+      requestedPages: [2], executionStatus, outcome: null, complete: null,
+      resultPayload: null, evidenceLinks: null, diagnostics: null,
+      modelAttribution: null, reviewable: false,
+    }
+    const cancellations: string[] = []
+    let monitoredSample = activeSample
+    let rejectCancellation = true
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'DELETE') {
+        cancellations.push(url)
+        if (rejectCancellation) {
+          rejectCancellation = false
+          return Promise.resolve(Response.json({ error: { code: 'cancel_failed', message: 'Try cancelling again' } }, { status: 503 }))
+        }
+        return Promise.resolve(Response.json({ extractionId: activeSample.extractionId }, { status: 202 }))
+      }
+      if (url.endsWith(`/extractions/${activeSample.extractionId}`))
+        return Promise.resolve(Response.json({ extraction: monitoredSample, pendingReviewDecisions: null }))
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} latestSample={{ ...activeSample, sourceRepresentation, extractionSchema }} />)
+    const cancel = await screen.findByRole('button', { name: 'Cancel sample' })
+    expect(cancel).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'This page' }))
+    expect(screen.getByText(executionStatus === 'QUEUED' ? 'Sample queued on pp. 2' : 'Sample running on pp. 2')).toHaveAttribute('role', 'status')
+    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+
+    fireEvent.click(cancel)
+    expect(await screen.findByText('cancel_failed: Try cancelling again')).toHaveAttribute('role', 'alert')
+    expect(screen.getByRole('button', { name: 'Cancel sample' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel sample' }))
+    await waitFor(() => expect(cancellations).toHaveLength(2))
+    expect(cancellations).toEqual(Array(2).fill(`/api/extractions/${activeSample.extractionId}`))
+    expect(screen.getByRole('button', { name: 'Cancellation requested…' })).toBeDisabled()
+    expect(screen.getByText('Sample cancellation requested; a running model call may need to finish first.')).toHaveAttribute('role', 'status')
+
+    // Cancellation is cooperative: no new run is offered until a terminal status is observed.
+    monitoredSample = { ...activeSample, executionStatus: 'FAILED', failure: { code: 'cancelled', message: 'Extraction cancelled' } }
+    expect(await screen.findByRole('button', { name: 'Run sample on pp. 1' }, { timeout: 4_000 })).toBeEnabled()
+    expect(await screen.findByText('Sample cancelled — no result was saved')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(await screen.findByText('Ellekilde')).toBeInTheDocument()
+  })
+
   it('shows the newest sample only on the Source Representation it ran on', async () => {
     vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
       const url = String(input)

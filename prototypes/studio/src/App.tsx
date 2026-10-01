@@ -601,7 +601,9 @@ export function DocumentWorkspace({
     initialAttempt: latestSample,
     documentKey: sourceRepresentationId,
     reviewTarget,
-    onTerminal: (attempt) => showToast(attempt.executionStatus === 'FAILED' ? 'Sample failed' : '✓ Sample complete'),
+    onTerminal: (attempt) => showToast(attempt.failure?.code === 'cancelled'
+      ? 'Sample cancelled — no result was saved'
+      : attempt.executionStatus === 'FAILED' ? 'Sample failed' : '✓ Sample complete'),
     onError: (message) => showToast(message),
     onSuperseded,
     onMethodChanged: setMethodConflict,
@@ -1006,10 +1008,20 @@ export function DocumentWorkspace({
                       {label}
                     </Button>
                   ))}
-                  <Button variant="primary" disabled={samplePages.length === 0 || runExtractionUnavailable}
-                    onClick={() => void runExtraction(samplePages)}>
-                    {samplePages.length ? `Run sample on pp. ${pageRanges(samplePages)}` : 'Run sample'}
+                  <Button variant="primary"
+                    disabled={sampleRunning ? sample.cancellationRequested : samplePages.length === 0 || runExtractionUnavailable}
+                    title={sampleRunning ? 'Cancel the active sample; the current model call may need to finish first' : undefined}
+                    onClick={() => sampleRunning ? void sample.requestCancellation() : void runExtraction(samplePages)}>
+                    {sampleRunning
+                      ? sample.cancellationRequested ? 'Cancellation requested…' : 'Cancel sample'
+                      : samplePages.length ? `Run sample on pp. ${pageRanges(samplePages)}` : 'Run sample'}
                   </Button>
+                  {sampleRunning && <span role="status" className="text-ink-muted">
+                    {sample.cancellationRequested
+                      ? 'Sample cancellation requested; a running model call may need to finish first.'
+                      : `Sample ${sample.attempt?.executionStatus === 'QUEUED' ? 'queued' : 'running'} on pp. ${pageRanges(sample.attempt?.requestedPages ?? [])}`}
+                  </span>}
+                  {sample.cancellationError && <span role="alert" className="text-danger">{sample.cancellationError}</span>}
                   {shownSample?.requestedPages && <Button disabled={runExtractionUnavailable || !shownSample.requestedSettings}
                     onClick={() => void runExtraction([...shownSample.requestedPages!], shownSample)}>Save and re-run these pages</Button>}
                   {sample.monitorError && (
