@@ -189,6 +189,11 @@ async function renderPage(initialFocusRef?: RefObject<HTMLButtonElement | null>)
 
 /** Waits past an edit's 500 ms probe debounce with room for a loaded test run. */
 const DEBOUNCED = { timeout: 3_000 }
+function selectView(label: string, title: string) {
+  const selector = screen.getByRole('combobox', { name: label })
+  const option = within(selector).getByRole('option', { name: title }) as HTMLOptionElement
+  fireEvent.change(selector, { target: { value: option.value } })
+}
 const step = (title: string) => screen.getByRole('region', { name: title })
 const apply = () => fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
@@ -253,6 +258,7 @@ describe('ProviderConfigPage', () => {
     ))
     expect(step('Extracting data')).toHaveTextContent('Choose among the models this deployment runs.')
     for (const title of ['Reading documents', 'Schema & chat', 'Extracting data']) {
+      expect(step(title)).toBeVisible()
       expect(within(step(title)).getByRole('button', { name: 'Change' })).toBeInTheDocument()
       expect(within(step(title)).queryByRole('button', { name: 'Use defaults' })).not.toBeInTheDocument()
     }
@@ -299,13 +305,19 @@ describe('ProviderConfigPage', () => {
     )
     await renderPage()
 
-    // A step with a stored choice opens on its pickers.
+    // All steps stay visible; editing another step preserves each stored choice.
     expect(within(step('Reading documents')).getByRole('button', { name: 'Text recognition' })).toHaveTextContent('datalab-to/surya-ocr-2')
     expect(within(step('Reading documents')).getByRole('button', { name: 'Page regions' })).toHaveTextContent('Egret XLarge')
+    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
     expect(within(step('Schema & chat')).getByRole('button', { name: 'Assistant model' })).toHaveTextContent('llama3.3 · Local Ollama')
+    expect(step('Reading documents')).toHaveTextContent('Egret XLarge')
+    expect(within(step('Reading documents')).queryByRole('button', { name: 'Text recognition' })).not.toBeInTheDocument()
+    fireEvent.click(within(step('Extracting data')).getByRole('button', { name: 'Change' }))
     expect(within(step('Extracting data')).getByRole('button', { name: 'Field values' })).toHaveTextContent(QWEN)
 
     for (const title of ['Reading documents', 'Schema & chat', 'Extracting data']) {
+      const change = within(step(title)).queryByRole('button', { name: 'Change' })
+      if (change) fireEvent.click(change)
       fireEvent.click(within(step(title)).getByRole('button', { name: 'Use defaults' }))
       expect(within(step(title)).getByRole('button', { name: 'Change' })).toBeInTheDocument()
     }
@@ -877,8 +889,25 @@ describe('ProviderConfigPage', () => {
 })
 
 const openAdvanced = () => fireEvent.click(screen.getByRole('tab', { name: 'Advanced' }))
-const openSection = (title: string) => fireEvent.click(screen.getByText(title, { selector: 'summary *' }))
-const radio = (group: string, name: string) => within(screen.getByRole('group', { name: group })).getByRole('radio', { name })
+function setting(title: string) {
+  const selector = screen.getByRole('combobox', { name: (screen.getByRole('radio', { name: 'Article' }) as HTMLInputElement).checked ? 'Article setting' : 'Catalog setting' })
+  const option = within(selector).getAllByRole('option').find((option) => option.textContent === title || option.textContent?.endsWith(`: ${title}`)) as HTMLOptionElement
+  if (!option) throw new Error(`No setting named ${title}`)
+  fireEvent.change(selector, { target: { value: option.value } })
+}
+const openSection = (title: string) => {
+  const selector = screen.getByRole('combobox', { name: (screen.getByRole('radio', { name: 'Article' }) as HTMLInputElement).checked ? 'Article setting' : 'Catalog setting' })
+  const option = within(selector).getAllByRole('option').find((option) => option.textContent === title || option.textContent?.startsWith(`${title}: `)) as HTMLOptionElement
+  fireEvent.change(selector, { target: { value: option.value } })
+}
+const radio = (group: string, name: string) => {
+  setting(group)
+  return within(screen.getByRole('group', { name: group })).getByRole('radio', { name })
+}
+function startingPoint(title: string) {
+  selectView('Guide section', title)
+  return within(screen.getByRole('dialog', { name: 'How this works' })).getByRole('region', { name: title })
+}
 
 describe('Advanced', () => {
   it('opens clean on Article with the reference summary: no save, no model call, omission kept', async () => {
@@ -886,12 +915,12 @@ describe('Advanced', () => {
     await renderPage()
     openAdvanced()
     expect(screen.getByRole('heading', { name: 'Advanced extraction' })).toBeInTheDocument()
-    expect(screen.getByText('Full source · Plain text · Source-label verification')).toBeInTheDocument()
+    expect(radio('Scope', 'Full source')).toBeChecked()
     expect(screen.getByRole('button', { name: 'Use service defaults', pressed: true })).toBeInTheDocument()
     openSection('Source context')
     expect(radio('Scope', 'Full source')).toBeDisabled()
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
-    expect(screen.getByText('Settings for future Extractions using this strategy.')).toBeInTheDocument()
+    expect(screen.getByText('Applies to new Extractions in your Projects.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Models' }))
     openAdvanced()
     expect(screen.getByText('Everything saved')).toBeInTheDocument()
@@ -907,7 +936,7 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     openSection('Evidence')
     fireEvent.click(radio('Verification', 'Source spans'))
-    expect(screen.getByText('Changed')).toBeInTheDocument()
+    expect(screen.getAllByText('Changed').some((label) => !label.closest('[hidden]'))).toBe(true)
     fireEvent.click(screen.getByRole('tab', { name: 'Models' }))
     expect(within(step('Extracting data')).getByRole('button', { name: 'Change' })).toBeInTheDocument()
     openAdvanced()
@@ -962,13 +991,13 @@ describe('Advanced', () => {
     expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
   })
 
-  it('an invalid section opens itself even when it was collapsed', async () => {
+  it('an invalid field remains available when moving between settings', async () => {
     studio(config({ extractionSettings: { article: { ...REFERENCE_ARTICLE, grounding: 'spans', evidence_policy: 'schema' } } }))
     await renderPage()
     openAdvanced()
     openSection('Evidence')
     fireEvent.click(radio('Verification', 'Source labels'))
-    openSection('Evidence') // the researcher collapses it; the issue keeps it open
+    setting('Fields to verify')
     expect(screen.getByText(METHOD_MESSAGES.schemaPolicy, { selector: 'p' })).toBeVisible()
   })
 
@@ -978,10 +1007,12 @@ describe('Advanced', () => {
     openAdvanced()
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     openSection('Source context')
+    setting('Context ceiling')
     const ceiling = screen.getByRole('textbox', { name: /Context ceiling/ })
     expect(ceiling).toHaveAttribute('readonly')
     expect(screen.getByText('Used with bounded source units')).toBeInTheDocument()
     fireEvent.click(radio('Scope', 'Bounded source units'))
+    setting('Context ceiling')
     for (const text of ['8191', '12288.5', 'twelve']) {
       fireEvent.change(ceiling, { target: { value: text } })
       expect(ceiling).toHaveValue(text)
@@ -994,20 +1025,22 @@ describe('Advanced', () => {
     expect(server.puts()[0]!.extractionSettings.article?.context_tokens).toBe(8192)
   })
 
-  it('identity fields: chips keep exact case, refuse empty and duplicate names, and conservative needs one', async () => {
+  it('identity fields: names keep exact case, refuse empty and duplicate names, and conservative needs one', async () => {
     studio(config())
     await renderPage()
     openAdvanced()
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     openSection('Record identity')
+    setting('Identity fields')
     const name = screen.getByRole('textbox', { name: 'Identity field name' })
     fireEvent.change(name, { target: { value: '  Species ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
-    expect(within(screen.getByRole('list', { name: 'Identity fields' })).getByText('Species')).toBeInTheDocument()
+    expect(within(screen.getByRole('combobox', { name: 'Declared identity fields' })).getByRole('option', { name: 'Species' })).toBeInTheDocument()
     fireEvent.change(name, { target: { value: 'Species' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
     expect(screen.getByText(METHOD_MESSAGES.identityNames)).toBeInTheDocument()
     fireEvent.click(radio('Reconciliation', 'Declared identity fields'))
+    setting('Identity fields')
     fireEvent.click(screen.getByRole('button', { name: 'Remove Species' }))
     expect(screen.getByText(METHOD_MESSAGES.identity, { selector: 'p' })).toBeInTheDocument()
   })
@@ -1019,7 +1052,8 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     openSection('Recipe Catalog')
-    expect(screen.getByText('Applies when a Catalog Extraction uses a numbered-catalogue recipe.')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Recipe Catalog' })).toHaveTextContent('Applies when a Catalog Extraction uses a numbered-catalogue recipe.')
+    setting('Verification')
     fireEvent.click(screen.getByRole('switch', { name: 'Verification' }))
     expect(screen.getByText('Off keeps typed values as proposals, not accepted evidence.')).toBeInTheDocument()
     apply()
@@ -1064,7 +1098,7 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('button', { name: '2 issues block Apply' }))
     await waitFor(() => expect(radio('Previous passages', '1')).toHaveFocus())
     expect(screen.getByText(METHOD_MESSAGES.bounded, { selector: 'p' })).toBeVisible()
-    openSection('Effective settings')
+    openSection('Technical details')
     expect(screen.getByText('Fix the issues above to preview the request.')).toBeInTheDocument()
     expect(screen.queryByText(/"strategy"/)).not.toBeInTheDocument()
   })
@@ -1079,8 +1113,9 @@ describe('Advanced', () => {
     trigger.focus()
     fireEvent.click(trigger)
     const dialog = screen.getByRole('dialog', { name: 'Verification' })
+    selectView('Topic section', 'Example')
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Generated quotes' }))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Fields to verify' }))
+    selectView('Topics', 'Fields to verify')
     fireEvent(dialog, new Event('cancel', { cancelable: true }))
     await waitFor(() => expect(trigger).toHaveFocus())
     expect(screen.getByRole('button', { name: 'Use service defaults', pressed: true })).toBeInTheDocument()
@@ -1098,15 +1133,14 @@ describe('Advanced', () => {
     await renderPage()
     openAdvanced()
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-    const dialog = screen.getByRole('dialog', { name: 'How this works' })
-    const point = within(dialog).getByRole('region', { name: 'Explore spans and schema policies' })
+    const point = startingPoint('Explore spans and schema policies')
     fireEvent.click(within(point).getByRole('button', { name: 'Show changes' }))
     fireEvent.click(within(point).getByRole('button', { name: 'Use these settings' }))
     expect(screen.getByText('Settings from “Explore spans and schema policies” are in your draft. Apply saves them.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(screen.getByText('Everything saved')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-    const again = within(within(screen.getByRole('dialog', { name: 'How this works' })).getByRole('region', { name: 'Explore spans and schema policies' }))
+    const again = within(startingPoint('Explore spans and schema policies'))
     fireEvent.click(again.getByRole('button', { name: 'Show changes' }))
     fireEvent.click(again.getByRole('button', { name: 'Use these settings' }))
     apply()
@@ -1118,10 +1152,12 @@ describe('Advanced', () => {
     expect(screen.queryByText(/are in your draft/)).toBeNull()
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     openSection('Recipe Catalog')
+    setting('Glossary')
     fireEvent.click(screen.getByRole('switch', { name: 'Glossary' }))
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
     expect(screen.queryByText(/are in your draft/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+    setting('Glossary')
     fireEvent.click(screen.getByRole('switch', { name: 'Glossary' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Article' }))
     fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
@@ -1137,10 +1173,11 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     openSection('Source context')
     fireEvent.click(radio('Scope', 'Bounded source units'))
+    setting('Context ceiling')
     fireEvent.change(screen.getByRole('textbox', { name: /Context ceiling/ }), { target: { value: '12k' } })
     expect(screen.getByRole('button', { name: '1 issue blocks Apply' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-    const point = within(within(screen.getByRole('dialog', { name: 'How this works' })).getByRole('region', { name: 'Reference controls' }))
+    const point = within(startingPoint('Reference controls'))
     fireEvent.click(point.getByRole('button', { name: 'Show changes' }))
     expect(point.getByText('Bounded source units → Full source', { exact: false })).toBeInTheDocument()
     fireEvent.click(point.getByRole('button', { name: 'Use these settings' }))
@@ -1150,6 +1187,7 @@ describe('Advanced', () => {
     undo.focus()
     fireEvent.click(undo)
     expect(radio('Scope', 'Bounded source units')).toBeChecked()
+    setting('Context ceiling')
     expect(screen.getByRole('textbox', { name: /Context ceiling/ })).toHaveValue('12k')
     expect(screen.getByRole('button', { name: '1 issue blocks Apply' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'How this works' })).toHaveFocus()
@@ -1162,8 +1200,8 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     openSection('Recipe Catalog')
     fireEvent.click(screen.getByRole('button', { name: 'Explain Recipe Catalog' }))
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Catalog' })).getByRole('button', { name: 'How this works' }))
-    const point = within(within(screen.getByRole('dialog', { name: 'How this works' })).getByRole('region', { name: 'Explore spans and schema policies' }))
+    selectView('Topics', 'How this works')
+    const point = within(startingPoint('Explore spans and schema policies'))
     fireEvent.click(point.getByRole('button', { name: 'Show changes' }))
     fireEvent.click(point.getByRole('button', { name: 'Use these settings' }))
     expect(screen.getByRole('radio', { name: 'Article' })).toBeChecked()
@@ -1181,7 +1219,7 @@ describe('Advanced', () => {
     openAdvanced()
     const useExplore = () => {
       fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-      const point = within(within(screen.getByRole('dialog', { name: 'How this works' })).getByRole('region', { name: 'Explore spans and schema policies' }))
+      const point = within(startingPoint('Explore spans and schema policies'))
       fireEvent.click(point.getByRole('button', { name: 'Show changes' }))
       fireEvent.click(point.getByRole('button', { name: 'Use these settings' }))
       expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
@@ -1195,9 +1233,10 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     useExplore()
     openSection('Record identity')
+    setting('Identity fields')
     fireEvent.change(screen.getByRole('textbox', { name: 'Identity field name' }), { target: { value: 'species' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
-    expect(within(screen.getByRole('list', { name: 'Identity fields' })).getByText('species')).toBeInTheDocument()
+    expect(within(screen.getByRole('combobox', { name: 'Declared identity fields' })).getByRole('option', { name: 'species' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
 
