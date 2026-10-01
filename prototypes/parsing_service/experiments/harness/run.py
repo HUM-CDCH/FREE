@@ -85,7 +85,8 @@ def run_case(case: Case, cfg: Config, meter: Metered, *, admission: str = "uncou
         for chunk in ex.retrieve(chunks, group, case.schema.record_description, cfg):
             primary = chunk.context.primary
             row = {"chunk": chunk.id, "group": g, "retrieval": chunk.retrieval, "score": chunk.score,
-                   "first": primary[0].id if primary else None, "last": primary[-1].id if primary else None, "calls": 0}
+                   "first": primary[0].id if primary else None, "last": primary[-1].id if primary else None,
+                   "required_passages": [p.id for p in primary], "calls": 0}
             ledger[(chunk.id, g)] = row
             if chunk.retrieval == "skipped":
                 row["status"] = "not_retrieved"
@@ -107,6 +108,9 @@ def run_case(case: Case, cfg: Config, meter: Metered, *, admission: str = "uncou
         for s, batch in samples:    # a field is read when every task that asked for it succeeded
             read[(chunk_id, g, s)] = frozenset({n for r in batch for n in r.fields} - {n for r in batch if not r.ok for n in r.fields})
         rs = [r for _, batch in samples for r in batch]
+        row["regions"] = [{"task": r.task.id, "sample": r.task.sample, "passages": list(r.passages),
+                           "fields": list(r.fields), "status": "processed" if r.ok else "failed", "error": r.error}
+                          for r in rs]
         whole = any(all(r.ok for r in batch) for _, batch in samples)
         row |= {"status": "processed" if whole else "partial" if any(r.ok for r in rs) else "failed",
                 "calls": sum(len(r.calls) for r in rs),
@@ -225,5 +229,8 @@ def run_case(case: Case, cfg: Config, meter: Metered, *, admission: str = "uncou
                     "detail": r["errors"][0]["error"] if r.get("errors") else r.get("reason"), "chunk": r["chunk"], "group": r["group"]}
                    for r in ledger.values() if r["status"] in ("failed", "refused", "partial") or r.get("errors")]
         + [{"code": "record_outvoted", "detail": "most of the samples that read this region found no such record", "chunk": r["chunks"][0],
-            "group": None} for r in outvoted],
+            "group": None} for r in outvoted]
+        + [{"code": "record_identity_ambiguous", "detail": "candidate retained; equality or repeated extracted key cannot establish occurrence identity",
+            "chunk": c["chunk"], "group": c["group"], "index": c["index"]}
+           for c in candidates if c.get("identity_ambiguous")],
     }

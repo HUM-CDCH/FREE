@@ -465,14 +465,13 @@ def test_distinct_records_that_look_alike_are_not_collapsed_and_the_key_is_an_ab
     assert len(artifact["records"]) == 2
 
 
-def test_without_a_key_records_join_only_on_a_shared_citation_or_an_exact_repeat():
+def test_without_a_key_records_join_only_on_a_shared_occurrence_and_samples_align_separately():
     case = replace(make(), record_key=())
     overlap = {"chunking": {"mode": "page", "max_chars": 2000, "overlap": 1}}
     apart, _ = run(case, overlap)
     assert len(apart["records"]) == 7                       # a partial and a whole reading of entry 42 are not an exact repeat
     cited, _ = run(case, {**overlap, **QUOTE})
-    assert len(cited["records"]) == 6                       # both quote the same span of "42": one record, its finds a union
-    assert row_of(cited, 2, "finds")["value"] == case.gold[2]["fields"]["finds"]["value"]
+    assert len(cited["records"]) == 7                       # no declared identity: a common field citation is insufficient
     sampled = {"sampling": {"n": 2, "temperature": 0.5}}
     repeated, _ = run(case, sampled)
     assert len(repeated["records"]) == 6 and row_of(repeated, 0, "site")["votes"] == [2, 2]
@@ -484,12 +483,14 @@ def test_the_merger_never_chains_matches_that_would_put_two_values_in_one_record
     from experiments.harness.merge import Coverage, cluster
     def cand(index, kreis, span):
         entry = {"quote": "Aue", "method": "exact", "spans": [span], "alternatives": [], "exists": True}
-        return {"chunk": "c0", "group": 0, "sample": 0, "view": "field", "index": index, "begins": None, "ends": None,
+        return {"chunk": f"c{index}", "group": 0, "sample": 0, "view": "field", "index": 0, "begins": None, "ends": None,
                 "fields": {"site": {"value": "Aue", "raw": "Aue", "entries": [entry], "typed": True},
                            "kreis": {"value": kreis, "raw": kreis, "entries": [], "typed": True}}}
     shared = {"segment": "p1_s0", "start": 4, "end": 7}
     a, b, c = cand(0, None, shared), cand(1, "Moor", shared), cand(2, "Ried", shared)     # a~b and a~c share a citation; b and c disagree
-    groups = cluster([a, b, c], make(), Config(), Coverage(["c0"], {("c0", 0, 0): frozenset({"site", "kreis"})}, [["site", "kreis"]]))
+    # This synthetic task declares site identity; direct key matching is disabled to exercise span matching.
+    groups = cluster([a, b, c], replace(make(), record_key=("site",)),
+                     Config.model_validate({"merge": {"keys": False}}), Coverage(["c0", "c1", "c2"], {}, [["site", "kreis"]]))
     assert sorted(len(g) for g in groups) == [1, 2] and not any(b in g and c in g for g in groups)
 
 

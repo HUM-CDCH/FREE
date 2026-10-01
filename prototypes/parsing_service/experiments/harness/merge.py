@@ -2,7 +2,7 @@
 contributing candidate stays on the record it fed.
 
 Matching is conservative. A declared key makes records one; without a complete key two candidates are one record only
-if they cite the identical span for a field or repeat every populated field (at least `min_fields` of them), or (with
+if separate replies cite the identical unambiguous span for a declared identity field, or (with
 continuation flags) if one ends where the next begins across a chunk cut, and never if that would put two different
 scalar values in one record: a candidate joins a cluster only when it is compatible with the whole cluster, so
 transitive matches cannot merge records that disagree. A field's status keeps its reasons apart: `value`, `absent` (a
@@ -46,7 +46,12 @@ class Coverage:
 
 
 def _span_ids(field: dict) -> set[tuple]:
-    return {(s["segment"], s["start"], s["end"]) for e in field.get("entries", []) for s in e["spans"]}
+    return {(s["segment"], s["start"], s["end"]) for e in field.get("entries", [])
+            if e.get("exists", True) and not e.get("ambiguous") and not e.get("approximate") for s in e["spans"]}
+
+
+def _reply(cand: dict) -> tuple:
+    return (cand["chunk"], tuple(cand.get("part", cand.get("source_part", ()))), cand["group"], cand["sample"], cand["view"])
 
 
 def _signature(cand: dict) -> frozenset:
@@ -72,14 +77,15 @@ class _Cluster:
         return all(canon(f["value"]) in self.values[name] or not self.values[name]
                    for name, f in cand["fields"].items() if f["value"] is not None and name in scalars)
 
-    def joins(self, cand: dict, min_fields: int, scalars: set[str]) -> bool:
-        """A keyless candidate is this record when it cites the identical span for a field, or repeats a member's
-        populated fields exactly (at least `min_fields` of them), and disagrees with no value the cluster holds."""
-        if not self.compatible(cand, scalars):
+    def joins(self, cand: dict, scalars: set[str], identity_fields: tuple[str, ...]) -> bool:
+        """A shared resolved identity-field occurrence can establish identity; equal values cannot.
+
+        A shared contextual field (e.g. a site heading) is not a record occurrence.
+        Distinct items in one reply stay distinct even when the model repeats their citations.
+        """
+        if any(_reply(m) == _reply(cand) for m in self.members) or not self.compatible(cand, scalars):
             return False
-        signature = _signature(cand)
-        return any(_span_ids(f) & self.spans[name] for name, f in cand["fields"].items()) or \
-            (len(signature) >= min_fields and signature in self.signatures)
+        return any(_span_ids(f) & self.spans[name] for name, f in cand["fields"].items() if name in identity_fields)
 
 
 def key_of(cand: dict, case: Case, cfg: Config) -> tuple | None:
@@ -95,7 +101,7 @@ def cluster(cands: list[dict], case: Case, cfg: Config, coverage: Coverage) -> l
     where = {c: i for i, c in enumerate(coverage.order)}
     tasks: dict[tuple, list[dict]] = defaultdict(list)
     for cand in cands:
-        tasks[(cand["chunk"], tuple(cand.get("source_part", ())), cand["group"], cand["sample"], cand["view"])].append(cand)
+        tasks[_reply(cand)].append(cand)
     for members in tasks.values():
         lo, hi = min(c["index"] for c in members), max(c["index"] for c in members)
         for c in members:
@@ -103,6 +109,10 @@ def cluster(cands: list[dict], case: Case, cfg: Config, coverage: Coverage) -> l
     ordered = sorted(cands, key=lambda c: (where.get(c["chunk"], 0), tuple(c.get("source_part", ())), c["group"], c["index"]))
     if case.record_scope == "document":
         return [ordered] if ordered else []
+    # A supposedly unique key repeated within a reply is an extraction ambiguity,
+    # not permission to fold its items (or subsequent readings) into one occurrence.
+    disputed = {key for members in tasks.values() for key, count in
+                Counter(key_of(c, case, cfg) for c in members).items() if key is not None and count > 1}
     clusters: list[_Cluster] = []
     by_key: dict[tuple, _Cluster] = {}
     open_end: dict[tuple, _Cluster] = {}        # (chunk, group, sample) -> the cluster of its last record, when the model says it goes on
@@ -118,8 +128,12 @@ def cluster(cands: list[dict], case: Case, cfg: Config, coverage: Coverage) -> l
     for cand in ordered:
         boundary = (where[cand["chunk"]], tuple(cand.get("source_part", ())))
         key = key_of(cand, case, cfg)
+        if key in disputed:
+            cand["identity_ambiguous"] = True
+            key = None
         home = by_key.get(key) if key is not None else None
-        if home is None and cfg.merge.continuation == "flags" and cand["is_first"] and cand.get("begins") is True:
+        if (home is None and not cand.get("identity_ambiguous") and cfg.merge.continuation == "flags"
+                and cand["is_first"] and cand.get("begins") is True):
             previous = boundary_previous[(boundary, cand["group"], cand["sample"], cand["view"])]
             adjacent = previous is not None and previous[0] in (boundary[0], boundary[0] - 1)
             if previous in bounds and boundary in bounds:
@@ -127,8 +141,19 @@ def cluster(cands: list[dict], case: Case, cfg: Config, coverage: Coverage) -> l
             pending = open_end.get((previous, cand["group"], cand["sample"])) if adjacent else None
             if pending is not None and pending.compatible(cand, scalars) and (key is None or pending.key in (None, key)):
                 home = pending
-        if home is None and key is None:
-            home = next((c for c in reversed(clusters) if c.key is None and c.joins(cand, cfg.merge.min_fields, scalars)), None)
+        if home is None and key is None and not cand.get("identity_ambiguous"):
+            matches = [c for c in clusters if c.key is None and c.joins(cand, scalars, case.record_key)]
+            if len(matches) == 1:
+                home = matches[0]
+            elif matches:
+                cand["identity_ambiguous"] = True
+        if home is None:
+            signature = _signature(cand)
+            for other in clusters:
+                if signature and signature in other.signatures:
+                    cand["identity_ambiguous"] = True
+                    for member in other.members:
+                        member["identity_ambiguous"] = True
         if home is None:
             home = _Cluster(key)
             clusters.append(home)

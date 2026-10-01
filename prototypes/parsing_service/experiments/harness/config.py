@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from experiments.extraction.manifest import digest
 from kei_exp.canonical import canonical_json
 
-HARNESS_VERSION = 1
+HARNESS_VERSION = 2  # preserve distinct source occurrences; historical configs retain their version-1 hashes
 PROMPT_VERSION = 1      # bump with any change to a prompt or reply schema in extract.py or evidence.py
 
 
@@ -78,7 +78,7 @@ class Verification(_Section):
 
 class Merge(_Section):
     keys: bool = True                              # match records on the case's declared key
-    min_fields: int = Field(default=2, ge=1)       # fields two keyless records must share to be one record
+    min_fields: int = Field(default=2, ge=1)       # minimum shared fields for alignment across samples
     continuation: Literal["off", "flags"] = "off"  # join records a chunk boundary cut, on the model's own flags
     resolver: bool = False                         # a model chooses between conflicting scalars; alternatives stay
 

@@ -238,7 +238,7 @@ def _candidates(parsed: dict, nodes: list[Node], cfg: Config, task: Task, reply)
                                  "quotes": list((given or {}).get("quotes") or []), "ids": list((given or {}).get("ids") or []),
                                  "verbalized": (given or {}).get("confidence"), "stats": value_stats(reply, path)}
         found.append({"chunk": task.chunk, "group": task.group, "sample": task.sample, "view": task.view, "index": k,
-                      "source_part": task.source_part,
+                      "source_part": task.source_part, "part": task.part,
                       "begins": parsed.get("begins_inside_record"), "ends": parsed.get("ends_inside_record"), "fields": fields})
     return found
 
