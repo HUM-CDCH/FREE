@@ -114,6 +114,15 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   limits; leave it unset to offer neither. Log the CLIs in once inside the
   running container (`docker compose … exec studio codex login --device-auth`;
   Claude Code reads `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`).
+- `FREE_CATALOG_METHOD` (optional; `unified`) admits new single and batch
+  Catalog Extractions on the unified Catalog method instead of the legacy
+  generic and recipe Catalog. It is the rollout gate of the
+  `unify-catalog-extraction` change: leave it unset until that change's
+  held-out evaluation gates have passed. Accounts with legacy Catalog
+  preferences must apply the unified settings before their next Catalog
+  Extraction; admitted work, including a retried Extraction ID, keeps the
+  method it was admitted with. Unsetting it again pauses new unified
+  admissions; admitted unified work still runs and reads.
 - Studio's `DATABASE_URL` role must own database `free` or hold `CREATE` on it
   (DBOS creates the `dbos` schema at launch) and `CREATEROLE` (the entrypoint
   creates `kei`); Compose uses `postgres`.

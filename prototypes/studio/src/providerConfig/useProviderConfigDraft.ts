@@ -8,6 +8,7 @@ import {
   settingsShapeIssues,
   type ArticleSettings,
   type MethodIssue,
+  type UnifiedCatalogPreference,
 } from 'extraction/extraction-method'
 import type { ExtractionModelRole } from '../../shared/extraction.contract'
 import {
@@ -244,6 +245,17 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     }))
   }
 
+  /** The unified Catalog group replaces the whole Catalog branch: retired generic and recipe overrides are never
+   *  carried over or converted. An empty group is the service defaults. */
+  function setUnified(key: keyof UnifiedCatalogPreference, value: UnifiedCatalogPreference[typeof key] | undefined): void {
+    setSettings((settings) => ({ ...settings, catalog: orderedCatalog({ unified: { ...settings.catalog?.unified, [key]: value } }) }))
+  }
+
+  function customizeUnified(): void {
+    setSettings((settings) => ({ ...settings, catalog: { unified: {} } }))
+    setNumberEdits((edits) => Object.fromEntries(Object.entries(edits).filter(([path]) => !path.startsWith('catalog.'))))
+  }
+
   function setCatalogFactor(key: CatalogFactor, on: boolean): void {
     setCatalog((catalog) => {
       const recipe = catalog.recipe ?? {}
@@ -255,6 +267,12 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
   /** Digits only: a whole number reaches the draft (its minimum is then the contract's to report); any other text
    *  stays in the input, marked invalid, and blocks Apply. Nothing is clamped or rounded. */
   function setNumber(path: NumberPath, text: string): void {
+    const [scope, member, key] = path.split('.') as [AdvancedStrategy, string, string]
+    if (member === 'unified' && text === '') {  // cleared: Auto input, the stage reserves, the default overlap
+      setNumberEdits((edits) => Object.fromEntries(Object.entries(edits).filter(([edited]) => edited !== path)))
+      setUnified(key as keyof UnifiedCatalogPreference, undefined)
+      return
+    }
     if (!/^\d+$/.test(text)) {
       setNumberEdits((edits) => ({ ...edits, [path]: text }))
       return
@@ -265,8 +283,8 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
       return rest
     })
     const value = Number(text)
-    const [scope, member, key] = path.split('.') as [AdvancedStrategy, string, string]
     if (scope === 'article') setArticle(member as ArticleKey, value as never)
+    else if (member === 'unified') setUnified(key as keyof UnifiedCatalogPreference, value)
     // Never parsed here: a value below its minimum must stay in the draft, visible and reported.
     else setCatalog((catalog) => ({ ...catalog, [member]: { ...catalog[member], [key]: value } }))
   }
@@ -348,6 +366,8 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     addIdentityField,
     removeIdentityField,
     setCatalogFactor,
+    customizeUnified,
+    setUnified,
     setNumber,
     commit,
     discard,

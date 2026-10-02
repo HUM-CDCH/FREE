@@ -1522,6 +1522,37 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
   })
 
+  it('with the unified Catalog enabled, a Catalog start offers no recipe and submits the unified method', async () => {
+    const before = saved.state
+    saved.state = { ...(before as Extract<typeof before, { status: 'ready' }>), unifiedCatalog: true }
+    try {
+      const extractionRequests: Array<Record<string, unknown>> = []
+      vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+        if (url.endsWith('/api/extractions')) {
+          extractionRequests.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+          return Promise.resolve(Response.json({ error: { code: 'method_changed', message: 'Stale.' } }, { status: 409 }))
+        }
+        return Promise.resolve(new Response('pdf'))
+      }))
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByText('Saved advanced settings', { exact: false }))
+      expect(screen.getByText('Unified Catalog, defaults version 1')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(extractionRequests).toHaveLength(1))
+      expect(extractionRequests[0]).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 1 } } } })
+      expect(extractionRequests[0]).not.toHaveProperty('catalogRecipe')
+    } finally {
+      saved.state = before
+    }
+  })
+
   describe('Results-tab run action after a Catalog attempt', () => {
     // Every Results-tab run action posts the toolbar's one-shot selection, so
     // after a Catalog attempt it names and posts the Article default until the

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { z } from 'zod'
 import type { TerminalExtraction } from './dependencies.js'
@@ -147,12 +148,95 @@ export const groundedArtifactSchema = artifactSchema.extend({
   completeness: z.object({ processing: z.boolean(), coverage: z.boolean(), grounding: z.boolean(), recall: z.literal('unmeasured') }),
 })
 export const versionOneSchema = artifactSchema.extend({ extraction_version: z.literal(1) })
-export const anyArtifactSchema = z.discriminatedUnion('extraction_version', [versionOneSchema, groundedArtifactSchema])
+
+const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/)
+const count = z.number().int().nonnegative()
+const candidatePath = z.array(z.union([z.string(), z.number().int().nonnegative(), z.null()]))
+/** Version 3 evidence (`kie/extract/unified.py` `_link`): a verified value, its literal span or the passage that
+ *  supports a yes/no, a label or a derived value, and the occurrence of the list item it belongs to. */
+const unifiedEvidenceSchema = evidenceSchema.extend({
+  linked_by: z.literal('verification'),
+  support: z.enum(['literal', 'supporting']),
+  spans: z.array(span).min(1),
+  alternatives: z.array(z.array(span)),
+  precision: z.enum(['cell', 'segment', 'input']),
+  raw: z.string(),
+  item: z.array(span).nullable(),
+})
+/** A version 3 candidate kept for review: proposed (unverified, a partial list item, a competing value...) or rejected. */
+const unifiedCandidateSchema = z.object({
+  path: candidatePath, value: z.unknown(), quote: z.string().nullable(), support: z.enum(['literal', 'supporting']).nullable(),
+  spans: z.array(span), alternatives: z.array(z.array(span)), window: count, reason: z.string().nullable(),
+  raw: z.string().nullable(), item: z.object({ window: count, index: count }).nullable(),
+})
+/** The execution record (`catalog-execution.json`): read for its pins; its digest is taken over the raw record. */
+const executionRecordSchema = z.object({
+  version: z.literal(1), extraction_id: z.string().nullable(),
+  source: z.object({ run_id: z.string(), generation: z.string(), digest: z.string() }),
+  schema_sha256: sha256Hex, method: z.record(z.string(), z.unknown()),
+  effective: z.object({
+    overlap: count, headings: z.boolean(), verification: z.boolean(), splits: count,
+    stages: z.record(z.string(), z.object({ role: z.enum(['fields', 'reasoning']), input_tokens: count, output_tokens: count })),
+  }),
+  models: z.object({ fields: z.string(), reasoning: z.string() }),
+})
+/** The discovery record (`catalog-discovery.json`): entries, the source ledger and the windows that produced them. */
+const discoveryRecordSchema = z.object({
+  // Version 2 ends a record cut by the end of the supplied source as `source_end`; version 1 called it `beyond_scope`.
+  // Version 3 leaves that end `unresolved` when nonblank withheld text follows the record.
+  version: z.union([z.literal(1), z.literal(2), z.literal(3)]), execution_sha256: sha256Hex,
+  entries: z.array(z.object({
+    id: z.string(), label: z.string().nullable(), ranges: z.array(span), context: z.array(span),
+    end: z.enum(['validated', 'unresolved', 'beyond_scope', 'source_end']),
+  })),
+  ledger: z.array(span.extend({ disposition: z.enum(['entry', 'other', 'unresolved', 'withheld']), entry: z.string().nullable() })),
+  windows: z.array(z.object({ ok: z.boolean() })),
+})
+/** The dict the unified Catalog returns (`unified.extract`): version 3, with its records embedded and digested. */
+export const unifiedArtifactSchema = artifactSchema.extend({
+  extraction_version: z.literal(3),
+  strategy: z.literal('catalog'),
+  evidence: z.array(unifiedEvidenceSchema),
+  execution: executionRecordSchema, execution_sha256: sha256Hex,
+  discovery: discoveryRecordSchema, discovery_sha256: sha256Hex,
+  proposed: z.array(unifiedCandidateSchema),
+  rejected: z.array(unifiedCandidateSchema),
+  competitors: z.array(z.object({
+    path, outcome: z.enum(['arbitrated', 'unresolved']), chosen: count.nullable(),
+    candidates: z.array(z.object({ value: z.unknown(), spans: z.array(span), window: count })),
+  })),
+  items: z.array(z.object({ path, observed: count, resolved: count, partial: count })),
+  document: z.object({
+    status: z.literal('unverified'), applicable: z.boolean(), candidates: z.array(unifiedCandidateSchema),
+    conflicts: z.array(z.object({ path, candidates: z.array(z.unknown()) })),
+  }),
+  context_omitted: z.array(span.extend({ stage: z.string(), record: z.number().int().nullable(), kind: z.enum(['heading', 'before', 'after']) })),
+  processing: z.object({
+    discovery: z.object({ windows: count, failed: count }),
+    entries: z.object({ entries: count, windows: count, failed: count }),
+    verification: z.object({ enabled: z.boolean(), undecided: count }),
+    document: z.object({ applicable: z.boolean(), windows: count, failed: count }),
+  }),
+  completeness: z.object({
+    accounting: z.boolean(), boundaries: z.boolean(), processing: z.boolean(), evidence: z.boolean(), recall: z.literal('unmeasured'),
+  }),
+})
+export const anyArtifactSchema = z.discriminatedUnion('extraction_version', [versionOneSchema, groundedArtifactSchema, unifiedArtifactSchema])
+
+/** Python's `canonical_json` for the records' shape (no floats; ASCII keys): keys sorted, no whitespace, text as text. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value !== null && typeof value === 'object')
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(',')}}`
+  return JSON.stringify(value)
+}
+const digestOf = (value: unknown): string => createHash('sha256').update(canonicalJson(value)).digest('hex')
 
 /** A version 1 artifact: Article, and Catalog without a recipe. */
 export type KeiExpArtifact = z.infer<typeof versionOneSchema>
 export type KeiExpGroundedArtifact = z.infer<typeof groundedArtifactSchema>
 export type KeiExpGroundedEvidence = z.infer<typeof groundedEvidenceSchema>
+export type KeiExpUnifiedArtifact = z.infer<typeof unifiedArtifactSchema>
 export type KeiExpAnyArtifact = z.infer<typeof anyArtifactSchema>
 export type KeiExpCall = z.infer<typeof callSchema>
 export type KeiExpEvidence = z.infer<typeof evidenceSchema>
@@ -203,10 +287,15 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
     artifact.run_id !== request.run_id || artifact.generation !== request.generation ||
     artifact.strategy !== options.strategy || !isDeepStrictEqual(artifact.schema, request.request.schema) ||
     producedRecipe !== requestedRecipe || !isDeepStrictEqual(artifact.options.models ?? null, options.models ?? null) ||
-    !honorsRequestedOptions(artifact.options, options)
+    !honorsRequestedOptions(artifact.options, options) ||
+    // Only a unified request is answered by a version 3 artifact, and a unified request by nothing else.
+    (artifact.extraction_version === 3) !== (options.unified !== undefined)
   )
     throw new ExtractionError('invalid_model_output', 'kei-exp returned an artifact for different extraction inputs.')
   const grounded = artifact.extraction_version === 2 ? artifact : null
+  const unified = artifact.extraction_version === 3 ? artifact : null
+  if (unified && !embedsItsRecords(unified, raw as Record<string, unknown>, pins, request))
+    throw new ExtractionError('invalid_model_output', 'kei-exp returned execution or discovery records that do not belong to this Extraction.')
   const anchorId = (link: { segment: string; cell?: string | null; page: number }) => {
     const id = `a_${link.segment}${link.cell ? `_${link.cell}` : ''}`
     if (link.cell) {
@@ -219,6 +308,8 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
       )
         throw new ExtractionError('invalid_model_output', 'Cell Evidence does not belong to the pinned Source Representation.')
     }
+    if (unified && !document.evidence_index.anchors.some((anchor) => anchor.anchor_id === id))
+      throw new ExtractionError('invalid_model_output', 'Evidence does not belong to the pinned Source Representation.')
     return id
   }
   return {
@@ -230,7 +321,19 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
     outcome: 'SUCCEEDED',
     complete: artifact.complete,
     result: { records: artifact.records },
-    evidence: grounded
+    evidence: unified
+      ? unified.evidence.map((link) => ({
+          resultPath: link.path,
+          evidenceAnchorId: anchorId(link),
+          precision: link.precision,
+          verbatim: link.verbatim,
+          lexicalHits: link.hits,
+          grounding: {
+            linkedBy: link.linked_by, support: link.support, textSpans: link.spans, alternatives: link.alternatives,
+            precision: link.precision, raw: link.raw, itemSpans: link.item,
+          },
+        }))
+      : grounded
       ? grounded.evidence.map((link) => ({
           resultPath: link.path,
           evidenceAnchorId: anchorId(link),
@@ -281,6 +384,7 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
         : null,
       // Kept beside the Evidence, never turned into it: links come from `evidence` alone.
       support: artifact.quoted_support?.map(({ path: resultPath, ...proof }) => ({ resultPath, ...proof })) ?? null,
+      ...(unified ? { unified: unifiedDiagnostics(unified) } : {}),
       ...(grounded
         ? {
             grounded: {
@@ -301,5 +405,44 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
     },
     failure: null, reviewable: true,
     batchExtractionId: pins.batchExtractionId,
+  }
+}
+
+/** The execution and discovery records the artifact embeds are the ones it digests, made for this Extraction's pins:
+ *  its ID, run, generation, schema, requested unified method and the models it reports. */
+function embedsItsRecords(artifact: KeiExpUnifiedArtifact, raw: Record<string, unknown>, pins: ArtifactPins, request: KeiExtractInput): boolean {
+  const { execution, discovery } = artifact
+  return digestOf(raw.execution) === artifact.execution_sha256 && digestOf(raw.discovery) === artifact.discovery_sha256 &&
+    discovery.execution_sha256 === artifact.execution_sha256 && execution.extraction_id === pins.extractionId &&
+    execution.source.run_id === request.run_id && execution.source.generation === request.generation &&
+    execution.source.digest === artifact.digest && execution.schema_sha256 === digestOf(request.request.schema) &&
+    isDeepStrictEqual(execution.method, request.request.options.unified) && isDeepStrictEqual(execution.models, artifact.models)
+}
+
+export type UnifiedDiagnostics = ReturnType<typeof unifiedDiagnostics>
+
+/** What a researcher reviews of a unified result beside its accepted values: the method it ran under, how the source
+ *  was accounted for, what processing failed, and every proposal, rejection, conflict and uncertain list item. */
+function unifiedDiagnostics(artifact: KeiExpUnifiedArtifact) {
+  const { execution, discovery } = artifact
+  const rows = (disposition: string) => discovery.ledger.filter((row) => row.disposition === disposition)
+    .map(({ segment, start, end }) => ({ segment, start, end }))
+  return {
+    method: { requested: execution.method, effective: execution.effective },
+    records: { execution: artifact.execution_sha256, discovery: artifact.discovery_sha256 },
+    entries: discovery.entries.length,
+    unsettledEntries: discovery.entries.filter((entry) => entry.end === 'unresolved' || entry.end === 'beyond_scope')
+      .map(({ id, label, end }) => ({ id, label, end: end as 'unresolved' | 'beyond_scope' })),
+    sourceEndEntries: discovery.entries.filter((entry) => entry.end === 'source_end').map(({ id, label }) => ({ id, label })),
+    unresolved: rows('unresolved'),
+    withheld: rows('withheld'),
+    processing: artifact.processing,
+    completeness: artifact.completeness,
+    proposed: artifact.proposed,
+    rejected: artifact.rejected,
+    competitors: artifact.competitors,
+    items: artifact.items,
+    document: artifact.document,
+    contextOmitted: artifact.context_omitted,
   }
 }

@@ -10,6 +10,12 @@ const claude = {
 }
 
 describe('deploymentModels', () => {
+  it('says new Catalog Extractions use the unified method only where FREE_CATALOG_METHOD enables it', () => {
+    expect(deploymentModels({}).unifiedCatalog).toBeUndefined()
+    expect(deploymentModels({ FREE_CATALOG_METHOD: 'legacy' }).unifiedCatalog).toBeUndefined()
+    expect(deploymentModels({ FREE_CATALOG_METHOD: 'unified' }).unifiedCatalog).toBe(true)
+  })
+
   it('FREE_DEPLOYMENT_CLI_PROVIDERS enables each CLI kind as a read-only deployment connection', () => {
     const listed = (value: string | undefined) => deploymentModels({ FREE_DEPLOYMENT_CLI_PROVIDERS: value }).connections
 

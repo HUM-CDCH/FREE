@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
-import { keiExpPageSchema, parsedDocumentFromKeiExp } from '../../../prototypes/studio/api/_kei_exp.js'
+import { keiExpManifestSchema, keiExpPageSchema, parsedDocumentFromKeiExp } from '../../../prototypes/studio/api/_kei_exp.js'
+import unifiedContract from '../../../prototypes/parsing_service/tests/fixtures/contracts/extract.result.v3.json' with { type: 'json' }
 import measuredTable from '../../../prototypes/studio/test/fixtures/kei-exp/ellekilde-table-v5.json' with { type: 'json' }
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import { ExtractionError } from './errors.js'
@@ -9,7 +10,8 @@ import { acceptKeiArtifact, type ArtifactPins, type KeiExpArtifact } from './kei
 import { keiExpArtifact, keiExpCall, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
 import type { KeiExtractInput } from './kei-handoff.js'
 import { decodeParsedDocument, type ParsedDocument } from './parsed-document.js'
-import type { ExtractionModelChoice } from './types.js'
+import { occurrenceOwnership, reviewableExtraction, reviewAuthority } from './review-rules.js'
+import type { EvidenceGrounding, ExtractionModelChoice, ExtractionSnapshot, VerifiedGrounding } from './types.js'
 
 const schema = {
   recordDescription: 'Article records.',
@@ -122,8 +124,9 @@ describe('kei artifact acceptance', () => {
       raw: '1827', normalized: null,
     })
     const kreis = result.evidence!.find((link) => link.resultPath[2] === 'kreis')!
-    assert.equal(kreis.grounding!.provenance, 'inherited')
-    assert.deepEqual(kreis.grounding!.normalized, { value: 'Heidekreis', rule: 'glossary',
+    const inherited = kreis.grounding as EvidenceGrounding
+    assert.equal(inherited.provenance, 'inherited')
+    assert.deepEqual(inherited.normalized, { value: 'Heidekreis', rule: 'glossary',
       keySpan: { segment: 'p1_s0', start: 0, end: 5 }, expansionSpan: { segment: 'p1_s0', start: 8, end: 18 } })
     assert.equal(kreis.evidenceAnchorId, 'a_p1_s1')
     const report = result.diagnostics.grounded!
@@ -331,5 +334,89 @@ describe('what the Parsing Service reports it ran', () => {
     assert.deepEqual(extraction.diagnostics.grounded?.proposed, proposed)
     assert.equal(extraction.diagnostics.grounded?.completeness.grounding, false)
     assert.deepEqual(extraction.evidence, [])
+  })
+})
+
+describe('unified Catalog artifacts', () => {
+  // A version 3 artifact the Parsing Service produced (`test_unified_catalog.py`), with the page files it read.
+  const input = unifiedContract.request as unknown as KeiExtractInput
+  const manifest = keiExpManifestSchema.parse(unifiedContract.manifest)
+  const pinned = decodeParsedDocument(parsedDocumentFromKeiExp(input.run_id, manifest,
+    unifiedContract.pages.map((page) => keiExpPageSchema.parse(page)),
+    { sha256: manifest.recipe.source_sha256, originalFilename: 'katalog.pdf', byteSize: 1 }, new Date()).document)
+  const pins: ArtifactPins = {
+    extractionId: unifiedContract.extraction_id, sourceDocumentId: 'source', sourceRepresentationRevisionId: randomUUID(),
+    schemaRevisionId: randomUUID(), strategy: 'CATALOG', batchExtractionId: null,
+  }
+  const produced = () => structuredClone(unifiedContract.artifact) as Record<string, unknown> & typeof unifiedContract.artifact
+  const acceptUnified = (raw: unknown, request: KeiExtractInput = input, at: ArtifactPins = pins) =>
+    acceptKeiArtifact(at, pinned, raw, request)
+
+  it('accepts the service\'s artifact with its records, verified evidence and separated accounting', () => {
+    const result = acceptUnified(produced())
+    assert.deepEqual(result.result, { records: unifiedContract.artifact.records })
+    assert.equal(result.complete, true)
+    const material = result.evidence!.find((link) => link.resultPath[2] === 'material' && link.resultPath[1] === 1)!
+    assert.equal(material.evidenceAnchorId, 'a_p1_s2')
+    const grounding = material.grounding as VerifiedGrounding
+    assert.equal(grounding.linkedBy, 'verification')
+    assert.equal(grounding.support, 'literal')
+    assert.equal(grounding.raw, 'Jade')
+    const unified = result.diagnostics.unified!
+    assert.deepEqual(unified.completeness, unifiedContract.artifact.completeness)
+    assert.deepEqual(unified.method.requested, { defaults: 1 })
+    assert.equal(unified.records.discovery, unifiedContract.artifact.discovery_sha256)
+    assert.equal(unified.entries, 2)
+    assert.deepEqual(unified.unresolved, [])
+    assert.equal(unified.document.status, 'unverified')
+    assert.deepEqual(result.diagnostics.unverifiedFields, ['title'])
+  })
+
+  it('refuses records that are not the digested ones for this Extraction', () => {
+    const ledger = produced()
+    ledger.discovery.ledger[0]!.disposition = 'unresolved'
+    refused(() => acceptUnified(ledger))
+    const budget = produced()
+    budget.execution.effective.overlap = 0
+    refused(() => acceptUnified(budget))
+    refused(() => acceptUnified(produced(), input, { ...pins, extractionId: randomUUID() }))
+    const method = structuredClone(input)
+    method.request.options.unified = { defaults: 1, verification: false }
+    refused(() => acceptUnified(produced(), method))
+  })
+
+  it('pairs the unified request with version 3 alone', () => {
+    const legacy = structuredClone(input)
+    delete (legacy.request.options as Record<string, unknown>).unified
+    refused(() => acceptUnified(produced(), legacy))
+    refused(() => acceptUnified(keiExpArtifact({ run_id: input.run_id, generation: input.generation, strategy: 'catalog',
+      model: unifiedContract.artifact.model, schema: input.request.schema as never, options: input.request.options }), input))
+  })
+
+  it('is reviewable as accepted: each populated record value has exactly one link, and each link one decision', () => {
+    const accepted = acceptUnified(produced())
+    const snapshot: ExtractionSnapshot = {
+      extractionId: pins.extractionId, sourceDocumentId: 'source', sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
+      sourceRepresentationRevisionNumber: 1, schemaRevisionId: pins.schemaRevisionId, extractionSchemaId: 'schema',
+      schemaRevisionNumber: 1, strategy: 'CATALOG', catalogRecipe: null, requestedSettings: { unified: { defaults: 1 } },
+      outcome: 'SUCCEEDED', complete: accepted.complete, modelAttribution: accepted.modelAttribution,
+      diagnostics: accepted.diagnostics, result: accepted.result, evidence: accepted.evidence, failure: null,
+      reviewable: true, batchExtractionId: null, createdAt: new Date(0), reviewedAt: null, reviewDecisions: [],
+    }
+    const owners = occurrenceOwnership(pinned)
+    const decisions = accepted.evidence!.map((link) => ({
+      resultPath: link.resultPath, evidenceAnchorId: link.evidenceAnchorId,
+      reviewedOccurrenceIds: [...(owners.get(link.evidenceAnchorId) ?? [])], action: 'APPROVED' as const, reviewedValue: null,
+    }))
+    const authority = reviewAuthority({ extraction: reviewableExtraction(snapshot), document: pinned,
+      schemaTree: input.request.schema, decisions, expectedDraftVersion: 1 })
+    assert.equal(authority.reviewDecisions.length, accepted.evidence!.length)
+    assert.ok(accepted.evidence!.some((link) => link.resultPath.includes('finds')))  // a list item's values review too
+  })
+
+  it('refuses evidence the pinned Source Representation does not have', () => {
+    const foreign = produced()
+    foreign.evidence[0]!.segment = 'p9_s9'
+    refused(() => acceptUnified(foreign))
   })
 })

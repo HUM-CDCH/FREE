@@ -101,6 +101,8 @@ function definiteRejection(error: unknown): error is ApiRequestError {
 /** PR #140: a run on a Source Representation that reprocessing replaced is refused before anything starts. */
 const SOURCE_REPRESENTATION_SUPERSEDED = 'source_representation_superseded'
 const METHOD_CHANGED = 'method_changed'
+/** Legacy Catalog preferences wait for their migration: refreshable, like a changed method. */
+const MIGRATION_REQUIRED = 'catalog_migration_required'
 
 export type ExtractionController = ReturnType<typeof useExtraction>
 
@@ -468,7 +470,7 @@ export function useExtraction({
         onSuperseded?.()
         return null
       }
-      if (definiteRejection(error) && error.code === METHOD_CHANGED) {
+      if (definiteRejection(error) && (error.code === METHOD_CHANGED || error.code === MIGRATION_REQUIRED)) {
         // Nothing started: the previous attempt stays, and the start view refreshes its summary.
         monitorRef.current = null
         setState(extractionStateFromAttempt(attempt))

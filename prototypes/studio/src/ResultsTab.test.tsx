@@ -1715,7 +1715,7 @@ describe('ResultsTab recipe review material', () => {
 
   it('says what tied each accepted value to its field, and drops it once the value is edited', () => {
     const span = { segment: 'p1_s2', start: 0, end: 2 }
-    const link = (field: string, grounding: Partial<NonNullable<EvidenceLink['grounding']>>): EvidenceLink => ({
+    const link = (field: string, grounding: Partial<Extract<NonNullable<EvidenceLink['grounding']>, { provenance: unknown }>>): EvidenceLink => ({
       resultPath: ['records', 0, field], evidenceAnchorId: `a_${field}`, verbatim: true, lexicalHits: 1,
       grounding: { linkedBy: 'structure', provenance: 'positional', textSpans: [span], keySpans: [], alternatives: [],
                    heading: null, precision: 'segment', raw: 'x', normalized: null, ...grounding },

@@ -27,7 +27,7 @@ TRANSIENT_STATUS = (429, 502, 503, 504)
 
 CODES = ("invalid_request", "source_missing", "source_mismatch", "source_unreadable", "too_many_pages",
          "model_unavailable", "conversion_failed", "conversion_incomplete", "no_result", "stale_generation",
-         "extraction_failed", "cancelled")
+         "extraction_failed", "cancelled", "budget_refused")
 REASON_CHARS = 2000
 
 
@@ -51,7 +51,9 @@ def classify(error: BaseException) -> BaseException:
     # DBOS retries its own writes through a system-database outage, but not its reads. An outage can still reach a
     # step that reads. The model steps' cooperative cancel check fails open on it (workflows/cancel.py) and never
     # classifies it. delete_runs ends ERROR, and Studio's next schedule runs it again.
-    if isinstance(error, (requests.ConnectionError, requests.Timeout, ConnectionError, TimeoutError)):
+    # A server that dies mid-reply leaves a body cut short (ChunkedEncodingError): the backend, not the request.
+    if isinstance(error, (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError,
+                          ConnectionError, TimeoutError)):
         return TransientBackendError(str(error))
     if isinstance(error, requests.HTTPError):
         status = getattr(error.response, "status_code", None)

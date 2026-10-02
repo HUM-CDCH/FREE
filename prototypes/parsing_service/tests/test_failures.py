@@ -23,6 +23,7 @@ def http_error(status: int) -> requests.HTTPError:
     ConversionError("the OCR server is unreachable"), ConversionError("503 Service Unavailable"),
     ConversionError("Surya failed; output not written: incomplete response, connection timed out"),
     http_error(429), http_error(502), http_error(503), http_error(504),
+    requests.exceptions.ChunkedEncodingError("Connection broken: IncompleteRead(0 bytes read)"),  # died mid-reply
 ])
 def test_a_backend_that_is_not_ready_is_retried(error):
     assert isinstance(classify(error), TransientBackendError)
@@ -77,7 +78,8 @@ def test_every_failure_a_step_raises_survives_dbos_pickling():
     except json.JSONDecodeError as error:
         decode = error
     for error in (KeiFailure("no_result", "none"), TransientBackendError("down"), http_error(503), decode,
-                  ConversionError("x"), IncompleteConversionError("y"), StaleGeneration("z"), ResultError("r")):
+                  ConversionError("x"), IncompleteConversionError("y"), StaleGeneration("z"), ResultError("r"),
+                  requests.exceptions.ChunkedEncodingError("broken")):
         back = pickle.loads(pickle.dumps(error))
         assert type(back) is type(error) and str(back) == str(error)
     assert pickle.loads(pickle.dumps(KeiFailure("no_result", "none"))).code == "no_result"

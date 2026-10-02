@@ -189,3 +189,15 @@ test("a data key the approved schema does not declare never becomes a column", (
   );
   assert.deepEqual(table.columns, ["title", "items.0.name"]);
 });
+
+test("exports a unified Catalog result the Parsing Service produced, by list item or by record", async () => {
+  const contract = (await import("../../../prototypes/parsing_service/tests/fixtures/contracts/extract.result.v3.json",
+    { with: { type: "json" } })).default;
+  const nodes = contract.request.request.schema.schemaNodes as SchemaNode[];
+  const byItem = buildExportTable(nodes, contract.artifact.records, choices("finds"));
+  assert.deepEqual(byItem.columns, ["label", "site", "material", "gilded", "finds.name", "finds.count", "title"]);
+  assert.deepEqual(byItem.rows.map((row) => [row.label, row["finds.name"], row["finds.count"], row.title]),
+    [["12", "Nadel", 2, "Fundkatalog Süd"]]);
+  const byRecord = buildExportTable(nodes, contract.artifact.records, choices(ROOT_ROWS));
+  assert.deepEqual(byRecord.rows.map((row) => [row.label, row.material, row.gilded]), [["12", "Bronze", null], ["第3号", "Jade", true]]);
+});

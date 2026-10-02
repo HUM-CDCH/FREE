@@ -1,0 +1,932 @@
+{
+  "extraction_id": "x-contract",
+  "request": {
+    "run_id": "run-contract",
+    "generation": "20260923T000000.000000Z-fixture0",
+    "request": {
+      "schema": {
+        "recordDescription": "One entry of a catalogue of finds.",
+        "schemaNodes": [
+          {
+            "id": "l",
+            "name": "label",
+            "type": "string",
+            "description": "the printed number or mark"
+          },
+          {
+            "id": "s",
+            "name": "site",
+            "type": "string"
+          },
+          {
+            "id": "m",
+            "name": "material",
+            "type": "string"
+          },
+          {
+            "id": "g",
+            "name": "gilded",
+            "type": "boolean"
+          },
+          {
+            "id": "f",
+            "name": "finds",
+            "type": "array",
+            "children": [
+              {
+                "id": "fn",
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "id": "fc",
+                "name": "count",
+                "type": "integer"
+              }
+            ]
+          },
+          {
+            "id": "t",
+            "name": "title",
+            "type": "string",
+            "valueSource": "document"
+          }
+        ]
+      },
+      "options": {
+        "strategy": "catalog",
+        "unified": {
+          "defaults": 1
+        }
+      }
+    }
+  },
+  "manifest": {
+    "result_version": 5,
+    "generation": "20260923T000000.000000Z-fixture0",
+    "digest": "13fb4aedf49360bac12ed33738e31a730bc00032d7c95e08a3669ca3b3e4a5ca",
+    "fingerprint": "0c24bb052da1381a6716daad8015ea50114b9b59dfe22d7b11940a36ad7f3a7e",
+    "recipe": {
+      "result_version": 5,
+      "source_sha256": "3143c8b69ebfb01218bdd8c06acc72e38926d4b89e7c08f442d554439ef69ffb",
+      "transcriber": "native",
+      "page_source": "pdf"
+    },
+    "source_name": "katalog.pdf",
+    "page_count": 1,
+    "effective": {},
+    "started": null,
+    "seconds": null,
+    "status": "success",
+    "incomplete": null,
+    "pages": {
+      "1": {
+        "sha256": "cd551d4e093affaf9718eb89a138e470f42c48cb2f1cbb8289b3e9528bc55239",
+        "complete": true
+      }
+    },
+    "tokens": {
+      "input": null,
+      "output": null
+    }
+  },
+  "pages": [
+    {
+      "generation": "20260923T000000.000000Z-fixture0",
+      "page": 1,
+      "size_pt": [
+        842.0,
+        595.0
+      ],
+      "units": [
+        {
+          "index": 0,
+          "kind": "pdf_page",
+          "bbox_pt": [
+            0.0,
+            0.0,
+            842.0,
+            595.0
+          ],
+          "crops": []
+        }
+      ],
+      "segments": [
+        {
+          "text": "Vorwort: Funde aus Schäfers Grabung. Title: Fundkatalog Süd.",
+          "html": "<p>Vorwort: Funde aus Schäfers Grabung. Title: Fundkatalog Süd.</p>",
+          "markdown": null,
+          "label": "Text",
+          "confidence": null,
+          "status": "ok",
+          "unit": 0,
+          "crop": null,
+          "bbox_px": [
+            2.0,
+            36.0,
+            840.0,
+            48.0
+          ],
+          "bbox_pt": [
+            2.0,
+            36.0,
+            840.0,
+            48.0
+          ],
+          "extent": "block",
+          "table": null
+        },
+        {
+          "text": "12. Adorf. Material: Bronze. Find: Nadel (2).",
+          "html": "<p>12. Adorf. Material: Bronze. Find: Nadel (2).</p>",
+          "markdown": null,
+          "label": "Text",
+          "confidence": null,
+          "status": "ok",
+          "unit": 0,
+          "crop": null,
+          "bbox_px": [
+            2.0,
+            50.0,
+            840.0,
+            62.0
+          ],
+          "bbox_pt": [
+            2.0,
+            50.0,
+            840.0,
+            62.0
+          ],
+          "extent": "block",
+          "table": null
+        },
+        {
+          "text": "第3号 北京出土 Material: Jade. Gilded.",
+          "html": "<p>第3号 北京出土 Material: Jade. Gilded.</p>",
+          "markdown": null,
+          "label": "Text",
+          "confidence": null,
+          "status": "ok",
+          "unit": 0,
+          "crop": null,
+          "bbox_px": [
+            2.0,
+            64.0,
+            840.0,
+            76.0
+          ],
+          "bbox_pt": [
+            2.0,
+            64.0,
+            840.0,
+            76.0
+          ],
+          "extent": "block",
+          "table": null
+        }
+      ],
+      "markdown": "Vorwort: Funde aus Schäfers Grabung. Title: Fundkatalog Süd.\n\n12. Adorf. Material: Bronze. Find: Nadel (2).\n\n第3号 北京出土 Material: Jade. Gilded.",
+      "complete": true,
+      "warnings": []
+    }
+  ],
+  "artifact": {
+    "extraction_version": 3,
+    "run_id": "run-contract",
+    "generation": "20260923T000000.000000Z-fixture0",
+    "digest": "13fb4aedf49360bac12ed33738e31a730bc00032d7c95e08a3669ca3b3e4a5ca",
+    "strategy": "catalog",
+    "model": "fake/extractor",
+    "models": {
+      "fields": "fake/extractor",
+      "reasoning": "fake/extractor"
+    },
+    "prompt_version": 3,
+    "schema": {
+      "recordDescription": "One entry of a catalogue of finds.",
+      "schemaNodes": [
+        {
+          "id": "l",
+          "name": "label",
+          "description": "the printed number or mark",
+          "type": "string"
+        },
+        {
+          "id": "s",
+          "name": "site",
+          "type": "string"
+        },
+        {
+          "id": "m",
+          "name": "material",
+          "type": "string"
+        },
+        {
+          "id": "g",
+          "name": "gilded",
+          "type": "boolean"
+        },
+        {
+          "id": "f",
+          "name": "finds",
+          "type": "array",
+          "children": [
+            {
+              "id": "fn",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "id": "fc",
+              "name": "count",
+              "type": "integer"
+            }
+          ]
+        },
+        {
+          "id": "t",
+          "name": "title",
+          "valueSource": "document",
+          "type": "string"
+        }
+      ]
+    },
+    "options": {
+      "strategy": "catalog",
+      "models": null,
+      "unified": {
+        "defaults": 1
+      }
+    },
+    "started": "2026-09-29T12:00:00+00:00",
+    "seconds": 0.0,
+    "execution": {
+      "defaults": {
+        "headings": true,
+        "overlap": 1,
+        "reserves": {
+          "arbitration": 512,
+          "discovery": 4096,
+          "document": 2048,
+          "entry": 4096,
+          "verification": 2048
+        },
+        "splits": 6,
+        "verification": true
+      },
+      "discovery_version": 3,
+      "effective": {
+        "headings": true,
+        "overlap": 1,
+        "splits": 6,
+        "stages": {
+          "arbitration": {
+            "input_tokens": 15872,
+            "output_tokens": 512,
+            "role": "reasoning"
+          },
+          "discovery": {
+            "input_tokens": 12288,
+            "output_tokens": 4096,
+            "role": "reasoning"
+          },
+          "document": {
+            "input_tokens": 14336,
+            "output_tokens": 2048,
+            "role": "fields"
+          },
+          "entry": {
+            "input_tokens": 12288,
+            "output_tokens": 4096,
+            "role": "fields"
+          },
+          "verification": {
+            "input_tokens": 14336,
+            "output_tokens": 2048,
+            "role": "reasoning"
+          }
+        },
+        "verification": true
+      },
+      "extraction_id": "x-contract",
+      "method": {
+        "defaults": 1
+      },
+      "models": {
+        "fields": "fake/extractor",
+        "reasoning": "fake/extractor"
+      },
+      "prompt_version": 3,
+      "schema_sha256": "0e0d400148f0e43b6240489a9e2e79768e6d0b5085c45c0ef9d92bfb17fe538a",
+      "source": {
+        "digest": "13fb4aedf49360bac12ed33738e31a730bc00032d7c95e08a3669ca3b3e4a5ca",
+        "generation": "20260923T000000.000000Z-fixture0",
+        "run_id": "run-contract"
+      },
+      "tokenizers": {
+        "fields": {
+          "context_tokens": 16384,
+          "model": "fake/extractor",
+          "model_digest": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+          "source": "words",
+          "template_tokens": 5
+        },
+        "reasoning": {
+          "context_tokens": 16384,
+          "model": "fake/extractor",
+          "model_digest": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+          "source": "words",
+          "template_tokens": 5
+        }
+      },
+      "version": 1
+    },
+    "execution_sha256": "d255277ac5fc18d36a9eda5d249337d44f0e53e7d77240296d0fe29d2b3f98e3",
+    "discovery": {
+      "calls": [
+        {
+          "context_tokens": 16384,
+          "counted_input_tokens": 244,
+          "error": null,
+          "finish": "stop",
+          "input_tokens": 244,
+          "max_output_tokens": 4096,
+          "milliseconds": 0,
+          "ok": true,
+          "output_tokens": 5,
+          "record": null,
+          "stage": "discovery"
+        }
+      ],
+      "entries": [
+        {
+          "context": [
+            {
+              "end": 60,
+              "segment": "p1_s0",
+              "start": 0
+            }
+          ],
+          "end": "validated",
+          "id": "p1_s1@0",
+          "label": "12.",
+          "ranges": [
+            {
+              "end": 45,
+              "segment": "p1_s1",
+              "start": 0
+            }
+          ]
+        },
+        {
+          "context": [
+            {
+              "end": 60,
+              "segment": "p1_s0",
+              "start": 0
+            }
+          ],
+          "end": "validated",
+          "id": "p1_s2@0",
+          "label": "第3号",
+          "ranges": [
+            {
+              "end": 32,
+              "segment": "p1_s2",
+              "start": 0
+            }
+          ]
+        }
+      ],
+      "execution_sha256": "d255277ac5fc18d36a9eda5d249337d44f0e53e7d77240296d0fe29d2b3f98e3",
+      "issues": [],
+      "ledger": [
+        {
+          "disposition": "other",
+          "end": 60,
+          "entry": null,
+          "segment": "p1_s0",
+          "start": 0
+        },
+        {
+          "disposition": "entry",
+          "end": 45,
+          "entry": "p1_s1@0",
+          "segment": "p1_s1",
+          "start": 0
+        },
+        {
+          "disposition": "entry",
+          "end": 32,
+          "entry": "p1_s2@0",
+          "segment": "p1_s2",
+          "start": 0
+        }
+      ],
+      "version": 3,
+      "windows": [
+        {
+          "begins_inside_record": false,
+          "context_omitted": [],
+          "ends_inside_record": false,
+          "ok": true,
+          "places": 3,
+          "primary": [
+            {
+              "end": 60,
+              "segment": "p1_s0",
+              "start": 0
+            },
+            {
+              "end": 32,
+              "segment": "p1_s2",
+              "start": 0
+            }
+          ]
+        }
+      ]
+    },
+    "discovery_sha256": "14f221686791c3da4a2515daf9bad3dc40a09320bf8d90f3b6325099197f3124",
+    "records": [
+      {
+        "label": "12",
+        "site": "Adorf",
+        "material": "Bronze",
+        "gilded": null,
+        "finds": [
+          {
+            "name": "Nadel",
+            "count": 2
+          }
+        ],
+        "title": "Fundkatalog Süd"
+      },
+      {
+        "label": "第3号",
+        "site": "北京出土 Material: Jade",
+        "material": "Jade",
+        "gilded": true,
+        "finds": null,
+        "title": "Fundkatalog Süd"
+      }
+    ],
+    "evidence": [
+      {
+        "path": [
+          "records",
+          0,
+          "label"
+        ],
+        "segment": "p1_s1",
+        "page": 1,
+        "bbox_pt": [
+          2.0,
+          50.0,
+          840.0,
+          62.0
+        ],
+        "cell": null,
+        "precision": "segment",
+        "hits": 1,
+        "spans": [
+          {
+            "segment": "p1_s1",
+            "start": 0,
+            "end": 2
+          }
+        ],
+        "alternatives": [],
+        "raw": "12",
+        "verbatim": true,
+        "support": "literal",
+        "linked_by": "verification",
+        "item": null
+      },
+      {
+        "path": [
+          "records",
+          0,
+          "site"
+        ],
+        "segment": "p1_s1",
+        "page": 1,
+        "bbox_pt": [
+          2.0,
+          50.0,
+          840.0,
+          62.0
+        ],
+        "cell": null,
+        "precision": "segment",
+        "hits": 1,
+        "spans": [
+          {
+            "segment": "p1_s1",
+            "start": 4,
+            "end": 9
+          }
+        ],
+        "alternatives": [],
+        "raw": "Adorf",
+        "verbatim": true,
+        "support": "literal",
+        "linked_by": "verification",
+        "item": null
+      },
+      {
+        "path": [
+          "records",
+          0,
+          "material"
+        ],
+        "segment": "p1_s1",
+        "page": 1,
+        "bbox_pt": [
+          2.0,
+          50.0,
+          840.0,
+          62.0
+        ],
+        "cell": null,
+        "precision": "segment",
+        "hits": 1,
+        "spans": [
+          {
+            "segment": "p1_s1",
+            "start": 21,
+            "end": 27
+          }
+        ],
+        "alternatives": [],
+        "raw": "Bronze",
+        "verbatim": true,
+        "support": "literal",
+        "linked_by": "verification",
+        "item": null
+      },
+      {
+        "path": [
+          "records",
+          0,
+          "finds",
+          0,
+          "name"
+        ],
+        "segment": "p1_s1",
+        "page": 1,
+        "bbox_pt": [
+          2.0,
+          50.0,
+          840.0,
+          62.0
+        ],
+        "cell": null,
+        "precision": "segment",
+        "hits": 1,
+        "spans": [
+          {
+            "segment": "p1_s1",
+            "start": 35,
+            "end": 40
+          }
+        ],
+        "alternatives": [],
+        "raw": "Nadel",
+        "verbatim": true,
+        "support": "literal",
+        "linked_by": "verification",
+        "item": [
+          {
+            "segment": "p1_s1",
+            "start": 29,
+            "end": 44
+          }
+        ]
+      },
+      {
+        "path": [
+          "records",
+          0,
+          "finds",
+          0,
+          "count"
+        ],
+        "segment": "p1_s1",
+        "page": 1,
+        "bbox_pt": [
+          2.0,
+          50.0,
+          840.0,
+          62.0
+        ],
+        "cell": null,
+        "precision": "segment",
+        "hits": 1,
+        "spans": [
+          {
+            "segment": "p1_s1",
+            "start": 42,
+            "end": 43
+          }
+        ],
+        "alternatives": [],
+        "raw": "2",
+        "verbatim": true,
+        "support": "literal",
+        "linked_by": "verification",
+        "item": [
+          {
+            "segment": "p1_s1",
+            "start": 29,
+            "end": 44
+          }
+        ]
+      },
+      {
+        "path": [
+          "records",
+          1,
+          "label"
+        ],
+        "segment": "p1_s2",
+        "page": 1,
+        "bbox_pt": [
+          2.0,
+          64.0,
+          840.0,
+          76.0
+        ],
+        "cell": null,
+        "precision": "segment",
+        "hits": 1,
+        "spans": [
+          {
+            "segment": "p1_s2",
+            "start": 0,
+            "end": 3
+          }
+        ],
+        "alternatives": [],
+        "raw": "第3号",
+        "verbatim": true,
+        "support": "literal",
+        "linked_by": "verification",
+        "item": null
+      },
+      {
+        "path": [
+          "records",
+          1,
+          "site"
+        ],
+        "segment": "p1_s2",
+        "page": 1,
+        "bbox_pt": [
+          2.0,
+          64.0,
+          840.0,
+          76.0
+        ],
+        "cell": null,
+        "precision": "segment",
+        "hits": 1,
+        "spans": [
+          {
+            "segment": "p1_s2",
+            "start": 4,
+            "end": 23
+          }
+        ],
+        "alternatives": [],
+        "raw": "北京出土 Material: Jade",
+        "verbatim": true,
+        "support": "literal",
+        "linked_by": "verification",
+        "item": null
+      },
+      {
+        "path": [
+          "records",
+          1,
+          "material"
+        ],
+        "segment": "p1_s2",
+        "page": 1,
+        "bbox_pt": [
+          2.0,
+          64.0,
+          840.0,
+          76.0
+        ],
+        "cell": null,
+        "precision": "segment",
+        "hits": 1,
+        "spans": [
+          {
+            "segment": "p1_s2",
+            "start": 19,
+            "end": 23
+          }
+        ],
+        "alternatives": [],
+        "raw": "Jade",
+        "verbatim": true,
+        "support": "literal",
+        "linked_by": "verification",
+        "item": null
+      },
+      {
+        "path": [
+          "records",
+          1,
+          "gilded"
+        ],
+        "segment": "p1_s2",
+        "page": 1,
+        "bbox_pt": [
+          2.0,
+          64.0,
+          840.0,
+          76.0
+        ],
+        "cell": null,
+        "precision": "segment",
+        "hits": 1,
+        "spans": [
+          {
+            "segment": "p1_s2",
+            "start": 25,
+            "end": 31
+          }
+        ],
+        "alternatives": [],
+        "raw": "Gilded",
+        "verbatim": false,
+        "support": "supporting",
+        "linked_by": "verification",
+        "item": null
+      }
+    ],
+    "proposed": [],
+    "rejected": [],
+    "competitors": [],
+    "items": [
+      {
+        "observed": 1,
+        "partial": 0,
+        "path": [
+          "records",
+          0,
+          "finds"
+        ],
+        "resolved": 1
+      }
+    ],
+    "document": {
+      "status": "unverified",
+      "applicable": true,
+      "candidates": [
+        {
+          "path": [
+            "title"
+          ],
+          "value": "Fundkatalog Süd",
+          "quote": "Title: Fundkatalog Süd",
+          "support": "literal",
+          "spans": [
+            {
+              "segment": "p1_s0",
+              "start": 44,
+              "end": 59
+            }
+          ],
+          "alternatives": [],
+          "window": 0,
+          "reason": "document_unverified",
+          "raw": "Fundkatalog Süd",
+          "item": null
+        }
+      ],
+      "conflicts": []
+    },
+    "context_omitted": [],
+    "ungrounded": [],
+    "unverified": [
+      "title"
+    ],
+    "processing": {
+      "discovery": {
+        "windows": 1,
+        "failed": 0
+      },
+      "entries": {
+        "entries": 2,
+        "windows": 2,
+        "failed": 0
+      },
+      "verification": {
+        "enabled": true,
+        "undecided": 0
+      },
+      "document": {
+        "applicable": true,
+        "windows": 1,
+        "failed": 0
+      }
+    },
+    "completeness": {
+      "accounting": true,
+      "boundaries": true,
+      "processing": true,
+      "evidence": true,
+      "recall": "unmeasured"
+    },
+    "complete": true,
+    "issues": [],
+    "calls": [
+      {
+        "stage": "discovery",
+        "record": null,
+        "input_tokens": 244,
+        "output_tokens": 5,
+        "seconds": 0.0,
+        "finish": "stop",
+        "ok": true,
+        "error": null,
+        "counted_input_tokens": 244,
+        "context_tokens": 16384,
+        "max_output_tokens": 4096
+      },
+      {
+        "stage": "entry",
+        "record": 0,
+        "input_tokens": 168,
+        "output_tokens": 5,
+        "seconds": 0.0,
+        "finish": "stop",
+        "ok": true,
+        "error": null,
+        "counted_input_tokens": 168,
+        "context_tokens": 16384,
+        "max_output_tokens": 4096
+      },
+      {
+        "stage": "verification",
+        "record": 0,
+        "input_tokens": 150,
+        "output_tokens": 5,
+        "seconds": 0.0,
+        "finish": "stop",
+        "ok": true,
+        "error": null,
+        "counted_input_tokens": 150,
+        "context_tokens": 16384,
+        "max_output_tokens": 2048
+      },
+      {
+        "stage": "entry",
+        "record": 1,
+        "input_tokens": 166,
+        "output_tokens": 5,
+        "seconds": 0.0,
+        "finish": "stop",
+        "ok": true,
+        "error": null,
+        "counted_input_tokens": 166,
+        "context_tokens": 16384,
+        "max_output_tokens": 4096
+      },
+      {
+        "stage": "verification",
+        "record": 1,
+        "input_tokens": 146,
+        "output_tokens": 5,
+        "seconds": 0.0,
+        "finish": "stop",
+        "ok": true,
+        "error": null,
+        "counted_input_tokens": 146,
+        "context_tokens": 16384,
+        "max_output_tokens": 2048
+      },
+      {
+        "stage": "document",
+        "record": null,
+        "input_tokens": 106,
+        "output_tokens": 5,
+        "seconds": 0.0,
+        "finish": "stop",
+        "ok": true,
+        "error": null,
+        "counted_input_tokens": 106,
+        "context_tokens": 16384,
+        "max_output_tokens": 2048
+      }
+    ],
+    "tokens": {
+      "input": 980,
+      "output": 30
+    },
+    "fingerprint": "686db0737090af9e0ad25db9ec793a696bbcc036f09d32e883f0e220bb84a77f"
+  }
+}

@@ -95,6 +95,7 @@ export const keiDeleteRunsOkSchema = z.object({
 export const KEI_FAILURE_CODES = [
   'invalid_request', 'source_missing', 'source_mismatch', 'source_unreadable', 'too_many_pages', 'model_unavailable',
   'conversion_failed', 'conversion_incomplete', 'no_result', 'stale_generation', 'extraction_failed', 'cancelled',
+  'budget_refused',
 ] as const
 export const keiFailureSchema = z.object({
   ok: z.literal(false), code: z.enum(KEI_FAILURE_CODES), reason: z.string(), retryable: z.boolean(),

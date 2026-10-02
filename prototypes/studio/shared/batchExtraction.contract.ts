@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from 'extraction/batch'
-import { extractionMethodIntentSchema, settingsSlot } from 'extraction/extraction-method'
+import { extractionMethodIntentSchema, settingsFit } from 'extraction/extraction-method'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 import { contestedValueSchema, extractionStrategySchema, methodRuleIssues } from './extraction.contract.js'
 
@@ -45,7 +45,7 @@ export function batchMethodFitsStrategy(request: {
   strategy: z.output<typeof extractionStrategySchema>
   method: z.output<typeof extractionMethodIntentSchema>
 }): boolean {
-  return settingsSlot(request.strategy, null) in request.method.settings
+  return settingsFit(request.strategy, null, request.method.settings)
 }
 
 export type BatchExtractionRequest = z.infer<typeof batchExtractionRequestSchema>

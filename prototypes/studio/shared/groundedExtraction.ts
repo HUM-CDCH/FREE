@@ -36,6 +36,20 @@ export const evidenceGroundingSchema = z
   })
   .strict()
 
+/** Version 3 (unified Catalog) evidence detail: a separate verification accepted the value; `literal` spans print it,
+ *  `supporting` spans are the passage that supports a yes/no, a label or a derived value. */
+export const verifiedGroundingSchema = z
+  .object({
+    linkedBy: z.literal('verification'),
+    support: z.enum(['literal', 'supporting']),
+    textSpans: z.array(textSpanSchema).min(1),
+    alternatives: z.array(z.array(textSpanSchema)),
+    precision: z.enum(['cell', 'segment', 'input']),
+    raw: z.string(),
+    itemSpans: z.array(textSpanSchema).nullable(),
+  })
+  .strict()
+
 export const evidenceLinkSchema = z
   .object({
     resultPath: resultPathSchema,
@@ -46,8 +60,8 @@ export const evidenceLinkSchema = z
     lexicalHits: z.number().int().nonnegative().optional(),
     // Absent means the grounder chose the anchor.
     linkedBy: z.enum(['citation_lexical', 'lexical']).optional(),
-    // Present only on version 2 results.
-    grounding: evidenceGroundingSchema.optional(),
+    // Present only on version 2 and version 3 results.
+    grounding: z.union([evidenceGroundingSchema, verifiedGroundingSchema]).optional(),
   })
   .strict()
 

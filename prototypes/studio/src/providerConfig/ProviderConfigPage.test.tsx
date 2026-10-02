@@ -1065,6 +1065,73 @@ describe('Advanced', () => {
     expect(server.puts()[1]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE })
   })
 
+  it('with the unified Catalog, one group replaces Generic and Recipe; a cleared ceiling is Auto again', async () => {
+    const server = studio(config(), { deployment: { ...NO_DEPLOYMENT, unifiedCatalog: true } })
+    await renderPage()
+    openAdvanced()
+    fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
+    expect(screen.queryByText('Generic Catalog')).not.toBeInTheDocument()
+    expect(screen.queryByText('Recipe Catalog')).not.toBeInTheDocument()
+    expect(screen.getByText('Service defaults, version 1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
+    setting('Input token ceiling')
+    const ceiling = screen.getByRole('textbox', { name: 'Input token ceiling' })
+    expect(ceiling).toHaveValue('')
+    expect(ceiling).toHaveAttribute('placeholder', 'Auto')
+    fireEvent.change(ceiling, { target: { value: '100' } })
+    expect(screen.getByText(METHOD_MESSAGES.inputTokens, { selector: 'p' })).toBeVisible()
+    // One control per view: from another view, the issue summary brings the ceiling back and focuses it.
+    setting('Verification')
+    expect(screen.queryByRole('textbox', { name: 'Input token ceiling' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '1 issue blocks Apply' }))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Input token ceiling' })).toHaveFocus())
+    fireEvent.change(ceiling, { target: { value: '' } })
+    setting('Window overlap')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Window overlap' }), { target: { value: '0' } })
+    setting('Verification')
+    fireEvent.click(screen.getByRole('switch', { name: 'Verification' }))
+    expect(screen.getByText(/Off keeps typed values as proposals/)).toBeInTheDocument()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, verification: false } })
+  })
+
+  it('retired Catalog controls are shown, never converted, and replaced only by an applied unified group', async () => {
+    const legacy = { generic: { record_chars: 30_000 }, recipe: { factors: { glossary: false, headings: true, overlap: true, verification: true } } }
+    const server = studio(config({ extractionSettings: { article: REFERENCE_ARTICLE, catalog: legacy } }),
+      { deployment: { ...NO_DEPLOYMENT, unifiedCatalog: true } })
+    await renderPage()
+    openAdvanced()
+    fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
+    const note = screen.getByRole('note')
+    expect(note).toHaveTextContent('Record text limit: 30,000 characters')
+    expect(note).toHaveTextContent('Recipe factors off: glossary')
+    expect(note).toHaveTextContent('They are not converted')
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE, catalog: { unified: {} } })
+  })
+
+  it('Use service defaults also migrates retired Catalog controls, and Discard keeps them unchanged', async () => {
+    const legacy = { generic: { discovery_chars: 60_000 } }
+    const server = studio(config({ extractionSettings: { article: REFERENCE_ARTICLE, catalog: legacy } }),
+      { deployment: { ...NO_DEPLOYMENT, unifiedCatalog: true } })
+    await renderPage()
+    openAdvanced()
+    fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(screen.getByRole('note')).toHaveTextContent('Discovery text limit: 60,000 characters')
+    expect(server.puts()).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE })
+  })
+
   it('the issue summary opens Advanced from another tab on the issue\'s strategy and focuses its control', async () => {
     studio(config())
     await renderPage()

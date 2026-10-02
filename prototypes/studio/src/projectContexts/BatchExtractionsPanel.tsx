@@ -88,7 +88,7 @@ function failureText(error: unknown, fallback: string): string {
 
 /** The start was refused because the saved advanced settings changed after its summary was shown. */
 function methodChanged(error: unknown): error is BatchRequestError {
-  return error instanceof BatchRequestError && error.code === 'method_changed'
+  return error instanceof BatchRequestError && (error.code === 'method_changed' || error.code === 'catalog_migration_required')
 }
 
 function stamp(value: string): string {
@@ -633,7 +633,7 @@ export default function BatchExtractionsPanel({
 
   const openExistingSchemaBatch = async () => {
     if (opening.current || saved.state.status !== 'ready') return
-    const method = savedMethodFor(saved.state.config, batchStrategy, null)
+    const method = savedMethodFor(saved.state, batchStrategy, null)
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
@@ -667,7 +667,7 @@ export default function BatchExtractionsPanel({
   const runOpenBatchAgain = async (batch: BatchExtraction) => {
     if (opening.current || saved.state.status !== 'ready') return
     // A fresh run of the stored selection: its strategy, with today's saved method.
-    const method = savedMethodFor(saved.state.config, batch.strategy, null)
+    const method = savedMethodFor(saved.state, batch.strategy, null)
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
@@ -706,7 +706,7 @@ export default function BatchExtractionsPanel({
       sendSuggestion({
         type: 'run.requested',
         strategy: batchStrategy,
-        method: savedMethodFor(saved.state.config, batchStrategy, null),
+        method: savedMethodFor(saved.state, batchStrategy, null),
       })
       return
     }
@@ -772,7 +772,7 @@ export default function BatchExtractionsPanel({
         suggestion.can({
           type: 'run.requested',
           strategy: batchStrategy,
-          method: savedMethodFor(saved.state.config, batchStrategy, null),
+          method: savedMethodFor(saved.state, batchStrategy, null),
         }) &&
         !suggestionHasPendingLocalEdit &&
         runnableSuggestionDefinition(suggestion.context.draft)
@@ -981,7 +981,7 @@ export default function BatchExtractionsPanel({
                 schemaRevisionId={schemaRevisionId === SUGGEST_SCHEMA ? null : coverageRevision?.selected === schemaRevisionId ? coverageRevision.current : schemaRevisionId || null}
                 sourceDocumentIds={[...selected]} refreshRef={sampleFactsRefresh} />
               <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
-                method={saved.state.status === 'ready' ? savedMethodFor(saved.state.config, batchStrategy, null) : null}
+                method={saved.state.status === 'ready' ? savedMethodFor(saved.state, batchStrategy, null) : null}
                 onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
             </div>
             {schemas.failure && (
@@ -1241,7 +1241,7 @@ export default function BatchExtractionsPanel({
             canRunAgain={saved.state.status === 'ready'}
             runAgainMethod={
               <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
-                method={saved.state.status === 'ready' ? savedMethodFor(saved.state.config, openBatch.strategy, null) : null}
+                method={saved.state.status === 'ready' ? savedMethodFor(saved.state, openBatch.strategy, null) : null}
                 onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
             }
             documentName={documentName}
