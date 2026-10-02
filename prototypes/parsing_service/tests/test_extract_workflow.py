@@ -446,7 +446,8 @@ def test_a_cancelled_chunked_catalog_stops_every_chunk_before_its_next_entry(kei
 @pytest.mark.parametrize("strategy, held, asked", [
     ("catalog", "record", ["discovery", "record"]),  # held in the first record's call; the second never asked
     ("article", "record", ["record"]),               # held in the document's value call; no verification asked
-    ("article", "grounding", ["record", "grounding"]),
+    # Article's verification is its final call: a cancel there is seen by the step's last check, before publication
+    # (`test_cancellation_during_the_final_model_call_prevents_publication`), not by a next call that never comes.
 ])
 def test_a_cancelled_version_1_extraction_stops_before_its_next_call(kei, scripted, ended, monkeypatch, strategy,
                                                                      held, asked):
