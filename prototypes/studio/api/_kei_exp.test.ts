@@ -145,6 +145,44 @@ function suryaRun(segments: KeiExpSegment[], warnings: string[] = []) {
 }
 
 describe('kei-exp translation', () => {
+  it('keeps native and image OCR evidence on a hybrid page', () => {
+    const { manifest, pages } = suryaRun([
+      segment({ label: 'Text', text: 'Native prose', crop: null, bbox_pt: [72, 50, 400, 80] }),
+      segment({ label: 'Text', text: 'Image table text', crop: 1, bbox_pt: [72, 120, 400, 220] }),
+      segment({ label: 'Text', text: 'Native between', crop: null, bbox_pt: [72, 240, 400, 260] }),
+      segment({ label: 'Text', text: 'Second image text', crop: 2, bbox_pt: [72, 300, 400, 400] }),
+    ])
+    manifest.recipe.transcriber = 'hybrid'
+    manifest.recipe.record = { spec: null }
+    const { document, markdown } = translate(manifest, pages)
+    expect(document.document.input_profile.has_text_layer).toBe(true)
+    expect(document.content_stream.map((block) => block.kind === 'paragraph' && block.text)).toEqual([
+      'Native prose', 'Image table text', 'Native between', 'Second image text',
+    ])
+    const observations = document.evidence_index.anchors.flatMap((anchor) => anchor.producer_observations)
+    expect(observations.map((item) => item.producer_ref)).toEqual([
+      'kei-exp:hybrid:page-1', 'kei-exp:hybrid:crop-1', 'kei-exp:hybrid:page-1', 'kei-exp:hybrid:crop-2',
+    ])
+    expect(document.parser_runs[0]).toMatchObject({ version: 'docling 2.127.0 + surya-ocr 0.22.1' })
+    expectSpansSliceBack(document, markdown)
+    expectBoxesWithinPages(document)
+  })
+
+  it('names the OCR engine of a hybrid run only when the run recorded its version', () => {
+    const versionOf = (recipe: Partial<KeiExpManifest['recipe']>) => {
+      const { manifest, pages } = suryaRun([segment({ text: 'Image table text', crop: 1 })])
+      manifest.recipe = { ...manifest.recipe, transcriber: 'hybrid', ...recipe }
+      expect(keiExpManifestSchema.safeParse(manifest).success).toBe(true)
+      return translate(manifest, pages).document.parser_runs[0].version
+    }
+    expect(versionOf({ record: { spec: null } })).toBe('docling 2.127.0 + surya-ocr 0.22.1')
+    // A VLM record runs in Docling's own pipeline; the Surya package version the service also records is not its.
+    expect(versionOf({ model: 'granite_vision', record: { spec: 'Granite-Vision-3.3-2B' } }))
+      .toBe('docling 2.127.0 + granite_vision')
+    expect(versionOf({ record: { spec: null }, versions: { docling: '2.127.0' } })).toBe('docling 2.127.0 + surya')
+    expect(versionOf({ record: undefined })).toBe('docling 2.127.0 + surya')
+  })
+
   it('turns the born-digital sample into a valid parsed_document.v2 with kei-exp provenance', async () => {
     const { manifest, pages } = await fixture()
     const { document, markdown } = translate(manifest, pages)

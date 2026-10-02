@@ -7,6 +7,7 @@ import {
   reviewableExtraction,
   reviewAuthority,
   reviewAuthorityMatchesExtraction,
+  reviewDecisionMatchesSchema,
   transferEntries,
   transferSample,
   transferVerdicts,
@@ -167,6 +168,20 @@ describe('Review Decision rules against the read snapshot', () => {
       assert.doesNotThrow(() => authorize(kindGrounded, edit(field, value)))
     for (const [field, value] of [['year', 1900.5], ['year', '1901'], ['scale', Number.NaN], ['scale', Number.POSITIVE_INFINITY], ['kind', 'atlas'], ['kind', 1]] as const)
       assert.throws(() => authorize(kindGrounded, edit(field, value)), refuses('invalid_review', DECISIONS), `${field}=${String(value)}`)
+  })
+
+  it('an EDITED item of a scalar array is one value of the item type', () => {
+    const nodes = [
+      { id: 'grave_goods', name: 'grave_goods', type: 'array', itemType: 'string' },
+      { id: 'counts', name: 'counts', type: 'array', itemType: 'integer' },
+    ] as const
+    const edit = (resultPath: ResultPath, reviewedValue: unknown): ReviewDecisionInput => ({
+      resultPath, evidenceAnchorId: 'anchor', reviewedOccurrenceIds: ['o'], action: 'EDITED', reviewedValue,
+    } as ReviewDecisionInput)
+    assert.equal(reviewDecisionMatchesSchema(nodes, edit(['records', 0, 'grave_goods', 2], 'bronze pin, broken')), true)
+    assert.equal(reviewDecisionMatchesSchema(nodes, edit(['records', 0, 'counts', 1], 3)), true)
+    assert.equal(reviewDecisionMatchesSchema(nodes, edit(['records', 0, 'grave_goods', 2], ['bronze pin', 'broken'])), false)
+    assert.equal(reviewDecisionMatchesSchema(nodes, edit(['records', 0, 'counts', 1], [3])), false)
   })
 })
 

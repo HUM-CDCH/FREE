@@ -281,4 +281,25 @@ describe('extractionAttemptDto', () => {
     expect(dto.modelAttribution).toEqual({ provider: 'kei-exp', modelId: 'remote-model' })
     expect(dto.diagnostics?.grounding?.issueCodes).toEqual(['missing_value'])
   })
+
+  it('reads the contested values back from the stored diagnostics, apart from an ordinary empty value', async () => {
+    const { extractionAttemptDto } = await import('./_extractions.js')
+    const stored = (groundingIssues: Record<string, unknown>[]) => extractionAttemptDto({
+      ...attemptSnapshot,
+      result: { records: [{ title: 'Alpha', maker: null, year: null }, { title: 'Beta', maker: null, year: null }] },
+      diagnostics: { ...snapshot.diagnostics!, groundingIssues, groundingBatches: [] },
+    })
+    const dto = stored([
+      { code: 'conflicting_values', detail: JSON.stringify({ path: ['maker'], candidates: ['Ada', 'Ida'] }), record: 0, path: null },
+      { code: 'conflicting_document_values', detail: JSON.stringify({ path: ['year'], candidates: [1901, 1902] }), record: null, path: null },
+    ])
+    expect(dto.diagnostics?.contested).toEqual([
+      { resultPath: ['records', 0, 'maker'], candidates: ['Ada', 'Ida'] },
+      { resultPath: ['records', 0, 'year'], candidates: [1901, 1902] },
+      { resultPath: ['records', 1, 'year'], candidates: [1901, 1902] },
+    ])
+    expect(dto.diagnostics?.grounding?.issueCodes).toEqual(['conflicting_values', 'conflicting_document_values'])
+    const malformed = stored([{ code: 'conflicting_values', detail: '{', record: 0, path: null }])
+    expect(malformed.diagnostics).not.toHaveProperty('contested')
+  })
 })

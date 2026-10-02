@@ -145,7 +145,8 @@ class PageResult(_Base):
     page: int                          # the PDF page, 1-based
     size_pt: tuple[float, float]
     units: list[Unit]
-    segments: list[PageSegment]        # reading order: units, then crops, then blocks
+    segments: list[PageSegment]        # reading order: units, then crops by their order, then blocks; a
+                                       # native page's blocks (no crop) read among its artwork crops
     markdown: str
     complete: bool                     # no record of this page is incomplete: the seam's facts are the one definition
     warnings: list[str]

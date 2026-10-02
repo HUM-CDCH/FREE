@@ -28,7 +28,9 @@ location ^~ ${STUDIO_BASE_PATH}/ {
 
     add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "no-referrer" always;
+    # Not no-referrer: under it browsers send `Origin: null` on form POSTs
+    # (logout), which Studio's canonical Origin check rejects.
+    add_header Referrer-Policy "same-origin" always;
 
     proxy_pass http://${FREE_STUDIO_UPSTREAM};
     proxy_http_version 1.1;

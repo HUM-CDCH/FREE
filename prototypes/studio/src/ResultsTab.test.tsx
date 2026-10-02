@@ -46,13 +46,14 @@ function controller(
       saving: false,
       loading: false,
       decisions: [],
-      reviewedCount: 0,
+      requiredCount: 0,
       untouchedCount: 0,
       isTouched: () => true,
       reviewedExtractionId: null,
       error: null,
       draftError: null,
       draftSaving: false,
+      draftSaved: false,
       retryDraft: () => {},
       transfer: {},
       pairing: { pairings: [], sources: [], pair: () => {} },
@@ -432,7 +433,7 @@ describe('ResultsTab grounded values', () => {
 
     expect(
       screen.getByText(
-        '2 values could not be grounded. They remain optional and recorded without model Evidence.',
+        '2 ungrounded values are excluded from required review and remain recorded without Evidence.',
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('No grounded values')).toBeInTheDocument()
@@ -722,6 +723,64 @@ describe('ResultsTab grounded values', () => {
     )
   })
 
+  describe('a value the sources disagreed on', () => {
+    const contestedAttempt = (resultPayload: ExtractionAttempt['resultPayload'], contested: NonNullable<ExtractionAttempt['diagnostics']>['contested']): ExtractionAttempt =>
+      ({ ...articleAttempt, resultPayload, diagnostics: { ...articleAttempt.diagnostics!, contested } })
+    const summary = (label: string) =>
+      [...document.querySelectorAll('span')].find((element) => element.textContent?.startsWith(`${label}:`))?.textContent
+    const renderContested = (result: NonNullable<ExtractionAttempt['resultPayload']>, contested: NonNullable<ExtractionAttempt['diagnostics']>['contested'],
+      decisions: ReviewDecisionInput[] = []) =>
+      render(
+        <ResultsTab
+          {...defaultRunProps}
+          controller={controller({ status: 'ready', result, evidenceLinks: [], ungroundedCount: 0 },
+            contestedAttempt(result, contested), { decisions })}
+          schemaReady
+          documentMarkdown="# Source"
+          sourceDocumentName="contested.pdf"
+          exportSchema={{ recordDescription: 'A work.', schemaNodes: [
+            { id: 'place', name: 'place', type: 'string' }, { id: 'year', name: 'year', type: 'integer' },
+          ] }}
+        />,
+      )
+
+    it('shows Contested with its candidates, apart from an ordinary Missing value, and counts each apart', () => {
+      renderContested({ records: [{ place: null, year: null }] },
+        [{ resultPath: ['records', 0, 'year'], candidates: [1901, 1902] }])
+
+      expect(screen.getByText('Contested')).toBeInTheDocument()
+      expect(screen.getByRole('note', { name: 'Contested: sources disagreed (1901 · 1902)' })).toBeInTheDocument()
+      expect(screen.getByText('Missing')).toBeInTheDocument()
+      expect(summary('Missing')).toBe('Missing: 1')
+      expect(summary('Contested')).toBe('Contested: 1')
+    })
+
+    it('is no longer contested once a review supplied a value', () => {
+      renderContested({ records: [{ place: null, year: null }] },
+        [{ resultPath: ['records', 0, 'year'], candidates: [1901, 1902] }],
+        [{ resultPath: ['records', 0, 'year'], evidenceAnchorId: 'anchor-year', reviewedOccurrenceIds: [], action: 'EDITED', reviewedValue: 1901 }])
+
+      expect(screen.queryByText('Contested')).not.toBeInTheDocument()
+      expect(screen.getByText('1901')).toBeInTheDocument()
+      expect(summary('Contested')).toBeUndefined()
+    })
+
+    it('says what a CSV loses and hands the export the contested fields for the workbook notes', () => {
+      renderContested({ records: [{ place: 'Oslo', year: null }, { place: null, year: null }] },
+        [{ resultPath: ['records', 1, 'place'], candidates: ['Bergen', 'Bodø'] }])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+      expect(screen.getByRole('note')).toHaveTextContent(
+        'CSV leaves 1 contested field empty; their candidates are only in the Excel Review notes sheet and in Studio.')
+      fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+
+      expect(exportExtractionResult).toHaveBeenCalledWith(
+        [{ place: 'Oslo', year: null }, { place: null, year: null }],
+        expect.objectContaining({ format: 'xlsx', contested: [{ record: 1, path: ['place'], candidates: ['Bergen', 'Bodø'] }] }),
+      )
+    })
+  })
+
   it('exports the inspected historical result to CSV with its historical schema', () => {
     const historicalAttempt: ExtractionAttempt = {
       ...articleAttempt,
@@ -799,7 +858,7 @@ describe('ResultsTab grounded values', () => {
               action: 'APPROVED',
               reviewedValue: null,
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             setDecision,
           },
         )}
@@ -839,7 +898,7 @@ describe('ResultsTab grounded values', () => {
           { status: 'ready', result: articleAttempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0 },
           articleAttempt,
           {
-            available: true, canAccept: true, reviewedCount: 1, accept,
+            available: true, canAccept: true, requiredCount: 1, accept,
             decisions: [{ resultPath: path, evidenceAnchorId: 'a_p1_s0', reviewedOccurrenceIds: ['o-1'], action: 'APPROVED',
               reviewedValue: null, carriedFrom: { extractionId: 'sample', sourcePathKey: JSON.stringify(path) } }],
             transfer: { [JSON.stringify(path)]: { status: 'reviewed', kept: 'First place' } },
@@ -856,6 +915,49 @@ describe('ResultsTab grounded values', () => {
     expect(accept).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Save review' }))
     expect(accept).toHaveBeenCalledOnce()
+  })
+
+  it('edits one item of a scalar array as one value of the item type', () => {
+    const setDecision = vi.fn()
+    const path = ['records', 0, 'grave_goods', 2]
+    const attempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ grave_goods: ['pin', 'bead', 'sherd'] }] },
+      evidenceLinks: [{ resultPath: path, evidenceAnchorId: 'anchor-sherd' }],
+    }
+    const schema: SchemaDefinition = {
+      recordDescription: 'One grave.',
+      schemaNodes: [{ id: 'grave_goods', name: 'grave_goods', type: 'array', itemType: 'string' }],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          { status: 'ready', result: attempt.resultPayload, evidenceLinks: attempt.evidenceLinks, ungroundedCount: 0 },
+          attempt,
+          {
+            available: true,
+            canAccept: true,
+            decisions: [{ resultPath: path, evidenceAnchorId: 'anchor-sherd', reviewedOccurrenceIds: ['o'],
+                          action: 'APPROVED', reviewedValue: null }],
+            setDecision,
+          },
+        )}
+        schemaReady
+        pinnedSchema={schema}
+        exportSchema={schema}
+        documentMarkdown="# Source"
+        sourceDocumentName="grave.pdf"
+      />,
+    )
+
+    fireEvent.click(screen.getByText('grave_goods', { exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: /^Edit / }))
+    const input = screen.getByLabelText(/^Reviewed value for /)
+    fireEvent.change(input, { target: { value: 'bronze pin, broken' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(setDecision).toHaveBeenLastCalledWith(path, 'EDITED', 'bronze pin, broken')
   })
 
   it('reverses a rejected value back to its original approved value', () => {
@@ -889,7 +991,7 @@ describe('ResultsTab grounded values', () => {
               available: true,
               canAccept: true,
               decisions,
-              reviewedCount: 1,
+              requiredCount: 1,
               setDecision: (path, action, reviewedValue = null) =>
                 setDecisions((current) => current.map((decision) => ({
                   ...decision,
@@ -948,7 +1050,7 @@ describe('ResultsTab grounded values', () => {
               action: 'APPROVED',
               reviewedValue: null,
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             untouchedCount: 1,
             isTouched: () => false,
           },
@@ -997,7 +1099,7 @@ describe('ResultsTab grounded values', () => {
               action: 'APPROVED',
               reviewedValue: null,
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             untouchedCount: 1,
             isTouched: () => false,
             approveAll,
@@ -1151,7 +1253,7 @@ describe('ResultsTab grounded values', () => {
               action: 'REJECTED',
               reviewedValue: null,
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             setDecision,
           },
         )}
@@ -1205,7 +1307,7 @@ describe('ResultsTab grounded values', () => {
               action: 'EDITED',
               reviewedValue: 'Reviewed',
             }],
-            reviewedCount: 1,
+            requiredCount: 1,
             setDecision,
           },
         )}
@@ -1368,7 +1470,7 @@ describe('ResultsTab extraction status', () => {
           {
             available: true,
             decisions: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place', reviewedOccurrenceIds: ['occurrence-place'], action: 'APPROVED', reviewedValue: null }],
-            reviewedCount: 1,
+            requiredCount: 1,
             untouchedCount: 1,
             isTouched: () => false,
             setDecision,
@@ -1642,6 +1744,40 @@ describe('ResultsTab recipe review material', () => {
     expect(screen.getByText('Entry number from the segmentation')).toBeInTheDocument()
   })
 
+  it('keeps a grounded value\'s Evidence reachable after an edit or rejection, as Evidence for the extracted value', () => {
+    const span = { segment: 'p1_s2', start: 4, end: 12 }
+    const evidenceLinks: EvidenceLink[] = [{
+      resultPath: ['records', 0, 'site_name'], evidenceAnchorId: 'a_site', verbatim: true, lexicalHits: 1,
+      grounding: { linkedBy: 'key', provenance: 'token', textSpans: [span], keySpans: [], alternatives: [],
+                   heading: null, precision: 'segment', raw: 'Eichdorf', normalized: null },
+    }]
+    const result = { records: [{ site_name: 'Eichdorf' }] }
+    const decision: ReviewDecisionInput = { resultPath: ['records', 0, 'site_name'], evidenceAnchorId: 'a_site',
+                                            reviewedOccurrenceIds: ['o'], action: 'APPROVED', reviewedValue: null }
+    const onSelectEvidence = vi.fn()
+    const props = { ...defaultRunProps, schemaReady: true, documentMarkdown: '', sourceDocumentName: 'Catalogue', onSelectEvidence }
+    const withDecision = (reviewed: ReviewDecisionInput) =>
+      controller({ status: 'ready', result, evidenceLinks, ungroundedCount: 0 }, null, { decisions: [reviewed] })
+    const { rerender } = render(<ResultsTab {...props} controller={withDecision(decision)} />)
+    expect(screen.getByRole('button', { name: 'View Evidence for site_name' })).toBeInTheDocument()
+    expect(screen.getByText('Read after its printed key')).toBeInTheDocument()
+
+    for (const reviewed of [
+      { ...decision, action: 'EDITED' as const, reviewedValue: 'Eichdorf-Süd' },
+      { ...decision, action: 'REJECTED' as const },
+    ]) {
+      onSelectEvidence.mockClear()
+      rerender(<ResultsTab {...props} controller={withDecision(reviewed)} />)
+      if (reviewed.action === 'EDITED') expect(screen.getByText('Eichdorf-Süd')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'View Evidence for site_name' })).not.toBeInTheDocument()
+      expect(screen.queryByText(/Read after its printed key/)).not.toBeInTheDocument()
+      expect(screen.getByText('Extracted value: Eichdorf')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'View Evidence for extracted value of site_name' }))
+      expect(onSelectEvidence).toHaveBeenCalledWith('a_site')
+    }
+    expect(screen.getByText('Missing')).toBeInTheDocument()
+  })
+
   it('names every reason coverage is incomplete and lists what segmentation could not settle', () => {
     const disordered: ExtractionAttempt = { ...groundedAttempt, diagnostics: { ...groundedAttempt.diagnostics!, grounded: {
       ...groundedAttempt.diagnostics!.grounded!,
@@ -1701,4 +1837,101 @@ describe('Method used', () => {
     renderWith({ ...articleAttempt, requestedSettings: null })
     expect(methodUsed().getAllByText('Not recorded')).toHaveLength(2)
   })
+})
+
+describe('ResultsTab review progress', () => {
+  const schema: SchemaDefinition = {
+    recordDescription: 'One place.',
+    schemaNodes: [{ id: 'place', name: 'place', type: 'string' }, { id: 'year', name: 'year', type: 'integer' }],
+  }
+  const decisions: ReviewDecisionInput[] = ['place', 'year'].map((field) => ({
+    resultPath: ['records', 0, field], evidenceAnchorId: `anchor-${field}`,
+    reviewedOccurrenceIds: [`occurrence-${field}`], action: 'APPROVED', reviewedValue: null,
+  }))
+  const attempt: ExtractionAttempt = {
+    ...articleAttempt, resultPayload: { records: [{ place: 'Original', year: 2000, other: 'Ungrounded' }] },
+    evidenceLinks: decisions.map(({ resultPath, evidenceAnchorId }) => ({ resultPath, evidenceAnchorId: evidenceAnchorId! })),
+  }
+  const state: ExtractionController['state'] = {
+    status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 1,
+  }
+  function scene(overrides: Partial<ExtractionController['review']> = {}, readOnly = false, displayed = attempt) {
+    return <ResultsTab {...defaultRunProps} controller={controller(state, displayed, {
+      available: true, decisions, requiredCount: 2, untouchedCount: 2, isTouched: () => false, ...overrides,
+    })} readOnly={readOnly} schemaReady pinnedSchema={schema} exportSchema={schema}
+      documentMarkdown="# Source" sourceDocumentName="progress.pdf" />
+  }
+
+  it('decrements required progress after reject and edit, independently of ungrounded values and result navigation', () => {
+    const accept = vi.fn(async () => {})
+    function Fixture() {
+      const [current, setCurrent] = useState(decisions)
+      const [touched, setTouched] = useState<Set<string>>(new Set())
+      return scene({
+        decisions: current, untouchedCount: 2 - touched.size, isTouched: (path) => touched.has(JSON.stringify(path)),
+        canAccept: touched.size === 2, accept,
+        setDecision: (path, action, reviewedValue = null) => {
+          const key = JSON.stringify(path)
+          setTouched((previous) => new Set([...previous, key]))
+          setCurrent((previous) => previous.map((decision) => JSON.stringify(decision.resultPath) === key
+            ? { ...decision, action, reviewedValue } : decision))
+        },
+      })
+    }
+    render(<Fixture />)
+    const progress = screen.getByRole('region', { name: 'Review progress' })
+    expect(progress).toHaveTextContent('2 of 2 required decisions remaining')
+    expect(within(progress).getAllByRole('status')).toHaveLength(1)
+    expect(screen.queryByText(/pending/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve remaining (2)' })).toHaveAccessibleDescription(/ungrounded values, are unchanged.*saves automatically/)
+    expect(screen.getByText('1 ungrounded value is excluded from required review and remains recorded without Evidence.')).toBeInTheDocument()
+    expect(screen.queryByText('Draft saved')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject place' }))
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining')
+    expect(screen.getByRole('button', { name: 'Approve remaining (1)' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Reverse decision for place' }))
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining')
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining')
+    fireEvent.click(screen.getByRole('tab', { name: 'Review' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit year' }))
+    const input = screen.getByLabelText('Reviewed value for year')
+    fireEvent.change(input, { target: { value: '2001' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(progress).toHaveTextContent('0 of 2 required decisions remaining')
+    expect(accept).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Approve remaining' })).toBeDisabled()
+  })
+
+  it('separates draft acknowledgement, loading, finalization and failure from decision progress', () => {
+    const { rerender } = render(scene({ untouchedCount: 1, draftSaving: true }))
+    let progress = screen.getByRole('region', { name: 'Review progress' })
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining · Saving draft…')
+    expect(within(progress).getByRole('status')).not.toHaveTextContent('Saving draft')
+    expect(screen.queryByText('Draft saved')).not.toBeInTheDocument()
+    rerender(scene({ untouchedCount: 1, draftSaved: true }))
+    expect(progress).toHaveTextContent('1 of 2 required decisions remaining · Draft saved')
+    rerender(scene({ loading: true, requiredCount: 0, untouchedCount: 0 }))
+    expect(screen.getAllByText('Loading Review Decisions…')).toHaveLength(1)
+    expect(progress).not.toHaveTextContent('0 of 0')
+    rerender(scene({ requiredCount: 0, untouchedCount: 0, error: 'Offline' }))
+    expect(progress).toHaveTextContent('Review Decisions could not be loaded')
+    expect(progress).not.toHaveTextContent('0 of 0')
+    rerender(scene({ untouchedCount: 0, saving: true, draftSaved: true }))
+    expect(progress).toHaveTextContent('0 of 2 required decisions remaining · Saving review…')
+    expect(screen.queryByText('Review saved')).not.toBeInTheDocument()
+    rerender(scene({ untouchedCount: 0, canAccept: true, error: 'Offline' }))
+    expect(progress).toHaveTextContent('0 of 2 required decisions remaining · Review not saved')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+    rerender(scene({}, true))
+    progress = screen.getByRole('region', { name: 'Review progress' })
+    expect(progress).toHaveTextContent('Not reviewed · 2 required decisions')
+    expect(within(progress).queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Approve remaining/ })).not.toBeInTheDocument()
+    rerender(scene({}, true, { ...attempt, reviewedAt: '2026-10-01T12:00:00Z',
+      reviewDecisions: decisions.map((decision) => ({ ...decision, createdAt: '2026-10-01T12:00:00Z' })) }))
+    expect(progress).toHaveTextContent('Review saved · 2 decisions')
+  })
+
 })

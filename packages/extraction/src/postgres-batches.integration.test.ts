@@ -351,6 +351,41 @@ it('a batch member cannot be cancelled on its own, and its ID posted as an inter
     await assert.rejects(module.runSingle(freshInput(project, member)), rejectsWithCode('extraction_id_conflict'))
   })
 
+it('batch results name a contested empty value from the stored diagnostics until a review settles it', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['contested.pdf'])
+    const [document] = project.documents as [SeededDocument]
+    const module = scheduler(project.researcherAccountId)
+    const scheduled = await module.scheduleBatch({
+      projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE', sourceDocumentIds: [document.sourceDocumentId], repetition: 'create-new', method: SERVICE_DEFAULTS,
+    })
+    const batchExtractionId = scheduled.batch.batchExtractionId
+    await waitForBatch(module, project.projectContextId, batchExtractionId, (candidate) => candidate.executionStatus === 'COMPLETED')
+    const id = stableUuid('batch-member-extraction', stableJson([batchExtractionId, document.sourceDocumentId]))
+    const stored = await db.orm.public.Extraction.select('resultPayload', 'diagnostics').first({ id })
+    const records = (stored!.resultPayload as { records: Record<string, unknown>[] }).records
+    const field = Object.keys(records[0]!)[0]!
+    // As kei-exp's Article reports a scalar its value contexts disagreed on: null, with its candidates in an issue.
+    const issue = { code: 'conflicting_values', detail: JSON.stringify({ path: [field], candidates: ['A', 'B'] }), record: 0, path: null }
+    const diagnostics = stored!.diagnostics as Record<string, unknown>
+    await db.orm.public.Extraction.where({ id }).updateAll({
+      resultPayload: { records: [{ ...records[0], [field]: null }, ...records.slice(1)] },
+      diagnostics: { ...diagnostics, groundingIssues: [...(diagnostics.groundingIssues as unknown[] ?? []), issue] },
+    })
+    const read = () => module.readBatchResults({ projectContextId: project.projectContextId, batchExtractionId })
+    assert.deepEqual((await read()).results[0]!.contested, [{ resultPath: ['records', 0, field], candidates: ['A', 'B'] }])
+
+    // A review that rejected the field settles it (as the Results tab shows it): nothing is left contested.
+    await db.orm.public.Extraction.where({ id }).updateAll({ reviewedAt: new Date() })
+    const review = await db.orm.public.ExtractionReview.create({ extractionId: id, revisionNumber: 1, decisionDigest: '[]' })
+    await db.orm.public.ReviewDecision.create({
+      extractionReviewId: review.id, resultPath: ['records', 0, field], resultPathKey: JSON.stringify(['records', 0, field]),
+      evidenceAnchorId: 'none', reviewedOccurrenceIds: [], action: 'REJECTED', reviewedValue: null,
+    })
+    assert.equal((await read()).results[0]!.contested, undefined)
+  })
+
 it('deleting one batch source preserves another member\'s result, revision pin and finalized review', async (t) => {
     t.after(cleanup)
     const project = await seedProject(ARTICLE_SCHEMA, ['deleted.pdf', 'kept.pdf'])

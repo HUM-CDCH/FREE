@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from 'extraction/batch'
 import { extractionMethodIntentSchema, settingsSlot } from 'extraction/extraction-method'
 import { canonicalUuidSchema } from './projectContext.contract.js'
-import { extractionStrategySchema, methodRuleIssues } from './extraction.contract.js'
+import { contestedValueSchema, extractionStrategySchema, methodRuleIssues } from './extraction.contract.js'
 
 export { BATCH_EXTRACTION_SELECTION_LIMIT }
 
@@ -128,6 +128,7 @@ export const batchExtractionResultsResponseSchema = z
           sourceDocumentId: canonicalUuidSchema,
           extractionId: canonicalUuidSchema,
           result: z.record(z.string(), z.json()),
+          contested: z.array(contestedValueSchema).optional(),
         })
         .strict(),
     ),

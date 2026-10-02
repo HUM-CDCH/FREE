@@ -147,3 +147,9 @@ def test_reading_order_disagreeing_with_the_cut_order_is_reported():
         "p1_s1 (unit 1, crop order 0) follows p1_s0 (unit 1, crop order 1) in the page file"]
     assert order_issues([passage(0, 2, 3, 0), passage(1, 1, 1, 0)]) == [
         "p1_s1 (unit 1, crop order 0) follows p1_s0 (unit 2, crop order 0) in the page file"]
+    # A hybrid page's native blocks (no crop) read between its artwork crops; the crops still read in cut order.
+    hybrid = [passage(0, 0, None, None), passage(1, 0, 1, 0), passage(2, 0, None, None), passage(3, 0, 2, 1),
+              passage(4, 0, None, None)]
+    assert order_issues(hybrid) == []
+    assert order_issues([passage(0, 0, 2, 1), passage(1, 0, None, None), passage(2, 0, 1, 0)]) == [
+        "p1_s2 (unit 0, crop order 0) follows p1_s0 (unit 0, crop order 1) in the page file"]

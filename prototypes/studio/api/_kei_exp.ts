@@ -90,6 +90,8 @@ export const keiExpManifestSchema = z
         source_sha256: z.string(),
         transcriber: z.string().min(1),
         model: z.string().nullable().optional(),
+        // The model record: a Docling VLM record names its spec, a Surya record none.
+        record: z.object({ spec: z.string().nullable().optional() }).loose().nullable().optional(),
         versions: z.record(z.string(), z.string()).optional(),
       })
       .loose(),
@@ -449,7 +451,14 @@ function finishedAt(manifest: KeiExpManifest): string | null {
 }
 
 function parserVersion(manifest: KeiExpManifest): string {
-  const { transcriber, model, versions = {} } = manifest.recipe
+  const { transcriber, model, record, versions = {} } = manifest.recipe
+  // Native text read by Docling, its textless artwork by the run's OCR model: Surya's engine version when the
+  // run recorded one, else the model (a VLM's pipeline is Docling's, already named).
+  if (transcriber === 'hybrid' && typeof versions.docling === 'string') {
+    const engine = record && !record.spec ? ENGINE_OF_TRANSCRIBER.get('surya') : undefined
+    const ocr = engine !== undefined && typeof versions[engine] === 'string' ? `${engine} ${versions[engine]}` : model
+    return `docling ${versions.docling} + ${ocr}`
+  }
   const engine = ENGINE_OF_TRANSCRIBER.get(transcriber)
   if (engine !== undefined && typeof versions[engine] === 'string')
     return `${engine} ${versions[engine]}`
@@ -648,7 +657,7 @@ export function parsedDocumentFromKeiExp(
         file_kind: 'pdf',
         detected_mime: 'application/pdf',
         pdf_version: null,
-        has_text_layer: manifest.recipe.transcriber === 'native',
+        has_text_layer: manifest.recipe.transcriber === 'native' || manifest.recipe.transcriber === 'hybrid',
         has_images: null,
       },
     },

@@ -4,6 +4,7 @@
  */
 
 import type { Database, DatabaseOrm, WorkflowStatuses } from 'db'
+import { contestedValues } from './contested-values.js'
 import { modelChoice, recordedSettings, type ActiveSettings } from './extraction-method.js'
 import {
   decodeReviewedValue,
@@ -259,12 +260,20 @@ export async function loadResults(
     }
     if (extraction.resultPayload === null) continue
     const decisions = decisionsByExtractionId.get(extraction.id)
+    const result = (decisions
+      ? applyReviewDecisionsToResult(extraction.resultPayload, decisions)
+      : extraction.resultPayload) as Record<string, unknown>
+    // Derived from the stored diagnostics against the reviewed result: a value a review supplied, or a field the review
+    // rejected, is no longer contested (as the Results tab shows it).
+    const rejected = new Set((decisions ?? []).filter((decision) => decision.action === 'REJECTED')
+      .map((decision) => JSON.stringify(decision.resultPath)))
+    const contested = contestedValues(extraction.diagnostics, result)
+      .filter((value) => !rejected.has(JSON.stringify(value.resultPath)))
     results.push({
       sourceDocumentId: member.sourceDocumentId,
       extractionId: extraction.id,
-      result: (decisions
-        ? applyReviewDecisionsToResult(extraction.resultPayload, decisions)
-        : extraction.resultPayload) as Record<string, unknown>,
+      result,
+      ...(contested.length > 0 ? { contested } : {}),
     })
   }
   return {

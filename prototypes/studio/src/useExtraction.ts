@@ -190,6 +190,7 @@ export function useExtraction({
     extractionId: string; verdicts: ReviewTransferVerdicts; pairings: ReviewPairing[]; sources: { extractionId: string; record: number; label: string }[]
   }>({ extractionId: '', verdicts: {}, pairings: [], sources: [] })
   const [draftSaving, setDraftSaving] = useState(false)
+  const [draftSaved, setDraftSaved] = useState(false)
   const [draftError, setDraftError] = useState<string | null>(null)
   const [cancellationRequested, setCancellationRequested] = useState(false)
   const [cancellationError, setCancellationError] = useState<string | null>(null)
@@ -217,6 +218,7 @@ export function useExtraction({
     draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
     draftRef.current.pairings = undefined
     setDraftSaving(false)
+    setDraftSaved(false)
     setSaving(false)
     if (documentChanged) {
       // Orphaned reads notice the missing monitor and drop their response.
@@ -353,6 +355,7 @@ export function useExtraction({
       }
       setReviewLoading(true)
       setTransfer({ extractionId: '', verdicts: {}, pairings: [], sources: [] })
+      setDraftSaved(false)
       setReviewDecisions([])
       setTouchedPaths(new Set())
       try {
@@ -381,6 +384,8 @@ export function useExtraction({
         setTransfer({ extractionId: attempt.extractionId, verdicts: prepared.reviewDraft?.transfer ?? {},
           pairings, sources: prepared.reviewDraft?.sources ?? [] })
         draftSaveRef.current = { version: recovered.version, pending: Promise.resolve(), writes: 0, conflict: recovered.conflict }
+        // Version-zero drafts have not been acknowledged by the server.
+        setDraftSaved(!recovered.conflict && !recovered.retry && (prepared.reviewDraft?.version ?? 0) > 0)
         setDraftError(recovered.conflict ? REVIEW_DRAFT_CONFLICT : null)
         draftRef.current = { decisions: recovered.decisions, touched: recovered.touchedPaths,
           pairings: recovered.retry || recovered.conflict ? pendingPairings : undefined }
@@ -550,11 +555,13 @@ export function useExtraction({
     }
     scope.writes += 1
     setDraftSaving(true)
+    setDraftSaved(false)
     setDraftError(null)
     const write = saveExtractionReviewDraft(attempt.extractionId,
       decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), scope.version, pairings)
     scope.pending = write.then((saved) => {
       scope.version = saved.version
+      if (draftSaveRef.current === scope) setDraftSaved(true)
       if (pairings && draftSaveRef.current === scope) {
         if (draftRef.current.pairings === pairings) draftRef.current.pairings = undefined
         setReviewReload((value) => value + 1)
@@ -633,7 +640,8 @@ export function useExtraction({
       saving,
       loading: reviewLoading,
       decisions: reviewDecisions,
-      reviewedCount: reviewDecisions.length,
+      /** The server prepares one required decision per grounded value. */
+      requiredCount: reviewDecisions.length,
       untouchedCount: reviewDecisions.filter(
         (decision) => decision.evidenceAnchorId !== null && !touchedPaths.has(resultPathKey(decision.resultPath)),
       ).length,
@@ -653,6 +661,7 @@ export function useExtraction({
       error: reviewError,
       draftError,
       draftSaving,
+      draftSaved: draftSaved && !draftSaving && !draftError,
       /** Reads the review again after it failed to load. */
       reload: () => setReviewReload((value) => value + 1),
       retryDraft: () => {

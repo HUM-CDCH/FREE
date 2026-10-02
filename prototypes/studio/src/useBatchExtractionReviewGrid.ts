@@ -565,6 +565,9 @@ export function useBatchExtractionReviewGrid(
     canRevert: [...members.values()].some((state) => state.status === 'ready' && state.attempt.reviewable && state.touched.size > 0),
     draftError: draftConflicts.current.size > 0 ? REVIEW_DRAFT_CONFLICT : draftError,
     draftSaving: draftSaving > 0,
+    draftSaved: draftSaving === 0 && !draftError && draftConflicts.current.size === 0 && dirtyCount > 0 && [...members.values()].every((state) =>
+      state.status !== 'ready' || !state.editable || state.touched.size === 0 ||
+      (draftVersions.current.get(state.attempt.extractionId) ?? 0) > 0),
     retryDrafts,
     setDecision,
     approveAllForMember,

@@ -1,0 +1,7 @@
+RUN  v4.1.10 /tmp/free-review-counters-dev-20261001/prototypes/studio
+
+
+ Test Files  7 passed (7)
+      Tests  228 passed (228)
+   Start at  23:15:59
+   Duration  19.92s (transform 6.27s, setup 0ms, import 10.88s, tests 27.43s, environment 10.53s)

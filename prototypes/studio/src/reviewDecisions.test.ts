@@ -67,4 +67,33 @@ describe('Review Decision projection', () => {
     expect(parseReviewedValue(active, 'false')).toEqual({ value: false, error: null })
     expect(parseReviewedValue(kind, 'C').error).toBe('Choose a value allowed by the pinned schema.')
   })
+
+  it('resolves one item of a scalar array to its item type, so an item edit stays one value', () => {
+    const scalarArrays: SchemaNode[] = [
+      { id: 'grave_goods', name: 'grave_goods', type: 'array', itemType: 'string' },
+      { id: 'counts', name: 'counts', type: 'array', itemType: 'integer' },
+    ]
+    const good = schemaNodeAtResultPath(scalarArrays, ['records', 0, 'grave_goods', 2])
+    const count = schemaNodeAtResultPath(scalarArrays, ['records', 0, 'counts', 1])
+
+    expect(good?.type).toBe('string')
+    expect(parseReviewedValue(good, 'bronze pin, broken')).toEqual({ value: 'bronze pin, broken', error: null })
+    expect(parseReviewedValue(count, '3')).toEqual({ value: 3, error: null })
+    expect(parseReviewedValue(count, '3, 4').error).toBe('Enter a whole number.')
+    // The whole array still parses as a list.
+    expect(parseReviewedValue(schemaNodeAtResultPath(scalarArrays, ['records', 0, 'counts']), '3, 4'))
+      .toEqual({ value: [3, 4], error: null })
+  })
+
+  it('writes an edited or rejected item at its own index and leaves its siblings alone', () => {
+    const original = { records: [{ grave_goods: ['pin', 'bead', 'sherd'] }] }
+    const decision = (index: number, action: 'EDITED' | 'REJECTED', reviewedValue: string | null) => ({
+      resultPath: ['records', 0, 'grave_goods', index], evidenceAnchorId: `a-${index}`,
+      reviewedOccurrenceIds: [`o-${index}`], action, reviewedValue,
+    })
+
+    expect(applyReviewDecisions(original, [decision(2, 'EDITED', 'bronze pin, broken'), decision(0, 'REJECTED', null)]))
+      .toEqual({ records: [{ grave_goods: [null, 'bead', 'bronze pin, broken'] }] })
+    expect(original.records[0]?.grave_goods).toEqual(['pin', 'bead', 'sherd'])
+  })
 })

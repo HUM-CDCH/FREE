@@ -22,7 +22,7 @@ from kei_exp.geometry import CropTransform, PointBox
 from kei_exp.models import MODELS
 import kei_exp.pagefile as pagefile
 from kei_exp.pages import BookPages, PdfPages
-from kei_exp.regions import Crop
+from kei_exp.regions import Crop, splice
 from kei_exp.transcription.specs import VLM_SPECS
 from kei_exp.transcription.types import TEXT_RULES, Execution, PageRecord, Transcription, html_to_text
 
@@ -63,9 +63,20 @@ def recipe(execution: Execution, source_sha256: str, ingest_digest: str | None) 
             "prompt": spec.prompt if spec else None,
         },
         "versions": versions(),
+        **({"ocr_regions": [{"page": region.page, "bbox": list(region.bbox)} for region in execution.ocr_regions]}
+           if execution.ocr_regions else {}),
         # Only a transcriber whose text rules have changed names them, so every other recipe stays as it was.
-        **({"text_rules": TEXT_RULES[execution.transcriber]} if execution.transcriber in TEXT_RULES else {}),
+        **({"text_rules": _text_rules(execution, record.kind if record else None)}
+           if execution.transcriber in TEXT_RULES else {}),
     }
+
+
+def _text_rules(execution: Execution, ocr_kind: str | None) -> int | dict[str, int]:
+    """The transcriber's text-rules version; a hybrid page also publishes native blocks and the OCR kind's text,
+    so a hybrid recipe names every kind whose rules write it: a bump of any changes the fingerprint."""
+    if execution.transcriber != "hybrid":
+        return TEXT_RULES[execution.transcriber]
+    return {kind: TEXT_RULES[kind] for kind in ("hybrid", "native", ocr_kind) if kind in TEXT_RULES}
 
 
 def fingerprint(recipe: dict) -> str:
@@ -171,6 +182,7 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
     """
     recipe_ = recipe(execution, source.sha256, ingest_digest)
     print_ = fingerprint(recipe_)
+    effective = outcome.header.get("ocr", outcome.header)  # a hybrid run's image cap and scale are its OCR's
     generation = new_generation()
     records = {record.page: record for record in outcome.pages}  # by ordinal; the converter asserted the shape
     (directory / "pages").mkdir(parents=True, exist_ok=True)
@@ -190,19 +202,20 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
                     warnings.append(record.incomplete)
                 if item.crop is None:  # a whole-page input: the record is the unit's
                     transform = _whole_image_transform(record, size)
-                    segments += _segments(index, None, record, transform, to_page, bbox_pt)
+                    native = _segments(index, None, record, transform, to_page, bbox_pt)
+                    regions = []
+                    for supplement in record.ocr:  # a hybrid page's crops, by their order: each at its anchor
+                        _, region, _ = supplement.crop
+                        crops.append(_crop_result(supplement.ordinal, supplement.crop, supplement.record, to_page))
+                        assert region.transform is not None
+                        regions.append((supplement.anchor, _segments(
+                            index, supplement.ordinal, supplement.record, region.transform, to_page, to_page(region.bbox))))
+                    segments += splice(native, regions)
                     continue
-                _, region, image = item.crop
+                _, region, _ = item.crop
                 assert region.transform is not None  # the cut records every crop's transform
                 crop_bbox = to_page(region.bbox)
-                crops.append(pagefile.CropResult(
-                    crop=item.ordinal, kind=region.kind, order=region.order, bbox_pt=crop_bbox, ink=region.ink,
-                    origin_pt=(region.transform.origin_x, region.transform.origin_y),
-                    pt_per_px=(region.transform.pt_per_px_x, region.transform.pt_per_px_y),
-                    source_px=region.transform.source_px, image_px=image.size,
-                    input_tokens=record.input_tokens, output_tokens=record.output_tokens, seconds=record.seconds,
-                    stop=record.stop, capped=record.capped, incomplete=record.incomplete,
-                ))
+                crops.append(_crop_result(item.ordinal, item.crop, record, to_page))
                 segments += _segments(index, item.ordinal, record, region.transform, to_page, crop_bbox)
             units.append(pagefile.Unit(index=index, kind="pdf_page" if index == 0 else "book_page", bbox_pt=bbox_pt, crops=crops))
         if not inputs:  # only the layout cut leaves a page without an input: it found nothing there
@@ -219,7 +232,7 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
         result_version=pagefile.RESULT_VERSION, generation=generation,
         digest=pagefile.result_digest({number: entry.sha256 for number, entry in entries.items()}),
         fingerprint=print_, recipe=recipe_, source_name=source.name, page_count=source.page_count,
-        effective={"max_size": outcome.header.get("max_size"), "scale": outcome.header.get("scale")},
+        effective={"max_size": effective.get("max_size"), "scale": effective.get("scale")},
         started=started, seconds=seconds,
         status="incomplete" if outcome.incomplete else "success", incomplete=outcome.incomplete,
         pages=entries,
@@ -233,6 +246,20 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
     with publish(directory / "result.json") as part:
         part.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
     return result
+
+
+def _crop_result(ordinal: int, crop: Crop, record: PageRecord,
+                 to_page: Callable[[PointBox], PointBox]) -> pagefile.CropResult:
+    _, region, image = crop
+    assert region.transform is not None
+    return pagefile.CropResult(
+        crop=ordinal, kind=region.kind, order=region.order, bbox_pt=to_page(region.bbox), ink=region.ink,
+        origin_pt=(region.transform.origin_x, region.transform.origin_y),
+        pt_per_px=(region.transform.pt_per_px_x, region.transform.pt_per_px_y),
+        source_px=region.transform.source_px, image_px=image.size,
+        input_tokens=record.input_tokens, output_tokens=record.output_tokens, seconds=record.seconds,
+        stop=record.stop, capped=record.capped, incomplete=record.incomplete,
+    )
 
 
 UnitOf = tuple[int, PointBox, Callable[[PointBox], PointBox]]

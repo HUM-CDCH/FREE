@@ -95,10 +95,11 @@ function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, actio
   return undefined
 }
 
-/** A recipe Catalog value's grounding in the researcher's words; like the checks, it describes the original value. */
-function evidenceDetail(link: EvidenceLink, action?: ReviewDecisionAction): string | undefined {
+/** A recipe Catalog value's grounding in the researcher's words; like the checks, it describes the original
+ *  value, so after an edit or rejection it names that extracted value instead. */
+function evidenceDetail(link: EvidenceLink, action: ReviewDecisionAction | undefined, extracted: unknown): string | undefined {
   const grounding = link.grounding
-  if (action === 'EDITED' || action === 'REJECTED') return undefined
+  if (action === 'EDITED' || action === 'REJECTED') return `Extracted value: ${String(extracted)}`
   const location =
     link.precision === 'cell'
       ? 'Located to a table cell'
@@ -513,6 +514,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
 }
 
 function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange, onEditField }: ResultsTabProps) {
+  const approvalDescriptionId = useId()
   const attempt = inspectedAttempt ?? controller.attempt
   // The header's single "… with current schema" run action replaces the
   // summary row's plain one whenever the result predates the Current Schema Revision.
@@ -627,10 +629,33 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     ])),
     [visibleReviewDecisions],
   )
+  // Values the service left empty because their sources disagreed, keyed like the Evidence links; one a review has
+  // filled or rejected is no longer an open conflict.
+  const openContested = useMemo(
+    () => (state.status === 'ready' ? attempt?.diagnostics?.contested ?? [] : []).flatMap(({ resultPath, candidates }) => {
+      const path = resultPath.map(String).slice(articlePathPrefix.length)
+      const value = getAtPath(displayResult, path)
+      return (value === null || value === undefined || value === '') &&
+        reviewDecisionByPath.get(resultPathKey(resultPath))?.action !== 'REJECTED'
+        ? [{ path, candidates }]
+        : []
+    }),
+    [articlePathPrefix.length, attempt, displayResult, reviewDecisionByPath, state.status],
+  )
+  const contestedByPath = useMemo(
+    () => new Map(openContested.map(({ path, candidates }) => [JSON.stringify(path), candidates])),
+    [openContested],
+  )
   const checkCount = state.status === 'ready'
     ? state.evidenceLinks.filter((link) => evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action) !== undefined).length
     : 0
   const noGroundedValues = state.status === 'ready' && state.evidenceLinks.length === 0
+  const reviewReadOnly = readOnly || Boolean(inspectedAttempt)
+  const requiredCount = attempt?.reviewedAt
+    ? visibleReviewDecisions.length
+    : reviewReadOnly && state.status === 'ready'
+      ? state.evidenceLinks.length
+      : controller.review.requiredCount
 
   function navTo(newPath: string[]) {
     setBackStack(prev => [...prev, navPath])
@@ -703,24 +728,38 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               )} */}
               {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())}
               {summaryItem('Fields', stats.fields)}
-              {summaryItem('Missing', stats.missing)}
+              {summaryItem('Missing', stats.missing - openContested.length)}
+              {openContested.length > 0 && summaryItem('Contested', openContested.length)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
+              {state.ungroundedCount > 0 && summaryItem('Ungrounded', state.ungroundedCount)}
               {checkCount > 0 && summaryItem('To check', checkCount)}
-              {state.evidenceLinks.length > 0 && summaryItem(
-                'Decisions',
-                attempt?.reviewedAt
-                  ? `${visibleReviewDecisions.length} saved`
-                  : controller.review.loading
-                    ? 'loading'
-                    : `${visibleReviewDecisions.length} pending`,
-              )}
               {/* {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)} */}
             </div>
+            {(requiredCount > 0 || attempt?.reviewedAt || (!reviewReadOnly && (controller.review.loading || controller.review.error))) && (
+              <section aria-label="Review progress" className="mt-2 text-[11.5px] text-ink-muted">
+                <span role={reviewReadOnly ? undefined : 'status'} aria-atomic="true">
+                  {attempt?.reviewedAt ? <><span>Review saved</span> · {requiredCount} decision{requiredCount === 1 ? '' : 's'}</>
+                    : reviewReadOnly ? `Not reviewed · ${requiredCount} required decision${requiredCount === 1 ? '' : 's'}`
+                    : controller.review.loading ? 'Loading Review Decisions…'
+                    : controller.review.error && requiredCount === 0 ? 'Review Decisions could not be loaded'
+                    : <>
+                      {carried > 0
+                        ? <span>{`${carried} reviewed in sample · ${changedSinceSample} changed since sample · ${controller.review.untouchedCount - changedSinceSample} to review`}</span>
+                        : `${controller.review.untouchedCount} of ${requiredCount} required decisions remaining`}
+                      {controller.review.saving ? ' · Saving review…' : controller.review.error ? <> · <span>Review not saved</span></> : ''}
+                    </>}
+                </span>
+                {!reviewReadOnly && !attempt?.reviewedAt && !controller.review.loading && !controller.review.draftError && !controller.review.saving && (
+                  <span aria-live="off">{controller.review.draftSaving ? ' · Saving draft…' : controller.review.draftSaved ? <> · <span>Draft saved</span></> : ''}</span>
+                )}
+              </section>
+            )}
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap gap-1.5">
                 <ExtractionResultExportControl
                   schema={exportSchema}
                   disabled={displayResult === null}
+                  contestedCount={openContested.length}
                   onExport={async (format, choices) => {
                     if (displayResult === null || exportSchema === null) return
                     await exportExtractionResult(displayResult, {
@@ -728,6 +767,15 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       filename: sourceDocumentName,
                       schemaNodes: exportSchema.schemaNodes,
                       choices,
+                      ...(openContested.length > 0 ? {
+                        contested: openContested.map(({ path, candidates }) => {
+                          const steps = path.map((step) => /^\d+$/.test(step) ? Number(step) : step)
+                          // Several records display as an array: its first step is the record.
+                          return Array.isArray(displayResult) && typeof steps[0] === 'number'
+                            ? { record: steps[0], path: steps.slice(1), candidates }
+                            : { path: steps, candidates }
+                        }),
+                      } : {}),
                     })
                   }}
                 />
@@ -736,7 +784,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                     variant="secondary"
                     size="sm"
                     disabled={controller.review.loading || controller.review.saving || editingPaths.size > 0 || controller.review.untouchedCount === 0}
-                    title="Mark every untouched field Approved, without changing fields you've already acted on"
+                    aria-describedby={approvalDescriptionId}
                     onClick={() => controller.review.approveAll()}
                   >
                     {controller.review.untouchedCount > 0 ? `Approve remaining (${controller.review.untouchedCount})` : 'Approve remaining'}
@@ -744,15 +792,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 )}
                 {!readOnly && !inspectedAttempt && controller.review.available && (
                   <>
-                    <span role="status" className="self-center text-[11px] text-ink-muted">
-                      {controller.review.reviewedExtractionId ? 'Review saved'
-                        : controller.review.saving ? 'Saving…'
-                        : controller.review.error ? 'Review not saved'
-                        : controller.review.loading ? 'Loading review…'
-                        : carried > 0 ? `${carried} reviewed in sample · ${changedSinceSample} changed since sample · ${controller.review.untouchedCount - changedSinceSample} to review`
-                        : controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null)
-                          ? 'Review all grounded fields to save automatically' : 'No required grounded decisions. Save review explicitly.'}
-                    </span>
+                    {controller.review.error && !controller.review.loading && requiredCount === 0 && (
+                      <Button size="sm" variant="secondary" onClick={controller.review.reload}>Retry</Button>
+                    )}
                     {(controller.review.error || carried > 0 || !controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null)) && controller.review.canAccept && (
                       <Button size="sm" variant={controller.review.error ? 'secondary' : 'primary'} disabled={editingPaths.size > 0}
                         onClick={() => void controller.review.accept()}>{controller.review.error ? 'Retry' : 'Save review'}</Button>
@@ -785,6 +827,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 })}
               </div>
             </div>
+            {!reviewReadOnly && controller.review.available && !attempt?.reviewedAt && (
+              <p id={approvalDescriptionId} className="mt-2 text-[11px] leading-snug text-ink-muted">
+                Approve only the remaining required decisions. Existing edits and rejections, and ungrounded values, are unchanged.{' '}
+                {carried > 0 ? 'Decisions carried from a sample are saved only with Save review.' : 'The review saves automatically when all required decisions are made.'}
+              </p>
+            )}
             {controller.review.draftError && !readOnly && !inspectedAttempt && (
               <div role="alert" className="text-xs text-danger">
                 Draft not saved: {controller.review.draftError}
@@ -813,11 +861,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 ))}
               </div>
             )}
-            {!readOnly && !inspectedAttempt && !controller.review.reviewedExtractionId && !controller.review.draftError && (
-              <p role="status" className="text-xs text-ink-muted">
-                {controller.review.draftSaving ? 'Saving draft…' : controller.review.untouchedCount < controller.review.reviewedCount ? 'Draft saved' : ''}
-              </p>
-            )}
             {controller.review.error && (
               <p role="alert" className="mt-2 text-[11.5px] leading-snug text-danger">
                 {controller.review.error}
@@ -841,7 +884,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
             {attempt?.diagnostics?.grounded && <RecipeReview grounded={attempt.diagnostics.grounded} />}
             {state.ungroundedCount > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
-                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. {state.ungroundedCount === 1 ? 'It remains' : 'They remain'} optional and recorded without model Evidence.
+                {state.ungroundedCount} ungrounded value{state.ungroundedCount === 1 ? ' is' : 's are'} excluded from required review and {state.ungroundedCount === 1 ? 'remains' : 'remain'} recorded without Evidence.
               </p>
             )}
           </div>
@@ -913,9 +956,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               </nav>
               {/* Content */}
               <div className="bg-canvas px-3 py-2">
-                {controller.review.loading && !readOnly && (
-                  <p role="status" className="py-2 text-[11.5px] text-ink-muted">Loading Review Decisions…</p>
-                )}
                 {currentEntries.map(({ pathKey, displayName, value: val }) => (
                   <ResultValue
                     key={pathKey}
@@ -934,8 +974,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                     }}
                     getEvidenceDetail={(path) => {
                       const link = evidenceLinkByPath.get(JSON.stringify(path))
-                      return link && evidenceDetail(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action)
+                      return link && evidenceDetail(
+                        link,
+                        reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action,
+                        state.status === 'ready' ? getAtPath(state.result, link.resultPath.map(String)) : undefined,
+                      )
                     }}
+                    getContested={(path) => contestedByPath.get(JSON.stringify(path))}
                     onSelectEvidence={onSelectEvidence}
                     review={noGroundedValues ? undefined : {
                       getDecision: (path) => reviewDecisionByPath.get(resultPathKey(absoluteReviewPath(path))),

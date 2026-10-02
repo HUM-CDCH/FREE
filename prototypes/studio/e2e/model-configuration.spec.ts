@@ -105,7 +105,9 @@ function seedKeys(page: Page, accountId: string, keys: KeyHandoff['keys']): Prom
   return page.evaluate(([key, value]) => localStorage.setItem(key, value), [`free.modelKeys.v1:${accountId}`, JSON.stringify(keys)])
 }
 
-const step = (dialog: Locator, title: string) => dialog.getByRole('region', { name: title })
+async function step(dialog: Locator, title: string): Promise<Locator> {
+  return dialog.getByRole('region', { name: title })
+}
 const details = (dialog: Locator) => dialog.getByRole('region', { name: 'Connection details' })
 
 async function showConnections(dialog: Locator): Promise<void> {
@@ -152,6 +154,7 @@ const storedKeys = (page: Page, accountId: string) =>
 
 /** Picks `model` for a route picker from one connection's group: listed by its probe, or typed as an exact ID. */
 async function chooseRoute(dialog: Locator, picker: string, group: string, model: string, typed = false): Promise<void> {
+  await step(dialog, 'Schema & chat')
   await dialog.getByRole('button', { name: picker, exact: true }).click()
   if (typed) await dialog.getByRole('combobox', { name: `Search ${picker}` }).fill(model)
   await dialog
@@ -187,7 +190,7 @@ test.describe('against Studio and PostgreSQL', () => {
     const dialog = await openModelConfiguration(page)
     await addConnection(dialog, 'vLLM', { baseUrl: 'http://lab-a.example:8000/v1', key: 'sk-test-e2e-account-a' })
     await showModels(dialog)
-    await step(dialog, 'Schema & chat').getByRole('button', { name: 'Change' }).click()
+    await (await step(dialog, 'Schema & chat')).getByRole('button', { name: 'Change' }).click()
     await chooseRoute(dialog, 'Assistant model', 'vLLM', QWEN)
     const committed = await apply(page, dialog)
     const [labVllm] = committed.connections
@@ -205,13 +208,13 @@ test.describe('against Studio and PostgreSQL', () => {
       await showConnections(dialogB)
       await expect(researcherConnectionsB).toHaveCount(0)
       await showModels(dialogB)
-      await expect(step(dialogB, 'Schema & chat').getByRole('button', { name: 'Change' })).toBeVisible()
+      await expect((await step(dialogB, 'Schema & chat')).getByRole('button', { name: 'Change' })).toBeVisible()
       await expect(dialogB.getByRole('button', { name: 'Assistant model', exact: true })).toHaveCount(0)
 
       await addConnection(dialogB, 'Ollama')
       await expect(researcherConnectionsB).toHaveCount(1)
       await showModels(dialogB)
-      await step(dialogB, 'Schema & chat').getByRole('button', { name: 'Change' }).click()
+      await (await step(dialogB, 'Schema & chat')).getByRole('button', { name: 'Change' }).click()
       await chooseRoute(dialogB, 'Assistant model', 'Ollama', 'llama3.3')
       const committedB = await apply(pageB, dialogB)
       expect(committedB.connections.map(({ provider }) => provider)).toEqual(['ollama'])
@@ -232,6 +235,7 @@ test.describe('against Studio and PostgreSQL', () => {
 
     await reload(page)
     const reopened = await openModelConfiguration(page)
+    await step(reopened, 'Schema & chat')
     await expect(reopened.getByRole('button', { name: 'Assistant model', exact: true })).toContainText(`${QWEN} · vLLM`)
     expect(await storedConfiguration(page)).toEqual(committed)
   })
@@ -242,7 +246,7 @@ test.describe('against Studio and PostgreSQL', () => {
     const dialog = await openModelConfiguration(page)
     await addConnection(dialog, 'Ollama')
     await showModels(dialog)
-    const schemaAndChat = step(dialog, 'Schema & chat')
+    const schemaAndChat = await step(dialog, 'Schema & chat')
     await schemaAndChat.getByRole('button', { name: 'Change' }).click()
     await chooseRoute(dialog, 'Assistant model', 'Ollama', 'llama3.3')
     await expect(schemaAndChat.getByText(FOLLOWS)).toBeVisible()
@@ -253,17 +257,19 @@ test.describe('against Studio and PostgreSQL', () => {
 
     await reload(page)
     let reopened = await openModelConfiguration(page)
+    await step(reopened, 'Schema & chat')
     await expect(reopened.getByRole('button', { name: 'Schema Suggestion model' })).toContainText('llama3.3 · Ollama')
-    await expect(step(reopened, 'Schema & chat').getByText(FOLLOWS)).toHaveCount(0)
+    await expect((await step(reopened, 'Schema & chat')).getByText(FOLLOWS)).toHaveCount(0)
     expect((await storedConfiguration(page)).routes.schemaSuggestion).toEqual(committed.routes.interaction)
 
     // "Use defaults" removes both of the step's stored routes; reopened, the step is one sentence again.
-    await step(reopened, 'Schema & chat').getByRole('button', { name: 'Use defaults' }).click()
+    await (await step(reopened, 'Schema & chat')).getByRole('button', { name: 'Use defaults' }).click()
     await apply(page, reopened)
     await reload(page)
     reopened = await openModelConfiguration(page)
-    await expect(step(reopened, 'Schema & chat').getByRole('button', { name: 'Change' })).toBeVisible()
-    await expect(step(reopened, 'Schema & chat')).toContainText(/Chat, schema editing and Schema Suggestion use|No model is configured yet\./)
+    await expect((await step(reopened, 'Schema & chat')).getByRole('button', { name: 'Change' })).toBeVisible()
+    await expect((await step(reopened, 'Schema & chat'))).toContainText(/Chat, schema editing and Schema Suggestion use|No model is configured yet\./)
+    await step(reopened, 'Schema & chat')
     await expect(reopened.getByRole('button', { name: 'Assistant model', exact: true })).toHaveCount(0)
     expect((await storedConfiguration(page)).routes).toEqual({ schemaSuggestion: null, interaction: null })
   })
@@ -277,7 +283,7 @@ test.describe('against Studio and PostgreSQL', () => {
     await addConnection(dialog, 'vLLM', { baseUrl: 'http://nuextract.example:8000/v1' })
     await addConnection(dialog, 'OpenAI', { key: 'sk-test-e2e-typed' })
     await showModels(dialog)
-    const schemaAndChat = step(dialog, 'Schema & chat')
+    const schemaAndChat = await step(dialog, 'Schema & chat')
     await schemaAndChat.getByRole('button', { name: 'Change' }).click()
     await chooseRoute(dialog, 'Assistant model', 'OpenAI', 'gpt-manual', true)
     await schemaAndChat.getByRole('button', { name: 'Use a different model' }).click()
@@ -296,9 +302,11 @@ test.describe('against Studio and PostgreSQL', () => {
 
     await dialog.getByRole('button', { name: 'Close Model Configuration' }).click()
     const reopened = await openModelConfiguration(page)
+    await step(reopened, 'Schema & chat')
     await expect(reopened.getByRole('button', { name: 'Assistant model', exact: true })).toContainText('gpt-manual · OpenAI')
+    await step(reopened, 'Schema & chat')
     await expect(reopened.getByRole('button', { name: 'Schema Suggestion model' })).toContainText(`${manualNuExtract} · vLLM`)
-    await expect(step(reopened, 'Schema & chat').getByText(NUEXTRACT_NOTE)).toBeVisible()
+    await expect((await step(reopened, 'Schema & chat')).getByText(NUEXTRACT_NOTE)).toBeVisible()
   })
 
   test("Apply hands this browser's key to Studio for the connection's current base only", async ({ page }) => {
@@ -488,7 +496,7 @@ test.describe('with a mocked configuration', () => {
     const { puts, servers } = await mockConfiguration(page, config({ connections: [ollama] }))
     await signIn(page)
     let dialog = await openModelConfiguration(page)
-    const reading = step(dialog, 'Reading documents')
+    const reading = await step(dialog, 'Reading documents')
     await expect(reading).toContainText('Scanned pages are read by datalab-to/surya-ocr-2, page regions found by Heron-101.')
     await reading.getByRole('button', { name: 'Change' }).click()
     const trigger = reading.getByRole('button', { name: 'Text recognition' })
@@ -510,10 +518,10 @@ test.describe('with a mocked configuration', () => {
     servers.failing.listings = true
     await reload(page)
     dialog = await openModelConfiguration(page)
-    await expect(step(dialog, 'Reading documents')).toContainText(
+    await expect((await step(dialog, 'Reading documents'))).toContainText(
       "Scanned pages are read and their page regions found by the deployment's default models.",
     )
-    await step(dialog, 'Schema & chat').getByRole('button', { name: 'Change' }).click()
+    await (await step(dialog, 'Schema & chat')).getByRole('button', { name: 'Change' }).click()
     await chooseRoute(dialog, 'Assistant model', 'Local Ollama', 'llama3.3')
     await dialog.getByRole('button', { name: 'Apply' }).click()
     await expect(dialog.getByText('Everything saved')).toBeVisible()
@@ -528,11 +536,14 @@ test.describe('with a mocked configuration', () => {
     )
     await signIn(page)
     const dialog = await openModelConfiguration(page)
-    const reading = step(dialog, 'Reading documents')
-    const extracting = step(dialog, 'Extracting data')
+    const reading = await step(dialog, 'Reading documents')
     await expect(reading.getByRole('button', { name: 'Page regions' })).toContainText('layout_retired (not offered by this deployment)')
+    const extracting = await step(dialog, 'Extracting data')
+    await extracting.getByRole('button', { name: 'Change' }).click()
     await expect(extracting.getByRole('button', { name: 'Field values' })).toContainText('retired_extractor (not offered by this deployment)')
 
+    await step(dialog, 'Reading documents')
+    await reading.getByRole('button', { name: 'Change' }).click()
     await reading.getByRole('button', { name: 'Text recognition' }).click()
     await dialog.getByRole('listbox', { name: 'Text recognition' }).getByRole('option', { name: 'datalab-to/surya-ocr-2', exact: true }).click()
     await dialog.getByRole('button', { name: 'Apply' }).click()
@@ -542,6 +553,35 @@ test.describe('with a mocked configuration', () => {
     expect(puts[0].extractionModels).toEqual({ fields: 'retired_extractor' })
   })
 
+  test('model menus stay in the viewport without scrolling or moving the dialog', async ({ page }) => {
+    await page.setViewportSize({ width: 971, height: 570 })
+    await mockConfiguration(page, config())
+    await signIn(page)
+    const dialog = await openModelConfiguration(page)
+    const extracting = await step(dialog, 'Extracting data')
+    await extracting.getByRole('button', { name: 'Change' }).click()
+    const before = await dialog.boundingBox()
+    const trigger = extracting.getByRole('button', { name: 'Field values', exact: true })
+    await trigger.click()
+    const search = dialog.getByRole('combobox', { name: 'Search Field values' })
+    await expect(search).toBeFocused()
+    const popup = dialog.getByRole('listbox', { name: 'Field values' }).locator('..')
+    const bounds = await popup.boundingBox()
+    const anchor = await trigger.boundingBox()
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(anchor!.y)
+    expect(bounds!.y).toBeGreaterThanOrEqual(0)
+    expect(await dialog.boundingBox()).toEqual(before)
+    expect(await dialog.evaluate((element) => element.scrollHeight <= element.clientHeight + 1 && element.scrollTop === 0)).toBe(true)
+    await search.fill('numind')
+    await search.press('ArrowDown')
+    await search.press('Enter')
+    await expect(trigger).toContainText(NUEXTRACT)
+    await expect(trigger).toBeFocused()
+    await expect(dialog.getByRole('button', { name: 'Apply' })).toBeEnabled()
+    await expectOperableInViewport(page, dialog.getByRole('button', { name: 'Close Model Configuration' }))
+    await expectOperableInViewport(page, dialog.getByRole('button', { name: 'Apply' }))
+  })
+
   test('Escape closes the open model list or menu, not the Model Configuration dialog', async ({ page }) => {
     await mockConfiguration(page, config({ connections: [ollama] }))
     await signIn(page)
@@ -549,7 +589,7 @@ test.describe('with a mocked configuration', () => {
     const dialog = await openModelConfiguration(page)
     await expect(dialog.getByRole('button', { name: 'Close Model Configuration' })).toBeFocused()
 
-    await step(dialog, 'Schema & chat').getByRole('button', { name: 'Change' }).click()
+    await (await step(dialog, 'Schema & chat')).getByRole('button', { name: 'Change' }).click()
     const trigger = dialog.getByRole('button', { name: 'Assistant model', exact: true })
     await trigger.click()
     const search = dialog.getByRole('combobox', { name: 'Search Assistant model' })
@@ -583,7 +623,12 @@ test.describe('the Advanced tab', () => {
     await expect(dialog.getByRole('tab', { name: 'Advanced' })).toBeFocused()
     await expect(dialog.getByRole('heading', { name: 'Advanced extraction' })).toBeVisible()
   }
-  const section = (dialog: Locator, title: string) => dialog.locator('details').filter({ has: dialog.page().locator('summary', { hasText: title }) })
+  const section = (dialog: Locator, title: string) => dialog.getByRole('region', { name: title })
+  const setting = async (dialog: Locator, title: string) => {
+    const selector = dialog.getByRole('combobox', { name: 'Article setting', exact: true })
+    const option = selector.getByRole('option', { name: new RegExp(`: ${escapeRegExp(title)}$`) })
+    await selector.selectOption(await option.getAttribute('value') ?? '')
+  }
 
   test('opening, explaining and switching strategies saves nothing; an Apply survives a reload; a second account sees none of it', async ({ page, browser }) => {
     await routeModelServers(page)
@@ -594,7 +639,7 @@ test.describe('the Advanced tab', () => {
     await openAdvanced(dialog)
     await dialog.getByRole('radio', { name: 'Catalog' }).check()
     await dialog.getByRole('radio', { name: 'Article' }).check()
-    await section(dialog, 'Evidence').locator('summary').click()
+    await setting(dialog, 'Verification')
     await dialog.getByRole('button', { name: 'Explain Evidence' }).click()
     await expect(page.getByRole('dialog', { name: 'Verification' })).toBeVisible()
     await page.keyboard.press('Escape')
@@ -610,7 +655,7 @@ test.describe('the Advanced tab', () => {
     await reload(page)
     const reopened = await openModelConfiguration(page)
     await openAdvanced(reopened)
-    await section(reopened, 'Evidence').locator('summary').click()
+    await setting(reopened, 'Verification')
     await expect(section(reopened, 'Evidence').getByRole('radio', { name: 'Source spans' })).toBeChecked()
     expect(await storedConfiguration(page)).toEqual(committed)
 
@@ -652,11 +697,13 @@ test.describe('the Advanced tab', () => {
     await openAdvanced(dialog)
     await activateWithKeyboard(page, dialog.getByRole('button', { name: 'Customize' }))
     const context = section(dialog, 'Source context')
-    await context.locator('summary').focus()
-    await page.keyboard.press('Enter')
+    await dialog.getByRole('combobox', { name: 'Article setting', exact: true }).focus()
     await context.getByRole('radio', { name: 'Bounded source units' }).check()
+    await setting(dialog, 'Previous passages')
     await context.getByRole('group', { name: 'Previous passages' }).getByRole('radio', { name: '1' }).check()
+    await setting(dialog, 'Scope')
     await context.getByRole('radio', { name: 'Full source' }).check()
+    await setting(dialog, 'Previous passages')
     const overlap = context.getByRole('group', { name: 'Previous passages' }).getByRole('radio', { name: '1' })
     await expect(overlap).toBeChecked()
     await expect(overlap).toHaveAttribute('aria-invalid', 'true')
@@ -664,7 +711,9 @@ test.describe('the Advanced tab', () => {
     await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled()
     await activateWithKeyboard(page, dialog.getByRole('button', { name: '1 issue blocks Apply' }))
     await expect(overlap).toBeFocused()
+    await setting(dialog, 'Scope')
     await context.getByRole('radio', { name: 'Bounded source units' }).check()
+    await setting(dialog, 'Previous passages')
     await expect(overlap).toBeChecked()
     await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeEnabled()
   })
@@ -692,7 +741,8 @@ test.describe('the Advanced tab', () => {
       for (const control of ['Customize', 'Apply', 'Discard'])
         await expectOperableInViewport(page, dialog.getByRole('button', { name: control, exact: true }))
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
-      // The dialog scrolls on its own: its content must not overflow sideways either.
+      // Every settings view fits without an internal scroll area.
+      expect(await dialog.evaluate((element) => element.scrollHeight <= element.clientHeight + 1), `dialog height at ${viewport.width}px`).toBe(true)
       expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth), `dialog at ${viewport.width}px`).toBe(true)
       await page.screenshot({ path: testInfo.outputPath(`advanced-${viewport.width}x${viewport.height}.png`), fullPage: true })
       await page.keyboard.press('Escape')
@@ -703,6 +753,7 @@ test.describe('the Advanced tab', () => {
     const zoomed = await openModelConfiguration(page)
     await openAdvanced(zoomed)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    expect(await zoomed.evaluate((element) => element.scrollHeight <= element.clientHeight + 1)).toBe(true)
     await page.screenshot({ path: testInfo.outputPath('advanced-zoom-200.png'), fullPage: true })
   })
 })

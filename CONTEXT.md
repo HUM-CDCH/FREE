@@ -166,7 +166,7 @@ What one Extraction is admitted with and pinned to: its Extraction Strategy, rec
 _Avoid_: current settings, configuration, method profile
 
 **Ingestion Model Choice**:
-A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages) and layout model (the detector that cuts scanned pages into regions). It applies to new ingestions and reprocessing only: an admitted ingestion keeps the models it was admitted with, and existing Source Representation Revisions never change. A page with a text layer uses neither. A role left unchosen uses the deployment's default. It names no Model Connection.
+A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages and textless embedded artwork) and layout model (the detector that cuts scanned pages into regions). It applies to new ingestions and reprocessing only: an admitted ingestion keeps the models it was admitted with, and existing Source Representation Revisions never change. Native PDF text uses neither model. In a document whose nonblank pages all have native text, substantial textless images or vector forms use only the OCR model, as crops; their surrounding native text is preserved. A role left unchosen uses the deployment's default. It names no Model Connection.
 _Avoid_: OCR setting, parser model
 
 **Interaction Route**:

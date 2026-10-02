@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { reviewAttention } from 'extraction/review-attention'
 import type { BatchExtraction } from '../../shared/batchExtraction.contract'
@@ -471,6 +471,7 @@ export default function BatchExtractionReviewGrid({
   onMemberSaved?(): void
 }) {
   const grid = useBatchExtractionReviewGrid(batch, schemaNodes, onMemberSaved)
+  const approvalDescriptionId = useId()
   const gridContainerRef = useRef<HTMLDivElement | null>(null)
   const zoom = useGridZoom(gridContainerRef)
   const [activeCell, setActiveCell] = useState<string | null>(null)
@@ -502,6 +503,13 @@ export default function BatchExtractionReviewGrid({
   const savingAny = [...grid.members.values()].some(
     (state) => state.status === 'ready' && state.saving,
   )
+  const reviewLoading = [...grid.members.values()].some((state) => state.status === 'loading')
+  const reviewLoadError = [...grid.members.values()].some((state) => state.status === 'error')
+  // Bulk approval covers every loaded member, including rows hidden by a filter.
+  const requiredCount = [...grid.members.values()].reduce((total, state) =>
+    total + (state.status === 'ready' ? state.decisions.length : 0), 0)
+  const requiredRemaining = [...grid.members.values()].reduce((total, state) =>
+    total + (state.status === 'ready' && state.editable ? pendingReviewCount(state) : 0), 0)
 
   /** Untouched (still-pending) decisions matching one column's path, across
    *  every ready+editable member — what a column-header bulk approve would
@@ -571,7 +579,7 @@ export default function BatchExtractionReviewGrid({
         Draft not saved: {grid.draftError}
         <Button onClick={grid.retryDrafts} disabled={grid.draftSaving}>{grid.draftError === REVIEW_DRAFT_CONFLICT ? 'Reload server review' : 'Retry draft'}</Button>
       </div>}
-      {!grid.draftError && <p role="status" className="text-xs text-ink-muted">{grid.draftSaving ? 'Saving draft…' : grid.dirtyCount > 0 ? 'Draft saved' : ''}</p>}
+      {!grid.draftError && <p aria-live="off" className="text-xs text-ink-muted">{grid.draftSaving ? 'Saving draft…' : grid.draftSaved ? 'Draft saved' : ''}</p>}
       <div className="flex shrink-0 flex-col gap-2.5 rounded-card border border-line bg-surface px-4 py-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
@@ -599,7 +607,7 @@ export default function BatchExtractionReviewGrid({
               </span>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <SegmentedControl
               aria-label="Filter Source Documents"
               value={filter}
@@ -649,8 +657,8 @@ export default function BatchExtractionReviewGrid({
                 +
               </button>
             </div>
-            <Button size="sm" variant="secondary" disabled={savingAny || editingCell !== null} onClick={grid.approveAll}>
-              Approve remaining
+            <Button size="sm" variant="secondary" disabled={savingAny || reviewLoading || editingCell !== null || requiredRemaining === 0} aria-describedby={approvalDescriptionId} onClick={grid.approveAll}>
+              Approve remaining ({requiredRemaining})
             </Button>
             <Button
               size="sm"
@@ -660,11 +668,16 @@ export default function BatchExtractionReviewGrid({
             >
               Revert all
             </Button>
-            <span role="status" className="text-[11px] text-ink-muted">
-              {savingAny ? 'Saving…' : 'Completed explicit reviews save automatically; sample drafts require finalization'}
-            </span>
           </div>
         </div>
+        {(reviewLoading || requiredCount > 0 || reviewLoadError) && <p role="status" aria-atomic="true" className="text-[11.5px] text-ink-muted">
+          {reviewLoading ? 'Loading Review Decisions…'
+            : reviewLoadError && requiredCount === 0 ? 'Review Decisions could not be loaded'
+            : `${requiredRemaining} of ${requiredCount} required decisions remaining${reviewLoadError ? ' across loaded Source Documents · Some review data is unavailable' : ''}${savingAny ? ' · Saving reviews…' : ''}`}
+        </p>}
+        <p id={approvalDescriptionId} className="text-[11px] leading-snug text-ink-muted">
+          Approve only the remaining required decisions across all loaded Source Documents, including rows hidden by a filter. Existing edits and rejections, and ungrounded values, are unchanged. Completed reviews save automatically.
+        </p>
         {reviewFraction !== null && (
           <div className="flex min-w-0 items-center gap-2">
             <div className="relative h-5 min-w-0 flex-1">

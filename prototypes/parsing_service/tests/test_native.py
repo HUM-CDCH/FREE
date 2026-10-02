@@ -44,7 +44,7 @@ from kei_exp.kie.stages.ocr import TRANSCRIBERS, resolve
 from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
 from kei_exp.pagefile import read_manifest, read_page
 from kei_exp.result import _segments  # the seam rule an empty block list feeds: one coarse segment, never none
-from kei_exp.transcription.native import blocks_of, has_native_text
+from kei_exp.transcription.native import blocks_of, native_regions
 from kei_exp.transcription.types import PageRecord, RunParams
 from kei_exp.workflows import convert as workflow
 from tests.helpers import kei as kei_helper
@@ -88,7 +88,7 @@ def mixed_pdf(digital_pdf, scan_pdf, tmp_path) -> Path:
 
 
 def test_the_fixture_pdfs_are_a_digital_pdf_and_a_scan(digital_pdf, scan_pdf):
-    assert has_native_text(digital_pdf) and not has_native_text(scan_pdf)
+    assert native_regions(digital_pdf) == () and native_regions(scan_pdf) is None
 
 
 @pytest.mark.live_model
@@ -124,9 +124,9 @@ def test_a_paragraph_hyphenated_across_a_page_break_stays_on_its_pages_hyphen_in
 
 def test_a_native_page_cannot_make_a_following_scanned_page_disappear(mixed_pdf):
     # A native page cannot make a following scanned page disappear; selected ranges are classified separately.
-    assert not has_native_text(mixed_pdf)
-    assert has_native_text(mixed_pdf, (1, 1))
-    assert not has_native_text(mixed_pdf, (2, 2))
+    assert native_regions(mixed_pdf) is None
+    assert native_regions(mixed_pdf, (1, 1)) == ()
+    assert native_regions(mixed_pdf, (2, 2)) is None
 
 
 def test_a_page_sized_raster_with_some_embedded_text_still_takes_the_scan_path(digital_pdf, tmp_path):
@@ -143,7 +143,7 @@ def test_a_page_sized_raster_with_some_embedded_text_still_takes_the_scan_path(d
         overlay.save(tmp_path / "overlay.pdf")
         bitmap.close()
         page.close()
-    assert not has_native_text(tmp_path / "overlay.pdf")
+    assert native_regions(tmp_path / "overlay.pdf") is None
 
 
 def test_resolve_makes_the_execution_choice_once_following_the_selected_range(digital_pdf, scan_pdf, mixed_pdf):
@@ -183,9 +183,9 @@ def test_textless_vector_form_on_a_native_page_needs_ocr_unless_it_is_small_artw
         page.close()
         raw.FPDF_CloseXObject(xobject)
         source.close()
-    assert has_native_text(tmp_path / "with-form.pdf") is not needs_ocr
+    assert (native_regions(tmp_path / "with-form.pdf") == ()) is not needs_ocr
     execution = resolve(RunParams(pdf=tmp_path / "with-form.pdf", model="surya"))
-    assert execution.transcriber == ("surya" if needs_ocr else "native")
+    assert execution.transcriber == ("hybrid" if needs_ocr else "native")
 
 
 def test_native_empty_table_is_incomplete_not_a_successful_caption_only_parse(digital_pdf, monkeypatch):

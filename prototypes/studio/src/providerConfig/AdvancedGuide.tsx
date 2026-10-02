@@ -5,6 +5,7 @@ import {
   EVIDENCE_SOURCES, FLOW_NOTE, FLOW_TEXT, GUIDE_TOPICS, type FigureBlock, type GuideTopic, type GuideTopicId,
 } from './advancedGuide.data'
 import { settingsDelta, STARTING_POINTS, withStartingPoint, type StartingPoint } from './advancedSettings'
+import { SettingsViews } from './SettingsViews'
 
 type Opened = Readonly<{ topic: GuideTopicId | 'overview'; trigger: RefObject<HTMLButtonElement | null> }>
 const GuideContext = createContext<((opened: Opened) => void) | null>(null)
@@ -62,29 +63,20 @@ function GuideDialog({ opened, article, onTopic, onClose, onUse }: {
   const topic = GUIDE_TOPICS.find((item) => item.id === opened.topic)
   const topics: readonly { id: GuideTopicId | 'overview'; title: string }[] = [{ id: 'overview', title: 'How this works' }, ...GUIDE_TOPICS]
   return (
-    // A full-height sheet on narrow screens, a readable dialog on wide ones.
     <ModalDialog labelledBy={titleId} initialFocusRef={close} returnFocusRef={opened.trigger} onDismiss={onClose}
-      className="m-0 h-full max-h-none w-full max-w-none overflow-y-auto bg-surface p-4 text-ink backdrop:bg-ink/35 sm:m-auto sm:h-auto sm:max-h-[85vh] sm:w-[42rem] sm:max-w-[92vw] sm:rounded-xl sm:border sm:border-line">
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-visible rounded-xl border border-line bg-surface p-3 text-ink backdrop:bg-ink/35 sm:p-4">
       <div className="flex items-start justify-between gap-3">
         <h2 id={titleId} className="text-[14px] font-bold text-ink">{topic ? topic.title : 'How this works'}</h2>
         <button ref={close} type="button" onClick={onClose} className="text-[11.5px] font-semibold text-ink-muted hover:text-ink">Close</button>
       </div>
-      <nav aria-label="Topics" className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-b border-line pb-2 text-[11.5px]">
+      <select aria-label="Topics" value={opened.topic} onChange={(event) => onTopic(event.target.value as GuideTopicId | 'overview')}
+        className="mt-2 w-full rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-[12px] text-ink">
         {topics.map((item) => (
-          <button key={item.id} type="button" aria-current={opened.topic === item.id ? 'page' : undefined} onClick={() => onTopic(item.id)}
-            className={opened.topic === item.id ? 'font-semibold text-ink' : 'text-accent hover:underline'}>{item.title}</button>
+          <option key={item.id} value={item.id}>{item.title}</option>
         ))}
-      </nav>
+      </select>
       {topic ? <TopicBody key={topic.id} topic={topic} /> : <Overview article={article} onUse={onUse} />}
     </ModalDialog>
-  )
-}
-
-/** An in-page anchor that moves focus to its section without writing a URL fragment into Studio's routed address. */
-function LocalAnchor({ target, children }: { target: string; children: ReactNode }) {
-  return (
-    <a href={`#${target}`} className="font-semibold text-accent hover:underline"
-      onClick={(event) => { event.preventDefault(); document.getElementById(target)?.focus() }}>{children}</a>
   )
 }
 
@@ -99,10 +91,7 @@ function TopicBody({ topic }: { topic: GuideTopic }) {
   const part = (name: string) => `${id}-${name}`
   return (
     <div className="mt-3 flex flex-col gap-4 text-[12px] text-ink">
-      <nav aria-label="On this topic" className="text-[11.5px] text-ink-faint">
-        <LocalAnchor target={part('meaning')}>Meaning</LocalAnchor> · <LocalAnchor target={part('example')}>Example</LocalAnchor> ·{' '}
-        <LocalAnchor target={part('evidence')}>Study evidence</LocalAnchor>
-      </nav>
+      <SettingsViews label="Topic section" titles={['Meaning', 'Example', 'Takeaway', 'Study evidence', 'Technical details']}>
       <section aria-labelledby={part('meaning')} className="flex flex-col gap-1">
         <Heading id={part('meaning')}>Meaning</Heading>
         <p>{topic.purpose}</p>
@@ -122,18 +111,20 @@ function TopicBody({ topic }: { topic: GuideTopic }) {
           ))}
         </fieldset>
         <Figure blocks={option.blocks} caption={option.outcome} />
+      </section>
+      <section className="flex flex-col gap-2">
         {[...(option.notes ?? []), ...(topic.example.notes ?? [])].map((note) => <p key={note} className="text-[11px] text-ink-muted">{note}</p>)}
         <p className="font-semibold">{topic.takeaway}</p>
       </section>
       <section aria-labelledby={part('evidence')} className="flex flex-col gap-2">
         <Heading id={part('evidence')}>Study evidence</Heading>
-        {topic.evidence.length > 0 && <EvidenceTable rows={topic.evidence} />}
-        {topic.gaps.map((gap) => <p key={gap.text}><strong className="font-semibold">{gap.kind}</strong>: {gap.text}</p>)}
+        <StudyEvidence topic={topic} />
       </section>
       <details>
         <summary className="cursor-pointer font-semibold">Technical details</summary>
         <p className="mt-1 font-mono text-[11px] break-words text-ink-muted">{topic.technical}</p>
       </details>
+      </SettingsViews>
     </div>
   )
 }
@@ -168,36 +159,22 @@ function Marked({ text, mark }: { text: string; mark?: readonly [number, number]
   )
 }
 
-const EVIDENCE_COLUMNS = ['Finding', 'Date', 'Corpus', 'Method revision', 'Evidence type', 'Limits'] as const
-
-function EvidenceTable({ rows }: { rows: GuideTopic['evidence'] }) {
-  return (
-    // Focusable so the table can be scrolled from the keyboard where it is wider than the screen.
-    <div role="region" aria-label="Study evidence table" tabIndex={0} className="overflow-x-auto">
-      <table aria-label="Study evidence" className="w-full min-w-[40rem] border-collapse text-left text-[11px]">
-        <thead>
-          <tr>{EVIDENCE_COLUMNS.map((header) => <th key={header} scope="col" className="border-b border-line px-2 py-1 font-semibold text-ink-muted">{header}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const source = EVIDENCE_SOURCES.find((item) => item.id === row.source)!
-            return (
-              <tr key={row.finding} className="align-top">
-                <td className="border-b border-line px-2 py-1.5">
-                  {row.finding}
-                  <span className="mt-0.5 block text-ink-faint">{source.title} · {source.path}</span>
-                </td>
-                <td className="border-b border-line px-2 py-1.5 whitespace-nowrap">{source.date}</td>
-                {[source.corpus, source.revision, source.evidence, source.limits].map((value, index) => (
-                  <td key={index} className="border-b border-line px-2 py-1.5">{value}</td>
-                ))}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
+function StudyEvidence({ topic }: { topic: GuideTopic }) {
+  const pages = topic.evidence.flatMap((row, index) => {
+    const source = EVIDENCE_SOURCES.find((item) => item.id === row.source)!
+    return [
+      { title: `Finding ${index + 1}`, content: <div><p>{row.finding}</p><p className="mt-2 break-all text-ink-faint">{source.title} · {source.path}</p></div> },
+      { title: `Study details ${index + 1}`, content: <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+        {Object.entries({ Date: source.date, Corpus: source.corpus, 'Method revision': source.revision, 'Evidence type': source.evidence })
+          .map(([label, value]) => <div key={label} className="contents"><dt className="font-semibold text-ink-muted">{label}</dt><dd>{value}</dd></div>)}
+      </dl> },
+      { title: `Limits ${index + 1}`, content: <p>{source.limits}</p> },
+    ]
+  })
+  pages.push(...topic.gaps.map((gap, index) => ({ title: `${gap.kind} ${index + 1}`, content: <p><strong className="font-semibold">{gap.kind}</strong>: {gap.text}</p> })))
+  return <SettingsViews label="Study evidence entry" titles={pages.map((page) => page.title)}>
+    {pages.map((page) => <div key={page.title} role="region" aria-label={page.title} className="text-[11px]">{page.content}</div>)}
+  </SettingsViews>
 }
 
 /** Choices away from the documented reference; context ceiling and identity field names are inputs, not choices. Two or
@@ -213,10 +190,15 @@ function Overview({ article, onUse }: { article: ArticleSettings | undefined; on
   const changed = changedChoices(article)
   return (
     <div className="mt-3 flex flex-col gap-3 text-[12px] text-ink">
+      <SettingsViews label="Guide section" titles={['Extraction flow', 'Flow explained', 'Study scope', ...STARTING_POINTS.map((point) => point.name)]}>
+      <div className="flex flex-col gap-2">
       <figure aria-labelledby={captionId} className="flex flex-col gap-2">
         <FlowDiagram />
-        <figcaption id={captionId} className="text-ink-muted">{FLOW_TEXT}</figcaption>
+        <figcaption id={captionId} className="sr-only">{FLOW_TEXT}</figcaption>
       </figure>
+      </div>
+      <p className="text-ink-muted">{FLOW_TEXT}</p>
+      <div className="flex flex-col gap-2">
       <p className="text-ink-muted">{FLOW_NOTE}</p>
       {changed >= 2 && (
         <p>
@@ -224,8 +206,9 @@ function Overview({ article, onUse }: { article: ArticleSettings | undefined; on
           {`: your Article draft changes ${changed} choices from the reference together. The completed studies changed one choice at a time; only the grounding pilot combined choices, on one selected document. Each finding holds only under its own study conditions.`}
         </p>
       )}
-      <h3 className="text-[12.5px] font-semibold">Starting points</h3>
+      </div>
       {STARTING_POINTS.map((point) => <StartingPointCard key={point.name} point={point} article={article} onUse={onUse} />)}
+      </SettingsViews>
       <p className="text-ink-muted">Normal customization reaches every supported setting without these examples.</p>
     </div>
   )
@@ -237,15 +220,15 @@ function StartingPointCard({ point, article, onUse }: { point: StartingPoint; ar
   const [shown, setShown] = useState(false)
   const delta = settingsDelta(article, withStartingPoint(article, point))
   return (
-    <section aria-labelledby={titleId} className="flex flex-col items-start gap-1.5 rounded-xl border border-line p-3">
+    <section aria-labelledby={titleId} className="flex flex-col items-start gap-1.5 rounded-xl border border-line p-2">
       <h4 id={titleId} className="text-[12.5px] font-semibold">{point.name}</h4>
-      <p className="text-ink-muted">{point.description}</p>
+      <p hidden={shown} className="text-ink-muted">{point.description}</p>
       <button type="button" aria-expanded={shown} aria-controls={changesId} onClick={() => setShown(!shown)} className={actionButton}>Show changes</button>
-      {/* The complete change list is shown before these settings can enter the draft. */}
+      {/* Every change can be inspected before these settings enter the draft. */}
       <div id={changesId} hidden={!shown}>
         {delta.length === 0
           ? <p>Your Article draft already uses these settings.</p>
-          : <ul className="list-disc pl-5">{delta.map((change) => <li key={change.label}>{change.label}: {change.from} → {change.to}</li>)}</ul>}
+          : <SettingsViews label="Starting point change" titles={delta.map((change) => change.label)}>{delta.map((change) => <p key={change.label}>{change.label}: {change.from} → {change.to}</p>)}</SettingsViews>}
       </div>
       <button type="button" disabled={!shown || delta.length === 0} onClick={() => onUse(point)}
         className="rounded-md border border-line px-2.5 py-1 text-[11.5px] font-semibold text-ink hover:text-accent disabled:text-ink-faint disabled:hover:text-ink-faint">Use these settings</button>
@@ -275,7 +258,7 @@ function FlowDiagram() {
   const values = ROWS.indexOf('Record values')
   const verification = ROWS.indexOf('Evidence verification')
   return (
-    <svg viewBox="0 0 340 276" aria-hidden="true" focusable="false" className="h-auto w-full max-w-[22rem]">
+    <svg viewBox="0 0 340 276" aria-hidden="true" focusable="false" className="h-auto max-h-48 w-full max-w-[22rem]">
       <g className="fill-none stroke-ink-muted" strokeWidth={1.25}>
         {ROWS.slice(1).map((label, index) => <line key={label} x1={centre} x2={centre} y1={rowY(index) + NODE.height} y2={rowY(index + 1) - 6} />)}
         {/* Context and grouping also feeds record values and verification directly. */}

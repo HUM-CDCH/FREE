@@ -1,0 +1,29 @@
+{
+  "status": "pass",
+  "scope": "Chromium ResultsTab + useExtraction against controlled in-memory responses; no auth or PostgreSQL",
+  "viewports": [
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 360,
+      "height": 800
+    },
+    {
+      "width": 640,
+      "height": 400
+    }
+  ],
+  "checks": [
+    "24 ungrounded values excluded from required count",
+    "accessible bulk action scope",
+    "viewport bounds and no page overflow",
+    "reject decrements remaining",
+    "draft acknowledgement",
+    "reload preserves partial review",
+    "result-view navigation preserves count",
+    "edit completes required review and auto-finalizes",
+    "no uncaught page errors"
+  ]
+}

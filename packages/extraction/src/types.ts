@@ -1,3 +1,4 @@
+import type { ContestedValue } from './contested-values.js'
 export type ExtractionStrategy = 'ARTICLE' | 'CATALOG'
 export type ExtractionOutcome = 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
 export type ExtractionDisposition = 'created' | 'replayed'
@@ -433,6 +434,8 @@ export type BatchExtractionResultItem = Readonly<{
   sourceDocumentId: string
   extractionId: string
   result: Readonly<Record<string, unknown>>
+  /** The result's values its sources disagreed on and no review has supplied; absent when there are none. */
+  contested?: readonly ContestedValue[]
 }>
 
 export type BatchExtractionResults = Readonly<{

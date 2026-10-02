@@ -74,7 +74,7 @@ describe('provider table', () => {
   })
 
   it('asks Ollama to refuse a prompt longer than its context rather than cut it', async () => {
-    const request = vi.fn<(input: unknown, init?: RequestInit) => Promise<Response>>(async () => Response.json({
+    const request = vi.fn<typeof fetch>(async () => Response.json({
       model: 'manual/model', created_at: '2026-09-10T00:00:00Z',
       message: { role: 'assistant', content: 'ok' }, done: true, done_reason: 'stop', prompt_eval_count: 1, eval_count: 1,
     }))

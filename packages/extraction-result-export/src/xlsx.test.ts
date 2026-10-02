@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { strFromU8, unzipSync } from "fflate";
+import { buildReviewNotesTable } from "./review-notes.js";
 import type { Table } from "./table.js";
 import { serializeCsv } from "./csv.js";
 import { createXlsxBlob } from "./xlsx.js";
 
-async function workbookFiles(table: Table): Promise<Record<string, string>> {
-  const blob = await createXlsxBlob(table);
+async function workbookFiles(table: Table, notes?: Table): Promise<Record<string, string>> {
+  const blob = await createXlsxBlob(table, notes);
   assert.equal(blob.type, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   const archive = unzipSync(new Uint8Array(await blob.arrayBuffer()));
   return Object.fromEntries(
@@ -64,4 +65,20 @@ test("rejects a workbook beyond the Excel limits instead of truncating it", asyn
     createXlsxBlob({ columns: new Array(16_385).fill("a"), rows: [] }),
     /16,384 columns/,
   );
+});
+
+test("adds a Review notes sheet for contested fields and leaves the Results sheet as it was", async () => {
+  const table: Table = { columns: ["title", "year"], rows: [{ title: "Ada", year: null }] };
+  const notes = buildReviewNotesTable([{ path: ["year"], candidates: [1901, "=1902"] }]);
+  const plain = await workbookFiles(table);
+  const files = await workbookFiles(table, notes);
+
+  assert.equal(files["xl/worksheets/sheet1.xml"], plain["xl/worksheets/sheet1.xml"]);
+  assert.match(files["xl/workbook.xml"]!, /<sheet[^>]*name="Results".*<sheet[^>]*name="Review notes"/s);
+  assert.match(files["xl/worksheets/sheet1.xml"]!, /<autoFilter ref="A1:B2"\/>/);
+  assert.doesNotMatch(files["xl/worksheets/sheet2.xml"]!, /<autoFilter/);
+  assert.match(files["xl/worksheets/sheet2.xml"]!, /<c r="C2"[^>]*><v>1901<\/v>/);
+  // The field path reuses the Results header's "year" string; the candidates keep their formula protection.
+  assert.match(files["xl/sharedStrings.xml"]!, /<t>year<\/t>.*<t>Field<\/t>.*<t>Sources disagreed; left empty in Results<\/t><\/si><si><t>'=1902<\/t>/s);
+  assert.equal(plain["xl/worksheets/sheet2.xml"], undefined);
 });

@@ -374,7 +374,7 @@ def test_a_spread_outside_the_pdf_is_refused_before_anything_runs(workspace, sca
 def test_a_pdf_the_ingest_refuses_is_a_failed_conversion(workspace, digital_pdf, fake):
     # A PDF the ingest refuses is a failed conversion, not a traceback (a digital one would take the native
     # path first, so that choice is patched away to reach the ingest with pages it cannot read).
-    with patch("kei_exp.kie.stages.ocr.has_native_text", return_value=False), \
+    with patch("kei_exp.kie.stages.ocr.native_regions", return_value=None), \
             pytest.raises(ConversionError, match="^Ingest failed"):  # the ingest must refuse a digital PDF
         convert(resolve(RunParams(pdf=digital_pdf, model="fake", page_source="ingest",
                                   ingest_dir=workspace / "ingest-digital")), emit=lambda event: None)
