@@ -166,10 +166,13 @@ stay. The files: `packages/extraction/src/postgres-admission.integration.test.ts
   stay in the database and are collected like any Extraction, but the
   document route no longer reopens them: an explicit `extractionId` naming
   one answers 404 like any unknown Extraction, and they never appear as a
-  document's `latestAttempt` or `latestReviewed`. The reopen query keeps its
-  existing `requestedPages IS NULL` condition, and `sameAdmission` reads the
-  column to refuse a reuse of a legacy sample's ID; those are the two places
-  the retired column is still read.
+  document's `latestAttempt` or `latestReviewed`, and they count in no
+  project summary or recent-activity feed. The reads of the retired column
+  that remain, all of them exclusions: the reopen query's
+  `requestedPages IS NULL` condition (`postgres-attempts.ts`), the project
+  summary's and the recent-activity feed's `requestedPages: null` filters
+  (`packages/db/src/project-store.ts`), and `sameAdmission`, which refuses a
+  reuse of a legacy sample's ID.
 - The document reopen snapshot answers `latestAttempt` and `latestReviewed`
   only.
 
