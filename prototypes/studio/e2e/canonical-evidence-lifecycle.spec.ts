@@ -944,6 +944,7 @@ test('import → sample/review → field edit → same-pages re-run → whole so
   await expect.poll(async () => (await db.orm.public.SchemaRevision.where({ extractionSchemaId }).select('id').all()).length).toBe(2)
   const imported = (await db.orm.public.SchemaRevision.where({ extractionSchemaId, revisionNumber: 2 }).select('schemaTree').first())!
   expect((imported.schemaTree as { schemaNodes: Array<{ id: string }> }).schemaNodes.map((node) => node.id)).toEqual(preview.columns.map((column) => column.id))
+  await page.getByRole('button', { name: 'Select sample pages' }).click()
   await page.getByRole('button', { name: 'This page' }).click()
   await page.getByRole('button', { name: 'Run sample on pp. 1' }).click()
   const year = page.getByRole('button', { name: '1801' })
@@ -977,7 +978,7 @@ test('import → sample/review → field edit → same-pages re-run → whole so
   await page.getByTitle('Edit title').click()
   await page.getByPlaceholder('field_name').fill('heading')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await page.getByRole('button', { name: 'Save and re-run these pages' }).click()
+  await page.getByRole('button', { name: 'Save & re-run sample' }).click()
   await expect.poll(async () => (await db.orm.public.Extraction.where({ sourceDocumentId }).select('id').all()).length).toBe(2)
   const runs = await db.orm.public.Extraction.where({ sourceDocumentId }).select('id', 'requestedPages', 'schemaRevisionId').all()
   expect(runs.every((run) => JSON.stringify(run.requestedPages) === '[1]')).toBe(true)

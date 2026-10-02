@@ -3,7 +3,7 @@ import {
   authenticatedFetch,
   reportAuthenticationRequired,
 } from './auth/authenticatedFetch.ts'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
@@ -24,7 +24,8 @@ import { savedMethodFor, useSavedMethod } from './savedMethod'
 import { SavedMethodSummary } from './SavedMethodSummary'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
 import ExtractionFinishedDialog from './ExtractionFinishedDialog'
-import { Button, Overline, Spinner } from './ui'
+import { Button, Spinner } from './ui'
+import { PageNavigation } from './PageNavigation'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
@@ -201,6 +202,11 @@ export function DocumentWorkspace({
   // The page the viewer shows (pdf.js `pagechanging`) and the pages the next Sample Extraction runs on.
   const [currentPage, setCurrentPage] = useState(1)
   const [samplePages, setSamplePages] = useState<number[]>([])
+  const [pagesOpen, setPagesOpen] = useState(true)
+  const [selectingSamplePages, setSelectingSamplePages] = useState(false)
+  const pageNavigationId = useId()
+  const sampleControlsId = useId()
+  const pagesToggleRef = useRef<HTMLButtonElement>(null)
   // One-shot per-run selection: each new run defaults back to Article, and the
   // selector never changes the strategy of an active or persisted attempt.
   const [nextExtractionStrategy, setNextExtractionStrategy] =
@@ -331,6 +337,7 @@ export function DocumentWorkspace({
       { signal: abortController.signal })
     setCurrentPage(1)
     setSamplePages([])
+    setSelectingSamplePages(false)
 
     container.addEventListener(
       'wheel',
@@ -993,78 +1000,76 @@ export function DocumentWorkspace({
       )}
       <div className="min-h-0 flex-1 overflow-hidden p-1 sm:p-3">
         <div className="relative flex h-full min-h-0 overflow-hidden rounded-lg border border-line sm:rounded-2xl">
-          <section className="relative flex min-h-0 min-w-0 flex-1 flex-col" aria-label="PDF document">
+          {/* Reserve COLLAPSED_WIDTH for the schema rail when it becomes an overlay. */}
+          <section className="relative flex min-h-0 min-w-0 flex-1 flex-col max-[859px]:mr-[46px]" aria-label="PDF document">
             {loadState.status === 'ready' && (
-              <div className="flex shrink-0 flex-col gap-2 border-b border-line bg-surface px-3.5 py-2.5 text-xs">
+              <div className="shrink-0 border-b border-line bg-surface px-3 py-1.5 text-xs">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Overline>Sample</Overline>
-                  <span className="font-semibold">{samplePages.length ? `pp. ${pageRanges(samplePages)}` : 'No pages chosen'}</span>
-                  <span className="text-ink-muted">{samplePages.length} {samplePages.length === 1 ? 'page' : 'pages'}</span>
-                  <span className="ml-auto text-ink-muted">Around page {currentPage}:</span>
-                  {(['This page', '± 1 page', '± 2 pages'] as const).map((label, reach) => (
-                    <Button key={label} variant="pill" onClick={() => setSamplePages(Array.from(
-                      { length: 2 * reach + 1 }, (_, index) => currentPage - reach + index,
-                    ).filter((page) => page >= 1 && page <= loadState.pageCount))}>
-                      {label}
-                    </Button>
-                  ))}
-                  <Button variant="primary"
-                    disabled={sampleRunning ? sample.cancellationRequested : samplePages.length === 0 || runExtractionUnavailable}
-                    title={sampleRunning ? 'Cancel the active sample; the current model call may need to finish first' : undefined}
-                    onClick={() => sampleRunning ? void sample.requestCancellation() : void runExtraction(samplePages)}>
-                    {sampleRunning
-                      ? sample.cancellationRequested ? 'Cancellation requested…' : 'Cancel sample'
-                      : samplePages.length ? `Run sample on pp. ${pageRanges(samplePages)}` : 'Run sample'}
-                  </Button>
+                  <Button ref={pagesToggleRef} aria-expanded={pagesOpen} aria-controls={pageNavigationId}
+                    className="min-h-9" onClick={() => setPagesOpen((open) => !open)}>Pages</Button>
+                  <span className="text-ink-muted">{currentPage} / {loadState.pageCount}</span>
+                  <Button aria-expanded={selectingSamplePages} aria-controls={sampleControlsId}
+                    className="ml-auto min-h-9" onClick={() => {
+                      setSelectingSamplePages((selecting) => !selecting)
+                      if (!selectingSamplePages) setPagesOpen(true)
+                    }}>{selectingSamplePages ? 'Done selecting' : 'Select sample pages'}</Button>
+                  {(selectingSamplePages || samplePages.length > 0) &&
+                    <span className="min-w-0 max-w-40 truncate text-ink-muted" title={`pp. ${pageRanges(samplePages)}`}>
+                      {samplePages.length} {samplePages.length === 1 ? 'page' : 'pages'}
+                    </span>}
+                  {(selectingSamplePages || samplePages.length > 0 || sampleRunning) &&
+                    <Button variant="primary" className="min-h-9"
+                      aria-label={sampleRunning ? undefined : samplePages.length ? `Run sample on pp. ${pageRanges(samplePages)}` : 'Run sample'}
+                      disabled={sampleRunning ? sample.cancellationRequested : samplePages.length === 0 || runExtractionUnavailable}
+                      title={sampleRunning ? 'Cancel the active sample; the current model call may need to finish first' : undefined}
+                      onClick={() => sampleRunning ? void sample.requestCancellation() : void runExtraction(samplePages)}>
+                      {sampleRunning
+                        ? sample.cancellationRequested ? 'Cancellation requested…' : 'Cancel sample'
+                        : 'Run sample'}
+                    </Button>}
                   {sampleRunning && <span role="status" className="text-ink-muted">
                     {sample.cancellationRequested
                       ? 'Sample cancellation requested; a running model call may need to finish first.'
                       : `Sample ${sample.attempt?.executionStatus === 'QUEUED' ? 'queued' : 'running'} on pp. ${pageRanges(sample.attempt?.requestedPages ?? [])}`}
                   </span>}
                   {sample.cancellationError && <span role="alert" className="text-danger">{sample.cancellationError}</span>}
-                  {shownSample?.requestedPages && <Button disabled={runExtractionUnavailable || !shownSample.requestedSettings}
-                    onClick={() => void runExtraction([...shownSample.requestedPages!], shownSample)}>Save and re-run these pages</Button>}
+                  {shownSample?.requestedPages && <Button className="min-h-9"
+                    disabled={runExtractionUnavailable || !shownSample.requestedSettings}
+                    onClick={() => void runExtraction([...shownSample.requestedPages!], shownSample)}>Save &amp; re-run sample</Button>}
                   {sample.monitorError && (
                     <>
                       <span role="status" className="text-danger">{sample.monitorError}</span>
-                      <Button onClick={sample.reconnect}>Reconnect</Button>
+                      <Button className="min-h-9" onClick={sample.reconnect}>Reconnect</Button>
                     </>
                   )}
                 </div>
-                {/* ponytail: numbered tiles, not rendered thumbnails; render pages here if tiles prove too abstract. */}
-                <div className="flex gap-2 overflow-x-auto" role="group" aria-label="Sample pages">
-                  {Array.from({ length: Math.min(9, loadState.pageCount) },
-                    (_, index) => Math.max(1, Math.min(loadState.pageCount - 8, currentPage - 4)) + index,
-                  ).map((page) => {
-                    const inSample = samplePages.includes(page)
-                    return (
-                      <div key={page} className="flex flex-col items-center gap-1">
-                        <button type="button" aria-label={`Go to page ${page}`}
-                          aria-current={page === currentPage ? 'page' : undefined}
-                          onClick={() => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }}
-                          className={`h-10 w-8 rounded-[3px] border bg-canvas text-[10.5px] text-ink-muted ${
-                            inSample ? 'border-accent' : 'border-line'} ${page === currentPage ? 'ring-2 ring-ink' : ''}`}>
-                          {page}
-                        </button>
-                        <button type="button" aria-pressed={inSample}
-                          aria-label={inSample ? `Remove page ${page} from the sample` : `Add page ${page} to the sample`}
-                          disabled={!inSample && samplePages.length >= SAMPLE_PAGE_LIMIT}
-                          onClick={() => setSamplePages((pages) => inSample
-                            ? pages.filter((each) => each !== page)
-                            : [...pages, page].sort((left, right) => left - right))}
-                          className={`min-w-8 rounded-full px-1.5 text-[10.5px] font-bold disabled:opacity-40 ${
-                            inSample ? 'bg-accent-soft text-accent' : 'bg-surface-muted text-ink-muted'}`}>
-                          {inSample ? '✓' : '+'}
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
+                {selectingSamplePages && <div id={sampleControlsId} role="group" aria-label="Sample page selection"
+                  className="mt-1.5 flex flex-wrap items-center gap-2 border-t border-line pt-1.5">
+                  <span className="font-semibold">{samplePages.length ? `pp. ${pageRanges(samplePages)}` : 'Choose up to 30 pages'}</span>
+                  <span className="ml-auto text-ink-muted">Around page {currentPage}:</span>
+                  {(['This page', '± 1 page', '± 2 pages'] as const).map((label, reach) => (
+                    <Button key={label} variant="pill" className="min-h-9" onClick={() => setSamplePages(Array.from(
+                      { length: 2 * reach + 1 }, (_, index) => currentPage - reach + index,
+                    ).filter((page) => page >= 1 && page <= loadState.pageCount))}>{label}</Button>
+                  ))}
+                  <Button className="min-h-9" disabled={samplePages.length === 0}
+                    onClick={() => setSamplePages([])}>Clear</Button>
+                </div>}
               </div>
             )}
-            <div className="relative min-h-0 flex-1">
-              <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
-                <div className="pdfViewer" ref={setViewerNode} />
+            <div className="relative flex min-h-0 flex-1">
+              {loadState.status === 'ready' && pagesOpen && <PageNavigation
+                id={pageNavigationId} pageCount={loadState.pageCount} currentPage={currentPage}
+                selectedPages={samplePages} selecting={selectingSamplePages} selectionLimit={SAMPLE_PAGE_LIMIT}
+                onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }}
+                onTogglePage={(page) => setSamplePages((pages) => pages.includes(page)
+                  ? pages.filter((each) => each !== page)
+                  : [...pages, page].sort((left, right) => left - right))}
+                onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }} />}
+              <div className="relative min-w-0 flex-1">
+                <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
+                  <div className="pdfViewer" ref={setViewerNode} />
+                </div>
               </div>
             </div>
             {loadState.status === 'loading' && (

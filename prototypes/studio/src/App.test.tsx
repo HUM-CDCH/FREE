@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
@@ -9,6 +9,8 @@ import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
 import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from 'extraction/schema'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+
+HTMLElement.prototype.scrollIntoView = vi.fn()
 
 const {
   destroyLoadingTask,
@@ -1266,7 +1268,38 @@ describe('reopened Source Document workspace', () => {
       expect(control).toBeDisabled()
   })
 
-  it('samples the viewed page and its neighbours or strip pages, saves the schema, then admits; a refused admission only admits again', async () => {
+  it('navigates a long document with the keyboard and enforces the sample page limit', async () => {
+    getDocument.mockReturnValueOnce({
+      promise: Promise.resolve({ numPages: 120 }),
+      destroy: destroyLoadingTask,
+    })
+    await renderReopened()
+    const navigation = within(await screen.findByRole('navigation', { name: 'Page navigation' }))
+    const firstPage = navigation.getByRole('button', { name: 'Go to page 1' })
+    firstPage.focus()
+    fireEvent.keyDown(firstPage, { key: 'End' })
+    const lastPage = navigation.getByRole('button', { name: 'Go to page 120' })
+    expect(lastPage).toHaveFocus()
+    expect(lastPage).toHaveAttribute('aria-current', 'page')
+    expect(firstPage).toHaveAttribute('tabindex', '-1')
+    fireEvent.keyDown(lastPage, { key: 'ArrowUp' })
+    expect(navigation.getByRole('button', { name: 'Go to page 119' })).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'Home' })
+    expect(firstPage).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select sample pages' }))
+    for (let page = 1; page <= 30; page += 1)
+      fireEvent.click(navigation.getByRole('checkbox', { name: `Add page ${page} to the sample` }))
+    expect(navigation.getByRole('checkbox', { name: 'Add page 31 to the sample' })).toBeDisabled()
+    fireEvent.click(navigation.getByRole('checkbox', { name: 'Remove page 1 from the sample' }))
+    expect(navigation.getByRole('checkbox', { name: 'Add page 31 to the sample' })).toBeEnabled()
+    fireEvent.keyDown(firstPage, { key: 'Escape' })
+    expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pages' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Run sample on pp. 2–30' })).toBeEnabled()
+  })
+
+  it('keeps page navigation visible and sampling optional, preserves a hidden selection, and admits with the saved schema', async () => {
     const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
     const schemaSaves: unknown[] = []
     const runs: Array<{ id: string; schemaRevisionId: string; pages?: number[] }> = []
@@ -1307,11 +1340,22 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
 
     fireEvent.click(await screen.findByRole('button', { name: 'Go to page 2' }))
+    expect(screen.getByRole('navigation', { name: 'Page navigation' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /page \d+.*sample/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'This page' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Select sample pages' }))
     expect(screen.getByText('Around page 2:')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '± 1 page' }))
     expect(screen.getByText('pp. 1–3')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove page 3 from the sample' }))
-    expect(screen.getByRole('button', { name: 'Add page 3 to the sample' })).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Remove page 3 from the sample' }))
+    expect(screen.getByRole('checkbox', { name: 'Add page 3 to the sample' })).not.toBeChecked()
+    expect(screen.getByText('2 pages')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Done selecting' }))
+    expect(screen.queryByRole('checkbox', { name: /page \d+.*sample/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'This page' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Go to page 1' })).toHaveAccessibleDescription('Sample')
+    fireEvent.click(screen.getByRole('button', { name: 'Pages' }))
+    expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
     expect(screen.getByText('2 pages')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTitle('Edit place'))
@@ -1371,7 +1415,12 @@ describe('reopened Source Document workspace', () => {
     render(<DocumentWorkspace {...reopened} latestSample={{ ...activeSample, sourceRepresentation, extractionSchema }} />)
     const cancel = await screen.findByRole('button', { name: 'Cancel sample' })
     expect(cancel).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Select sample pages' }))
     fireEvent.click(screen.getByRole('button', { name: 'This page' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Done selecting' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Pages' }))
+    expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel sample' })).toBeEnabled()
     expect(screen.getByText(executionStatus === 'QUEUED' ? 'Sample queued on pp. 2' : 'Sample running on pp. 2')).toHaveAttribute('role', 'status')
     expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
 
