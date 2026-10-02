@@ -38,8 +38,6 @@ function appendOverlay(
     border?: string
     evidenceAnchorId?: string
     resultPath?: readonly (string | number)[]
-    /** The field name shown on the passage. */
-    label?: string
   },
 ): HTMLElement | null {
   const page = container.querySelector(
@@ -71,15 +69,6 @@ function appendOverlay(
     pointerEvents: 'none',
     zIndex: options.border ? '5' : '4',
   })
-  if (options.label) {
-    const tag = window.document.createElement('span')
-    tag.textContent = options.label
-    Object.assign(tag.style, {
-      position: 'absolute', bottom: '100%', left: '0', whiteSpace: 'nowrap',
-      fontSize: '9px', fontWeight: '700', color: 'var(--color-ink-muted)',
-    })
-    overlay.append(tag)
-  }
   if (getComputedStyle(page).position === 'static')
     page.style.position = 'relative'
   page.append(overlay)
@@ -125,7 +114,6 @@ export function useEvidenceOverlays({
   fieldNames,
   resultPath,
   active,
-  onPick,
 }: {
   containerRef: RefObject<HTMLDivElement | null>
   viewerRef: RefObject<PDFViewer | null>
@@ -137,8 +125,6 @@ export function useEvidenceOverlays({
   fieldNames: readonly string[]
   resultPath: readonly string[] | null
   active: boolean
-  /** When given, painted passages carry their field names and a click on one picks the value it supports. */
-  onPick?: (resultPath: readonly (string | number)[]) => void
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
   useEffect(() => {
@@ -196,22 +182,12 @@ export function useEvidenceOverlays({
             background: color,
             evidenceAnchorId: anchor.anchor_id,
             resultPath: link.resultPath,
-            ...(onPick && fieldName ? { label: fieldName } : {}),
           })
         }
       })
       return firstOccurrence
     }
 
-    // Overlays never take the pointer (text stays selectable), so a click is matched to the passages under it.
-    const pick = (event: MouseEvent) => {
-      const hit = [...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')].find((overlay) => {
-        const box = overlay.getBoundingClientRect()
-        return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom
-      })
-      if (hit?.dataset.resultPath) onPick?.(JSON.parse(hit.dataset.resultPath) as (string | number)[])
-    }
-    if (onPick) container.addEventListener('click', pick)
     viewer?.eventBus?.on('pagerendered', paint)
     const firstOccurrence = paint()
     // A focused anchor already scrolled precisely; a page-top jump on top of
@@ -219,11 +195,10 @@ export function useEvidenceOverlays({
     if (firstOccurrence && !container.querySelector('.parsed-evidence-focus'))
       viewer?.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     return () => {
-      container.removeEventListener('click', pick)
       viewer?.eventBus?.off('pagerendered', paint)
       removeOverlays(container, 'parsed-evidence-highlight')
     }
-  }, [active, attempt, containerRef, fieldNames, onPick, parsedDocument, resultPath, viewerRef])
+  }, [active, attempt, containerRef, fieldNames, parsedDocument, resultPath, viewerRef])
 
   useEffect(
     () => () => {

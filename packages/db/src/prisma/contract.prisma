@@ -220,14 +220,12 @@ model Extraction {
   // service defaults), frozen at admission with `requestedModels`; execution reads only these. Null: admitted before
   // settings were recorded ("Not recorded"), never inferred from today's account configuration.
   requestedSettings              Json?
-  // A Sample Extraction's physical, one-based PDF pages (ascending, distinct, at most 30): admission identity, never
-  // method. Null: the whole document.
+  // Retired on 2026-10-02 with the sample workbench. Never written since; read only as `IS NULL` to keep legacy sample
+  // rows out of a document's latest attempt. A later migration drops it.
   requestedPages                 Json?
-  // The sample Review Decisions pinned at admission (design §6, `ReviewTransfer`): self-contained, never
-  // changed after admission. Null: no eligible decisions for this document, representation and schema.
+  // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
   reviewTransfer                 Json?
-  // The review draft's hand pairings of unmatched records (`[{record, extractionId, sourceRecord}]`, design §7.1),
-  // saved with the draft under its version; null when there are none.
+  // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
   reviewPairings                 Json?
   outcome                        ExtractionOutcome?
   complete                       Boolean?
@@ -285,7 +283,7 @@ model ReviewDecision {
   // A correction's own Evidence (`[{evidenceAnchorId, reviewedOccurrenceIds}]`): where its value is printed.
   // Null: none recorded, so the correction never carries as fixed.
   reviewedEvidence      Json?
-  // A decision carried from a sample (`{extractionId, sourcePathKey}`); null: the researcher's own.
+  // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
   carriedFrom           Json?
   createdAt             Timestamptz6     @default(now())
   extractionReview      ExtractionReview @relation(fields: [extractionReviewId], references: [id], onDelete: Cascade)

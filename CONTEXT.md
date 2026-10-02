@@ -116,10 +116,6 @@ _Avoid_: schema, suggestion
 A researcher-initiated operation that applies one Current Schema Revision and one Extraction Strategy to a selected set of Source Documents, creating a separate Extraction and Extraction Result for each Source Document.
 _Avoid_: annotation set, combined extraction, project-wide extraction
 
-**Sample Extraction**:
-A single Extraction admitted on a page scope of at most 30 pages of its Source Document, to try an Extraction Schema before extracting the whole document. It is reviewed like any Extraction, never becomes the document's latest or latest reviewed result, counts in no project summary, and is complete only for its pages. An Article sample reads only its pages, so a record that continues beyond them comes back partial.
-_Avoid_: preview, test run, partial extraction
-
 **Extraction Result**:
 A source-grounded value or set of values produced by an extraction and linked to
 validated evidence.
@@ -129,10 +125,6 @@ _Avoid_: extraction, output, response
 A researcher's choice to approve, edit, or reject a schema suggestion or
 extraction result.
 _Avoid_: status, vote
-
-**Carried Review Decision**:
-A Review Decision a researcher made on a Sample Extraction that starts the review of a later Extraction of the same Source Document, Source Representation Revision and Extraction Schema, because the record aligns and the field, value and Evidence agree. It is a draft decision until the researcher saves that review; a value that no longer agrees is shown as changed and stays to review.
-_Avoid_: inherited decision, auto-review, copied review
 
 **Evidence**:
 Source material linked to an exact location in a source document and kept to show
