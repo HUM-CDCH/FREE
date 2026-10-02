@@ -5,6 +5,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RightRail from './RightRail'
+import ResultsTab from './ResultsTab'
+import type { ParsedDocument } from 'extraction/parsed-document'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionInspection } from './RightRail'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -14,6 +16,11 @@ import {
   localSchemaPersistence,
   type SchemaEditorController,
 } from './currentSchemaRevision'
+
+vi.mock('./ResultsTab', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./ResultsTab')>()
+  return { ...actual, default: vi.fn(actual.default) }
+})
 
 afterEach(() => {
   cleanup()
@@ -81,9 +88,11 @@ function testSchema(): SchemaEditorController {
 function renderRail({
   open = true,
   tab = 'schema',
+  inspection = defaultInspection,
 }: {
   open?: boolean
   tab?: 'evidence' | 'schema' | 'results'
+  inspection?: ExtractionInspection
 } = {}) {
   return render(
     <RightRail
@@ -97,7 +106,7 @@ function renderRail({
       onRunExtraction={vi.fn()}
       runExtractionDisabled={false}
       runExtractionStrategy={{ strategy: 'ARTICLE' }}
-      inspection={defaultInspection}
+      inspection={inspection}
       currentSchemaRevision={null}
       sourceDocumentName="test.pdf"
       sourceRepresentationId="source-representation"
@@ -180,5 +189,18 @@ describe('RightRail developer UI visibility', () => {
     renderRail({ open: false })
 
     expect(screen.getByText('Evidence · Schema · Results')).toBeInTheDocument()
+  })
+})
+
+describe('RightRail evidence pages', () => {
+  it('hands the Results tab each Evidence anchor\'s first page, for the export\'s Evidence sheet', () => {
+    const parsedDocument = { evidence_index: { anchors: [
+      { anchor_id: 'a_p1_s1', producer_observations: [{ page_number: 1 }] },
+      { anchor_id: 'a_p3_s2', producer_observations: [{ page_number: 3 }, { page_number: 4 }] },
+    ] } } as unknown as ParsedDocument
+    renderRail({ tab: 'results', inspection: { ...defaultInspection, parsedDocument } })
+
+    const props = vi.mocked(ResultsTab).mock.lastCall![0]
+    expect(props.evidencePages).toEqual(new Map([['a_p1_s1', 1], ['a_p3_s2', 3]]))
   })
 })

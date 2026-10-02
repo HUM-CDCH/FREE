@@ -10,7 +10,7 @@ import {
   reviewDecisionMatchesSchema,
   type ReviewAuthority,
 } from './review-rules.js'
-import type { EvidenceLink, ExtractionSnapshot, ResultPath, ReviewDecisionInput } from './types.js'
+import type { EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ResultPath, ReviewDecisionInput } from './types.js'
 
 const schemaTree = {
   recordDescription: 'Catalogue records.',
@@ -175,6 +175,34 @@ describe('Review Decision rules against the read snapshot', () => {
     assert.equal(reviewDecisionMatchesSchema(nodes, edit(['records', 0, 'counts', 1], 3)), true)
     assert.equal(reviewDecisionMatchesSchema(nodes, edit(['records', 0, 'grave_goods', 2], ['bronze pin', 'broken'])), false)
     assert.equal(reviewDecisionMatchesSchema(nodes, edit(['records', 0, 'counts', 1], [3])), false)
+  })
+})
+
+describe('Review Decision identity: a scalar at a result path inside the pinned snapshot', () => {
+  it('refuses a structural EDITED value: an object, a list of objects, or null for a scalar', () => {
+    for (const reviewedValue of [{ sku: 'x' }, [{ sku: 'x' }, { sku: 'y' }], null]) {
+      const title = approve('title', { action: 'EDITED', reviewedValue })
+      assert.equal(reviewDecisionMatchesSchema(schemaTree.schemaNodes as ExtractionSchemaNode[], title), false, JSON.stringify(reviewedValue))
+      assert.throws(() => authorize(snapshot(), [title, approve('year'), approve('scale')]), refuses('invalid_review', DECISIONS))
+    }
+  })
+
+  it('refuses a decision moved to another index of the same field, though the coverage still holds', () => {
+    const items = {
+      recordDescription: 'Orders.',
+      schemaNodes: [{ id: 'items', name: 'items', type: 'array', children: [{ id: 'sku', name: 'sku', type: 'string' }] }],
+    }
+    const sku = (index: number): ResultPath => ['records', 0, 'items', index, 'sku']
+    const order = snapshot({
+      result: { records: [{ items: [{ sku: 'A-1' }, { sku: 'A-1' }] }] },
+      evidence: [{ resultPath: sku(0), evidenceAnchorId: 'anchor-title' }],
+      diagnostics: { ...snapshot().diagnostics, ungroundedPaths: [sku(1)] },
+    })
+    const at = (index: number) => ({ ...approve('title'), resultPath: sku(index) })
+    assert.doesNotThrow(() => authorize(order, [at(0)], items))
+    assert.throws(() => authorize(order, [at(1)], items), refuses('invalid_review', DECISIONS))
+    assert.throws(() => authorize(order, [at(0), at(1)], items), refuses('invalid_review', DECISIONS))
+    // The right path with another anchor is refused too: 'refuses decisions that do not match the Evidence one to one'.
   })
 })
 

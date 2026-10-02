@@ -3,14 +3,17 @@ import { createHash } from 'node:crypto'
 /**
  * Researchers' API keys live in this origin's localStorage (docs/plans/2026-09-24-unified-durable-execution.md,
  * *Model configuration and keys → XSS*), so script and pdf.js's worker load only from Studio, inline script is
- * refused and no page may frame Studio. Styles and fonts also allow Google Fonts, which index.html loads, and styles
+ * refused and no page may frame Studio. Workers may also start from a `blob:` URL, which only script already running
+ * in Studio can mint: the Excel export's zip writer (fflate, under write-excel-file) deflates each workbook part of
+ * 160 kB or more in a Blob-URL Worker and never hears back if the Worker is refused, so a large workbook's export
+ * would never finish. Styles and fonts also allow Google Fonts, which index.html loads, and styles
  * allow inline attributes (React, pdf.js, and Vite's injected <style> in development). No form-action: sign-out is a
  * form POST answered with a redirect to the identity provider. The sign-in relay keeps its own policy (app.ts).
  */
 const DIRECTIVES = {
   'default-src': ["'self'"],
   'script-src': ["'self'"],
-  'worker-src': ["'self'"],
+  'worker-src': ["'self'", 'blob:'],
   'object-src': ["'none'"],
   'base-uri': ["'self'"],
   'frame-ancestors': ["'none'"],

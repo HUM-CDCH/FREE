@@ -1,3 +1,4 @@
+import { fieldName } from "./provenance.js";
 import type { CellValue, Table } from "./table.js";
 
 /**
@@ -13,10 +14,6 @@ export interface ContestedField {
 
 export const REVIEW_NOTES_SHEET = "Review notes";
 const NOTE = "Sources disagreed; left empty in Results";
-
-/** Item and record numbers count from 1, as Studio labels them. */
-const fieldName = (path: readonly (string | number)[]): string =>
-  path.map((step, index) => typeof step === "number" ? `[${step + 1}]` : index === 0 ? step : `.${step}`).join("");
 
 const candidateCell = (value: unknown): CellValue =>
   value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean"

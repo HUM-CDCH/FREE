@@ -174,6 +174,19 @@ const modelCallDiagnosticsSchema = z
   })
   .strict()
 
+/** The Parsing Service's claim accounting, derived on read from the stored evidence, ungrounded paths, issues and
+ *  policy-skipped paths (`packages/extraction` `claimAccounting`): every claim once, in one of four verifier states. */
+export const claimAccountingSchema = z
+  .object({
+    claims: z.number().int().nonnegative(), excluded: z.number().int().nonnegative(), eligible: z.number().int().nonnegative(),
+    supported: z.number().int().nonnegative(), unsupported: z.number().int().nonnegative(), notCompleted: z.number().int().nonnegative(),
+    reasons: z.record(z.string(), z.number().int().nonnegative()),
+    excludedPolicies: z.record(z.string(), z.number().int().nonnegative()),
+    unfinished: z.array(z.object({ resultPath: resultPathSchema, reasons: z.array(z.string()).min(1) }).strict()),
+  })
+  .strict()
+export type ClaimAccounting = z.infer<typeof claimAccountingSchema>
+
 const groundingDiagnosticsSchema = z
   .object({
     groundedPaths: z.array(resultPathSchema),
@@ -186,6 +199,7 @@ const groundingDiagnosticsSchema = z
         fallback: z.boolean(),
       }),
     ),
+    claims: claimAccountingSchema.nullable(),
   })
   .strict()
 

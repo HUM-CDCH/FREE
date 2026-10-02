@@ -145,6 +145,11 @@ function setAtPath(
     if (parent === null || typeof parent !== 'object') return
     parent = (parent as Record<string | number, unknown>)[segment]
   }
-  if (parent !== null && typeof parent === 'object')
-    (parent as Record<string | number, unknown>)[path[path.length - 1]] = value
+  if (parent === null || typeof parent !== 'object') return
+  const leaf = path[path.length - 1]
+  // A review replaces an existing value and never inserts one: a missing index or key is left alone.
+  const exists = Array.isArray(parent)
+    ? typeof leaf === 'number' && Number.isInteger(leaf) && leaf >= 0 && leaf < parent.length
+    : Object.hasOwn(parent, leaf)
+  if (exists) (parent as Record<string | number, unknown>)[leaf] = value
 }

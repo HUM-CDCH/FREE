@@ -815,6 +815,7 @@ describe('useExtraction server-owned lifecycle', () => {
             ungroundedPaths: [['records', 0, 'title']],
             issueCodes: ['missing_claim'],
             batches: [],
+            claims: null,
           },
         },
       })

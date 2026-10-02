@@ -68,7 +68,7 @@ export function CatalogReview({ unified }: { unified: UnifiedDiagnostics }) {
           : `${plural(unified.unresolved.length, 'source range')} could not be assigned to an entry.`}{' '}
         {unified.withheld.length > 0 && `${plural(unified.withheld.length, 'range')} the parser could not read were not processed. `}
         {failed.length === 0 ? 'Every required model call completed.' : `Not processed: ${failed.join(', ')}; values may be missing.`}{' '}
-        {completeness.evidence ? 'Every accepted value was verified.' : 'Some values stay proposals or conflicts.'}{' '}
+        {completeness.evidence ? 'Every accepted value was verifier-supported.' : 'Some values stay proposals or conflicts.'}{' '}
         Recall is not measured.
       </p>
       <List title={plural(unified.unresolved.length, 'unresolved source range')} items={unified.unresolved.map(where)} />

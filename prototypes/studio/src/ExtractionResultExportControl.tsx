@@ -19,6 +19,9 @@ type ExtractionResultExportControlProps = {
   disabledReason?: string | null
   /** Fields the result leaves empty because their sources disagreed: a CSV cannot say so. */
   contestedCount?: number
+  /** True when the Excel workbook carries the Extraction and Evidence sheets: one Extraction's export, with its
+   *  claim accounting. Otherwise (a batch export) the note says the export holds values only. */
+  evidenceSheets?: boolean
   onExport: (format: ExportFormat, choices: ExportChoices) => Promise<void>
 }
 
@@ -58,6 +61,7 @@ function ExtractionResultExportControl({
   disabled = false,
   disabledReason = null,
   contestedCount = 0,
+  evidenceSheets = false,
   onExport,
 }: ExtractionResultExportControlProps) {
   const [open, setOpen] = useState(false)
@@ -172,6 +176,11 @@ function ExtractionResultExportControl({
                 {label}
               </button>
             ))}
+            <p role="note" className="px-2.5 pt-1 text-[11px] leading-snug text-ink-muted">
+              {evidenceSheets
+                ? 'CSV holds the values only. The Excel workbook adds an Extraction sheet (identities, versions, completion) and an Evidence sheet (extracted and reviewed values, verifier outcomes, evidence anchors).'
+                : 'This export holds values only; contested fields are listed on the Excel Review notes sheet.'}
+            </p>
             {contestedCount > 0 && (
               <p role="note" className="px-2.5 pt-1 text-[11px] leading-snug text-ink-muted">
                 {contestedNotice(contestedCount)}

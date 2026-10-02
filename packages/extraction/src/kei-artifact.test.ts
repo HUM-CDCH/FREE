@@ -298,6 +298,15 @@ describe('kei artifact acceptance', () => {
     // A representation with no tables has no cell to name.
     refused(() => accept(generic))
   })
+
+  it('records the Article and document-field versions beside the other protocol versions', () => {
+    const article = { context: 'bounded' }
+    const options = { strategy: 'article', model: 'selected-model', discovery_chars: 48_000, record_chars: 24_000, article }
+    const { extraction } = accept(
+      artifact({ options, article_version: 6, document_version: 3, method_version: 1 } as Partial<KeiExpArtifact>),
+      { settings: { article } })
+    assert.deepEqual(extraction.diagnostics.effectiveMethod?.versions, { prompt: 1, method: 1, article: 6, document: 3 })
+  })
 })
 
 describe('what the Parsing Service reports it ran', () => {

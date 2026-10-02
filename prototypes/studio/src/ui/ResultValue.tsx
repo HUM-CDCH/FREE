@@ -65,9 +65,13 @@ export type ResultValueProps = {
   getEvidenceDetail?: (path: ResultPath) => string | undefined
   /** The candidates of a value the service left empty because its sources disagreed. */
   getContested?: (path: ResultPath) => readonly unknown[] | undefined
+  /** The verifier's state of a populated value without Evidence: unsupported, not completed or excluded by policy. */
+  getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined
   onSelectEvidence?: (anchorId: string) => void
   review?: ResultReview
 }
+
+export type ClaimStatusNote = { label: string; detail: string }
 
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
 
@@ -160,8 +164,8 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 // ── PrimitiveRow ──────────────────────────────────────────────────────────────
 
 function PrimitiveRow({
-  name, value, path, onChange, expandText, evidenceAnchorId, evidenceCheck, evidenceDetail, contested, onSelectEvidence, review,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; evidenceCheck?: string; evidenceDetail?: string; contested?: readonly unknown[]; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, expandText, evidenceAnchorId, evidenceCheck, evidenceDetail, contested, claimStatus, onSelectEvidence, review,
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; evidenceCheck?: string; evidenceDetail?: string; contested?: readonly unknown[]; claimStatus?: ClaimStatusNote; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
@@ -312,6 +316,7 @@ function PrimitiveRow({
               Evidence
             </button>
           )}
+          {!evidenceAnchorId && claimStatus && <ClaimBadge status={claimStatus} />}
           {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         </div>
         <div className="pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
@@ -365,6 +370,7 @@ function PrimitiveRow({
             Evidence
           </button>
         )}
+        {!missing && !evidenceAnchorId && claimStatus && <ClaimBadge status={claimStatus} />}
         {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         {(onChange || reviewEditable) && !reviewEditable && (
           <button
@@ -487,6 +493,16 @@ function ReviewActions({ name, action, touched, onApprove, onEdit, onReject, onR
   )
 }
 
+/** The verifier's state of a populated value that has no Evidence: never a verdict on the value itself. */
+function ClaimBadge({ status }: { status: ClaimStatusNote }) {
+  return (
+    <span role="note" aria-label={`${status.label}: ${status.detail}`} title={status.detail}
+      className="shrink-0 rounded-full border border-stale/50 bg-stale-soft px-2 py-0.5 text-[10.5px] font-bold text-stale-ink">
+      {status.label}
+    </span>
+  )
+}
+
 /** Grounding's doubt about a link: the value is not in the passage, or it
  *  also occurs elsewhere. A prompt to look, never a verdict. */
 function CheckBadge({ reason }: { reason: string }) {
@@ -505,8 +521,8 @@ function CheckBadge({ reason }: { reason: string }) {
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, onSelectEvidence, review,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -553,6 +569,7 @@ function ObjectSection({
                 getEvidenceCheck={getEvidenceCheck}
                 getEvidenceDetail={getEvidenceDetail}
                 getContested={getContested}
+                getClaimStatus={getClaimStatus}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
                 depth={depth + 1}
@@ -568,8 +585,8 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, onSelectEvidence, review,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
@@ -609,6 +626,7 @@ function ArraySection({
                 getEvidenceCheck={getEvidenceCheck}
                 getEvidenceDetail={getEvidenceDetail}
                 getContested={getContested}
+                getClaimStatus={getClaimStatus}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
               />
@@ -622,14 +640,14 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, onSelectEvidence, review }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} />
   }
-  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} evidenceCheck={getEvidenceCheck?.(path)} evidenceDetail={getEvidenceDetail?.(path)} contested={getContested?.(path)} onSelectEvidence={onSelectEvidence} review={review} />
+  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} evidenceCheck={getEvidenceCheck?.(path)} evidenceDetail={getEvidenceDetail?.(path)} contested={getContested?.(path)} claimStatus={getClaimStatus?.(path)} onSelectEvidence={onSelectEvidence} review={review} />
 }
 
 export default ResultValue

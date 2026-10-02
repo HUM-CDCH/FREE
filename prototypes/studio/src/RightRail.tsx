@@ -1,7 +1,7 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
 import SchemaPanel, { type FieldContext } from './SchemaPanel'
-import { useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
@@ -101,6 +101,11 @@ function RightRail({
   const showDeveloperUi = isDeveloperUiEnabled()
   const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
 
+  // Each Evidence anchor's first page, for the export's Evidence sheet.
+  const evidencePages = useMemo(() => new Map(parsedDocument?.evidence_index.anchors.flatMap((anchor) => {
+    const page = anchor.producer_observations[0]?.page_number
+    return page === undefined ? [] : [[anchor.anchor_id, page] as const]
+  }) ?? []), [parsedDocument])
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const schemaReady = schemaSnap.view === 'editing'
   const schemaFieldCount = schemaReady
@@ -220,6 +225,7 @@ function RightRail({
           exportSchema={inspection.exportSchema}
           currentSchemaRevision={currentSchemaRevision}
           sourceDocumentName={sourceDocumentName}
+          evidencePages={evidencePages}
           onResultPathChange={onResultPathChange}
           onSelectEvidence={(anchorId) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(

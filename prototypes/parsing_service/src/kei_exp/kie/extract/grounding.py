@@ -79,8 +79,13 @@ class _Candidate:
         return f"Cell {self.passage.id}/{self.cell.cell_id}: {self.text!r}"
 
 
-def _grounding_evidence(labelled: Sequence[tuple[str, _Candidate | SourceSpan]]) -> str:
-    """Selectable evidence, then shared table context. Each context cell is printed at most once."""
+def _grounding_evidence(labelled: Sequence[tuple[str, _Candidate | SourceSpan]], *,
+                        context_rows: frozenset[tuple[str, int]] | set[tuple[str, int]] = frozenset(),
+                        passages: dict[str, Passage] | None = None) -> str:
+    """Selectable evidence, then shared table context. Each context cell is printed at most once.
+
+    `context_rows` (passage id, row) are printed in the context too, with their tables (from `passages`): a list item's
+    own row when no offered cell lies in it, so an offered section header can be placed against its item."""
     lines = [f"{label}: {candidate.shown()}" for label, candidate in labelled]
     tables: dict[str, Passage] = {}
     rows: dict[str, set[int]] = {}
@@ -88,6 +93,9 @@ def _grounding_evidence(labelled: Sequence[tuple[str, _Candidate | SourceSpan]])
         if candidate.cell is not None:
             tables[candidate.passage.id] = candidate.passage
             rows.setdefault(candidate.passage.id, set()).add(candidate.cell.row)
+    for identity, row in sorted(context_rows):
+        tables.setdefault(identity, (passages or {})[identity])
+        rows.setdefault(identity, set()).add(row)
     for identity, passage in tables.items():
         assert passage.table is not None
         lines.append(f"Table {identity} row/header context (not selectable evidence labels):")
@@ -191,6 +199,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     eligible = {claim: [label for label, candidate in labelled.items()
                         if candidate.cell is None or contains(candidate.text, value)]
                 for claim, (_, value, _) in claims.items()}
+    # A list item's claim located to one row that no offered cell lies in: that row, printed as table context.
+    context_rows: dict[str, set[tuple[str, int]]] = {}
     if projected:
         # A value printed in many table rows ("1", a brand name) offers every such cell; a list item's claim is offered
         # only the cells in the rows printing its item's most distinctive other value (the one in fewest rows: its own
@@ -218,6 +228,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             own = [label for label in eligible[claim] if label in rows_of and rows_of[label] & best]
             if own:
                 eligible[claim] = [label for label in eligible[claim] if label not in rows_of] + own
+            elif len(best) == 1:  # no offered cell shows the item's own row (a section header): print that row
+                context_rows[claim] = best
     claim_ids = list(claims)
     # Quotes have substantially larger replies than labels; keep their output bounded too.
     batch_size = 4 if quoted else 32 if span_ids else len(claim_ids)
@@ -243,7 +255,9 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             lines.append(f"{claim} ({describe(schema.record_nodes, path[2:])}): {_text(value)}")
         shown = {label for claim in batch for label in eligible[claim]}
         user = identity + record_fields + "### Claims\n" + "\n".join(lines) + "\n\n### Evidence\n" + _grounding_evidence(
-            [(label, candidate) for label, candidate in labelled.items() if label in shown])
+            [(label, candidate) for label, candidate in labelled.items() if label in shown],
+            context_rows={row for claim in batch for row in context_rows.get(claim, ())},
+            passages={candidate.passage.id: candidate.passage for candidate in candidates})
         reply_schema = {"type": "object", "properties": {
             claim: {"type": "string", "enum": [*eligible[claim], NONE]} for claim in batch},
             "required": batch, "additionalProperties": False}

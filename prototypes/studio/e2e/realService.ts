@@ -66,8 +66,10 @@ export function textPdf(pages: string[][]): Buffer {
 /** How an Article call opens its system prompt: `stages.DOCUMENT` in the Parsing Service's `kei_exp/kie/extract`. */
 const DOCUMENT_INSTRUCTION = 'The document is the one object to extract:'
 
-/** Only the model boundary is scripted. Responses are derived from the real parser text in each prompt. */
-async function modelServer() {
+/** Only the model boundary is scripted. Responses are derived from the real parser text in each prompt.
+ *  `unansweredClaimValue`: the verifier leaves the claim whose value is this text unanswered, so the Parsing Service
+ *  records it as not completed (`missing_claim`). */
+async function modelServer(options: { unansweredClaimValue?: string } = {}) {
   let calls = 0
   let holdNext = false
   let releaseHeld: (() => void) | null = null
@@ -132,7 +134,7 @@ async function modelServer() {
       } else if (Object.keys(properties).every(key => /^C\d+$/.test(key))) {
         const claims = [...prompt.matchAll(/^(C\d+) \([^\n]*\): ([^\n]+)$/gm)]
         const evidence = [...prompt.matchAll(/^(E\d+): ([^\n]+)$/gm)]
-        answer = Object.fromEntries(claims.map(([, claim, value]) =>
+        answer = Object.fromEntries(claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) =>
           [claim, evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE']))
       } else throw new Error(`Unexpected model schema: ${JSON.stringify(properties)}`)
       calls++
@@ -165,7 +167,8 @@ async function modelServer() {
 
 type Process = { child: ChildProcess; exited: Promise<number | null> }
 
-export async function startRealService(logFile: string, options: { holdConversion?: boolean } = {}) {
+export async function startRealService(logFile: string,
+  options: { holdConversion?: boolean; unansweredClaimValue?: string } = {}) {
   const url = process.env.FREE_PLAYWRIGHT_SERVICE_URL
   if (!url) throw new Error('Run this test with playwright.service.config.ts.')
   const address = new URL(url)
@@ -188,7 +191,7 @@ export async function startRealService(logFile: string, options: { holdConversio
   const realModel = process.env.FREE_REAL_EXTRACT_MODEL
   if (Boolean(realUrl) !== Boolean(realModel))
     throw new Error('Provide both FREE_REAL_EXTRACT_URL and FREE_REAL_EXTRACT_MODEL, or neither.')
-  const fixture = realUrl ? null : await modelServer()
+  const fixture = realUrl ? null : await modelServer({ unansweredClaimValue: options.unansweredClaimValue })
   const runs = await mkdtemp(join(tmpdir(), 'free-real-service-'))
   const conversionBarrier = options.holdConversion ? join(runs, '.conversion-hold') : null
   if (conversionBarrier) await mkdir(conversionBarrier)

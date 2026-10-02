@@ -533,7 +533,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await page.goto(url)
   await page.getByRole('tab', { name: /Results/ }).click()
   await expect(reviewProgress).toHaveText('2 of 2 required decisions remaining')
-  await expect(page.getByText('6 ungrounded values are excluded from required review and remain recorded without Evidence.', { exact: true })).toBeVisible()
+  // With a claim accounting the Completion section names the values without evidence (not the lumped sentence).
+  await expect(page.getByText(/· 6 values without evidence are not reviewable$/)).toBeVisible()
   await expect(page.getByText('Draft saved', { exact: true })).toHaveCount(0)
   await page.getByRole('group', { name: 'Review title' }).getByRole('button', { name: 'Reject title' }).click()
   await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
