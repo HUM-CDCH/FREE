@@ -1869,6 +1869,83 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
     })
 
+    /** Renames the `place` field in the Schema tab: a field edit the 1500 ms debounce holds. */
+    function renamePlaceField() {
+      fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    }
+
+    it('saves a scope change at once, with the pending field edit in the same revision, and shows the save state', async () => {
+      const { writes } = stubWorkspace()
+      await renderWith(reopened.extractionSchema)
+      renamePlaceField()
+      expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+      expect(writes).toHaveLength(0)
+
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+
+      // Well inside the debounce: the scope does not wait for it, and it carries the edit.
+      await waitFor(() => expect(writes).toHaveLength(1))
+      expect(writes[0]).toMatchObject({
+        expectedRevisionNumber: 1,
+        recordScope: 'records',
+        schemaNodes: [expect.objectContaining({ name: 'location' })],
+      })
+      await waitFor(() => expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument())
+      expect(screen.queryByText('Saving…')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+    })
+
+    it('shows a failed scope save, refuses Run until Retry saves it, then runs the saved revision', async () => {
+      const { writes, runs } = stubWorkspace()
+      const answer = vi.mocked(fetch).getMockImplementation()!
+      let failNextWrite = true
+      vi.mocked(fetch).mockImplementation((input, init) => {
+        if (String(input) === '/api/schema-revisions' && init?.method === 'POST' && failNextWrite) {
+          failNextWrite = false
+          return Promise.resolve(Response.json(
+            { error: { code: 'unavailable', message: 'The database is unavailable.' } },
+            { status: 503 },
+          ))
+        }
+        return answer(input, init)
+      })
+      await renderWith(reopened.extractionSchema)
+      const run = screen.getByRole('button', { name: '▶ Run extraction' })
+
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      expect(await screen.findByRole('alert')).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
+      expect(run).toBeDisabled()
+      expect(run).toHaveAttribute('title', 'The schema is not saved. Retry the save first.')
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
+      await waitFor(() => expect(writes).toHaveLength(1))
+      expect(writes[0]).toMatchObject({ expectedRevisionNumber: 1, recordScope: 'records' })
+      await waitFor(() => expect(run).toBeEnabled())
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      fireEvent.click(run)
+      await waitFor(() => expect(runs).toHaveLength(1))
+      expect(runs[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) })
+    })
+
+    it('starts the pending save when the workspace closes instead of dropping the edit', async () => {
+      const { writes } = stubWorkspace()
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      renamePlaceField()
+      expect(writes).toHaveLength(0)
+
+      cleanup()
+
+      await waitFor(() => expect(writes).toHaveLength(1))
+      expect(writes[0]).toMatchObject({ expectedRevisionNumber: 1, schemaNodes: [expect.objectContaining({ name: 'location' })] })
+      expect(writes[0]).not.toHaveProperty('recordScope')
+    })
+
     it.each([
       ['record_scope_mismatch', 'The schema is saved as a Catalog; refresh to run it.'],
       ['record_scope_required', 'Choose Article or Catalog for this schema before it can run.'],

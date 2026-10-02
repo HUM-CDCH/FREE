@@ -145,6 +145,10 @@ function setupDurable(options: {
     failNextAppendWith: (error: SchemaRevisionConflictError | Error) => {
       appendResult = error
     },
+    /** Later appends succeed again. */
+    restoreAppends: () => {
+      appendResult = null
+    },
     /** The next append waits until the returned function is called. */
     holdNextAppend: () => {
       hold = Promise.withResolvers<void>()
@@ -331,6 +335,54 @@ describe('record scope', () => {
     await unchosen.controller.generate(async () => ({ _description: 'One generated record.', place: 'string' }))
     expect(unchosen.initialized).toEqual([undefined])
     expect(unchosen.controller.snapshot().recordScope).toBeNull()
+  })
+
+  it('saves a scope change without waiting for the edit debounce, carrying the pending edit in the same revision', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 1500 })
+    setup.controller.commit((current) => [...current, node('year')], 'edit')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(setup.appends).toHaveLength(0)
+
+    setup.controller.setRecordScope('records')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(setup.appends).toEqual([{
+      expected: 1,
+      definition: { recordDescription: 'One site record.', schemaNodes: [node('site'), node('year')] },
+      recordScope: 'records',
+    }])
+    expect(setup.controller.snapshot()).toMatchObject({
+      recordScope: 'records',
+      extractableSchemaRevisionId: 'rev-2',
+      save: { status: 'saved' },
+    })
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(setup.appends).toHaveLength(1)
+  })
+
+  it('keeps a failed scope save visible and unextractable until a retry flush saves it', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 1500 })
+    setup.failNextAppendWith(new Error('Could not save the Current Schema Revision.'))
+    setup.controller.setRecordScope('records')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(setup.controller.snapshot()).toMatchObject({
+      recordScope: 'records',
+      extractableSchemaRevisionId: null,
+      save: { status: 'error', error: new Error('Could not save the Current Schema Revision.') },
+    })
+    // Choosing the same scope again changes nothing; the retry is a flush.
+    setup.controller.setRecordScope('records')
+    expect(setup.appends).toHaveLength(1)
+
+    setup.restoreAppends()
+    await expect(setup.controller.flush()).resolves.toMatchObject({ revisionNumber: 2, recordScope: 'records' })
+    expect(setup.appends[1]).toEqual({ expected: 1, definition: definition('site'), recordScope: 'records' })
+    expect(setup.controller.snapshot()).toMatchObject({
+      recordScope: 'records',
+      extractableSchemaRevisionId: 'rev-2',
+      save: { status: 'saved' },
+    })
   })
 
   it('restores a historical revision without its scope: the restored content inherits the current one', async () => {

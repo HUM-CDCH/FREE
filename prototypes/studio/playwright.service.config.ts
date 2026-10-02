@@ -17,7 +17,7 @@ process.env.FREE_PLAYWRIGHT_SOURCE_INBOX = resolve(state, 'source-inbox')
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['real-service.spec.ts', 'real-service-gc.spec.ts', 'real-model-route.spec.ts'],
+  testMatch: ['real-service.spec.ts', 'real-service-gc.spec.ts', 'real-model-route.spec.ts', 'real-application-route.spec.ts'],
   outputDir: resolve(serviceTests, 'results'),
   workers: 1,
   timeout: 600_000,

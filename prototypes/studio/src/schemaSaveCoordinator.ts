@@ -101,7 +101,7 @@ export function createSchemaSaveCoordinator(
       submittedScope !== null && submittedScope !== state.acknowledged.recordScope
         ? submittedScope
         : undefined
-    publish({ ...state, status: 'saving' })
+    publish({ ...state, status: 'saving', error: undefined })
     try {
       const acknowledged = scopeChange
         ? await save(expected, submitted, scopeChange)
@@ -158,7 +158,11 @@ export function createSchemaSaveCoordinator(
         schedule()
       }
     },
-    /** A scope change is a schema change: saved through the same debounce, conflict check and flush as an edit. */
+    /**
+     * A scope change is a schema change with the same conflict check and flush as an edit, but a discrete choice: it
+     * saves at once instead of waiting out the debounce. The save carries the latest draft too, so a pending edit lands
+     * in the same revision; while another save is in flight, that save's acknowledgement re-saves with this scope.
+     */
     setRecordScope(recordScope: RecordScope) {
       if (state.status === 'conflict') publish({ ...state, recordScope })
       else {
@@ -167,15 +171,15 @@ export function createSchemaSaveCoordinator(
           status: inFlight ? 'saving' : 'dirty',
           recordScope,
         })
-        schedule()
+        void start()
       }
     },
+    /** Saves now and resolves with the acknowledged revision. A failed save is retried: flush is the Retry. */
     flush(): Promise<AcknowledgedSchemaRevision> {
       if (state.status === 'conflict')
         return Promise.reject(
           new SchemaRevisionConflictError(state.currentRevision!),
         )
-      if (state.status === 'error') return Promise.reject(state.error)
       if (!inFlight && savedAs(state.acknowledged, state.draft, state.recordScope)) {
         publish({ ...state, status: 'saved' })
         return Promise.resolve(state.acknowledged)
@@ -202,8 +206,14 @@ export function createSchemaSaveCoordinator(
       })
       return acknowledged
     },
+    /**
+     * Stops the debounce. A save it was holding, or a failed one, starts now rather than being dropped (an in-app
+     * navigation away keeps the page alive for it); nothing waits for it, and a later failure has no one left to show it to.
+     */
     dispose() {
+      const pending = timer !== undefined || state.status === 'error'
       clearScheduled()
+      if (pending) void start()
     },
   }
 }

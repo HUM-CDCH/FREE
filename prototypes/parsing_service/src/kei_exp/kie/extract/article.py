@@ -21,7 +21,8 @@ from pathlib import Path
 
 from kei_exp.kie.extract.assembly import ARTICLE_VERSION, artifact, document_values, ground_records, unchecked
 from kei_exp.kie.extract.calls import Call, complete
-from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, assemble_document, partition, reconcile_values
+from kei_exp.kie.extract.contexts import (GROUPING_VERSION, Context, assemble_document, partition, reconcile_values,
+                                          sharing)
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import REFERENCE, ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
@@ -141,8 +142,9 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     The whole document is the object: no identity is inventoried or bound, and every record field is asked of every
     value context under `stages.DOCUMENT`. With bounded contexts the source is partitioned (with its overlap) to fit
     that request, and `selection` sees every passage as the identity's support. Several contexts' answers are
-    assembled by `contexts.assemble_document`: every array item kept in context order, equal items from different
-    contexts named by a `possible_repeated_items` issue, a disagreeing scalar null with its conflict."""
+    assembled by `contexts.assemble_document`: every array item kept in context order, an equal item that contexts
+    sharing an overlap passage both returned joined once (an `overlap_items_joined` issue), equal items from other
+    contexts kept and named by a `possible_repeated_items` issue, a disagreeing scalar null with its conflict."""
     structured = method.rendering == "structured"
     item = {"identity": {}, "label": DOCUMENT_LABEL, "passages": [p.id for p in passages]}
     issues: list[Issue] = []
@@ -169,13 +171,15 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
         calls += attempts
         issues += problems
         candidates.append(fields)
-    root, contested, repeats = (assemble_document(candidates) if len(candidates) != 1
-                                else (candidates[0], [], []))
+    root, contested, repeats, joined = (assemble_document(candidates, sharing(groups)) if len(candidates) != 1
+                                        else (candidates[0], [], [], []))
     root = conform(root, schema.record_nodes)
     origins = [value_origins(candidates, root, {}, item["passages"])] if method.grounding_routing is not None else []
     issues += [Issue("conflicting_values", json.dumps(conflict, ensure_ascii=False), 0) for conflict in contested]
     issues += [Issue("possible_repeated_items", json.dumps(repeat, ensure_ascii=False), 0,
                      ("records", 0, *repeat["path"])) for repeat in repeats]
+    issues += [Issue("overlap_items_joined", json.dumps(join, ensure_ascii=False), 0, ("records", 0, *join["path"]))
+               for join in joined]
     return Records([item], [(list(passages), root)], calls, issues,
                    [{"record": 0, **conflict} for conflict in contested], [groups], selections, origins)
 

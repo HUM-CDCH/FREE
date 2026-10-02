@@ -13,6 +13,7 @@ import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { RunExtractionStrategy } from './ResultsTab'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
+import { SchemaSaveStatus } from './SchemaSaveStatus'
 import { deleteModelOperation, requestSchema } from './api'
 import {
   decodeParsedDocument,
@@ -805,6 +806,11 @@ export function DocumentWorkspace({
     }
   }
 
+  /** The save failure's Retry: a flush saves the latest draft and scope again. A new failure shows as the status. */
+  function retrySchemaSave() {
+    void schema.flush().catch(() => undefined)
+  }
+
   const runExtractionUnavailable =
     saved.state.status !== 'ready' ||
     savingForRun ||
@@ -960,6 +966,9 @@ export function DocumentWorkspace({
               <option value="CATALOG">Catalog</option>
             </select>
           </label>
+          {/* A scope choice saves at once; field edits wait out the debounce. Run waits for either, and a failed
+              save blocks it until Retry saves the latest draft and scope. */}
+          <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
           {!running && nextExtractionStrategy === 'CATALOG' && !(saved.state.status === 'ready' && saved.state.unifiedCatalog) && (
             <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
               Boundaries
@@ -1000,6 +1009,10 @@ export function DocumentWorkspace({
                   : 'Cancel the active Extraction'
                 : !sourceRepresentationCurrent
                   ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
+                  : schemaSnap.save?.status === 'error'
+                  ? 'The schema is not saved. Retry the save first.'
+                  : schemaSnap.save?.status === 'conflict'
+                  ? 'The schema changed elsewhere. Reload it in the Schema tab first.'
                   : schemaReady
                     ? nextExtractionStrategy === 'CATALOG'
                       ? 'Find catalogue entries and extract one record per entry'

@@ -102,18 +102,18 @@ def test_the_document_root_keeps_every_array_item_across_value_contexts():
     second = {"title": "Report", "year": 1828, "place": "Ribe",
               "finds": [{"kind": "urn", "tags": None}, {"kind": "spear", "tags": ["iron", "iron"]}],
               "authors": ["Hansen"], "site": {"name": None, "parish": "Vedsted"}}
-    root, conflicts, repeats = contexts.assemble_document([first, second])
+    root, conflicts, repeats, joined = contexts.assemble_document([first, second])
     assert root == {"title": "Report", "year": None, "place": "Ribe",
                     "finds": [{"kind": "sword", "tags": ["iron"]}, {"kind": "urn", "tags": None},
                               {"kind": "urn", "tags": None}, {"kind": "spear", "tags": ["iron", "iron"]}],
                     "authors": ["Beier", "Hansen", "Hansen"], "site": {"name": "Hill", "parish": "Vedsted"}}
     assert conflicts == [{"path": ["year"], "candidates": [1827, 1828]}]
     assert repeats == [{"path": ["finds"], "contexts": [0, 1], "indices": [1, 2]},
-                       {"path": ["authors"], "contexts": [0, 1], "indices": [1, 2]}]
-    assert contexts.assemble_document([first]) == (first, [], [])
-    assert contexts.assemble_document([]) == ({}, [], [])
+                       {"path": ["authors"], "contexts": [0, 1], "indices": [1, 2]}] and joined == []
+    assert contexts.assemble_document([first]) == (first, [], [], [])
+    assert contexts.assemble_document([]) == ({}, [], [], [])
     same_context = {"authors": ["Hansen", "Hansen"]}
-    assert contexts.assemble_document([same_context, {"authors": None}]) == (same_context, [], [])
+    assert contexts.assemble_document([same_context, {"authors": None}]) == (same_context, [], [], [])
 
 
 NESTED = Schema.model_validate({"recordDescription": "One excavation report.", "schemaNodes": [

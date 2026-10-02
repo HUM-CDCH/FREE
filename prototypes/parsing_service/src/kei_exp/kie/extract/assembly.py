@@ -21,7 +21,7 @@ from dataclasses import asdict, dataclass, field, replace
 from kei_exp.canonical import canonical_json
 from kei_exp.kie.extract import grounding
 from kei_exp.kie.extract.calls import Call
-from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, reconcile_values
+from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, assemble_document, sharing
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.routing import VERSION as GROUNDING_ROUTING_VERSION, verify_routed
@@ -40,8 +40,10 @@ EXTRACTION_VERSION = 1
 PROMPT_VERSION = 15
 # Article's own version, pinned in its fingerprint and artifact beside the shared PROMPT_VERSION (which the version 1
 # Catalog's frozen artifact also carries). 2: document scope, one root and no identity inventory; its prompt is
-# `stages.DOCUMENT`; arrays are assembled across value contexts without deduplication.
-ARTICLE_VERSION = 2
+# `stages.DOCUMENT`; arrays are assembled across value contexts without deduplication. 3: document-level fields are
+# assembled as the root is (`contexts.assemble_document`), and an equal item that contexts sharing an overlap passage
+# both returned is joined once.
+ARTICLE_VERSION = 3
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
@@ -74,8 +76,11 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
                     ) -> tuple[dict, list[dict], list[Call], list[Issue]]:
     """The document-level fields read in each context and reconciled across them, the conflicts, calls and issues.
 
-    `check` runs before each context's call when the schema has document-level fields. A scalar the contexts disagree
-    on is null, with its conflict and a `conflicting_document_values` issue."""
+    `check` runs before each context's call when the schema has document-level fields. Several contexts' answers are
+    assembled by `contexts.assemble_document`, as Article's root is: every list occurrence kept, an equal item that
+    contexts sharing an overlap passage both returned joined once (`overlap_items_joined`), equal items from other
+    contexts named (`possible_repeated_items`). A scalar the contexts disagree on is null, with its conflict and a
+    `conflicting_document_values` issue."""
     documents: list[dict] = []
     calls: list[Call] = []
     issues: list[Issue] = []
@@ -87,9 +92,14 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
         documents.append(document)
         calls += document_calls
         issues += document_issues
-    document, conflicts = reconcile_values(documents) if len(documents) > 1 else (documents[0], [])
+    document, conflicts, repeats, joined = (assemble_document(documents, sharing(contexts)) if len(documents) > 1
+                                            else (documents[0], [], [], []))
     issues += [Issue("conflicting_document_values", json.dumps(conflict, ensure_ascii=False))
                for conflict in conflicts]
+    issues += [Issue("possible_repeated_items", json.dumps(repeat, ensure_ascii=False), None, tuple(repeat["path"]))
+               for repeat in repeats]
+    issues += [Issue("overlap_items_joined", json.dumps(join, ensure_ascii=False), None, tuple(join["path"]))
+               for join in joined]
     return document, conflicts, calls, issues
 
 

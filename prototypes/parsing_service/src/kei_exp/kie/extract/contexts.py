@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+from kei_exp.kie.extract.stages import contains
 from kei_exp.kie.passages import Passage
 
 GROUPING_VERSION = 1
@@ -93,7 +94,9 @@ def partition(passages: Sequence[Passage], fits: Callable[[Sequence[Passage]], b
 def reconcile_values(values: Sequence[dict]) -> tuple[dict, list[dict]]:
     """Exact array union; recursively merge objects; retain scalar conflicts separately and return null.
 
-    No 'first wins' or last-write rule can quietly turn contradictory units into a fact.
+    No 'first wins' or last-write rule can quietly turn contradictory units into a fact. The union drops equal list
+    items, genuine occurrences included, so production assembly is `assemble_document`; this stays for the research
+    replays of captured version 1 studies (`article.extract_records`, `experiments/extraction/fixed_upstream.py`).
     """
     conflicts = []
 
@@ -123,18 +126,50 @@ def reconcile_values(values: Sequence[dict]) -> tuple[dict, list[dict]]:
     return combine(values, []) or {}, conflicts
 
 
-def assemble_document(values: Sequence[dict]) -> tuple[dict, list[dict], list[dict]]:
-    """One document root from its value contexts' answers, in context order: the root, its conflicts and the
-    possible repeats. Not `reconcile_values`, whose exact array union would collapse equal items into one.
+def printed_in(item, text: str) -> bool:
+    """Whether every string and number of a list item is printed in `text` as a bounded token (`stages.contains`: case
+    and spacing aside, never inside a longer word or number): only then can the item be the occurrence that text shows.
+    An item with none of them never can."""
+    def scalars(value):
+        if isinstance(value, dict):
+            return [leaf for each in value.values() for leaf in scalars(each)]
+        if isinstance(value, list):
+            return [leaf for each in value for leaf in scalars(each)]
+        return [value] if isinstance(value, str | int | float) and not isinstance(value, bool) else []
+    found = scalars(item)
+    return bool(found) and all(contains(text, leaf) for leaf in found)
 
-    Arrays concatenate and keep every item, object or scalar: equal items read in different contexts are all kept,
-    and named (`{"path", "contexts", "indices"}` into the assembled array) as possible repeats, never merged.
-    Objects merge field by field; a missing or null contribution never erases another context's value. Equal scalars
-    are one value; different ones are null, with their conflict (`{"path", "candidates"}`) as `reconcile_values`
-    reports it.
+
+def sharing(units: Sequence[Context]) -> Callable[[int, int, object], bool]:
+    """Whether a list item two value contexts both returned can be one occurrence: they were shown a passage in common
+    (an overlap passage beside another's primary; the repeated heading is orientation, not shared source) that prints
+    it."""
+    owned = [{p.id: p for p in (*context.overlap, *context.primary)} for context in units]
+
+    def shared(first: int, second: int, item) -> bool:
+        common = sorted(owned[first].keys() & owned[second].keys())
+        return bool(common) and printed_in(item, "\n".join(owned[first][id_].text for id_ in common))
+    return shared
+
+
+def assemble_document(values: Sequence[dict],
+                      shared: Callable[[int, int, object], bool] = lambda first, second, item: False
+                      ) -> tuple[dict, list[dict], list[dict], list[dict]]:
+    """One document root from its readings' answers, in reading order: the root, its conflicts, the possible repeats
+    and the joined overlap items. Not `reconcile_values`, whose exact array union would collapse equal items into one.
+
+    A list keeps every item one reading returned, equal ones included: they are separate occurrences. An item equal
+    to one an earlier reading returned is that same occurrence only when the two readings were shown source in common
+    that prints it (`shared(first, second, item)`, by reading index): it joins it, one to one, and is named (`{"path",
+    "contexts", "index"}` into the assembled list), since value-only replies cannot prove two equal items printed in
+    shared source are not two occurrences. Equal items kept from different readings are named (`{"path", "contexts",
+    "indices"}`) as possible repeats, never merged. Objects merge field by field; a missing or null contribution never
+    erases another reading's value. Equal scalars are one value; different ones are null, with their conflict
+    (`{"path", "candidates"}`) as `reconcile_values` reports it. Order is reading order, then each reply's own order.
     """
     conflicts: list[dict] = []
     repeats: list[dict] = []
+    joined: list[dict] = []
 
     def combine(items, path):
         present = [(context, v) for context, v in items if v is not None]
@@ -144,17 +179,28 @@ def assemble_document(values: Sequence[dict]) -> tuple[dict, list[dict], list[di
             keys = dict.fromkeys(k for _, v in present for k in v)
             return {k: combine([(context, v.get(k)) for context, v in present], [*path, k]) for k in keys}
         if all(isinstance(v, list) for _, v in present):
-            kept = [(context, item) for context, v in present for item in v]
+            kept: list[tuple[int, object, list[int]]] = []  # origin, item, every reading that returned it
+            for context, v in present:
+                for item in v:
+                    match = next((index for index, (_, other, readers) in enumerate(kept) if other == item
+                                  and context not in readers and any(shared(reader, context, item) for reader in readers)),
+                                 None)
+                    if match is None:
+                        kept.append((context, item, [context]))
+                    else:
+                        kept[match][2].append(context)
+            joined.extend({"path": path, "contexts": readers, "index": index}
+                          for index, (_, _, readers) in enumerate(kept) if len(readers) > 1)
             seen: list = []
-            for item in (item for _, item in kept):
+            for _, item, _ in kept:
                 if item in seen:
                     continue
                 seen.append(item)
-                indices = [index for index, (_, other) in enumerate(kept) if other == item]
+                indices = [index for index, (_, other, _) in enumerate(kept) if other == item]
                 sources = sorted({kept[index][0] for index in indices})
                 if len(sources) > 1:
                     repeats.append({"path": path, "contexts": sources, "indices": indices})
-            return [item for _, item in kept]
+            return [item for _, item, _ in kept]
         unique = []
         for _, value in present:
             if value not in unique:
@@ -164,4 +210,4 @@ def assemble_document(values: Sequence[dict]) -> tuple[dict, list[dict], list[di
         conflicts.append({"path": path, "candidates": unique})
         return None
 
-    return combine(list(enumerate(values)), []) or {}, conflicts, repeats
+    return combine(list(enumerate(values)), []) or {}, conflicts, repeats, joined

@@ -811,6 +811,57 @@ describe('BatchExtractionsPanel', () => {
     expect(posted[0]).toMatchObject({ strategy: 'ARTICLE', schemaRevisionId: appendedRevisionId })
   })
 
+  it('refuses Run while the chosen schema\'s scope save failed, and Retry saves it before the run', async () => {
+    const writes: Array<Record<string, unknown>> = []
+    const posted: Array<Record<string, unknown>> = []
+    let failNextWrite = true
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/schema-revisions' && init?.method === 'POST') {
+        if (failNextWrite) {
+          failNextWrite = false
+          return new Response(JSON.stringify({ error: { code: 'unavailable', message: 'The database is unavailable.' } }), {
+            status: 503, headers: { 'content-type': 'application/json' },
+          })
+        }
+        return appendChosenRevision(init, writes)
+      }
+      if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [] })
+      if (url === '/api/batch-extractions' && init?.method === 'POST') {
+        posted.push(JSON.parse(String(init.body)))
+        return response({ batchExtraction: { ...batch, members: [] }, disposition: 'created' })
+      }
+      if (url.startsWith('/api/extraction-schemas?'))
+        return response({
+          extractionSchemas: [{
+            extractionSchemaId: batch.extractionSchemaId, name: 'Places', createdAt: '2026-08-14T10:00:00.000Z',
+            currentRevision: { schemaRevisionId, revisionNumber: 1, origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z' },
+          }],
+        })
+      const chosen = chosenSchemaRead(url, chosenRevision(null))
+      if (chosen) return chosen
+      throw new Error(`Unexpected request: ${url}`)
+    }))
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await screen.findByLabelText('Extraction Schema fields')
+    fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
+    const strategy = screen.getByLabelText('Batch extraction strategy')
+    await waitFor(() => expect(strategy).toBeEnabled())
+
+    fireEvent.change(strategy, { target: { value: 'CATALOG' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent('The database is unavailable.')
+    expect(strategy).toHaveValue('CATALOG')
+    expect(screen.getByRole('button', { name: 'Run 1 Source Document' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
+    await waitFor(() => expect(writes).toEqual([expect.objectContaining({ expectedRevisionNumber: 1, recordScope: 'records' })]))
+    fireEvent.click(await enabledRun('Run 1 Source Document'))
+    await waitFor(() => expect(posted).toHaveLength(1))
+    expect(posted[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('with the unified Catalog enabled, a Catalog batch submits the same unified method as a single run', async () => {
     const posted: unknown[] = []
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

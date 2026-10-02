@@ -823,7 +823,11 @@ export default function BatchExtractionsPanel({
         }) &&
         !suggestionHasPendingLocalEdit &&
         runnableSuggestionDefinition(suggestion.context.draft)
-      : schemaRevisionId.length > 0 && selectedStrategy !== null)
+      : schemaRevisionId.length > 0 &&
+        selectedStrategy !== null &&
+        // Opening waits for the editor's save; a failed or conflicting one blocks it until the editor recovers.
+        chosenEditor?.save?.status !== 'error' &&
+        chosenEditor?.save?.status !== 'conflict')
   const toggleAllSourceDocuments = () => {
     if (schemaRevisionId === SUGGEST_SCHEMA) clearSuggestedFields()
     setSelected(
@@ -1377,6 +1381,8 @@ function SavedSchemaEditor({
     snap.save?.status === 'error'
       ? snap.save.error?.message ?? 'The schema could not be saved.'
       : null
+  // A flush retries the failed save with the latest fields and scope; a new failure shows here again.
+  const retrySave = () => void schema.flush().catch(() => undefined)
   // Clear keeps the record description and empties the fields — the same
   // empty-draft-saved-immediately semantics this screen always had.
   async function clearDraft() {
@@ -1398,9 +1404,14 @@ function SavedSchemaEditor({
         />
       </section>
       {failure && (
-        <p className="-mt-3 mb-5 text-[11px] text-danger" role="alert">
-          {failure}
-        </p>
+        <div className="-mt-3 mb-5 flex flex-wrap items-center gap-2">
+          <p className="text-[11px] text-danger" role="alert">
+            {failure}
+          </p>
+          <Button onClick={retrySave}>
+            Retry save
+          </Button>
+        </div>
       )}
     </>
   )
