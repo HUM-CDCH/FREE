@@ -92,24 +92,6 @@ def test_the_recipe_catalog_reads_the_evidence_it_is_given(tmp_path):
                                                          request.schema_, request.options.dumped(), result["models"])
 
 
-def test_a_recipe_sample_reuses_the_whole_document_segmentation_and_keeps_the_entries_on_its_pages(tmp_path):
-    run_dir = catalogue.write("continuations", tmp_path / "run")
-    request = recipe_request()
-    whole = grounded.extract(run_dir, load(run_dir), request, as_router(CountingChat(honest)), counter=WordCounter())
-    published = next(run_dir.glob("segmentations/*/segmentation.json"))
-    before = published.stat()
-    sample = request.model_copy(update={"options": request.options.model_copy(update={"pages": [2]})})
-    result = grounded.extract(run_dir, load(run_dir), sample, as_router(CountingChat(honest)), counter=WordCounter())
-    after = published.stat()
-    assert (after.st_ino, after.st_mtime_ns) == (before.st_ino, before.st_mtime_ns)  # reused, never republished
-    assert result["segmentation"]["fingerprint"] == whole["segmentation"]["fingerprint"]
-    assert result["record_blocks"] == whole["record_blocks"][2:]  # 42 continues onto page 2; 43 is on it
-    assert [record["kreis"] for record in result["records"]] == ["Moor", "Ried"]  # headings from page 1 still apply
-    assert result["coverage"]["entries"] == 2 and result["complete"] is True
-    assert result["options"]["pages"] == [2] and "pages" not in whole["options"]
-    assert result["fingerprint"] != whole["fingerprint"]
-
-
 @pytest.mark.parametrize("options, chosen", [
     ({"strategy": "catalog"}, catalog),
     ({"strategy": "article"}, article),

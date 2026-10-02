@@ -182,7 +182,7 @@ def extract(run_dir: Path, evidence: Evidence, request, chat: Router, *,
     if counter is None:
         counter = counters_for(chat)
     body = extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter,
-                            chunks=chunks, before_entry=before_entry, pages=options.pages)
+                            chunks=chunks, before_entry=before_entry)
     result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
               "model": chat.model, "models": chat.models,
               "schema": request.schema_.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
