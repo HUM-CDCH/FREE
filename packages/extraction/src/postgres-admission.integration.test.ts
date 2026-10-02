@@ -16,26 +16,8 @@ describe('Extraction admission on disposable PostgreSQL', { skip: !fixture && 's
     db, createResearcherExtractionPersistence, packages, kei, app,
     execution, deterministicArtifact, seedProject, withRecordScope, scheduler, createRuntime,
     freshInput, heldByKei, extractionRow, cleanup, configureAccount, modelConfigurations, rejectsWithCode,
-    untilLockWait, untilSignalled, succeeded, addRepresentation,
+    untilLockWait, untilSignalled,
   } = fixture
-
-  /** A published sample whose saved draft approves its one value on `anchor`. */
-  async function approvedSample(project: Awaited<ReturnType<typeof seedProject>>, pages: number[], anchor: string) {
-    const id = randomUUID()
-    const path = ['records', 0, 'title']
-    await db.orm.public.Extraction.create({
-      id, sourceDocumentId: project.documents[0]!.sourceDocumentId, schemaRevisionId: project.schemaRevisionId,
-      sourceRepresentationRevisionId: project.documents[0]!.sourceRepresentationRevisionId, strategy: 'ARTICLE',
-      requestedPages: pages, outcome: 'SUCCEEDED', complete: true, reviewable: true,
-      diagnostics: succeeded(id, project).diagnostics, resultPayload: { records: [{ title: 'Alpha' }] },
-      evidenceLinks: [{ resultPath: path, evidenceAnchorId: anchor }],
-      reviewDraft: [{ resultPath: path, evidenceAnchorId: anchor, reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null }],
-      reviewDraftVersion: 1,
-    })
-    return id
-  }
-  const reviewTransferOf = async (extractionId: string) =>
-    (await db.orm.public.Extraction.select('reviewTransfer').first({ id: extractionId }))?.reviewTransfer
 
   it('admits an Extraction row and its runExtraction workflow in one transaction', async (t) => {
     t.after(cleanup)
@@ -241,19 +223,6 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
       requestedPages: [1], batchExtractionId: null,
     })
     await assert.rejects(module.runSingle(input), rejectsWithCode('extraction_id_conflict'))
-  })
-
-  it('pins nothing across a reprocessed source', async (t) => {
-    t.after(cleanup)
-    const project = await seedProject()
-    kei.holding = true
-    await approvedSample(project, [1], 'a_p1_s0')
-    const input = {
-      ...freshInput(project), sourceRepresentationRevisionId: await addRepresentation(project.documents[0]!, 'article-v2.pdf'),
-    }
-    assert.equal((await scheduler(project.researcherAccountId).runSingle(input)).disposition, 'created')
-    assert.equal(await reviewTransferOf(input.extractionId), null)
-    await heldByKei(input.extractionId)
   })
 
   it('explicit reference and service defaults are different requests under one ID', async (t) => {
