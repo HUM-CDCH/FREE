@@ -27,14 +27,20 @@ const REASONS: Readonly<Record<string, string>> = {
 export const reasonText = (code: string): string => REASONS[code] ?? code.replaceAll('_', ' ')
 
 /**
- * Every claim's verifier state, keyed by `JSON.stringify(resultPath)`. Without a claim accounting (an attempt the
- * service stored before it), an ungrounded value is left unnamed: whether its checks finished is not known.
+ * Every claim's verifier state, keyed by `JSON.stringify(resultPath)`, decided as the claim accounting decides it: the
+ * claims are the linked and the ungrounded values, and a policy-skipped path excludes a claim (even a linked one) only
+ * if it is one. Without a claim accounting (the attempt persisted no evidence or no diagnostics: grounding was not
+ * reached), an ungrounded value is left unnamed: whether its checks finished is not known.
  */
 export function claimStatuses(attempt: Pick<ExtractionAttempt, 'evidenceLinks' | 'diagnostics'>): ReadonlyMap<string, ClaimStatus> {
   const states = new Map<string, ClaimStatus>()
   const grounding = attempt.diagnostics?.grounding
-  for (const { resultPath, policy } of attempt.diagnostics?.eligibility?.skipped ?? [])
-    states.set(JSON.stringify(resultPath), { state: 'excluded', reasons: [], policy })
+  const links = attempt.evidenceLinks ?? []
+  const claimKeys = new Set([...links.map((link) => link.resultPath), ...grounding?.ungroundedPaths ?? []].map((path) => JSON.stringify(path)))
+  for (const { resultPath, policy } of attempt.diagnostics?.eligibility?.skipped ?? []) {
+    const key = JSON.stringify(resultPath)
+    if (claimKeys.has(key)) states.set(key, { state: 'excluded', reasons: [], policy })
+  }
   if (grounding?.claims) {
     for (const { resultPath, reasons } of grounding.claims.unfinished)
       states.set(JSON.stringify(resultPath), { state: 'not_completed', reasons })
@@ -43,8 +49,10 @@ export function claimStatuses(attempt: Pick<ExtractionAttempt, 'evidenceLinks' |
       if (!states.has(key)) states.set(key, { state: 'unsupported', reasons: [] })
     }
   }
-  for (const link of attempt.evidenceLinks ?? [])
-    states.set(JSON.stringify(link.resultPath), { state: 'supported', reasons: [], linkedBy: linkOrigin(link) })
+  for (const link of links) {
+    const key = JSON.stringify(link.resultPath)
+    if (states.get(key)?.state !== 'excluded') states.set(key, { state: 'supported', reasons: [], linkedBy: linkOrigin(link) })
+  }
   return states
 }
 
@@ -59,9 +67,12 @@ export function describeClaimStatus(status: ClaimStatus): { label: string; detai
   }
 }
 
-/** `items[87].pack_qty`; with several records, `Item 3 · site` (1-based, as the Results tab labels them). */
+/** `items[87].pack_qty`; with several records, `Item 3 · site` (1-based, as the Results tab labels them). Only a records
+ *  envelope's `['records', n]` prefix is dropped. */
 export function fieldLabel(resultPath: readonly (string | number)[], recordCount: number): string {
-  const [, record, ...rest] = resultPath
+  const enveloped = resultPath[0] === 'records'
+  const record = enveloped ? resultPath[1] : undefined
+  const rest = enveloped ? resultPath.slice(2) : resultPath
   const field = rest.map((step, index) => typeof step === 'number' ? `[${step + 1}]` : index === 0 ? String(step) : `.${step}`).join('')
   return recordCount > 1 && typeof record === 'number' ? `Item ${record + 1} · ${field}` : field
 }

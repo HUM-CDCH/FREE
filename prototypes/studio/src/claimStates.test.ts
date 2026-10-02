@@ -55,6 +55,20 @@ describe('claim states', () => {
     expect(fieldLabel(['records', 0, 'items', 86, 'pack_qty'], 1)).toBe('items[87].pack_qty')
     expect(fieldLabel(['records', 2, 'site'], 3)).toBe('Item 3 · site')
     expect(fieldLabel(['records', 0, 'publisher'], 1)).toBe('publisher')
+    // A path without a records envelope keeps every step.
+    expect(fieldLabel(['title'], 1)).toBe('title')
+    expect(fieldLabel(['items', 2, 'sku'], 1)).toBe('items[3].sku')
+  })
+  it('excludes a skipped path only if it is a claim, and a linked skipped claim stays excluded, as the accounting counts it', () => {
+    const skipped = { ...attempt, diagnostics: { ...attempt.diagnostics, eligibility: { ...attempt.diagnostics.eligibility, skipped: [
+      { resultPath: ['records', 0, 'notes'], policy: 'unverified' },
+      { resultPath: ['records', 0, 'items', 0, 'sku'], policy: 'derived' },
+      { resultPath: ['records', 0, 'not_a_claim'], policy: 'derived' },
+    ] } } }
+    const states = claimStatuses(skipped as never)
+    expect(states.get(JSON.stringify(['records', 0, 'items', 0, 'sku']))).toEqual({ state: 'excluded', reasons: [], policy: 'derived' })
+    expect(states.get(JSON.stringify(['records', 0, 'not_a_claim']))).toBeUndefined()
+    expect(states.size).toBe(5)
   })
   it('without a claim accounting, an ungrounded value is not called unsupported: its checks may not have finished', () => {
     const legacy = { ...attempt, diagnostics: { ...attempt.diagnostics, grounding: { ...attempt.diagnostics.grounding, claims: null } } }

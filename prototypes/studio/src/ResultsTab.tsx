@@ -670,7 +670,8 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     : reviewReadOnly && state.status === 'ready'
       ? state.evidenceLinks.length
       : controller.review.requiredCount
-  // Each claim once, in its verifier state; the accounting is null for an attempt stored before the service derived it.
+  // Each claim once, in its verifier state. The accounting is derived on read from the persisted evidence and
+  // diagnostics, a historical attempt's too; it is null only when the attempt persisted no evidence or no diagnostics.
   const statuses = useMemo(() => attempt ? claimStatuses(attempt) : new Map<string, ClaimStatus>(), [attempt])
   const claims = attempt?.diagnostics?.grounding?.claims ?? null
   // Each linked value once, by who made its link: only the verifier's count as verifier-supported, with or without an accounting.
@@ -679,8 +680,8 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     const verifier = [...origins.values()].filter((origin) => origin === 'verifier').length
     return { verifier, rule: origins.size - verifier }
   }, [state])
-  // With a claim accounting the workbook carries the Extraction and Evidence sheets; without one (an attempt stored
-  // before the service derived it) unsupported and unfinished values cannot be told apart, so the export stays values-only.
+  // With a claim accounting the workbook carries the Extraction and Evidence sheets; without one (no evidence or no
+  // diagnostics persisted) unsupported and unfinished values cannot be told apart, so the export stays values-only.
   const evidenceSheets = attempt !== null && claims !== null && state.status === 'ready'
   const reviewSaved = Boolean(controller.review.reviewedExtractionId || attempt?.reviewedAt)
 
