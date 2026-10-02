@@ -163,6 +163,14 @@ server's weights, the
 document-layout process, and the operating system. Spark's system memory is
 shared with its GPU.
 
+The extraction server runs with
+`--structured-outputs-config '{"disable_any_whitespace": true}'`, which vLLM
+validates at startup and which applies to its xgrammar and guidance backends
+only. Without it, constrained decoding admits unlimited whitespace between JSON
+tokens, and a record call can loop on whitespace until it reaches its
+`max_tokens`. Operator overlays kept outside the repository, for example a
+shared NVFP4 server overlay, must carry the same flag, or the loop returns.
+
 For direct Compose commands, add `-f compose.gpu.yaml` after the local or
 production overlay. The normal launcher selects it after its GPU probe.
 

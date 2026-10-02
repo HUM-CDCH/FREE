@@ -58,6 +58,16 @@ _TRACER = trace.get_tracer("kei")
 CAPTURE = set(os.environ.get("FREE_TRACE_CAPTURE", "").split(","))
 
 
+def _cut_off(text: str) -> str:
+    """A reply the server cut at max_tokens: a whitespace loop when at least half of it is trailing whitespace (constrained
+    decoding admits unlimited whitespace between JSON tokens, and a looping model spends the whole allowance on it)."""
+    trailing = len(text) - len(text.rstrip())
+    if text and trailing * 2 >= len(text):
+        return (f"the reply ran into a whitespace loop ({trailing} of {len(text)} characters trailing whitespace; "
+                "finish_reason length)")
+    return "the reply was cut off (finish_reason length)"
+
+
 def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str, user: str, schema: dict,
              max_tokens: int | None = None, counter: TokenCounter | None = None) -> tuple[Any, list[Call]]:
     """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer. The calls are the
@@ -122,7 +132,7 @@ def _complete(chat: Chat, stage: str, record: int | None, system: str, user: str
     parsed = None
     error = None
     if reply.finish == "length":
-        error = "the reply was cut off (finish_reason length)"
+        error = _cut_off(reply.text)
     else:
         try:
             parsed = parse_json(reply.text)
