@@ -203,7 +203,7 @@
       "reasoning": "fake/extractor"
     },
     "prompt_version": 3,
-    "document_version": 2,
+    "document_version": 3,
     "schema": {
       "recordDescription": "One entry of a catalogue of finds.",
       "recordScope": "records",
@@ -930,6 +930,6 @@
       "input": 980,
       "output": 30
     },
-    "fingerprint": "a4c10cc9f08dd7349f02908695babb2acf855c28b0c8b93491f895c1ba5dcd44"
+    "fingerprint": "a0f900d66fdcbb3be135e6dc953d8d29bc366f960e5176e8a8485fa5b12e2e83"
   }
 }

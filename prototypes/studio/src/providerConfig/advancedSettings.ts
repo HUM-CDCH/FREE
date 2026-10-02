@@ -26,7 +26,9 @@ export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string
  *  inventory (`identity`, `identity_fields`), its model requests do not change with `prompt`, and it reads every source
  *  unit for values (`selection`). Their controls stay visible but read-only, and a saved value is kept and sent as
  *  saved: the contract still accepts it, and historical settings are research state. */
-export const RETIRED_ARTICLE_KEYS: ReadonlySet<ArticleKey> = new Set(['selection', 'identity', 'identity_fields', 'prompt'])
+export const RETIRED_ARTICLE_KEYS: ReadonlySet<ArticleKey> = new Set([
+  'selection', 'identity', 'identity_fields', 'prompt', 'grounding_schedule', 'grounding_routing',
+])
 /** Said beside every retired control. */
 export const RETIRED_NOTE = 'No longer used by Article. A saved value is kept unchanged.'
 
@@ -53,8 +55,8 @@ export const CONTROL_HINTS: Readonly<Record<ArticleKey, string>> = {
   rendering: 'Structured input labels blocks and table cells. It keeps the source characters and cannot recover missing OCR text or cells.',
   grounding: 'How each populated record value is checked against the source.',
   evidence_policy: 'All populated record fields, or only those your schema policies mark quoted.',
-  grounding_schedule: 'Across all source units keeps checking later units; it does not detect contradictions.',
-  grounding_routing: 'Which units a value is checked against first. Unresolved values still reach every eligible unit.',
+  grounding_schedule: 'Article now checks each value where it was read first and stops at support, whichever is chosen.',
+  grounding_routing: 'Article now checks each value in the source unit it was read from first, whichever is chosen.',
 }
 
 type Choice<V> = Readonly<{ value: V; label: string }>
@@ -138,8 +140,6 @@ export function sectionSummary(article: ArticleSettings, section: ArticleSection
       return [
         label('grounding', article.grounding),
         article.evidence_policy ? 'Schema policies' : 'All fields',
-        ...(article.grounding_schedule ? ['Until first support'] : []),
-        ...(article.grounding_routing ? ['Origin and lexical order'] : []),
       ].join(' · ')
   }
 }

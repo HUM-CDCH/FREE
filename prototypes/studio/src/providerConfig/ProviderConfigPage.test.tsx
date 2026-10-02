@@ -1048,7 +1048,7 @@ describe('Advanced', () => {
     setting('Value evidence')
     expect(radio('Value evidence', 'Supported units')).toBeChecked()
     expect(radio('Value evidence', 'All source units')).toBeEnabled()
-    expect(screen.getAllByText(RETIRED_NOTE)).toHaveLength(4)
+    expect(screen.getAllByText(RETIRED_NOTE)).toHaveLength(6)
 
     setting('Source representation')
     fireEvent.click(radio('Source representation', 'Structured blocks and tables'))

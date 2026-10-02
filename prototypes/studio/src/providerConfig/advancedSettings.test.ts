@@ -85,7 +85,7 @@ describe('summaries', () => {
     expect(sectionSummary(full, 'context')).toBe('Full source')
     const spans = withStartingPoint(undefined, STARTING_POINTS[1]!)
     expect(effectiveSummary(spans)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification')
-    expect(sectionSummary(spans, 'evidence')).toBe('Source spans · Schema policies · Until first support')
+    expect(sectionSummary(spans, 'evidence')).toBe('Source spans · Schema policies')
     expect(sectionSummary({ ...spans, identity: 'conservative', identity_fields: ['species', 'preparation'] }, 'identity'))
       .toBe('Not used by Article')
     expect(sectionSummary({ ...spans, selection: 'supported' }, 'context')).toBe('Bounded · 12,288 tokens')

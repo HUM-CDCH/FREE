@@ -51,7 +51,7 @@ from kei_exp.kie.extract import discovery
 from kei_exp.kie.extract.acceptance import Outcome, typed_value
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
-from kei_exp.kie.extract.contexts import assemble_document, printed_in
+from kei_exp.kie.extract.contexts import assemble_document, printed_once_in
 from kei_exp.kie.extract.discovery import Window, occurrences, plan, ranges_json, split, text_of
 from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, raw_range
 from kei_exp.kie.extract.models import ROLE, Router
@@ -73,8 +73,9 @@ RECORD_VERSION = 1  # the execution record's layout
 ENTRY_VERSION = 3
 # How the document-level fields' windows are assembled, in the artifact and its fingerprint. 2: by
 # `contexts.assemble_document`, every list occurrence kept (1 was `reconcile_values`' exact union, which dropped equal
-# items, a single window's included).
-DOCUMENT_VERSION = 2
+# items, a single window's included). 3: an item two windows returned is joined only when their shared source
+# prints it as exactly one occurrence.
+DOCUMENT_VERSION = 3
 ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apart from its values' evidence
 # The versioned service defaults: engineering choices, none measured yet. Reserves are sized for replies that list
 # many boundaries or candidates; Auto input is the served context minus the stage's reserve; one unit of overlap;
@@ -780,7 +781,7 @@ class _Run:
             common = "\n".join(self.texts[a.segment][max(a.start, b.start):min(a.end, b.end)]
                                for a in shown_units[first] for b in shown_units[second]
                                if a.segment == b.segment and a.start < b.end and b.start < a.end)
-            return printed_in(item, common)
+            return printed_once_in(item, common)
         out.values, out.conflicts, repeats, joined = (assemble_document(per_window, shared) if len(per_window) > 1
             else (per_window[0], [], [], []) if per_window else ({}, [], [], []))
         out.issues += [Issue(code, json.dumps(each, ensure_ascii=False), None, tuple(each["path"]))

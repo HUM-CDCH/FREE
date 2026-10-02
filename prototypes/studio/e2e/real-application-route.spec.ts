@@ -1,51 +1,117 @@
 import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { strFromU8, unzipSync } from 'fflate'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import pluralize from 'pluralize'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
-import { startRealService } from './realService.js'
+import { cataloguePdf, startRealService, textPdf } from './realService.js'
 import { admit, settle } from './sourceIngestion.js'
 
 /**
- * One real document through the application as a researcher drives it, against a real model: the schema arrives
- * without a record scope, the Article/Catalog selector chooses it (saved at once, read back after a reload), the
- * workspace's Run admits the extraction with the account's saved method, then evidence and contested fields are
- * inspected, one list item is edited and the rest approved, the page is reloaded, and CSV and XLSX are exported.
- * FREE_REAL_ROUTE_PDF, FREE_REAL_ROUTE_SCHEMA (recordDescription and schemaNodes, no scope) and
- * FREE_REAL_ROUTE_STRATEGY (ARTICLE or CATALOG) name the case; FREE_REAL_ROUTE_ARTICLE is the Article method saved
- * first (JSON, optional). Every artifact is written to FREE_REAL_ROUTE_OUTPUT before the browser step that needs it.
+ * Evidence-review acceptance: one document through the application as a researcher drives it. The schema arrives
+ * without a record scope; the Article/Catalog selector chooses it (saved at once, read back after a reload); the
+ * workspace's Run admits the extraction with the account's saved method. Then, every step required: a populated list
+ * value with evidence is opened in the source (its anchor highlighted on its page, in view), edited, the edit keeps the
+ * extracted value's evidence labelled as the extracted value's, the review is saved, the page reloaded, and CSV and
+ * Excel carry the reviewed value.
+ *
+ * Without FREE_REAL_EXTRACT_URL the scripted model answers the stack's own site catalogue (selectors and controls, no
+ * model call). With it: FREE_REAL_ROUTE_PDF + FREE_REAL_ROUTE_SCHEMA (recordDescription and schemaNodes, no scope) and
+ * FREE_REAL_ROUTE_STRATEGY, or FREE_REAL_ROUTE_SYNTHETIC=nested, a labelled synthetic inspection report whose rooms
+ * hold defects (an array inside each array item): a structural check, not extraction-quality evidence.
+ * FREE_REAL_ROUTE_ARTICLE is the Article method saved first (JSON, optional). Every artifact is written to
+ * FREE_REAL_ROUTE_OUTPUT before the browser step that needs it.
  */
-const pdfPath = process.env.FREE_REAL_ROUTE_PDF
-const schemaPath = process.env.FREE_REAL_ROUTE_SCHEMA
-const strategy = (process.env.FREE_REAL_ROUTE_STRATEGY ?? 'CATALOG') as 'ARTICLE' | 'CATALOG'
+const real = Boolean(process.env.FREE_REAL_EXTRACT_URL)
+const synthetic = process.env.FREE_REAL_ROUTE_SYNTHETIC === 'nested'
 const article = process.env.FREE_REAL_ROUTE_ARTICLE ? JSON.parse(process.env.FREE_REAL_ROUTE_ARTICLE) : null
 const headers = { Origin: E2E_ORIGIN }
 
-type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
-
-function firstListItem(records: Json[]): { record: number; field: string; item: number; child?: string; value: string } | null {
-  let nested: { record: number; field: string; item: number; child: string; value: string } | null = null
-  for (const [record, value] of records.entries())
-    for (const [field, child] of Object.entries((value ?? {}) as Record<string, Json>))
-      if (Array.isArray(child))
-        for (const [item, entry] of child.entries()) {
-          if (typeof entry === 'string' && entry.trim() !== '') return { record, field, item, value: entry }
-          if (!nested && entry && typeof entry === 'object' && !Array.isArray(entry))
-            for (const [name, leaf] of Object.entries(entry))
-              if (!nested && typeof leaf === 'string' && leaf.trim() !== '') nested = { record, field, item, child: name, value: leaf }
-        }
-  return nested
+const SITES = {
+  recordDescription: 'The site catalogue as one document: every numbered archaeological site it lists.',
+  schemaNodes: [{ id: 'sites', name: 'sites', type: 'array', description: 'Every numbered site, in source order.',
+    children: [
+      { id: 'site', name: 'site', type: 'verbatim-string', description: 'The site name exactly as printed: Hill or Valley.' },
+      { id: 'finds', name: 'finds', type: 'verbatim-string', description: 'The material found, exactly as printed.' },
+      { id: 'year', name: 'year', type: 'integer', description: 'The four-digit year printed after dated.' },
+    ] }],
+}
+/** SYNTHETIC: an invented inspection report, written for this structural check only. */
+const INSPECTION_PDF = (): Buffer => textPdf([
+  ['SYNTHETIC TEST DOCUMENT - Inspection 4471', 'Room: Kitchen. Defect: cracked tile (minor).', 'Defect: leaking tap (major).'],
+  ['Room: Bathroom. Defect: loose seal (minor).', 'Defect: cracked tile (major).', 'Inspector: A. Berg.'],
+])
+const INSPECTION = {
+  recordDescription: 'One synthetic inspection report: the rooms inspected, each with the defects found in it.',
+  schemaNodes: [
+    { id: 'number', name: 'inspection_number', type: 'string' },
+    { id: 'inspector', name: 'inspector', type: 'string' },
+    { id: 'rooms', name: 'rooms', type: 'array', description: 'Every room inspected, in source order.', children: [
+      { id: 'room', name: 'room', type: 'string', description: 'The room name as printed.' },
+      { id: 'defects', name: 'defects', type: 'array', description: 'Every defect found in this room.', children: [
+        { id: 'defect', name: 'defect', type: 'string', description: 'What the defect is, as printed.' },
+        { id: 'severity', name: 'severity', type: 'string', description: 'minor or major, as printed.' },
+      ] },
+    ] },
+  ],
 }
 
-test('a researcher chooses the scope, runs, reviews, reloads and exports a real document', async ({ page }, testInfo) => {
-  test.skip(!process.env.FREE_REAL_EXTRACT_URL || !pdfPath || !schemaPath,
-    'Needs a real model (FREE_REAL_EXTRACT_URL/MODEL) and FREE_REAL_ROUTE_PDF/FREE_REAL_ROUTE_SCHEMA.')
+type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
+type Path = (string | number)[]
+
+function valueAt(root: Json, path: Path): Json | undefined {
+  let node: Json | undefined = root
+  for (const step of path) node = node === null || typeof node !== 'object' ? undefined : (node as Record<string, Json>)[step]
+  return node
+}
+
+/** The deepest evidence-linked string inside a list: the value this review edits. */
+function target(result: Json, links: readonly { resultPath: Path; evidenceAnchorId: string }[]) {
+  const listed = links.filter((link) => link.resultPath.slice(2).some((step) => typeof step === 'number') &&
+    typeof valueAt(result, link.resultPath) === 'string' && String(valueAt(result, link.resultPath)).trim() !== '')
+  return listed.sort((a, b) => b.resultPath.length - a.resultPath.length)[0]
+}
+
+/** Opens the result tree down to `path` (below records/n) and names the leaf as the Results tab labels it. */
+async function open(page: Page, path: Path, records: number): Promise<string> {
+  const steps = path.slice(2)
+  const panel = page.getByLabel('Evidence, schema and results')  // not the project rail, whose file names may match
+  if (records > 1) await panel.getByRole('button', { name: new RegExp(`^Item ${Number(path[1]) + 1}\\b`) }).first().click()
+  let field = ''
+  let leaf = ''
+  for (const [index, step] of steps.entries()) {
+    const singular = pluralize.singular(field)
+    const name = typeof step === 'number' ? `${singular.charAt(0).toUpperCase()}${singular.slice(1)} ${step + 1}` : step
+    if (typeof step === 'string') field = step
+    if (index === steps.length - 1) leaf = name
+    else await panel.getByRole('button', { name: new RegExp(`^${name}\\b`) }).first().click()
+  }
+  return leaf
+}
+
+/** The evidence overlay for `anchor` is drawn on its page and scrolled into view. */
+async function highlighted(page: Page, anchor: string, pageNumber: number) {
+  const overlay = page.locator(`.page[data-page-number="${pageNumber}"] [data-evidence-anchor-id="${anchor}"]`).first()
+  await expect(overlay).toBeAttached()
+  await expect(overlay).toBeInViewport()
+}
+
+test('a researcher chooses the scope, opens evidence, edits, reloads and exports a document', async ({ page }, testInfo) => {
+  test.skip(real && !synthetic && (!process.env.FREE_REAL_ROUTE_PDF || !process.env.FREE_REAL_ROUTE_SCHEMA),
+    'A real model needs FREE_REAL_ROUTE_PDF and FREE_REAL_ROUTE_SCHEMA, or FREE_REAL_ROUTE_SYNTHETIC=nested.')
   test.setTimeout(4 * 60 * 60_000)
   const output = process.env.FREE_REAL_ROUTE_OUTPUT ?? testInfo.outputPath('route')
   await mkdir(output, { recursive: true })
   const save = (name: string, value: unknown) => writeFile(join(output, name), JSON.stringify(value, null, 2))
+  // Its own file name: the stack's other specs find their files in the shared project rail by name.
+  const [pdf, name, schema, strategy] = !real ? [cataloguePdf(), 'acceptance-catalogue.pdf', SITES, 'ARTICLE' as const]
+    : synthetic ? [INSPECTION_PDF(), 'synthetic-inspection.pdf', INSPECTION, 'ARTICLE' as const]
+      : [await readFile(process.env.FREE_REAL_ROUTE_PDF!), basename(process.env.FREE_REAL_ROUTE_PDF!),
+         JSON.parse(await readFile(process.env.FREE_REAL_ROUTE_SCHEMA!, 'utf8')),
+         (process.env.FREE_REAL_ROUTE_STRATEGY ?? 'CATALOG') as 'ARTICLE' | 'CATALOG']
   const clock: Record<string, string> = { started: new Date().toISOString() }
   const service = await startRealService(testInfo.outputPath('parsing-service.log'))
   try {
@@ -56,11 +122,10 @@ test('a researcher chooses the scope, runs, reviews, reloads and exports a real 
         data: { config: { ...current, extractionSettings: { ...current.extractionSettings, article } } } })
       expect(put.status(), await put.text()).toBe(200)
     }
-    const created = await page.request.post('/api/project-contexts', { headers, data: { name: `Real application: ${basename(pdfPath!)}` } })
+    const created = await page.request.post('/api/project-contexts', { headers, data: { name: `Application route: ${name}` } })
     expect(created.status(), await created.text()).toBe(201)
     const project = (await created.json()).projectContext.projectContextId as string
-    const ingestion = await settle(page, project, await admit(page, project, await readFile(pdfPath!), basename(pdfPath!)),
-      3 * 60 * 60_000)
+    const ingestion = await settle(page, project, await admit(page, project, pdf, name), 3 * 60 * 60_000)
     expect(ingestion, JSON.stringify(ingestion)).toMatchObject({ status: 'succeeded' })
     const source = ingestion as Extract<typeof ingestion, { status: 'succeeded' }>
     clock.parsed = new Date().toISOString()
@@ -68,10 +133,11 @@ test('a researcher chooses the scope, runs, reviews, reloads and exports a real 
       `/api/project-contexts/${project}/source-documents/${source.sourceDocumentId}/reopen`)).json())
     const canonical = await (await page.request.get(reopen.sourceRepresentation.resources.parsedDocumentUrl)).json()
     const runId: string = canonical.document.document_id
-    const anchors = new Set(canonical.evidence_index.anchors.map((anchor: { anchor_id: string }) => anchor.anchor_id))
+    const anchorPage = new Map<string, number>(canonical.evidence_index.anchors.map(
+      (anchor: { anchor_id: string; producer_observations: { page_number: number }[] }) =>
+        [anchor.anchor_id, anchor.producer_observations[0]?.page_number]))
 
     // The schema arrives undeclared, as a legacy revision would: the selector is the only way to give it a scope.
-    const schema = JSON.parse(await readFile(schemaPath!, 'utf8'))
     expect(schema.recordScope).toBeUndefined()
     const revision = await page.request.post('/api/schema-revisions', { headers, data: { projectContextId: project, ...schema } })
     expect(revision.status(), await revision.text()).toBe(201)
@@ -82,20 +148,16 @@ test('a researcher chooses the scope, runs, reviews, reloads and exports a real 
     await page.goto(workspace)
     const selector = page.getByRole('combobox', { name: 'Extraction strategy' })
     await expect(selector).toHaveValue('')
-    const run = page.getByRole('button', { name: /Run extraction/ })
-    await expect(run).toBeDisabled()
+    await expect(page.getByRole('button', { name: /Run extraction/ })).toBeDisabled()
     const saved = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/schema-revisions' &&
       response.request().method() === 'POST')
     await selector.selectOption(strategy)
     const scopeSave = await saved
     expect(scopeSave.status(), await scopeSave.text()).toBe(201)
-    const scope = strategy === 'ARTICLE' ? 'document' : 'records'
-    expect((await scopeSave.json()).revision.recordScope).toBe(scope)
+    expect((await scopeSave.json()).revision.recordScope).toBe(strategy === 'ARTICLE' ? 'document' : 'records')
     await expect(page.getByText(/Unsaved changes|Saving…/)).toHaveCount(0)
-    clock.scopeSaved = new Date().toISOString()
     await page.reload()
     await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
-    await page.screenshot({ path: join(output, 'scope-saved.png'), fullPage: true })
 
     const admitted = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/extractions' &&
       response.request().method() === 'POST')
@@ -114,71 +176,66 @@ test('a researcher chooses the scope, runs, reviews, reloads and exports a real 
 
     const settled = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
     await save('studio-extraction.json', settled)
-    const artifact = await (await fetch(`${service.url}/api/runs/${runId}/extractions/${id}`)).json()
-    await save('service-artifact.json', artifact)
+    await save('service-artifact.json', await (await fetch(`${service.url}/api/runs/${runId}/extractions/${id}`)).json())
     await save('canonical.json', canonical)
-    await save('route.json', { id, runId, strategy, article, project, sourceDocumentId: source.sourceDocumentId, clock })
+    await save('route.json', { id, runId, strategy, name, synthetic, scripted: !real, project, clock })
     expect(settled.extraction.failure).toBeNull()
-    for (const link of settled.extraction.evidenceLinks!) expect(anchors.has(link.evidenceAnchorId)).toBe(true)
-    const records = ((settled.extraction.resultPayload ?? {}) as { records?: Json[] }).records ?? []
+    const result = (settled.extraction.resultPayload ?? {}) as Json
+    const records = (valueAt(result, ['records']) ?? []) as Json[]
     if (strategy === 'ARTICLE') expect(records).toHaveLength(1)
-    const contested = (settled.extraction.diagnostics as { contested?: unknown[] } | null)?.contested ?? []
+    const links = settled.extraction.evidenceLinks!
+    for (const link of links) expect(anchorPage.has(link.evidenceAnchorId)).toBe(true)
+    // Required, not conditional: a populated list value with evidence.
+    const chosen = target(result, links)
+    expect(chosen, `no evidence-linked list value among ${links.length} evidence links`).toBeDefined()
+    const original = String(valueAt(result, chosen!.resultPath))
+    const edited = `${original} (reviewed)`
 
     await page.goto(workspace)
     await page.getByRole('tab', { name: /Results/ }).click()
-    await expect(page.getByText('Review', { exact: false }).first()).toBeVisible()
-    if (contested.length === 0) await expect(page.getByText('Contested', { exact: true })).toHaveCount(0)
-    await page.screenshot({ path: join(output, 'results.png'), fullPage: true })
-    // Review needs evidence: a result without any evidence link has nothing to approve or edit, and says so.
-    const reviewable = settled.extraction.evidenceLinks!.length > 0
-    const target = reviewable ? firstListItem(records) : null
-    const edited = target ? `${target.value} (reviewed)` : null
-    if (target) {
-      if (records.length > 1) await page.getByRole('button', { name: new RegExp(`^Item ${target.record + 1}\\b`) }).first().click()
-      await page.getByRole('button', { name: new RegExp(`^${target.field}\\b`) }).first().click()
-      const singular = pluralize.singular(target.field)
-      const listItem = `${singular.charAt(0).toUpperCase()}${singular.slice(1)} ${target.item + 1}`
-      if (target.child) await page.getByRole('button', { name: new RegExp(`^${listItem}\\b`) }).first().click()
-      const item = target.child ?? listItem
-      await page.getByRole('group', { name: `Review ${item}` }).getByRole('button', { name: `Edit ${item}` }).click()
-      const box = page.getByRole('textbox', { name: `Reviewed value for ${item}`, exact: true })
-      await box.fill(edited!)
-      await box.press('Enter')
-      await expect(page.getByText(edited!, { exact: true })).toBeVisible()
-      // The extracted value an edit replaced keeps its evidence: open it in the source view.
-      const evidence = page.getByRole('button', { name: `View Evidence for extracted value of ${item}` })
-      await expect(evidence).toBeVisible()
-      await evidence.click()
-      await page.screenshot({ path: join(output, 'evidence.png'), fullPage: true })
-    }
-    if (reviewable) {
-      await page.getByRole('button', { name: /Approve remaining/ }).click()
-      await expect(page.getByText('Review saved', { exact: true })).toBeVisible({ timeout: 30_000 })
-      clock.reviewed = new Date().toISOString()
-    }
+    const item = await open(page, chosen!.resultPath, records.length)
+    await page.getByRole('button', { name: `View Evidence for ${item}`, exact: true }).click()
+    await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
+    await page.screenshot({ path: join(output, 'evidence.png') })
+    await page.getByRole('group', { name: `Review ${item}` }).getByRole('button', { name: `Edit ${item}` }).click()
+    const box = page.getByRole('textbox', { name: `Reviewed value for ${item}`, exact: true })
+    await box.fill(edited)
+    await box.press('Enter')
+    await expect(page.getByText(edited, { exact: true })).toBeVisible()
+    // The evidence now supports the extracted value the edit replaced, and is labelled so.
+    await page.getByRole('button', { name: `View Evidence for extracted value of ${item}`, exact: true }).click()
+    await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
+    await page.getByRole('button', { name: /Approve remaining/ }).click()
+    await expect(page.getByText('Review saved', { exact: true })).toBeVisible({ timeout: 30_000 })
+    clock.reviewed = new Date().toISOString()
 
     await page.reload()
     await page.getByRole('tab', { name: /Results/ }).click()
-    if (reviewable) await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
+    await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
     await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+    await open(page, chosen!.resultPath, records.length)
+    await expect(page.getByText(edited, { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: `View Evidence for extracted value of ${item}`, exact: true }).click()
+    await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
+    await page.screenshot({ path: join(output, 'reloaded.png') })
     const reviewed = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
-    if (reviewable) expect(reviewed.extraction.reviewedAt).not.toBeNull()
+    expect(reviewed.extraction.reviewedAt).not.toBeNull()
     await save('studio-reviewed.json', reviewed)
-    await page.screenshot({ path: join(output, 'reloaded.png'), fullPage: true })
 
     for (const [format, label] of [['CSV', 'CSV'], ['XLSX', 'Excel']] as const) {
       await page.getByRole('button', { name: 'Export' }).click()
-      const dialog = page.getByRole('dialog', { name: 'Export options' })
-      if (format === 'CSV') await page.screenshot({ path: join(output, 'export-dialog.png'), fullPage: true })
       const download = page.waitForEvent('download')
-      await dialog.getByRole('button', { name: label, exact: true }).click()
-      const file = (await (await download).path())!
-      await writeFile(join(output, `export.${format.toLowerCase()}`), await readFile(file))
-      if (format === 'CSV' && edited) expect(await readFile(file, 'utf8')).toContain(edited)
+      await page.getByRole('dialog', { name: 'Export options' }).getByRole('button', { name: label, exact: true }).click()
+      const file = await readFile((await (await download).path())!)
+      await writeFile(join(output, `export.${format.toLowerCase()}`), file)
+      const text = format === 'CSV' ? file.toString('utf8')
+        : Object.entries(unzipSync(new Uint8Array(file))).filter(([path]) => path.endsWith('.xml'))
+          .map(([, bytes]) => strFromU8(bytes)).join('\n')
+      expect(text, `${format} carries the reviewed value`).toContain(edited)
     }
     clock.exported = new Date().toISOString()
-    await save('route.json', { id, runId, strategy, article, project, sourceDocumentId: source.sourceDocumentId, clock, target,
-      contested: contested.length, reviewable })
+    await save('route.json', { id, runId, strategy, name, synthetic, scripted: !real, project, clock,
+      target: { path: chosen!.resultPath, anchor: chosen!.evidenceAnchorId, original, edited } })
   } finally {
     await service.close()
   }

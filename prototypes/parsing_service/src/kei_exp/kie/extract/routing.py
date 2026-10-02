@@ -15,16 +15,19 @@ from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.schema import Schema, describe
 from kei_exp.kie.extract.stages import contains, leaves
 
-VERSION = 1
+# 2: the relevance query holds the claim's enclosing object's other values.
+VERSION = 2
 
 
 def value_origins(candidates: Sequence[dict], merged: dict, identity: dict,
-                  identity_passages: Sequence[str]) -> list[dict]:
+                  identity_passages: Sequence[str], *, strict: bool = True) -> list[dict]:
     """Map reconciled leaves back to reply paths under exact array-union semantics.
 
     A scalar at another field never counts. A merged array item must equal the
     entire original item, not merely contain the same leaf value. Bound identity
     fields were supplied to value calls, so retain their inventory citations instead.
+    Unless `strict`, a value no reply returned as such (`conform` coerced it) has no
+    sources, and routing orders its contexts by value match and relevance alone.
     """
     def locate(value, candidate, path, candidate_path=()):
         if not path:
@@ -50,7 +53,7 @@ def value_origins(candidates: Sequence[dict], merged: dict, identity: dict,
             sources = [{"unit": unit, "path": original}
                        for unit, candidate in enumerate(candidates)
                        for original in locate(merged, candidate, path)]
-            if not sources:
+            if not sources and strict:
                 raise ValueError(f"reconciled value has no extraction origin: {path!r}")
             origins.append({"path": list(path), "kind": "value", "sources": sources})
     return origins
@@ -103,7 +106,16 @@ def verify_routed(contexts: Sequence[Context], fields: dict, schema: Schema, cha
     for path, value in leaves(fields):
         full_path = ("records", record, *path)
         if full_path not in skip_paths:
-            ranked = rank_units(contexts, value_contexts, by_path[path], value, describe(schema.record_nodes, path))
+            # The relevance query also holds the enclosing object's other values: a value printed in many units
+            # (a quantity, a brand) ranks first the unit printing its own item (its article number).
+            parent: dict = fields
+            for step in path[:-1]:
+                parent = parent[step]
+            others = " ".join(str(other) for key, other in parent.items() if key != path[-1]
+                              and isinstance(other, (str, int, float)) and not isinstance(other, bool)
+                              ) if isinstance(parent, dict) else ""
+            ranked = rank_units(contexts, value_contexts, by_path[path], value,
+                                f"{describe(schema.record_nodes, path)} {others}")
             routes[full_path] = {"path": list(full_path), **ranked, "attempted": [], "refused": [],
                                  "remaining": list(ranked["order"]), "supported": False}
     all_paths = {("records", record, *path) for path, _ in leaves(fields)}

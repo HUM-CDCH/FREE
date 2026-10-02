@@ -19,7 +19,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kei_exp.kie.extract.assembly import ARTICLE_VERSION, artifact, document_values, ground_records, unchecked
+from kei_exp.kie.extract.assembly import (ARTICLE_VERSION, artifact, document_values, ground_records,
+                                          grounding_accounting, unchecked)
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.contexts import (GROUPING_VERSION, Context, assemble_document, partition, reconcile_values,
                                           sharing)
@@ -95,6 +96,11 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                       calls=calls, issues=issues)
     result["inventory"] = extracted.identities
     result["article_version"] = ARTICLE_VERSION
+    # Every claim once, apart from the issues each routed check raised (a claim refused in five contexts is one claim).
+    result["grounding"] = grounding_accounting(
+        {("records", number, *path) for number, (_, fields) in enumerate(extracted.slices) for path, _ in leaves(fields)},
+        {link.path for link in links}, support.issues, excluded={tuple(item["path"]): item["policy"] for item in support.skipped},
+        disabled=method.grounding == "off")
     if options.article is not None:  # the reference artifact carries no method fields
         result["method_version"] = 1
         result["contexts"] = [context.dumped() for context in contexts]
@@ -174,7 +180,8 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     root, contested, repeats, joined = (assemble_document(candidates, sharing(groups)) if len(candidates) != 1
                                         else (candidates[0], [], [], []))
     root = conform(root, schema.record_nodes)
-    origins = [value_origins(candidates, root, {}, item["passages"])] if method.grounding_routing is not None else []
+    # Every claim is grounded first where its value was read (`assembly.ground_records`).
+    origins = [value_origins(candidates, root, {}, item["passages"], strict=method.grounding_routing is not None)]
     issues += [Issue("conflicting_values", json.dumps(conflict, ensure_ascii=False), 0) for conflict in contested]
     issues += [Issue("possible_repeated_items", json.dumps(repeat, ensure_ascii=False), 0,
                      ("records", 0, *repeat["path"])) for repeat in repeats]

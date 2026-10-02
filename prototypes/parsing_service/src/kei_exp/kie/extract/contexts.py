@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from kei_exp.kie.extract.stages import contains
+from kei_exp.kie.extract.stages import occurrences
 from kei_exp.kie.passages import Passage
 
 GROUPING_VERSION = 1
@@ -126,29 +126,30 @@ def reconcile_values(values: Sequence[dict]) -> tuple[dict, list[dict]]:
     return combine(values, []) or {}, conflicts
 
 
-def printed_in(item, text: str) -> bool:
-    """Whether every string and number of a list item is printed in `text` as a bounded token (`stages.contains`: case
-    and spacing aside, never inside a longer word or number): only then can the item be the occurrence that text shows.
-    An item with none of them never can."""
+def printed_once_in(item, text: str) -> bool:
+    """Whether `text` shows a list item as exactly one occurrence: every string and number of it printed as a bounded
+    token (`stages.occurrences`: case and spacing aside, never inside a longer word or number), and at least one of them
+    printed only once. A value printed twice there may be two occurrences, so it identifies neither; an item with no
+    string or number never can be identified."""
     def scalars(value):
         if isinstance(value, dict):
             return [leaf for each in value.values() for leaf in scalars(each)]
         if isinstance(value, list):
             return [leaf for each in value for leaf in scalars(each)]
         return [value] if isinstance(value, str | int | float) and not isinstance(value, bool) else []
-    found = scalars(item)
-    return bool(found) and all(contains(text, leaf) for leaf in found)
+    counts = [occurrences(text, leaf) for leaf in scalars(item)]
+    return bool(counts) and min(counts) > 0 and 1 in counts
 
 
 def sharing(units: Sequence[Context]) -> Callable[[int, int, object], bool]:
     """Whether a list item two value contexts both returned can be one occurrence: they were shown a passage in common
     (an overlap passage beside another's primary; the repeated heading is orientation, not shared source) that prints
-    it."""
+    it as exactly one occurrence."""
     owned = [{p.id: p for p in (*context.overlap, *context.primary)} for context in units]
 
     def shared(first: int, second: int, item) -> bool:
         common = sorted(owned[first].keys() & owned[second].keys())
-        return bool(common) and printed_in(item, "\n".join(owned[first][id_].text for id_ in common))
+        return bool(common) and printed_once_in(item, "\n".join(owned[first][id_].text for id_ in common))
     return shared
 
 
@@ -160,9 +161,9 @@ def assemble_document(values: Sequence[dict],
 
     A list keeps every item one reading returned, equal ones included: they are separate occurrences. An item equal
     to one an earlier reading returned is that same occurrence only when the two readings were shown source in common
-    that prints it (`shared(first, second, item)`, by reading index): it joins it, one to one, and is named (`{"path",
-    "contexts", "index"}` into the assembled list), since value-only replies cannot prove two equal items printed in
-    shared source are not two occurrences. Equal items kept from different readings are named (`{"path", "contexts",
+    that prints it as exactly one occurrence (`shared(first, second, item)`, by reading index): it joins it, one to
+    one, and is named (`{"path", "contexts", "index"}` into the assembled list), since value-only replies cannot prove
+    two equal items printed in shared source are not two occurrences. Equal items kept from different readings are named (`{"path", "contexts",
     "indices"}`) as possible repeats, never merged. Objects merge field by field; a missing or null contribution never
     erases another reading's value. Equal scalars are one value; different ones are null, with their conflict
     (`{"path", "candidates"}`) as `reconcile_values` reports it. Order is reading order, then each reply's own order.

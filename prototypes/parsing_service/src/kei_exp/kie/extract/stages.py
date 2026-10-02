@@ -197,15 +197,20 @@ def _text(value: Any) -> str:
 
 def contains(haystack: str, value: Any) -> bool:
     """Whether `value` occurs in `haystack` as a bounded token: not inside a longer word or number."""
+    return occurrences(haystack, value) > 0
+
+
+def occurrences(haystack: str, value: Any) -> int:
+    """How many times `value` occurs in `haystack` as a bounded token, as `contains` finds it."""
     needle, hay = normal(_text(value)), normal(haystack)
     if not needle:
-        return False
+        return 0
+    found = 0
     for match in re.finditer(re.escape(needle), hay):
         before = hay[match.start() - 1] if match.start() > 0 else " "
         after = hay[match.end()] if match.end() < len(hay) else " "
-        if not before.isalnum() and not after.isalnum():
-            return True
-    return False
+        found += not before.isalnum() and not after.isalnum()
+    return found
 
 
 def merge(fields: dict, document: dict, filename: str, schema: Schema) -> dict:

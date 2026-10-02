@@ -21,15 +21,16 @@ def test_every_article_grounding_choice_and_the_reference_name_a_technique(choic
 
 def recording(received):
     """A substitute technique: it records what it was given and links each record's year to its first passage."""
-    def ground(passages, fields, schema, chat, *, record, budget, counter, record_context, before_call, proofs, skip_paths):
+    def ground(passages, fields, schema, chat, *, record, budget, counter, record_context, before_call, proofs, skip_paths,
+               projected=False):
         received.append({"record": record, "passages": [p.id for p in passages], "counter": counter,
-                         "record_context": record_context})
+                         "record_context": record_context, "projected": projected})
         first = passages[0]
         return [Link(("records", record, "year"), first.id, first.page, first.bbox_pt, False, 0, "substitute")], [], []
     return ground
 
 
-def test_a_substituted_technique_grounds_the_articles_one_root_in_each_context_without_run_changes(monkeypatch):
+def test_a_substituted_technique_grounds_the_articles_one_root_where_its_value_is_without_run_changes(monkeypatch):
     source = passages(["Hill and Brook " + "context " * 3000, "methods " * 3000, "Results: Hill 1827. Brook 1828."])
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
     chosen, received = [], []
@@ -46,8 +47,10 @@ def test_a_substituted_technique_grounds_the_articles_one_root_in_each_context_w
                          counter={role: WordCounter() for role in ("fields", "reasoning")})
     contexts = [[*context["overlap"], *context["primary"]] for context in result["contexts"]]
     assert chosen == ["quoted"] and len(contexts) >= 2 and len(result["records"]) == 1
-    assert [(item["record"], item["passages"]) for item in received] == [(0, group) for group in contexts]
-    assert all(item["counter"] is not None and item["record_context"] for item in received)
+    # Every context returned the year; it is checked first where the source prints it, and its support ends the search.
+    assert [(item["record"], item["passages"]) for item in received] == [
+        (0, next(group for group in contexts if "p1_s2" in group))]
+    assert all(item["counter"] is not None and item["record_context"] and item["projected"] for item in received)
     assert not any(call["stage"] == "grounding" for call in result["calls"])
     assert [(link["path"], link["linked_by"]) for link in result["evidence"]] == [
         (["records", 0, "year"], "substitute")]
@@ -65,8 +68,8 @@ def test_the_version_1_catalog_grounds_each_record_through_the_reference_techniq
         return {"title": None} if "title" in schema["properties"] else {"entry_no": "31", "year": 1827}
     result = run.extract(None, run.ExtractRequest(schema=SCHEMA), CountingChat(script))
     assert chosen == [None]
-    assert received == [{"record": 0, "passages": ["p1_s1", "p1_s2"], "counter": None, "record_context": None},
-                        {"record": 1, "passages": ["p1_s3"], "counter": None, "record_context": None}]
+    assert received == [{"record": 0, "passages": ["p1_s1", "p1_s2"], "counter": None, "record_context": None, "projected": False},
+                        {"record": 1, "passages": ["p1_s3"], "counter": None, "record_context": None, "projected": False}]
     assert all(link["linked_by"] == "substitute" for link in result["evidence"])
 
 

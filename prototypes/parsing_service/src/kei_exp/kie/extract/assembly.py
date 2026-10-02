@@ -42,8 +42,14 @@ PROMPT_VERSION = 15
 # Catalog's frozen artifact also carries). 2: document scope, one root and no identity inventory; its prompt is
 # `stages.DOCUMENT`; arrays are assembled across value contexts without deduplication. 3: document-level fields are
 # assembled as the root is (`contexts.assemble_document`), and an equal item that contexts sharing an overlap passage
-# both returned is joined once.
-ARTICLE_VERSION = 3
+# both returned is joined once. 4: grounding shows each claim with the scalar fields of the objects enclosing it, not
+# the whole root, budgets its reply, and checks every claim in the source context its value was read from first
+# (`routing.verify_routed`, exhaustive fallback, stopping at support); `grounding` accounts for every claim. An equal
+# item two contexts returned is joined only when their shared source prints it as exactly one occurrence. 5: a list
+# item's claim is offered the table cells of its own row (printing its item's most distinctive other value) when
+# its value is printed in many rows. 6: a claim's contexts are ranked with its enclosing object's other values too
+# (`routing.VERSION` 2), so without an origin the context printing its own item is checked first.
+ARTICLE_VERSION = 6
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
@@ -117,11 +123,14 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
                    check: Callable[[], None], budget: int, counter=None,
                    method: ArticleOptions | None = None, identities: Sequence[dict] | None = None,
                    contexts: Sequence[Context] = (), value_contexts: Sequence[Sequence[Context]] = (),
-                   origins: Sequence[Sequence[dict]] = ()) -> GroundingResult:
+                   origins: Sequence[Sequence[dict]] = (), resume: frozenset = frozenset()) -> GroundingResult:
     """Keep input values fixed while evaluating support; hints never create evidence.
 
-    Article supplies identities and complete source contexts. Generic Catalog uses
-    the owned passages in each slice. Neither path extracts or reconciles values here.
+    Article supplies identities and complete source contexts; each claim is routed to the context its value was read
+    from first (`routing.verify_routed`: exhaustive fallback, stopping at support) and shown with its enclosing items'
+    fields rather than the whole root (`grounding.verify`'s `projected`). Generic Catalog uses the owned passages in
+    each slice. Neither path extracts or reconciles values here. `resume` names paths an earlier grounding of the same
+    values already supported: they are not checked again.
     """
     result = GroundingResult()
     verifier = grounding.technique(method.grounding if method is not None else None)
@@ -142,10 +151,10 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
             record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
                 ensure_ascii=False)) if identities is not None else None,
             before_call=check, proofs=result.proofs)
-        if method is not None and method.grounding_routing is not None:
+        if identities is not None:
             links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
                 origins=origins[number], value_contexts=value_contexts[number],
-                skip_paths=frozenset(skipped_paths), verifier=verifier, **verification)
+                skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True, **verification)
             result.links += links
             result.calls += calls
             result.issues += issues
@@ -161,6 +170,36 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
             result.calls += calls
             result.issues += issues
     return result
+
+
+# A claim not supported, whose check did not complete in some context it was routed to.
+_UNFINISHED = {"grounding_exceeds_budget", "call_failed", "missing_claim", "unknown_label", "no_evidence"}
+
+
+def grounding_accounting(claims: set[tuple], linked: set[tuple], issues: Sequence[Issue], *,
+                         excluded: dict[tuple, str] | None = None, disabled: bool = False) -> dict:
+    """Every claim (populated leaf) once: excluded by an evidence policy (counted apart, by policy), or eligible and
+    then supported (linked), not completed (some routed check never finished: its distinct reasons, one count per
+    claim) or unsupported (every check finished and none supported it). A disabled grounding completes nothing."""
+    excluded = excluded or {}
+    eligible = claims - excluded.keys()
+    supported = linked & eligible
+    reasons: dict[tuple, set[str]] = {}
+    for issue in issues:
+        if issue.path in eligible - supported and issue.code in _UNFINISHED:
+            reasons.setdefault(issue.path, set()).add(issue.code)
+    if disabled:
+        reasons = {path: {"grounding_disabled"} for path in eligible}
+    counted: dict[str, int] = {}
+    for codes in reasons.values():
+        for code in codes:
+            counted[code] = counted.get(code, 0) + 1
+    policies: dict[str, int] = {}
+    for policy in excluded.values():
+        policies[policy] = policies.get(policy, 0) + 1
+    return {"claims": len(claims), "excluded": len(excluded), "eligible": len(eligible), "supported": len(supported),
+            "unsupported": len(eligible) - len(supported) - len(reasons), "not_completed": len(reasons),
+            "reasons": dict(sorted(counted.items())), "excluded_policies": dict(sorted(policies.items()))}
 
 
 def artifact(evidence: Evidence, request, chat: Router, *, started: str, clock: float, fields: Sequence[dict],

@@ -160,7 +160,7 @@ def test_assembled_routing_changes_only_grounding_and_publishes_origin_paths(mon
     plain, routed = results
     assert requests[0] == requests[1] and plain["records"] == routed["records"]
     assert plain["fingerprint"] != routed["fingerprint"] and "value_origins" not in plain
-    assert routed["grounding_routing_version"] == 1
+    assert routed["grounding_routing_version"] == 2
     assert routed["value_origins"] == [
         {"path": ["records", 0, "site"], "kind": "value", "sources": [{"unit": 0, "path": ["site"]},
                                                                       {"unit": 1, "path": ["site"]}]},

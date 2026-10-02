@@ -92,9 +92,9 @@ def test_value_contexts_share_overlap_passages_but_not_the_repeated_heading():
 def test_an_item_is_printed_only_as_a_bounded_token():
     """A `10` is not printed in "2010", "100" or "x10"; "x" not in "tax"; an integral float as its integer."""
     for text in ("see 2010 annual report", "100 units", "item x10"):
-        assert not contexts.printed_in(10, text)
-    assert contexts.printed_in(10, "fee: 10%") and contexts.printed_in(1827.0, "dated 1827.")
-    assert not contexts.printed_in({"a": "x"}, "tax") and contexts.printed_in({"a": "X", "b": None}, "row x.")
+        assert not contexts.printed_once_in(10, text)
+    assert contexts.printed_once_in(10, "fee: 10%") and contexts.printed_once_in(1827.0, "dated 1827.")
+    assert not contexts.printed_once_in({"a": "x"}, "tax") and contexts.printed_once_in({"a": "X", "b": None}, "row x.")
     p = passages(["Charge 10.", "See the 2010 report.", "Charge 10."])
     shared = contexts.sharing([Context((p[0], p[1])), Context((p[2],), (p[1],))])
     root, _, _, joined = contexts.assemble_document([{"c": [10]}, {"c": [10]}], shared)
@@ -187,7 +187,7 @@ def test_unified_document_fields_keep_one_windows_equal_items():
     result, issues = keywords(catalogue("Keyword: Grab. Keyword: Grab. Keyword: Hort.", "1. Adorf. Material: Holz."))
     assert result["processing"]["document"]["windows"] == 1
     assert result["records"][0]["keywords"] == ["Grab", "Grab", "Hort"] and issues == {}  # the union kept one Grab
-    assert result["document_version"] == unified.DOCUMENT_VERSION == 2
+    assert result["document_version"] == unified.DOCUMENT_VERSION == 3
 
 
 def test_unified_document_fields_join_the_overlap_line_and_keep_distant_equal_items():
@@ -200,3 +200,13 @@ def test_unified_document_fields_join_the_overlap_line_and_keep_distant_equal_it
                                         "1. Adorf. Material: Holz."), overlap=0)
     assert result["records"][0]["keywords"] == ["Grab", "Grab"]
     assert issues == {"possible_repeated_items": {"path": ["keywords"], "contexts": [0, 2], "indices": [0, 1]}}
+
+
+def test_a_value_the_overlap_prints_twice_is_not_joined_on_that_alone():
+    """Two genuine charges of 10 lie in the overlap passage; each context returned one of them. Finding 10 in the shared
+    source does not say which occurrence either context read, so both are kept and named as possible repeats."""
+    p = passages(["Fees.", "Charge 10 for delivery. Charge 10 for handling.", "Totals."])
+    shared = contexts.sharing([Context((p[0], p[1])), Context((p[2],), (p[1],))])
+    root, _, repeats, joined = contexts.assemble_document([{"c": [10]}, {"c": [10]}], shared)
+    assert root == {"c": [10, 10]} and joined == []
+    assert repeats == [{"path": ["c"], "contexts": [0, 1], "indices": [0, 1]}]
