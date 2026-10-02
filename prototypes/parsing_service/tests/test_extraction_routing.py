@@ -3,7 +3,7 @@ from dataclasses import replace
 
 import pytest
 
-from kei_exp.kie.extract import run
+from kei_exp.kie.extract import article, run
 from kei_exp.kie.extract.contexts import Context, reconcile_values
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
@@ -166,6 +166,19 @@ def test_assembled_routing_changes_only_grounding_and_publishes_origin_paths(mon
                                                                       {"unit": 1, "path": ["site"]}]},
         {"path": ["records", 0, "year"], "kind": "value", "sources": [{"unit": 1, "path": ["year"]}]}]
     assert routed["grounding_routes"][1]["attempted"] == [1]
+
+
+@pytest.mark.parametrize("routing", [None, "origin_lexical"])
+def test_the_retired_routing_setting_never_refuses_an_untraceable_article_value(monkeypatch, routing):
+    """`grounding_routing` is retired for Article, which routes every claim to where it was read anyway: a root value
+    no reply returned as such has no origin and is routed by value match and relevance, never refused."""
+    conformed = article.conform
+    monkeypatch.setattr(article, "conform", lambda value, nodes: {**conformed(value, nodes), "entry_no": "31"})
+    found = article.document_root(passages(["Hill 1827"]), SCHEMA, CountingChat(lambda *_: {"site": "Hill"}),
+        counters={role: WordCounter() for role in ("fields", "reasoning")}, record_chars=24_000, check=lambda: None,
+        method=ArticleOptions(grounding="spans", grounding_schedule="unresolved", grounding_routing=routing))
+    assert found.origins[0] == [{"path": ["entry_no"], "kind": "value", "sources": []},
+                                {"path": ["site"], "kind": "value", "sources": [{"unit": 0, "path": ["site"]}]}]
 
 
 @pytest.mark.parametrize("settings", [{"grounding": "off"}, {"grounding": "spans"},
