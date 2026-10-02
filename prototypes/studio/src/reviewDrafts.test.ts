@@ -4,7 +4,7 @@ import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, restoreRevi
 import { captureSessionRecovery, clearSessionRecovery, setSessionRecoveryAccount } from './auth/sessionRecovery'
 
 const decision = { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor', reviewedOccurrenceIds: ['occurrence'], action: 'REJECTED' as const, reviewedValue: null }
-afterEach(() => { forgetReviewDraft('extraction'); clearSessionRecovery() })
+afterEach(() => { forgetReviewDraft('extraction'); forgetReviewDraft('e1'); clearSessionRecovery() })
 
 function capture(decisions = [decision], version = 1) {
   setSessionRecoveryAccount('account-a')
@@ -69,7 +69,9 @@ it('combines server-saved decisions with pending fields without treating default
 describe('review drafts from before the sample workbench was removed', () => {
   it('drops a local draft that still carries pairings and keeps the server state', () => {
     const decision = { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'a_p1_1', reviewedOccurrenceIds: ['o1'], action: 'APPROVED' as const, reviewedValue: null }
+    setSessionRecoveryAccount('account-a')
     rememberReviewDraft('e1', { version: 2, decisions: [decision], pairings: [{ record: 0, extractionId: 'old', sourceRecord: 0 }] } as never)
+    captureSessionRecovery()
     const recovered = recoverReviewDraft('e1', { version: 3, decisions: [decision] }, [decision])
     expect(recovered.conflict).toBe(false)
     expect(recovered.version).toBe(3)

@@ -1344,6 +1344,67 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('button', { name: 'Pages' })).toHaveFocus()
   })
 
+  it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the schema\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {
+    const extractionRequests: Array<{ strategy?: string; catalogRecipe?: string; schemaRevisionId?: string }> = []
+    const writes: RevisionWrite[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?'))
+          return Promise.resolve(Response.json({ revisions: [] }))
+        if (url === '/api/schema-revisions' && init?.method === 'POST')
+          return Promise.resolve(appendRevision(init, writes))
+        if (url.endsWith('/api/extractions')) {
+          const body = JSON.parse(String(init?.body)) as { strategy?: string; catalogRecipe?: string }
+          extractionRequests.push(body)
+          return Promise.resolve(Response.json({
+            extractionId: '51000000-0000-4000-8006-000000000021',
+            sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+            sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+            schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+            strategy: 'CATALOG', catalogRecipe: body.catalogRecipe ?? null,
+            executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+            modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 1, finishReason: 'stop', inputTokens: 1, outputTokens: 1, grounding: null, catalog: null },
+            failure: null,
+            resultPayload: { records: [] }, evidenceLinks: [], reviewable: true,
+            batchExtractionId: null,
+            createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+          }, { status: 201 }))
+        }
+        return Promise.resolve(new Response('pdf'))
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    const selector = screen.getByLabelText('Extraction strategy')
+    expect(selector).toHaveValue('ARTICLE')
+    // Record boundaries only apply to Catalog; generic model discovery stays the default.
+    expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
+    fireEvent.change(selector, { target: { value: 'CATALOG' } })
+    const boundaries = screen.getByLabelText('Record boundaries')
+    expect(boundaries).toHaveValue('')
+    if (recipe) fireEvent.change(boundaries, { target: { value: recipe } })
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+
+    await waitFor(() => expect(extractionRequests).toHaveLength(1))
+    // Catalog is a schema change: the run flushes it as a revision that names the scope, then runs that revision.
+    expect(writes).toEqual([expect.objectContaining({ expectedRevisionNumber: 1, recordScope: 'records' })])
+    expect(extractionRequests[0]).toEqual(
+      expect.objectContaining({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) }),
+    )
+    if (recipe) expect(extractionRequests[0].catalogRecipe).toBe(recipe)
+    else expect(extractionRequests[0]).not.toHaveProperty('catalogRecipe')
+    // The schema stays a Catalog; only the boundaries return to model discovery.
+    await waitFor(() => expect(screen.getByLabelText('Record boundaries')).toHaveValue(''))
+    expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+  })
+
   it('with the unified Catalog enabled, a Catalog start offers no recipe and submits the unified method', async () => {
     const before = saved.state
     saved.state = { ...(before as Extract<typeof before, { status: 'ready' }>), unifiedCatalog: true }
