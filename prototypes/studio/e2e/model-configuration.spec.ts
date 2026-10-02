@@ -462,6 +462,8 @@ test.describe('with a mocked configuration', () => {
     expect(byId.get(ollama.id)).toEqual({ connection: ollama })
     expect(byId.get(openai.id)).toEqual({ connection: openai, credential: 'sk-test-e2e-this-base' })
     expect(JSON.stringify(servers.probes)).not.toContain('sk-test-e2e-other-base')
+    await showConnections(dialog)
+    await dialog.getByRole('button', { name: 'Next Connections page' }).click()
     await expect((await selectConnection(dialog, 'Lab vLLM')).getByText('Not checked yet.')).toBeVisible()
   })
 

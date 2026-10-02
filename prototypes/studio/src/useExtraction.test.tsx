@@ -783,6 +783,27 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(api.finalizeExtractionReview).toHaveBeenCalledWith(original.extractionId, [], 0)
   })
 
+  it('counts only grounded decisions in a mixed review, while retaining optional values', async () => {
+    const grounded: ReviewDecisionInput = {
+      resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1',
+      reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED', reviewedValue: null,
+    }
+    const optional: ReviewDecisionInput = {
+      resultPath: ['records', 0, 'year'], evidenceAnchorId: null,
+      reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null,
+    }
+    const original = attempt({ evidenceLinks: [{ resultPath: grounded.resultPath, evidenceAnchorId: 'anchor-1' }] })
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: original, pendingReviewDecisions: [grounded, optional] })
+    const { result } = renderHook(() => useExtraction(options(original)))
+    await waitFor(() => expect(result.current.review.decisions).toHaveLength(2))
+    expect(result.current.review.requiredCount).toBe(1)
+    expect(result.current.review.untouchedCount).toBe(1)
+    act(() => result.current.review.setDecision(grounded.resultPath, 'REJECTED'))
+    expect(result.current.review.requiredCount).toBe(1)
+    expect(result.current.review.untouchedCount).toBe(0)
+    expect(result.current.review.isTouched(optional.resultPath)).toBe(false)
+  })
+
   it('keeps an ungrounded-only value visible and permits an optional Evidence correction', async () => {
     const original = attempt({
         complete: false,
@@ -803,6 +824,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const { result } = renderHook(() => useExtraction(options(original)))
     await waitFor(() => expect(result.current.review.decisions).toHaveLength(1))
     expect(result.current.review.available).toBe(true)
+    expect(result.current.review.requiredCount).toBe(0)
     expect(result.current.review.untouchedCount).toBe(0)
     expect(result.current.review.isTouched(pending.resultPath)).toBe(false)
     const evidence = [{ evidenceAnchorId: 'canonical', reviewedOccurrenceIds: ['occurrence'] }]

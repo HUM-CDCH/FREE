@@ -640,8 +640,8 @@ export function useExtraction({
       saving,
       loading: reviewLoading,
       decisions: reviewDecisions,
-      /** The server prepares one required decision per grounded value. */
-      requiredCount: reviewDecisions.length,
+      /** Decisions without Evidence are optional and do not count as required review. */
+      requiredCount: reviewDecisions.filter((decision) => decision.evidenceAnchorId !== null).length,
       untouchedCount: reviewDecisions.filter(
         (decision) => decision.evidenceAnchorId !== null && !touchedPaths.has(resultPathKey(decision.resultPath)),
       ).length,
