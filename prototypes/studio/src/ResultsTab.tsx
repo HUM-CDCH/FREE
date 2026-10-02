@@ -643,6 +643,11 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     ])),
     [visibleReviewDecisions],
   )
+  // The decisions the Completion line and the export report: before the review is saved, only those the researcher
+  // made. A seeded approval or a decision carried from a sample is a default until touched, as `attention` reads it.
+  const madeDecisions = attempt?.reviewedAt || inspectedAttempt
+    ? visibleReviewDecisions
+    : visibleReviewDecisions.filter((decision) => controller.review.isTouched(decision.resultPath))
   // Values the service left empty because their sources disagreed, keyed like the Evidence links; one a review has
   // filled or rejected is no longer an open conflict.
   const openContested = useMemo(
@@ -796,7 +801,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               <section aria-label="Completion" className="mt-2 space-y-0.5 text-[11.5px] leading-snug text-ink-muted">
                 <p data-dimension="processing">Extraction: {attempt?.complete ? 'complete' : 'not shown complete'} · record recall unmeasured</p>
                 <p data-dimension="evidence">Evidence checks: {linkCounts.verifier} verifier-supported · {linkCounts.rule > 0 && `${linkCounts.rule} linked by rule · `}{claims.unsupported} unsupported · {claims.notCompleted} not completed · {claims.excluded} excluded by policy ({claims.claims} claims)</p>
-                <p data-dimension="review">Review: {attempt?.reviewedAt ? `${visibleReviewDecisions.length} decisions saved` : `${visibleReviewDecisions.length} decisions pending`}{state.ungroundedCount > 0 && ` · ${state.ungroundedCount} value${state.ungroundedCount === 1 ? '' : 's'} without evidence ${state.ungroundedCount === 1 ? 'is' : 'are'} not reviewable`}</p>
+                <p data-dimension="review">Review: {attempt?.reviewedAt ? `${madeDecisions.length} decisions saved` : `${madeDecisions.length} decisions pending`}{state.ungroundedCount > 0 && ` · ${state.ungroundedCount} value${state.ungroundedCount === 1 ? '' : 's'} without evidence ${state.ungroundedCount === 1 ? 'is' : 'are'} not reviewable`}</p>
                 {claims.unfinished.length > 0 && (
                   <details className="mt-1">
                     <summary className="cursor-pointer font-semibold text-ink">Checks not completed ({claims.unfinished.length})</summary>
@@ -826,12 +831,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                   onExport={async (format, choices) => {
                     if (displayResult === null || exportSchema === null) return
                     // Built here, not per render: the identity names the moment of export.
+                    const madeDecisionByPath = new Map(madeDecisions.map((decision) => [resultPathKey(decision.resultPath), decision]))
                     const provenance: ExtractionProvenance | undefined = attempt && claims && state.status === 'ready' ? {
                       identity: [
                         ['Extraction ID', attempt.extractionId], ['Strategy', attempt.strategy], ['Source Document', sourceDocumentName],
                         ['Source Document ID', attempt.sourceDocumentId], ['Source Representation Revision ID', attempt.sourceRepresentationRevisionId],
                         ['Schema Revision ID', attempt.schemaRevisionId], ['Reviewed at', attempt.reviewedAt ?? 'Not finalized'],
-                        ['Decisions', visibleReviewDecisions.length],
+                        ['Decisions', madeDecisions.length],
                         ['Versions', Object.entries(attempt.diagnostics?.effectiveMethod?.versions ?? {}).map(([name, version]) => `${name} ${version}`).join(' · ') || 'Not recorded'],
                         ['Field model', attempt.diagnostics?.models?.fields ?? 'Not recorded'], ['Reasoning model', attempt.diagnostics?.models?.reasoning ?? 'Not recorded'],
                         ['Extraction complete', attempt.complete ? 'Yes (record recall unmeasured)' : 'Not shown complete: record recall unmeasured'],
@@ -844,7 +850,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       claims: [...statuses].map(([key, status]): ProvenanceClaim => {
                         const resultPath = JSON.parse(key) as (string | number)[]
                         const link = evidenceByAbsolutePath.get(key)
-                        const decision = reviewDecisionByPath.get(key)
+                        const decision = madeDecisionByPath.get(key)
                         // A records envelope's paths start `['records', n]`: the field path is the rest.
                         const path = articleRecords ? resultPath.slice(2) : resultPath
                         return {

@@ -2067,6 +2067,26 @@ describe('ResultsTab verification completeness', () => {
     expect(identity.get('Exported at')).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
 
+  it('before the review is saved, reports only the decisions the researcher made, never a seeded approval', () => {
+    render(
+      <ResultsTab {...defaultRunProps}
+        controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 4 }, attempt, {
+          available: true, isTouched: () => false,
+          decisions: [{ resultPath: ['records', 0, 'items', 0, 'sku'], evidenceAnchorId: 'a_p1_s3_r3_c2', reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null }],
+        })}
+        schemaReady documentMarkdown="# Source" sourceDocumentName="viega.pdf"
+        exportSchema={{ recordDescription: 'A list.', schemaNodes: [{ id: 'publisher', name: 'publisher', type: 'string' }] }} onSelectEvidence={() => {}} />,
+    )
+    expect(within(screen.getByRole('region', { name: 'Completion' })).getByText(/^Review: 0 decisions pending/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+    const { provenance } = vi.mocked(exportExtractionResult).mock.calls[0]![1]
+    expect(new Map(provenance!.identity).get('Decisions')).toBe(0)
+    const sku = provenance!.claims.find(({ path }) => JSON.stringify(path) === JSON.stringify(['items', 0, 'sku']))
+    expect(sku).toMatchObject({ outcome: 'supported' })
+    expect(sku).not.toHaveProperty('decision')
+  })
+
   it('with several records, names each claim\'s record apart from its field path', async () => {
     const records: ExtractionAttempt = {
       ...articleAttempt,
