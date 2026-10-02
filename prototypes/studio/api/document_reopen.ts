@@ -110,7 +110,6 @@ async function reopenResponse(
   documentExtractions: {
     latestAttempt: ExtractionAttemptSnapshot | null
     latestReviewed: ExtractionAttemptSnapshot | null
-    samples: readonly ExtractionAttemptSnapshot[]
   },
   schemaFor: (
     extraction: ExtractionAttemptSnapshot | null,
@@ -125,11 +124,9 @@ async function reopenResponse(
   const currentSchema = snapshot.extractionSchema
     ? storedDefinition(snapshot.extractionSchema.schemaTree, snapshot.extractionSchema.recordScope)
     : null
-  const latestSample = documentExtractions.samples[0] ?? null
-  const [attemptSchema, reviewedSchema, sampleSchema] = await Promise.all([
+  const [attemptSchema, reviewedSchema] = await Promise.all([
     schemaFor(documentExtractions.latestAttempt),
     schemaFor(documentExtractions.latestReviewed),
-    schemaFor(latestSample),
   ])
   return documentReopenResponseSchema.parse({
     projectContext: {
@@ -179,7 +176,6 @@ async function reopenResponse(
       resourceVersion,
       reviewedSchema,
     ),
-    latestSample: extractionDto(latestSample, snapshot.projectContext.projectContextId, resourceVersion, sampleSchema),
   })
 }
 
@@ -266,7 +262,6 @@ export function createGetDocumentReopen(
             snapshot.sourceRepresentation.sourceRepresentationId,
           latestAttempt: null,
           latestReviewed: null,
-          samples: [],
         }
       if (
         documentExtractions.sourceRepresentationRevisionId !==

@@ -447,20 +447,13 @@ describe('/api/extractions transport', () => {
     })
   })
 
-  it('reads a batch member carrying sample draft provenance through the owned Extraction DTO', async () => {
-    const carriedFrom = { extractionId: 'sample-1', sourcePathKey: '["records",0,"title"]' }
-    const member = { ...attemptSnapshot, batchExtractionId: '51000000-0000-4000-8007-000000000001' }
-    const decision = { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-alpha',
-      reviewedOccurrenceIds: ['occurrence-alpha'], action: 'APPROVED' as const, reviewedValue: null, carriedFrom }
-    const module = extractionModule({ readExtractionAttempt: vi.fn(async () => member),
-      prepareReview: vi.fn(async () => ({ extraction: member, reviewDecisions: [decision] })),
-      readReviewDraft: vi.fn(async () => ({ version: 1, decisions: [decision], transfer: { '["records",0,"title"]': { status: 'reviewed' as const, kept: 'Alpha' } } })) })
-    const response = await handlerFor(module)(new Request(`http://test/api/extractions/${EXTRACTION}`))
-    expect(response.status).toBe(200)
-    const body = extractionReadResponseSchema.parse(await response.json())
-    expect(body.extraction.batchExtractionId).toBe(member.batchExtractionId)
-    expect(body.reviewDraft?.decisions[0]?.carriedFrom).toEqual(carriedFrom)
-    expect(body.reviewDraft?.transfer?.['["records",0,"title"]']?.status).toBe('reviewed')
+  it('refuses a run that still names sample pages', async () => {
+    const module = extractionModule()
+    const handle = handlerFor(module)
+    const refused = await handle(request({ ...fresh, pages: [1] }))
+    expect(refused.status).toBe(422)
+    await expect(refused.json()).resolves.toMatchObject({ error: { code: 'invalid_request' } })
+    expect(module.runSingle).not.toHaveBeenCalled()
   })
 
   it('reads a running or failed job without values or review authority', async () => {

@@ -7,7 +7,6 @@ import { ExtractionError } from './errors.js'
 import { REFERENCE_ARTICLE } from './extraction-method.js'
 import { keiExtractWorkflowId, type KeiExtractInput } from './kei-handoff.js'
 import { createExtractionModule } from './module.js'
-import { saveStoredReviewDraft } from './postgres-reviews.js'
 import { fixture } from './testing/extraction-fixture.js'
 import { RUN_EXTRACTION } from './workflows.js'
 
@@ -228,37 +227,20 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
     await heldByKei(input.extractionId)
   })
 
-  it("a sample's pages are its admission identity, never its method", async (t) => {
+  it('a whole-document run under a legacy sample ID is a conflict, never a replay', async (t) => {
     t.after(cleanup)
     const project = await seedProject()
-    kei.holding = true
-    const module = scheduler(project.researcherAccountId)
-    await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
-    const sample = { ...freshInput(project, randomUUID(), intent(SPANS)), pages: [1] }
-    // The start view's saved method is still the account's: the scope never makes it stale.
-    assert.equal((await module.runSingle(sample)).disposition, 'created')
-    assert.deepEqual((await extractionRow(sample.extractionId))?.requestedPages, [1])
-    assert.equal((await module.runSingle(sample)).disposition, 'replayed')
-    await assert.rejects(module.runSingle({ ...sample, pages: null }), rejectsWithCode('extraction_id_conflict'))
-    await assert.rejects(module.runSingle({ ...sample, extractionId: randomUUID(), pages: [2] }), rejectsWithCode('invalid_request'))
-    await heldByKei(sample.extractionId)
-  })
-
-  it('pins the decisions of samples on two page sets at admission, and a later sample edit changes nothing', async (t) => {
-    t.after(cleanup)
-    const project = await seedProject()
-    kei.holding = true
-    const first = await approvedSample(project, [12, 13, 14], 'a_p12_s4')
-    const second = await approvedSample(project, [40, 41, 42], 'a_p40_s1')
+    const document = project.documents[0]!
+    const { module } = createRuntime(project.researcherAccountId)
     const input = freshInput(project)
-    assert.equal((await scheduler(project.researcherAccountId).runSingle(input)).disposition, 'created')
-    const pinned = await reviewTransferOf(input.extractionId)
-    assert.deepEqual((pinned as { entries: { extractionId: string; nodeId: string; evidenceAnchorId: string; action: string }[] })
-      .entries.map((entry) => [entry.extractionId, entry.nodeId, entry.evidenceAnchorId, entry.action]),
-    [[first, 'title-node', 'a_p12_s4', 'APPROVED'], [second, 'title-node', 'a_p40_s1', 'APPROVED']])
-    await saveStoredReviewDraft(db as Database, project.researcherAccountId, first, { version: 1, decisions: [] })
-    assert.deepEqual(await reviewTransferOf(input.extractionId), pinned)
-    await heldByKei(input.extractionId)
+    // The row an old sample run left under this ID: same pins, a page scope.
+    await db.orm.public.Extraction.create({
+      id: input.extractionId, sourceDocumentId: document.sourceDocumentId,
+      sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: null },
+      requestedPages: [1], batchExtractionId: null,
+    })
+    await assert.rejects(module.runSingle(input), rejectsWithCode('extraction_id_conflict'))
   })
 
   it('pins nothing across a reprocessed source', async (t) => {

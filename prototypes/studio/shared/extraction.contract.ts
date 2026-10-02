@@ -71,8 +71,6 @@ export const extractionRequestSchema = z
     /** The saved method the start view showed: the Extraction Model Choice and this strategy's settings. Admission
      *  refuses it when the account's saved method changed since, and pins it otherwise. */
     method: extractionMethodIntentSchema,
-    /** A Sample Extraction's pages; admission checks them against the document. Absent: the whole document. */
-    pages: z.array(z.int()).optional(),
   })
   .strict()
   .refine((request) => request.catalogRecipe === undefined || request.strategy === 'CATALOG', {
@@ -116,8 +114,6 @@ const reviewDecisionShape = {
   reviewedEvidence: z.array(z.object({
     evidenceAnchorId: z.string().min(1), reviewedOccurrenceIds: z.array(z.string().min(1)),
   }).strict()).nullable().optional(),
-  /** The sample decision this one was carried from; absent on the researcher's own. */
-  carriedFrom: z.object({ extractionId: z.string().min(1), sourcePathKey: z.string().min(1) }).strict().nullable().optional(),
 }
 
 function validateReviewDecision(
@@ -418,8 +414,6 @@ export const extractionAttemptSchema = z
     requestedModels: extractionModelChoiceSchema.nullable().optional(),
     /** The settings admitted with the run; null when it predates recorded settings ("Not recorded"). */
     requestedSettings: activeSettingsSchema.nullable().optional(),
-    /** A Sample Extraction's pages; null (or absent) for the whole document. */
-    requestedPages: z.array(z.int().positive()).nullable().optional(),
     executionStatus: z.enum(['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED']),
     /** SUCCEEDED once COMPLETED; a failed, cancelled or interrupted Extraction is FAILED with its failure instead. */
     outcome: z.literal('SUCCEEDED').nullable(),
@@ -507,12 +501,6 @@ export type ExtractionAttempt = z.infer<typeof extractionAttemptSchema>
  * Evidence requires. The decisions are derived from the pinned Source
  * Representation, so the browser never needs the parsed document to review.
  */
-/** A hand pairing of an unmatched record of this run with an unmatched pinned sample record. */
-export const reviewPairingSchema = z.object({
-  record: z.number().int().nonnegative(), extractionId: z.string().min(1), sourceRecord: z.number().int().nonnegative(),
-}).strict()
-export type ReviewPairing = z.infer<typeof reviewPairingSchema>
-
 export const extractionReadResponseSchema = z
   .object({
     extraction: extractionAttemptSchema,
@@ -522,30 +510,16 @@ export const extractionReadResponseSchema = z
       decisions: z.array(reviewDecisionInputSchema),
       attention: z.object({
         cells: z.array(z.object({ nodeId: z.string(), resultPath: resultPathSchema, presence: z.enum(['grounded', 'ungrounded', 'missing']),
-          decision: z.object({ action: reviewDecisionActionSchema, provenance: z.enum(['explicit', 'carried']) }).nullable() })),
+          decision: z.object({ action: reviewDecisionActionSchema }).nullable() })),
         grounded: z.int().nonnegative(), ungrounded: z.int().nonnegative(), missing: z.int().nonnegative(), requiredRemaining: z.int().nonnegative(),
       }).optional(),
-      /** Each value's verdict against the sample decisions pinned at admission, by result path key. */
-      transfer: z.record(z.string(), z.object({
-        status: z.enum(['fixed', 'reviewed', 'changed', 'unmatched']), kept: z.json(),
-      }).strict()).optional(),
-      pairings: z.array(reviewPairingSchema).optional(),
-      /** Pinned sample records with decisions that overlap a record of this run without aligning: pairable by hand. */
-      sources: z.array(z.object({
-        extractionId: z.string().min(1), record: z.number().int().nonnegative(), label: z.string(),
-      }).strict()).optional(),
     }).strict().optional(),
   })
   .strict()
 
-export type ReviewTransferVerdicts = NonNullable<NonNullable<z.infer<typeof extractionReadResponseSchema>['reviewDraft']>['transfer']>
-export type ReviewTransferSources = NonNullable<NonNullable<z.infer<typeof extractionReadResponseSchema>['reviewDraft']>['sources']>
-
 export const extractionReviewDraftSchema = z.object({
   version: z.number().int().nonnegative(),
   decisions: z.array(reviewDecisionInputSchema),
-  /** The hand pairings; absent keeps the stored ones. */
-  pairings: z.array(reviewPairingSchema).optional(),
 }).strict()
 
 export const resetExtractionReviewSchema = z.object({

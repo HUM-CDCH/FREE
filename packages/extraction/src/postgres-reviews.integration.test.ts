@@ -32,7 +32,7 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
     const restored = await createRuntime(project.researcherAccountId).module.readReviewDraft(id)
     assert.deepEqual({ version: restored.version, decisions: restored.decisions }, saved)
     assert.equal(restored.attention?.requiredRemaining, 0)
-    assert.deepEqual(restored.attention?.cells[0]?.decision, { action: 'EDITED', provenance: 'explicit' })
+    assert.deepEqual(restored.attention?.cells[0]?.decision, { action: 'EDITED' })
     const unreviewed = await module.prepareReview(id)
     assert.equal(unreviewed.extraction.reviewedAt, null)
     assert.deepEqual(unreviewed.extraction.reviewDecisions, [])
@@ -79,39 +79,23 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
     assert.equal(previousDecision?.action, 'EDITED')
   })
 
-  for (const batchMember of [false, true]) it(`seeds a ${batchMember ? 'batch member' : 'single run'} whose every value carries, requiring explicit finalization`, async (t) => {
+it('a stored draft with legacy pairings and carried provenance reads back without them and keeps its version', async (t) => {
     t.after(cleanup)
     const project = await seedProject()
     const { module } = createRuntime(project.researcherAccountId)
-    const sample = (await module.runSingle({ ...freshInput(project), pages: [1] })).extraction.extractionId
-    await module.saveReviewDraft(sample, { version: 0, decisions: (await module.prepareReview(sample)).reviewDecisions })
-    let full: string
-    if (batchMember) {
-      const scheduled = await module.scheduleBatch({ projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
-        strategy: 'ARTICLE', sourceDocumentIds: [project.documents[0]!.sourceDocumentId], repetition: 'create-new', method: { models: null, settings: { article: null } } })
-      const batch = await waitForBatch(module, project.projectContextId, scheduled.batch.batchExtractionId, (batch) => batch.executionStatus === 'COMPLETED')
-      full = batch.members[0]!.latestExtraction!.extractionId
-      assert.equal((await module.readExtractionAttempt(full))?.batchExtractionId, scheduled.batch.batchExtractionId)
-    } else full = (await module.runSingle(freshInput(project))).extraction.extractionId
-    const prepared = await module.prepareReview(full)
-    const seeded = await module.readReviewDraft(full)
-    assert.deepEqual(seeded, {
-      version: 0,
-      decisions: prepared.reviewDecisions.map((decision) => ({
-        ...decision, carriedFrom: { extractionId: sample, sourcePathKey: JSON.stringify(decision.resultPath) },
-      })),
-      transfer: { '["records",0,"title"]': { status: 'reviewed', kept: 'Alpha' } },
-      sources: [],
-      attention: { cells: [{ nodeId: 'title-node', resultPath: ['records', 0, 'title'], presence: 'grounded',
-        decision: { action: 'APPROVED', provenance: 'carried' } }], grounded: 1, ungrounded: 0, missing: 0, requiredRemaining: 0 },
-    })
-    assert.equal(seeded.decisions.length, 1)
-    assert.equal(prepared.extraction.reviewedAt, null)
-    assert.deepEqual(prepared.extraction.reviewDecisions, [])
-    assert.equal((await module.finalizeReview(full, seeded.decisions, 0)).disposition, 'reviewed')
-    const [review] = await db.orm.public.ExtractionReview.where({ extractionId: full }).select('id').all()
-    assert.deepEqual((await db.orm.public.ReviewDecision.where({ extractionReviewId: review!.id }).select('carriedFrom').all())
-      .map((decision) => decision.carriedFrom), seeded.decisions.map((decision) => decision.carriedFrom))
+    const { extraction } = await module.runSingle(freshInput(project))
+    const prepared = await module.prepareReview(extraction.extractionId)
+    const legacy = prepared.reviewDecisions.map((decision, index) => index === 0
+      ? { ...decision, carriedFrom: { extractionId: 'old-sample', sourcePathKey: '["records",0,"title"]' } }
+      : decision)
+    await db.orm.public.Extraction.where({ id: extraction.extractionId })
+      .update({ reviewDraft: legacy, reviewDraftVersion: 4, reviewPairings: [{ record: 0, extractionId: 'old-sample', sourceRecord: 0 }] })
+    const draft = await module.readReviewDraft(extraction.extractionId)
+    assert.equal(draft.version, 4)
+    assert.equal(draft.decisions.length, prepared.reviewDecisions.length)
+    assert.equal(draft.decisions.some((decision) => 'carriedFrom' in decision), false)
+    assert.equal('pairings' in draft, false)
+    assert.deepEqual(draft.decisions[0]!.resultPath, prepared.reviewDecisions[0]!.resultPath)
   })
 
 it('projects only the active review revision into batch results after reset', async (t) => {
@@ -212,6 +196,37 @@ it('uses the canonical package as review authority and enforces replay and confl
       module.finalizeReview(missingEvidence.extraction.extractionId, []),
       rejectsWithCode('invalid_review'),
     )
+  })
+
+it('a stored decision with a legacy carriedFrom still reads back', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const { module } = createRuntime(project.researcherAccountId)
+    const run = await module.runSingle(freshInput(project))
+    const prepared = await module.prepareReview(run.extraction.extractionId)
+    await module.finalizeReview(run.extraction.extractionId, prepared.reviewDecisions)
+    const review = (await db.orm.public.ExtractionReview.where({ extractionId: run.extraction.extractionId }).select('id').first())!
+    await db.orm.public.ReviewDecision.where({ extractionReviewId: review.id })
+      .update({ carriedFrom: { extractionId: 'old-sample', sourcePathKey: '["records",0,"title"]' } })
+    const read = await module.readExtractionAttempt(run.extraction.extractionId)
+    assert.equal(read?.reviewDecisions.length, prepared.reviewDecisions.length)
+    assert.equal(read?.reviewDecisions.some((decision) => 'carriedFrom' in decision), false)
+  })
+
+it('a review finalized with carried decisions before this change still replays', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const { module } = createRuntime(project.researcherAccountId)
+    const { extraction } = await module.runSingle(freshInput(project))
+    const prepared = await module.prepareReview(extraction.extractionId)
+    await module.finalizeReview(extraction.extractionId, prepared.reviewDecisions)
+    // The digest a pre-change finalize wrote: its normalization carried `carriedFrom` on the first decision.
+    const review = (await db.orm.public.ExtractionReview.where({ extractionId: extraction.extractionId }).select('id').first())!
+    const first = (await db.orm.public.ReviewDecision.where({ extractionReviewId: review.id }).select('id').orderBy((d) => d.resultPathKey.asc()).first())!
+    await db.orm.public.ReviewDecision.where({ id: first.id }).update({ carriedFrom: { extractionId: 'old-sample', sourcePathKey: '["records",0,"title"]' } })
+    await db.orm.public.ExtractionReview.where({ id: review.id }).update({ decisionDigest: 'digest-written-by-the-old-normalization' })
+    const again = await module.finalizeReview(extraction.extractionId, prepared.reviewDecisions)
+    assert.equal(again.disposition, 'replayed')
   })
 
 it('finalizes a partially grounded result without manufacturing Evidence', async (t) => {
