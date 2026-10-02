@@ -1514,6 +1514,39 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText(/^Sample · rev/)).not.toBeInTheDocument()
   })
 
+  it('offers Save & re-run sample only while the schema is still the strategy the sample ran as', async () => {
+    const extractionRequests: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url === '/api/schema-revisions' && init?.method === 'POST') return Promise.resolve(appendRevision(init))
+      if (url.endsWith('/api/extractions')) {
+        extractionRequests.push(JSON.parse(String(init?.body)))
+        return Promise.resolve(Response.json({ error: { code: 'record_scope_mismatch', message: 'Refused.' } }, { status: 409 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    const articleSample = {
+      ...reopened.persistedExtraction!, extractionId: '51000000-0000-4000-8006-000000000002', requestedPages: [1],
+      requestedModels: null, requestedSettings: { article: null },
+    }
+    render(<DocumentWorkspace {...reopened} latestSample={articleSample} />)
+    const rerun = await screen.findByRole('button', { name: 'Save & re-run sample' })
+    await waitFor(() => expect(rerun).toBeEnabled())
+    // The sample repeats its own method, Article included; a Catalog schema would refuse it (record_scope_mismatch).
+    fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+    await waitFor(() => expect(rerun).toBeDisabled())
+    expect(rerun).toHaveAccessibleDescription(
+      'This sample ran as Article, and the schema is now Catalog. Run a new sample to extract it as Catalog.')
+    fireEvent.click(rerun)
+    expect(extractionRequests).toEqual([])
+    fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'ARTICLE' } })
+    await waitFor(() => expect(rerun).toBeEnabled())
+    expect(rerun).not.toHaveAccessibleDescription()
+  })
+
   it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the schema\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {
     const extractionRequests: Array<{ strategy?: string; catalogRecipe?: string; schemaRevisionId?: string }> = []
     const writes: RevisionWrite[] = []
