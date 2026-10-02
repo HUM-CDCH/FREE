@@ -95,7 +95,12 @@ test('a real document runs through the application: extraction, evidence, browse
     await save('route.json', { id, runId, strategy, settings, project, sourceDocumentId: source.sourceDocumentId, clock })
     expect(settled.extraction.failure).toBeNull()
     for (const link of settled.extraction.evidenceLinks!) expect(anchors.has(link.evidenceAnchorId)).toBe(true)
-    expect(settled.pendingReviewDecisions).toHaveLength(settled.extraction.evidenceLinks!.length)
+    // One pending decision per Evidence link; a value without Evidence gets its own unanchored one (optional review
+    // evidence), never a path that has a link.
+    const linked = new Set(settled.extraction.evidenceLinks!.map((link) => JSON.stringify(link.resultPath)))
+    const unanchored = settled.pendingReviewDecisions.filter((decision) => decision.evidenceAnchorId === null)
+    expect(settled.pendingReviewDecisions.length - unanchored.length).toBe(settled.extraction.evidenceLinks!.length)
+    for (const decision of unanchored) expect(linked.has(JSON.stringify(decision.resultPath))).toBe(false)
     const records = ((settled.extraction.resultPayload ?? {}) as { records?: Json[] }).records ?? []
     expect(records.length).toBeGreaterThan(0)
 
