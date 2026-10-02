@@ -98,8 +98,9 @@ test('a real document runs through the application: extraction, evidence, browse
     // One pending decision per Evidence link; a value without Evidence gets its own unanchored one (optional review
     // evidence), never a path that has a link.
     const linked = new Set(settled.extraction.evidenceLinks!.map((link) => JSON.stringify(link.resultPath)))
-    const unanchored = settled.pendingReviewDecisions.filter((decision) => decision.evidenceAnchorId === null)
-    expect(settled.pendingReviewDecisions.length - unanchored.length).toBe(settled.extraction.evidenceLinks!.length)
+    const pending = settled.pendingReviewDecisions ?? []
+    const unanchored = pending.filter((decision) => decision.evidenceAnchorId === null)
+    expect(pending.length - unanchored.length).toBe(settled.extraction.evidenceLinks!.length)
     for (const decision of unanchored) expect(linked.has(JSON.stringify(decision.resultPath))).toBe(false)
     const records = ((settled.extraction.resultPayload ?? {}) as { records?: Json[] }).records ?? []
     expect(records.length).toBeGreaterThan(0)
