@@ -490,7 +490,8 @@ test('app shell: the production policy is strict about script, workers and frami
       .map(([name, ...sources]) => [name, sources]),
   )
   assert.deepEqual(policy.get('script-src'), ["'self'"])
-  assert.deepEqual(policy.get('worker-src'), ["'self'"])
+  // `blob:` only: the Excel export's zip writer deflates a large workbook part in a Blob-URL Worker.
+  assert.deepEqual(policy.get('worker-src'), ["'self'", 'blob:'])
   assert.deepEqual(policy.get('frame-ancestors'), ["'none'"])
   assert.deepEqual(policy.get('object-src'), ["'none'"])
   for (const source of policy.get('script-src'))

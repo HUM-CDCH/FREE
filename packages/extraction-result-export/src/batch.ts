@@ -4,7 +4,7 @@ import {
   deliverTable,
   resolveExportChoices,
 } from "./spreadsheet.js";
-import { buildReviewNotesTable, type ContestedField } from "./review-notes.js";
+import { buildReviewNotesTable, REVIEW_NOTES_SHEET, type ContestedField } from "./review-notes.js";
 import { buildExportTable, type ExportChoices, type Table } from "./table.js";
 import type { SchemaNode } from "extraction/schema";
 
@@ -132,6 +132,6 @@ export async function exportBatchExtractionResults(
       options.format,
       "batch-extraction-results",
     ),
-    contested.length > 0 ? buildReviewNotesTable(contested) : undefined,
+    contested.length > 0 ? [{ sheet: REVIEW_NOTES_SHEET, table: buildReviewNotesTable(contested) }] : [],
   );
 }

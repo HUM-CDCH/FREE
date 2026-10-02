@@ -172,7 +172,7 @@ type ResultDecision = Readonly<{
 /** Mirrors the client-side projection in `reviewDecisions.ts` (`applyReviewDecisions`),
  *  so an exported Batch result reflects a saved review the same way the Studio UI does:
  *  REJECTED clears the value, EDITED overwrites it, APPROVED leaves the raw value alone. */
-function applyReviewDecisionsToResult(result: unknown, decisions: readonly ResultDecision[]): unknown {
+export function applyReviewDecisionsToResult(result: unknown, decisions: readonly ResultDecision[]): unknown {
   const copy = structuredClone(result)
   for (const decision of decisions) {
     if (decision.action === 'APPROVED') continue
@@ -188,8 +188,13 @@ function setAtPath(root: unknown, path: readonly (string | number)[], value: unk
     if (parent === null || typeof parent !== 'object') return
     parent = (parent as Record<string | number, unknown>)[segment]
   }
-  if (parent !== null && typeof parent === 'object')
-    (parent as Record<string | number, unknown>)[path[path.length - 1]] = value
+  if (parent === null || typeof parent !== 'object') return
+  const leaf = path[path.length - 1]
+  // A review replaces an existing value and never inserts one: a missing index or key is left alone.
+  const exists = Array.isArray(parent)
+    ? typeof leaf === 'number' && Number.isInteger(leaf) && leaf >= 0 && leaf < parent.length
+    : Object.hasOwn(parent, leaf)
+  if (exists) (parent as Record<string | number, unknown>)[leaf] = value
 }
 
 /** Batch-loads only the latest finalized revision for each Extraction. */

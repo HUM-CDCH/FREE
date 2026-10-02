@@ -607,7 +607,7 @@ export default function BatchExtractionsPanel({
       message: `Includes ${snapshot.successfulResults} of ${snapshot.totalMembers} Source Documents; ${snapshot.pending} pending, ${snapshot.failed} failed, ${snapshot.cancelled} cancelled.${
         contested === 0 ? ''
           : format === 'csv' ? ` ${contestedNotice(contested)}`
-            : ` ${contested} contested ${contested === 1 ? 'field is' : 'fields are'} left empty and listed on the Review notes sheet.`}`,
+            : ` ${contested} contested ${contested === 1 ? 'field is' : 'fields are'} left empty and listed on the Review notes sheet.`} Batch exports hold values only; open a Source Document for its Extraction and Evidence sheets.`,
     })
     await exportBatchExtractionResults(
       snapshot.results.map((result) => ({

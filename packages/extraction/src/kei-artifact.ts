@@ -72,6 +72,8 @@ const artifactSchema = z.object({
   // An explicit Article method records its method and protocol versions and its evidence accounting; the reference
   // artifact (no `options.article`) carries none of them.
   method_version: z.number().int().optional(),
+  article_version: z.number().int().optional(),
+  document_version: z.number().int().optional(),
   span_grounding_version: z.number().int().optional(),
   grounding_routing_version: z.number().int().optional(),
   rendering_version: z.number().int().optional(),
@@ -377,6 +379,7 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
           ['prompt', artifact.prompt_version], ['method', artifact.method_version], ['spanGrounding', artifact.span_grounding_version],
           ['groundingRouting', artifact.grounding_routing_version], ['rendering', artifact.rendering_version],
           ['grouping', artifact.grouping_version], ['selection', artifact.selection_version],
+          ['article', artifact.article_version], ['document', artifact.document_version],
         ] satisfies [string, number | undefined][]).filter((entry): entry is [string, number] => entry[1] !== undefined)),
       },
       eligibility: artifact.grounding_eligibility

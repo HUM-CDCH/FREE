@@ -6,7 +6,7 @@ import {
   type ExportChoices,
   type Table,
 } from "./table.js";
-import { createXlsxBlob } from "./xlsx.js";
+import { createXlsxBlob, type CompanionSheet } from "./xlsx.js";
 import type { SchemaNode } from "extraction/schema";
 
 /** Rejects a format before any result is read, so no work is wasted. */
@@ -27,17 +27,17 @@ export function resolveExportChoices(
   };
 }
 
-/** Serializes one table in the chosen format and starts its download. CSV holds the values alone, so `notes`
- *  (the Review notes of contested fields) reach only a workbook. */
+/** Serializes one table in the chosen format and starts its download. CSV holds the values alone, so `companions`
+ *  (the Review notes of contested fields; an Extraction's Extraction and Evidence sheets) reach only a workbook. */
 export async function deliverTable(
   table: Table,
   format: ExportFormat,
   filename: string,
-  notes?: Table,
+  companions?: readonly CompanionSheet[],
 ): Promise<void> {
   const blob =
     format === "csv"
       ? new Blob([serializeCsv(table)], { type: "text/csv;charset=utf-8" })
-      : await createXlsxBlob(table, notes);
+      : await createXlsxBlob(table, companions);
   downloadBlob(blob, filename);
 }

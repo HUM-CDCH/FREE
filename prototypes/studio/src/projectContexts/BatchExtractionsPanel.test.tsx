@@ -2640,7 +2640,7 @@ describe('BatchExtractionsPanel', () => {
         'Includes 1 of 2 Source Documents; 0 pending, 1 failed, 0 cancelled.' + (contested
           ? format === 'xlsx' ? ' 1 contested field is left empty and listed on the Review notes sheet.'
             : ' CSV leaves 1 contested field empty; their candidates are only in the Excel Review notes sheet and in Studio.'
-          : ''),
+          : '') + ' Batch exports hold values only; open a Source Document for its Extraction and Evidence sheets.',
       ),
     ).toBeVisible()
   })

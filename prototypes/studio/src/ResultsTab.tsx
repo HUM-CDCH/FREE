@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { exportExtractionResult } from 'extraction-result-export'
+import { exportExtractionResult, type ExtractionProvenance, type ProvenanceClaim } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import { MethodUsed } from './MethodUsed'
 import ResultValue, { singularItemLabel } from './ui/ResultValue'
@@ -16,6 +16,7 @@ import { ReviewAttention } from './ReviewAttention'
 import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import { CatalogReview } from './CatalogReview'
 import { RecipeReview } from './RecipeReview'
+import { claimStatuses, describeClaimStatus, fieldLabel, linkOrigin, reasonText, type ClaimStatus } from './claimStates'
 import {
   applyReviewDecisions,
   orderResultFields,
@@ -64,6 +65,8 @@ type ResultsTabProps = {
   inspectedAttempt?: ExtractionAttempt
   readOnly?: boolean
   onEditField?: (nodeId: string, path: (string | number)[]) => void
+  /** Each Evidence anchor's first page (anchor id → page), for the export's Evidence sheet. */
+  evidencePages?: ReadonlyMap<string, number>
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -111,9 +114,10 @@ function evidenceDetail(link: EvidenceLink, action: ReviewDecisionAction | undef
         : link.precision === 'input'
           ? 'Located to the whole input only'
           : undefined
-  if (!grounding) return location
+  // Without a recipe or unified grounding, a link is the verifier's unless code linked it by a lexical match.
+  if (!grounding) return [linkOrigin(link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported', location].filter(Boolean).join(' · ')
   const parts = [grounding.linkedBy === 'verification'
-    ? (grounding.support === 'literal' ? 'Verified; the value is printed in the entry' : 'Verified from a supporting passage; the value is not printed as such')
+    ? (grounding.support === 'literal' ? 'Verifier-supported; the value is printed in the entry' : 'Verifier-supported from a supporting passage; the value is not printed as such')
     : grounding.linkedBy === 'key' ? 'Read after its printed key'
       : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
         : 'Entry number from the segmentation']
@@ -518,7 +522,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange, onEditField }: ResultsTabProps) {
+function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField }: ResultsTabProps) {
   const approvalDescriptionId = useId()
   const attempt = inspectedAttempt ?? controller.attempt
   // The header's single "… with current schema" run action replaces the
@@ -627,6 +631,11 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
       ),
     [articlePathPrefix.length, state],
   )
+  // The same links keyed by their absolute result path, as `statuses` and `reviewDecisionByPath` are: for the export.
+  const evidenceByAbsolutePath = useMemo(
+    () => new Map(state.status === 'ready' ? state.evidenceLinks.map((link) => [resultPathKey(link.resultPath), link]) : []),
+    [state],
+  )
   const reviewDecisionByPath = useMemo(
     () => new Map(visibleReviewDecisions.map((decision) => [
       resultPathKey(decision.resultPath),
@@ -634,6 +643,11 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     ])),
     [visibleReviewDecisions],
   )
+  // The decisions the Completion line and the export report: before the review is saved, only those the researcher
+  // made. A seeded approval or a decision carried from a sample is a default until touched, as `attention` reads it.
+  const madeDecisions = attempt?.reviewedAt || inspectedAttempt
+    ? visibleReviewDecisions
+    : visibleReviewDecisions.filter((decision) => controller.review.isTouched(decision.resultPath))
   // Values the service left empty because their sources disagreed, keyed like the Evidence links; one a review has
   // filled or rejected is no longer an open conflict.
   const openContested = useMemo(
@@ -661,6 +675,27 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     : reviewReadOnly && state.status === 'ready'
       ? state.evidenceLinks.length
       : controller.review.requiredCount
+  // Each claim once, in its verifier state. The accounting is derived on read from the persisted evidence and
+  // diagnostics, a historical attempt's too; it is null only when the attempt persisted no evidence or no diagnostics.
+  const statuses = useMemo(() => attempt ? claimStatuses(attempt) : new Map<string, ClaimStatus>(), [attempt])
+  const claims = attempt?.diagnostics?.grounding?.claims ?? null
+  // Each linked value once, by who made its link: only the verifier's count as verifier-supported, with or without an accounting.
+  const linkCounts = useMemo(() => {
+    const origins = new Map(state.status === 'ready' ? state.evidenceLinks.map((link) => [resultPathKey(link.resultPath), linkOrigin(link)]) : [])
+    const verifier = [...origins.values()].filter((origin) => origin === 'verifier').length
+    return { verifier, rule: origins.size - verifier }
+  }, [state])
+  // With a claim accounting the workbook carries the Extraction and Evidence sheets; without one (no evidence or no
+  // diagnostics persisted) unsupported and unfinished values cannot be told apart, so the export stays values-only.
+  const evidenceSheets = attempt !== null && claims !== null && state.status === 'ready'
+  const reviewSaved = Boolean(controller.review.reviewedExtractionId || attempt?.reviewedAt)
+
+  /** Opens the claim's parent so its row, with its note, is on screen. */
+  function showClaim(resultPath: readonly (string | number)[]) {
+    const relative = resultPath.map(String).slice(articlePathPrefix.length)
+    setView('review')
+    navTo(relative.slice(0, -1))
+  }
 
   function navTo(newPath: string[]) {
     setBackStack(prev => [...prev, navPath])
@@ -735,8 +770,11 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing - openContested.length)}
               {openContested.length > 0 && summaryItem('Contested', openContested.length)}
-              {summaryItem('Grounded', state.evidenceLinks.length)}
-              {state.ungroundedCount > 0 && summaryItem('Ungrounded', state.ungroundedCount)}
+              {summaryItem('Verifier-supported', linkCounts.verifier)}
+              {linkCounts.rule > 0 && summaryItem('Rule-linked', linkCounts.rule)}
+              {claims && claims.unsupported > 0 && summaryItem('Unsupported', claims.unsupported)}
+              {claims && claims.notCompleted > 0 && summaryItem('Not completed', claims.notCompleted)}
+              {claims && claims.excluded > 0 && summaryItem('Excluded', claims.excluded)}
               {checkCount > 0 && summaryItem('To check', checkCount)}
               {/* {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)} */}
             </div>
@@ -759,14 +797,71 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 )}
               </section>
             )}
+            {claims && (
+              <section aria-label="Completion" className="mt-2 space-y-0.5 text-[11.5px] leading-snug text-ink-muted">
+                <p data-dimension="processing">Extraction: {attempt?.complete ? 'complete' : 'not shown complete'} · record recall unmeasured</p>
+                <p data-dimension="evidence">Evidence checks: {linkCounts.verifier} verifier-supported · {linkCounts.rule > 0 && `${linkCounts.rule} linked by rule · `}{claims.unsupported} unsupported · {claims.notCompleted} not completed · {claims.excluded} excluded by policy ({claims.claims} claims)</p>
+                <p data-dimension="review">Review: {attempt?.reviewedAt ? `${madeDecisions.length} decisions saved` : `${madeDecisions.length} decisions pending`}{state.ungroundedCount > 0 && ` · ${state.ungroundedCount} value${state.ungroundedCount === 1 ? '' : 's'} without evidence ${state.ungroundedCount === 1 ? 'is' : 'are'} not reviewable`}</p>
+                {claims.unfinished.length > 0 && (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer font-semibold text-ink">Checks not completed ({claims.unfinished.length})</summary>
+                    <ul className="mt-1 space-y-1">
+                      {claims.unfinished.map(({ resultPath, reasons }) => {
+                        const label = fieldLabel(resultPath, articleRecords?.length ?? 1)
+                        return (
+                          <li key={JSON.stringify(resultPath)} className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="font-mono text-ink">{label}</span>
+                            <span>{reasons.map(reasonText).join('; ')}</span>
+                            <Button size="sm" variant="secondary" onClick={() => showClaim(resultPath)}>Show {label}</Button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </details>
+                )}
+              </section>
+            )}
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap gap-1.5">
                 <ExtractionResultExportControl
                   schema={exportSchema}
                   disabled={displayResult === null}
                   contestedCount={openContested.length}
+                  evidenceSheets={evidenceSheets}
                   onExport={async (format, choices) => {
                     if (displayResult === null || exportSchema === null) return
+                    // Built here, not per render: the identity names the moment of export.
+                    const madeDecisionByPath = new Map(madeDecisions.map((decision) => [resultPathKey(decision.resultPath), decision]))
+                    const provenance: ExtractionProvenance | undefined = attempt && claims && state.status === 'ready' ? {
+                      identity: [
+                        ['Extraction ID', attempt.extractionId], ['Strategy', attempt.strategy], ['Source Document', sourceDocumentName],
+                        ['Source Document ID', attempt.sourceDocumentId], ['Source Representation Revision ID', attempt.sourceRepresentationRevisionId],
+                        ['Schema Revision ID', attempt.schemaRevisionId], ['Reviewed at', attempt.reviewedAt ?? 'Not finalized'],
+                        ['Decisions', madeDecisions.length],
+                        ['Versions', Object.entries(attempt.diagnostics?.effectiveMethod?.versions ?? {}).map(([name, version]) => `${name} ${version}`).join(' · ') || 'Not recorded'],
+                        ['Field model', attempt.diagnostics?.models?.fields ?? 'Not recorded'], ['Reasoning model', attempt.diagnostics?.models?.reasoning ?? 'Not recorded'],
+                        ['Extraction complete', attempt.complete ? 'Yes (record recall unmeasured)' : 'Not shown complete: record recall unmeasured'],
+                        ['Claims', claims.claims], ['Verifier-supported', linkCounts.verifier],
+                        ...(linkCounts.rule > 0 ? [['Linked by rule', linkCounts.rule] as const] : []), ['Unsupported', claims.unsupported],
+                        ['Not completed', claims.notCompleted], ['Excluded by policy', claims.excluded],
+                        ['Document-level fields (not verified)', exportSchema.schemaNodes.filter((node) => node.valueSource === 'document').map((node) => node.name).join(', ') || 'None'],
+                        ['Exported at', new Date().toISOString()],
+                      ],
+                      claims: [...statuses].map(([key, status]): ProvenanceClaim => {
+                        const resultPath = JSON.parse(key) as (string | number)[]
+                        const link = evidenceByAbsolutePath.get(key)
+                        const decision = madeDecisionByPath.get(key)
+                        // A records envelope's paths start `['records', n]`: the field path is the rest.
+                        const path = articleRecords ? resultPath.slice(2) : resultPath
+                        return {
+                          ...(articleRecords && articleRecords.length > 1 ? { record: Number(resultPath[1]) } : {}),
+                          path, extracted: getAtPath(state.result, resultPath.map(String)),
+                          ...(decision ? { decision: decision.action, reviewed: decision.reviewedValue } : {}),
+                          outcome: status.state, ...(status.linkedBy ? { linkedBy: status.linkedBy } : {}), reasons: status.state === 'excluded' ? [status.policy ?? 'unverified'] : status.reasons,
+                          ...(link ? { anchorId: link.evidenceAnchorId, page: evidencePages?.get(link.evidenceAnchorId), precision: link.precision, verbatim: link.verbatim, lexicalHits: link.lexicalHits } : {}),
+                        }
+                      }),
+                    } : undefined
                     await exportExtractionResult(displayResult, {
                       format,
                       filename: sourceDocumentName,
@@ -781,6 +876,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                             : { path: steps, candidates }
                         }),
                       } : {}),
+                      ...(provenance ? { provenance } : {}),
                     })
                   }}
                 />
@@ -866,6 +962,11 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 ))}
               </div>
             )}
+            {reviewSaved && (state.ungroundedCount > 0 || (claims?.notCompleted ?? 0) > 0) && (
+              <p role="status" className="text-[11px] text-ink-muted">
+                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} without evidence {state.ungroundedCount === 1 ? 'was' : 'were'} not reviewed{claims && `; ${claims.notCompleted} check${claims.notCompleted === 1 ? '' : 's'} never completed`}
+              </p>
+            )}
             {controller.review.error && (
               <p role="alert" className="mt-2 text-[11.5px] leading-snug text-danger">
                 {controller.review.error}
@@ -888,7 +989,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
             )}
             {attempt?.diagnostics?.grounded && <RecipeReview grounded={attempt.diagnostics.grounded} />}
             {attempt?.diagnostics?.unified && <CatalogReview unified={attempt.diagnostics.unified} />}
-            {state.ungroundedCount > 0 && (
+            {/* An attempt without a claim accounting cannot tell unsupported from unfinished values; with one, the
+                Completion section names both apart. */}
+            {!claims && state.ungroundedCount > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
                 {state.ungroundedCount} ungrounded value{state.ungroundedCount === 1 ? ' is' : 's are'} excluded from required review and {state.ungroundedCount === 1 ? 'remains' : 'remain'} recorded without Evidence.
               </p>
@@ -987,6 +1090,10 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       )
                     }}
                     getContested={(path) => contestedByPath.get(JSON.stringify(path))}
+                    getClaimStatus={(path) => {
+                      const status = statuses.get(JSON.stringify(absoluteReviewPath(path)))
+                      return status && status.state !== 'supported' ? describeClaimStatus(status) : undefined
+                    }}
                     onSelectEvidence={onSelectEvidence}
                     review={noGroundedValues ? undefined : {
                       getDecision: (path) => reviewDecisionByPath.get(resultPathKey(absoluteReviewPath(path))),

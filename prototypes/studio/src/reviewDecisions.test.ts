@@ -28,6 +28,22 @@ describe('Review Decision projection', () => {
     expect(Object.keys(sorted[0].people[1])).toEqual(['age', 'active'])
     expect(Object.keys(first)).toEqual(['extra', 'kind', 'active', 'age'])
   })
+
+  it('keeps every array item at its position and every value at its path, even two equal items', () => {
+    const leafPaths = (value: unknown, path: (string | number)[] = []): string[] =>
+      Array.isArray(value) ? value.flatMap((item, index) => leafPaths(item, [...path, index]))
+        : value !== null && typeof value === 'object'
+          ? Object.entries(value).flatMap(([key, item]) => leafPaths(item, [...path, key]))
+          : [JSON.stringify([...path, value])]
+    const twin = { kind: 'A', age: 4, active: true }
+    const source = { records: [{ other: 'x', people: [{ ...twin }, { active: false, kind: 'B', age: 9 }, { ...twin }] }] }
+    const sorted = orderResultFields(source.records, nodes) as typeof source.records
+    expect(sorted[0].people.map((person) => person.age)).toEqual([4, 9, 4])
+    expect(sorted[0].people.map((person) => person.kind)).toEqual(['A', 'B', 'A'])
+    expect(new Set(leafPaths({ records: sorted }))).toEqual(new Set(leafPaths(source)))
+    expect(leafPaths({ records: sorted })).toHaveLength(leafPaths(source).length)
+    expect(Object.keys(sorted[0].people[2])).toEqual(['age', 'active', 'kind'])
+  })
   it('applies nested edits and rejections without mutating the Extraction Result', () => {
     const original = {
       records: [{ people: [{ age: 4, active: true }] }],
@@ -53,6 +69,20 @@ describe('Review Decision projection', () => {
       records: [{ people: [{ age: 7, active: null }] }],
     })
     expect(original.records[0]?.people[0]).toEqual({ age: 4, active: true })
+  })
+
+  it('changes nothing for a decision at an index past the end of an array or at a missing key', () => {
+    const original = { records: [{ tags: ['a', 'b'], people: [{ age: 4 }] }] }
+    for (const resultPath of [['records', 0, 'tags', 2], ['records', 0, 'people', 0, 'missing'], ['records', 1]]) {
+      for (const action of ['EDITED', 'REJECTED'] as const) {
+        const projected = applyReviewDecisions(original, [{
+          resultPath, evidenceAnchorId: 'anchor', reviewedOccurrenceIds: ['o'], action,
+          reviewedValue: action === 'EDITED' ? 'x' : null,
+        }])
+        expect(projected).toEqual({ records: [{ tags: ['a', 'b'], people: [{ age: 4 }] }] })
+      }
+    }
+    expect(original).toEqual({ records: [{ tags: ['a', 'b'], people: [{ age: 4 }] }] })
   })
 
   it('resolves array paths against the pinned schema and parses scalar types', () => {

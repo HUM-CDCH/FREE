@@ -105,8 +105,9 @@ describe('starting points', () => {
     const explore = withStartingPoint(declared, STARTING_POINTS[1]!)
     expect(explore).toEqual({
       context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: ['species'],
-      prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema',
+      prompt: 'schema', grounding: 'spans', grounding_schedule: undefined, evidence_policy: 'schema',
     })
+    expect(STARTING_POINTS[1]!.description).not.toContain('until first support')
     expect(withStartingPoint(explore, STARTING_POINTS[0]!)).toEqual({ ...REFERENCE_ARTICLE, identity_fields: ['species'] })
     expect(JSON.stringify(explore)).not.toMatch(/preset|"name"|"id"/)
   })
@@ -119,7 +120,6 @@ describe('starting points', () => {
       { label: 'Instructions', from: 'Reference', to: 'Schema-driven' },
       { label: 'Verification', from: 'Source labels', to: 'Source spans' },
       { label: 'Fields to verify', from: 'All populated record fields', to: 'Follow schema policies' },
-      { label: 'Continue verification', from: 'Across all source units', to: 'Until first support' },
     ])
     expect(settingsDelta(REFERENCE_ARTICLE, REFERENCE_ARTICLE)).toEqual([])
   })

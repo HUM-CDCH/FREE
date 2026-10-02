@@ -5,12 +5,28 @@ import {
   deliverTable,
   resolveExportChoices,
 } from "./spreadsheet.js";
-import { buildReviewNotesTable, type ContestedField } from "./review-notes.js";
+import {
+  buildEvidenceTable,
+  buildExtractionTable,
+  EVIDENCE_SHEET,
+  EXTRACTION_SHEET,
+  type ExtractionProvenance,
+} from "./provenance.js";
+import { buildReviewNotesTable, REVIEW_NOTES_SHEET, type ContestedField } from "./review-notes.js";
 import { buildExportTable, ROOT_ROWS, type ExportChoices } from "./table.js";
 import type { SchemaNode } from "extraction/schema";
 
 export type { ExportFormat } from "./filename.js";
 export type { ContestedField } from "./review-notes.js";
+export {
+  buildEvidenceTable,
+  buildExtractionTable,
+  EVIDENCE_SHEET,
+  EXTRACTION_SHEET,
+  type ClaimOutcome,
+  type ExtractionProvenance,
+  type ProvenanceClaim,
+} from "./provenance.js";
 export {
   buildBatchExportTable,
   exportBatchExtractionResults,
@@ -38,6 +54,9 @@ export interface ExportExtractionResultOptions {
   /** Fields left empty because their sources disagreed, by path into `result`: listed on the workbook's Review notes
    *  sheet; a CSV, value-only, cannot carry them. */
   readonly contested?: readonly ContestedField[];
+  /** The Extraction's identity and its claims: the workbook's Extraction and Evidence sheets. A CSV, value-only,
+   *  cannot carry them. */
+  readonly provenance?: ExtractionProvenance;
 }
 
 /**
@@ -60,6 +79,16 @@ export async function exportExtractionResult(
     table,
     options.format,
     createExportFilename(options.filename, options.format),
-    options.contested?.length ? buildReviewNotesTable(options.contested) : undefined,
+    [
+      ...(options.contested?.length
+        ? [{ sheet: REVIEW_NOTES_SHEET, table: buildReviewNotesTable(options.contested) }]
+        : []),
+      ...(options.provenance
+        ? [
+            { sheet: EXTRACTION_SHEET, table: buildExtractionTable(options.provenance.identity) },
+            { sheet: EVIDENCE_SHEET, table: buildEvidenceTable(options.provenance.claims) },
+          ]
+        : []),
+    ],
   );
 }

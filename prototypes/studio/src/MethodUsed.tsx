@@ -5,7 +5,7 @@ import { methodLines, modelsLine, settingsHeadline } from './methodSummary'
 
 const VERSION_LABELS: Readonly<Record<string, string>> = {
   prompt: 'Prompt', method: 'Method', spanGrounding: 'Span grounding', groundingRouting: 'Grounding routing',
-  rendering: 'Rendering', grouping: 'Grouping', selection: 'Selection',
+  rendering: 'Rendering', grouping: 'Grouping', selection: 'Selection', article: 'Article', document: 'Document fields',
 }
 const ELIGIBLE: Readonly<Record<'complete' | 'partial' | 'not_applicable', string>> = {
   complete: 'All eligible values grounded', partial: 'Some eligible values ungrounded', not_applicable: 'Not applicable: no value was eligible',

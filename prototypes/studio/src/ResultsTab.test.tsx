@@ -425,6 +425,10 @@ describe('ResultsTab grounded values', () => {
           result: { title: 'Report', place: 'Unknown' },
           evidenceLinks: [],
           ungroundedCount: 2,
+        }, {
+          // A historical attempt: stored before the service derived a claim accounting.
+          ...articleAttempt,
+          diagnostics: { ...articleAttempt.diagnostics!, grounding: { groundedPaths: [], ungroundedPaths: [['title'], ['place']], issueCodes: [], batches: [], claims: null } },
         })}
         schemaReady
         documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
@@ -518,7 +522,7 @@ describe('ResultsTab grounded values', () => {
       strategy: 'CATALOG',
       diagnostics: {
         ...articleAttempt.diagnostics!,
-        grounding: { groundedPaths: [], ungroundedPaths: [], issueCodes, batches: [] },
+        grounding: { groundedPaths: [], ungroundedPaths: [], issueCodes, batches: [], claims: null },
       },
     })
     const renderWith = (attempt: ExtractionAttempt) => render(
@@ -770,8 +774,10 @@ describe('ResultsTab grounded values', () => {
         [{ resultPath: ['records', 1, 'place'], candidates: ['Bergen', 'Bodø'] }])
 
       fireEvent.click(screen.getByRole('button', { name: 'Export' }))
-      expect(screen.getByRole('note')).toHaveTextContent(
-        'CSV leaves 1 contested field empty; their candidates are only in the Excel Review notes sheet and in Studio.')
+      expect(screen.getAllByRole('note').map((note) => note.textContent)).toEqual([
+        'This export holds values only; contested fields are listed on the Excel Review notes sheet.',
+        'CSV leaves 1 contested field empty; their candidates are only in the Excel Review notes sheet and in Studio.',
+      ])
       fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
 
       expect(exportExtractionResult).toHaveBeenCalledWith(
@@ -1934,4 +1940,252 @@ describe('ResultsTab review progress', () => {
     expect(progress).toHaveTextContent('Review saved · 2 decisions')
   })
 
+})
+
+describe('ResultsTab verification completeness', () => {
+  const attempt: ExtractionAttempt = {
+    ...articleAttempt,
+    resultPayload: { records: [{ publisher: 'Viega', items: [{ sku: '77317', pack_qty: 10 }, { sku: '77318', pack_qty: 5 }] }] },
+    evidenceLinks: [{ resultPath: ['records', 0, 'items', 0, 'sku'], evidenceAnchorId: 'a_p1_s3_r3_c2', precision: 'cell', verbatim: true, lexicalHits: 1 }],
+    diagnostics: { ...articleAttempt.diagnostics!, grounding: {
+      groundedPaths: [['records', 0, 'items', 0, 'sku']],
+      ungroundedPaths: [['records', 0, 'publisher'], ['records', 0, 'items', 1, 'pack_qty'], ['records', 0, 'items', 0, 'pack_qty'], ['records', 0, 'items', 1, 'sku']],
+      issueCodes: ['grounding_exceeds_budget'], batches: [],
+      claims: { claims: 5, excluded: 0, eligible: 5, supported: 1, unsupported: 2, notCompleted: 2, reasons: { grounding_exceeds_budget: 2 }, excludedPolicies: {},
+        unfinished: [{ resultPath: ['records', 0, 'publisher'], reasons: ['grounding_exceeds_budget'] }, { resultPath: ['records', 0, 'items', 1, 'pack_qty'], reasons: ['grounding_exceeds_budget'] }] },
+    } },
+  }
+  const renderReady = (reviewed = false) => render(
+    <ResultsTab {...defaultRunProps}
+      controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 4 },
+        reviewed ? { ...attempt, reviewedAt: '2026-10-02T07:27:36.243Z' } : attempt, { available: true, reviewedExtractionId: reviewed ? attempt.extractionId : null })}
+      schemaReady documentMarkdown="# Source" sourceDocumentName="viega.pdf" onSelectEvidence={() => {}} />,
+  )
+
+  it('shows processing, evidence checks and review apart, with unique claim counts', () => {
+    renderReady()
+    const completion = screen.getByRole('region', { name: 'Completion' })
+    expect(within(completion).getByText(/1 verifier-supported · 2 unsupported · 2 not completed · 0 excluded by policy \(5 claims\)/)).toBeInTheDocument()
+    expect(within(completion).getByText(/4 values without evidence are not reviewable/)).toBeInTheDocument()
+    expect(screen.queryByText(/could not be grounded/)).toBeNull()
+    expect(completion.querySelectorAll('p[data-dimension]')).toHaveLength(3)
+    expect([...completion.querySelectorAll('p[data-dimension]')].map((p) => p.getAttribute('data-dimension'))).toEqual(['processing', 'evidence', 'review'])
+    expect(screen.queryByText(/Grounded:/)).toBeNull()
+    expect(screen.queryByText(/fully verified|proven|accuracy|confidence/i)).toBeNull()
+  })
+
+  it('lists each check that never completed, with its reason, and Show navigates to it', () => {
+    renderReady()
+    fireEvent.click(screen.getByText('Checks not completed (2)'))
+    expect(screen.getByText('items[2].pack_qty')).toBeInTheDocument()
+    expect(screen.getAllByText(/its evidence did not fit the model’s context/)).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Show items[2].pack_qty' }))
+    // The claim's parent, Item 2, is open: its pack_qty row carries the note.
+    const itemNote = screen.getByRole('note', { name: /^Not completed: The check did not finish/ })
+    expect(itemNote.closest('.group')).toHaveTextContent(/^pack_qty/)
+    expect(screen.getByRole('navigation', { name: 'Result navigation' })).toHaveTextContent('Item 2')
+    // A root claim's Show returns to the root, where the publisher row carries the note.
+    fireEvent.click(screen.getByRole('button', { name: 'Show publisher' }))
+    expect(screen.getByRole('button', { name: 'Root' })).toHaveAttribute('aria-current', 'page')
+    const rootNote = screen.getByRole('note', { name: /^Not completed: The check did not finish/ })
+    expect(rootNote).toHaveTextContent('Not completed')
+    expect(rootNote.closest('.group')).toHaveTextContent(/^publisherViega/)
+  })
+
+  it('a generic Catalog attempt whose record-level call failed without a path shows that record\'s ungrounded values not completed', () => {
+    const genericCatalog: ExtractionAttempt = {
+      ...articleAttempt,
+      strategy: 'CATALOG',
+      resultPayload: { records: [{ place: 'First place', year: 1901 }] },
+      evidenceLinks: [],
+      diagnostics: { ...articleAttempt.diagnostics!, catalog: null, grounding: {
+        groundedPaths: [], ungroundedPaths: [['records', 0, 'place'], ['records', 0, 'year']], issueCodes: ['call_failed'], batches: [],
+        claims: { claims: 2, excluded: 0, eligible: 2, supported: 0, unsupported: 0, notCompleted: 2, reasons: { call_failed_unattributed: 2 }, excludedPolicies: {},
+          unfinished: [{ resultPath: ['records', 0, 'place'], reasons: ['call_failed_unattributed'] }, { resultPath: ['records', 0, 'year'], reasons: ['call_failed_unattributed'] }] },
+      } },
+    }
+    render(
+      <ResultsTab {...defaultRunProps}
+        controller={controller({ status: 'ready', result: genericCatalog.resultPayload!, evidenceLinks: [], ungroundedCount: 2 }, genericCatalog, { available: true })}
+        schemaReady documentMarkdown="# Source" sourceDocumentName="catalog.pdf" onSelectEvidence={() => {}} />,
+    )
+    const notes = screen.getAllByRole('note', { name: /^Not completed: The check did not finish: a call for this record failed and could not be attributed to a value, so its checks may not have finished/ })
+    expect(notes).toHaveLength(2)
+    expect(notes[0]!.closest('.group')).toHaveTextContent(/^placeFirst place/)
+    expect(screen.queryByRole('note', { name: /^Unsupported/ })).toBeNull()
+  })
+
+  it('badges an unsupported value as checked and unsupported, not as missing', () => {
+    renderReady()
+    fireEvent.click(screen.getByRole('button', { name: /^items\b/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Item 1\b/ }))
+    expect(screen.getByRole('note', { name: /^Unsupported: Every check finished/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View Evidence for sku' })).toBeInTheDocument()
+    // The summary pill also starts with the label; the supported value's own detail is scoped to the tree.
+    expect(within(screen.getByRole('tabpanel', { name: 'Review' })).getByText(/^Verifier-supported/)).toHaveTextContent('Verifier-supported · Located to a table cell')
+  })
+
+  it('hands the export one Evidence row per claim, extracted and reviewed values apart, and the Extraction identity', async () => {
+    const exportSchema: SchemaDefinition = { recordDescription: 'A price list.', schemaNodes: [
+      { id: 'publisher', name: 'publisher', type: 'string', valueSource: 'document' },
+      { id: 'items', name: 'items', type: 'array', children: [
+        { id: 'sku', name: 'sku', type: 'string' }, { id: 'pack_qty', name: 'pack_qty', type: 'integer' },
+      ] },
+    ] }
+    render(
+      <ResultsTab {...defaultRunProps}
+        controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 4 }, attempt, {
+          available: true,
+          decisions: [{ resultPath: ['records', 0, 'items', 0, 'sku'], evidenceAnchorId: 'a_p1_s3_r3_c2', reviewedOccurrenceIds: [], action: 'EDITED', reviewedValue: '77317-B' }],
+        })}
+        schemaReady documentMarkdown="# Source" sourceDocumentName="viega.pdf" exportSchema={exportSchema}
+        evidencePages={new Map([['a_p1_s3_r3_c2', 4]])} onSelectEvidence={() => {}} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    expect(within(screen.getByRole('dialog', { name: 'Export options' })).getByRole('note')).toHaveTextContent('CSV holds the values only. The Excel workbook adds an Extraction sheet (identities, versions, completion) and an Evidence sheet (extracted and reviewed values, verifier outcomes, evidence anchors).')
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+
+    const { provenance } = vi.mocked(exportExtractionResult).mock.calls[0]![1]
+    expect(provenance!.claims).toHaveLength(5)
+    expect(provenance!.claims).toEqual(expect.arrayContaining([
+      { path: ['items', 0, 'sku'], extracted: '77317', decision: 'EDITED', reviewed: '77317-B', outcome: 'supported', linkedBy: 'verifier', reasons: [],
+        anchorId: 'a_p1_s3_r3_c2', page: 4, precision: 'cell', verbatim: true, lexicalHits: 1 },
+      { path: ['publisher'], extracted: 'Viega', outcome: 'not_completed', reasons: ['grounding_exceeds_budget'] },
+      { path: ['items', 1, 'pack_qty'], extracted: 5, outcome: 'not_completed', reasons: ['grounding_exceeds_budget'] },
+      { path: ['items', 0, 'pack_qty'], extracted: 10, outcome: 'unsupported', reasons: [] },
+      { path: ['items', 1, 'sku'], extracted: '77318', outcome: 'unsupported', reasons: [] },
+    ]))
+    const identity = new Map(provenance!.identity)
+    expect(identity.get('Extraction ID')).toBe(attempt.extractionId)
+    expect(identity.get('Source Document')).toBe('viega.pdf')
+    expect(identity.get('Reviewed at')).toBe('Not finalized')
+    expect(identity.get('Decisions')).toBe(1)
+    expect(identity.get('Extraction complete')).toBe('Not shown complete: record recall unmeasured')
+    expect([identity.get('Claims'), identity.get('Verifier-supported'), identity.get('Unsupported'), identity.get('Not completed'), identity.get('Excluded by policy')]).toEqual([5, 1, 2, 2, 0])
+    expect(identity.get('Document-level fields (not verified)')).toBe('publisher')
+    expect(identity.get('Exported at')).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('before the review is saved, reports only the decisions the researcher made, never a seeded approval', () => {
+    render(
+      <ResultsTab {...defaultRunProps}
+        controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 4 }, attempt, {
+          available: true, isTouched: () => false,
+          decisions: [{ resultPath: ['records', 0, 'items', 0, 'sku'], evidenceAnchorId: 'a_p1_s3_r3_c2', reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null }],
+        })}
+        schemaReady documentMarkdown="# Source" sourceDocumentName="viega.pdf"
+        exportSchema={{ recordDescription: 'A list.', schemaNodes: [{ id: 'publisher', name: 'publisher', type: 'string' }] }} onSelectEvidence={() => {}} />,
+    )
+    expect(within(screen.getByRole('region', { name: 'Completion' })).getByText(/^Review: 0 decisions pending/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+    const { provenance } = vi.mocked(exportExtractionResult).mock.calls[0]![1]
+    expect(new Map(provenance!.identity).get('Decisions')).toBe(0)
+    const sku = provenance!.claims.find(({ path }) => JSON.stringify(path) === JSON.stringify(['items', 0, 'sku']))
+    expect(sku).toMatchObject({ outcome: 'supported' })
+    expect(sku).not.toHaveProperty('decision')
+  })
+
+  it('with several records, names each claim\'s record apart from its field path', async () => {
+    const records: ExtractionAttempt = {
+      ...articleAttempt,
+      resultPayload: { records: [{ place: 'Oslo' }, { place: 'Bergen' }] },
+      evidenceLinks: [{ resultPath: ['records', 1, 'place'], evidenceAnchorId: 'a_p2_s1' }],
+      diagnostics: { ...articleAttempt.diagnostics!, grounding: {
+        groundedPaths: [['records', 1, 'place']], ungroundedPaths: [['records', 0, 'place']], issueCodes: [], batches: [],
+        claims: { claims: 2, excluded: 0, eligible: 2, supported: 1, unsupported: 1, notCompleted: 0, reasons: {}, excludedPolicies: {}, unfinished: [] },
+      } },
+    }
+    render(
+      <ResultsTab {...defaultRunProps}
+        controller={controller({ status: 'ready', result: records.resultPayload!, evidenceLinks: records.evidenceLinks!, ungroundedCount: 1 }, records)}
+        schemaReady documentMarkdown="# Source" sourceDocumentName="places.pdf"
+        exportSchema={{ recordDescription: 'A place.', schemaNodes: [{ id: 'place', name: 'place', type: 'string' }] }} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }))
+
+    const { provenance } = vi.mocked(exportExtractionResult).mock.calls[0]![1]
+    expect(provenance!.claims).toEqual([
+      { record: 0, path: ['place'], extracted: 'Oslo', outcome: 'unsupported', reasons: [] },
+      { record: 1, path: ['place'], extracted: 'Bergen', outcome: 'supported', linkedBy: 'verifier', reasons: [], anchorId: 'a_p2_s1' },
+    ])
+    expect(new Map(provenance!.identity).get('Document-level fields (not verified)')).toBe('None')
+  })
+
+  describe('a value a rule linked, not the verifier', () => {
+    const ruled: ExtractionAttempt = {
+      ...articleAttempt,
+      resultPayload: { records: [{ title: 'Price list', publisher: 'Viega' }] },
+      evidenceLinks: [
+        { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'a_p1_s1', precision: 'segment' },
+        { resultPath: ['records', 0, 'publisher'], evidenceAnchorId: 'a_p1_s2', precision: 'segment', linkedBy: 'lexical' },
+      ],
+    }
+    const accounted: ExtractionAttempt = { ...ruled, diagnostics: { ...ruled.diagnostics!, grounding: {
+      groundedPaths: [['records', 0, 'title'], ['records', 0, 'publisher']], ungroundedPaths: [], issueCodes: [], batches: [],
+      claims: { claims: 2, excluded: 0, eligible: 2, supported: 2, unsupported: 0, notCompleted: 0, reasons: {}, excludedPolicies: {}, unfinished: [] },
+    } } }
+    const summary = (label: string) =>
+      [...document.querySelectorAll('span')].find((element) => element.textContent?.startsWith(`${label}:`))?.textContent
+    const renderRuled = (shown: ExtractionAttempt) => render(
+      <ResultsTab {...defaultRunProps}
+        controller={controller({ status: 'ready', result: shown.resultPayload!, evidenceLinks: shown.evidenceLinks!, ungroundedCount: 0 }, shown)}
+        schemaReady documentMarkdown="# Source" sourceDocumentName="ruled.pdf" onSelectEvidence={() => {}}
+        exportSchema={{ recordDescription: 'A list.', schemaNodes: [{ id: 'title', name: 'title', type: 'string' }, { id: 'publisher', name: 'publisher', type: 'string' }] }} />,
+    )
+
+    it('counts verifier links and rule links apart, in the pills and the Completion line', () => {
+      renderRuled(accounted)
+      expect(summary('Verifier-supported')).toBe('Verifier-supported: 1')
+      expect(summary('Rule-linked')).toBe('Rule-linked: 1')
+      expect(within(screen.getByRole('region', { name: 'Completion' })).getByText(
+        'Evidence checks: 1 verifier-supported · 1 linked by rule · 0 unsupported · 0 not completed · 0 excluded by policy (2 claims)')).toBeInTheDocument()
+    })
+
+    it('without a claim accounting, still counts each link by who made it', () => {
+      renderRuled(ruled)
+      expect(summary('Verifier-supported')).toBe('Verifier-supported: 1')
+      expect(summary('Rule-linked')).toBe('Rule-linked: 1')
+    })
+
+    it('never calls the rule-linked value verifier-supported beside it', () => {
+      renderRuled(accounted)
+      const tree = within(screen.getByRole('tabpanel', { name: 'Review' }))
+      expect(tree.getAllByText(/^Verifier-supported/)).toHaveLength(1)
+      expect(tree.getByText('Linked by rule; no verifier checked it · Located to the source block')).toBeInTheDocument()
+    })
+
+    it('hands the export the rule-linked claim as rule-linked', () => {
+      renderRuled(accounted)
+      fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+      const { provenance } = vi.mocked(exportExtractionResult).mock.calls[0]![1]
+      expect(provenance!.claims.map(({ path, linkedBy }) => [path, linkedBy])).toEqual(expect.arrayContaining([[['title'], 'verifier'], [['publisher'], 'rule']]))
+      const identity = new Map(provenance!.identity)
+      expect([identity.get('Verifier-supported'), identity.get('Linked by rule')]).toEqual([1, 1])
+    })
+  })
+
+  it('a complete Extraction still names record recall unmeasured in the Extraction sheet', () => {
+    const complete: ExtractionAttempt = { ...attempt, complete: true }
+    render(
+      <ResultsTab {...defaultRunProps}
+        controller={controller({ status: 'ready', result: complete.resultPayload!, evidenceLinks: complete.evidenceLinks!, ungroundedCount: 4 }, complete)}
+        schemaReady documentMarkdown="# Source" sourceDocumentName="viega.pdf"
+        exportSchema={{ recordDescription: 'A list.', schemaNodes: [{ id: 'publisher', name: 'publisher', type: 'string' }] }} onSelectEvidence={() => {}} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+    const { provenance } = vi.mocked(exportExtractionResult).mock.calls[0]![1]
+    expect(new Map(provenance!.identity).get('Extraction complete')).toBe('Yes (record recall unmeasured)')
+  })
+
+  it('a saved review with unfinished checks never reads as fully verified', () => {
+    renderReady(true)
+    expect(screen.getByText('Review saved', { exact: true })).toBeInTheDocument()
+    expect(screen.getByText(/4 values without evidence were not reviewed; 2 checks never completed/)).toBeInTheDocument()
+  })
 })

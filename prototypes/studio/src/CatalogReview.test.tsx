@@ -57,3 +57,11 @@ it('shows an entry the supplied source ends inside as settled, apart from entrie
 it('reads diagnostics settled before entries cut by the source end were reported', () => {
   expect(unifiedDiagnosticsSchema.parse(unified).sourceEndEntries).toBeUndefined()
 })
+
+it('says a fully linked Catalog is verifier-supported, never verified', () => {
+  const linked = unifiedDiagnosticsSchema.parse({ ...unified, completeness: { ...unified.completeness, evidence: true } })
+  render(<CatalogReview unified={linked} />)
+  const review = screen.getByRole('region', { name: 'Catalog review' })
+  expect(review).toHaveTextContent('Every accepted value was verifier-supported.')
+  expect(review).not.toHaveTextContent(/was verified/)
+})

@@ -255,13 +255,23 @@ describe('extractionAttemptDto', () => {
       quote: 'Ålpha 🜁', attribution: 'model_attested' }]
     const dto = extractionAttemptDto({
       ...attemptSnapshot, requestedSettings: { article: null },
-      diagnostics: { ...snapshot.diagnostics!, effectiveMethod, eligibility, support },
+      // The service lists a policy-skipped path among the ungrounded ones.
+      diagnostics: { ...snapshot.diagnostics!, ungroundedPaths: [['records', 0, 'year']], effectiveMethod, eligibility, support },
     })
     const wire = extractionAttemptSchema.parse(JSON.parse(JSON.stringify(dto)))
     expect(wire.requestedSettings).toEqual({ article: null })
     expect(wire.diagnostics?.effectiveMethod).toEqual(effectiveMethod)
     expect(wire.diagnostics?.eligibility).toEqual(eligibility)
     expect(wire.diagnostics?.support).toEqual(support)
+  })
+
+  it('ignores a policy-skipped path outside the claim set instead of failing the read', async () => {
+    const { extractionAttemptDto } = await import('./_extractions.js')
+    const eligibility = { allRecordLeaves: 2, eligibleRecordLeaves: 1, eligibleGrounding: 'complete' as const,
+      skipped: [{ resultPath: ['records', 0, 'year'], policy: 'derived' as const }] }
+    const read = () => extractionAttemptDto({ ...attemptSnapshot, diagnostics: { ...snapshot.diagnostics!, eligibility } })
+    expect(read).not.toThrow()
+    expect(read().diagnostics?.grounding?.claims).toMatchObject({ claims: 1, excluded: 0, eligible: 1, supported: 1, unsupported: 0 })
   })
 
   it('a failed attempt keeps its admitted settings and has no effective method; a historical one reads Not recorded', async () => {
@@ -321,5 +331,47 @@ describe('extractionAttemptDto', () => {
     expect(dto.diagnostics?.grounding?.issueCodes).toEqual(['conflicting_values', 'conflicting_document_values'])
     const malformed = stored([{ code: 'conflicting_values', detail: '{', record: 0, path: null }])
     expect(malformed.diagnostics).not.toHaveProperty('contested')
+  })
+
+  it('derives the claim accounting from the stored evidence, ungrounded paths and issues', async () => {
+    const { extractionAttemptDto } = await import('./_extractions.js')
+    const dto = extractionAttemptDto({
+      ...attemptSnapshot,
+      result: { records: [{ title: 'Alpha', year: 1901, scale: 2 }] },
+      evidence: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-alpha' }],
+      diagnostics: {
+        ...attemptSnapshot.diagnostics!,
+        ungroundedPaths: [['records', 0, 'year'], ['records', 0, 'scale']],
+        groundingIssues: [
+          { code: 'grounding_exceeds_budget', detail: 'too big', record: 0, path: ['records', 0, 'year'] },
+          { code: 'grounding_exceeds_budget', detail: 'too big again', record: 0, path: ['records', 0, 'year'] },
+        ],
+      },
+    })
+    expect(dto.diagnostics?.grounding?.claims).toEqual({
+      claims: 3, excluded: 0, eligible: 3, supported: 1, unsupported: 1, notCompleted: 1,
+      reasons: { grounding_exceeds_budget: 1 }, excludedPolicies: {},
+      unfinished: [{ resultPath: ['records', 0, 'year'], reasons: ['grounding_exceeds_budget'] }],
+    })
+  })
+
+  it('a generic Catalog attempt whose record-level call failed without a path reports that record\'s ungrounded claims not completed', async () => {
+    const { extractionAttemptDto } = await import('./_extractions.js')
+    const dto = extractionAttemptDto({
+      ...attemptSnapshot,
+      strategy: 'CATALOG',
+      result: { records: [{ title: 'Alpha', year: 1901, scale: 2 }] },
+      evidence: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-alpha' }],
+      diagnostics: {
+        ...attemptSnapshot.diagnostics!,
+        ungroundedPaths: [['records', 0, 'year'], ['records', 0, 'scale']],
+        groundingIssues: [{ code: 'call_failed', detail: 'the grounding call failed', record: 0 }],
+        catalog: null,
+      },
+    })
+    const claims = dto.diagnostics?.grounding?.claims
+    expect(claims?.notCompleted).toBe(2)
+    expect(claims?.unsupported).toBe(0)
+    expect(claims?.reasons).toEqual({ call_failed_unattributed: 2 })
   })
 })
