@@ -597,14 +597,34 @@ An Extraction in flight at the upgrade runs the scope that its admitted
 strategy names (`recordScopeOf(admitted.strategy)` in
 `packages/extraction/src/workflows.ts`); a pinned revision that declares
 another scope fails it with `invalid_extraction_pins`. The backfill counts
-that Extraction, so it never gives its revision the other scope. A resumed Article Extraction is now held to exactly one root record,
-by Studio and by the Parsing Service. Drain before you upgrade so that no
-earlier run is judged by that rule.
+that Extraction, so it never gives its revision the other scope. A resumed
+Article Extraction is now held to exactly one root record, by Studio and by
+the Parsing Service.
+
+Drain before you upgrade, so that no run resumes across it. An Extraction
+the previous Studio had already handed to the Parsing Service ran on a
+request whose schema has no `recordScope`. The upgraded Studio recomputes the
+request, which now names the scope, and compares it with the artifact's
+schema echo; they differ, and the Extraction fails with
+`invalid_model_output` ("kei-exp returned an artifact for different
+extraction inputs"). A drained upgrade also judges no earlier run by the
+one-root rule.
+
+Deploy Studio and the Parsing Service together, from one commit, as
+`node scripts/free.mjs production` does. Studio now sends `recordScope` in
+every extraction request's schema, and a Parsing Service from before this
+change refuses it (its schema forbids unknown fields), failing every new
+Extraction.
 
 1. **Drain.** Close researcher access by stopping `nginx` (with the bundled
    proxy) or the host route, and leave `studio` and `parsing_worker` running.
    Wait until this query returns no rows:
-   `SELECT 'dbos', status, count(*) FROM dbos.workflow_status WHERE queue_name IN ('studio', 'suggest') AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') GROUP BY 2 UNION ALL SELECT 'kei_dbos', status, count(*) FROM kei_dbos.workflow_status WHERE queue_name <> 'kei-gc' AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') GROUP BY 2`.
+   `SELECT 'dbos', status, count(*) FROM dbos.workflow_status WHERE queue_name IS DISTINCT FROM 'gc' AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') GROUP BY 2 UNION ALL SELECT 'kei_dbos', status, count(*) FROM kei_dbos.workflow_status WHERE queue_name IS DISTINCT FROM 'kei-gc' AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') GROUP BY 2`.
+   It leaves out only garbage collection (`gc`, `kei-gc`). A workflow
+   started outside a queue (a child workflow) has no `queue_name`, and one
+   DBOS recovered or an operator resumed may sit on `_dbos_internal_queue`:
+   `IS DISTINCT FROM` counts both, where `IN (...)` or `<>` would skip a
+   `NULL` queue.
 2. **Back up.** Stop `studio` and `parsing_worker`, then take the backup set
    from [Back up and restore](#back-up-and-restore). Keep the previous image
    tags, or the previous commit, so you can rebuild them.
