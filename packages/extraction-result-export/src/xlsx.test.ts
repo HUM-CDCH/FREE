@@ -117,3 +117,32 @@ test("a companion without rows adds no sheet", async () => {
   const files = await workbookFiles(table, [{ sheet: "Evidence", table: buildEvidenceTable([]) }]);
   assert.deepEqual([...files["xl/workbook.xml"]!.matchAll(/<sheet\b[^>]*name="([^"]+)"/g)].map((match) => match[1]), ["Results"]);
 });
+
+test("a price list's thousands of claims build an Evidence sheet past the zip writer's worker threshold, in result order", async () => {
+  // A Viega-sized Article: 1 record, 600 items of 5 fields, shuffled as a Map of claims would give them.
+  const fields = ["article", "description", "dimension", "pack_qty", "price"];
+  const claims = Array.from({ length: 600 }, (_, item) => fields.map((field, index) => ({
+    path: ["items", item, field] as const,
+    extracted: index === 3 ? item % 50 : `${field} of item ${item + 1}: Profipress G 22 mm`,
+    ...(item % 3 === 0 ? { decision: "APPROVED" as const } : {}),
+    outcome: item % 97 === 0 ? "not_completed" as const : "supported" as const,
+    ...(item % 97 === 0 ? { reasons: ["grounding_exceeds_budget"] } : { anchorId: `a_p${1 + item % 5}_s${item}`, page: 1 + item % 5, precision: "segment" as const, verbatim: true, lexicalHits: 1 }),
+  }))).flat().reverse();
+  const started = performance.now();
+  const evidence = buildEvidenceTable(claims);
+  const files = await workbookFiles({ columns: ["title"], rows: [{ title: "Price list" }] }, [
+    { sheet: "Extraction", table: buildExtractionTable([["Claims", claims.length]]) },
+    { sheet: "Evidence", table: evidence },
+  ]);
+  // Generous: the real 1,105-claim Viega workbook builds in well under 100 ms; this guards only against blow-up.
+  assert.ok(performance.now() - started < 10_000, `built in ${performance.now() - started} ms`);
+
+  assert.equal(evidence.rows.length, 3000);
+  assert.deepEqual(evidence.rows.slice(0, 6).map((row) => row.Field),
+    ["items[1].article", "items[1].description", "items[1].dimension", "items[1].pack_qty", "items[1].price", "items[2].article"]);
+  assert.equal(evidence.rows.at(-1)!.Field, "items[600].price");
+  // fflate deflates a part of 160,000 bytes or more in a Blob-URL Worker: Studio's Content-Security-Policy must allow
+  // `worker-src blob:` (prototypes/studio/server/contentSecurityPolicy.ts) or such an export never finishes.
+  assert.ok(new TextEncoder().encode(files["xl/worksheets/sheet3.xml"]!).length >= 160_000);
+  assert.equal(files["xl/worksheets/sheet3.xml"]!.match(/<row\b/g)?.length, 3001);
+});

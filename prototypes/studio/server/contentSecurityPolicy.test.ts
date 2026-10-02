@@ -19,7 +19,8 @@ describe('app shell Content-Security-Policy', () => {
   it("the app shell loads script and pdf.js's worker only from Studio and refuses inline script and framing", () => {
     const policy = directives(APP_SHELL_CONTENT_SECURITY_POLICY)
     expect(policy.get('script-src')).toEqual(["'self'"])
-    expect(policy.get('worker-src')).toEqual(["'self'"])
+    // `blob:`: the Excel export's zip writer deflates a large workbook part in a Blob-URL Worker (contentSecurityPolicy.ts).
+    expect(policy.get('worker-src')).toEqual(["'self'", 'blob:'])
     expect(policy.get('frame-ancestors')).toEqual(["'none'"])
     expect(policy.get('object-src')).toEqual(["'none'"])
     for (const source of policy.get('script-src') ?? []) {
