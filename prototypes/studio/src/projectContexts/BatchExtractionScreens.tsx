@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import type { SchemaDefinition } from 'extraction/schema'
 import type {
   ExportChoices,
@@ -247,6 +247,7 @@ export function BatchExtractionMembers({
   coverageMessage,
   opening,
   canRunAgain,
+  runAgainRefusal,
   runAgainMethod,
   documentName,
   onExport,
@@ -263,6 +264,8 @@ export function BatchExtractionMembers({
   opening: boolean
   /** Run again submits the account's saved method, so it waits until that has been read. */
   canRunAgain: boolean
+  /** Why this batch's Schema Revision cannot run again (no longer current, or its scope is not the batch's strategy). */
+  runAgainRefusal: string | null
   /** The saved method Run again submits, with its loading, error and stale-settings refusal. */
   runAgainMethod: ReactNode
   documentName(sourceDocumentId: string): string
@@ -273,6 +276,7 @@ export function BatchExtractionMembers({
   onOpenMember(sourceDocumentId: string, extractionId: string): void
 }) {
   const status = batchStatus(batch)
+  const runAgainRefusalId = useId()
   return (
     <>
       <div className="mb-5 flex flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -308,7 +312,8 @@ export function BatchExtractionMembers({
           <Button
             size="sm"
             variant="secondary"
-            disabled={opening || !canRunAgain}
+            disabled={opening || !canRunAgain || runAgainRefusal !== null}
+            aria-describedby={runAgainRefusal ? runAgainRefusalId : undefined}
             onClick={onRunAgain}
           >
             <RerunIcon />
@@ -316,6 +321,11 @@ export function BatchExtractionMembers({
           </Button>
         </div>
       </div>
+      {runAgainRefusal && (
+        <p id={runAgainRefusalId} className="mb-4 text-[11.5px] leading-snug text-ink-muted">
+          {runAgainRefusal}
+        </p>
+      )}
       <div className="mb-4">{runAgainMethod}</div>
       {pinnedSchemaFailure && (
         <div className="mb-4 flex flex-wrap items-center gap-3">

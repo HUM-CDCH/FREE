@@ -2,6 +2,7 @@ import type { FieldEdit, ProposedSchemaEdit, SchemaAddition, SchemaEditIssue } f
 import {
   enumerateFieldPaths,
   mkId,
+  type RecordScope,
   type SchemaDefinition,
   type SchemaNode,
 } from 'extraction/schema'
@@ -47,11 +48,19 @@ function nodePositions(nodes: readonly SchemaNode[]): Map<string, NodePosition> 
   return positions
 }
 
+type SummarizedDefinition = SchemaDefinition & { recordScope?: RecordScope | null }
+
+const SCOPE_LABEL: Record<RecordScope, string> = { document: 'Article', records: 'Catalog' }
+
 export function summarizeSchemaRevision(
-  previous: SchemaDefinition | null,
-  current: SchemaDefinition,
+  previous: SummarizedDefinition | null,
+  current: SummarizedDefinition,
 ): string {
   if (!previous) return 'Initial schema'
+  // A revision that declares a scope its predecessor did not (or another one) is an explicit Article/Catalog choice.
+  const scope = current.recordScope && current.recordScope !== (previous.recordScope ?? null)
+    ? `Saved as ${SCOPE_LABEL[current.recordScope]}`
+    : null
   const before = nodePositions(previous.schemaNodes)
   const after = nodePositions(current.schemaNodes)
   const counts = {
@@ -90,10 +99,10 @@ export function summarizeSchemaRevision(
     [counts.policyChanged, `evidence ${counts.policyChanged === 1 ? 'policy' : 'policies'} updated`],
     [counts.moved, 'moved'],
   ] as const
-  return parts
-    .filter(([count]) => count > 0)
-    .map(([count, label]) => `${count} ${label}`)
-    .join(', ') || 'No structural changes'
+  return [
+    ...(scope ? [scope] : []),
+    ...parts.filter(([count]) => count > 0).map(([count, label]) => `${count} ${label}`),
+  ].join(', ') || 'No structural changes'
 }
 
 export function toggleAcceptedSchemaChange(

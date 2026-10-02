@@ -3,7 +3,7 @@ from dataclasses import replace
 
 import pytest
 
-from kei_exp.kie.extract import run
+from kei_exp.kie.extract import article, run
 from kei_exp.kie.extract.contexts import Context, reconcile_values
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
@@ -144,15 +144,12 @@ def test_assembled_routing_changes_only_grounding_and_publishes_origin_paths(mon
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
     monkeypatch.setattr("kei_exp.kie.extract.article.source_contexts", lambda *_: contexts)
     monkeypatch.setattr("kei_exp.kie.extract.article.partition", lambda *_args, **_kwargs: contexts)
-    def reason(system, user, schema):
-        if "records" in schema["properties"]:
-            offered = schema["properties"]["records"]["items"]["properties"]["passages"]["items"]["enum"]
-            return {"records": [{"label": "Hill", "identity": {"site": "Hill"}, "passages": offered}]}
+    def reason(system, user, schema):  # grounding only: the document root takes no inventory
         return {claim: {"label": prop["properties"]["label"]["enum"][0], "attribution": True}
                 for claim, prop in schema["properties"].items()}
     results, requests = [], []
     for routing in (None, "origin_lexical"):
-        values = CountingChat(lambda s, u, schema: {"year": 1827 if "1827" in u else None})
+        values = CountingChat(lambda s, u, schema: {"site": "Hill", "year": 1827 if "1827" in u else None})
         reasoning = CountingChat(reason)
         request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
             "context": "bounded", "identity": "conservative", "identity_fields": ["site"],
@@ -163,10 +160,25 @@ def test_assembled_routing_changes_only_grounding_and_publishes_origin_paths(mon
     plain, routed = results
     assert requests[0] == requests[1] and plain["records"] == routed["records"]
     assert plain["fingerprint"] != routed["fingerprint"] and "value_origins" not in plain
-    assert routed["grounding_routing_version"] == 1
-    assert routed["value_origins"][1] == {"path": ["records", 0, "year"], "kind": "value",
-        "sources": [{"unit": 1, "path": ["year"]}]}
+    assert routed["grounding_routing_version"] == 2
+    assert routed["value_origins"] == [
+        {"path": ["records", 0, "site"], "kind": "value", "sources": [{"unit": 0, "path": ["site"]},
+                                                                      {"unit": 1, "path": ["site"]}]},
+        {"path": ["records", 0, "year"], "kind": "value", "sources": [{"unit": 1, "path": ["year"]}]}]
     assert routed["grounding_routes"][1]["attempted"] == [1]
+
+
+@pytest.mark.parametrize("routing", [None, "origin_lexical"])
+def test_the_retired_routing_setting_never_refuses_an_untraceable_article_value(monkeypatch, routing):
+    """`grounding_routing` is retired for Article, which routes every claim to where it was read anyway: a root value
+    no reply returned as such has no origin and is routed by value match and relevance, never refused."""
+    conformed = article.conform
+    monkeypatch.setattr(article, "conform", lambda value, nodes: {**conformed(value, nodes), "entry_no": "31"})
+    found = article.document_root(passages(["Hill 1827"]), SCHEMA, CountingChat(lambda *_: {"site": "Hill"}),
+        counters={role: WordCounter() for role in ("fields", "reasoning")}, record_chars=24_000, check=lambda: None,
+        method=ArticleOptions(grounding="spans", grounding_schedule="unresolved", grounding_routing=routing))
+    assert found.origins[0] == [{"path": ["entry_no"], "kind": "value", "sources": []},
+                                {"path": ["site"], "kind": "value", "sources": [{"unit": 0, "path": ["site"]}]}]
 
 
 @pytest.mark.parametrize("settings", [{"grounding": "off"}, {"grounding": "spans"},

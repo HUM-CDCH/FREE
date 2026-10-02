@@ -21,7 +21,7 @@ from dataclasses import asdict, dataclass, field, replace
 from kei_exp.canonical import canonical_json
 from kei_exp.kie.extract import grounding
 from kei_exp.kie.extract.calls import Call
-from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, reconcile_values
+from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, assemble_document, sharing
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.routing import VERSION as GROUNDING_ROUTING_VERSION, verify_routed
@@ -38,6 +38,20 @@ EXTRACTION_VERSION = 1
 # 14: Catalog discovery examples are domain-neutral structure, not from the development corpus.
 # 15: every grounding batch shows the record's fields, so a claim split from its record's name keeps its record.
 PROMPT_VERSION = 15
+# Article's own version, pinned in its fingerprint and artifact beside the shared PROMPT_VERSION (which the version 1
+# Catalog's frozen artifact also carries). 2: document scope, one root and no identity inventory; its prompt is
+# `stages.DOCUMENT`; arrays are assembled across value contexts without deduplication. 3: document-level fields are
+# assembled as the root is (`contexts.assemble_document`), and an equal item that contexts sharing an overlap passage
+# both returned is joined once. 4: grounding shows each claim with the scalar fields of the objects enclosing it, not
+# the whole root, budgets its reply, and checks every claim in the source context its value was read from first
+# (`routing.verify_routed`, exhaustive fallback, stopping at support); `grounding` accounts for every claim. An equal
+# item two contexts returned is joined only when their shared source prints it as exactly one occurrence. 5: a list
+# item's claim is offered the table cells of its own row (printing its item's most distinctive other value) when
+# its value is printed in many rows. 6: a claim's contexts are ranked with its enclosing object's other values too
+# (`routing.VERSION` 2), so without an origin the context printing its own item is checked first. 7: the root's reply
+# may use the served context its input leaves (a bounded context keeps as many reply tokens as its request counts),
+# and an Article no value context answered fails rather than publishing an all-null root (`article.RootUnanswered`).
+ARTICLE_VERSION = 7
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
@@ -46,6 +60,7 @@ def fingerprint(result: dict, request, model: dict) -> str:
         "generation": result["generation"], "digest": result["digest"],
         "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),
         "options": request.options.dumped(), "model": model, "prompt_version": PROMPT_VERSION,
+        **({"article_version": ARTICLE_VERSION} if request.options.strategy == "article" else {}),
         **({"method_version": 1} if request.options.article is not None else {}),
         **({"rendering_version": RENDERING_VERSION} if request.options.article is not None
            and request.options.article.rendering is not None else {}),
@@ -69,8 +84,11 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
                     ) -> tuple[dict, list[dict], list[Call], list[Issue]]:
     """The document-level fields read in each context and reconciled across them, the conflicts, calls and issues.
 
-    `check` runs before each context's call when the schema has document-level fields. A scalar the contexts disagree
-    on is null, with its conflict and a `conflicting_document_values` issue."""
+    `check` runs before each context's call when the schema has document-level fields. Several contexts' answers are
+    assembled by `contexts.assemble_document`, as Article's root is: every list occurrence kept, an equal item that
+    contexts sharing an overlap passage both returned joined once (`overlap_items_joined`), equal items from other
+    contexts named (`possible_repeated_items`). A scalar the contexts disagree on is null, with its conflict and a
+    `conflicting_document_values` issue."""
     documents: list[dict] = []
     calls: list[Call] = []
     issues: list[Issue] = []
@@ -82,9 +100,14 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
         documents.append(document)
         calls += document_calls
         issues += document_issues
-    document, conflicts = reconcile_values(documents) if len(documents) > 1 else (documents[0], [])
+    document, conflicts, repeats, joined = (assemble_document(documents, sharing(contexts)) if len(documents) > 1
+                                            else (documents[0], [], [], []))
     issues += [Issue("conflicting_document_values", json.dumps(conflict, ensure_ascii=False))
                for conflict in conflicts]
+    issues += [Issue("possible_repeated_items", json.dumps(repeat, ensure_ascii=False), None, tuple(repeat["path"]))
+               for repeat in repeats]
+    issues += [Issue("overlap_items_joined", json.dumps(join, ensure_ascii=False), None, tuple(join["path"]))
+               for join in joined]
     return document, conflicts, calls, issues
 
 
@@ -102,11 +125,14 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
                    check: Callable[[], None], budget: int, counter=None,
                    method: ArticleOptions | None = None, identities: Sequence[dict] | None = None,
                    contexts: Sequence[Context] = (), value_contexts: Sequence[Sequence[Context]] = (),
-                   origins: Sequence[Sequence[dict]] = ()) -> GroundingResult:
+                   origins: Sequence[Sequence[dict]] = (), resume: frozenset = frozenset()) -> GroundingResult:
     """Keep input values fixed while evaluating support; hints never create evidence.
 
-    Article supplies identities and complete source contexts. Generic Catalog uses
-    the owned passages in each slice. Neither path extracts or reconciles values here.
+    Article supplies identities and complete source contexts; each claim is routed to the context its value was read
+    from first (`routing.verify_routed`: exhaustive fallback, stopping at support) and shown with its enclosing items'
+    fields rather than the whole root (`grounding.verify`'s `projected`). Generic Catalog uses the owned passages in
+    each slice. Neither path extracts or reconciles values here. `resume` names paths an earlier grounding of the same
+    values already supported: they are not checked again.
     """
     result = GroundingResult()
     verifier = grounding.technique(method.grounding if method is not None else None)
@@ -127,10 +153,10 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
             record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
                 ensure_ascii=False)) if identities is not None else None,
             before_call=check, proofs=result.proofs)
-        if method is not None and method.grounding_routing is not None:
+        if identities is not None:
             links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
                 origins=origins[number], value_contexts=value_contexts[number],
-                skip_paths=frozenset(skipped_paths), verifier=verifier, **verification)
+                skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True, **verification)
             result.links += links
             result.calls += calls
             result.issues += issues
@@ -146,6 +172,36 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
             result.calls += calls
             result.issues += issues
     return result
+
+
+# A claim not supported, whose check did not complete in some context it was routed to.
+_UNFINISHED = {"grounding_exceeds_budget", "call_failed", "missing_claim", "unknown_label", "no_evidence"}
+
+
+def grounding_accounting(claims: set[tuple], linked: set[tuple], issues: Sequence[Issue], *,
+                         excluded: dict[tuple, str] | None = None, disabled: bool = False) -> dict:
+    """Every claim (populated leaf) once: excluded by an evidence policy (counted apart, by policy), or eligible and
+    then supported (linked), not completed (some routed check never finished: its distinct reasons, one count per
+    claim) or unsupported (every check finished and none supported it). A disabled grounding completes nothing."""
+    excluded = excluded or {}
+    eligible = claims - excluded.keys()
+    supported = linked & eligible
+    reasons: dict[tuple, set[str]] = {}
+    for issue in issues:
+        if issue.path in eligible - supported and issue.code in _UNFINISHED:
+            reasons.setdefault(issue.path, set()).add(issue.code)
+    if disabled:
+        reasons = {path: {"grounding_disabled"} for path in eligible}
+    counted: dict[str, int] = {}
+    for codes in reasons.values():
+        for code in codes:
+            counted[code] = counted.get(code, 0) + 1
+    policies: dict[str, int] = {}
+    for policy in excluded.values():
+        policies[policy] = policies.get(policy, 0) + 1
+    return {"claims": len(claims), "excluded": len(excluded), "eligible": len(eligible), "supported": len(supported),
+            "unsupported": len(eligible) - len(supported) - len(reasons), "not_completed": len(reasons),
+            "reasons": dict(sorted(counted.items())), "excluded_policies": dict(sorted(policies.items()))}
 
 
 def artifact(evidence: Evidence, request, chat: Router, *, started: str, clock: float, fields: Sequence[dict],

@@ -18,6 +18,7 @@ import type {
   SettledExtraction,
 } from './workflows.js'
 import type { ExtractionStrategy } from './types.js'
+import type { RecordScope } from './schema.js'
 
 /**
  * The one terminal write of an Extraction. The no-outcome predicate lives in the UPDATE (updateAll keeps its guards;
@@ -80,7 +81,8 @@ export function createExtractionStore(
       const revision = await orm.public.SourceRepresentationRevision.select('preprocessId').first({
         id: row.sourceRepresentationRevisionId, sourceDocumentId: row.sourceDocumentId,
       })
-      const schema = await orm.public.SchemaRevision.select('extractionSchemaId', 'schemaTree').first({ id: row.schemaRevisionId })
+      const schema = await orm.public.SchemaRevision.select('extractionSchemaId', 'schemaTree', 'recordScope')
+        .first({ id: row.schemaRevisionId })
       if (!document || !project || !revision || !schema) return null
       return {
         extractionId: row.id,
@@ -99,6 +101,9 @@ export function createExtractionStore(
         batchExtractionId: row.batchExtractionId,
         preprocessId: revision.preprocessId,
         schemaTree: schema.schemaTree,
+        // Raw: the request built from it compares it with the admitted strategy, so a stored value that names another
+        // scope fails its Extraction, not this step.
+        recordScope: schema.recordScope as RecordScope | null,
       }
     },
     async readPinnedDocument(sourceRepresentationRevisionId) {

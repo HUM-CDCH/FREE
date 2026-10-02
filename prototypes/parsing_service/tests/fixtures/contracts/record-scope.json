@@ -1,0 +1,32 @@
+{
+  "description": "The task scope of a saved extraction definition. Article means one document-level object (which may contain arrays); Catalog means a collection of record objects (each of which may contain arrays). The definition's recordScope is authoritative; Article/Catalog is its only user-facing selection. Studio (packages/extraction) and the Parsing Service (kei_exp.kie.extract) both test against this file.",
+  "scopes": ["document", "records"],
+  "strategies": {"ARTICLE": "document", "CATALOG": "records"},
+  "service_strategies": {"article": "document", "catalog": "records"},
+  "admission_refusals": {
+    "record_scope_required": {"status": 409, "when": "the Schema Revision declares no recordScope (a legacy definition whose task selection was ambiguous)"},
+    "record_scope_mismatch": {"status": 409, "when": "the requested strategy is not the Schema Revision's recordScope"}
+  },
+  "cardinality": {
+    "document": {"min": 1, "max": 1},
+    "records": {"min": 0, "max": null}
+  },
+  "violation": {"code": "extraction_failed", "reason_prefix": "record_scope_violation:"},
+  "requests": [
+    {"recordScope": "document", "options": {"strategy": "article"}, "valid": true},
+    {"recordScope": "document", "options": {"strategy": "catalog"}, "valid": false},
+    {"recordScope": "document", "options": {"strategy": "catalog", "unified": {"defaults": 1}}, "valid": false},
+    {"recordScope": "records", "options": {"strategy": "catalog"}, "valid": true},
+    {"recordScope": "records", "options": {"strategy": "catalog", "unified": {"defaults": 1}}, "valid": true},
+    {"recordScope": "records", "options": {"strategy": "article"}, "valid": false},
+    {"recordScope": null, "options": {"strategy": "article"}, "valid": true, "derived": "document"},
+    {"recordScope": null, "options": {"strategy": "catalog"}, "valid": true, "derived": "records"}
+  ],
+  "artifacts": [
+    {"recordScope": "document", "records": 1, "accepted": true},
+    {"recordScope": "document", "records": 0, "accepted": false},
+    {"recordScope": "document", "records": 2, "accepted": false},
+    {"recordScope": "records", "records": 0, "accepted": true},
+    {"recordScope": "records", "records": 3, "accepted": true}
+  ]
+}

@@ -34,7 +34,8 @@ def test_each_input_fixture_is_a_valid_request_for_a_known_queue(workflow):
 def test_the_extract_fixture_carries_a_request_kei_accepts():
     body = fixture("extract.input")["request"]["request"]
     request = ExtractRequest.model_validate(body)
-    assert body["schema"] == SCHEMA
+    assert body["schema"] == {**SCHEMA, "recordScope": "records"}  # Studio sends the revision's declared scope
+    assert request.record_scope == "records"
     assert [node.name for node in request.schema_.nodes] == [node["name"] for node in SCHEMA["schemaNodes"]]
     assert request.options.strategy == "catalog"
     assert request.options.catalog is not None and request.options.catalog.recipe == "numbered-catalogue-de@1"

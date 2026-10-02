@@ -9,7 +9,7 @@ import { ExplainButton, GuideProvider, HowThisWorksButton } from './AdvancedGuid
 import { SECTION_TOPIC, type GuideTopicId } from './advancedGuide.data'
 import {
   ARTICLE_CHOICES, ARTICLE_SECTIONS, CATALOG_LABELS, CONTROL_HINTS, CONTROL_LABELS, changedSections, effectiveSummary,
-  unavailableReason, type AdvancedStrategy, type ArticleKey,
+  RETIRED_ARTICLE_KEYS, RETIRED_NOTE, unavailableReason, type AdvancedStrategy, type ArticleKey,
   type ArticleSection, type CatalogFactor, type NumberPath,
 } from './advancedSettings'
 import type { ProviderConfigDraft } from './useProviderConfigDraft'
@@ -164,7 +164,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, '
   const issueAt = (key: ArticleKey) => editor.settingsIssues.find((issue) => issue.path === `article.${key}`)?.message ?? null
   const choice = (key: keyof typeof ARTICLE_CHOICES) => (
     <ChoiceGroup key={key} settingKey={key} article={article} custom={custom} error={issueAt(key)}
-      onChange={(value) => editor.setArticle(key, value)} />
+      retired={RETIRED_ARTICLE_KEYS.has(key)} onChange={(value) => editor.setArticle(key, value)} />
   )
   const controls: Readonly<Record<ArticleSection, ReactNode[]>> = {
     context: [
@@ -177,7 +177,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }: Pick<Props, '
     identity: [
       choice('identity'),
       <IdentityFields key="identity_fields" fields={article.identity_fields} custom={custom} error={issueAt('identity_fields')}
-        add={editor.addIdentityField} remove={editor.removeIdentityField} />,
+        retired={RETIRED_ARTICLE_KEYS.has('identity_fields')} add={editor.addIdentityField} remove={editor.removeIdentityField} />,
     ],
     input: [choice('prompt'), choice('rendering')],
     evidence: [choice('grounding'), choice('evidence_policy'), choice('grounding_schedule'), choice('grounding_routing')],
@@ -225,28 +225,35 @@ function FieldError({ id, message }: { id: string; message: string | null }) {
   return <p id={id} aria-live="polite" className="text-[11px] font-semibold text-danger">{message}</p>
 }
 
-function ChoiceGroup<K extends keyof typeof ARTICLE_CHOICES>({ settingKey, article, custom, error, onChange }: {
-  settingKey: K; article: ArticleSettings; custom: boolean; error: string | null; onChange: (value: ArticleSettings[K] | undefined) => void
+/** A retired setting (`RETIRED_ARTICLE_KEYS`) shows its saved value read-only, unless that value breaks a rule another
+ *  choice brought in: then it stays changeable, or Apply could never succeed. Its reference choice is always open, so a
+ *  stale saved value (one admission still checks against the schema) can be cleared. */
+function ChoiceGroup<K extends keyof typeof ARTICLE_CHOICES>({ settingKey, article, custom, error, retired, onChange }: {
+  settingKey: K; article: ArticleSettings; custom: boolean; error: string | null; retired: boolean
+  onChange: (value: ArticleSettings[K] | undefined) => void
 }) {
   const id = useId()
+  const locked = retired && error === null
   // One key's choices; the cast only names the element type the `as const` table already has for this key.
   const options = ARTICLE_CHOICES[settingKey] as readonly Readonly<{ value: ArticleSettings[K] | undefined; label: string }>[]
   return (
     <fieldset className="flex min-w-0 flex-col gap-1">
       <legend className="text-[11px] font-semibold text-ink-muted">{CONTROL_LABELS[settingKey]}</legend>
       <p id={`${id}-hint`} className="text-[10.5px] text-ink-faint">{CONTROL_HINTS[settingKey]}</p>
+      {retired && <p id={`${id}-retired`} className="text-[10.5px] font-semibold text-ink-muted">{RETIRED_NOTE}</p>}
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {options.map((option, index) => {
           const selected = (article[settingKey] ?? undefined) === option.value
-          const reason = custom ? unavailableReason(article, settingKey, option.value) : null
+          const reference = option.value === (REFERENCE_ARTICLE[settingKey] ?? undefined)
+          const reason = custom && !locked ? unavailableReason(article, settingKey, option.value) : null
           return (
             // The reason sits beside the label, not in it: it describes the choice without renaming it.
             <span key={option.label} className="flex flex-wrap items-baseline gap-x-1.5">
               <label className="flex items-baseline gap-1.5 text-[12px] text-ink">
-                <input type="radio" name={id} checked={selected} disabled={reason !== null}
+                <input type="radio" name={id} checked={selected} disabled={reason !== null || (locked && !reference)}
                   data-setting={selected ? `article.${settingKey}` : undefined}
                   aria-invalid={selected && error ? true : undefined}
-                  aria-describedby={describedBy(`${id}-hint`, reason && `${id}-reason-${index}`, selected && error && `${id}-error`)}
+                  aria-describedby={describedBy(`${id}-hint`, retired && `${id}-retired`, reason && `${id}-reason-${index}`, selected && error && `${id}-error`)}
                   onChange={() => onChange(option.value)} />
                 {option.label}
               </label>
@@ -285,10 +292,14 @@ function NumberField({ path, label, hint, unit, value, edit, disabled, inactive 
   )
 }
 
-function IdentityFields({ fields, custom, error, add, remove }: {
-  fields: readonly string[]; custom: boolean; error: string | null; add: (text: string) => string | null; remove: (name: string) => void
+function IdentityFields({ fields, custom, error, retired, add, remove }: {
+  fields: readonly string[]; custom: boolean; error: string | null; retired: boolean
+  add: (text: string) => string | null; remove: (name: string) => void
 }) {
   const id = useId()
+  // Retired like `ChoiceGroup`: no name can be added unless the saved ones break a rule. A saved name can always be
+  // removed, since admission still refuses names the pinned schema lacks; clearing them unlocks Reconciliation.
+  const editable = custom && !(retired && error === null)
   const [text, setText] = useState('')
   const [refusal, setRefusal] = useState<string | null>(null)
   const [selectedField, setSelectedField] = useState('')
@@ -302,6 +313,7 @@ function IdentityFields({ fields, custom, error, add, remove }: {
     <fieldset className="flex min-w-0 flex-col gap-1">
       <legend className="text-[11px] font-semibold text-ink-muted">{CONTROL_LABELS.identity_fields}</legend>
       <p id={`${id}-hint`} className="text-[10.5px] text-ink-faint">{CONTROL_HINTS.identity_fields}</p>
+      {retired && <p id={`${id}-retired`} className="text-[10.5px] font-semibold text-ink-muted">{RETIRED_NOTE}</p>}
       {selected && <div className="flex min-w-0 items-center gap-2">
         <select aria-label="Declared identity fields" value={selected} onChange={(event) => setSelectedField(event.target.value)}
           className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2 py-1 font-mono text-[12px] text-ink">
@@ -310,13 +322,13 @@ function IdentityFields({ fields, custom, error, add, remove }: {
         <button type="button" aria-label={`Remove ${selected}`} disabled={!custom} className={`${textButton} text-danger`} onClick={() => remove(selected)}>Remove</button>
       </div>}
       <div className="flex flex-wrap items-center gap-2">
-        <input aria-label="Identity field name" data-setting="article.identity_fields" value={text} disabled={!custom}
+        <input aria-label="Identity field name" data-setting="article.identity_fields" value={text} disabled={!editable}
           aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy(`${id}-hint`, error && `${id}-error`, refusal && `${id}-refusal`)}
+          aria-describedby={describedBy(`${id}-hint`, retired && `${id}-retired`, error && `${id}-error`, refusal && `${id}-refusal`)}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); submit() } }}
           className="w-48 rounded-md border border-line bg-surface px-2 py-1 font-mono text-[12px] text-ink" />
-        <button type="button" disabled={!custom} onClick={submit} className={`${textButton} text-accent hover:underline`}>Add field</button>
+        <button type="button" disabled={!editable} onClick={submit} className={`${textButton} text-accent hover:underline`}>Add field</button>
       </div>
       <p id={`${id}-refusal`} aria-live="polite" className="text-[11px] text-danger">{refusal}</p>
       <FieldError id={`${id}-error`} message={error} />

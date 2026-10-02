@@ -45,7 +45,7 @@ const nodes: SchemaNode[] = [{ id: 'title', name: 'title', type: 'string' }]
 const revision = (revisionNumber: number, name: string): SchemaRevision => ({
   schemaRevisionId: revisionNumber === 1 ? R1 : revisionNumber === 2 ? R2 : `rev-${revisionNumber}`,
   extractionSchemaId: 'schema-1', revisionNumber, origin: 'researcher-edit', createdAt: '2026-08-01T12:00:00.000Z',
-  recordDescription: `One ${name} record.`, schemaNodes: [{ id: `id-${name}`, name, type: 'string' }],
+  recordDescription: `One ${name} record.`, recordScope: 'document', schemaNodes: [{ id: `id-${name}`, name, type: 'string' }],
 })
 
 /** A fetch answering each listing from `listings` in turn (the last one repeats; a number answers that error status)

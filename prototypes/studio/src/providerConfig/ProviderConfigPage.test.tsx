@@ -16,6 +16,7 @@ import {
 import type { ExtractionModelListing } from '../../shared/extraction.contract'
 import { ResearcherSessionContext } from '../auth/sessionContext'
 import ProviderConfigPage from './ProviderConfigPage'
+import { RETIRED_NOTE } from './advancedSettings'
 
 const OLLAMA_ID = '11111111-1111-4111-8111-111111111111'
 const OPENAI_ID = '22222222-2222-4222-8222-222222222222'
@@ -1025,24 +1026,69 @@ describe('Advanced', () => {
     expect(server.puts()[0]!.extractionSettings.article?.context_tokens).toBe(8192)
   })
 
-  it('identity fields: names keep exact case, refuse empty and duplicate names, and conservative needs one', async () => {
-    studio(config())
+  it('retired Article settings are read-only with a note, and their saved values round-trip through Apply unchanged', async () => {
+    const stored = {
+      ...REFERENCE_ARTICLE, context: 'bounded' as const, identity: 'conservative' as const, identity_fields: ['Species'],
+      prompt: 'schema' as const, selection: 'supported' as const,
+    }
+    const server = studio(config({ extractionSettings: { article: stored } }))
     await renderPage()
     openAdvanced()
-    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
-    openSection('Record identity')
+    setting('Reconciliation')
+    expect(radio('Reconciliation', 'Declared identity fields')).toBeChecked()
+    expect(radio('Reconciliation', 'Reference')).toBeEnabled()  // a retired setting can always return to the reference
     setting('Identity fields')
-    const name = screen.getByRole('textbox', { name: 'Identity field name' })
-    fireEvent.change(name, { target: { value: '  Species ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
     expect(within(screen.getByRole('combobox', { name: 'Declared identity fields' })).getByRole('option', { name: 'Species' })).toBeInTheDocument()
-    fireEvent.change(name, { target: { value: 'Species' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
-    expect(screen.getByText(METHOD_MESSAGES.identityNames)).toBeInTheDocument()
-    fireEvent.click(radio('Reconciliation', 'Declared identity fields'))
+    expect(screen.getByRole('textbox', { name: 'Identity field name' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Add field' })).toBeDisabled()
+    setting('Instructions')
+    expect(radio('Instructions', 'Schema-driven')).toBeChecked()
+    expect(radio('Instructions', 'Reference')).toBeEnabled()
+    expect(radio('Instructions', 'Reference')).toHaveAccessibleDescription(expect.stringContaining(RETIRED_NOTE))
+    setting('Value evidence')
+    expect(radio('Value evidence', 'Supported units')).toBeChecked()
+    expect(radio('Value evidence', 'All source units')).toBeEnabled()
+    expect(screen.getAllByText(RETIRED_NOTE)).toHaveLength(6)
+
+    setting('Source representation')
+    fireEvent.click(radio('Source representation', 'Structured blocks and tables'))
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings.article).toEqual({ ...stored, rendering: 'structured' })
+  })
+
+  it('a retired value that another choice makes invalid stays changeable, so Apply can recover', async () => {
+    studio(config({ extractionSettings: { article: { ...REFERENCE_ARTICLE, context: 'bounded', selection: 'supported' } } }))
+    await renderPage()
+    openAdvanced()
+    setting('Scope')
+    fireEvent.click(radio('Scope', 'Full source'))
+    setting('Value evidence')
+    expect(radio('Value evidence', 'Supported units')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+    fireEvent.click(radio('Value evidence', 'All source units'))
+    expect(radio('Value evidence', 'All source units')).toBeChecked()
+    expect(radio('Value evidence', 'Supported units')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+  })
+
+  it('a retired identity field the schema no longer has can be removed, which unlocks Reconciliation', async () => {
+    // Admission still refuses identity fields the pinned schema lacks, so a stale saved name must stay removable.
+    const server = studio(config({ extractionSettings: { article: {
+      ...REFERENCE_ARTICLE, context: 'bounded', identity: 'conservative', identity_fields: ['Species'] } } }))
+    await renderPage()
+    openAdvanced()
+    setting('Reconciliation')
+    expect(radio('Reconciliation', 'Reference')).toBeEnabled()
     setting('Identity fields')
+    expect(screen.getByRole('button', { name: 'Add field' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Remove Species' }))
-    expect(screen.getByText(METHOD_MESSAGES.identity, { selector: 'p' })).toBeInTheDocument()
+    setting('Reconciliation')
+    fireEvent.click(radio('Reconciliation', 'Reference'))
+    expect(radio('Reconciliation', 'Declared identity fields')).toBeDisabled()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]!.extractionSettings.article).toEqual({ ...REFERENCE_ARTICLE, context: 'bounded' })
   })
 
   it('Catalog keeps generic limits and recipe factors apart; Use service defaults removes only Catalog', async () => {
@@ -1280,7 +1326,7 @@ describe('Advanced', () => {
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
   })
 
-  it('an Article edit ends the notice for good: editing back to the starting point, or an identity field, brings no Undo back', async () => {
+  it('an Article edit ends the notice for good: editing back to the starting point, or number text, brings no Undo back', async () => {
     studio(config())
     await renderPage()
     openAdvanced()
@@ -1299,11 +1345,9 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     useExplore()
-    openSection('Record identity')
-    setting('Identity fields')
-    fireEvent.change(screen.getByRole('textbox', { name: 'Identity field name' }), { target: { value: 'species' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
-    expect(within(screen.getByRole('combobox', { name: 'Declared identity fields' })).getByRole('option', { name: 'species' })).toBeInTheDocument()
+    setting('Context ceiling')
+    fireEvent.change(screen.getByRole('textbox', { name: /Context ceiling/ }), { target: { value: '16384' } })
+    expect(screen.getByRole('textbox', { name: /Context ceiling/ })).toHaveValue('16384')
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
 

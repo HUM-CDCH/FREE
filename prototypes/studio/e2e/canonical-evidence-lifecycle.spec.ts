@@ -216,6 +216,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   })
   // What this account's start view submits with each run: the saved field model and service-default settings.
   const savedMethod = { models: { fields: 'instruct' }, settings: strategy === 'CATALOG' ? { generic: null } : { article: null } }
+  // The schema's saved Article/Catalog scope is what the toolbar shows and every run here uses.
+  const recordScope = strategy === 'CATALOG' ? 'records' : 'document'
+  const strategyLabel = strategy === 'CATALOG' ? 'Catalog' : 'Article'
   await db.orm.public.ProjectContext.create({
     id: projectContextId,
     researcherAccountId,
@@ -254,6 +257,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       recordDescription: 'One lifecycle fixture record.',
       schemaNodes: lifecycleSchemaNodes,
     },
+    recordScope,
   })
 
   const internalUrl = `/projects/${projectContextId}/documents/${sourceDocumentId}`
@@ -271,7 +275,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   })
   // The configured Extraction Model Choice goes with the run and stays with its Extraction; the header offers none.
   await expect(page.getByRole('combobox', { name: 'Field model' })).toHaveCount(0)
-  await page.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
   await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
   await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible({ timeout: 20_000 })
   expect(interactivePosts).toBe(1)
@@ -311,7 +315,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       `/projects/${projectContextId}/documents/${otherSourceDocumentId}`,
     ),
   )
-  await page.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
   await activateWithKeyboard(
     page,
     page.getByRole('button', { name: '▶ Run extraction' }),
@@ -562,6 +566,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       recordDescription: 'One lifecycle fixture record.',
       schemaNodes: lifecycleSchemaNodes,
     },
+    recordScope,
   })
 
   const newerExtractionId = randomUUID()
@@ -663,7 +668,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   kei.omitGrounding = false
   kei.blockNextResult = true
-  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
   await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
   // Running shows only once Studio acknowledged the admission, so leaving now cannot lose the Extraction. kei holding
   // the result keeps it running until the cancel below.
@@ -679,14 +684,14 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   resultGate.release?.()
 
   kei.failNextValues = true
-  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(freshPage.getByText('Extraction failed', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(freshPage.getByRole('tab', { name: 'Raw JSON' })).toHaveCount(0)
 
   kei.incompleteNextResult = true
-  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
-  // The failed attempt's Results action names the strategy just selected in the toolbar.
+  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+  // The failed attempt's Results action names the schema's saved strategy.
   await freshPage.getByRole('button', {
     name: strategy === 'CATALOG' ? 'Run Catalog extraction' : 'Run Article extraction',
     exact: true,
@@ -720,7 +725,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // The re-run is admitted QUEUED (its workflow was enqueued with its row); kei then holds it, so the cancel below
   // stops work still in flight rather than racing its completion.
   kei.blockNextResult = true
-  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
   await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
   await expect(freshPage.getByText('Queued extraction…')).toBeVisible()
   await freshPage.getByTitle('Cancel the active Extraction').click()
@@ -799,11 +804,12 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       recordDescription: 'One lifecycle fixture record.',
       schemaNodes: lifecycleSchemaNodes,
     },
+    recordScope,
   })
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   kei.blockNextResult = true
-  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
   await freshPage.getByRole('button', { name: /▶ Run extraction|↻ Re-run extraction/ }).click()
   await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 20_000 })
   const status = freshPage.getByRole('region', { name: 'Extraction status' })
@@ -836,8 +842,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByText('Running extraction…')).toBeHidden({ timeout: 30_000 })
   await expect(status).toContainText('Completed')
   await expect(status).toContainText('Review applies to Schema Revision 3')
-  // The toolbar's one-shot selection is back at Article, whatever strategy this Extraction ran with.
-  await expect(status.getByRole('button', { name: 'Run Article extraction with current schema' })).toBeEnabled()
+  // Revision 4 was an edit, so it kept the schema's scope: the next run is the same strategy.
+  await expect(status.getByRole('button', { name: `Run ${strategyLabel} extraction with current schema` })).toBeEnabled()
   await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction$/ })).toHaveCount(0)
   await expect(freshPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
   await activateWithKeyboard(freshPage, freshPage.getByRole('button', { name: /Approve remaining/ }))
@@ -923,7 +929,7 @@ test('import → sample/review → field edit → same-pages re-run → whole so
   })
   await db.orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: 'Sample schema' })
   await db.orm.public.SchemaRevision.create({
-    id: randomUUID(), extractionSchemaId, revisionNumber: 1, origin: 'RESEARCHER_EDIT',
+    id: randomUUID(), extractionSchemaId, revisionNumber: 1, origin: 'RESEARCHER_EDIT', recordScope: 'document',
     schemaTree: { recordDescription: 'One lifecycle fixture record.', schemaNodes: lifecycleSchemaNodes },
   })
 

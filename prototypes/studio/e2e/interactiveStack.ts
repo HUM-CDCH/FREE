@@ -118,6 +118,7 @@ export async function prepareInteractiveDocument(
       revisionNumber: 1,
       origin: 'RESEARCHER_EDIT',
       schemaTree: { recordDescription: 'One interactive record.', schemaNodes: INTERACTIVE_SCHEMA_NODES },
+      recordScope: 'document',
     })
   }
 

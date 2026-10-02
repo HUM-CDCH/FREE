@@ -15,7 +15,7 @@ from tests.helpers import catalogue
 from tests.helpers.chat import FakeChat
 from tests.test_extract_grounded import CountingChat, WordCounter, honest
 from tests.test_extract_grounded import request as recipe_request
-from tests.test_extract_stages import SCHEMA, FixedCounter, evidence, one_identity
+from tests.test_extract_stages import SCHEMA, FixedCounter, evidence
 
 
 @pytest.mark.parametrize("kind", ["duplicates", "order"])
@@ -63,8 +63,6 @@ def test_the_version_1_catalog_reads_the_evidence_it_is_given():
 
 def test_article_reads_the_evidence_it_is_given():
     def script(system, user, schema):
-        if "records" in schema["properties"]:
-            return one_identity(schema)
         if "title" in schema["properties"]:
             return {"title": None}
         if "entry_no" in schema["properties"]:
@@ -74,8 +72,9 @@ def test_article_reads_the_evidence_it_is_given():
     counter = {role: FixedCounter() for role in ("fields", "reasoning")}
     result = article.extract(None, evidence(), request, as_router(FakeChat(script)), counter=counter)
     assert result["strategy"] == "article" and result["extraction_version"] == assembly.EXTRACTION_VERSION
-    assert result["inventory"] == [{"label": "31. Hjortlund", "identity": {}, "passages": ["p1_s0"]}]
-    assert [call["stage"] for call in result["calls"]] == ["document", "inventory", "record", "grounding"]
+    assert result["inventory"] == [{"identity": {}, "label": article.DOCUMENT_LABEL,
+                                    "passages": [p.id for p in evidence().passages]}]  # the document, no inventory
+    assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]
     assert result["ungrounded"] == [["records", 0, "entry_no"], ["records", 0, "site"]]
     assert "method_version" not in result and result["complete"] is False
     assert result["fingerprint"] == assembly.fingerprint(result, request, result["models"])
@@ -121,11 +120,11 @@ def test_extract_hands_the_loaded_evidence_to_the_implementation_the_options_cho
     received = []
     for module in (article, catalog, grounded):
         monkeypatch.setattr(module, "extract", lambda *args, _module=module, **kwargs: received.append(
-            (_module, args, kwargs)) or {"artifact": _module.__name__})
+            (_module, args, kwargs)) or {"artifact": _module.__name__, "records": [{}]})
     request = run.ExtractRequest(schema=SCHEMA, options=options)
     chat, counter, hook = FakeChat(lambda *_: None), object(), lambda: None
     result = run.extract(run_dir, request, chat, generation=catalogue.GENERATION, counter=counter, chunks=3,
                          before_entry=hook)
-    assert result == {"artifact": chosen.__name__}
+    assert result == {"artifact": chosen.__name__, "records": [{}]}
     assert received == [(chosen, (run_dir, load(run_dir), request, Router(chat, chat)),
                          {"counter": counter, "chunks": 3, "before_entry": hook})]

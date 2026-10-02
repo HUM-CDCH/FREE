@@ -22,6 +22,16 @@ export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string
   { section: 'input', title: 'Extraction input', keys: ['prompt', 'rendering'] },
   { section: 'evidence', title: 'Evidence', keys: ['grounding', 'evidence_policy', 'grounding_schedule', 'grounding_routing'] },
 ]
+/** Settings today's Article method ignores. Article extracts one document-level object: it keeps no record-identity
+ *  inventory (`identity`, `identity_fields`), its model requests do not change with `prompt`, and it reads every source
+ *  unit for values (`selection`). Their controls stay visible but read-only, and a saved value is kept and sent as
+ *  saved: the contract still accepts it, and historical settings are research state. */
+export const RETIRED_ARTICLE_KEYS: ReadonlySet<ArticleKey> = new Set([
+  'selection', 'identity', 'identity_fields', 'prompt', 'grounding_schedule', 'grounding_routing',
+])
+/** Said beside every retired control. */
+export const RETIRED_NOTE = 'No longer used by Article. A saved value is kept unchanged.'
+
 export const SECTION_OF = Object.fromEntries(
   ARTICLE_SECTIONS.flatMap(({ section, keys }) => keys.map((key) => [key, section])),
 ) as Readonly<Record<ArticleKey, ArticleSection>>
@@ -38,15 +48,15 @@ export const CONTROL_HINTS: Readonly<Record<ArticleKey, string>> = {
   context_tokens: 'Tokens per request, including instructions and the output reserve; each served model can lower it.',
   grouping: 'How bounded units are formed: by token budget, or following headings, captions and tables.',
   overlap_passages: 'Whole earlier passages repeated as context. They never own records; not pages or sentences.',
-  selection: 'Which units record-value calls read. Inventory, document fields and verification still visit every unit.',
-  identity: 'Reference merges records by the model’s identity; declared fields key records by the fields you list.',
-  identity_fields: 'Exact top-level scalar field names, checked against the schema when an Extraction starts.',
-  prompt: 'Reference instructions include historical laboratory examples; schema-driven ones are built from the schema.',
+  selection: 'Article now reads every source unit for values, so this choice no longer changes what is read.',
+  identity: 'Article now extracts one document-level object, so there are no records to reconcile.',
+  identity_fields: 'Article now extracts one document-level object, so no fields key records.',
+  prompt: 'Article’s model requests no longer change with this choice.',
   rendering: 'Structured input labels blocks and table cells. It keeps the source characters and cannot recover missing OCR text or cells.',
   grounding: 'How each populated record value is checked against the source.',
   evidence_policy: 'All populated record fields, or only those your schema policies mark quoted.',
-  grounding_schedule: 'Across all source units keeps checking later units; it does not detect contradictions.',
-  grounding_routing: 'Which units a value is checked against first. Unresolved values still reach every eligible unit.',
+  grounding_schedule: 'Article now checks each value where it was read first and stops at support, whichever is chosen.',
+  grounding_routing: 'Article now checks each value in the source unit it was read from first, whichever is chosen.',
 }
 
 type Choice<V> = Readonly<{ value: V; label: string }>
@@ -120,20 +130,16 @@ export function sectionSummary(article: ArticleSettings, section: ArticleSection
         'Bounded', `${numberText(article.context_tokens)} tokens`,
         ...(article.grouping ? ['Structure-aware'] : []),
         ...(article.overlap_passages > 0 ? [`${article.overlap_passages} previous passage${article.overlap_passages === 1 ? '' : 's'}`] : []),
-        ...(article.selection ? ['Supported units'] : []),
       ].join(' · ')
+    // Retired settings (`RETIRED_ARTICLE_KEYS`) are left out: they no longer describe what Article does.
     case 'identity':
-      return article.identity === 'conservative'
-        ? `Declared identity fields: ${article.identity_fields.join(', ') || 'none'}`
-        : article.identity_fields.length > 0 ? `Reference · fields: ${article.identity_fields.join(', ')}` : 'Reference'
+      return 'Not used by Article'
     case 'input':
-      return `${article.prompt === 'schema' ? 'Schema prompt' : 'Reference prompt'} · ${label('rendering', article.rendering)}`
+      return label('rendering', article.rendering)
     case 'evidence':
       return [
         label('grounding', article.grounding),
         article.evidence_policy ? 'Schema policies' : 'All fields',
-        ...(article.grounding_schedule ? ['Until first support'] : []),
-        ...(article.grounding_routing ? ['Origin and lexical order'] : []),
       ].join(' · ')
   }
 }

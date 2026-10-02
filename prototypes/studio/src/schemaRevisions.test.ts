@@ -19,6 +19,7 @@ const revision = {
   origin: 'researcher-edit' as const,
   createdAt: '2026-08-01T12:00:00.000Z',
   recordDescription: 'One site record.',
+  recordScope: 'records' as const,
   schemaNodes: [{ id: 'node-site', name: 'site', type: 'string' as const }],
 }
 
@@ -115,6 +116,25 @@ describe('schema revision client', () => {
     const bodies = fetch.mock.calls.map(([, init]) => JSON.parse(init.body))
     expect(bodies.map((body) => body.sourceCoverage)).toEqual([excerpted, null, undefined])
     expect(bodies[2]).not.toHaveProperty('sourceCoverage')
+  })
+
+  it('writes a record scope only when the write chooses one, and never a caller’s null', async () => {
+    const fetch = vi.fn().mockImplementation(async () => Response.json({ revision }, { status: 201 }))
+    vi.stubGlobal('fetch', fetch)
+
+    await initializeSchemaRevision(PROJECT, definition, undefined, undefined, 'document')
+    await initializeSchemaRevision(PROJECT, definition)
+    await appendSchemaRevision(PROJECT, SCHEMA, 1, definition, undefined, undefined, 'records')
+    // A whole revision passed as the definition keeps its own scope (here null) out of the request.
+    await appendSchemaRevision(PROJECT, SCHEMA, 2, { ...revision, recordScope: null } as typeof definition)
+
+    const bodies = fetch.mock.calls.map(([, init]) => JSON.parse(init.body))
+    expect(bodies.map((body) => body.recordScope)).toEqual(['document', undefined, 'records', undefined])
+    expect(bodies[1]).not.toHaveProperty('recordScope')
+    expect(bodies[3]).not.toHaveProperty('recordScope')
+    expect(Object.keys(bodies[3]).sort()).toEqual(
+      ['expectedRevisionNumber', 'extractionSchemaId', 'projectContextId', 'recordDescription', 'schemaNodes'],
+    )
   })
 
   it('preserves the winning head on a conflict', async () => {

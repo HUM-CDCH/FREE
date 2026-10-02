@@ -107,6 +107,8 @@ export const batchSchemaSuggestionErrorSchema = z
       'operation_not_ready',
       'attempt_conflict',
       'method_changed',
+      'record_scope_required',
+      'record_scope_mismatch',
       'invalid_identity_fields',
       'invalid_model_config',
     ]),

@@ -11,7 +11,7 @@ import {
   canonicalUuidSchema,
   documentReopenResponseSchema,
 } from '../shared/projectContext.contract.js'
-import { schemaDefinitionSchema } from 'extraction/schema'
+import { savedSchemaDefinitionSchema } from 'extraction/schema'
 import { sourceCoverageSchema, type SourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 import { z } from 'zod'
 import {
@@ -42,6 +42,11 @@ function durable<T>(schema: z.ZodType<T>, value: unknown): T {
       'Stored research state could not be read.',
     )
   return parsed.data
+}
+
+/** The stored tree with its revision's record scope beside it; a tree that is not a definition is refused. */
+function storedDefinition(schemaTree: unknown, recordScope: unknown) {
+  return durable(savedSchemaDefinitionSchema, { ...(schemaTree as object), recordScope })
 }
 
 /** A revision's source declaration is advisory: one that does not read as a declaration is not recorded, never
@@ -81,7 +86,7 @@ function extractionDto(
       new Error('The stored Extraction Schema Revision could not be read.'),
       'Stored research state could not be read.',
     )
-  const definition = durable(schemaDefinitionSchema, schema.schemaTree)
+  const definition = storedDefinition(schema.schemaTree, schema.recordScope)
   return {
     ...extractionAttemptDto(extraction),
     sourceRepresentation: {
@@ -118,7 +123,7 @@ async function reopenResponse(
     representation.createdAt.toISOString(),
   )
   const currentSchema = snapshot.extractionSchema
-    ? durable(schemaDefinitionSchema, snapshot.extractionSchema.schemaTree)
+    ? storedDefinition(snapshot.extractionSchema.schemaTree, snapshot.extractionSchema.recordScope)
     : null
   const latestSample = documentExtractions.samples[0] ?? null
   const [attemptSchema, reviewedSchema, sampleSchema] = await Promise.all([

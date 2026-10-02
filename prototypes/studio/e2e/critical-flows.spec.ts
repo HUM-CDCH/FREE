@@ -74,8 +74,9 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
     route.fulfill({ json: schemaResponse }),
   )
   await page.route('**/api/schema-revisions', (route) => {
-    const { recordDescription, schemaNodes } = route.request().postDataJSON() as {
+    const { recordDescription, recordScope, schemaNodes } = route.request().postDataJSON() as {
       recordDescription: string
+      recordScope?: 'document' | 'records'
       schemaNodes: unknown[]
     }
     return route.fulfill({
@@ -88,6 +89,7 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
           origin: 'suggestion',
           createdAt: '2026-08-12T10:00:00.000Z',
           recordDescription,
+          recordScope: recordScope ?? null,
           schemaNodes,
         },
       },

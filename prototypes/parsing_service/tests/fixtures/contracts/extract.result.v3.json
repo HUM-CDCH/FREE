@@ -51,7 +51,8 @@
             "type": "string",
             "valueSource": "document"
           }
-        ]
+        ],
+        "recordScope": "records"
       },
       "options": {
         "strategy": "catalog",
@@ -202,8 +203,10 @@
       "reasoning": "fake/extractor"
     },
     "prompt_version": 3,
+    "document_version": 3,
     "schema": {
       "recordDescription": "One entry of a catalogue of finds.",
+      "recordScope": "records",
       "schemaNodes": [
         {
           "id": "l",
@@ -317,7 +320,7 @@
         "reasoning": "fake/extractor"
       },
       "prompt_version": 3,
-      "schema_sha256": "0e0d400148f0e43b6240489a9e2e79768e6d0b5085c45c0ef9d92bfb17fe538a",
+      "schema_sha256": "03fdb1e37c99bf5a615c986b72ac5f716f162857db57c16276e73e86115d4c1b",
       "source": {
         "digest": "13fb4aedf49360bac12ed33738e31a730bc00032d7c95e08a3669ca3b3e4a5ca",
         "generation": "20260923T000000.000000Z-fixture0",
@@ -341,7 +344,7 @@
       },
       "version": 1
     },
-    "execution_sha256": "d255277ac5fc18d36a9eda5d249337d44f0e53e7d77240296d0fe29d2b3f98e3",
+    "execution_sha256": "8c097d47a848f535e0cd2cd138936df1643a800a432b0238a444fae0fc926b53",
     "discovery": {
       "calls": [
         {
@@ -398,7 +401,7 @@
           ]
         }
       ],
-      "execution_sha256": "d255277ac5fc18d36a9eda5d249337d44f0e53e7d77240296d0fe29d2b3f98e3",
+      "execution_sha256": "8c097d47a848f535e0cd2cd138936df1643a800a432b0238a444fae0fc926b53",
       "issues": [],
       "ledger": [
         {
@@ -446,7 +449,7 @@
         }
       ]
     },
-    "discovery_sha256": "14f221686791c3da4a2515daf9bad3dc40a09320bf8d90f3b6325099197f3124",
+    "discovery_sha256": "0c11f3fcc23f3849d2c3ec692dc493adfbd09f0255f88b8759b47a0e5aae6496",
     "records": [
       {
         "label": "12",
@@ -927,6 +930,6 @@
       "input": 980,
       "output": 30
     },
-    "fingerprint": "686db0737090af9e0ad25db9ec793a696bbcc036f09d32e883f0e220bb84a77f"
+    "fingerprint": "a0f900d66fdcbb3be135e6dc953d8d29bc366f960e5176e8a8485fa5b12e2e83"
   }
 }

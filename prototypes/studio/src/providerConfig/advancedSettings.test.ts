@@ -74,8 +74,9 @@ describe('summaries', () => {
     expect(effectiveSummary(undefined)).toBe('Full source · Plain text · Source-label verification')
     expect(effectiveSummary(REFERENCE_ARTICLE)).toBe('Full source · Plain text · Source-label verification')
     expect(sectionSummary(REFERENCE_ARTICLE, 'context')).toBe('Full source')
-    expect(sectionSummary(REFERENCE_ARTICLE, 'identity')).toBe('Reference')
-    expect(sectionSummary(REFERENCE_ARTICLE, 'input')).toBe('Reference prompt · Plain text')
+    // Retired settings never reach a summary: they no longer describe what Article does.
+    expect(sectionSummary(REFERENCE_ARTICLE, 'identity')).toBe('Not used by Article')
+    expect(sectionSummary(REFERENCE_ARTICLE, 'input')).toBe('Plain text')
     expect(sectionSummary(REFERENCE_ARTICLE, 'evidence')).toBe('Source labels · All fields')
   })
 
@@ -84,9 +85,11 @@ describe('summaries', () => {
     expect(sectionSummary(full, 'context')).toBe('Full source')
     const spans = withStartingPoint(undefined, STARTING_POINTS[1]!)
     expect(effectiveSummary(spans)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification')
-    expect(sectionSummary(spans, 'evidence')).toBe('Source spans · Schema policies · Until first support')
+    expect(sectionSummary(spans, 'evidence')).toBe('Source spans · Schema policies')
     expect(sectionSummary({ ...spans, identity: 'conservative', identity_fields: ['species', 'preparation'] }, 'identity'))
-      .toBe('Declared identity fields: species, preparation')
+      .toBe('Not used by Article')
+    expect(sectionSummary({ ...spans, selection: 'supported' }, 'context')).toBe('Bounded · 12,288 tokens')
+    expect(sectionSummary({ ...spans, prompt: 'schema' }, 'input')).toBe('Plain text')
   })
 
   it('a section is Changed only when one of its values differs from the saved settings', () => {

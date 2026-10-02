@@ -51,6 +51,7 @@ const schemaHistory: SchemaRevisionSummary[] = [
     revisionNumber: 2,
     origin: 'researcher-edit',
     createdAt: '2026-08-01T12:01:00.000Z',
+    recordScope: 'document',
     summary: '1 renamed',
   },
   {
@@ -58,6 +59,7 @@ const schemaHistory: SchemaRevisionSummary[] = [
     extractionSchemaId: '51000000-0000-4000-8003-000000000001',
     revisionNumber: 1,
     origin: 'suggestion',
+    recordScope: null,
     createdAt: '2026-08-01T12:00:00.000Z',
     summary: 'Initial schema',
   },
@@ -100,6 +102,7 @@ function setupController({
     extractionSchemaId: '51000000-0000-4000-8003-000000000001',
     revisionNumber: currentRevisionNumber,
     recordDescription,
+    recordScope: 'document',
     schemaNodes: panelNodes,
   }
   const edits: PanelSetup['edits'] = []
@@ -129,7 +132,7 @@ function setupController({
         : acknowledged
     },
     saveState() {
-      return durableScope && !noSchema ? { status: 'saved', acknowledged, draft: { recordDescription, schemaNodes: panelNodes } } : null
+      return durableScope && !noSchema ? { status: 'saved', acknowledged, draft: { recordDescription, schemaNodes: panelNodes }, recordScope: 'document' } : null
     },
     modelContext: () => modelContext,
     listRevisions: async () => schemaHistory,
@@ -1475,6 +1478,7 @@ describe('SchemaPanel conflict recovery', () => {
       extractionSchemaId: '51000000-0000-4000-8003-000000000001',
       revisionNumber: 1,
       recordDescription: 'One mine record.',
+      recordScope: 'document',
       schemaNodes: [{ id: 'mine', name: 'mine', type: 'string' }],
     }
     const winning: SchemaRevision = {
@@ -1493,6 +1497,7 @@ describe('SchemaPanel conflict recovery', () => {
         recordDescription: acknowledged.recordDescription,
         schemaNodes: acknowledged.schemaNodes,
       },
+      recordScope: acknowledged.recordScope,
       currentRevision: winning,
     }
     const listeners = new Set<() => void>()
@@ -1507,6 +1512,7 @@ describe('SchemaPanel conflict recovery', () => {
             recordDescription: winning.recordDescription,
             schemaNodes: winning.schemaNodes,
           },
+          recordScope: winning.recordScope,
         }
         for (const listener of listeners) listener()
         return winning

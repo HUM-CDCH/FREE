@@ -98,6 +98,9 @@ describe('Extraction suggested-batches on disposable PostgreSQL', { skip: !fixtu
     assert.ok(persisted?.confirmedSchemaRevisionId)
     assert.equal(persisted.batchExtractionId, batchExtractionId)
     assert.equal(handoffs[0]!.batch.schemaRevisionId, persisted.confirmedSchemaRevisionId)
+    // The suggested fields are saved with the scope of the strategy they were run as.
+    assert.equal((await db.orm.public.SchemaRevision.select('recordScope')
+      .first({ id: persisted.confirmedSchemaRevisionId }))?.recordScope, 'document')
     for (const row of rows) {
       const [workflow] = await app.admission.listWorkflows({ workflowIDs: [`extract:${row.id}`] })
       assert.equal(workflow?.attributes?.extractionSchemaId, (await db.orm.public.SchemaRevision.select('extractionSchemaId')
@@ -311,6 +314,20 @@ it('Run requires a valid draft, a surviving member and no active attempt', async
     const members = await db.orm.public.Extraction.where({ batchExtractionId }).select('requestedModels', 'requestedSettings').all()
     assert.equal(members.length, 2)
     for (const member of members) assert.deepEqual(member, { requestedModels: null, requestedSettings: { article: SPANS } })
+  })
+
+  it('a Catalog handoff saves the suggested fields with the records scope', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf'])
+    kei.holding = true
+    const batchSchemaSuggestionId = await readySuggestion(project)
+    const handedOff = await scheduler(project.researcherAccountId).scheduleSuggestedBatch({
+      projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'CATALOG',
+      method: { models: null, settings: { generic: null } },
+    })
+    assert.equal(handedOff.disposition, 'created')
+    assert.equal((await db.orm.public.SchemaRevision.select('recordScope')
+      .first({ id: handedOff.batch.schemaRevisionId }))?.recordScope, 'records')
   })
 
   it('a stale start view confirms nothing and admits nothing', async (t) => {

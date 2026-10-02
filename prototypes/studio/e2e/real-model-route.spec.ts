@@ -67,7 +67,10 @@ test('a real document runs through the application: extraction, evidence, browse
     const anchors = new Set(canonical.evidence_index.anchors.map((anchor: { anchor_id: string }) => anchor.anchor_id))
 
     const schema = JSON.parse(await readFile(schemaPath!, 'utf8'))
-    const revision = await page.request.post('/api/schema-revisions', { headers, data: { projectContextId: project, ...schema } })
+    // The revision declares the record scope the run uses: Article is one document object, Catalog a set of records.
+    const revision = await page.request.post('/api/schema-revisions', { headers, data: {
+      projectContextId: project, ...schema, recordScope: strategy === 'ARTICLE' ? 'document' : 'records',
+    } })
     expect(revision.status(), await revision.text()).toBe(201)
     const schemaRevisionId = (await revision.json()).revision.schemaRevisionId as string
     const settings = strategy === 'ARTICLE' ? { article: null }

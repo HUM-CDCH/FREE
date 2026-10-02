@@ -295,6 +295,7 @@ function batchFixture(nested = false): {
         revisionNumber: 4,
         origin: 'researcher-edit',
         schemaTree: fixtureSchema,
+        recordScope: 'document',
         createdAt: at(4),
       }]
     },
@@ -311,6 +312,7 @@ function batchFixture(nested = false): {
         revisionNumber: 4,
         origin: 'researcher-edit',
         schemaTree: fixtureSchema,
+        recordScope: 'document',
         createdAt: at(4),
       }
     },

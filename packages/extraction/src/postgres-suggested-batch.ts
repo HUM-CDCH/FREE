@@ -16,7 +16,8 @@ import {
   type savedMethodStillCurrent,
 } from './postgres-admission.js'
 import type { DurableBatchExtraction } from './postgres-batches.js'
-import { parseBatchSuggestionDefinition } from './schema.js'
+import { refuseRecordScope, storedRecordScope } from './record-scope.js'
+import { parseBatchSuggestionDefinition, recordScopeOf } from './schema.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type {
   ScheduleBatchResult,
@@ -161,9 +162,18 @@ export async function persistSuggestedBatch(
       const existing = await orm.public.SchemaRevision.where({
         extractionSchemaId,
       })
-        .select('id')
+        .select('id', 'recordScope', 'revisionNumber')
         .orderBy((revision) => revision.revisionNumber.desc())
         .first()
+      // The suggested fields are saved with the scope of the strategy the researcher ran them as; a revision already
+      // saved for them runs only under its own scope.
+      const recordScope = recordScopeOf(input.strategy)
+      if (existing)
+        refuseRecordScope(
+          storedRecordScope(existing.recordScope),
+          input.strategy,
+          `Schema Revision ${existing.revisionNumber} of these suggested fields`,
+        )
       const schemaRevisionId =
         existing?.id ??
         stableUuid('confirmed-batch-schema-suggestion-revision', extractionSchemaId)
@@ -179,6 +189,7 @@ export async function persistSuggestedBatch(
           revisionNumber: 1,
           origin: 'SUGGESTION',
           schemaTree: draft,
+          recordScope,
         })
       }
       const batchExtractionId = stableUuid(

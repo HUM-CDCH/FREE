@@ -1409,6 +1409,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
       revisionNumber: 1,
       origin: 'suggestion',
       schemaTree: nodes('site'),
+      recordScope: null,
       createdAt: new Date('2026-08-01T12:01:00Z'),
     })
     assert.equal(
@@ -1437,6 +1438,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
       revisionNumber: 2,
       origin: 'researcher-edit',
       schemaTree: nodes('year'),
+      recordScope: null,
       createdAt: new Date('2026-08-01T12:01:00Z'),
     })
     assert.equal(database.tables.SchemaRevision.length, 2)
@@ -1461,6 +1463,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
         revisionNumber: 1,
         origin: 'suggestion',
         schemaTree: nodes('site'),
+        recordScope: null,
         createdAt: new Date('2026-08-01T12:00:00Z'),
       },
     })
@@ -1507,6 +1510,63 @@ describe('ResearcherProjectStore Schema Revisions', () => {
         [5, null],
       ],
     )
+  })
+
+  it('stores a given record scope on the first revision, and none when it is omitted', async () => {
+    const declared = fakeDatabase()
+    const created = await createResearcherProjectStore(RESEARCHER_A, declared as never)
+      .initializeSchemaRevision(EMPTY_PROJECT, nodes('site'), null, 'records')
+    assert.equal(created?.status === 'created' && created.revision.recordScope, 'records')
+    assert.equal(declared.tables.SchemaRevision.at(-1)?.recordScope, 'records')
+
+    const undeclared = fakeDatabase()
+    const legacy = await createResearcherProjectStore(RESEARCHER_A, undeclared as never)
+      .initializeSchemaRevision(EMPTY_PROJECT, nodes('site'))
+    assert.equal(legacy?.status === 'created' && legacy.revision.recordScope, null)
+    assert.equal(undeclared.tables.SchemaRevision.at(-1)?.recordScope, null)
+  })
+
+  it('keeps a revision’s record scope through edits: an omitted scope is inherited, a given one is stored', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+
+    const first = await store.initializeSchemaRevision(EMPTY_PROJECT, nodes('site'), null, 'document')
+    const schema = first?.status === 'created' ? first.revision.extractionSchemaId : ''
+    const edit = await store.appendSchemaRevision(EMPTY_PROJECT, schema, 1, nodes('year'))
+    assert.equal(edit?.status === 'created' && edit.revision.recordScope, 'document')
+    await store.appendSchemaRevision(EMPTY_PROJECT, schema, 2, nodes('place'), { complete: true })
+    await store.appendSchemaRevision(EMPTY_PROJECT, schema, 3, nodes('place'), undefined, 'records')
+    await store.appendSchemaRevision(EMPTY_PROJECT, schema, 4, nodes('kept'), null)
+    await store.appendSchemaRevision(EMPTY_PROJECT, schema, 5, nodes('kept'), undefined, null)
+    await store.appendSchemaRevision(EMPTY_PROJECT, schema, 6, nodes('kept'))
+
+    assert.deepEqual(
+      database.tables.SchemaRevision.filter((row) => row.extractionSchemaId === schema)
+        .map((row) => [row.revisionNumber, row.recordScope]),
+      [[1, 'document'], [2, 'document'], [3, 'document'], [4, 'records'], [5, 'records'], [6, null], [7, null]],
+    )
+    // A legacy head (no column value) is inherited as undeclared.
+    const legacy = await store.appendSchemaRevision(PROJECT, SCHEMA, 1, nodes('year'))
+    assert.equal(legacy?.status === 'created' && legacy.revision.recordScope, null)
+  })
+
+  it('refuses a record scope other than document or records without writing', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    await assert.rejects(store.appendSchemaRevision(PROJECT, SCHEMA, 1, nodes('year'), undefined, 'article' as never),
+      /record scope must be document or records/)
+    await assert.rejects(store.initializeSchemaRevision(EMPTY_PROJECT, nodes('site'), null, 'catalog' as never),
+      /record scope must be document or records/)
+    assert.equal(database.tables.SchemaRevision.length, 1)
+  })
+
+  it('reopens a document with the current revision’s record scope', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+
+    assert.equal((await store.getDocumentReopenSnapshot(PROJECT, DOCUMENT))?.extractionSchema?.recordScope, null)
+    await store.appendSchemaRevision(PROJECT, SCHEMA, 1, nodes('year'), undefined, 'records')
+    assert.equal((await store.getDocumentReopenSnapshot(PROJECT, DOCUMENT))?.extractionSchema?.recordScope, 'records')
   })
 
   it('reopens a document with the current revision’s source declaration, and none for a revision without one', async () => {

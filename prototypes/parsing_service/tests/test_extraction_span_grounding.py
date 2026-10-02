@@ -148,14 +148,14 @@ def test_skip_paths_distinguish_records_and_array_positions():
     assert [link.path for link in links] == [("records", 1, "finds", 1)]
 
 
-@pytest.mark.parametrize("schedule,expected", [(None, [2, 2]), ("unresolved", [2, 1])])
-def test_assembled_schedule_retries_unresolved_claims_only(monkeypatch, schedule, expected):
+@pytest.mark.parametrize("schedule,expected", [(None, [1, 1]), ("unresolved", [1, 1])])
+def test_each_claim_is_checked_where_its_value_is_printed_whatever_the_schedule(monkeypatch, schedule, expected):
+    """Article routes every claim to the context printing its value first and stops at support (`ARTICLE_VERSION` 4),
+    so the research schedule no longer changes its calls: one check per claim here, under either schedule."""
     source = passages(["Hill", "1827"])
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
     monkeypatch.setattr("kei_exp.kie.extract.article.source_contexts", lambda *_: [Context((p,)) for p in source])
-    def reasoning(system, user, schema):
-        if "records" in schema["properties"]:
-            return {"records": [{"label": "Hill", "identity": {"site": "Hill"}, "passages": [source[0].id]}]}
+    def reasoning(system, user, schema):  # grounding only: the document root takes no inventory
         first = "E1: p1_s0 " in user
         return {claim: {"label": "E1" if first and "site" in user.split(f"{claim} (")[1].split("):")[0]
                        else "NONE" if first else "E1", "attribution": True}
@@ -164,7 +164,7 @@ def test_assembled_schedule_retries_unresolved_claims_only(monkeypatch, schedule
     request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
         "context": "bounded", "grounding": "spans", "grounding_schedule": schedule,
         "identity": "conservative", "identity_fields": ["site"]}})
-    result = run.extract(None, request, Router(CountingChat(lambda *_: {"year": 1827}), chat),
+    result = run.extract(None, request, Router(CountingChat(lambda *_: {"site": "Hill", "year": 1827}), chat),
         counter={role: WordCounter() for role in ("fields", "reasoning")})
     grounding = [c for c in chat.calls if "### Claims" in c["user"]]
     assert [len(c["schema"]["required"]) for c in grounding] == expected

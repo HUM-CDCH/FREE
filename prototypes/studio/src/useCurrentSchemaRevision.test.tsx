@@ -12,7 +12,9 @@ import {
 } from './auth/sessionRecovery'
 import * as revisions from './schemaRevisions'
 
-vi.mock('./schemaRevisions', () => ({
+vi.mock('./schemaRevisions', async (importOriginal) => ({
+  // An unmounted workspace still starts its pending save, whose failure the save engine classifies.
+  SchemaRevisionConflictError: (await importOriginal<typeof import('./schemaRevisions')>()).SchemaRevisionConflictError,
   appendSchemaRevision: vi.fn(),
   getSchemaRevision: vi.fn(),
   initializeSchemaRevision: vi.fn(),
@@ -32,6 +34,7 @@ function revision(
     schemaRevisionId: `33333333-3333-4333-8333-${String(revisionNumber).padStart(12, '0')}`,
     revisionNumber,
     recordDescription,
+    recordScope: 'document',
     schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
   }
 }
@@ -167,6 +170,95 @@ describe('durable schema authentication recovery', () => {
     )
     expect(reopened.result.current.snapshot().save?.status).toBe('saved')
     expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
+  })
+})
+
+describe('durable schema record scope across reloads and navigation', () => {
+  const DRAFT = {
+    recordDescription: 'Unsaved researcher draft.',
+    schemaNodes: [{ id: 'year', name: 'year', type: 'integer' as const }],
+  }
+  const appended = (expected: number, definition: typeof DRAFT, recordScope?: 'document' | 'records') => ({
+    ...revision(expected + 1, definition.recordDescription),
+    schemaNodes: definition.schemaNodes,
+    recordScope: recordScope ?? ('document' as const),
+    origin: 'researcher-edit' as const,
+    createdAt: '2026-08-01T12:00:00.000Z',
+  })
+
+  it('reads the saved scope back from the acknowledged revision after a reload', async () => {
+    vi.mocked(revisions.appendSchemaRevision).mockImplementation(
+      async (_project, _schema, expected, definition, _coverage, _signal, recordScope) =>
+        appended(expected, definition as typeof DRAFT, recordScope),
+    )
+    const first = renderHook(() => useDurableCurrentSchemaRevision(scope(revision(1))))
+    act(() => first.result.current.setRecordScope('records'))
+    await act(async () => {
+      await first.result.current.flush()
+    })
+    const acknowledged = first.result.current.snapshot().save!.acknowledged
+    expect(acknowledged).toMatchObject({ revisionNumber: 2, recordScope: 'records' })
+    first.unmount()
+
+    // A reload opens the Current Schema Revision the server acknowledged.
+    const reloaded = renderHook(() => useDurableCurrentSchemaRevision(scope(acknowledged)))
+    expect(reloaded.result.current.snapshot()).toMatchObject({
+      recordScope: 'records',
+      save: { status: 'saved', recordScope: 'records' },
+    })
+    expect(revisions.appendSchemaRevision).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts a debounced edit\'s save when the workspace unmounts instead of dropping it', async () => {
+    vi.mocked(revisions.appendSchemaRevision).mockImplementation(
+      async (_project, _schema, expected, definition, _coverage, _signal, recordScope) =>
+        appended(expected, definition as typeof DRAFT, recordScope),
+    )
+    const first = renderHook(() => useDurableCurrentSchemaRevision(scope(revision(1))))
+    act(() => first.result.current.replaceDraft(DRAFT, 'Edit'))
+    expect(revisions.appendSchemaRevision).not.toHaveBeenCalled()
+
+    first.unmount()
+    await act(async () => {})
+
+    expect(revisions.appendSchemaRevision).toHaveBeenCalledExactlyOnceWith(
+      PROJECT_ID, SCHEMA_ID, 1, DRAFT, undefined, undefined, undefined,
+    )
+  })
+
+  it('recovers an unsaved scope choice with its draft and saves both in one revision', async () => {
+    // The first tab's save never acknowledges before the session expires.
+    vi.mocked(revisions.appendSchemaRevision).mockImplementationOnce(() => new Promise(() => {}))
+    const initial = revision(1)
+    const first = renderHook(() => useDurableCurrentSchemaRevision(scope(initial)))
+    act(() => first.result.current.replaceDraft(DRAFT, 'Edit'))
+    act(() => first.result.current.setRecordScope('records'))
+    expect(first.result.current.snapshot().save?.status).toBe('saving')
+    act(() => captureSessionRecovery())
+    expect(JSON.parse(sessionStorage.getItem('free.auth.recovery.v1')!)).toMatchObject({
+      entries: [{ kind: 'schema-draft', value: { acknowledgedRevisionNumber: 1, draft: DRAFT, recordScope: 'records' } }],
+    })
+    first.unmount()
+
+    vi.mocked(revisions.appendSchemaRevision).mockReset()
+    vi.mocked(revisions.appendSchemaRevision).mockImplementation(
+      async (_project, _schema, expected, definition, _coverage, _signal, recordScope) =>
+        appended(expected, definition as typeof DRAFT, recordScope),
+    )
+    setSessionRecoveryAccount(ACCOUNT_ID)
+    const restored = renderHook(() => useDurableCurrentSchemaRevision(scope(initial)))
+    expect(restored.result.current.snapshot()).toMatchObject({ draft: DRAFT, recordScope: 'records' })
+    await act(async () => {
+      await restored.result.current.flush()
+    })
+
+    expect(revisions.appendSchemaRevision).toHaveBeenCalledExactlyOnceWith(
+      PROJECT_ID, SCHEMA_ID, 1, DRAFT, undefined, undefined, 'records',
+    )
+    expect(restored.result.current.snapshot().save).toMatchObject({
+      status: 'saved',
+      acknowledged: { revisionNumber: 2, recordScope: 'records' },
+    })
   })
 })
 

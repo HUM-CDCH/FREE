@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SchemaDefinition, SchemaNode } from 'extraction/schema'
+import type { RecordScope, SchemaDefinition, SchemaNode } from 'extraction/schema'
 import type {
   SchemaRevision,
   SchemaRevisionSummary,
@@ -34,6 +34,7 @@ const revision = (
   origin: 'researcher-edit',
   createdAt: '2026-08-01T12:00:00.000Z',
   recordDescription: `One ${name} record.`,
+  recordScope: 'document',
   schemaNodes: [node(name)],
 })
 
@@ -46,6 +47,7 @@ const summaryOf = (
   revisionNumber,
   origin: 'researcher-edit' as const,
   createdAt: '2026-08-01T12:00:00.000Z',
+  recordScope: 'document',
   summary: name,
 })
 
@@ -58,7 +60,10 @@ function setupDurable(options: {
   const edits: SchemaDefinition[] = []
   const events: string[] = []
   const messages: string[] = []
-  const appends: Array<{ expected: number; definition: SchemaDefinition }> = []
+  const appends: Array<{ expected: number; definition: SchemaDefinition; recordScope?: RecordScope }> = []
+  const initialized: Array<RecordScope | undefined> = []
+  // The server's head scope: an append that names none inherits it.
+  let headScope = options.initial?.recordScope ?? null
   const historyName = (sent: AcknowledgedSchemaRevision): string =>
     sent.recordDescription.replace(/^One | record\.$/g, '')
   const history: SchemaRevisionSummary[] = options.initial
@@ -72,9 +77,9 @@ function setupDurable(options: {
     projectContextId: 'project-1',
     initial: options.initial ?? null,
     debounceMs: options.debounceMs,
-    append: async (_extractionSchemaId, expectedRevisionNumber, sent) => {
+    append: async (_extractionSchemaId, expectedRevisionNumber, sent, _sourceCoverage, recordScope) => {
       events.push('append')
-      appends.push({ expected: expectedRevisionNumber, definition: sent })
+      appends.push({ expected: expectedRevisionNumber, definition: sent, ...(recordScope ? { recordScope } : {}) })
       if (hold) {
         await hold.promise
         hold = null
@@ -86,13 +91,17 @@ function setupDurable(options: {
         {
           ...revision(expectedRevisionNumber + 1, sent.schemaNodes[0]!.name),
           ...(options.normalizeAcknowledgement?.(sent) ?? sent),
+          recordScope: recordScope ?? headScope,
         }
+      headScope = next.recordScope
       history.unshift(summaryOf(next.revisionNumber, historyName(next)))
       return next
     },
-    initialize: async (sent) => {
+    initialize: async (sent, _signal, _sourceCoverage, recordScope) => {
       events.push('initialize')
-      return revision(1, sent.schemaNodes[0]!.name)
+      initialized.push(recordScope)
+      headScope = recordScope ?? null
+      return { ...revision(1, sent.schemaNodes[0]!.name), recordScope: headScope }
     },
     listRevisions: async () => [...history],
     getRevision: async () => revision(1, 'historical'),
@@ -130,10 +139,15 @@ function setupDurable(options: {
     events,
     messages,
     appends,
+    initialized,
     saveState: (): SchemaSaveState['status'] | null =>
       controller.snapshot().save?.status ?? null,
     failNextAppendWith: (error: SchemaRevisionConflictError | Error) => {
       appendResult = error
+    },
+    /** Later appends succeed again. */
+    restoreAppends: () => {
+      appendResult = null
     },
     /** The next append waits until the returned function is called. */
     holdNextAppend: () => {
@@ -288,6 +302,98 @@ describe('editor gate', () => {
   })
 })
 
+describe('record scope', () => {
+  it('saves an Article/Catalog choice as an append that names it, and later edits inherit it', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site') })
+    expect(setup.controller.snapshot().recordScope).toBe('document')
+
+    setup.controller.setRecordScope('document')
+    expect(setup.events).not.toContain('edit')
+    setup.controller.setRecordScope('records')
+    expect(setup.controller.snapshot()).toMatchObject({ recordScope: 'records', extractableSchemaRevisionId: null })
+    expect(setup.messages).toEqual(['✎ Strategy changed to Catalog'])
+    await setup.controller.flush()
+    expect(setup.appends).toEqual([{ expected: 1, definition: definition('site'), recordScope: 'records' }])
+    expect(setup.controller.snapshot()).toMatchObject({ recordScope: 'records', extractableSchemaRevisionId: 'rev-2' })
+
+    setup.controller.setRecordDescription('One renamed record.')
+    await setup.controller.flush()
+    expect(setup.appends[1]).not.toHaveProperty('recordScope')
+    expect(setup.controller.snapshot()).toMatchObject({ recordScope: 'records', extractableSchemaRevisionId: 'rev-3' })
+  })
+
+  it('declares a choice made before the first revision when generation initializes it, and none otherwise', async () => {
+    const chosen = setupDurable()
+    expect(chosen.controller.snapshot().recordScope).toBeNull()
+    chosen.controller.setRecordScope('records')
+    expect(chosen.controller.snapshot().recordScope).toBe('records')
+    await chosen.controller.generate(async () => ({ _description: 'One generated record.', place: 'string' }))
+    expect(chosen.initialized).toEqual(['records'])
+    expect(chosen.controller.snapshot().recordScope).toBe('records')
+
+    const unchosen = setupDurable()
+    await unchosen.controller.generate(async () => ({ _description: 'One generated record.', place: 'string' }))
+    expect(unchosen.initialized).toEqual([undefined])
+    expect(unchosen.controller.snapshot().recordScope).toBeNull()
+  })
+
+  it('saves a scope change without waiting for the edit debounce, carrying the pending edit in the same revision', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 1500 })
+    setup.controller.commit((current) => [...current, node('year')], 'edit')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(setup.appends).toHaveLength(0)
+
+    setup.controller.setRecordScope('records')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(setup.appends).toEqual([{
+      expected: 1,
+      definition: { recordDescription: 'One site record.', schemaNodes: [node('site'), node('year')] },
+      recordScope: 'records',
+    }])
+    expect(setup.controller.snapshot()).toMatchObject({
+      recordScope: 'records',
+      extractableSchemaRevisionId: 'rev-2',
+      save: { status: 'saved' },
+    })
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(setup.appends).toHaveLength(1)
+  })
+
+  it('keeps a failed scope save visible and unextractable until a retry flush saves it', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 1500 })
+    setup.failNextAppendWith(new Error('Could not save the Current Schema Revision.'))
+    setup.controller.setRecordScope('records')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(setup.controller.snapshot()).toMatchObject({
+      recordScope: 'records',
+      extractableSchemaRevisionId: null,
+      save: { status: 'error', error: new Error('Could not save the Current Schema Revision.') },
+    })
+    // Choosing the same scope again changes nothing; the retry is a flush.
+    setup.controller.setRecordScope('records')
+    expect(setup.appends).toHaveLength(1)
+
+    setup.restoreAppends()
+    await expect(setup.controller.flush()).resolves.toMatchObject({ revisionNumber: 2, recordScope: 'records' })
+    expect(setup.appends[1]).toEqual({ expected: 1, definition: definition('site'), recordScope: 'records' })
+    expect(setup.controller.snapshot()).toMatchObject({
+      recordScope: 'records',
+      extractableSchemaRevisionId: 'rev-2',
+      save: { status: 'saved' },
+    })
+  })
+
+  it('restores a historical revision without its scope: the restored content inherits the current one', async () => {
+    const setup = setupDurable({ initial: { ...revision(2, 'site'), recordScope: 'records' } })
+    await setup.controller.createCurrentRevisionFromHistory('rev-1')
+    expect(setup.appends).toHaveLength(1)
+    expect(setup.appends[0]).not.toHaveProperty('recordScope')
+    expect(setup.controller.snapshot().recordScope).toBe('records')
+  })
+})
+
 describe('flush-before-extract', () => {
   it('resolves flush only after the pending append acknowledges', async () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 60_000 })
@@ -348,7 +454,7 @@ describe('generation lifecycle', () => {
     }
     expect(initialize).toHaveBeenCalledOnce()
     expect(reconcileInitialization).toHaveBeenCalledOnce()
-    expect(initialize).toHaveBeenCalledWith(imported, undefined, null)
+    expect(initialize).toHaveBeenCalledWith(imported, undefined, null, undefined)
     controller.dispose()
   })
   it('initializes a fresh Extraction Schema on first generation', async () => {

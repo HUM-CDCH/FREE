@@ -9,6 +9,7 @@ import type { NavigableRoute } from '../projectNavigation'
 import {
   getSchemaRevision,
   listExtractionSchemas,
+  listSchemaRevisions,
 } from '../schemaRevisions'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import { Button } from '../ui'
@@ -20,6 +21,8 @@ import {
 } from '../../shared/batchExtraction.contract'
 import {
   parseBatchSuggestionDefinition,
+  recordScopeOf,
+  strategyOf,
   type SchemaDefinition,
 } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
@@ -29,13 +32,14 @@ import SchemaPanel from '../SchemaPanel'
 import {
   createSchemaEditorController,
   localSchemaPersistence,
+  type SchemaEditorController,
+  type SchemaEditorSnapshot,
 } from '../currentSchemaRevision'
 import { sameSchemaDefinition } from '../schemaDefinitionEquality'
 import {
   useDurableCurrentSchemaRevision,
   useSchemaEditorController,
 } from '../useCurrentSchemaRevision'
-import type { AcknowledgedSchemaRevision } from '../schemaSaveCoordinator'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import { SavedMethodSummary } from '../SavedMethodSummary'
 import {
@@ -86,10 +90,25 @@ function failureText(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
-/** The start was refused because the saved advanced settings changed after its summary was shown. */
+/** Refusals said with the saved-method summary: the saved advanced settings changed after it was shown, or the
+ *  strategy is not the schema's saved Article/Catalog scope. Nothing started. */
+const METHOD_REFUSALS: ReadonlySet<string> = new Set([
+  'method_changed',
+  'catalog_migration_required',
+  'record_scope_required',
+  'record_scope_mismatch',
+])
+
 function methodChanged(error: unknown): error is BatchRequestError {
-  return error instanceof BatchRequestError && (error.code === 'method_changed' || error.code === 'catalog_migration_required')
+  return error instanceof BatchRequestError && error.code !== null && METHOD_REFUSALS.has(error.code)
 }
+
+/** Said wherever a start waits for the schema's Article/Catalog choice. */
+const STRATEGY_HELP = 'Article: one object for the whole document. Catalog: a collection of records.'
+const STRATEGY_NAME: Readonly<Record<ExtractionStrategy, string>> = { ARTICLE: 'Article', CATALOG: 'Catalog' }
+
+const noSubscription = () => () => {}
+const noSnapshot = (): SchemaEditorSnapshot | null => null
 
 function stamp(value: string): string {
   return new Date(value).toLocaleString(undefined, {
@@ -193,6 +212,11 @@ export default function BatchExtractionsPanel({
     message: string
   } | null>(null)
   const [pinnedBatchSchemaReload, setPinnedBatchSchemaReload] = useState(0)
+  // The current revision of the open batch's schema, for Run again; unknown until read.
+  const [pinnedSchemaCurrent, setPinnedSchemaCurrent] = useState<{
+    extractionSchemaId: string
+    schemaRevisionId: string
+  } | null>(null)
   const [exportCoverage, setExportCoverage] = useState<{
     batchExtractionId: string
     message: string
@@ -202,11 +226,17 @@ export default function BatchExtractionsPanel({
   )
   const [filter, setFilter] = useState('')
   const opening = useRef(false)
-  // The saved-schema editor registers its flush so opening a Batch Extraction
-  // can wait for the chosen schema's pending save.
-  const savedSchemaFlush = useRef<(() => Promise<AcknowledgedSchemaRevision | null>) | null>(null)
   const sampleFactsRefresh = useRef<((revision?: string) => Promise<void>) | null>(null)
   const [coverageRevision, setCoverageRevision] = useState<{ selected: string; current: string } | null>(null)
+  // The saved-schema editor registers its controller so opening a Batch Extraction
+  // can wait for the chosen schema's pending save, and the strategy select reads
+  // and saves that schema's Article/Catalog scope.
+  const [savedSchemaController, setSavedSchemaController] =
+    useState<SchemaEditorController | null>(null)
+  const savedSchemaSnap = useSyncExternalStore(
+    savedSchemaController?.subscribe ?? noSubscription,
+    savedSchemaController?.snapshot ?? noSnapshot,
+  )
   const historyGeneration = useRef(0)
   const suggestionGeneration = useRef(0)
   const pendingRefreshes = useRef(0)
@@ -238,7 +268,9 @@ export default function BatchExtractionsPanel({
   const activeSuggestion = suggestion.context.suggestion
   // A suggested-batch Run refused the same way is shown with the summary, not as the suggestion's failure.
   const suggestionMethodConflict =
-    suggestion.context.runFailureCode === 'method_changed' ? suggestion.context.error : null
+    suggestion.context.runFailureCode !== null && METHOD_REFUSALS.has(suggestion.context.runFailureCode)
+      ? suggestion.context.error
+      : null
   const [seenSuggestionConflict, setSeenSuggestionConflict] = useState<string | null>(null)
   if (suggestionMethodConflict !== seenSuggestionConflict) {
     setSeenSuggestionConflict(suggestionMethodConflict)
@@ -486,6 +518,20 @@ export default function BatchExtractionsPanel({
     pinnedBatchSchemaFailure?.schemaRevisionId === pinnedSchemaRevisionId
       ? pinnedBatchSchemaFailure.message
       : null
+  // Run again repeats the batch on its own Schema Revision under its own strategy, which admission accepts only while
+  // that revision is its schema's current one and its scope names the strategy. A revision a later save replaced, or
+  // one left undeclared (it ran as both Article and Catalog), runs again only as a New Batch Extraction.
+  const runAgainRefusal = !openBatch
+    ? null
+    : pinnedSchemaCurrent?.extractionSchemaId === openBatch.extractionSchemaId &&
+        pinnedSchemaCurrent.schemaRevisionId !== openBatch.schemaRevisionId
+      ? `Schema Revision ${openBatch.schemaRevisionNumber} is no longer the current revision of ${openBatch.extractionSchemaName}, so this Batch Extraction cannot run again. Start a New Batch Extraction with the schema instead.`
+      : currentPinnedBatchSchema &&
+          currentPinnedBatchSchema.recordScope !== recordScopeOf(openBatch.strategy)
+        ? `Schema Revision ${openBatch.schemaRevisionNumber} ${currentPinnedBatchSchema.recordScope === null
+          ? 'declares neither Article nor Catalog'
+          : `is saved as ${STRATEGY_NAME[strategyOf(currentPinnedBatchSchema.recordScope)]}`}, so this Batch Extraction cannot run again as ${STRATEGY_NAME[openBatch.strategy]}. Start a New Batch Extraction with the schema and choose Article or Catalog there.`
+        : null
   // The Schema Revision the open Batch Extraction pinned, so its export offers
   // the schema-led choices of the schema that actually produced the results.
   useEffect(() => {
@@ -521,6 +567,19 @@ export default function BatchExtractionsPanel({
     pinnedSchemaRevisionId,
     pinnedBatchSchemaReload,
   ])
+  // The schema's newest revision is its current one. Unread, Run again stays offered and admission decides.
+  useEffect(() => {
+    if (!pinnedExtractionSchemaId || !pinnedSchemaRevisionId) return
+    const controller = new AbortController()
+    listSchemaRevisions(projectContextId, pinnedExtractionSchemaId, 1, controller.signal).then(
+      ([newest]) => {
+        if (!controller.signal.aborted && newest)
+          setPinnedSchemaCurrent({ extractionSchemaId: pinnedExtractionSchemaId, schemaRevisionId: newest.schemaRevisionId })
+      },
+      () => {},
+    )
+    return () => controller.abort()
+  }, [projectContextId, pinnedExtractionSchemaId, pinnedSchemaRevisionId, pinnedBatchSchemaReload])
 
   /** One spreadsheet over every Extraction Result this batch has produced. */
   const exportOpenBatch = async (
@@ -633,21 +692,26 @@ export default function BatchExtractionsPanel({
 
   const openExistingSchemaBatch = async () => {
     if (opening.current || saved.state.status !== 'ready') return
-    const method = savedMethodFor(saved.state, batchStrategy, null)
+    const savedState = saved.state
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
     setMethodConflict(null)
     setRunNotice(null)
     try {
-      const savedRevision = await savedSchemaFlush.current?.()
+      const savedRevision = await savedSchemaController?.flush()
       await sampleFactsRefresh.current?.(savedRevision?.schemaRevisionId ?? schemaRevisionId)
+      // The saved revision's own scope decides what runs; admission refuses any other.
+      const recordScope = savedRevision ? savedRevision.recordScope : chosenRecordScope
+      if (recordScope === null)
+        throw new Error('Choose Article or Catalog before running.')
+      const strategy = strategyOf(recordScope)
       const request = {
         projectContextId,
         schemaRevisionId: savedRevision?.schemaRevisionId ?? schemaRevisionId,
-        strategy: batchStrategy,
+        strategy,
         sourceDocumentIds: [...selected],
-        method,
+        method: savedMethodFor(savedState, strategy, null),
       }
       acceptOpenedBatch(await openBatchExtraction(request))
     } catch (error) {
@@ -751,6 +815,23 @@ export default function BatchExtractionsPanel({
   const selectedSchema = schemas.value?.find(
     (schema) => schema.currentRevision?.schemaRevisionId === schemaRevisionId,
   )
+  // An existing schema's strategy is its saved Article/Catalog scope (the choice its editor saves next, once mounted);
+  // a suggested schema's is chosen here and declared by the revision the suggestion saves.
+  const chosenSchemaShown =
+    schemaRevisionId !== SUGGEST_SCHEMA && chosenSchema?.schemaRevisionId === schemaRevisionId
+  // Only the chosen schema's own editor speaks for it (a replaced editor may still be registered for a render).
+  const chosenEditor =
+    savedSchemaSnap?.extractionSchemaId === chosenSchema?.extractionSchemaId ? savedSchemaSnap : null
+  const chosenRecordScope = chosenSchemaShown
+    ? chosenEditor ? chosenEditor.recordScope : chosenSchema.recordScope
+    : null
+  const selectedStrategy: ExtractionStrategy | null =
+    schemaRevisionId === SUGGEST_SCHEMA
+      ? batchStrategy
+      : chosenRecordScope === null
+        ? null
+        : strategyOf(chosenRecordScope)
+  const strategyUnchosen = chosenSchemaShown && chosenRecordScope === null
   const suggestingFields =
     suggestion.matches('creating') ||
     suggestion.matches('suggesting') ||
@@ -776,7 +857,11 @@ export default function BatchExtractionsPanel({
         }) &&
         !suggestionHasPendingLocalEdit &&
         runnableSuggestionDefinition(suggestion.context.draft)
-      : schemaRevisionId.length > 0)
+      : schemaRevisionId.length > 0 &&
+        selectedStrategy !== null &&
+        // Opening waits for the editor's save; a failed or conflicting one blocks it until the editor recovers.
+        chosenEditor?.save?.status !== 'error' &&
+        chosenEditor?.save?.status !== 'conflict')
   const toggleAllSourceDocuments = () => {
     if (schemaRevisionId === SUGGEST_SCHEMA) clearSuggestedFields()
     setSelected(
@@ -960,29 +1045,46 @@ export default function BatchExtractionsPanel({
                   )}
                 </select>
               </label>
-              <label className="text-[11px] font-semibold text-ink-muted">
+              <label className="text-[11px] font-semibold text-ink-muted" title={STRATEGY_HELP}>
                 Extraction Strategy
                 <select
                   className={`${control} mt-1 block w-full font-normal`}
                   aria-label="Batch extraction strategy"
-                  value={batchStrategy}
-                  disabled={openingAnyBatch}
-                  onChange={(event) =>
-                    setBatchStrategy(event.target.value as ExtractionStrategy)
+                  aria-describedby={strategyUnchosen ? 'batch-extraction-strategy-help' : undefined}
+                  value={selectedStrategy ?? ''}
+                  disabled={
+                    openingAnyBatch ||
+                    (schemaRevisionId !== SUGGEST_SCHEMA && (!chosenSchemaShown || savedSchemaController === null))
                   }
+                  onChange={(event) => {
+                    const strategy = event.target.value as ExtractionStrategy
+                    if (schemaRevisionId === SUGGEST_SCHEMA) setBatchStrategy(strategy)
+                    // A scope change is a schema change: the editor appends a revision with it.
+                    else savedSchemaController?.setRecordScope(recordScopeOf(strategy))
+                  }}
                 >
+                  {selectedStrategy === null && (
+                    <option value="" disabled>Choose…</option>
+                  )}
                   <option value="ARTICLE">Article</option>
                   <option value="CATALOG">Catalog</option>
                 </select>
+                {strategyUnchosen && (
+                  <span id="batch-extraction-strategy-help" className="mt-1 block font-normal">
+                    {STRATEGY_HELP}
+                  </span>
+                )}
               </label>
             </div>
             <div className="mb-3">
               <SampleFacts projectContextId={projectContextId}
                 schemaRevisionId={schemaRevisionId === SUGGEST_SCHEMA ? null : coverageRevision?.selected === schemaRevisionId ? coverageRevision.current : schemaRevisionId || null}
                 sourceDocumentIds={[...selected]} refreshRef={sampleFactsRefresh} />
-              <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
-                method={saved.state.status === 'ready' ? savedMethodFor(saved.state, batchStrategy, null) : null}
-                onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
+              {selectedStrategy !== null && (
+                <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
+                  method={saved.state.status === 'ready' ? savedMethodFor(saved.state, selectedStrategy, null) : null}
+                  onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
+              )}
             </div>
             {schemas.failure && (
               <p className="mb-3 text-[11px] text-danger" role="alert">
@@ -1000,9 +1102,7 @@ export default function BatchExtractionsPanel({
                     ? `${selectedSchema.name} · Schema Revision ${chosenSchema.revisionNumber}`
                     : `Schema Revision ${chosenSchema.revisionNumber}`
                 }
-                registerFlush={(flush) => {
-                  savedSchemaFlush.current = flush
-                }}
+                registerController={setSavedSchemaController}
               />
             )}
             {schemaRevisionId === SUGGEST_SCHEMA && (
@@ -1239,6 +1339,7 @@ export default function BatchExtractionsPanel({
             }
             opening={openingAnyBatch}
             canRunAgain={saved.state.status === 'ready'}
+            runAgainRefusal={runAgainRefusal}
             runAgainMethod={
               <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
                 method={saved.state.status === 'ready' ? savedMethodFor(saved.state, openBatch.strategy, null) : null}
@@ -1288,15 +1389,13 @@ function SavedSchemaEditor({
   projectContextId,
   chosenSchema,
   sourceDocumentName,
-  registerFlush,
+  registerController,
   onCurrentRevision,
 }: {
   projectContextId: string
   chosenSchema: SchemaRevision
   sourceDocumentName: string
-  registerFlush: (
-    flush: (() => Promise<AcknowledgedSchemaRevision | null>) | null,
-  ) => void
+  registerController: (controller: SchemaEditorController | null) => void
   onCurrentRevision(revision: { selected: string; current: string }): void
 }) {
   const schema = useDurableCurrentSchemaRevision({
@@ -1305,9 +1404,9 @@ function SavedSchemaEditor({
     debounceMs: 0,
   })
   useEffect(() => {
-    registerFlush(() => schema.flush())
-    return () => registerFlush(null)
-  }, [schema, registerFlush])
+    registerController(schema)
+    return () => registerController(null)
+  }, [schema, registerController])
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const currentRevision = snap.save?.acknowledged.schemaRevisionId ?? chosenSchema.schemaRevisionId
   useEffect(() => {
@@ -1317,6 +1416,8 @@ function SavedSchemaEditor({
     snap.save?.status === 'error'
       ? snap.save.error?.message ?? 'The schema could not be saved.'
       : null
+  // A flush retries the failed save with the latest fields and scope; a new failure shows here again.
+  const retrySave = () => void schema.flush().catch(() => undefined)
   // Clear keeps the record description and empties the fields — the same
   // empty-draft-saved-immediately semantics this screen always had.
   async function clearDraft() {
@@ -1338,9 +1439,14 @@ function SavedSchemaEditor({
         />
       </section>
       {failure && (
-        <p className="-mt-3 mb-5 text-[11px] text-danger" role="alert">
-          {failure}
-        </p>
+        <div className="-mt-3 mb-5 flex flex-wrap items-center gap-2">
+          <p className="text-[11px] text-danger" role="alert">
+            {failure}
+          </p>
+          <Button onClick={retrySave}>
+            Retry save
+          </Button>
+        </div>
       )}
     </>
   )

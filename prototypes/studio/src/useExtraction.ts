@@ -103,6 +103,8 @@ const SOURCE_REPRESENTATION_SUPERSEDED = 'source_representation_superseded'
 const METHOD_CHANGED = 'method_changed'
 /** Legacy Catalog preferences wait for their migration: refreshable, like a changed method. */
 const MIGRATION_REQUIRED = 'catalog_migration_required'
+/** A strategy the schema's saved Article/Catalog scope does not name (or none saved): said like a changed method. */
+const RECORD_SCOPE_REFUSALS: ReadonlySet<string> = new Set(['record_scope_required', 'record_scope_mismatch'])
 
 export type ExtractionController = ReturnType<typeof useExtraction>
 
@@ -470,7 +472,7 @@ export function useExtraction({
         onSuperseded?.()
         return null
       }
-      if (definiteRejection(error) && (error.code === METHOD_CHANGED || error.code === MIGRATION_REQUIRED)) {
+      if (definiteRejection(error) && (error.code === METHOD_CHANGED || error.code === MIGRATION_REQUIRED || RECORD_SCOPE_REFUSALS.has(error.code ?? ''))) {
         // Nothing started: the previous attempt stays, and the start view refreshes its summary.
         monitorRef.current = null
         setState(extractionStateFromAttempt(attempt))

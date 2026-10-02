@@ -5,6 +5,8 @@ import type { TerminalExtraction } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import type { KeiExtractInput } from './kei-handoff.js'
 import type { ParsedDocument } from './parsed-document.js'
+import { refuseRecordCardinality } from './record-scope.js'
+import { recordScopeSchema } from './schema.js'
 import type { ExtractionStrategy } from './types.js'
 
 const path = z.array(z.union([z.string(), z.number().int().nonnegative()]))
@@ -50,7 +52,8 @@ const artifactSchema = z.object({
   models: z.object({ fields: z.string().min(1), reasoning: z.string().min(1) }),
   // kei-exp writes its `PROMPT_VERSION`: a number, not a label.
   prompt_version: z.number().int(),
-  schema: z.object({ recordDescription: z.string(), schemaNodes: z.array(z.unknown()) }),
+  // The schema kei-exp ran: the request's, echoed with its record scope (absent only in an artifact of an older run).
+  schema: z.object({ recordDescription: z.string(), recordScope: recordScopeSchema.optional(), schemaNodes: z.array(z.unknown()) }),
   options: z.record(z.string(), z.unknown()),
   started: z.string(),
   seconds: z.number().nonnegative(),
@@ -266,8 +269,9 @@ export type ArtifactPins = Readonly<{
 
 /**
  * kei's extraction artifact as the Extraction it completes, or `ExtractionError` when it is not one: outside kei's
- * schema, produced for other inputs than `request` (another run, generation, strategy, schema, recipe or model
- * choice), or naming a table cell the pinned representation does not have. Pure: the caller reads the bytes, the
+ * schema, produced for other inputs than `request` (another run, generation, strategy, schema and record scope, recipe
+ * or model choice), holding another number of root records than its record scope allows (a document scope is exactly
+ * one), or naming a table cell the pinned representation does not have. Pure: the caller reads the bytes, the
  * pinned document and the request, and publishes the result.
  */
 export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, raw: unknown, request: KeiExtractInput): TerminalExtraction {
@@ -292,6 +296,8 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
     (artifact.extraction_version === 3) !== (options.unified !== undefined)
   )
     throw new ExtractionError('invalid_model_output', 'kei-exp returned an artifact for different extraction inputs.')
+  // The result envelope is always `{records: [...]}`; a document-scope result holds exactly one root record.
+  refuseRecordCardinality(request.request.schema.recordScope, artifact.records.length)
   const grounded = artifact.extraction_version === 2 ? artifact : null
   const unified = artifact.extraction_version === 3 ? artifact : null
   if (unified && !embedsItsRecords(unified, raw as Record<string, unknown>, pins, request))

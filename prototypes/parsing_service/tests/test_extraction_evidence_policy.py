@@ -46,12 +46,10 @@ def assembled(monkeypatch, *, enabled, name="diagnostic"):
     tree["schemaNodes"][1]["name"] = name
     source = passages(["Hill. Source observation."])
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
-    def reason(system, user, schema):
-        if "records" in schema["properties"]:
-            return {"records": [{"label": "Hill", "identity": {"site": "Hill"}, "passages": ["p1_s0"]}]}
+    def reason(system, user, schema):  # grounding only: Article's document root takes no inventory
         return {claim: {"label": "E1", "attribution": True}
                 for claim in schema["properties"]}
-    fields = CountingChat(lambda *_: {name: [{"status": "reported", "observation": "Source observation"}],
+    fields = CountingChat(lambda *_: {"site": "Hill", name: [{"status": "reported", "observation": "Source observation"}],
                                      "review": "check later"})
     reasoning = CountingChat(reason)
     request = run.ExtractRequest(schema=tree, options={"strategy": "article", "article": {

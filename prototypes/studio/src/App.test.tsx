@@ -174,6 +174,7 @@ const reopened: DocumentWorkspaceProps = {
     schemaRevisionId: '51000000-0000-4000-8005-000000000002',
     revisionNumber: 1,
     recordDescription: 'One place record.',
+    recordScope: 'document',
     schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
     sourceCoverage: null,
   },
@@ -212,6 +213,7 @@ const reopened: DocumentWorkspaceProps = {
       extractionSchemaId: '51000000-0000-4000-8005-000000000001',
       revisionNumber: 1,
       recordDescription: 'One place record.',
+      recordScope: 'document',
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
     },
   },
@@ -225,6 +227,43 @@ afterEach(() => {
   destroyLoadingTask.mockClear()
   scrollPageIntoView.mockClear()
 })
+
+type RevisionWrite = {
+  expectedRevisionNumber: number
+  recordDescription: string
+  schemaNodes: SchemaNode[]
+  recordScope?: 'document' | 'records'
+}
+
+/** The id the stubbed server gives revision `revisionNumber` of the reopened Extraction Schema. */
+const appendedRevisionId = (revisionNumber: number) =>
+  `51000000-0000-4000-8005-0000000001${String(revisionNumber).padStart(2, '0')}`
+
+/**
+ * Answers a Schema Revision append the way Studio does: the next revision, with the record scope the write names, else
+ * its head's (`headScope`; the reopened schema is an Article). Each write body is kept.
+ */
+function appendRevision(
+  init: RequestInit | undefined,
+  writes: RevisionWrite[] = [],
+  headScope = reopened.extractionSchema!.recordScope,
+) {
+  const request = JSON.parse(String(init?.body)) as RevisionWrite
+  writes.push(request)
+  const named = [...writes].reverse().find((write) => write.recordScope)?.recordScope
+  return Response.json({
+    revision: {
+      schemaRevisionId: appendedRevisionId(request.expectedRevisionNumber + 1),
+      extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+      revisionNumber: request.expectedRevisionNumber + 1,
+      origin: 'researcher-edit',
+      createdAt: '2026-08-12T00:00:00.000Z',
+      recordDescription: request.recordDescription,
+      recordScope: named ?? headScope,
+      schemaNodes: request.schemaNodes,
+    },
+  }, { status: 201 })
+}
 
 /** Renders the reopened workspace and waits for indexing to settle. */
 async function renderReopened() {
@@ -711,6 +750,7 @@ describe('reopened Source Document workspace', () => {
               origin: 'suggestion',
               createdAt: '2026-08-09T10:00:00.000Z',
               recordDescription: 'One site record.',
+              recordScope: null,
               schemaNodes,
             },
           }, { status: 201 })
@@ -723,6 +763,7 @@ describe('reopened Source Document workspace', () => {
               revisionNumber: 1,
               origin: 'suggestion',
               createdAt: '2026-08-09T10:00:00.000Z',
+              recordScope: null,
               summary: 'Initial schema',
             }],
           })
@@ -768,6 +809,7 @@ describe('reopened Source Document workspace', () => {
               origin: 'suggestion',
               createdAt: '2026-08-09T10:00:00.000Z',
               recordDescription: body.recordDescription,
+              recordScope: (body as { recordScope?: string }).recordScope ?? null,
               schemaNodes: body.schemaNodes,
             },
           }, { status: 201 })
@@ -797,6 +839,7 @@ describe('reopened Source Document workspace', () => {
           schemaRevisionId: '51000000-0000-4000-8005-000000000030',
           revisionNumber: 1,
           recordDescription: saved.recordDescription,
+          recordScope: null,
           schemaNodes: saved.schemaNodes,
           sourceCoverage: excerpted as NonNullable<typeof reopened.extractionSchema>['sourceCoverage'],
         }}
@@ -846,6 +889,7 @@ describe('reopened Source Document workspace', () => {
                 revisionNumber: 2,
                 origin: 'researcher-edit',
                 createdAt: '2026-08-09T10:01:00.000Z',
+                recordScope: 'document',
                 summary: 'Current schema',
               },
               {
@@ -854,6 +898,7 @@ describe('reopened Source Document workspace', () => {
                 revisionNumber: 1,
                 origin: 'suggestion',
                 createdAt: '2026-08-09T10:00:00.000Z',
+                recordScope: 'document',
                 summary: 'Initial schema',
               },
             ],
@@ -868,6 +913,7 @@ describe('reopened Source Document workspace', () => {
               origin: 'suggestion',
               createdAt: '2026-08-09T10:00:00.000Z',
               recordDescription: 'One historical record.',
+              recordScope: 'document',
               schemaNodes: historicalNodes,
             },
           })
@@ -884,6 +930,7 @@ describe('reopened Source Document workspace', () => {
               origin: 'researcher-edit',
               createdAt: '2026-08-09T10:02:00.000Z',
               recordDescription: request.recordDescription,
+              recordScope: (request as { recordScope?: string }).recordScope ?? 'document',
               schemaNodes: request.schemaNodes,
             },
           }, { status: 201 })
@@ -982,6 +1029,7 @@ describe('reopened Source Document workspace', () => {
               origin: 'researcher-edit',
               createdAt: '2026-08-14T10:00:00.000Z',
               recordDescription: request.recordDescription,
+              recordScope: (request as { recordScope?: string }).recordScope ?? 'document',
               schemaNodes: request.schemaNodes,
             },
           }, { status: 201 })
@@ -1112,6 +1160,7 @@ describe('reopened Source Document workspace', () => {
               origin: 'researcher-edit',
               createdAt: '2026-08-12T00:00:00.000Z',
               recordDescription: request.recordDescription,
+              recordScope: (request as { recordScope?: string }).recordScope ?? 'document',
               schemaNodes: request.schemaNodes,
             },
           }, { status: 201 }))
@@ -1202,6 +1251,7 @@ describe('reopened Source Document workspace', () => {
               origin: 'researcher-edit',
               createdAt: '2026-08-12T00:00:00.000Z',
               recordDescription: request.recordDescription,
+              recordScope: (request as { recordScope?: string }).recordScope ?? 'document',
               schemaNodes: request.schemaNodes,
             },
           }, { status: 201 }))
@@ -1319,7 +1369,7 @@ describe('reopened Source Document workspace', () => {
               schemaRevisionId: savedSchemaRevisionId,
               extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
               revisionNumber: 2, origin: 'researcher-edit', createdAt: '2026-08-12T00:00:00.000Z',
-              recordDescription: request.recordDescription, schemaNodes: request.schemaNodes,
+              recordDescription: request.recordDescription, schemaNodes: request.schemaNodes, recordScope: 'document',
             },
           }, { status: 201 }))
         }
@@ -1464,8 +1514,42 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText(/^Sample · rev/)).not.toBeInTheDocument()
   })
 
-  it.each([[null], ['numbered-catalogue-de@1']])('submits the selected Catalog strategy and record boundaries (%s) once, then defaults back to Article', async (recipe) => {
-    const extractionRequests: Array<{ strategy?: string; catalogRecipe?: string }> = []
+  it('offers Save & re-run sample only while the schema is still the strategy the sample ran as', async () => {
+    const extractionRequests: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url === '/api/schema-revisions' && init?.method === 'POST') return Promise.resolve(appendRevision(init))
+      if (url.endsWith('/api/extractions')) {
+        extractionRequests.push(JSON.parse(String(init?.body)))
+        return Promise.resolve(Response.json({ error: { code: 'record_scope_mismatch', message: 'Refused.' } }, { status: 409 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    const articleSample = {
+      ...reopened.persistedExtraction!, extractionId: '51000000-0000-4000-8006-000000000002', requestedPages: [1],
+      requestedModels: null, requestedSettings: { article: null },
+    }
+    render(<DocumentWorkspace {...reopened} latestSample={articleSample} />)
+    const rerun = await screen.findByRole('button', { name: 'Save & re-run sample' })
+    await waitFor(() => expect(rerun).toBeEnabled())
+    // The sample repeats its own method, Article included; a Catalog schema would refuse it (record_scope_mismatch).
+    fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+    await waitFor(() => expect(rerun).toBeDisabled())
+    expect(rerun).toHaveAccessibleDescription(
+      'This sample ran as Article, and the schema is now Catalog. Run a new sample to extract it as Catalog.')
+    fireEvent.click(rerun)
+    expect(extractionRequests).toEqual([])
+    fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'ARTICLE' } })
+    await waitFor(() => expect(rerun).toBeEnabled())
+    expect(rerun).not.toHaveAccessibleDescription()
+  })
+
+  it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the schema\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {
+    const extractionRequests: Array<{ strategy?: string; catalogRecipe?: string; schemaRevisionId?: string }> = []
+    const writes: RevisionWrite[] = []
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -1474,6 +1558,8 @@ describe('reopened Source Document workspace', () => {
         if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
         if (url.startsWith('/api/schema-revisions?'))
           return Promise.resolve(Response.json({ revisions: [] }))
+        if (url === '/api/schema-revisions' && init?.method === 'POST')
+          return Promise.resolve(appendRevision(init, writes))
         if (url.endsWith('/api/extractions')) {
           const body = JSON.parse(String(init?.body)) as { strategy?: string; catalogRecipe?: string }
           extractionRequests.push(body)
@@ -1510,16 +1596,16 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
 
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
+    // Catalog is a schema change: the run flushes it as a revision that names the scope, then runs that revision.
+    expect(writes).toEqual([expect.objectContaining({ expectedRevisionNumber: 1, recordScope: 'records' })])
     expect(extractionRequests[0]).toEqual(
-      expect.objectContaining({ strategy: 'CATALOG' }),
+      expect.objectContaining({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) }),
     )
     if (recipe) expect(extractionRequests[0].catalogRecipe).toBe(recipe)
     else expect(extractionRequests[0]).not.toHaveProperty('catalogRecipe')
-    // The selection is one-shot: the next run defaults back to Article.
-    await waitFor(() =>
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE'),
-    )
-    expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
+    // The schema stays a Catalog; only the boundaries return to model discovery.
+    await waitFor(() => expect(screen.getByLabelText('Record boundaries')).toHaveValue(''))
+    expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
   })
 
   it('with the unified Catalog enabled, a Catalog start offers no recipe and submits the unified method', async () => {
@@ -1532,6 +1618,7 @@ describe('reopened Source Document workspace', () => {
         if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
         if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
         if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+        if (url === '/api/schema-revisions' && init?.method === 'POST') return Promise.resolve(appendRevision(init))
         if (url.endsWith('/api/extractions')) {
           extractionRequests.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
           return Promise.resolve(Response.json({ error: { code: 'method_changed', message: 'Stale.' } }, { status: 409 }))
@@ -1554,10 +1641,10 @@ describe('reopened Source Document workspace', () => {
   })
 
   describe('Results-tab run action after a Catalog attempt', () => {
-    // Every Results-tab run action posts the toolbar's one-shot selection, so
-    // after a Catalog attempt it names and posts the Article default until the
-    // researcher selects Catalog again — unless the run it started failed,
-    // which repeats that attempt's strategy and recipe.
+    // Every Results-tab run action posts the schema's saved Article/Catalog
+    // scope with the toolbar's one-shot boundaries: after a Catalog run the
+    // schema stays a Catalog and boundaries return to Model discovery — unless
+    // the run failed, which repeats that attempt's recipe.
     const catalogAttempts: Record<'FAILED' | 'SUCCEEDED', ExtractionAttempt> = {
       FAILED: {
         extractionId: '51000000-0000-4000-8006-000000000041',
@@ -1588,11 +1675,12 @@ describe('reopened Source Document workspace', () => {
       },
     }
 
-    /** The exact body a run from this workspace posts for a toolbar selection. */
+    /** The exact body a run from this workspace posts for a toolbar selection. Choosing Catalog on the reopened Article
+     *  schema saved revision 2, and every Catalog run here runs it. */
     const posted = (strategy: 'ARTICLE' | 'CATALOG', catalogRecipe?: string) => ({
       id: expect.any(String),
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
-      schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      schemaRevisionId: strategy === 'CATALOG' ? appendedRevisionId(2) : reopened.extractionSchema!.schemaRevisionId,
       strategy,
       ...(catalogRecipe ? { catalogRecipe } : {}),
       // The saved method of the run's own settings slot: the account keeps every service default.
@@ -1604,7 +1692,7 @@ describe('reopened Source Document workspace', () => {
 
     /** Answers every run with a terminal attempt of the posted strategy and keeps each request body. */
     function stubRuns(outcome: 'FAILED' | 'SUCCEEDED') {
-      const bodies: Array<{ id: string; strategy: 'ARTICLE' | 'CATALOG' }> = []
+      const bodies: Array<{ id: string; strategy: 'ARTICLE' | 'CATALOG'; schemaRevisionId: string }> = []
       vi.stubGlobal(
         'fetch',
         vi.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -1613,11 +1701,13 @@ describe('reopened Source Document workspace', () => {
           if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
           if (url.startsWith('/api/schema-revisions?'))
             return Promise.resolve(Response.json({ revisions: [] }))
+          if (url === '/api/schema-revisions' && init?.method === 'POST')
+            return Promise.resolve(appendRevision(init))
           if (url.endsWith('/api/extractions') && init?.method === 'POST') {
-            const body = JSON.parse(String(init.body)) as { id: string; strategy: 'ARTICLE' | 'CATALOG' }
+            const body = JSON.parse(String(init.body)) as { id: string; strategy: 'ARTICLE' | 'CATALOG'; schemaRevisionId: string }
             bodies.push(body)
             return Promise.resolve(Response.json(
-              { ...catalogAttempts[outcome], extractionId: body.id, strategy: body.strategy },
+              { ...catalogAttempts[outcome], extractionId: body.id, strategy: body.strategy, schemaRevisionId: body.schemaRevisionId },
               { status: 201 },
             ))
           }
@@ -1634,8 +1724,9 @@ describe('reopened Source Document workspace', () => {
       )
     }
 
-    /** Starts a Catalog run from the toolbar; acknowledging it resets the one-shot selection, unless it failed. */
-    async function runCatalogFromToolbar(bodies: unknown[], recipe?: string, next: 'ARTICLE' | 'CATALOG' = 'ARTICLE') {
+    /** Saves Catalog and starts a run from the toolbar; acknowledging it resets the one-shot boundaries, unless it
+     *  failed. The schema stays a Catalog. */
+    async function runCatalogFromToolbar(bodies: unknown[], recipe?: string, nextRecipe = '') {
       fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
       if (recipe)
         fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
@@ -1643,8 +1734,9 @@ describe('reopened Source Document workspace', () => {
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('CATALOG', recipe))
       await waitFor(() =>
-        expect(screen.getByLabelText('Extraction strategy')).toHaveValue(next),
+        expect(screen.getByLabelText('Record boundaries')).toHaveValue(nextRecipe),
       )
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
     }
 
     /** Opens Results and finds its run action by the exact name it must carry. */
@@ -1653,23 +1745,23 @@ describe('reopened Source Document workspace', () => {
       return screen.getByRole('button', { name })
     }
 
-    it('names and posts Article after a Catalog run that succeeds', async () => {
+    it('names and posts the schema\'s Catalog after a Catalog run that succeeds', async () => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
       fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
 
-      const action = resultsRunAction('Run Article extraction')
-      expect(action).not.toHaveAccessibleDescription()
+      const action = resultsRunAction('Run Catalog extraction')
+      expect(action).toHaveAccessibleDescription('Boundaries: Model discovery')
       fireEvent.click(action)
       await waitFor(() => expect(bodies).toHaveLength(2))
-      expect(bodies[1]).toEqual(posted('ARTICLE'))
+      expect(bodies[1]).toEqual(posted('CATALOG'))
     })
 
     it('names and posts the same Catalog run after one that fails', async () => {
       const bodies = stubRuns('FAILED')
       await renderWorkspace(null)
-      await runCatalogFromToolbar(bodies, undefined, 'CATALOG')
+      await runCatalogFromToolbar(bodies)
 
       const action = resultsRunAction('Run Catalog extraction')
       expect(action).toHaveAccessibleDescription('Boundaries: Model discovery')
@@ -1681,7 +1773,7 @@ describe('reopened Source Document workspace', () => {
     it.each([
       ['failed', 'FAILED', 'Extraction failed'],
       ['completed', 'SUCCEEDED', 'Catalogued'],
-    ] as const)('names and posts Article after reopening a %s Catalog attempt', async (_label, outcome, shown) => {
+    ] as const)('names and posts the schema\'s Article after reopening a %s Catalog attempt', async (_label, outcome, shown) => {
       const bodies = stubRuns(outcome)
       await renderWorkspace({
         ...catalogAttempts[outcome],
@@ -1707,8 +1799,7 @@ describe('reopened Source Document workspace', () => {
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies, 'numbered-catalogue-de@1')
       fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-      // The recipe is one-shot like the strategy: selecting Catalog again starts at Model discovery.
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      // The recipe is one-shot: the schema stays a Catalog, and its next run starts at Model discovery.
       expect(screen.getByLabelText('Record boundaries')).toHaveValue('')
       expect(resultsRunAction('Run Catalog extraction')).toHaveAccessibleDescription('Boundaries: Model discovery')
       if (recipe)
@@ -1720,6 +1811,229 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(action)
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual(posted('CATALOG', recipe))
+    })
+  })
+
+  describe('the strategy is the schema\'s saved record scope', () => {
+    const help = 'Article: one object for the whole document. Catalog: a collection of records.'
+
+    /** A workspace whose fetches answer revision writes (kept) and runs (kept, each refused or queued as given). */
+    function stubWorkspace(run: (body: Record<string, unknown>) => Response = (body) => Response.json({
+      extractionId: body.id,
+      sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      schemaRevisionId: body.schemaRevisionId,
+      strategy: body.strategy, catalogRecipe: null,
+      executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 1, finishReason: 'stop', inputTokens: 1, outputTokens: 1, grounding: null, catalog: null },
+      failure: null, resultPayload: { records: [{ place: 'Ellekilde' }] }, evidenceLinks: [], reviewable: true,
+      batchExtractionId: null, createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+    }, { status: 201 }), headScope = reopened.extractionSchema!.recordScope) {
+      const writes: RevisionWrite[] = []
+      const runs: Array<Record<string, unknown>> = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url === '/api/schema-revisions' && init?.method === 'POST')
+            return Promise.resolve(appendRevision(init, writes, headScope))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            const body = JSON.parse(String(init.body)) as Record<string, unknown>
+            runs.push(body)
+            return Promise.resolve(run(body))
+          }
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      return { writes, runs }
+    }
+
+    async function renderWith(extractionSchema: DocumentWorkspaceProps['extractionSchema']) {
+      render(<DocumentWorkspace {...reopened} extractionSchema={extractionSchema} persistedExtraction={null} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    }
+
+    it('shows the revision\'s scope, and a legacy revision with none waits for a choice that is saved before Run', async () => {
+      const { writes, runs } = stubWorkspace()
+      await renderWith({ ...reopened.extractionSchema!, recordScope: null })
+
+      const selector = screen.getByLabelText('Extraction strategy')
+      expect(selector).toHaveValue('')
+      expect(screen.getByRole('option', { name: 'Choose…' })).toBeDisabled()
+      expect(selector).toHaveAccessibleDescription(help)
+      const run = screen.getByRole('button', { name: '▶ Run extraction' })
+      expect(run).toBeDisabled()
+      expect(run).toHaveAttribute('title', expect.stringContaining(help))
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      expect(screen.getByRole('button', { name: 'Run extraction' })).toBeDisabled()
+
+      fireEvent.change(selector, { target: { value: 'CATALOG' } })
+      expect(selector).toHaveValue('CATALOG')
+      expect(screen.queryByText(help)).not.toBeInTheDocument()
+      await waitFor(() => expect(run).toBeEnabled())
+      fireEvent.click(run)
+
+      await waitFor(() => expect(runs).toHaveLength(1))
+      expect(writes).toEqual([expect.objectContaining({ expectedRevisionNumber: 1, recordScope: 'records' })])
+      expect(runs[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) })
+      expect(selector).toHaveValue('CATALOG')
+    })
+
+    it('keeps the scope through a schema edit: the append names none and the server keeps the head\'s', async () => {
+      const { writes, runs } = stubWorkspace(undefined, 'records')
+      await renderWith({ ...reopened.extractionSchema!, recordScope: 'records' })
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+
+      fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+
+      await waitFor(() => expect(runs).toHaveLength(1))
+      expect(writes).toHaveLength(1)
+      expect(writes[0]).not.toHaveProperty('recordScope')
+      expect(runs[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) })
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+    })
+
+    /** Renames the `place` field in the Schema tab: a field edit the 1500 ms debounce holds. */
+    function renamePlaceField() {
+      fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    }
+
+    it('saves a scope change at once, with the pending field edit in the same revision, and shows the save state', async () => {
+      const { writes } = stubWorkspace()
+      await renderWith(reopened.extractionSchema)
+      renamePlaceField()
+      expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+      expect(writes).toHaveLength(0)
+
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+
+      // Well inside the debounce: the scope does not wait for it, and it carries the edit.
+      await waitFor(() => expect(writes).toHaveLength(1))
+      expect(writes[0]).toMatchObject({
+        expectedRevisionNumber: 1,
+        recordScope: 'records',
+        schemaNodes: [expect.objectContaining({ name: 'location' })],
+      })
+      await waitFor(() => expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument())
+      expect(screen.queryByText('Saving…')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+    })
+
+    it('shows a failed scope save, refuses Run until Retry saves it, then runs the saved revision', async () => {
+      const { writes, runs } = stubWorkspace()
+      const answer = vi.mocked(fetch).getMockImplementation()!
+      let failNextWrite = true
+      vi.mocked(fetch).mockImplementation((input, init) => {
+        if (String(input) === '/api/schema-revisions' && init?.method === 'POST' && failNextWrite) {
+          failNextWrite = false
+          return Promise.resolve(Response.json(
+            { error: { code: 'unavailable', message: 'The database is unavailable.' } },
+            { status: 503 },
+          ))
+        }
+        return answer(input, init)
+      })
+      await renderWith(reopened.extractionSchema)
+      const run = screen.getByRole('button', { name: '▶ Run extraction' })
+
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      expect(await screen.findByRole('alert')).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
+      expect(run).toBeDisabled()
+      expect(run).toHaveAttribute('title', 'The schema is not saved. Retry the save first.')
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
+      await waitFor(() => expect(writes).toHaveLength(1))
+      expect(writes[0]).toMatchObject({ expectedRevisionNumber: 1, recordScope: 'records' })
+      await waitFor(() => expect(run).toBeEnabled())
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      fireEvent.click(run)
+      await waitFor(() => expect(runs).toHaveLength(1))
+      expect(runs[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) })
+    })
+
+    it('starts the pending save when the workspace closes instead of dropping the edit', async () => {
+      const { writes } = stubWorkspace()
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      renamePlaceField()
+      expect(writes).toHaveLength(0)
+
+      cleanup()
+
+      await waitFor(() => expect(writes).toHaveLength(1))
+      expect(writes[0]).toMatchObject({ expectedRevisionNumber: 1, schemaNodes: [expect.objectContaining({ name: 'location' })] })
+      expect(writes[0]).not.toHaveProperty('recordScope')
+    })
+
+    it.each([
+      ['record_scope_mismatch', 'The schema is saved as a Catalog; refresh to run it.'],
+      ['record_scope_required', 'Choose Article or Catalog for this schema before it can run.'],
+    ])('shows a %s refusal with the server\'s message where a changed method is shown', async (code, message) => {
+      const { runs } = stubWorkspace(() => Response.json({ error: { code, message } }, { status: 409 }))
+      await renderWith(reopened.extractionSchema)
+
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
+      expect(runs).toHaveLength(1)
+      expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
+    })
+
+    it('declares the choice made before the first revision when a suggestion initializes it', async () => {
+      const written: Array<Record<string, unknown>> = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Response.json(parsedDocument)
+          if (url.endsWith('/markdown')) return new Response('# Beretning')
+          if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+          if (url.endsWith('/api/generate_schema'))
+            return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1 })
+          if (url === '/api/schema-revisions' && init?.method === 'POST') {
+            const body = JSON.parse(String(init.body)) as Record<string, unknown>
+            written.push(body)
+            return Response.json({
+              revision: {
+                schemaRevisionId: '51000000-0000-4000-8005-000000000040',
+                extractionSchemaId: '51000000-0000-4000-8005-000000000041',
+                revisionNumber: 1,
+                origin: 'suggestion',
+                createdAt: '2026-08-09T10:00:00.000Z',
+                recordDescription: body.recordDescription,
+                recordScope: body.recordScope ?? null,
+                schemaNodes: body.schemaNodes,
+              },
+            }, { status: 201 })
+          }
+          if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+          throw new Error(`Unexpected request: ${url}`)
+        }),
+      )
+      await renderWith(null)
+      const selector = screen.getByLabelText('Extraction strategy')
+      expect(selector).toHaveValue('')
+      fireEvent.change(selector, { target: { value: 'ARTICLE' } })
+
+      fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+      await waitFor(() => expect(written).toHaveLength(1))
+      expect(written[0]).toMatchObject({ recordScope: 'document' })
+      await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
+      expect(selector).toHaveValue('ARTICLE')
     })
   })
 
@@ -1737,6 +2051,8 @@ describe('reopened Source Document workspace', () => {
           if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
           if (url.startsWith('/api/schema-revisions?'))
             return Promise.resolve(Response.json({ revisions: [] }))
+          if (url === '/api/schema-revisions' && init?.method === 'POST')
+            return Promise.resolve(appendRevision(init))
           if (url.endsWith('/api/extractions') && init?.method === 'POST') {
             const body = JSON.parse(String(init.body)) as (typeof bodies)[number]
             bodies.push(body)
@@ -1779,7 +2095,7 @@ describe('reopened Source Document workspace', () => {
 
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(await screen.findByText('Discovery failed.', undefined, { timeout: 4_000 })).toBeVisible()
-      // The failed attempt's strategy and recipe are the next run's selection.
+      // The schema stays a Catalog, and the failed attempt's recipe is the next run's boundaries.
       expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
       expect(screen.getByLabelText('Record boundaries')).toHaveDisplayValue('Numbered catalogue (German)')
       const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
@@ -1789,7 +2105,7 @@ describe('reopened Source Document workspace', () => {
       expect(bodies[1]).toEqual({
         id: expect.any(String),
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
-        schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+        schemaRevisionId: appendedRevisionId(2),
         strategy: 'CATALOG',
         catalogRecipe: recipe,
         method: { models: null, settings: { recipe: null } },
@@ -2088,6 +2404,7 @@ describe('reopened Source Document workspace', () => {
             origin: 'researcher-edit',
             createdAt: '2026-08-12T00:00:00.000Z',
             recordDescription: savedDefinition!.recordDescription,
+            recordScope: 'document',
             schemaNodes: savedDefinition!.schemaNodes,
           },
         },

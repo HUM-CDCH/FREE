@@ -573,6 +573,77 @@ PostgreSQL volume, restore the volumes, and start normally: migrations are
 already applied, and the entrypoint sets the `kei` role's password from
 `.env` again.
 
+## Upgrade: Schema Revision record scope
+
+Migration `20261001T1432_schema_revision_record_scope` adds the nullable
+`schemaRevision.recordScope` and backfills it from the strategies of the
+Extractions and Batch Extractions pinned to each revision: only `ARTICLE` →
+`document`, only `CATALOG` → `records`. A revision that never ran, or ran as
+both, stays `NULL`. A declared scope is never rewritten, and the schema tree is
+untouched.
+
+Legacy scope may remain undeclared; new extraction admission requires a
+resolved scope. Admission refuses a revision without one with
+`record_scope_required` (HTTP 409) until the researcher chooses Article or
+Catalog and saves; it refuses a strategy that the scope does not name with
+`record_scope_mismatch` (409). An identical repeat of an already admitted
+Extraction or Batch Extraction still replays: replay is checked before scope.
+Historical Extractions (their pins, method, outcome, result, evidence and
+diagnostics), review drafts and finalized reviews with their decision digests,
+and batch exports are read unchanged. A historical Article result with several
+root records stays readable. Nothing adds a scope to an old run's request.
+
+An Extraction in flight at the upgrade runs the scope that its admitted
+strategy names (`recordScopeOf(admitted.strategy)` in
+`packages/extraction/src/workflows.ts`); a pinned revision that declares
+another scope fails it with `invalid_extraction_pins`. The backfill counts
+that Extraction, so it never gives its revision the other scope. A resumed
+Article Extraction is now held to exactly one root record, by Studio and by
+the Parsing Service.
+
+Drain before you upgrade, so that no run resumes across it. An Extraction
+the previous Studio had already handed to the Parsing Service ran on a
+request whose schema has no `recordScope`. The upgraded Studio recomputes the
+request, which now names the scope, and compares it with the artifact's
+schema echo; they differ, and the Extraction fails with
+`invalid_model_output` ("kei-exp returned an artifact for different
+extraction inputs"). A drained upgrade also judges no earlier run by the
+one-root rule.
+
+Deploy Studio and the Parsing Service together, from one commit, as
+`node scripts/free.mjs production` does. Studio now sends `recordScope` in
+every extraction request's schema, and a Parsing Service from before this
+change refuses it (its schema forbids unknown fields), failing every new
+Extraction.
+
+1. **Drain.** Close researcher access by stopping `nginx` (with the bundled
+   proxy) or the host route, and leave `studio` and `parsing_worker` running.
+   Wait until this query returns no rows:
+   `SELECT 'dbos', status, count(*) FROM dbos.workflow_status WHERE queue_name IS DISTINCT FROM 'gc' AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') GROUP BY 2 UNION ALL SELECT 'kei_dbos', status, count(*) FROM kei_dbos.workflow_status WHERE queue_name IS DISTINCT FROM 'kei-gc' AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') GROUP BY 2`.
+   It leaves out only garbage collection (`gc`, `kei-gc`). A workflow
+   started outside a queue (a child workflow) has no `queue_name`, and one
+   DBOS recovered or an operator resumed may sit on `_dbos_internal_queue`:
+   `IS DISTINCT FROM` counts both, where `IN (...)` or `<>` would skip a
+   `NULL` queue.
+2. **Back up.** Stop `studio` and `parsing_worker`, then take the backup set
+   from [Back up and restore](#back-up-and-restore). Keep the previous image
+   tags, or the previous commit, so you can rebuild them.
+3. **Deploy.** Run `node scripts/free.mjs production`. Studio's entrypoint
+   replays the migrations (`pnpm --filter db db:init`), and a failed migration
+   prevents startup.
+4. **Verify.** Check the health route, then run
+   `SELECT "recordScope", count(*) FROM "schemaRevision" GROUP BY 1`. The
+   `NULL` count is the revisions that never ran or ran as both. Open a
+   historical reviewed Extraction and a Batch Extraction export, and check
+   that they show the same values as before. Reopen access.
+5. **Roll back.** Migrations are forward-only, and this one has no down
+   migration. Stop the stack, restore `free` and the volumes from the step 2
+   backup, and start the previous images. A restore loses all
+   work done after the deploy: new and re-run Extractions and Batch
+   Extractions, review drafts and finalizations, schema revisions (and the
+   scopes researchers chose), uploads and reprocessing, model-configuration
+   changes, and the matching DBOS and `parsing-runs` state.
+
 ## Cutover to durable execution (one-time, clean slate)
 
 This runbook moves a deployment from Procrastinate to DBOS once, before FREE

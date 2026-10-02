@@ -13,6 +13,7 @@ import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { RunExtractionStrategy } from './ResultsTab'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
+import { SchemaSaveStatus } from './SchemaSaveStatus'
 import { deleteModelOperation, requestSchema } from './api'
 import {
   decodeParsedDocument,
@@ -29,7 +30,7 @@ import { PageNavigation } from './PageNavigation'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
-import type { SchemaDefinition } from 'extraction/schema'
+import { recordScopeOf, strategyOf, type SchemaDefinition } from 'extraction/schema'
 import { browserStudioPath } from './studioUrl.js'
 import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
 import { resultPathKey } from '../shared/groundedExtraction'
@@ -66,6 +67,13 @@ function pageRanges(pages: readonly number[]): string {
 const SAMPLE_PAGE_LIMIT = 30
 /** Every result path: the sample's Evidence is painted whole, and stable so painting does not repeat per render. */
 const EVERY_RESULT_PATH: readonly string[] = []
+const STRATEGY_NAME: Readonly<Record<ExtractionStrategy, string>> = { ARTICLE: 'Article', CATALOG: 'Catalog' }
+
+/** Why Save & re-run sample cannot repeat a sample after the schema's Article/Catalog choice changed: it repeats the
+ *  sample's own method, and admission runs a revision only under the strategy its scope names. */
+function sampleStrategyChanged(sample: ExtractionStrategy, schema: ExtractionStrategy): string {
+  return `This sample ran as ${STRATEGY_NAME[sample]}, and the schema is now ${STRATEGY_NAME[schema]}. Run a new sample to extract it as ${STRATEGY_NAME[schema]}.`
+}
 
 function isFreeHighlightTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) {
@@ -206,12 +214,13 @@ export function DocumentWorkspace({
   const [selectingSamplePages, setSelectingSamplePages] = useState(false)
   const pageNavigationId = useId()
   const sampleControlsId = useId()
+  const sampleRerunRefusalId = useId()
   const pagesToggleRef = useRef<HTMLButtonElement>(null)
-  // One-shot per-run selection: each new run defaults back to Article, and the
-  // selector never changes the strategy of an active or persisted attempt.
-  const [nextExtractionStrategy, setNextExtractionStrategy] =
-    useState<ExtractionStrategy>('ARTICLE')
-  // Catalog only, one-shot like the strategy: '' keeps generic model discovery of record boundaries.
+  // Article or Catalog is the schema's own saved record scope (the Current Schema Revision's, or the choice its next
+  // save declares); null until one is chosen. The selector never changes the strategy of an active or persisted attempt.
+  const nextExtractionStrategy: ExtractionStrategy | null =
+    schemaSnap.recordScope === null ? null : strategyOf(schemaSnap.recordScope)
+  // Generic Catalog only, a one-shot per-run method choice: '' keeps generic model discovery of record boundaries.
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
@@ -261,7 +270,6 @@ export function DocumentWorkspace({
     setRenderedSourceRepresentationId(sourceRepresentationId)
     setLoadState({ status: 'loading' })
     setZoomPercent(100)
-    setNextExtractionStrategy('ARTICLE')
     setNextCatalogRecipe('')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setKnownSchemas(reopenedSchemas)
@@ -648,12 +656,12 @@ export function DocumentWorkspace({
   })
 
   /**
-   * The one-shot selection for the next run once `attempt` is acknowledged or has ended: a failed Catalog attempt is
-   * run again with its own recipe; anything else defaults back to Article.
+   * The one-shot boundaries choice for the next run once `attempt` is acknowledged or has ended: a failed Catalog
+   * attempt is run again with its own recipe; anything else returns to model discovery. Article or Catalog itself is
+   * the schema's saved record scope and never resets.
    */
   function selectNextRunAfter(attempt: ExtractionAttempt) {
     const repeat = attempt.executionStatus === 'FAILED' && attempt.strategy === 'CATALOG'
-    setNextExtractionStrategy(repeat ? 'CATALOG' : 'ARTICLE')
     setNextCatalogRecipe(repeat ? attempt.catalogRecipe ?? '' : '')
   }
 
@@ -757,7 +765,13 @@ export function DocumentWorkspace({
         return
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
-      const strategy = previous?.strategy ?? nextExtractionStrategy
+      // The saved revision's own scope decides what a run is; admission refuses any other. A re-run sample repeats its
+      // own method, strategy included, so it runs only while the scope still names that strategy.
+      if (revision.recordScope === null)
+        throw new Error('Choose Article or Catalog before extraction.')
+      const strategy = strategyOf(revision.recordScope)
+      if (previous && previous.strategy !== strategy)
+        throw new Error(sampleStrategyChanged(previous.strategy, strategy))
       // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
       const catalogRecipe = previous ? previous.catalogRecipe : savedState.unifiedCatalog ? null : nextCatalogRecipe || null
       const method = previous ? { models: previous.requestedModels ?? null, settings: previous.requestedSettings! } : savedMethodFor(savedState, strategy, catalogRecipe)
@@ -802,6 +816,11 @@ export function DocumentWorkspace({
     }
   }
 
+  /** The save failure's Retry: a flush saves the latest draft and scope again. A new failure shows as the status. */
+  function retrySchemaSave() {
+    void schema.flush().catch(() => undefined)
+  }
+
   const runExtractionUnavailable =
     saved.state.status !== 'ready' ||
     savingForRun ||
@@ -810,9 +829,16 @@ export function DocumentWorkspace({
     !sourceRepresentationId ||
     !sourceRepresentationCurrent ||
     !schemaReady ||
+    nextExtractionStrategy === null ||
     indexing ||
     schemaSnap.save?.status === 'conflict' ||
     schemaSnap.save?.status === 'error'
+  // Save & re-run sample repeats the shown sample's own method; once the schema's scope names the other strategy, a
+  // new sample (under the schema's scope) takes its place.
+  const sampleRerunRefusal =
+    shownSample && nextExtractionStrategy !== null && shownSample.strategy !== nextExtractionStrategy
+      ? sampleStrategyChanged(shownSample.strategy, nextExtractionStrategy)
+      : null
   const runLabel = running
     ? extraction.cancellationRequested
       ? 'Cancellation requested…'
@@ -820,8 +846,8 @@ export function DocumentWorkspace({
     : extraction.hasResults
       ? '↻ Re-run extraction'
       : '▶ Run extraction'
-  // The one-shot selection runExtraction posts, named on every Results-tab run
-  // action so none of them promises to repeat the inspected attempt.
+  // The selection runExtraction posts, named on every Results-tab run action so
+  // none of them promises to repeat the inspected attempt. None without a choice.
   const runExtractionStrategy: RunExtractionStrategy =
     nextExtractionStrategy === 'CATALOG'
       ? {
@@ -830,11 +856,18 @@ export function DocumentWorkspace({
             CATALOG_RECIPES.find((recipe) => recipe.id === nextCatalogRecipe)?.label ??
             'Model discovery',
         }
-      : { strategy: 'ARTICLE' }
+      : nextExtractionStrategy === 'ARTICLE'
+        ? { strategy: 'ARTICLE' }
+        : { strategy: null }
+  // Said wherever a run waits for the Article/Catalog choice.
+  const strategyHelp = 'Article: one object for the whole document. Catalog: a collection of records.'
+  const strategyUnchosen = !running && schemaReady && nextExtractionStrategy === null
 
   const hintText =
     running
       ? 'Extraction is running. Follow its status in the Results tab'
+      : strategyUnchosen
+      ? strategyHelp
       : extraction.hasResults
       ? 'View the extracted JSON in the Results tab'
       : !sourceRepresentationCurrent
@@ -927,21 +960,31 @@ export function DocumentWorkspace({
               </button>
             </div>
           )}
-          <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
+          <label
+            className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted"
+            title={strategyHelp}
+          >
             Strategy
             <select
               aria-label="Extraction strategy"
-              value={running ? latestAttempt.strategy : nextExtractionStrategy}
+              aria-describedby={strategyUnchosen ? 'extraction-strategy-help' : undefined}
+              value={running ? latestAttempt.strategy : nextExtractionStrategy ?? ''}
               disabled={running || savingForRun}
               onChange={(event) =>
-                setNextExtractionStrategy(event.target.value as ExtractionStrategy)
+                schema.setRecordScope(recordScopeOf(event.target.value as ExtractionStrategy))
               }
               className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink"
             >
+              {!running && nextExtractionStrategy === null && (
+                <option value="" disabled>Choose…</option>
+              )}
               <option value="ARTICLE">Article</option>
               <option value="CATALOG">Catalog</option>
             </select>
           </label>
+          {/* A scope choice saves at once; field edits wait out the debounce. Run waits for either, and a failed
+              save blocks it until Retry saves the latest draft and scope. */}
+          <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
           {!running && nextExtractionStrategy === 'CATALOG' && !(saved.state.status === 'ready' && saved.state.unifiedCatalog) && (
             <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
               Boundaries
@@ -960,7 +1003,7 @@ export function DocumentWorkspace({
               </select>
             </label>
           )}
-          {!running && (
+          {!running && nextExtractionStrategy !== null && (
             <SavedMethodSummary variant="toolbar" saved={saved.state} conflict={methodConflict}
               method={saved.state.status === 'ready'
                 ? savedMethodFor(saved.state, nextExtractionStrategy, nextExtractionStrategy === 'CATALOG' && !saved.state.unifiedCatalog ? nextCatalogRecipe || null : null)
@@ -982,10 +1025,16 @@ export function DocumentWorkspace({
                   : 'Cancel the active Extraction'
                 : !sourceRepresentationCurrent
                   ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
+                  : schemaSnap.save?.status === 'error'
+                  ? 'The schema is not saved. Retry the save first.'
+                  : schemaSnap.save?.status === 'conflict'
+                  ? 'The schema changed elsewhere. Reload it in the Schema tab first.'
                   : schemaReady
                     ? nextExtractionStrategy === 'CATALOG'
                       ? 'Find catalogue entries and extract one record per entry'
-                      : 'Run one values extraction across the whole Source Document'
+                      : nextExtractionStrategy === 'ARTICLE'
+                        ? 'Run one values extraction across the whole Source Document'
+                        : `Choose Article or Catalog first. ${strategyHelp}`
                     : 'Generate a schema in the Schema tab first'
             }
             onClick={() =>
@@ -1035,8 +1084,11 @@ export function DocumentWorkspace({
                   </span>}
                   {sample.cancellationError && <span role="alert" className="text-danger">{sample.cancellationError}</span>}
                   {shownSample?.requestedPages && <Button className="min-h-9"
-                    disabled={runExtractionUnavailable || !shownSample.requestedSettings}
+                    disabled={runExtractionUnavailable || !shownSample.requestedSettings || sampleRerunRefusal !== null}
+                    aria-describedby={sampleRerunRefusal ? sampleRerunRefusalId : undefined}
                     onClick={() => void runExtraction([...shownSample.requestedPages!], shownSample)}>Save &amp; re-run sample</Button>}
+                  {shownSample?.requestedPages && sampleRerunRefusal &&
+                    <span id={sampleRerunRefusalId} className="min-w-0 text-ink-muted">{sampleRerunRefusal}</span>}
                   {sample.monitorError && (
                     <>
                       <span role="status" className="text-danger">{sample.monitorError}</span>
@@ -1089,7 +1141,7 @@ export function DocumentWorkspace({
             <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden justify-center sm:flex">
               <p className="flex min-w-0 items-center gap-2 rounded-full bg-ink px-4 py-2 text-xs font-medium text-canvas shadow-float">
                 <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent-soft" />
-                <span className="truncate">{hintText}</span>
+                <span id={strategyUnchosen ? 'extraction-strategy-help' : undefined} className="truncate">{hintText}</span>
               </p>
             </div>
           </section>

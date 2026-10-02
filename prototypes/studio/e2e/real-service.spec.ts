@@ -22,14 +22,22 @@ async function representation(page: Page, project: string, document: string) {
   expect(response.ok(), await response.text()).toBeTruthy()
   return documentReopenResponseSchema.parse(await response.json()).sourceRepresentation.sourceRepresentationId
 }
+/** An Article over the site catalogue: the whole document is one object, its numbered sites one array of it. */
+const ARTICLE_SITES = {
+  recordDescription: 'The site catalogue as one document: every numbered archaeological site it lists.',
+  recordScope: 'document',
+  schemaNodes: [{
+    id: 'sites', name: 'sites', type: 'array', description: 'Every numbered site, in source order.',
+    children: [
+      { id: 'site', name: 'site', type: 'verbatim-string', description: 'The site name exactly as printed: Hill or Valley.' },
+      { id: 'finds', name: 'finds', type: 'verbatim-string', description: 'The material found, exactly as printed.' },
+      { id: 'year', name: 'year', type: 'integer', description: 'The four-digit year printed after dated.' },
+    ],
+  }],
+} as const
 async function articleSchema(page: Page, project: string) {
   const response = await page.request.post('/api/schema-revisions', { headers, data: {
-    projectContextId: project, recordDescription: 'Numbered archaeological sites.',
-    schemaNodes: [
-      { id: 'site', name: 'site', type: 'verbatim-string', description: 'Site name.' },
-      { id: 'finds', name: 'finds', type: 'verbatim-string', description: 'Material found.' },
-      { id: 'year', name: 'year', type: 'integer', description: 'Year after dated.' },
-    ],
+    projectContextId: project, ...ARTICLE_SITES,
   } })
   expect(response.status(), await response.text()).toBe(201)
   return (await response.json()).revision.schemaRevisionId as string
@@ -78,25 +86,44 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
     // The service must load accepted evidence from disk and durable admission from PostgreSQL after restart.
     await service.restart()
     expect(await (await fetch(`${service.url}/api/runs/${runId}/result`)).json()).toEqual(manifest)
-    const schemaResponse = await page.request.post('/api/schema-revisions', {
-      headers,
-      data: {
-        projectContextId: projectContext.projectContextId,
-        recordDescription: 'One numbered archaeological site entry. Extract each numbered entry once.',
-        schemaNodes: [
-          { id: 'site', name: 'site', type: 'verbatim-string', description: 'The site name exactly as printed: Hill or Valley.' },
-          { id: 'finds', name: 'finds', type: 'verbatim-string', description: 'The material found, exactly as printed.' },
-          { id: 'year', name: 'year', type: 'integer', description: 'The four-digit year printed after dated.' },
-        ],
-      },
+    // One revision has one record scope. The Article runs revision 1, which reads the catalogue as one object whose
+    // array holds both sites; a scope change then appends revision 2, the Catalog that reads each numbered entry as a
+    // record.
+    const articleResponse = await page.request.post('/api/schema-revisions', {
+      headers, data: { projectContextId: projectContext.projectContextId, ...ARTICLE_SITES },
     })
-    expect(schemaResponse.status(), await schemaResponse.text()).toBe(201)
-    const { revision } = await schemaResponse.json()
+    expect(articleResponse.status(), await articleResponse.text()).toBe(201)
+    const article = (await articleResponse.json()).revision as { schemaRevisionId: string; extractionSchemaId: string }
+    const catalogue = async () => {
+      const response = await page.request.post('/api/schema-revisions', {
+        headers,
+        data: {
+          projectContextId: projectContext.projectContextId,
+          extractionSchemaId: article.extractionSchemaId,
+          expectedRevisionNumber: 1,
+          recordDescription: 'One numbered archaeological site entry. Extract each numbered entry once.',
+          recordScope: 'records',
+          schemaNodes: ARTICLE_SITES.schemaNodes[0].children,
+        },
+      })
+      expect(response.status(), await response.text()).toBe(201)
+      const { revision } = await response.json()
+      expect(revision).toMatchObject({ revisionNumber: 2, recordScope: 'records' })
+      return revision.schemaRevisionId as string
+    }
+    const sites = [
+      { site: 'Hill', finds: 'pottery', year: 1801 },
+      { site: 'Valley', finds: 'flint', year: 1802 },
+    ]
+    const runs = [
+      { strategy: 'ARTICLE', revision: async () => article.schemaRevisionId, records: [{ sites }] },
+      { strategy: 'CATALOG', revision: catalogue, records: sites },
+    ] as const
     const completedIds: string[] = []
-    for (const strategy of ['ARTICLE', 'CATALOG'] as const) {
+    for (const { strategy, revision, records } of runs) {
       const id = randomUUID()
       const admitted = await page.request.post('/api/extractions', { headers, data: {
-        id, strategy, schemaRevisionId: revision.schemaRevisionId,
+        id, strategy, schemaRevisionId: await revision(),
         sourceRepresentationRevisionId: reopen.sourceRepresentation.sourceRepresentationId,
         method: { models: null, settings: strategy === 'CATALOG' ? { generic: null } : { article: null } },
       } })
@@ -110,10 +137,7 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
       }, { timeout: 240_000, intervals: [500, 1000] }).toBe('COMPLETED')
       const body = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
       expect(body.extraction.failure).toBeNull()
-      expect(body.extraction.resultPayload).toEqual({ records: [
-        { site: 'Hill', finds: 'pottery', year: 1801 },
-        { site: 'Valley', finds: 'flint', year: 1802 },
-      ] })
+      expect(body.extraction.resultPayload).toEqual({ records })
       expect(body.extraction.complete).toBe(true)
       expect(body.extraction.evidenceLinks).toHaveLength(6)
       for (const link of body.extraction.evidenceLinks!) expect(anchors.has(link.evidenceAnchorId)).toBe(true)
@@ -138,8 +162,17 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
       return { id: extractionId, result: polled }
     }))
     await testInfo.attach('accepted-extractions', { body: JSON.stringify(acceptedArtifacts, null, 2), contentType: 'application/json' })
+    // Each artifact reports its own model calls. The Article inventories no identities: one document-level call reads
+    // its one root (both sites in its array) and one grounding call checks that root's values. The Catalog discovers
+    // the two entries, extracts each, and grounds each record.
+    const stages = (strategy: string) => acceptedArtifacts.find(({ result }) => result.strategy === strategy)!
+      .result.calls.map((call: { stage: string; record: number | null }) => [call.stage, call.record])
+    expect(stages('article')).toEqual([['record', 0], ['grounding', 0]])
+    expect(stages('catalog')).toEqual([
+      ['discovery', null], ['record', 0], ['record', 1], ['grounding', 0], ['grounding', 1],
+    ])
     const calls = service.modelCalls()
-    if (calls !== null) expect(calls).toBe(10) // Each strategy: discovery/inventory, two records and two groundings.
+    if (calls !== null) expect(calls).toBe(7) // Article 2 (root, grounding) + Catalog 5 (discovery, two records, two groundings).
     await service.restart()
     for (const prior of acceptedArtifacts)
       expect(await (await fetch(`${service.url}/api/runs/${runId}/extractions/${prior.id}`)).json()).toEqual(prior.result)
@@ -181,6 +214,7 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
       data: {
         projectContextId: projectContext.projectContextId,
         recordDescription: 'One numbered catalogue entry.',
+        recordScope: 'records',
         schemaNodes: [
           { id: 'entry_no', name: 'entry_no', type: 'integer', description: 'The catalogue number.' },
           { id: 'kreis', name: 'kreis', type: 'verbatim-string', description: 'The Kreis the entry is listed under.' },
@@ -513,7 +547,7 @@ test('a recipe budget the served model cannot hold is refused before model calls
     expect((await page.request.put('/api/model_config', { headers, data: { config: { ...EMPTY_DOCUMENT, extractionSettings: { catalog: { recipe } } } } })).status()).toBe(200)
     const { sourceDocumentId } = await uploaded(page, project, numberedCataloguePdf(), 'katalog.pdf')
     const schema = await page.request.post('/api/schema-revisions', { headers, data: {
-      projectContextId: project, recordDescription: 'One numbered catalogue entry.',
+      projectContextId: project, recordDescription: 'One numbered catalogue entry.', recordScope: 'records',
       schemaNodes: [{ id: 'entry_no', name: 'entry_no', type: 'integer', description: 'The catalogue number.' }],
     } })
     expect(schema.status(), await schema.text()).toBe(201)

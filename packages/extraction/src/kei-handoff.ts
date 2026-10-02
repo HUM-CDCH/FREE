@@ -2,6 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import type { DBOSClient, StepConfig } from '@dbos-inc/dbos-sdk'
 import { context, propagation } from '@opentelemetry/api'
 import { z } from 'zod'
+import { recordScopeSchema } from './schema.js'
 
 /** kei's lanes, priorities and identities (prototypes/parsing_service/src/kei_exp/workflows/config.py and contracts.py;
  *  pinned by tests/fixtures/contracts/). kei registers the queues; Studio only names one. */
@@ -75,7 +76,12 @@ export const keiConvertOkSchema = z.object({
 }).strict()
 export const keiExtractInputSchema = z.object({
   run_id: runId, generation: z.string().min(1),
-  request: z.object({ schema: z.record(z.string(), z.unknown()), options: z.record(z.string(), z.unknown()) }).strict(),
+  // The pinned tree with the revision's record scope beside it: admission guarantees a declared scope, and the
+  // Parsing Service echoes the schema it ran into its artifact.
+  request: z.object({
+    schema: z.looseObject({ recordDescription: z.string(), schemaNodes: z.array(z.unknown()), recordScope: recordScopeSchema }),
+    options: z.record(z.string(), z.unknown()),
+  }).strict(),
 }).strict()
 export const keiExtractOkSchema = z.object({
   ok: z.literal(true), run_id: runId, extraction_id: runId, generation: z.string().min(1), artifact_sha256: sha256,

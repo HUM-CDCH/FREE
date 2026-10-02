@@ -7,6 +7,7 @@ import {
   SCALAR_FIELD_TYPES,
   type ScalarFieldType,
 } from './allowed-values.js'
+import type { ExtractionStrategy } from './types.js'
 
 type SchemaNodeBase = {
   id: string
@@ -81,6 +82,46 @@ export const schemaDefinitionSchema = z
   .strict()
 
 export type SchemaDefinition = z.infer<typeof schemaDefinitionSchema>
+
+/**
+ * The task scope of a saved extraction definition: `document` (Article) is one document-level object, `records`
+ * (Catalog) a collection of record objects; either may contain arrays. It is stored beside the tree
+ * (`SchemaRevision.recordScope`), never inside it, and is never inferred from array fields or model output.
+ */
+export const RECORD_SCOPES = ['document', 'records'] as const
+export const recordScopeSchema = z.enum(RECORD_SCOPES)
+export type RecordScope = z.infer<typeof recordScopeSchema>
+
+const scopeOfStrategy = { ARTICLE: 'document', CATALOG: 'records' } as const satisfies Record<ExtractionStrategy, RecordScope>
+
+/** The record scope an Extraction Strategy runs: Article ↔ document, Catalog ↔ records. */
+export function recordScopeOf(strategy: ExtractionStrategy): RecordScope {
+  return scopeOfStrategy[strategy]
+}
+
+/** The Extraction Strategy (the user-facing Article/Catalog selection) of a record scope. */
+export function strategyOf(scope: RecordScope): ExtractionStrategy {
+  return scope === 'document' ? 'ARTICLE' : 'CATALOG'
+}
+
+/**
+ * A saved definition as every revision boundary reads it: the stored tree and the revision's record scope. A null
+ * scope is an undeclared legacy definition (its task selection was ambiguous): a choice is required before it runs.
+ */
+export const savedSchemaDefinitionSchema = schemaDefinitionSchema
+  .extend({ recordScope: recordScopeSchema.nullable() })
+  .strict()
+
+export type SavedSchemaDefinition = z.infer<typeof savedSchemaDefinitionSchema>
+
+export function parseSavedSchemaDefinition(value: unknown): SavedSchemaDefinition {
+  return savedSchemaDefinitionSchema.parse(value)
+}
+
+/** A stored tree read together with its revision's record scope. */
+export function savedSchemaDefinition(schemaTree: unknown, recordScope: unknown): SavedSchemaDefinition {
+  return parseSavedSchemaDefinition({ ...parseSchemaDefinition(schemaTree), recordScope })
+}
 
 export function parseSchemaDefinition(value: unknown): SchemaDefinition {
   return schemaDefinitionSchema.parse(value)
@@ -250,10 +291,11 @@ export function templateToSchemaDefinition(value: unknown): SchemaDefinition {
   })
 }
 
+/** The template of a definition's tree; a saved definition's record scope is not part of the template. */
 export function schemaDefinitionToTemplate(
-  definition: SchemaDefinition,
+  definition: SchemaDefinition | SavedSchemaDefinition,
 ): Record<string, unknown> {
-  const parsed = parseSchemaDefinition(definition)
+  const parsed = parseSchemaDefinition({ recordDescription: definition.recordDescription, schemaNodes: definition.schemaNodes })
   return {
     _description: parsed.recordDescription,
     ...nodesToTemplate(parsed.schemaNodes),

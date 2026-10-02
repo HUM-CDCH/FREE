@@ -1111,12 +1111,13 @@ def test_the_version_3_contract_fixture_is_what_the_service_produces(tmp_path, m
     monkeypatch.setattr(unified, "datetime", SimpleNamespace(now=lambda tz=None: datetime(2026, 9, 29, 12, tzinfo=UTC)))
     monkeypatch.setattr(unified, "time", SimpleNamespace(monotonic=lambda: 100.0))
     source = load(run_dir)
-    produced = unified.extract(run_dir, source, request(), as_router(CountingChat(Model(source))), counter=WordCounter(),
-                               extraction_id="x-contract")
+    scoped = {**SCHEMA, "recordScope": "records"}  # as Studio sends a revision's declared scope, echoed and digested
+    produced = unified.extract(run_dir, source, request(scoped), as_router(CountingChat(Model(source))),
+                               counter=WordCounter(), extraction_id="x-contract")
     assert produced["complete"] is True and len(produced["records"]) == 2
     fixture = {"extraction_id": "x-contract",
                "request": {"run_id": source.run_id, "generation": source.generation, "request": {
-                   "schema": SCHEMA, "options": {"strategy": "catalog", "unified": {"defaults": 1}}}},
+                   "schema": scoped, "options": {"strategy": "catalog", "unified": {"defaults": 1}}}},
                "manifest": json.loads((run_dir / "result" / "result.json").read_text(encoding="utf-8")),
                "pages": [json.loads((run_dir / "result" / "pages" / "1.json").read_text(encoding="utf-8"))],
                "artifact": produced}

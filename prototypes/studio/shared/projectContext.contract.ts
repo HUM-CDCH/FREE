@@ -4,6 +4,7 @@ import { extractionAttemptSchema } from './extraction.contract'
 import { sourceCoverageSchema } from './schemaSuggestionSource.contract'
 import {
   recordDescriptionSchema,
+  recordScopeSchema,
   schemaNodesSchema,
 } from 'extraction/schema'
 
@@ -173,6 +174,8 @@ export const reopenedExtractionSchema = extractionAttemptSchema
         extractionSchemaId: canonicalUuidSchema,
         revisionNumber,
         recordDescription: recordDescriptionSchema,
+        /** The pinned revision's record scope; null for a legacy revision that declares none. */
+        recordScope: recordScopeSchema.nullable(),
         schemaNodes: schemaNodesSchema,
       })
       .strict(),
@@ -211,6 +214,8 @@ export const documentReopenResponseSchema = z
         schemaRevisionId: canonicalUuidSchema,
         revisionNumber,
         recordDescription: recordDescriptionSchema,
+        /** The current revision's record scope; null for a legacy revision that declares none. */
+        recordScope: recordScopeSchema.nullable(),
         schemaNodes: schemaNodesSchema,
         /** What the Schema Suggestion behind this revision read of its source; null when not recorded. */
         sourceCoverage: sourceCoverageSchema.nullable(),

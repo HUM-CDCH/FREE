@@ -23,6 +23,14 @@ describe('summarizeSchemaRevision', () => {
     expect(summarizeSchemaRevision(previous, current)).toBe('1 evidence policy updated')
   })
 
+  it('names an explicit Article or Catalog choice, and never reports an inherited scope as a change', () => {
+    const tree = { recordDescription: 'One record.', schemaNodes: [{ id: 'a', name: 'site', type: 'string' as const }] }
+    expect(summarizeSchemaRevision({ ...tree, recordScope: null }, { ...tree, recordScope: 'records' })).toBe('Saved as Catalog')
+    expect(summarizeSchemaRevision({ ...tree, recordScope: 'records' }, { ...tree, recordScope: 'document',
+      recordDescription: 'One article.' })).toBe('Saved as Article, 1 record description updated')
+    expect(summarizeSchemaRevision({ ...tree, recordScope: 'records' }, { ...tree, recordScope: 'records' })).toBe('No structural changes')
+  })
+
   it('derives structural changes from stable ids and order', () => {
     const previous: SchemaNode[] = [
       { id: 'a', name: 'site', type: 'string' },

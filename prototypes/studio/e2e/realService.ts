@@ -63,6 +63,9 @@ export function textPdf(pages: string[][]): Buffer {
   return Buffer.from(content)
 }
 
+/** How an Article call opens its system prompt: `stages.DOCUMENT` in the Parsing Service's `kei_exp/kie/extract`. */
+const DOCUMENT_INSTRUCTION = 'The document is the one object to extract:'
+
 /** Only the model boundary is scripted. Responses are derived from the real parser text in each prompt. */
 async function modelServer() {
   let calls = 0
@@ -93,6 +96,7 @@ async function modelServer() {
         releaseHeld = null
       }
       const prompt: string = body.messages.at(-1).content
+      const system: string = body.messages.find((message: { role: string }) => message.role === 'system')?.content ?? ''
       const properties = body.response_format.json_schema.schema.properties
       const candidates = Object.values(properties).some((field) =>
         typeof field === 'object' && field !== null && 'properties' in field &&
@@ -112,26 +116,19 @@ async function modelServer() {
           name === 'fundart' && kind ? { value: kind[1], quote: kind[0], key: 'FA:', provenance: 'token' }
             : name === 'site_name' && site ? { value: site[1], quote: site[1], key: null, provenance: 'positional' }
               : null]))
+      } else if (system.startsWith(DOCUMENT_INSTRUCTION)) {
+        // Article: the whole source is one object, so every entry it states belongs in that object's array.
+        if (!('sites' in properties)) throw new Error(`Article call without the document's sites array: ${JSON.stringify(properties)}`)
+        if (records.length !== 2) throw new Error(`Article call did not receive both entries: ${prompt}`)
+        answer = { sites: records }
       } else if ('starts' in properties) {
         const starts = [...prompt.matchAll(/\[(B\d+)\]([^]*?)(?=\[B\d+\]|$)/g)]
           .filter(match => /Hill:|Valley:/.test(match[2])).map(match => match[1])
         if (starts.length !== 2) throw new Error(`Discovery did not receive both parsed entries: ${prompt}`)
         answer = { starts, end: null }
-      } else if ('records' in properties) {
-        const passages = [...prompt.matchAll(/\[(p\d+_s\d+)\]([^]*?)(?=\[p\d+_s\d+\]|$)/g)]
-        if (records.length !== 2) throw new Error(`Article inventory did not receive both entries: ${prompt}`)
-        answer = { records: records.map(({ site }) => ({ label: site, identity: { site },
-          passages: passages.filter(match => match[2].includes(`${site}:`)).map(match => match[1]),
-        })) }
       } else if ('site' in properties) {
         if (records.length !== 1) throw new Error(`Record extraction received ${records.length} records: ${prompt}`)
         answer = records[0]
-      } else if ('finds' in properties && 'year' in properties) {
-        const system: string = body.messages.find((message: { role: string }) => message.role === 'system').content
-        const site = /Extract ONLY the record (Hill|Valley):/.exec(system)?.[1]
-        const record = records.find(record => record.site === site)
-        if (!record) throw new Error(`Article value call without a supported identity: ${system}`)
-        answer = { finds: record.finds, year: record.year }
       } else if (Object.keys(properties).every(key => /^C\d+$/.test(key))) {
         const claims = [...prompt.matchAll(/^(C\d+) \([^\n]*\): ([^\n]+)$/gm)]
         const evidence = [...prompt.matchAll(/^(E\d+): ([^\n]+)$/gm)]

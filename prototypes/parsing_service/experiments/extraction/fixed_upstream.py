@@ -6,7 +6,7 @@ import json
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from kei_exp.kie.extract.article import extract_records
+from kei_exp.kie.extract.article import document_root, extract_records
 from kei_exp.kie.extract.contexts import Context, reconcile_values
 from kei_exp.kie.passages import load
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
@@ -99,7 +99,9 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
         issues += problems
     document, conflicts = reconcile_values(documents) if len(documents) > 1 else (documents[0], [])
     issues += [Issue("conflicting_document_values", json.dumps(item, ensure_ascii=False)) for item in conflicts]
-    extracted = extract_records(evidence.passages, schema, router, counters=counters,
+    # A version 1 Article inventoried identities; from version 2 (`article_version`) the document is the one root.
+    upstream = document_root if expected.get("article_version", 1) >= 2 else extract_records
+    extracted = upstream(evidence.passages, schema, router, counters=counters,
         record_chars=expected["options"]["record_chars"], check=lambda: None, method=method, contexts=contexts)
     calls += extracted.calls
     issues += extracted.issues

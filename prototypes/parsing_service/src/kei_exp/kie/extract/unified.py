@@ -51,7 +51,7 @@ from kei_exp.kie.extract import discovery
 from kei_exp.kie.extract.acceptance import Outcome, typed_value
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
-from kei_exp.kie.extract.contexts import reconcile_values
+from kei_exp.kie.extract.contexts import assemble_document, printed_once_in
 from kei_exp.kie.extract.discovery import Window, occurrences, plan, ranges_json, split, text_of
 from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, raw_range
 from kei_exp.kie.extract.models import ROLE, Router
@@ -71,6 +71,11 @@ RECORD_VERSION = 1  # the execution record's layout
 # 3: that row is searched cell by cell (a cell spanning rows no longer widens it to them), and only for a quote found in
 # exactly one place.
 ENTRY_VERSION = 3
+# How the document-level fields' windows are assembled, in the artifact and its fingerprint. 2: by
+# `contexts.assemble_document`, every list occurrence kept (1 was `reconcile_values`' exact union, which dropped equal
+# items, a single window's included). 3: an item two windows returned is joined only when their shared source
+# prints it as exactly one occurrence.
+DOCUMENT_VERSION = 3
 ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apart from its values' evidence
 # The versioned service defaults: engineering choices, none measured yet. Reserves are sized for replies that list
 # many boundaries or candidates; Auto input is the served context minus the stage's reserve; one unit of overlap;
@@ -753,13 +758,16 @@ class _Run:
         return contest
 
     def document(self, evidence: Evidence) -> _Work:
-        """Document-level fields from their own windows over every admitted nonblank range; never verified."""
+        """Document-level fields from their own windows over every admitted nonblank range; never verified. The
+        windows' answers are assembled by `contexts.assemble_document`: every list occurrence kept, an equal item two
+        windows both returned joined once when the source both were shown prints it (`overlap_items_joined`), equal
+        items from other windows named (`possible_repeated_items`), a disagreeing scalar null with its conflict."""
         nodes = self.schema.document_nodes
         out = _Work()
         system = DOCUMENT.format(notes=_notes(nodes))
         units = discovery.units_of(evidence.passages)
         replies = self._read("document", None, units, system, candidates_schema(nodes), "SOURCE", (), out)
-        per_window = []
+        per_window, shown_units = [], []
         for index, (window, answer) in enumerate(replies):
             if answer is None:
                 continue
@@ -767,7 +775,18 @@ class _Run:
             found = _Checker(_view(shown, self.texts), (0, 0), index, nodes, self.tables).reply(answer)
             out.found += found
             per_window.append(conform(_placed(found, "candidate"), nodes))
-        out.values, out.conflicts = reconcile_values(per_window) if per_window else ({}, [])
+            shown_units.append(shown)
+
+        def shared(first: int, second: int, item) -> bool:
+            common = "\n".join(self.texts[a.segment][max(a.start, b.start):min(a.end, b.end)]
+                               for a in shown_units[first] for b in shown_units[second]
+                               if a.segment == b.segment and a.start < b.end and b.start < a.end)
+            return printed_once_in(item, common)
+        out.values, out.conflicts, repeats, joined = (assemble_document(per_window, shared) if len(per_window) > 1
+            else (per_window[0], [], [], []) if per_window else ({}, [], [], []))
+        out.issues += [Issue(code, json.dumps(each, ensure_ascii=False), None, tuple(each["path"]))
+                       for code, group in (("possible_repeated_items", repeats), ("overlap_items_joined", joined))
+                       for each in group]
         out.values = conform(out.values, nodes)
         for found in out.found:
             if found.kind == "candidate":
@@ -941,7 +960,8 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
     result = {
         "extraction_version": EXTRACTION_VERSION, "run_id": evidence.run_id, "generation": evidence.generation,
         "digest": evidence.digest, "strategy": "catalog", "model": chat.model, "models": chat.models,
-        "prompt_version": PROMPT_VERSION, "schema": schema.model_dump(by_alias=True, exclude_none=True),
+        "prompt_version": PROMPT_VERSION, "document_version": DOCUMENT_VERSION,
+        "schema": schema.model_dump(by_alias=True, exclude_none=True),
         "options": request.options.dumped(), "started": started, "seconds": round(time.monotonic() - clock, 3),
         "execution": execution, "execution_sha256": digest(execution),
         "discovery": found, "discovery_sha256": digest(found),
@@ -970,5 +990,6 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
     result["fingerprint"] = hashlib.sha256(canonical_json({
         "generation": evidence.generation, "digest": evidence.digest, "schema": result["schema"],
         "options": result["options"], "models": chat.models, "prompt_version": PROMPT_VERSION,
+        "document_version": DOCUMENT_VERSION,
         "execution_sha256": result["execution_sha256"], "discovery_sha256": result["discovery_sha256"]})).hexdigest()
     return result

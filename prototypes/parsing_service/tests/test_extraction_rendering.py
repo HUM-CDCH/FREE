@@ -83,14 +83,13 @@ def test_all_upstream_stages_receive_and_count_structured_input(monkeypatch, con
     source = [table_passage()]
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
     fields = CountingChat(lambda *_: {"year": 1842, "title": "Table report"})
-    reasoning = CountingChat(lambda *_: {"records": [
-        {"label": "A", "identity": {"site": "A"}, "passages": ["p1_s0"]}]})
+    reasoning = CountingChat(lambda *_: pytest.fail("the document root takes no inventory; grounding is off"))
     method = {"context": context, "rendering": "structured", "grounding": "off"}
     request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": method})
     result = run.extract(None, request, Router(fields, reasoning),
                          counter={role: WordCounter() for role in ("fields", "reasoning")})
-    assert len(fields.calls) == 2 and len(reasoning.calls) == 1
-    for call in fields.calls + reasoning.calls:
+    assert len(fields.calls) == 2 and not reasoning.calls  # the document's fields, then the root's value call
+    for call in fields.calls:
         assert '<block id="p1_s0" label="Table" page="1">' in call["user"]
         assert 'colspan="2" role="column_header">Group α' in call["user"]
     assert all(c["input_tokens"] == c["counted_input_tokens"] for c in result["calls"])

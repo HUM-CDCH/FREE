@@ -14,6 +14,7 @@ const revision = (number: number, name: string): SchemaRevision => ({
   revisionNumber: number,
   origin: 'researcher-edit',
   createdAt: `2026-08-01T12:0${number}:00.000Z`,
+  recordScope: 'document',
   ...definition(name),
 })
 
@@ -158,5 +159,180 @@ describe('schema save coordinator', () => {
       acknowledged: winning,
       draft: definition('rival'),
     })
+  })
+
+  it('saves a scope change as an append that names it, and edits as appends that inherit it', async () => {
+    const save = vi.fn(async (expected: number, draft: SchemaDefinition, recordScope?: 'document' | 'records') => ({
+      ...revision(expected + 1, draft.schemaNodes[0].name),
+      recordScope: recordScope ?? 'document',
+    }))
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 60_000)
+
+    coordinator.setRecordScope('document')
+    await coordinator.flush()
+    expect(save).not.toHaveBeenCalled()
+
+    coordinator.setRecordScope('records')
+    // A scope change saves at once: it does not wait out the 60 s debounce.
+    expect(coordinator.state).toMatchObject({ status: 'saving', recordScope: 'records' })
+    await expect(coordinator.flush()).resolves.toMatchObject({ revisionNumber: 2, recordScope: 'records' })
+    expect(save).toHaveBeenLastCalledWith(1, definition('site'), 'records')
+
+    // The acknowledged revision now holds the scope: the next edit names none and the server keeps it.
+    vi.mocked(save).mockImplementationOnce(async (expected, draft) => ({
+      ...revision(expected + 1, draft.schemaNodes[0].name),
+      recordScope: 'records',
+    }))
+    coordinator.edit(definition('year'))
+    await coordinator.flush()
+    expect(save).toHaveBeenLastCalledWith(2, definition('year'))
+    expect(coordinator.state).toMatchObject({ status: 'saved', recordScope: 'records' })
+  })
+
+  it('keeps a scope chosen during a conflict until the winning revision is reloaded', async () => {
+    const winning = { ...revision(2, 'rival'), recordScope: null }
+    const save = vi.fn(async () => {
+      throw new SchemaRevisionConflictError(winning)
+    })
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 60_000)
+    coordinator.setRecordScope('records')
+    await expect(coordinator.flush()).rejects.toBeInstanceOf(SchemaRevisionConflictError)
+    coordinator.setRecordScope('document')
+    expect(coordinator.state).toMatchObject({ status: 'conflict', recordScope: 'document' })
+    coordinator.reloadCurrent()
+    expect(coordinator.state).toMatchObject({ status: 'saved', recordScope: null })
+  })
+
+  it('saves a scope change at once, carrying the pending edit in the same revision', async () => {
+    vi.useFakeTimers()
+    const save = vi.fn(async (expected: number, draft: SchemaDefinition, recordScope?: 'document' | 'records') => ({
+      ...revision(expected + 1, draft.schemaNodes[0].name),
+      recordScope: recordScope ?? 'document',
+    }))
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 1500)
+
+    coordinator.edit(definition('year'))
+    await vi.advanceTimersByTimeAsync(500)
+    coordinator.setRecordScope('records')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save).toHaveBeenCalledWith(1, definition('year'), 'records')
+    expect(coordinator.state).toMatchObject({
+      status: 'saved',
+      recordScope: 'records',
+      acknowledged: { revisionNumber: 2, recordScope: 'records', ...definition('year') },
+    })
+    // The edit's debounce was taken over by the scope save: nothing appends again.
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(save).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('serializes rapid scope changes: one save in flight, the last choice saved last, no stale overwrite', async () => {
+    const held = Promise.withResolvers<SchemaRevision>()
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => held.promise)
+      .mockImplementation(async (expected: number, draft: SchemaDefinition, recordScope?: 'document' | 'records') => ({
+        ...revision(expected + 1, draft.schemaNodes[0].name),
+        recordScope: recordScope ?? 'records',
+      }))
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 1500)
+
+    coordinator.setRecordScope('records')
+    coordinator.setRecordScope('document')
+    coordinator.edit(definition('year'))
+    coordinator.setRecordScope('records')
+    coordinator.setRecordScope('document')
+    coordinator.setRecordScope('records')
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save).toHaveBeenNthCalledWith(1, 1, definition('site'), 'records')
+
+    const flushed = coordinator.flush()
+    held.resolve({ ...revision(2, 'site'), recordScope: 'records' })
+    await expect(flushed).resolves.toMatchObject({ revisionNumber: 3, recordScope: 'records', ...definition('year') })
+
+    // The re-save carries the latest draft on the acknowledged head; its scope already matches, so it names none.
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenNthCalledWith(2, 2, definition('year'))
+    expect(coordinator.state).toMatchObject({ status: 'saved', recordScope: 'records', draft: definition('year') })
+  })
+
+  it('re-saves a scope chosen while its previous choice is in flight', async () => {
+    const held = Promise.withResolvers<SchemaRevision>()
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => held.promise)
+      .mockImplementation(async (expected: number, draft: SchemaDefinition, recordScope?: 'document' | 'records') => ({
+        ...revision(expected + 1, draft.schemaNodes[0].name),
+        recordScope: recordScope ?? 'records',
+      }))
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 1500)
+
+    coordinator.setRecordScope('records')
+    coordinator.setRecordScope('document')
+    const flushed = coordinator.flush()
+    held.resolve({ ...revision(2, 'site'), recordScope: 'records' })
+
+    await expect(flushed).resolves.toMatchObject({ revisionNumber: 3, recordScope: 'document' })
+    expect(save).toHaveBeenNthCalledWith(2, 2, definition('site'), 'document')
+    expect(coordinator.state).toMatchObject({ status: 'saved', recordScope: 'document' })
+  })
+
+  it('keeps a failed save visible until flush retries it', async () => {
+    const save = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Network down.'))
+      .mockImplementation(async (expected: number, draft: SchemaDefinition, recordScope?: 'document' | 'records') => ({
+        ...revision(expected + 1, draft.schemaNodes[0].name),
+        recordScope: recordScope ?? 'document',
+      }))
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 1500)
+
+    coordinator.edit(definition('year'))
+    coordinator.setRecordScope('records')
+    await expect(coordinator.flush()).rejects.toThrow('Network down.')
+    expect(coordinator.state).toMatchObject({ status: 'error', recordScope: 'records', draft: definition('year') })
+    expect(coordinator.state.error?.message).toBe('Network down.')
+
+    await expect(coordinator.flush()).resolves.toMatchObject({ revisionNumber: 2, recordScope: 'records' })
+    expect(save).toHaveBeenLastCalledWith(1, definition('year'), 'records')
+    expect(coordinator.state.status).toBe('saved')
+    expect(coordinator.state.error).toBeUndefined()
+  })
+
+  it('starts the debounced save on dispose instead of dropping it', async () => {
+    vi.useFakeTimers()
+    const save = vi.fn(async (expected: number, draft: SchemaDefinition) => revision(expected + 1, draft.schemaNodes[0].name))
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 1500)
+
+    coordinator.dispose()
+    expect(save).not.toHaveBeenCalled()
+
+    coordinator.edit(definition('year'))
+    coordinator.dispose()
+    expect(save).toHaveBeenCalledExactlyOnceWith(1, definition('year'))
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(save).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('retries a failed save on dispose instead of dropping it', async () => {
+    const save = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Network down.'))
+      .mockImplementation(async (expected: number, draft: SchemaDefinition, recordScope?: 'document' | 'records') => ({
+        ...revision(expected + 1, draft.schemaNodes[0].name),
+        recordScope: recordScope ?? 'document',
+      }))
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 1500)
+    coordinator.setRecordScope('records')
+    await expect(coordinator.flush()).rejects.toThrow('Network down.')
+
+    coordinator.dispose()
+
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenLastCalledWith(1, definition('site'), 'records')
   })
 })

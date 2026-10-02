@@ -9,7 +9,7 @@ import {
 } from './kei-handoff.js'
 import { extractionMethod, keiMethodOptions, type ExtractionMethod } from './extraction-method.js'
 import { decodePinnedDocument } from './parsed-document.js'
-import { parseExtractionSchema } from './schema.js'
+import { parseExtractionSchema, recordScopeOf, type RecordScope } from './schema.js'
 import type { ExtractionFailure, ExtractionModelChoice, ExtractionStrategy } from './types.js'
 import { ARTIFACT_READ_RETRY, isWorkflowCancellation, type WorkflowSteps } from './workflow-steps.js'
 
@@ -39,6 +39,9 @@ export type AdmittedExtraction = Readonly<{
   /** The pinned revision's `preprocessId`: `kei-exp:<run>:<generation>` for a representation kei made. */
   preprocessId: string
   schemaTree: unknown
+  /** The pinned revision's declared record scope (`SchemaRevision.recordScope`); null for a legacy revision that
+   *  declares none, absent in a `loadAdmitted` checkpoint written before scopes were declared. */
+  recordScope?: RecordScope | null
 }>
 export type SettledExtraction =
   | { outcome: 'SUCCEEDED'; extraction: TerminalExtraction }
@@ -77,9 +80,14 @@ function keiExtractRequest(admitted: AdmittedExtraction): KeiExtractInput | Extr
   const run = keiRunOf(admitted.preprocessId)
   if (run === null)
     return { code: 'invalid_source_representation', message: 'The pinned Source Representation does not name a kei-exp parse generation.', phase: 'loading' }
-  let schema: Record<string, unknown>
+  // The admitted strategy is the run's snapshot; admission refused any revision whose declared scope names another. A
+  // revision without one was admitted before scopes were declared, and runs the scope its admitted strategy names.
+  const recordScope = recordScopeOf(admitted.strategy)
+  if ((admitted.recordScope ?? recordScope) !== recordScope)
+    return { code: 'invalid_extraction_pins', message: 'The pinned Schema Revision declares another record scope than the admitted Extraction Strategy.', phase: 'loading' }
+  let schema: KeiExtractInput['request']['schema']
   // Admission validated the tree; a pinned tree that no longer parses fails this Extraction rather than its workflow.
-  try { schema = parseExtractionSchema(admitted.schemaTree) as unknown as Record<string, unknown> }
+  try { schema = { ...parseExtractionSchema(admitted.schemaTree), recordScope } }
   catch { return { code: 'invalid_schema_revision', message: 'The pinned Schema Revision is invalid.', phase: 'loading' } }
   let method: ExtractionMethod
   // Admission validated the method; one that no longer reads fails this Extraction rather than its workflow.
@@ -95,8 +103,20 @@ function keiExtractRequest(admitted: AdmittedExtraction): KeiExtractInput | Extr
   }
 }
 
+/** The Parsing Service's refusal of a result its record scope does not allow (contract `record-scope.json` `violation`). */
+const RECORD_SCOPE_VIOLATION = 'record_scope_violation:'
+
 export function extractionFailureOf(outcome: Extract<KeiOutcome<unknown>, { ok: false }>, strategy: ExtractionStrategy): ExtractionFailure {
   const phase = 'extracting' as const
+  if (outcome.code === 'extraction_failed' && outcome.reason.startsWith(RECORD_SCOPE_VIOLATION)) {
+    const detail = outcome.reason.slice(RECORD_SCOPE_VIOLATION.length).trim()
+    return {
+      code: 'invalid_model_output',
+      message: `The extraction result did not fit the schema's record scope (${recordScopeOf(strategy) === 'document'
+        ? 'Article: exactly one document-level record' : 'Catalog: a collection of records'})${detail ? `: ${detail}` : '.'}`.slice(0, 512),
+      phase,
+    }
+  }
   switch (outcome.code) {
     case 'stale_generation': return { code: 'invalid_source_representation', message: outcome.reason.slice(0, 512), phase }
     case 'model_unavailable': return { code: 'model_unavailable', message: outcome.reason.slice(0, 512), phase }

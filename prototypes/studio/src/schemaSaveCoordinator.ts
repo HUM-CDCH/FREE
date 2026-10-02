@@ -1,4 +1,4 @@
-import type { SchemaDefinition } from 'extraction/schema'
+import type { RecordScope, SchemaDefinition } from 'extraction/schema'
 import type { SchemaRevision } from '../shared/schemaRevision.contract'
 import { sameSchemaDefinition } from './schemaDefinitionEquality'
 import { SchemaRevisionConflictError } from './schemaRevisions'
@@ -9,6 +9,7 @@ export type AcknowledgedSchemaRevision = Pick<
   | 'extractionSchemaId'
   | 'revisionNumber'
   | 'recordDescription'
+  | 'recordScope'
   | 'schemaNodes'
 >
 
@@ -16,13 +17,20 @@ export type SchemaSaveState = {
   status: 'saved' | 'dirty' | 'saving' | 'conflict' | 'error'
   acknowledged: AcknowledgedSchemaRevision
   draft: SchemaDefinition
+  /**
+   * The record scope the draft is saved with: the acknowledged revision's until the researcher chooses another. It is
+   * kept beside the definition, never in it, so an edit's append omits it and inherits its head's.
+   */
+  recordScope: RecordScope | null
   currentRevision?: SchemaRevision
   error?: Error
 }
 
+/** `recordScope` is given only for a scope change; omitted, the new revision inherits its head's. */
 type Save = (
   expectedRevisionNumber: number,
   definition: SchemaDefinition,
+  recordScope?: RecordScope,
 ) => Promise<SchemaRevision>
 
 const definitionOf = (
@@ -31,6 +39,15 @@ const definitionOf = (
   recordDescription: revision.recordDescription,
   schemaNodes: revision.schemaNodes,
 })
+
+/** Whether the draft and its scope are exactly what `acknowledged` saved. */
+const savedAs = (
+  acknowledged: AcknowledgedSchemaRevision,
+  draft: SchemaDefinition,
+  recordScope: RecordScope | null,
+) =>
+  recordScope === acknowledged.recordScope &&
+  sameSchemaDefinition(draft, definitionOf(acknowledged))
 
 export function createSchemaSaveCoordinator(
   initial: AcknowledgedSchemaRevision,
@@ -44,6 +61,7 @@ export function createSchemaSaveCoordinator(
     status: 'saved',
     acknowledged: initial,
     draft: definitionOf(initial),
+    recordScope: initial.recordScope,
   }
   let waiters: Array<{
     resolve: (revision: AcknowledgedSchemaRevision) => void
@@ -67,10 +85,7 @@ export function createSchemaSaveCoordinator(
   }
   const start = async (): Promise<void> => {
     clearScheduled()
-    if (
-      inFlight ||
-      sameSchemaDefinition(state.draft, definitionOf(state.acknowledged))
-    ) {
+    if (inFlight || savedAs(state.acknowledged, state.draft, state.recordScope)) {
       if (!inFlight) {
         publish({ ...state, status: 'saved' })
         settle()
@@ -79,16 +94,25 @@ export function createSchemaSaveCoordinator(
     }
     inFlight = true
     const submitted = state.draft
+    const submittedScope = state.recordScope
     const expected = state.acknowledged.revisionNumber
-    publish({ ...state, status: 'saving' })
+    // Only a scope change names one; every other save inherits its head's.
+    const scopeChange =
+      submittedScope !== null && submittedScope !== state.acknowledged.recordScope
+        ? submittedScope
+        : undefined
+    publish({ ...state, status: 'saving', error: undefined })
     try {
-      const acknowledged = await save(expected, submitted)
+      const acknowledged = scopeChange
+        ? await save(expected, submitted, scopeChange)
+        : await save(expected, submitted)
       inFlight = false
-      if (sameSchemaDefinition(state.draft, submitted)) {
+      if (sameSchemaDefinition(state.draft, submitted) && state.recordScope === submittedScope) {
         publish({
           status: 'saved',
           acknowledged,
           draft: definitionOf(acknowledged),
+          recordScope: acknowledged.recordScope,
         })
         settle()
       } else {
@@ -134,16 +158,29 @@ export function createSchemaSaveCoordinator(
         schedule()
       }
     },
+    /**
+     * A scope change is a schema change with the same conflict check and flush as an edit, but a discrete choice: it
+     * saves at once instead of waiting out the debounce. The save carries the latest draft too, so a pending edit lands
+     * in the same revision; while another save is in flight, that save's acknowledgement re-saves with this scope.
+     */
+    setRecordScope(recordScope: RecordScope) {
+      if (state.status === 'conflict') publish({ ...state, recordScope })
+      else {
+        publish({
+          ...state,
+          status: inFlight ? 'saving' : 'dirty',
+          recordScope,
+        })
+        void start()
+      }
+    },
+    /** Saves now and resolves with the acknowledged revision. A failed save is retried: flush is the Retry. */
     flush(): Promise<AcknowledgedSchemaRevision> {
       if (state.status === 'conflict')
         return Promise.reject(
           new SchemaRevisionConflictError(state.currentRevision!),
         )
-      if (state.status === 'error') return Promise.reject(state.error)
-      if (
-        !inFlight &&
-        sameSchemaDefinition(state.draft, definitionOf(state.acknowledged))
-      ) {
+      if (!inFlight && savedAs(state.acknowledged, state.draft, state.recordScope)) {
         publish({ ...state, status: 'saved' })
         return Promise.resolve(state.acknowledged)
       }
@@ -165,11 +202,18 @@ export function createSchemaSaveCoordinator(
         status: 'saved',
         acknowledged,
         draft: definitionOf(acknowledged),
+        recordScope: acknowledged.recordScope,
       })
       return acknowledged
     },
+    /**
+     * Stops the debounce. A save it was holding, or a failed one, starts now rather than being dropped (an in-app
+     * navigation away keeps the page alive for it); nothing waits for it, and a later failure has no one left to show it to.
+     */
     dispose() {
+      const pending = timer !== undefined || state.status === 'error'
       clearScheduled()
+      if (pending) void start()
     },
   }
 }

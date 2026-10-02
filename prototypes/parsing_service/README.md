@@ -135,17 +135,28 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   Evidence and diagnostics. Ungrounded values
   remain explicit. Document-level fields are currently listed as `unverified`;
   `complete` applies to record values.
-- Article first inventories distinct records against the complete canonical
-  source with the reasoning model. The inventory records each identity and its
-  supporting passage IDs across sections; the fields model extracts each record
-  from the complete source, so an omitted citation cannot hide methods or results.
-  Grounding sees the full source plus that record's
-  identity and fields, and never accepts an Article value solely because its
-  string occurs once. `/tokenize` must report the serving context for both roles:
-  each request reserves output tokens, and oversized input is reported rather
-  than clipped. `record_chars` and `discovery_chars` apply only to generic Catalog.
-  The artifact retains the inventory and counted budgets. Inventory coverage and
-  semantic correctness still need evaluation; `complete` is not a recall score.
+- The task scope is the schema's `recordScope` (`document` for Article, `records`
+  for a Catalog; `tests/fixtures/contracts/record-scope.json`). A declared scope
+  must match `options.strategy`; an undeclared one (CLI, harness) is the
+  strategy's. A `document` result that is not exactly one record fails as
+  `extraction_failed` (`record_scope_violation: ...`) and is never published;
+  so does an Article whose root no value context answered
+  (`article_root_unanswered: ...`) rather than publish an all-null root.
+- Article extracts the document as one object (which may contain arrays): no
+  identity inventory; the fields model reads every record field from the complete
+  source (or, bounded, from each value context, whose answers are assembled with
+  every array item kept, cross-context repeats flagged `possible_repeated_items`
+  and disagreeing scalars null with a conflict). Its `inventory` holds the one
+  document identity. Grounding sees the full source plus the root's fields, and
+  never accepts an Article value solely because its string occurs once.
+  `/tokenize` must report the serving context for both roles: each request
+  reserves output tokens, and oversized input is reported rather than clipped.
+  The root's reply may use the served context its counted input leaves (at
+  least 4,096 tokens), since a long list is restated item by item; a bounded
+  context keeps as many reply tokens as its request counts.
+  `record_chars` and `discovery_chars` apply only to generic Catalog. Array-item
+  recall and semantic correctness still need evaluation; `complete` is not a
+  recall score.
   Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
 - `options.catalog = {recipe, input_tokens?, output_tokens?}` on a Catalog

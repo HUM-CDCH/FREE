@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { schemaDefinitionSchema } from 'extraction/schema'
+import { recordScopeSchema, schemaDefinitionSchema, type RecordScope } from 'extraction/schema'
 import {
   appendSchemaRevision,
   getSchemaRevision,
@@ -75,6 +75,8 @@ export function useDurableCurrentSchemaRevision(
     scope.extractionSchema?.extractionSchemaId ?? 'new'
   }/${scope.sourceRepresentationId ?? 'schema-only'}`
   const sourceRepresentationIdRef = useRef(scope.sourceRepresentationId)
+  // A recovered Article/Catalog choice, applied once mounted: choosing a scope starts a save, never during render.
+  const recoveredRecordScope = useRef<RecordScope | null>(null)
   useEffect(() => {
     sourceRepresentationIdRef.current = scope.sourceRepresentationId
   }, [scope.sourceRepresentationId])
@@ -91,9 +93,12 @@ export function useDurableCurrentSchemaRevision(
       )
         return null
       const parsed = schemaDefinitionSchema.safeParse(candidate.draft)
-      return parsed.success ? parsed.data : null
+      if (!parsed.success) return null
+      // Captures before the scope was recorded carry none: they keep the acknowledged revision's.
+      const recordScope = recordScopeSchema.safeParse(candidate.recordScope)
+      return { draft: parsed.data, recordScope: recordScope.success ? recordScope.data : null }
     }
-    const recoveredDraft =
+    const recovered =
       consumeSessionRecovery(
         'schema-draft',
         recoveryResourceId,
@@ -112,16 +117,18 @@ export function useDurableCurrentSchemaRevision(
       projectContextId: scope.projectContextId,
       initial,
       debounceMs: scope.debounceMs,
-      append: (extractionSchemaId, expectedRevisionNumber, definition, sourceCoverage) =>
+      append: (extractionSchemaId, expectedRevisionNumber, definition, sourceCoverage, recordScope) =>
         appendSchemaRevision(
           scope.projectContextId,
           extractionSchemaId,
           expectedRevisionNumber,
           definition,
           sourceCoverage,
+          undefined,
+          recordScope,
         ),
-      initialize: (definition, signal, sourceCoverage) =>
-        initializeSchemaRevision(scope.projectContextId, definition, sourceCoverage, signal),
+      initialize: (definition, signal, sourceCoverage, recordScope) =>
+        initializeSchemaRevision(scope.projectContextId, definition, sourceCoverage, signal, recordScope),
       reconcileInitialization: async () => {
         const latest = (await listExtractionSchemas(scope.projectContextId, 1))[0]
         return latest?.currentRevision ? getSchemaRevision(scope.projectContextId, latest.extractionSchemaId, latest.currentRevision.schemaRevisionId) : null
@@ -157,10 +164,20 @@ export function useDurableCurrentSchemaRevision(
       initialSourceCoverage: initial?.sourceCoverage ?? null,
       onCommitMessage: scope.onCommitMessage,
     })
-    if (recoveredDraft)
-      created.replaceDraft(recoveredDraft, 'Recovered unsaved draft')
+    if (recovered) {
+      created.replaceDraft(recovered.draft, 'Recovered unsaved draft')
+      recoveredRecordScope.current = recovered.recordScope
+    }
     return created
   })
+
+  // An unsaved Article/Catalog choice comes back with its draft. A scope change saves at once and carries the
+  // recovered draft, so both land in one revision.
+  useEffect(() => {
+    const recordScope = recoveredRecordScope.current
+    recoveredRecordScope.current = null
+    if (recordScope !== null) controller.setRecordScope(recordScope)
+  }, [controller])
 
   useEffect(() => {
     const unregister = registerSessionRecoveryCapture(
@@ -173,6 +190,7 @@ export function useDurableCurrentSchemaRevision(
           extractionSchemaId: save.acknowledged.extractionSchemaId,
           acknowledgedRevisionNumber: save.acknowledged.revisionNumber,
           draft: save.draft,
+          recordScope: save.recordScope,
         }
       },
     )
