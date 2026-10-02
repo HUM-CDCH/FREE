@@ -929,7 +929,7 @@ test('import → sample/review → field edit → same-pages re-run → whole so
   })
   await db.orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: 'Sample schema' })
   await db.orm.public.SchemaRevision.create({
-    id: randomUUID(), extractionSchemaId, revisionNumber: 1, origin: 'RESEARCHER_EDIT',
+    id: randomUUID(), extractionSchemaId, revisionNumber: 1, origin: 'RESEARCHER_EDIT', recordScope: 'document',
     schemaTree: { recordDescription: 'One lifecycle fixture record.', schemaNodes: lifecycleSchemaNodes },
   })
 
