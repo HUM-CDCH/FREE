@@ -355,7 +355,10 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
       }
       // The workbook adds the Extraction and Evidence sheets: identities, the edit's history and verifier outcomes.
       const files = unzipSync(new Uint8Array(file))
-      expect(sheetRows(files, 'Results').flatMap(Object.values), 'Excel carries the reviewed value').toContain(edited)
+      // The Results sheet joins a list into one cell ("a, b"), as the CSV does: the edited item is inside a cell. The
+      // Evidence sheet, one row per claim, holds it alone (below).
+      expect(sheetRows(files, 'Results').flatMap(Object.values).filter((cell) => cell.includes(edited)),
+        'Excel carries the reviewed value').not.toHaveLength(0)
       const identity = new Map(sheetRows(files, 'Extraction').map((row) => [row.Item, row.Value]))
       expect(identity.get('Extraction ID')).toBe(id)
       expect(identity.get('Source Representation Revision ID')).toBe(settled.extraction.sourceRepresentationRevisionId)
