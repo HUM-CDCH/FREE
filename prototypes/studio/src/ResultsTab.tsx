@@ -551,18 +551,11 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
       return next
     })
   }, [])
-  // Decisions carried from samples never finalize on their own: the researcher saves such a review explicitly.
   const attention = attempt?.resultPayload && pinnedSchema ? reviewAttention(attempt.resultPayload, pinnedSchema.schemaNodes, attempt.evidenceLinks ?? [],
     attempt.reviewedAt ? attempt.reviewDecisions : controller.review.decisions.filter((decision) => controller.review.isTouched(decision.resultPath))) : null
-  const carried = controller.review.decisions.filter((decision) => decision.carriedFrom).length
-  const changedSinceSample = controller.review.decisions.filter((decision) => !controller.review.isTouched(decision.resultPath) &&
-    controller.review.transfer[resultPathKey(decision.resultPath)]?.status === 'changed').length
-  const { pairings, sources, pair } = controller.review.pairing
-  const unmatchedRecords = [...new Set(Object.entries(controller.review.transfer).filter(([, verdict]) => verdict.status === 'unmatched')
-    .map(([key]) => (JSON.parse(key) as number[])[1]!))]
   useEffect(() => {
     if (!readOnly && !inspectedAttempt && editingPaths.size === 0 &&
-      controller.review.canAccept && !controller.review.error && carried === 0 &&
+      controller.review.canAccept && !controller.review.error &&
       controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null))
       void controller.review.accept()
   })
@@ -709,7 +702,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
         <Overline as="h2">Extraction results</Overline>
         {attempt && <AttemptDetails attempt={attempt} />}
       </div>
-      {attention && <ReviewAttention attention={attention} transfer={controller.review.transfer} onEditField={onEditField}
+      {attention && <ReviewAttention attention={attention} onEditField={onEditField}
         onSelect={(path) => { onResultPathChange?.(path.map(String)); const link = attempt?.evidenceLinks?.find((each) => resultPathKey(each.resultPath) === resultPathKey(path)); if (link) onSelectEvidence?.(link.evidenceAnchorId) }} />}
       <ExtractionStatus
         controller={controller}
@@ -748,9 +741,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                     : controller.review.loading ? 'Loading Review Decisions…'
                     : controller.review.error && requiredCount === 0 ? 'Review Decisions could not be loaded'
                     : <>
-                      {carried > 0
-                        ? <span>{`${carried} reviewed in sample · ${changedSinceSample} changed since sample · ${controller.review.untouchedCount - changedSinceSample} to review`}</span>
-                        : `${controller.review.untouchedCount} of ${requiredCount} required decisions remaining`}
+                      {`${controller.review.untouchedCount} of ${requiredCount} required decisions remaining`}
                       {controller.review.saving ? ' · Saving review…' : controller.review.error ? <> · <span>Review not saved</span></> : ''}
                     </>}
                 </span>
@@ -800,7 +791,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                     {controller.review.error && !controller.review.loading && requiredCount === 0 && (
                       <Button size="sm" variant="secondary" onClick={controller.review.reload}>Retry</Button>
                     )}
-                    {(controller.review.error || carried > 0 || !controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null)) && controller.review.canAccept && (
+                    {(controller.review.error || !controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null)) && controller.review.canAccept && (
                       <Button size="sm" variant={controller.review.error ? 'secondary' : 'primary'} disabled={editingPaths.size > 0}
                         onClick={() => void controller.review.accept()}>{controller.review.error ? 'Retry' : 'Save review'}</Button>
                     )}
@@ -835,35 +826,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
             {!reviewReadOnly && controller.review.available && !attempt?.reviewedAt && (
               <p id={approvalDescriptionId} className="mt-2 text-[11px] leading-snug text-ink-muted">
                 Approve only the remaining required decisions. Existing edits and rejections, and ungrounded values, are unchanged.{' '}
-                {carried > 0 ? 'Decisions carried from a sample are saved only with Save review.' : 'The review saves automatically when all required decisions are made.'}
+                The review saves automatically when all required decisions are made.
               </p>
             )}
             {controller.review.draftError && !readOnly && !inspectedAttempt && (
               <div role="alert" className="text-xs text-danger">
                 Draft not saved: {controller.review.draftError}
                 <Button onClick={controller.review.retryDraft} disabled={controller.review.draftSaving}>{controller.review.draftError === REVIEW_DRAFT_CONFLICT ? 'Reload server review' : 'Retry draft'}</Button>
-              </div>
-            )}
-            {!readOnly && !inspectedAttempt && !controller.review.reviewedExtractionId && (unmatchedRecords.length > 0 || pairings.length > 0) && (
-              <div className="flex flex-col gap-1 text-[11.5px] text-ink-muted">
-                {pairings.map((pairing) => (
-                  <p key={pairing.record} className="flex items-center gap-1.5">
-                    Record {pairing.record + 1} is paired by hand with a sample record.
-                    <Button size="sm" onClick={() => pair(pairings.filter((each) => each !== pairing))}>Undo pairing</Button>
-                  </p>
-                ))}
-                {sources.length > 0 && unmatchedRecords.map((record) => (
-                  <label key={record} className="flex items-center gap-1.5">
-                    Record {record + 1} matches no sample record.
-                    <select value="" className="rounded-md border border-line bg-surface px-2 py-1 text-xs" onChange={(event) => {
-                      const source = sources[Number(event.target.value)]
-                      if (source) pair([...pairings, { record, extractionId: source.extractionId, sourceRecord: source.record }])
-                    }}>
-                      <option value="">Pair with…</option>
-                      {sources.map((source, index) => <option key={index} value={index}>{source.label}</option>)}
-                    </select>
-                  </label>
-                ))}
               </div>
             )}
             {controller.review.error && (

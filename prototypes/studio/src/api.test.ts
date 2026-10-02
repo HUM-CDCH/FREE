@@ -67,8 +67,6 @@ function readyController(): ExtractionController {
       draftSaving: false,
       draftSaved: false,
       retryDraft: () => {},
-      transfer: {},
-      pairing: { pairings: [], sources: [], pair: () => {} },
       setDecision: () => {},
       undo: () => {},
       reload: () => {},

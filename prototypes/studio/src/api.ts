@@ -1,5 +1,4 @@
 import { authenticatedFetch } from './auth/authenticatedFetch.ts'
-import { sampleFactsResponse } from '../shared/sampleFacts.contract'
 import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 import { acknowledgeReviewDraft, forgetReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import { resultPathKey } from './reviewDecisions'
@@ -17,20 +16,12 @@ import {
   type ExtractionAttempt,
   type ExtractionModelListing,
   type ReviewDecisionInput,
-  type ReviewPairing,
 } from '../shared/extraction.contract'
 import { ingestionModelListingSchema, type IngestionModelListing } from '../shared/modelConfig.contract'
 import { modelOperationListingSchema, type ModelOperation } from '../shared/modelOperation.contract'
 import { sourceCoverageSchema, type SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 
 export const API_BASE = '/api'
-
-export async function readSampleFacts(projectContextId: string, schemaRevisionId: string, sourceDocumentIds: string[], signal?: AbortSignal) {
-  const response = await authenticatedFetch(`${API_BASE}/sample_facts`, { method: 'POST', signal,
-    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectContextId, schemaRevisionId, sourceDocumentIds }) })
-  if (!response.ok) throw new Error('Sample coverage unavailable')
-  return sampleFactsResponse.parse(await response.json())
-}
 
 type TemplateOptions = {
   instruction?: string
@@ -307,7 +298,7 @@ export async function resetExtractionReview(extractionId: string, expectedDraftV
 // Only in-flight writes live here. PostgreSQL owns all persisted review state.
 const draftWrites = new Map<string, Promise<SavedReviewDraft>>()
 export function saveExtractionReviewDraft(
-  extractionId: string, decisions: readonly ReviewDecisionInput[], version: number, pairings?: readonly ReviewPairing[],
+  extractionId: string, decisions: readonly ReviewDecisionInput[], version: number,
 ): Promise<SavedReviewDraft> {
   const invalid = decisions
     .map((decision) => reviewDecisionInputSchema.safeParse(decision))
@@ -322,12 +313,12 @@ export function saveExtractionReviewDraft(
     return Promise.reject(new Error(`invalid_draft: ${detail}`))
   }
   const previous = draftWrites.get(extractionId) ?? Promise.resolve({ version, decisions: [] })
-  rememberReviewDraft(extractionId, { version, decisions, ...(pairings && { pairings }) })
+  rememberReviewDraft(extractionId, { version, decisions })
   const write = previous.then(async (saved) => {
     acknowledgeReviewDraft(extractionId, saved.version)
     // A conflict is one state for every caller: the hooks key their reload path on this message.
     const result = extractionReviewDraftSchema.parse(
-      await requestJson(`/extractions/${extractionId}/review/draft`, 'POST', { version: saved.version, decisions, ...(pairings && { pairings }) }).catch((error: unknown) => {
+      await requestJson(`/extractions/${extractionId}/review/draft`, 'POST', { version: saved.version, decisions }).catch((error: unknown) => {
         throw error instanceof Error && error.message.startsWith('review_conflict:') ? new Error(REVIEW_DRAFT_CONFLICT) : error
       }),
     )

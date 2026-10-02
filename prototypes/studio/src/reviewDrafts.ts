@@ -1,8 +1,8 @@
-import { extractionReviewDraftSchema, type ReviewDecisionInput, type ReviewPairing } from '../shared/extraction.contract'
+import { extractionReviewDraftSchema, type ReviewDecisionInput } from '../shared/extraction.contract'
 import { resultPathKey } from './reviewDecisions'
 import { consumeSessionRecovery, registerSessionRecoveryCapture, removeSessionRecovery } from './auth/sessionRecovery'
 
-type ReviewDraft = { version: number; decisions: readonly ReviewDecisionInput[]; pairings?: readonly ReviewPairing[] }
+type ReviewDraft = { version: number; decisions: readonly ReviewDecisionInput[] }
 const unsaved = new Map<string, { draft: ReviewDraft; unregister: () => void }>()
 
 /** Register before sending: a 401 captures synchronously, before promise rejection. */
@@ -42,13 +42,11 @@ export function recoverReviewDraft(id: string, server: ReviewDraft | undefined, 
     return parsed.data
   })
   const canonical = (decisions: readonly ReviewDecisionInput[]) => JSON.stringify(decisions.map((decision) => [
-    resultPathKey(decision.resultPath), decision.evidenceAnchorId, [...decision.reviewedOccurrenceIds].sort(), decision.action, decision.reviewedValue, decision.reviewedEvidence, decision.carriedFrom,
+    resultPathKey(decision.resultPath), decision.evidenceAnchorId, [...decision.reviewedOccurrenceIds].sort(), decision.action, decision.reviewedValue, decision.reviewedEvidence,
   ]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))), (_key, value: unknown) =>
     value !== null && typeof value === 'object' && !Array.isArray(value)
       ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value)
-  const matches = local && canonical(local.decisions) === canonical(server?.decisions ?? []) &&
-    (!local.pairings || JSON.stringify([...local.pairings].sort((a, b) => a.record - b.record)) ===
-      JSON.stringify([...(server?.pairings ?? [])].sort((a, b) => a.record - b.record)))
+  const matches = local && canonical(local.decisions) === canonical(server?.decisions ?? [])
   const conflict = Boolean(local && !matches && local.version !== (server?.version ?? 0))
   if (local) {
     forgetReviewDraft(id)
@@ -56,7 +54,6 @@ export function recoverReviewDraft(id: string, server: ReviewDraft | undefined, 
   }
   return {
     ...restoreReviewDraft(local ?? server, prepared),
-    pairings: local?.pairings ?? server?.pairings ?? [],
     retry: Boolean(local && !matches && !conflict),
     conflict,
     version: conflict ? local!.version : server?.version ?? 0,

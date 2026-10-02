@@ -212,109 +212,14 @@ it('keeps a saved review visible when reset fails and allows retry', async () =>
 })
 
 describe('useBatchExtractionReviewGrid', () => {
-  it('clears finalized hand pairings on reset and does not restore them on the next edit', async () => {
-    const pairing = { record: 0, extractionId: 'sample-1', sourceRecord: 1 }
-    const carried = { ...pendingDecisions[0], carriedFrom: { extractionId: 'sample-1', sourcePathKey: '["records",1,"title"]' } }
-    const source = { extractionId: 'sample-1', record: 1, label: 'Sample record 2' }
-    const other = { ...pendingDecisions[0], resultPath: ['records', 1, 'title'], evidenceAnchorId: 'anchor-other' }
-    const pending = [...pendingDecisions, other]
-    const original = attempt({ resultPayload: { records: [{ title: 'Grounded' }, { title: 'Other' }] },
-      evidenceLinks: [{ resultPath: carried.resultPath, evidenceAnchorId: carried.evidenceAnchorId },
-        { resultPath: other.resultPath, evidenceAnchorId: other.evidenceAnchorId }] })
-    const reviewedAt = '2026-09-30T00:00:00Z'
-    vi.mocked(api.readExtraction).mockResolvedValueOnce({
-      extraction: { ...original, reviewedAt, reviewDecisions: [carried, other].map((decision) => ({ ...decision, createdAt: reviewedAt })) },
-      pendingReviewDecisions: pending, reviewDraft: { version: 2, decisions: [carried], pairings: [pairing] },
-    }).mockImplementation(async () => ({ extraction: original, pendingReviewDecisions: pending,
-      reviewDraft: { version: savedDrafts.get(extractionId)?.version ?? 3, decisions: [], pairings: [],
-        transfer: { [resultPathKey(carried.resultPath)]: { status: 'unmatched', kept: null } }, sources: [source] } }))
-    const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
-    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
-    await act(async () => { await result.current.revertMember(reviewableDocumentId) })
-    const state = result.current.members.get(reviewableDocumentId)!
-    expect(state.status === 'ready' && state.pairings).toEqual([])
-    expect(state.status === 'ready' && state.sources).toEqual([source])
-    expect(state.status === 'ready' && state.transfer[resultPathKey(carried.resultPath)].status).toBe('unmatched')
-    expect(state.status === 'ready' && state.touched.size).toBe(0)
-    act(() => result.current.setDecision(reviewableDocumentId, other.resultPath, 'REJECTED'))
-    await waitFor(() => expect(api.saveExtractionReviewDraft).toHaveBeenCalledWith(extractionId,
-      [{ ...other, action: 'REJECTED' }], 3, []))
-  })
-
-  it.each([
-    ['grid', false], ['document', false], ['grid', true], ['document', true],
-  ] as const)('restores a recovered hand pairing in %s after transient failure: %s', async (view, retry) => {
-    const pairing = { record: 0, extractionId: 'sample-1', sourceRecord: 1 }
-    const carried = { ...pendingDecisions[0], carriedFrom: { extractionId: 'sample-1', sourcePathKey: '["records",1,"title"]' } }
-    rememberReviewDraft(extractionId, { version: 1, decisions: [], pairings: [pairing] })
-    captureSessionRecovery()
-    if (retry) vi.mocked(api.saveExtractionReviewDraft).mockRejectedValueOnce(new Error('Temporary draft failure'))
-    vi.mocked(api.readExtraction).mockResolvedValueOnce({ extraction: attempt(), pendingReviewDecisions: pendingDecisions,
-      reviewDraft: { version: 1, decisions: [], pairings: [] } })
-      .mockResolvedValue({ extraction: attempt(), pendingReviewDecisions: pendingDecisions,
-        reviewDraft: { version: 2, decisions: [carried], pairings: [pairing],
-          transfer: { [resultPathKey(carried.resultPath)]: { status: 'reviewed', kept: 'Grounded' } } } })
-    function DocumentReview() {
-      const original = attempt()
-      const controller = useExtraction({ schemaReady: true, indexing: false, initialAttempt: original,
-        reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId }, onTerminal: vi.fn(), onError: vi.fn() })
-      return <ResultsTab controller={controller} runExtractionDisabled={false} runExtractionStrategy={{ strategy: 'ARTICLE' }} schemaReady
-        pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
-    }
-    render(view === 'grid' ? <Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} /> : <DocumentReview />)
-    if (retry) {
-      await screen.findByText('Draft not saved: Temporary draft failure')
-      fireEvent.click(screen.getByRole('button', { name: 'Retry draft' }))
-    }
-    await screen.findByText(/1 reviewed in sample/)
-    expect(api.saveExtractionReviewDraft).toHaveBeenCalledWith(extractionId, [], 1, [pairing])
-    expect(api.readExtraction).toHaveBeenCalledTimes(2)
-    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
-  })
-
-  it('saves a batch member hand pairing through the common draft API and reloads carried decisions', async () => {
-    const pairing = { record: 0, extractionId: 'sample-1', sourceRecord: 1 }
-    const carried = { ...pendingDecisions[0], carriedFrom: { extractionId: 'sample-1', sourcePathKey: '["records",1,"title"]' } }
-    vi.mocked(api.readExtraction).mockResolvedValueOnce({ extraction: attempt({ batchExtractionId: batch().batchExtractionId }), pendingReviewDecisions: pendingDecisions,
-      reviewDraft: { version: 1, decisions: [], transfer: { [resultPathKey(carried.resultPath)]: { status: 'unmatched', kept: null } }, sources: [{ extractionId: 'sample-1', record: 1, label: 'Sample record 2' }] } })
-      .mockResolvedValue({ extraction: attempt({ batchExtractionId: batch().batchExtractionId }), pendingReviewDecisions: pendingDecisions,
-        reviewDraft: { version: 2, decisions: [carried], pairings: [pairing] } })
-    const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
-    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
-    await act(async () => { await result.current.pairRecords(reviewableDocumentId, [pairing]) })
-    expect(api.saveExtractionReviewDraft).toHaveBeenCalledWith(extractionId, [], 1, [pairing])
-    const state = result.current.members.get(reviewableDocumentId)!
-    expect(state.status === 'ready' && state.pairings).toEqual([pairing])
-    expect(state.status === 'ready' && state.decisions[0]).toEqual(carried)
-    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
-  })
-
-  it('keeps a wholly carried batch member as a draft until explicit finalization', async () => {
-    const carried = { ...pendingDecisions[0], carriedFrom: { extractionId: 'sample-1', sourcePathKey: JSON.stringify(pendingDecisions[0].resultPath) } }
-    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt({ batchExtractionId: batch().batchExtractionId }),
-      pendingReviewDecisions: [carried], reviewDraft: { version: 1, decisions: [carried],
-        transfer: { [resultPathKey(carried.resultPath)]: { status: 'reviewed', kept: 'Grounded' } } } })
-    vi.mocked(api.finalizeExtractionReview).mockResolvedValue(attempt({ batchExtractionId: batch().batchExtractionId,
-      reviewedAt: '2026-09-30T00:00:00Z', reviewDecisions: [{ ...carried, createdAt: '2026-09-30T00:00:00Z' }] }))
-    render(<Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />)
-    await screen.findByText(/1 reviewed in sample/)
-    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Finalize member review' }))
-    await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledWith(extractionId, [carried], 1))
-    await screen.findByText('Review saved')
-    expect(screen.getByText(/1 reviewed in sample/)).toBeTruthy()
-  })
-
-  it('excludes optional cells from required review and removes provenance when overriding a carried decision', async () => {
-    const carried = { ...pendingDecisions[0], carriedFrom: { extractionId: 'sample-1', sourcePathKey: JSON.stringify(pendingDecisions[0].resultPath) } }
+  it('excludes optional cells from required review', async () => {
+    const required = pendingDecisions[0]
     const optional = { ...pendingDecisions[0], resultPath: ['records', 0, 'year'], evidenceAnchorId: null, reviewedOccurrenceIds: [] }
     vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt({ batchExtractionId: batch().batchExtractionId }),
-      pendingReviewDecisions: [carried, optional], reviewDraft: { version: 1, decisions: [carried] } })
+      pendingReviewDecisions: [required, optional], reviewDraft: { version: 1, decisions: [required] } })
     const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
     await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
-    act(() => result.current.setDecision(reviewableDocumentId, carried.resultPath, 'REJECTED'))
-    const state = result.current.members.get(reviewableDocumentId)!
-    expect(state.status === 'ready' && state.decisions[0].carriedFrom).toBeUndefined()
+    act(() => result.current.setDecision(reviewableDocumentId, required.resultPath, 'REJECTED'))
     vi.mocked(api.finalizeExtractionReview).mockResolvedValue(attempt({ reviewedAt: '2026-09-30T00:00:00Z' }))
     await act(async () => { await result.current.saveMember(reviewableDocumentId) })
     expect(api.finalizeExtractionReview).toHaveBeenCalledWith(extractionId, [{ ...pendingDecisions[0], action: 'REJECTED' }], 2)
@@ -394,7 +299,7 @@ describe('useBatchExtractionReviewGrid', () => {
     captureSessionRecovery()
     vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt(), pendingReviewDecisions: pendingDecisions, reviewDraft: { version: 1, decisions: pendingDecisions } })
     const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
-    await waitFor(() => expect(api.saveExtractionReviewDraft).toHaveBeenCalledWith(extractionId, [], 1, []))
+    await waitFor(() => expect(api.saveExtractionReviewDraft).toHaveBeenCalledWith(extractionId, [], 1))
     expect(result.current.dirtyCount).toBe(0)
     await act(() => result.current.saveMember(reviewableDocumentId))
     expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
@@ -428,7 +333,7 @@ describe('useBatchExtractionReviewGrid', () => {
     })
     expect(result.current.draftError).toBeNull()
     act(() => result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'REJECTED'))
-    expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(extractionId, expect.any(Array), 0, [])
+    expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(extractionId, expect.any(Array), 0)
     await waitFor(() => expect(result.current.draftSaving).toBe(false))
   })
 

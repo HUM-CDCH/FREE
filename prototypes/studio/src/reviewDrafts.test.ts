@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, restoreReviewDraft } from './reviewDrafts'
 import { captureSessionRecovery, clearSessionRecovery, setSessionRecoveryAccount } from './auth/sessionRecovery'
 
@@ -64,4 +64,15 @@ it('combines server-saved decisions with pending fields without treating default
   expect(restored.decisions).toEqual([edited, prepared[1]])
   expect([...restored.touchedPaths]).toEqual([JSON.stringify(prepared[0].resultPath)])
   expect(restoreReviewDraft(undefined, prepared).touchedPaths.size).toBe(0)
+})
+
+describe('review drafts from before the sample workbench was removed', () => {
+  it('drops a local draft that still carries pairings and keeps the server state', () => {
+    const decision = { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'a_p1_1', reviewedOccurrenceIds: ['o1'], action: 'APPROVED' as const, reviewedValue: null }
+    rememberReviewDraft('e1', { version: 2, decisions: [decision], pairings: [{ record: 0, extractionId: 'old', sourceRecord: 0 }] } as never)
+    const recovered = recoverReviewDraft('e1', { version: 3, decisions: [decision] }, [decision])
+    expect(recovered.conflict).toBe(false)
+    expect(recovered.version).toBe(3)
+    expect('pairings' in recovered).toBe(false)
+  })
 })
