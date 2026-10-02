@@ -173,10 +173,10 @@ export const STARTING_POINTS: readonly StartingPoint[] = [
   },
   {
     name: 'Explore spans and schema policies',
-    description: 'Explicit bounded 12,288, no previous passages, token grouping, all value units, reference identity, schema prompt, plain input, source spans, schema policies, until first support and source order. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
+    description: 'Explicit bounded 12,288, no previous passages, token grouping, reference identity, schema prompt, plain input, source spans and schema policies. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
     assign: {
       context: 'bounded', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
-      prompt: 'schema', rendering: undefined, grounding: 'spans', evidence_policy: 'schema', grounding_schedule: 'unresolved',
+      prompt: 'schema', rendering: undefined, grounding: 'spans', evidence_policy: 'schema', grounding_schedule: undefined,
       grounding_routing: undefined,
     },
   },

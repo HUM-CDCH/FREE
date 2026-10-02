@@ -133,11 +133,11 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
     technical: 'grouping=structural; token budget is the omitted default. Runs record grouping_version.',
   },
   {
-    id: 'selection', title: 'Value evidence',
-    purpose: 'Choose whether record-value calls read every source unit or only the units that support the record.',
+    id: 'selection', title: 'Value evidence (retired)',
+    purpose: 'Retired: Article now reads every source unit for values, whichever value this control holds. It stays visible read-only; a saved value is kept and sent unchanged, and choosing a starting point clears it.',
     stage: 'Record values; not inventory, document fields or verification.',
     example: {
-      caption: 'One identity supported in units 1 and 4.',
+      caption: 'Historical: One identity supported in units 1 and 4.',
       options: [
         { label: 'All source units', blocks: [unit('Unit 1', 'read for values'), unit('Unit 2', 'read for values'), unit('Unit 3', 'read for values'), unit('Unit 4', 'read for values')],
           outcome: 'Every unit is read for the record’s values.' },
@@ -145,8 +145,8 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
           outcome: 'Fewer value calls; a relevant value in unit 2 or 3 would not be read. Inventory and verification still visit all four units.' },
       ],
     },
-    combinations: 'Supported units need bounded source units. Selection removes value inputs; unit order (routing) only orders verification.',
-    takeaway: 'Lower value-call count can omit relevant evidence. It is not grounding routing.',
+    combinations: 'Retired with the other value-selection controls: Article reads every unit for values.',
+    takeaway: 'Lower value-call count could omit relevant evidence; this is history, not a current choice.',
     evidence: [{ source: 'r2a', finding: 'With fixed replies, supported units changed calls by −2.13 and input tokens by −8,623 per document on average (15 documents); accuracy changed by +0.00 [+0.00, +0.00] on the six annotated documents, and a zero-width interval does not establish equivalence.' }],
     gaps: [
       { kind: 'Not measured', text: 'Fresh-model speed and evidence recall.' },
@@ -155,11 +155,11 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
     technical: 'selection=supported; all units is the omitted default. Runs record selection_version and their selections.',
   },
   {
-    id: 'identity', title: 'Record identity',
-    purpose: 'Choose how records found in different places are merged.',
+    id: 'identity', title: 'Record identity (retired)',
+    purpose: 'Retired: Article now extracts one document-level object, so there are no records to reconcile, whichever values Reconciliation and Identity fields hold. They stay visible read-only; saved values are kept and sent unchanged, and choosing a starting point resets Reconciliation.',
     stage: 'Inventory and identity.',
     example: {
-      caption: 'Two records share a species but differ by preparation.',
+      caption: 'Historical: Two records share a species but differ by preparation.',
       options: [
         { label: 'Reference', blocks: [unit('Found', 'Mus musculus · skull'), unit('Found', 'Mus musculus · skin')],
           outcome: 'The model’s own identity may merge both into one record.' },
@@ -169,7 +169,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
           outcome: 'One record: a key that is too broad merges them.' },
       ],
     },
-    combinations: 'Declared identity fields need at least one top-level scalar record field; they are checked against the schema when an Extraction starts. Reference identity may also carry fields.',
+    combinations: 'None: both controls are read-only.',
     takeaway: 'Too broad a key can merge records; missing declared keys can leave duplicates.',
     evidence: [{ source: 'r1r3r4', finding: 'Against the reference, declared identity changed mean accuracy by −0.18 [−0.53, 0.00].' }],
     gaps: [],
@@ -177,7 +177,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
   },
   {
     id: 'format', title: 'Extraction input',
-    purpose: 'Choose the instructions and how source text is presented to the model.',
+    purpose: 'Choose how source text is presented to the model. Instructions are retired: Article’s model requests no longer change with that choice (its saved value is kept and sent unchanged).',
     stage: 'Model input for record values and verification.',
     example: {
       caption: 'The same small 2×2 table.',
@@ -188,7 +188,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
           outcome: 'The same characters, plus labels that consume tokens.' },
       ],
     },
-    combinations: 'Both instruction sets and both representations work with every other choice. Reference instructions include historical laboratory examples.',
+    combinations: 'Both representations work with every other choice; the instructions choice is retired and no longer changes Article’s requests.',
     takeaway: 'Exact input text is preserved; added markup consumes tokens.',
     evidence: [
       { source: 'r1r3r4', finding: 'On full source, structured blocks and tables changed mean accuracy by −24.12 [−49.79, −3.93]; calls fell by 1.33 and input tokens rose by 4,810 per document on average, and the refused Harvey inventory contributes to both.' },
@@ -196,7 +196,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
       { source: 'r1r3r4', finding: 'With declared identity, schema-driven instructions changed mean accuracy by −0.76 [−2.27, 0.00].' },
     ],
     gaps: [{ kind: 'Not measured', text: 'Structured blocks and tables with bounded source units: they were compared on full source only.' }],
-    technical: 'prompt=reference|schema; rendering=structured (plain text is omitted). Runs record rendering_version.',
+    technical: 'prompt=reference|schema is a retired key kept for historical settings; rendering=structured (plain text is omitted). Runs record rendering_version.',
   },
   {
     id: 'grounding', title: 'Verification',
@@ -220,7 +220,7 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
       ],
       notes: ['15.6 belongs to PSC: linking it to the ASC claim would be wrong-subject evidence.'],
     },
-    combinations: 'Schema policies need generated quotes or source spans. Until first support needs a verification method. Origin and lexical order needs quotes or spans and until first support.',
+    combinations: 'Schema policies need generated quotes or source spans. Continue verification and unit order are retired: every method is routed and stops at first support.',
     takeaway: 'Exact source location alone is not proof that the entire claim is supported. Wrong-subject 15.6 must not become support.',
     evidence: [
       { source: 'pilot', finding: 'Source spans with schema policies and until first support used 10 versus 40 calls and 89,770 versus 222,156 input tokens compared with generated quotes, on one selected document.' },
@@ -256,22 +256,18 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
     technical: 'evidence_policy=schema. Results list each skipped path with its policy; no eligible value reads as not applicable.',
   },
   {
-    id: 'scheduling', title: 'Continue verification and unit order',
-    purpose: 'Choose whether a value keeps being checked after its first support, and which units are tried first.',
-    stage: 'Order and extent of evidence verification.',
+    id: 'scheduling', title: 'Continue verification and unit order (retired)',
+    purpose: 'Retired: Article now checks every claim first in the source unit its value was read from and stops at the first support, whichever value these two controls hold. They stay visible read-only; a saved value is kept and sent unchanged. Choosing a starting point clears them.',
+    stage: 'Order and extent of evidence verification (no longer a setting since ARTICLE_VERSION 6).',
     example: {
-      caption: 'One claim against three units: NONE in unit 1, support in unit 2.',
+      caption: 'One claim against three units: Article now.',
       options: [
-        { label: 'Across all source units', blocks: [unit('Unit 1', 'NONE'), unit('Unit 2', 'support'), unit('Unit 3', 'still checked')],
-          outcome: 'Every unit is checked, also after support.' },
-        { label: 'Until first support', blocks: [unit('Unit 1', 'NONE', 'search continues'), unit('Unit 2', 'support', 'stops here'), unit('Unit 3', 'not checked', undefined, true)],
-          outcome: 'NONE in unit 1 does not stop the search; support in unit 2 does.' },
-        { label: 'Until first support, origin and lexical order', blocks: [unit('Unit 2', 'support', 'tried first, stops here'), unit('Unit 1', 'not checked', undefined, true), unit('Unit 3', 'not checked', undefined, true)],
-          outcome: 'Preferred units are tried first; unresolved values still reach every eligible unit.' },
+        { label: 'What Article does now', blocks: [unit('Unit 2', 'tried first: its value was read here', 'support stops here'), unit('Unit 1', 'checked only while unresolved', undefined, true), unit('Unit 3', 'checked only while unresolved', undefined, true)],
+          outcome: 'NONE or a failed call does not end the search; support does. Contradictions in units never reached stay unknown.' },
       ],
     },
-    combinations: 'Until first support needs a verification method. Origin and lexical order needs generated quotes or source spans and until first support.',
-    takeaway: 'NONE/failure does not stop later search; routing orders work, selection removes value inputs; first support does not settle contradictions.',
+    combinations: 'None: both controls are read-only. The historical findings below were measured when they were live.',
+    takeaway: 'First support does not settle contradictions: a value supported in one unit may be contradicted in a unit that was never checked.',
     evidence: [
       { source: 'pilot', finding: 'With source spans on one selected document, until first support used 14 versus 16 calls and 122 versus 156 claim–source decisions; its one fewer link also differed between byte-identical requests.' },
       { source: 'pilot', finding: 'Together with schema policies it reduced decisions from 84 to 49 at the same 10 calls and kept the same 35 linked paths, with two proofs changed; the interaction was not additive (+2 calls and +8,772 input tokens, one document, no interval).' },
@@ -279,10 +275,10 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
       { source: 'audit', finding: 'One of those losses was an identical-request difference; a five-repeat check reproduced the other for the routed request form (6/6 NONE versus 7/7 linked, originals included).' },
     ],
     gaps: [
-      { kind: 'Not measured', text: 'A general routing effect.' },
-      { kind: 'Combination not studied', text: 'Until first support or unit order with generated quotes.' },
+      { kind: 'Not measured', text: 'Historical (controls retired): A general routing effect.' },
+      { kind: 'Combination not studied', text: 'Historical (controls retired): Until first support or unit order with generated quotes.' },
     ],
-    technical: 'grounding_schedule=unresolved; grounding_routing=origin_lexical. Routed runs record grounding_routing_version.',
+    technical: 'grounding_schedule and grounding_routing are in RETIRED_ARTICLE_KEYS; the Parsing Service routes every claim (routing.VERSION 2) and records grounding_routing_version only when the retired key is still set.',
   },
   {
     id: 'catalog', title: 'Catalog',
@@ -314,4 +310,4 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
 export const FLOW_TEXT =
   'Canonical Source Context feeds Context and grouping. Context and grouping feeds Inventory and identity, Record values and Evidence verification. Inventory and identity feeds Record values. Record values feeds Evidence verification. Schema policies feed Evidence verification. Evidence verification feeds Extraction Result and review.'
 export const FLOW_NOTE =
-  'Rendering and the prompt affect model input, selection affects record-value contexts, and scheduling and routing affect verification. The diagram is conceptual: filename and document fields and recipe Catalog have their own paths and are not Article stages.'
+  'Rendering affects model input; verification is routed to the unit each value was read from and stops at first support. Selection, scheduling and routing are retired controls kept for historical settings. The diagram is conceptual: filename and document fields and recipe Catalog have their own paths and are not Article stages.'

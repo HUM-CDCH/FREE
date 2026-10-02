@@ -1,6 +1,5 @@
 import type { Feature, SheetData } from "write-excel-file/universal";
 import { protectFormula, validateSpreadsheetDimensions } from "./safety.js";
-import { REVIEW_NOTES_SHEET } from "./review-notes.js";
 import type { CellValue, Table } from "./table.js";
 
 const protectCell = (value: CellValue): CellValue =>
@@ -13,10 +12,18 @@ const sheetData = (table: Table): SheetData => [
   ),
 ];
 
-/** The Results sheet; with `notes` rows, a second Review notes sheet that leaves the Results sheet as it was. */
-export async function createXlsxBlob(table: Table, notes?: Table): Promise<Blob> {
+/** A sheet after the Results sheet: the Review notes, or an Extraction's Extraction and Evidence sheets. */
+export interface CompanionSheet {
+  readonly sheet: string;
+  readonly table: Table;
+}
+
+/** The Results sheet, then each companion with rows, in order; companions leave the Results sheet as it was. */
+export async function createXlsxBlob(table: Table, companions: readonly CompanionSheet[] = []): Promise<Blob> {
   validateSpreadsheetDimensions(table.rows.length, table.columns.length);
-  if (notes && notes.rows.length > 0) validateSpreadsheetDimensions(notes.rows.length, notes.columns.length);
+  const sheets = companions.filter((companion) => companion.table.rows.length > 0);
+  for (const { table: companion } of sheets)
+    validateSpreadsheetDimensions(companion.rows.length, companion.columns.length);
 
   const data = sheetData(table);
   const options = {
@@ -27,10 +34,10 @@ export async function createXlsxBlob(table: Table, notes?: Table): Promise<Blob>
   };
   // Loaded here, so a CSV export never pays for the workbook writer.
   const { default: writeXlsxFile } = await import("write-excel-file/universal");
-  return (notes && notes.rows.length > 0
+  return (sheets.length > 0
     ? writeXlsxFile([
         { data, sheet: "Results", stickyRowsCount: 1 },
-        { data: sheetData(notes), sheet: REVIEW_NOTES_SHEET, stickyRowsCount: 1 },
+        ...sheets.map((companion) => ({ data: sheetData(companion.table), sheet: companion.sheet, stickyRowsCount: 1 })),
       ], options)
     : writeXlsxFile(data, { sheet: "Results", stickyRowsCount: 1 }, options)
   ).toBlob();
@@ -44,7 +51,7 @@ function autoFilter(columnCount: number, rowCount: number): Feature<Blob> {
       transform: {
         "xl/worksheets/sheet{id}.xml": {
           // `<autoFilter/>` must follow `<sheetData/>` to keep the worksheet element order.
-          // The Results sheet's alone: a Review notes sheet carries no filter.
+          // The Results sheet's alone: a companion sheet carries no filter.
           transform: (xml, _options, { sheetIndex }) =>
             sheetIndex === 0 ? xml.replace("</sheetData>", `</sheetData><autoFilter ref="${reference}"/>`) : xml,
         },

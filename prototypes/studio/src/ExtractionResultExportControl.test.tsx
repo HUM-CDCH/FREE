@@ -74,13 +74,31 @@ describe('ExtractionResultExportControl', () => {
   })
 
   it('says beside the CSV option that it leaves contested fields empty, only when there are some', () => {
+    const contested = 'CSV leaves 3 contested fields empty; their candidates are only in the Excel Review notes sheet and in Studio.'
     const { rerender } = render(<ExtractionResultExportControl schema={schema} onExport={onExport} />)
     fireEvent.click(screen.getByRole('button', { name: 'Export' }))
-    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(screen.queryByText(contested)).not.toBeInTheDocument()
 
     rerender(<ExtractionResultExportControl schema={schema} contestedCount={3} onExport={onExport} />)
-    expect(screen.getByRole('note')).toHaveTextContent(
-      'CSV leaves 3 contested fields empty; their candidates are only in the Excel Review notes sheet and in Studio.')
+    expect(screen.getAllByRole('note').at(-1)).toHaveTextContent(contested)
+  })
+
+  it('always says the export holds values only, naming the Excel workbook\'s two sheets only when the workbook carries them', () => {
+    const sentence = 'CSV holds the values only. The Excel workbook adds an Extraction sheet (identities, versions, completion) and an Evidence sheet (extracted and reviewed values, verifier outcomes, evidence anchors).'
+    const { rerender } = render(<ExtractionResultExportControl schema={schema} contestedCount={1} onExport={onExport} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    expect(screen.queryByText(sentence)).not.toBeInTheDocument()
+    // Without the two sheets (a batch, or an attempt without a claim accounting), the note still says values only.
+    expect(screen.getAllByRole('note').map((note) => note.textContent)).toEqual([
+      'This export holds values only; contested fields are listed on the Excel Review notes sheet.',
+      'CSV leaves 1 contested field empty; their candidates are only in the Excel Review notes sheet and in Studio.',
+    ])
+
+    rerender(<ExtractionResultExportControl schema={schema} contestedCount={1} evidenceSheets onExport={onExport} />)
+    expect(screen.getAllByRole('note').map((note) => note.textContent)).toEqual([
+      sentence,
+      'CSV leaves 1 contested field empty; their candidates are only in the Excel Review notes sheet and in Studio.',
+    ])
   })
 
   it('hands both schema-led choices to the chosen format', () => {

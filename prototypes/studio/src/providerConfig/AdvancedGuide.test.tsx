@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { ExplainButton, GuideProvider, HowThisWorksButton } from './AdvancedGuide'
-import { EVIDENCE_SOURCES, GUIDE_TOPICS } from './advancedGuide.data'
+import { EVIDENCE_SOURCES, FLOW_NOTE, GUIDE_TOPICS } from './advancedGuide.data'
 import { STARTING_POINTS } from './advancedSettings'
 
 afterEach(cleanup)
@@ -122,16 +122,44 @@ describe('the Explain guide', () => {
     expect(GUIDE_TOPICS.map((topic) => topic.id)).toEqual(['scope', 'grouping', 'selection', 'identity', 'format', 'grounding', 'policy', 'scheduling', 'catalog'])
     for (const topic of GUIDE_TOPICS) {
       for (const text of [topic.purpose, topic.stage, topic.combinations, topic.takeaway, topic.technical]) expect(text.length).toBeGreaterThan(10)
-      expect(topic.example.options.length).toBeGreaterThan(1)
+      expect(topic.example.options.length).toBeGreaterThan(topic.id === 'scheduling' ? 0 : 1)
       for (const option of topic.example.options) expect(option.outcome.length).toBeGreaterThan(10)
       for (const row of topic.evidence) expect(EVIDENCE_SOURCES.map((source) => source.id)).toContain(row.source)
     }
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'selection')!.takeaway)
-      .toBe('Lower value-call count can omit relevant evidence. It is not grounding routing.')
+      .toBe('Lower value-call count could omit relevant evidence; this is history, not a current choice.')
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.takeaway)
       .toBe("Verification Off yields proposals; a recipe's applicability is source-specific.")
     expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.combinations).toContain('retired limits and recipe factors are never converted')
     for (const source of EVIDENCE_SOURCES) for (const field of [source.date, source.corpus, source.revision, source.evidence, source.limits]) expect(field).not.toBe('')
+  })
+
+  it('the retired schedule and routing controls are described as history, not as live choices', () => {
+    const scheduling = GUIDE_TOPICS.find((topic) => topic.id === 'scheduling')!
+    expect(scheduling.purpose).toMatch(/^Retired:/)
+    expect(scheduling.combinations).toMatch(/read-only/)
+    expect(scheduling.technical).toContain('RETIRED_ARTICLE_KEYS')
+    const affectsVerification = /(routing|scheduling)[^.]*\baffects? verification|\b(routing|scheduling)\b[^.]*\bonly orders verification/i
+    for (const topic of GUIDE_TOPICS) expect(topic.combinations, topic.id).not.toMatch(affectsVerification)
+    expect(FLOW_NOTE).not.toMatch(affectsVerification)
+  })
+
+  it('retired-only topics say Retired in their title and purpose, never Choose', () => {
+    for (const id of ['selection', 'identity', 'scheduling']) {
+      const topic = GUIDE_TOPICS.find((candidate) => candidate.id === id)!
+      expect(topic.purpose, id).toMatch(/^Retired:/)
+      expect(topic.purpose, id).not.toMatch(/^Choose/)
+      expect(topic.title, id).toMatch(/\(retired\)$/)
+      expect(topic.example.caption, id).toMatch(/^Historical: |: Article now\.$/)
+    }
+    const scheduling = GUIDE_TOPICS.find((topic) => topic.id === 'scheduling')!
+    expect(scheduling.purpose).toContain('Choosing a starting point clears them.')
+    for (const gap of scheduling.gaps) expect(gap.text).toMatch(/^Historical \(controls retired\): /)
+    const [, unit1, unit3] = scheduling.example.options[0]!.blocks
+    expect([unit1, unit3].map((block) => block && 'inactive' in block ? block.inactive : undefined)).toEqual([true, true])
+    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.purpose).toMatch(/Instructions are retired/)
+    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.combinations).toContain('retired')
+    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.technical).toMatch(/prompt[^;]*retired key kept for historical settings/)
   })
 
   it('every study names its document count and states the semantic review it still lacks', () => {

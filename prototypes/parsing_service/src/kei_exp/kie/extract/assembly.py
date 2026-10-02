@@ -49,7 +49,9 @@ PROMPT_VERSION = 15
 # item's claim is offered the table cells of its own row (printing its item's most distinctive other value) when
 # its value is printed in many rows. 6: a claim's contexts are ranked with its enclosing object's other values too
 # (`routing.VERSION` 2), so without an origin the context printing its own item is checked first.
-ARTICLE_VERSION = 6
+# 7: a list item's claim prints its own row in the table context when no offered cell lies in the item's own row
+# and the item is located to one row, so section headers can be placed.
+ARTICLE_VERSION = 7
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

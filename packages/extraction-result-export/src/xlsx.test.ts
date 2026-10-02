@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { strFromU8, unzipSync } from "fflate";
+import { buildEvidenceTable, buildExtractionTable } from "./provenance.js";
 import { buildReviewNotesTable } from "./review-notes.js";
 import type { Table } from "./table.js";
 import { serializeCsv } from "./csv.js";
 import { createXlsxBlob } from "./xlsx.js";
 
-async function workbookFiles(table: Table, notes?: Table): Promise<Record<string, string>> {
-  const blob = await createXlsxBlob(table, notes);
+async function workbookFiles(
+  table: Table,
+  companions?: readonly { sheet: string; table: Table }[],
+): Promise<Record<string, string>> {
+  const blob = await createXlsxBlob(table, companions);
   assert.equal(blob.type, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   const archive = unzipSync(new Uint8Array(await blob.arrayBuffer()));
   return Object.fromEntries(
@@ -71,7 +75,7 @@ test("adds a Review notes sheet for contested fields and leaves the Results shee
   const table: Table = { columns: ["title", "year"], rows: [{ title: "Ada", year: null }] };
   const notes = buildReviewNotesTable([{ path: ["year"], candidates: [1901, "=1902"] }]);
   const plain = await workbookFiles(table);
-  const files = await workbookFiles(table, notes);
+  const files = await workbookFiles(table, [{ sheet: "Review notes", table: notes }]);
 
   assert.equal(files["xl/worksheets/sheet1.xml"], plain["xl/worksheets/sheet1.xml"]);
   assert.match(files["xl/workbook.xml"]!, /<sheet[^>]*name="Results".*<sheet[^>]*name="Review notes"/s);
@@ -81,4 +85,35 @@ test("adds a Review notes sheet for contested fields and leaves the Results shee
   // The field path reuses the Results header's "year" string; the candidates keep their formula protection.
   assert.match(files["xl/sharedStrings.xml"]!, /<t>year<\/t>.*<t>Field<\/t>.*<t>Sources disagreed; left empty in Results<\/t><\/si><si><t>'=1902<\/t>/s);
   assert.equal(plain["xl/worksheets/sheet2.xml"], undefined);
+});
+
+test("adds the Review notes, Extraction and Evidence sheets in order, leaving the Results sheet as it was", async () => {
+  const table: Table = { columns: ["title", "year"], rows: [{ title: "Ada", year: null }] };
+  const notes = buildReviewNotesTable([{ path: ["year"], candidates: [1901, 1902] }]);
+  const identity = buildExtractionTable([["Extraction ID", "x-1"], ["Claims", 2]]);
+  const evidence = buildEvidenceTable([
+    { path: ["title"], extracted: "Ada", outcome: "supported", anchorId: "a_p1_s1", page: 1 },
+    { path: ["year"], extracted: null, outcome: "not_completed", reasons: ["call_failed"] },
+  ]);
+  const plain = await workbookFiles(table);
+  const files = await workbookFiles(table, [
+    { sheet: "Review notes", table: notes },
+    { sheet: "Extraction", table: identity },
+    { sheet: "Evidence", table: evidence },
+  ]);
+
+  assert.deepEqual([...files["xl/workbook.xml"]!.matchAll(/<sheet\b[^>]*name="([^"]+)"/g)].map((match) => match[1]),
+    ["Results", "Review notes", "Extraction", "Evidence"]);
+  assert.equal(files["xl/worksheets/sheet1.xml"], plain["xl/worksheets/sheet1.xml"]);
+  assert.match(files["xl/worksheets/sheet1.xml"]!, /<autoFilter ref="A1:B2"\/>/);
+  for (const sheet of ["sheet2.xml", "sheet3.xml", "sheet4.xml"])
+    assert.doesNotMatch(files[`xl/worksheets/${sheet}`]!, /<autoFilter/);
+  assert.match(files["xl/worksheets/sheet3.xml"]!, /<c r="B3"[^>]*><v>2<\/v>/);
+  assert.match(files["xl/sharedStrings.xml"]!, /<t>Verifier outcome<\/t>.*<t>Verifier-supported<\/t>.*<t>Not completed<\/t>/s);
+});
+
+test("a companion without rows adds no sheet", async () => {
+  const table: Table = { columns: ["title"], rows: [{ title: "Ada" }] };
+  const files = await workbookFiles(table, [{ sheet: "Evidence", table: buildEvidenceTable([]) }]);
+  assert.deepEqual([...files["xl/workbook.xml"]!.matchAll(/<sheet\b[^>]*name="([^"]+)"/g)].map((match) => match[1]), ["Results"]);
 });

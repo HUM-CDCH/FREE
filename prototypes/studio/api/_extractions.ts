@@ -1,5 +1,6 @@
 import { canonicalPackageStore, LIVE_WORKFLOW_STATUSES, workflowStatusesOf } from 'db'
 import {
+  claimAccounting,
   contestedValues,
   createExtractions,
   createExtractionStore,
@@ -94,6 +95,7 @@ function transportDiagnostics(
               : []
           }),
           batches: diagnostics.groundingBatches,
+          claims: claimAccounting(extraction),
         }
       : null,
     catalog: diagnostics.catalog
