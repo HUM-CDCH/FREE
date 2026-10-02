@@ -1688,6 +1688,37 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.queryByText(message, { exact: false })).not.toBeInTheDocument()
   })
 
+  it.each([
+    ['its revision declares neither Article nor Catalog', chosenRevision(null), null,
+      'Schema Revision 1 declares neither Article nor Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the schema and choose Article or Catalog there.'],
+    ['its revision is saved as the other strategy', chosenRevision('records'), null,
+      'Schema Revision 1 is saved as Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the schema and choose Article or Catalog there.'],
+    ['a later save replaced its revision', chosenRevision(), appendedRevisionId,
+      'Schema Revision 1 is no longer the current revision of Places, so this Batch Extraction cannot run again. Start a New Batch Extraction with the schema instead.'],
+  ])('does not offer Run again when %s, and says to start a new Batch Extraction', async (_case, revision, current, message) => {
+    const posted: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') posted.push(url)
+      if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [batch] })
+      if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`)) return response({ revision })
+      if (url.startsWith('/api/schema-revisions?'))
+        return response({ revisions: current === null ? [] : [{
+          schemaRevisionId: current, extractionSchemaId: batch.extractionSchemaId, revisionNumber: 2,
+          origin: 'researcher-edit', createdAt: '2026-08-14T10:01:00.000Z', recordScope: 'records', summary: 'place',
+        }] })
+      throw new Error(`Unexpected request: ${url}`)
+    }))
+    renderPanel(vi.fn(), batchExtractionId)
+
+    const rerun = await screen.findByRole('button', { name: 'Run again' })
+    await waitFor(() => expect(rerun).toHaveAccessibleDescription(message))
+    expect(rerun).toBeDisabled()
+    fireEvent.click(rerun)
+    expect(posted).toEqual([])
+  })
+
   it('runs the open Batch Extraction selection again as its own Batch Extraction', async () => {
     const reran = {
       ...batch,
