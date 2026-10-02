@@ -500,7 +500,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 **Files:**
 - Modify: `prototypes/studio/shared/extraction.contract.ts`, `shared/projectContext.contract.ts`, `api/_extractions.ts`, `api/extractions.ts`, `api/document_reopen.ts`
 - Delete: `prototypes/studio/api/sample_facts.ts`, `api/sample_facts.postgres.test.ts`, `shared/sampleFacts.contract.ts`
-- Modify: `packages/extraction/src/types.ts`, `review-rules.ts`, `review-attention.ts`, `module.ts`, `postgres-admission.ts`, `postgres-attempts.ts`, `postgres-persistence.ts`, `workflows.ts`
+- Modify: `packages/extraction/src/types.ts`, `review-rules.ts`, `review-attention.ts`, `module.ts`, `postgres-admission.ts`, `postgres-attempts.ts`, `postgres-persistence.ts`, `postgres-reviews.ts`, `postgres-workflow-store.ts`, `workflows.ts`
 - Test: `packages/extraction/src/postgres-admission.integration.test.ts`, `postgres-attempts.integration.test.ts`, `postgres-reviews.integration.test.ts`, `review-rules.test.ts`, `review-attention.test.ts`, `workflows.test.ts`; `prototypes/studio/api/extractions.test.ts`, `document_reopen.test.ts`; `prototypes/studio/src/ProjectNavigation.test.tsx`
 
 **Interfaces:**
@@ -570,6 +570,69 @@ it('a stored decision with a legacy carriedFrom still reads back', async (t) => 
   })
 ```
 
+Also in `postgres-reviews.integration.test.ts`, beside the draft cases:
+
+```ts
+it('a stored draft with legacy pairings and carried provenance reads back without them and keeps its version', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const { module } = createRuntime(project.researcherAccountId)
+    const { extraction } = await module.runSingle(freshInput(project))
+    const prepared = await module.prepareReview(extraction.extractionId)
+    const legacy = prepared.reviewDecisions.map((decision, index) => index === 0
+      ? { ...decision, carriedFrom: { extractionId: 'old-sample', sourcePathKey: '["records",0,"title"]' } }
+      : decision)
+    await db.orm.public.Extraction.where({ id: extraction.extractionId })
+      .update({ reviewDraft: legacy, reviewDraftVersion: 4, reviewPairings: [{ record: 0, extractionId: 'old-sample', sourceRecord: 0 }] })
+    const draft = await module.readReviewDraft(extraction.extractionId)
+    assert.equal(draft.version, 4)
+    assert.equal(draft.decisions.length, prepared.reviewDecisions.length)
+    assert.equal(draft.decisions.some((decision) => 'carriedFrom' in decision), false)
+    assert.equal('pairings' in draft, false)
+    assert.deepEqual(draft.decisions[0]!.resultPath, prepared.reviewDecisions[0]!.resultPath)
+  })
+
+it('a review finalized with carried decisions before this change still replays', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const { module } = createRuntime(project.researcherAccountId)
+    const { extraction } = await module.runSingle(freshInput(project))
+    const prepared = await module.prepareReview(extraction.extractionId)
+    await module.finalizeReview(extraction.extractionId, prepared.reviewDecisions)
+    // The digest a pre-change finalize wrote: its normalization carried `carriedFrom` on the first decision.
+    const review = (await db.orm.public.ExtractionReview.where({ extractionId: extraction.extractionId }).select('id').first())!
+    const first = (await db.orm.public.ReviewDecision.where({ extractionReviewId: review.id }).select('id').orderBy((d) => d.resultPathKey.asc()).first())!
+    await db.orm.public.ReviewDecision.where({ id: first.id }).update({ carriedFrom: { extractionId: 'old-sample', sourcePathKey: '["records",0,"title"]' } })
+    await db.orm.public.ExtractionReview.where({ id: review.id }).update({ decisionDigest: 'digest-written-by-the-old-normalization' })
+    const again = await module.finalizeReview(extraction.extractionId, prepared.reviewDecisions)
+    assert.equal(again.disposition, 'replayed')
+  })
+```
+
+(The second test forces the stored digest to differ, as a pre-change digest would; the replay must then succeed by recomputing the digest from the stored decisions.)
+
+In `packages/extraction/src/postgres-admission.integration.test.ts`, in place of the first deleted sample case:
+
+```ts
+  it('a whole-document run under a legacy sample ID is a conflict, never a replay', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const document = project.documents[0]!
+    const { module } = createRuntime(project.researcherAccountId)
+    const input = freshInput(project)
+    // The row an old sample run left under this ID: same pins, a page scope.
+    await db.orm.public.Extraction.create({
+      id: input.extractionId, sourceDocumentId: document.sourceDocumentId,
+      sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: null },
+      requestedPages: [1], batchExtractionId: null,
+    })
+    await rejectsWithCode(module.runSingle(input), 'extraction_id_conflict')
+  })
+```
+
+(`rejectsWithCode` is in the fixture destructuring; if the file's existing conflict case asserts differently, follow that file's style.)
+
 - [ ] **Step 2: Run them to verify they fail**
 
 Run: `pnpm -C packages/extraction test:postgres` (it needs `EXTRACTION_TEST_DATABASE_URL`, or `DATABASE_URL`, pointing at a migrated disposable `free_test_*` database, as the suite's own skip message says) and `pnpm -C prototypes/studio exec vitest run api/extractions.test.ts -t "sample pages"`.
@@ -591,11 +654,28 @@ Expected: FAIL (`samples` is still returned; `pages` is still accepted; `carried
 
 `module.ts`: the import list from `./review-rules.js` loses `transferVerdicts` and `unmatchedSources`; delete the `carried` helper and its comment (19 to 26); `readReviewDraft` ends with `return withAttention(draft)` (delete from `const pinned = extraction.reviewTransfer` through the `return withAttention({ … })` block); `saveReviewDraft` ends with `return persistence.saveReviewDraft(extractionId, draft)` right after the validation `throw` (delete the pairing paragraph that follows). Remove the now-unused `resultPathKey` import if eslint reports it.
 
-`postgres-admission.ts`: delete the import at line 41 and the `ReviewPairing`, `ReviewTransfer` type imports (52 to 53); delete `requestedPages` from `AdmissionPins` (143), from the pins object (189), from `AdmittedIdentity` (204) and from `sameAdmission` (219, so the function ends at the `requestedSettings` comparison); delete `samplesReviewTransfer` with its comment (222 to 256); drop `'requestedPages'` from the identity select (278); delete line 311 and the two spreads at 322 to 323 (the `create` call ends with `requestedSettings: pins.requestedSettings, batchExtractionId: null`); in `admitBatchMember` delete line 559 and the spread at 570.
+`postgres-admission.ts`: delete the import at line 41 and the `ReviewPairing`, `ReviewTransfer` type imports (52 to 53); delete `requestedPages` from `AdmissionPins` (143) and from the pins object (189); keep `requestedPages: unknown` on `AdmittedIdentity` (204) and keep `'requestedPages'` in the identity select (278), because `sameAdmission` now reads it: replace its last comparison (219) with `row.requestedPages === null` and update the comment above the function to "An identical interactive request: the same pins and choices. A legacy sample row (a page scope) never equals a new request, so reusing its ID is a conflict. A batch member's ID is never an interactive one."; delete `samplesReviewTransfer` with its comment (222 to 256); delete line 311 and the two spreads at 322 to 323 (the `create` call ends with `requestedSettings: pins.requestedSettings, batchExtractionId: null`); in `admitBatchMember` delete line 559 and the spread at 570.
 
 `postgres-attempts.ts`: `readAttemptRows` no longer selects `requestedPages` or `reviewTransfer` (55, 57); `pinsOf` drops `requestedPages` (138); the decision select drops `'carriedFrom'` (161); `extractionSnapshot` drops `reviewTransfer` (177) and the `carriedFrom` spread (187); `loadDocumentExtractions` keeps the `'requestedPages'` select and the `whole` filter at 238 (the one place the retired column is read), deletes the `samples` query and comment (261 to 264), passes only `selected` and `latestReviewed` ids to `loadAttempts`, and returns no `samples`.
 
 `postgres-persistence.ts`: delete `SAMPLE_PAGE_LIMIT` (72) and the `if (input.pages) { … }` block at the top of `scheduleExtraction` (175 to 186).
+
+`postgres-workflow-store.ts`: drop `'requestedPages'` from the `loadAdmitted` select (line 74) and from the `AdmittedExtraction` it returns.
+
+`postgres-reviews.ts`:
+- `readStoredReviewDraft` (28 to 39): select `'reviewDraft', 'reviewDraftVersion', 'reviewedAt'` only, drop the `pairings` spread, and project each stored decision onto the fields the contract still has, so a draft saved before this change parses under the strict schema and keeps its values and version:
+
+```ts
+const legacyFree = (decision: Record<string, unknown>) => {
+  const { carriedFrom: _carriedFrom, ...kept } = decision
+  return kept as unknown as ReviewDraft['decisions'][number]
+}
+```
+
+  and `decisions: row.reviewedAt ? [] : ((row.reviewDraft ?? []) as Record<string, unknown>[]).map(legacyFree)`.
+- `saveStoredReviewDraft` (41 to 57): delete the `reviewPairings` spread and its comment from `updateAll`.
+- `resetStoredReview` (59 to 68): delete `reviewPairings: null` from `updateAll`.
+- `finalizeStoredReview` (71 onward): the two replay checks compare the submitted `digest` with `reviewDigest(orm, extractionId)`. Add a second acceptance: when the stored digest differs, recompute the digest from the stored `ReviewDecision` rows of the latest review (read them like `extractionSnapshot` does, `encode`/`decode` the reviewed value the same way, normalize with `normalizeDecisions`, digest with the same function the caller used for `digest`) and treat equality as `'replayed'`. Put that in a helper `storedDecisionsDigest(orm, extractionId)` beside `reviewDigest`, and call `reviewMatches(orm, extractionId, digest)` from both sites. Find the digest function by following where `finalizeStoredReview`'s `digest` argument is computed (`module.ts` or `postgres-persistence.ts`).
 
 `workflows.ts`: delete `requestedPages` and its comment from `AdmittedExtraction` (35 to 37); line 101 reads `options: keiMethodOptions(method),`.
 
@@ -620,7 +700,7 @@ Delete `api/sample_facts.ts`, `api/sample_facts.postgres.test.ts` and `shared/sa
 
 - [ ] **Step 6: Remove the sample tests and fixtures the contracts no longer admit**
 
-Delete: `postgres-admission.integration.test.ts` cases `"a sample's pages are its admission identity, never its method"` (231) and `'pins the decisions of samples on two page sets at admission, and a later sample edit changes nothing'` (247 to the `it(` at 264); `review-rules.test.ts` the whole `describe('Review transfer from a sample to a later run', …)` (241 to the end of the file, 430); `review-attention.test.ts` assertions on `provenance` (keep the cases, drop the provenance expectations); `postgres-reviews.integration.test.ts` the looped case ``seeds a … whose every value carries, requiring explicit finalization`` (the `for (const batchMember …) it(` at line 82 through the line before `it('projects only the active review revision` at 117); `testing/extraction-fixture.ts` any helper only those cases used (`grep -n -i 'sample\|pages' packages/extraction/src/testing/extraction-fixture.ts`; `extractionRow` keeps selecting `requestedPages`, which still exists); `workflows.test.ts` case at 536 to 546, replaced by:
+Delete: `postgres-admission.integration.test.ts` cases `"a sample's pages are its admission identity, never its method"` (231) and `'pins the decisions of samples on two page sets at admission, and a later sample edit changes nothing'` (247 to the `it(` at 264); `review-rules.test.ts` the whole `describe('Review transfer from a sample to a later run', …)` (241 to the end of the file, 430); `review-attention.test.ts` assertions on `provenance` (keep the cases, drop the provenance expectations); `postgres-batches.integration.test.ts`: delete the `reviewTransfer`/`pinned` assertions, and re-target `observeSnapshots`' failure injector (lines 46 to 56), which matches the removed `samplesReviewTransfer` SELECT (`"requestedPages"`, `"reviewDraftVersion"`, `"reviewPairings"`), at a SELECT that still runs once per member inside the batch admission transaction with a selected-source predicate (for example the `SourceRepresentationRevision` or `SchemaRevision` read in `admitBatchMember`'s path); keep both `snapshot failure on member4 rolls back …` cases green, or, if no such per-member read exists any more, delete the two cases and say so in the report; `postgres-reviews.integration.test.ts` the looped case ``seeds a … whose every value carries, requiring explicit finalization`` (the `for (const batchMember …) it(` at line 82 through the line before `it('projects only the active review revision` at 117); `testing/extraction-fixture.ts` any helper only those cases used (`grep -n -i 'sample\|pages' packages/extraction/src/testing/extraction-fixture.ts`; `extractionRow` keeps selecting `requestedPages`, which still exists); `workflows.test.ts` case at 536 to 546, replaced by:
 
 ```ts
   it('every admitted run asks kei for the whole document', async () => {
@@ -664,6 +744,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `prototypes/studio/e2e/canonical-evidence-lifecycle.spec.ts:903-1009`
+- Modify: `prototypes/studio/src/useEvidenceOverlays.ts`, `prototypes/studio/src/useEvidenceOverlays.test.ts`
 - Modify: `packages/db/src/prisma/contract.prisma:223-231, 288-289`
 - Modify: `CONTEXT.md:119-122, 133-135`
 
@@ -673,7 +754,17 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Reduce the journey**
 
-Rename the test at line 903 to `'import → whole source → review → collection review @deterministic'`. Keep lines 904 to 952 (setup and the codebook import through the `imported.schemaTree` assertion). Replace lines 953 to 993 (from `await page.getByRole('button', { name: 'Select sample pages' }).click()` to the `Sample · rev 3` expectation) with nothing, so the next statement is `await page.getByRole('button', { name: '▶ Run extraction', exact: true }).click()`. Keep everything from there to the end of the test. Then delete the test's remaining references to a sample: none should remain (`grep -n -i sample prototypes/studio/e2e/canonical-evidence-lifecycle.spec.ts` shows only the fixture names `Sample Researcher`, `Sample E2E`, `sample.pdf`, `Sample schema`, which stay).
+Rename the test at line 903 to `'import → whole source → review → collection review @deterministic'`. Keep lines 904 to 952 (setup and the codebook import through the `imported.schemaTree` assertion). Replace lines 953 to 993 (from `await page.getByRole('button', { name: 'Select sample pages' }).click()` to the `Sample · rev 3` expectation) with nothing, so the next statement is `await page.getByRole('button', { name: '▶ Run extraction', exact: true }).click()`.
+
+The review steps that follow were written for a run whose decisions were carried from a sample, where "Save review" was the explicit save. A whole-document run now has pending required decisions, and the review saves automatically once they are all made, so rewrite them:
+- After `Review now`, decide the required cells: find the control in `ResultsTab.tsx` that approves the remaining required decisions (the button next to the paragraph with `approvalDescriptionId`; read its accessible name from the source) and click it, then `await expect(page.getByText('Review saved', { exact: true })).toBeVisible({ timeout: 20_000 })`. Remove the `Save review` click and its visibility assertion.
+- In the Batch Extraction part, after `Review now` in the completion dialog, approve the member's pending cells with the grid's `Approve <n> pending in <column>` buttons (`BatchExtractionReviewGrid.tsx:772`; click each until none is left or use the member-level approval if the grid offers one), then click `Finalize member review` (enabled only when nothing is pending) and keep the `Review saved` assertion.
+
+Then confirm no sample reference remains (`grep -n -i sample prototypes/studio/e2e/canonical-evidence-lifecycle.spec.ts` shows only the fixture names `Sample Researcher`, `Sample E2E`, `sample.pdf`, `Sample schema`, which stay).
+
+- [ ] **Step 1b: Remove the sample-only overlay plumbing**
+
+`prototypes/studio/src/useEvidenceOverlays.ts`: the `onPick` option (lines 128 and 141) has no caller since Task 3. Delete the option, its hit-testing and callback branch (around line 199) and the field-label rendering that only served it (around line 212), keeping ordinary result highlighting unchanged. Update `useEvidenceOverlays.test.ts` accordingly (delete the `onPick` cases, keep the highlight cases) and run `pnpm -C prototypes/studio exec vitest run src/useEvidenceOverlays.test.ts`.
 
 - [ ] **Step 2: Run the journey if the deterministic e2e stack is available on this machine**
 
@@ -709,10 +800,10 @@ pnpm -C prototypes/studio typecheck && pnpm -C prototypes/studio lint && pnpm -C
 git grep -n -i -E 'sample(Facts|Pages|_facts)|requestedPages|reviewTransfer|reviewPairings|carriedFrom|TransferEntry|ReviewPairing' -- . ':!packages/db/src/prisma' ':!packages/db/migrations' ':!docs' ':!*.samples.json'
 ```
 
-Expected: typecheck, lint and tests green; the grep prints only `packages/extraction/src/postgres-attempts.ts` (the `requestedPages` select and `IS NULL` filter), `packages/extraction/src/testing/extraction-fixture.ts` (`extractionRow` still selects the column), and the two integration tests that seed legacy rows on purpose (`postgres-attempts.integration.test.ts`, `postgres-reviews.integration.test.ts`); nothing else. Then:
+Expected: typecheck, lint and tests green; the grep prints only `packages/extraction/src/postgres-attempts.ts` (the `requestedPages` select and `IS NULL` filter), `packages/extraction/src/postgres-admission.ts` (the `sameAdmission` legacy-row check and its identity select), `packages/extraction/src/postgres-reviews.ts` (the `carriedFrom` projection), `packages/extraction/src/testing/extraction-fixture.ts` (`extractionRow` still selects the column), and the integration tests that seed legacy rows on purpose (`postgres-admission.integration.test.ts`, `postgres-attempts.integration.test.ts`, `postgres-reviews.integration.test.ts`); nothing else. Then:
 
 ```bash
-git add prototypes/studio/e2e/canonical-evidence-lifecycle.spec.ts packages/db/src/prisma/contract.prisma CONTEXT.md
+git add prototypes/studio/e2e/canonical-evidence-lifecycle.spec.ts prototypes/studio/src/useEvidenceOverlays.ts prototypes/studio/src/useEvidenceOverlays.test.ts packages/db/src/prisma/contract.prisma CONTEXT.md
 git commit -m "chore: retire the sample columns, the sample domain terms and the sample browser steps
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"

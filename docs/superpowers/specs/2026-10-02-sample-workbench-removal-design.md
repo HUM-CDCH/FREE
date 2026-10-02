@@ -92,6 +92,19 @@ hidden it" and "Remove the sample workbench".
 - `postgres-attempts.ts`, `postgres-persistence.ts`, `module.ts`: every read
   and write of `requestedPages`, `reviewTransfer` and `reviewPairings`, and the
   sample entry points.
+- `postgres-reviews.ts`: the `reviewPairings` read in `readStoredReviewDraft`,
+  its write in `saveStoredReviewDraft` and its reset in `resetStoredReview`.
+  Stored draft decisions are projected onto the remaining fields when read
+  (a legacy `carriedFrom` is dropped), so a draft saved before this change
+  still parses under the strict contract and keeps its values and version.
+  A finalized review's replay check also accepts the digest recomputed from
+  its stored decisions under the current normalization, so a review finalized
+  with carried decisions before this change still replays instead of
+  reporting a conflict.
+- `postgres-workflow-store.ts`: `requestedPages` in `loadAdmitted`.
+- `postgres-admission.ts`, `sameAdmission`: a row whose `requestedPages` is
+  set (a legacy sample) never equals a new request, so reusing a legacy
+  sample's ID for a whole-document run is a conflict, never a replay.
 - `workflows.ts`: `requestedPages` on `AdmittedExtraction` and `options.pages`
   in `keiExtractRequest`. `kei-handoff.ts` needs no change: its `options`
   record is opaque, Studio stops sending `pages` because nothing adds it, and
@@ -107,9 +120,10 @@ hidden it" and "Remove the sample workbench".
 ### Database (`packages/db`)
 
 - `src/prisma/contract.prisma`: `requestedPages`, `reviewTransfer` and
-  `reviewPairings` stay, with their comments rewritten to "retired on
-  2026-10-02 with the sample workbench; never written; dropped by a later
-  migration". No migration in this change.
+  `reviewPairings` on `Extraction`, and `carriedFrom` on `ReviewDecision`,
+  stay, with their comments rewritten to "retired on 2026-10-02 with the
+  sample workbench; never written; dropped by a later migration". No
+  migration in this change.
 
 ### Tests and browser journeys
 
@@ -149,16 +163,36 @@ stay. The files: `packages/extraction/src/postgres-admission.integration.test.ts
   it, so the fingerprints and artifact identities of whole-document Extractions
   do not change.
 - Rows that already carry `requestedPages` (samples made before this change)
-  remain readable through their own ID (an open deep link) and are collected
-  like any Extraction. They never appear as a document's `latestAttempt`: the
-  reopen query keeps its existing `requestedPages IS NULL` condition, which is
-  the one place the retired column is still read.
+  stay in the database and are collected like any Extraction, but the
+  document route no longer reopens them: an explicit `extractionId` naming
+  one answers 404 like any unknown Extraction, and they never appear as a
+  document's `latestAttempt` or `latestReviewed`. The reopen query keeps its
+  existing `requestedPages IS NULL` condition, and `sameAdmission` reads the
+  column to refuse a reuse of a legacy sample's ID; those are the two places
+  the retired column is still read.
 - The document reopen snapshot answers `latestAttempt` and `latestReviewed`
   only.
+
+## Deployment
+
+- Studio and the Parsing Service deploy together, after the drain that
+  `docs/operations/deployment.md` prescribes for record-scope upgrades: no
+  sample workflow may be in flight when the new code starts, and none can be
+  resumed afterwards.
+- Browser tabs open from before the deploy must refresh: the strict response
+  parsers of the old client reject responses without `latestSample`, and the
+  new API refuses their run requests that carry `pages`. A draft those tabs
+  kept in session storage with `pairings` or `carriedFrom` is dropped by
+  recovery; the server draft wins.
 
 ## Error handling
 
 - A run request body with `pages`: 422 `invalid_request`.
+- A whole-document run posted under a legacy sample's ID: 409
+  `extraction_id_conflict`, nothing enqueued.
+- A stored draft or a finalized review that carries `carriedFrom` or
+  `reviewPairings` from before this change: read back without them, values
+  and version preserved; a repeated finalize of such a review replays.
 - A `loadAdmitted` checkpoint written before this change that carries
   `requestedPages`: the workflow ignores the field; such a workflow is a
   sample's and was settled or cancelled before the deploy, per the drain the
@@ -168,10 +202,13 @@ stay. The files: `packages/extraction/src/postgres-admission.integration.test.ts
 ## Testing
 
 - New: the reopen snapshot of a document that has a legacy sample row returns
-  the whole-document attempt as latest; `keiExtractInputSchema` rejects
-  `pages`; the run route refuses a body with `pages`; `App` renders no sample
-  control and `PageNavigation` no checkbox; kei's `dispatch` reads the whole
-  evidence for every strategy (a `run.py` unit test).
+  the whole-document attempt as latest; `keiExtractRequest` builds a request
+  without `pages`; the run route refuses a body with `pages`; a
+  whole-document run under a legacy sample's ID is a conflict; a stored draft
+  and a finalized review with legacy `carriedFrom` and `reviewPairings` read
+  back without them and the finalized one replays; `App` renders no sample
+  control and `PageNavigation` no checkbox; kei refuses `options.pages` and
+  `dumped()` carries no `pages` key (`run.py` unit tests).
 - Removed: the sample cases listed in §1.
 - Gates: `pnpm test`, `pnpm test:postgres`, `pnpm lint`, `pnpm typecheck` in
   `prototypes/studio` and `packages/extraction`; `uv run pytest` in the Parsing
@@ -193,5 +230,24 @@ Extraction" and "Carried Review Decision" entries are removed).
   document is re-run. The transfer as built carries sample decisions only; a
   general version is a separate spec, not an assumption of this one.
 - Dropping the retired columns (a later migration, after a deploy has run with
-  nothing writing them).
+  nothing writing them). That migration first disposes of the legacy sample
+  rows (deletes them, or marks them), because `requestedPages` is their only
+  scope discriminator.
 - Any restyling (the redesign spec).
+
+## Review log
+
+- 2026-10-02, Codex (gpt-6.1-sol, read-only) over the spec, the plan and Tasks
+  2 and 3. Accepted: `sameAdmission` must refuse a legacy sample's ID (§1, §3,
+  Error handling); `postgres-reviews.ts` and `postgres-workflow-store.ts` were
+  missing from the inventory and stored legacy drafts would have failed the
+  strict contracts (§1); a finalized review's replay must survive the digest
+  change (§1, Error handling); legacy sample deep links answer 404 rather than
+  "remain readable" (§3); the Testing claim about `keiExtractInputSchema` was
+  wrong (Testing); the reduced browser journey must decide its required
+  decisions before saving (plan Task 5); the `onPick` overlay code is dead
+  (plan Task 5); the batch snapshot tests depend on the removed sample query
+  (plan Task 4); the deployment and old-tab paragraphs (Deployment); the fourth
+  retired column and the disposition of legacy rows before the drop (§1, Out of
+  scope). Already fixed before the review landed: the accidentally deleted
+  Catalog test and the vacuous legacy-draft test (Task 3 fix round 1).
