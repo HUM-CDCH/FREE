@@ -32,8 +32,11 @@ async function stored(page: Page): Promise<ModelConfig> {
   return ((await response.json()) as { config: ModelConfig }).config
 }
 
-const section = (dialog: Locator) =>
-  dialog.locator('details').filter({ has: dialog.page().locator('summary', { hasText: /^Catalog/ }) })
+/** The unified group's settings are paged: one view at a time, chosen by the "Catalog setting" selector. */
+async function showPage(dialog: Locator, title: 'Catalog' | 'Effective settings'): Promise<void> {
+  await dialog.getByRole('combobox', { name: 'Catalog setting', exact: true }).selectOption({ label: title })
+  await expect(dialog.getByRole('region', { name: title, exact: true })).toBeVisible()
+}
 
 test('one Catalog group replaces Generic and Recipe; an invalid ceiling is found by keyboard; Apply saves it', async ({ page }) => {
   await signIn(page)
@@ -42,12 +45,15 @@ test('one Catalog group replaces Generic and Recipe; an invalid ceiling is found
   await expect(dialog.getByText('Generic Catalog')).toHaveCount(0)
   await expect(dialog.getByText('Recipe Catalog')).toHaveCount(0)
   await activateWithKeyboard(page, dialog.getByRole('button', { name: 'Customize' }))
-  await section(dialog).locator('summary').click()
+  await showPage(dialog, 'Catalog')
   const ceiling = dialog.getByRole('textbox', { name: 'Input token ceiling' })
   await expect(ceiling).toHaveAttribute('placeholder', 'Auto')
   await ceiling.fill('100')
   await expect(ceiling).toHaveAttribute('aria-invalid', 'true')
   await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled()
+  // From another page, the issue summary brings its control back into view and focuses it.
+  await showPage(dialog, 'Effective settings')
+  await expect(ceiling).toBeHidden()
   await activateWithKeyboard(page, dialog.getByRole('button', { name: '1 issue blocks Apply' }))
   await expect(ceiling).toBeFocused()
   await ceiling.fill('')
@@ -92,7 +98,7 @@ test('the Catalog group reflows without horizontal scrolling at 360 px and the r
     }
     const dialog = await openCatalogSettings(page)
     await dialog.getByRole('button', { name: 'Customize' }).click()
-    await section(dialog).locator('summary').click()
+    await showPage(dialog, 'Catalog')
     await expectOperableInViewport(page, dialog.getByRole('textbox', { name: 'Input token ceiling' }))
     await expectOperableInViewport(page, dialog.getByRole('switch', { name: 'Verification' }))
     expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth), `dialog at ${viewport.width}px`).toBe(true)
