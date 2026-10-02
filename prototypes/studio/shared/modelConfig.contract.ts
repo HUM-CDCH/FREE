@@ -74,6 +74,8 @@ export const deploymentModelsSchema = z
     connections: z.array(modelConnectionSchema),
     /** What a route left unset runs on; `null` when the deployment serves no instruction model. */
     defaultRoute: routeSchema.nullable(),
+    /** New Catalog Extractions use the unified method (its rollout gate is on); absent means the legacy Catalog. */
+    unifiedCatalog: z.boolean().optional(),
   })
   .strict()
 export type DeploymentModels = z.infer<typeof deploymentModelsSchema>

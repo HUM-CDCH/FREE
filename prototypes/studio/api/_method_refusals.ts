@@ -12,6 +12,9 @@ export function methodRefusal(error: unknown): ApiError | null {
   switch (error.code) {
     case 'method_changed':
       return new ApiError(409, 'method_changed', error.message, { cause: error })
+    // Legacy Catalog preferences wait for the researcher's explicit migration: refreshable once it is applied.
+    case 'catalog_migration_required':
+      return new ApiError(409, 'catalog_migration_required', error.message, { cause: error })
     case 'invalid_identity_fields':
       return new ApiError(422, 'invalid_identity_fields', error.message, { cause: error })
     case 'invalid_model_config':

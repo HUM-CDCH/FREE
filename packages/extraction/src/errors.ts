@@ -23,6 +23,7 @@ export type ExtractionErrorCode =
   | 'invalid_identity_fields'
   | 'invalid_model_config'
   | 'invalid_extraction_method'
+  | 'catalog_migration_required'
 
 export class ExtractionError extends Error {
   readonly code: ExtractionErrorCode

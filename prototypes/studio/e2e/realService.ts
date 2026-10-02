@@ -215,12 +215,16 @@ export async function startRealService(logFile: string, options: { holdConversio
     KEI_RUNS: runs,
     KEI_SOURCE_INBOX: inbox,
     KEI_SLOT: 'free-service-e2e',
-    KEI_VLLM_URL: 'http://127.0.0.1:1/v1/chat/completions',
+    // No OCR server unless a real run names one: a scanned page then fails its ingestion explicitly.
+    KEI_VLLM_URL: (process.env.FREE_REAL_EXTRACT_URL && process.env.FREE_REAL_OCR_URL) || 'http://127.0.0.1:1/v1/chat/completions',
     KEI_EXTRACT_URL: realUrl ?? fixture!.url,
     KEI_EXTRACT_MODEL: realModel ?? 'deterministic-source-reader',
-    KEI_EXTRACT_TIMEOUT: '180',
-    // One instruct server serves every role here; a KEI_NUEXTRACT_URL exported in the shell must not route fields away.
-    KEI_NUEXTRACT_URL: '',
+    // A real server generates slowly; its run may name a longer per-request timeout.
+    KEI_EXTRACT_TIMEOUT: (realUrl && process.env.FREE_REAL_EXTRACT_TIMEOUT) || '180',
+    // One instruct server serves every role unless a real run names its fields server explicitly, as the deployment
+    // does; a KEI_NUEXTRACT_URL exported in the shell must never route fields away.
+    KEI_NUEXTRACT_URL: (realUrl && process.env.FREE_REAL_NUEXTRACT_URL) || '',
+    ...(realUrl && process.env.FREE_REAL_NUEXTRACT_MODEL ? { KEI_NUEXTRACT_MODEL: process.env.FREE_REAL_NUEXTRACT_MODEL } : {}),
     CUDA_VISIBLE_DEVICES: '',
     HF_HUB_DISABLE_TELEMETRY: '1',
   }

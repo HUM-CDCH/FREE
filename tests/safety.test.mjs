@@ -474,6 +474,13 @@ test('development enables both CLI deployment connections; the base file leaves 
   )
 })
 
+test('no deployment admits new Catalog work on the unified method unless its operator sets the gate', () => {
+  const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
+  assert.equal(services.studio.environment.FREE_CATALOG_METHOD, '')
+  const base = readFileSync(resolve(ROOT, 'compose.yaml'), 'utf8')
+  assert.ok(base.includes('FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"'), 'the unified Catalog stays behind its rollout gate')
+})
+
 test('app shell: the production policy is strict about script, workers and framing', async () => {
   const { APP_SHELL_CONTENT_SECURITY_POLICY } = await import('../prototypes/studio/server/contentSecurityPolicy.ts')
   const policy = new Map(

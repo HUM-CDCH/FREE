@@ -257,6 +257,7 @@ describe('/api/extractions transport', () => {
 
   it.each([
     ['method_changed', 409],
+    ['catalog_migration_required', 409],
     ['invalid_identity_fields', 422],
     ['invalid_model_config', 500],
   ] as const)('answers %s with %i', async (code, status) => {
@@ -278,6 +279,15 @@ describe('/api/extractions transport', () => {
       path: 'method.settings.article.grounding_routing', message: 'Use generated quotes or source spans, and stop after support.',
     })
     expect(module.runSingle).not.toHaveBeenCalled()
+  })
+
+  it('hands a unified Catalog method to admission; a recipe never travels with it', async () => {
+    const module = extractionModule()
+    const method = { models: null, settings: { unified: { defaults: 1, overlap: 0 } } }
+    const catalog = { ...fresh, strategy: 'CATALOG', method }
+    expect((await handlerFor(module)(request(catalog))).status).toBe(201)
+    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ method }))
+    expect((await handlerFor(module)(request({ ...catalog, catalogRecipe: 'numbered-catalogue-de@1' }))).status).toBe(422)
   })
 
   it("refuses a request without the method, or with another strategy's settings, before admission", async () => {

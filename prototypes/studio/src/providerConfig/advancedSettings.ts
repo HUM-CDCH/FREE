@@ -14,6 +14,7 @@ export type NumberPath =
   | 'article.context_tokens'
   | 'catalog.generic.discovery_chars' | 'catalog.generic.record_chars'
   | 'catalog.recipe.input_tokens' | 'catalog.recipe.output_tokens'
+  | 'catalog.unified.input_tokens' | 'catalog.unified.output_tokens' | 'catalog.unified.overlap'
 
 export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string; keys: readonly ArticleKey[] }[] = [
   { section: 'context', title: 'Source context', keys: ['context', 'context_tokens', 'grouping', 'overlap_passages', 'selection'] },
@@ -78,6 +79,9 @@ export const NUMBER_MESSAGES: Readonly<Record<NumberPath, string>> = {
   'catalog.generic.record_chars': METHOD_MESSAGES.characters,
   'catalog.recipe.input_tokens': METHOD_MESSAGES.budgetTokens,
   'catalog.recipe.output_tokens': METHOD_MESSAGES.budgetTokens,
+  'catalog.unified.input_tokens': METHOD_MESSAGES.inputTokens,
+  'catalog.unified.output_tokens': METHOD_MESSAGES.replyTokens,
+  'catalog.unified.overlap': METHOD_MESSAGES.catalogOverlap,
 }
 
 /** Rebuilds an Article draft in `ArticleOptions` order without unset factors, so equal drafts serialize alike. */
@@ -190,23 +194,25 @@ export function settingsDelta(before: ArticleSettings | undefined, after: Articl
 }
 
 /** Which disclosure an issue opens: an Article section, or a Catalog one. */
-export function issueSection(path: string): ArticleSection | 'generic' | 'recipe' | null {
+export function issueSection(path: string): ArticleSection | 'generic' | 'recipe' | 'unified' | null {
   const [scope, member] = path.split('.')
   if (scope === 'article' && member) return SECTION_OF[member as ArticleKey] ?? null
-  if (scope === 'catalog' && (member === 'generic' || member === 'recipe')) return member
+  if (scope === 'catalog' && (member === 'generic' || member === 'recipe' || member === 'unified')) return member
   return null
 }
 
 const GENERIC_KEYS = ['discovery_chars', 'record_chars'] as const
 const RECIPE_KEYS = ['input_tokens', 'output_tokens', 'factors'] as const
+const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'headings', 'verification'] as const
 
 /** A Catalog draft in the contract's key order, without unset values; like `orderedArticle`, it never validates. */
-export function orderedCatalog(catalog: Readonly<{ generic?: Record<string, unknown>; recipe?: Record<string, unknown> }>): CatalogSettings {
+export function orderedCatalog(catalog: Readonly<{ generic?: Record<string, unknown>; recipe?: Record<string, unknown>; unified?: Record<string, unknown> }>): CatalogSettings {
   const pick = (member: Record<string, unknown> | undefined, keys: readonly string[]) =>
     member && Object.fromEntries(keys.flatMap((key) => (member[key] === undefined ? [] : [[key, member[key]]])))
   const generic = pick(catalog.generic, GENERIC_KEYS)
   const recipe = pick(catalog.recipe, RECIPE_KEYS)
-  return { ...(generic ? { generic } : {}), ...(recipe ? { recipe } : {}) } as CatalogSettings
+  const unified = pick(catalog.unified, UNIFIED_KEYS)
+  return { ...(generic ? { generic } : {}), ...(recipe ? { recipe } : {}), ...(unified ? { unified } : {}) } as CatalogSettings
 }
 
 /** A Catalog edit that returns a value the saved override omits to the value shown for it (the service default)
@@ -223,5 +229,5 @@ export function keepSavedOmissions(catalog: CatalogSettings, saved: CatalogSetti
       before?.[key] !== undefined || JSON.stringify(value) !== JSON.stringify(shown[key])))
     return Object.keys(kept).length === 0 && before === undefined ? undefined : kept
   }
-  return orderedCatalog({ generic: member('generic'), recipe: member('recipe') })
+  return orderedCatalog({ generic: member('generic'), recipe: member('recipe'), unified: catalog.unified })
 }

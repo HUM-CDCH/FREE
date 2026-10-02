@@ -1,0 +1,551 @@
+{
+  "extraction_version": 1,
+  "run_id": "run",
+  "generation": "20260923T000000.000000Z-fixture0",
+  "digest": "64efcdbdfd6773381deb4d4f7b19f0790c95f85a47130bb7aedfcdaf24c9907b",
+  "strategy": "catalog",
+  "model": "fake/extractor",
+  "models": {
+    "fields": "fake/extractor",
+    "reasoning": "fake/extractor"
+  },
+  "prompt_version": 15,
+  "schema": {
+    "recordDescription": "One numbered entry of a catalogue.",
+    "schemaNodes": [
+      {
+        "id": "n",
+        "name": "entry_no",
+        "type": "string"
+      },
+      {
+        "id": "s",
+        "name": "site",
+        "type": "string"
+      },
+      {
+        "id": "f",
+        "name": "fundart",
+        "description": "find category after FA:",
+        "type": "string"
+      },
+      {
+        "id": "t",
+        "name": "title",
+        "valueSource": "document",
+        "type": "string"
+      }
+    ]
+  },
+  "options": {
+    "strategy": "catalog",
+    "models": null,
+    "discovery_chars": 48000,
+    "record_chars": 24000
+  },
+  "started": "2026-09-29T12:00:00+00:00",
+  "seconds": 0.0,
+  "complete": true,
+  "records": [
+    {
+      "entry_no": "1",
+      "site": "Adorf",
+      "fundart": "G",
+      "title": "Bezirk Nord"
+    },
+    {
+      "entry_no": "2",
+      "site": "Bdorf",
+      "fundart": "EF",
+      "title": "Bezirk Nord"
+    },
+    {
+      "entry_no": "3",
+      "site": "Cdorf",
+      "fundart": "EF",
+      "title": "Bezirk Nord"
+    },
+    {
+      "entry_no": "4",
+      "site": "Ddorf",
+      "fundart": "G",
+      "title": "Bezirk Nord"
+    },
+    {
+      "entry_no": "5",
+      "site": "Edorf",
+      "fundart": "EvG",
+      "title": "Bezirk Nord"
+    }
+  ],
+  "evidence": [
+    {
+      "path": [
+        "records",
+        0,
+        "entry_no"
+      ],
+      "segment": "p1_s2",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        64.0,
+        840.0,
+        76.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        0,
+        "site"
+      ],
+      "segment": "p1_s2",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        64.0,
+        840.0,
+        76.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        0,
+        "fundart"
+      ],
+      "segment": "p1_s2",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        64.0,
+        840.0,
+        76.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        1,
+        "entry_no"
+      ],
+      "segment": "p1_s4",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        92.0,
+        840.0,
+        104.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        1,
+        "site"
+      ],
+      "segment": "p1_s4",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        92.0,
+        840.0,
+        104.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        1,
+        "fundart"
+      ],
+      "segment": "p1_s4",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        92.0,
+        840.0,
+        104.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        2,
+        "entry_no"
+      ],
+      "segment": "p1_s6",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        120.0,
+        840.0,
+        132.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        2,
+        "site"
+      ],
+      "segment": "p1_s6",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        120.0,
+        840.0,
+        132.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        2,
+        "fundart"
+      ],
+      "segment": "p1_s6",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        120.0,
+        840.0,
+        132.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        3,
+        "entry_no"
+      ],
+      "segment": "p1_s8",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        148.0,
+        840.0,
+        160.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        3,
+        "site"
+      ],
+      "segment": "p1_s8",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        148.0,
+        840.0,
+        160.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        3,
+        "fundart"
+      ],
+      "segment": "p1_s8",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        148.0,
+        840.0,
+        160.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        4,
+        "entry_no"
+      ],
+      "segment": "p1_s9",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        162.0,
+        840.0,
+        174.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        4,
+        "site"
+      ],
+      "segment": "p1_s9",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        162.0,
+        840.0,
+        174.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    },
+    {
+      "path": [
+        "records",
+        4,
+        "fundart"
+      ],
+      "segment": "p1_s9",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        162.0,
+        840.0,
+        174.0
+      ],
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "model",
+      "cell": null,
+      "precision": "segment"
+    }
+  ],
+  "ungrounded": [],
+  "unverified": [
+    "title"
+  ],
+  "issues": [],
+  "calls": [
+    {
+      "stage": "document",
+      "record": null,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "discovery",
+      "record": null,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "record",
+      "record": 0,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "record",
+      "record": 1,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "record",
+      "record": 2,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "record",
+      "record": 3,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "record",
+      "record": 4,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "grounding",
+      "record": 0,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "grounding",
+      "record": 1,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "grounding",
+      "record": 2,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "grounding",
+      "record": 3,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    },
+    {
+      "stage": "grounding",
+      "record": 4,
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": null
+    }
+  ],
+  "tokens": {
+    "input": 120,
+    "output": 60
+  },
+  "fingerprint": "dc6acb5c15a7b04eb9bdb74e06adad733428f5f2348ba8a3fd7cba206545b69b"
+}

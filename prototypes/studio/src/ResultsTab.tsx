@@ -14,6 +14,7 @@ import type { EvidenceLink } from '../shared/groundedExtraction'
 import { reviewAttention } from 'extraction/review-attention'
 import { ReviewAttention } from './ReviewAttention'
 import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
+import { CatalogReview } from './CatalogReview'
 import { RecipeReview } from './RecipeReview'
 import {
   applyReviewDecisions,
@@ -95,7 +96,7 @@ function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, actio
   return undefined
 }
 
-/** A recipe Catalog value's grounding in the researcher's words; like the checks, it describes the original
+/** A recipe or unified Catalog value's grounding in the researcher's words; like the checks, it describes the original
  *  value, so after an edit or rejection it names that extracted value instead. */
 function evidenceDetail(link: EvidenceLink, action: ReviewDecisionAction | undefined, extracted: unknown): string | undefined {
   const grounding = link.grounding
@@ -109,14 +110,16 @@ function evidenceDetail(link: EvidenceLink, action: ReviewDecisionAction | undef
           ? 'Located to the whole input only'
           : undefined
   if (!grounding) return location
-  const parts = [grounding.linkedBy === 'key' ? 'Read after its printed key'
-    : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
-      : 'Entry number from the segmentation']
+  const parts = [grounding.linkedBy === 'verification'
+    ? (grounding.support === 'literal' ? 'Verified; the value is printed in the entry' : 'Verified from a supporting passage; the value is not printed as such')
+    : grounding.linkedBy === 'key' ? 'Read after its printed key'
+      : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
+        : 'Entry number from the segmentation']
   const others = grounding.alternatives.length
   if (others > 0) parts.push(`${others} other match${others === 1 ? '' : 'es'} in the entry`)
   if (grounding.precision === 'input') parts.push('located to the whole page only')
   if (grounding.precision === 'cell') parts.push('located to a table cell')
-  if (grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
+  if (grounding.linkedBy !== 'verification' && grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
   return parts.join(' · ')
 }
 
@@ -882,6 +885,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               </div>
             )}
             {attempt?.diagnostics?.grounded && <RecipeReview grounded={attempt.diagnostics.grounded} />}
+            {attempt?.diagnostics?.unified && <CatalogReview unified={attempt.diagnostics.unified} />}
             {state.ungroundedCount > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
                 {state.ungroundedCount} ungrounded value{state.ungroundedCount === 1 ? ' is' : 's are'} excluded from required review and {state.ungroundedCount === 1 ? 'remains' : 'remain'} recorded without Evidence.

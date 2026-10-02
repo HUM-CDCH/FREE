@@ -1,0 +1,1080 @@
+{
+  "run_id": "run",
+  "generation": "20260923T000000.000000Z-fixture0",
+  "digest": "64efcdbdfd6773381deb4d4f7b19f0790c95f85a47130bb7aedfcdaf24c9907b",
+  "model": "fake/extractor",
+  "models": {
+    "fields": "fake/extractor",
+    "reasoning": "fake/extractor"
+  },
+  "schema": {
+    "recordDescription": "One numbered entry of an archaeological catalogue.",
+    "schemaNodes": [
+      {
+        "id": "n",
+        "name": "entry_no",
+        "type": "integer"
+      },
+      {
+        "id": "s",
+        "name": "site_name",
+        "description": "the find place after the number",
+        "type": "string"
+      },
+      {
+        "id": "b",
+        "name": "bezirk",
+        "type": "string"
+      },
+      {
+        "id": "k",
+        "name": "kreis",
+        "type": "string"
+      },
+      {
+        "id": "m",
+        "name": "mbl_old",
+        "description": "map sheet number after Mbl.",
+        "type": "integer"
+      },
+      {
+        "id": "f",
+        "name": "fundart",
+        "description": "find category after FA:",
+        "type": "string"
+      },
+      {
+        "id": "t",
+        "name": "title",
+        "valueSource": "document",
+        "type": "string"
+      }
+    ]
+  },
+  "options": {
+    "strategy": "catalog",
+    "models": null,
+    "discovery_chars": 48000,
+    "record_chars": 24000,
+    "catalog": {
+      "recipe": "numbered-catalogue-de@1",
+      "input_tokens": 4096,
+      "output_tokens": 1024
+    }
+  },
+  "extraction_version": 2,
+  "prompt_version": 5,
+  "strategy": "catalog",
+  "chunks": 1,
+  "started": "2026-09-29T12:00:00+00:00",
+  "seconds": 0.0,
+  "segmentation": {
+    "fingerprint": "f1eab3e1f1a87cfab19e2f8c8530c7d0bda101626d2dac4feb466881668828ff",
+    "digest": "3f61a92208c5d2cd54d22eb32fa5d7f00bd2dce70191015d87fd5d006c95b3f7",
+    "recipe": {
+      "id": "numbered-catalogue-de",
+      "version": 1,
+      "structure_sha256": "3e9023b99e032e6714ba2c051102bbe3b98fb2f002ddf00bf7d506ea5ba87f4e",
+      "bindings_sha256": "8458a0200b26b1d1ac3c27468e1c2bb18c73d13f1d36a55bdf1e1c5f9bf4531d"
+    },
+    "bindings": {
+      "entry_no": "entry_label",
+      "bezirk": "bezirk",
+      "kreis": "kreis"
+    },
+    "bindings_unmatched": [
+      "Bezirk",
+      "Katalognummer",
+      "Kreis",
+      "Nummer",
+      "anmerkung",
+      "fundplatz_no",
+      "gelaendesituation",
+      "inventory_no",
+      "museum",
+      "ortsteil",
+      "sammlung"
+    ],
+    "diagnostics": []
+  },
+  "budget": {
+    "version": 1,
+    "input_tokens": 4096,
+    "output_tokens": 1024,
+    "tokenizer": {
+      "source": "words",
+      "model": "fake/extractor",
+      "model_digest": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+      "template_tokens": 5
+    },
+    "tokenizers": {
+      "fields": {
+        "source": "words",
+        "model": "fake/extractor",
+        "model_digest": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "template_tokens": 5
+      },
+      "reasoning": {
+        "source": "words",
+        "model": "fake/extractor",
+        "model_digest": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "template_tokens": 5
+      }
+    }
+  },
+  "normalization": {
+    "version": 1,
+    "rules": [
+      "glossary"
+    ]
+  },
+  "records": [
+    {
+      "entry_no": 1,
+      "site_name": null,
+      "bezirk": "Nord",
+      "kreis": "Heide",
+      "mbl_old": null,
+      "fundart": "G",
+      "title": "Bezirk Nord"
+    },
+    {
+      "entry_no": 2,
+      "site_name": null,
+      "bezirk": "Nord",
+      "kreis": "Moor",
+      "mbl_old": null,
+      "fundart": "EF",
+      "title": "Bezirk Nord"
+    },
+    {
+      "entry_no": 3,
+      "site_name": null,
+      "bezirk": "Süd",
+      "kreis": null,
+      "mbl_old": null,
+      "fundart": "EF",
+      "title": "Bezirk Nord"
+    },
+    {
+      "entry_no": 4,
+      "site_name": null,
+      "bezirk": "Süd",
+      "kreis": "Ried",
+      "mbl_old": null,
+      "fundart": "G",
+      "title": "Bezirk Nord"
+    },
+    {
+      "entry_no": 5,
+      "site_name": null,
+      "bezirk": "Süd",
+      "kreis": "Ried",
+      "mbl_old": null,
+      "fundart": "EvG",
+      "title": "Bezirk Nord"
+    }
+  ],
+  "record_blocks": [
+    {
+      "block": "b1",
+      "entry_label": "1"
+    },
+    {
+      "block": "b2",
+      "entry_label": "2"
+    },
+    {
+      "block": "b3",
+      "entry_label": "3"
+    },
+    {
+      "block": "b4",
+      "entry_label": "4"
+    },
+    {
+      "block": "b5",
+      "entry_label": "5"
+    }
+  ],
+  "evidence": [
+    {
+      "path": [
+        "records",
+        0,
+        "entry_no"
+      ],
+      "segment": "p1_s2",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        64.0,
+        840.0,
+        76.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s2",
+          "start": 0,
+          "end": 1
+        }
+      ],
+      "alternatives": [],
+      "provenance": "positional",
+      "key_spans": [],
+      "heading": null,
+      "precision": "segment",
+      "raw": "1",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        0,
+        "bezirk"
+      ],
+      "segment": "p1_s0",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        36.0,
+        840.0,
+        48.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s0",
+          "start": 7,
+          "end": 11
+        }
+      ],
+      "alternatives": [],
+      "provenance": "inherited",
+      "key_spans": [],
+      "heading": "h1",
+      "precision": "segment",
+      "raw": "Nord",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        0,
+        "kreis"
+      ],
+      "segment": "p1_s1",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        50.0,
+        840.0,
+        62.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s1",
+          "start": 6,
+          "end": 11
+        }
+      ],
+      "alternatives": [],
+      "provenance": "inherited",
+      "key_spans": [],
+      "heading": "h2",
+      "precision": "segment",
+      "raw": "Heide",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        0,
+        "fundart"
+      ],
+      "segment": "p1_s2",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        64.0,
+        840.0,
+        76.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "key",
+      "spans": [
+        {
+          "segment": "p1_s2",
+          "start": 14,
+          "end": 15
+        }
+      ],
+      "alternatives": [],
+      "provenance": "token",
+      "key_spans": [
+        {
+          "segment": "p1_s2",
+          "start": 10,
+          "end": 13
+        }
+      ],
+      "heading": null,
+      "precision": "segment",
+      "raw": "G",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        1,
+        "entry_no"
+      ],
+      "segment": "p1_s4",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        92.0,
+        840.0,
+        104.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s4",
+          "start": 0,
+          "end": 1
+        }
+      ],
+      "alternatives": [],
+      "provenance": "positional",
+      "key_spans": [],
+      "heading": null,
+      "precision": "segment",
+      "raw": "2",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        1,
+        "bezirk"
+      ],
+      "segment": "p1_s0",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        36.0,
+        840.0,
+        48.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s0",
+          "start": 7,
+          "end": 11
+        }
+      ],
+      "alternatives": [],
+      "provenance": "inherited",
+      "key_spans": [],
+      "heading": "h1",
+      "precision": "segment",
+      "raw": "Nord",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        1,
+        "kreis"
+      ],
+      "segment": "p1_s3",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        78.0,
+        840.0,
+        90.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s3",
+          "start": 6,
+          "end": 10
+        }
+      ],
+      "alternatives": [],
+      "provenance": "inherited",
+      "key_spans": [],
+      "heading": "h3",
+      "precision": "segment",
+      "raw": "Moor",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        1,
+        "fundart"
+      ],
+      "segment": "p1_s4",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        92.0,
+        840.0,
+        104.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "key",
+      "spans": [
+        {
+          "segment": "p1_s4",
+          "start": 14,
+          "end": 16
+        }
+      ],
+      "alternatives": [],
+      "provenance": "token",
+      "key_spans": [
+        {
+          "segment": "p1_s4",
+          "start": 10,
+          "end": 13
+        }
+      ],
+      "heading": null,
+      "precision": "segment",
+      "raw": "EF",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        2,
+        "entry_no"
+      ],
+      "segment": "p1_s6",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        120.0,
+        840.0,
+        132.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s6",
+          "start": 0,
+          "end": 1
+        }
+      ],
+      "alternatives": [],
+      "provenance": "positional",
+      "key_spans": [],
+      "heading": null,
+      "precision": "segment",
+      "raw": "3",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        2,
+        "bezirk"
+      ],
+      "segment": "p1_s5",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        106.0,
+        840.0,
+        118.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s5",
+          "start": 7,
+          "end": 10
+        }
+      ],
+      "alternatives": [],
+      "provenance": "inherited",
+      "key_spans": [],
+      "heading": "h4",
+      "precision": "segment",
+      "raw": "Süd",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        2,
+        "fundart"
+      ],
+      "segment": "p1_s6",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        120.0,
+        840.0,
+        132.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "key",
+      "spans": [
+        {
+          "segment": "p1_s6",
+          "start": 14,
+          "end": 16
+        }
+      ],
+      "alternatives": [],
+      "provenance": "token",
+      "key_spans": [
+        {
+          "segment": "p1_s6",
+          "start": 10,
+          "end": 13
+        }
+      ],
+      "heading": null,
+      "precision": "segment",
+      "raw": "EF",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        3,
+        "entry_no"
+      ],
+      "segment": "p1_s8",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        148.0,
+        840.0,
+        160.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s8",
+          "start": 0,
+          "end": 1
+        }
+      ],
+      "alternatives": [],
+      "provenance": "positional",
+      "key_spans": [],
+      "heading": null,
+      "precision": "segment",
+      "raw": "4",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        3,
+        "bezirk"
+      ],
+      "segment": "p1_s5",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        106.0,
+        840.0,
+        118.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s5",
+          "start": 7,
+          "end": 10
+        }
+      ],
+      "alternatives": [],
+      "provenance": "inherited",
+      "key_spans": [],
+      "heading": "h4",
+      "precision": "segment",
+      "raw": "Süd",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        3,
+        "kreis"
+      ],
+      "segment": "p1_s7",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        134.0,
+        840.0,
+        146.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s7",
+          "start": 6,
+          "end": 10
+        }
+      ],
+      "alternatives": [],
+      "provenance": "inherited",
+      "key_spans": [],
+      "heading": "h5",
+      "precision": "segment",
+      "raw": "Ried",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        3,
+        "fundart"
+      ],
+      "segment": "p1_s8",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        148.0,
+        840.0,
+        160.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "key",
+      "spans": [
+        {
+          "segment": "p1_s8",
+          "start": 14,
+          "end": 15
+        }
+      ],
+      "alternatives": [],
+      "provenance": "token",
+      "key_spans": [
+        {
+          "segment": "p1_s8",
+          "start": 10,
+          "end": 13
+        }
+      ],
+      "heading": null,
+      "precision": "segment",
+      "raw": "G",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        4,
+        "entry_no"
+      ],
+      "segment": "p1_s9",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        162.0,
+        840.0,
+        174.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s9",
+          "start": 0,
+          "end": 1
+        }
+      ],
+      "alternatives": [],
+      "provenance": "positional",
+      "key_spans": [],
+      "heading": null,
+      "precision": "segment",
+      "raw": "5",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        4,
+        "bezirk"
+      ],
+      "segment": "p1_s5",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        106.0,
+        840.0,
+        118.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s5",
+          "start": 7,
+          "end": 10
+        }
+      ],
+      "alternatives": [],
+      "provenance": "inherited",
+      "key_spans": [],
+      "heading": "h4",
+      "precision": "segment",
+      "raw": "Süd",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        4,
+        "kreis"
+      ],
+      "segment": "p1_s7",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        134.0,
+        840.0,
+        146.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "structure",
+      "spans": [
+        {
+          "segment": "p1_s7",
+          "start": 6,
+          "end": 10
+        }
+      ],
+      "alternatives": [],
+      "provenance": "inherited",
+      "key_spans": [],
+      "heading": "h5",
+      "precision": "segment",
+      "raw": "Ried",
+      "normalized": null
+    },
+    {
+      "path": [
+        "records",
+        4,
+        "fundart"
+      ],
+      "segment": "p1_s9",
+      "page": 1,
+      "bbox_pt": [
+        2.0,
+        162.0,
+        840.0,
+        174.0
+      ],
+      "cell": null,
+      "verbatim": true,
+      "hits": 1,
+      "linked_by": "key",
+      "spans": [
+        {
+          "segment": "p1_s9",
+          "start": 14,
+          "end": 17
+        }
+      ],
+      "alternatives": [],
+      "provenance": "token",
+      "key_spans": [
+        {
+          "segment": "p1_s9",
+          "start": 10,
+          "end": 13
+        }
+      ],
+      "heading": null,
+      "precision": "segment",
+      "raw": "EvG",
+      "normalized": null
+    }
+  ],
+  "proposed": [
+    {
+      "path": [
+        "records",
+        0,
+        "site_name"
+      ],
+      "value": "Adorf",
+      "quote": "Adorf",
+      "key": null,
+      "provenance": "positional",
+      "spans": [
+        {
+          "segment": "p1_s2",
+          "start": 3,
+          "end": 8
+        }
+      ],
+      "alternatives": [],
+      "window": 0,
+      "raw": "Adorf"
+    },
+    {
+      "path": [
+        "records",
+        1,
+        "site_name"
+      ],
+      "value": "Bdorf",
+      "quote": "Bdorf",
+      "key": null,
+      "provenance": "positional",
+      "spans": [
+        {
+          "segment": "p1_s4",
+          "start": 3,
+          "end": 8
+        }
+      ],
+      "alternatives": [],
+      "window": 0,
+      "raw": "Bdorf"
+    },
+    {
+      "path": [
+        "records",
+        2,
+        "site_name"
+      ],
+      "value": "Cdorf",
+      "quote": "Cdorf",
+      "key": null,
+      "provenance": "positional",
+      "spans": [
+        {
+          "segment": "p1_s6",
+          "start": 3,
+          "end": 8
+        }
+      ],
+      "alternatives": [],
+      "window": 0,
+      "raw": "Cdorf"
+    },
+    {
+      "path": [
+        "records",
+        3,
+        "site_name"
+      ],
+      "value": "Ddorf",
+      "quote": "Ddorf",
+      "key": null,
+      "provenance": "positional",
+      "spans": [
+        {
+          "segment": "p1_s8",
+          "start": 3,
+          "end": 8
+        }
+      ],
+      "alternatives": [],
+      "window": 0,
+      "raw": "Ddorf"
+    },
+    {
+      "path": [
+        "records",
+        4,
+        "site_name"
+      ],
+      "value": "Edorf",
+      "quote": "Edorf",
+      "key": null,
+      "provenance": "positional",
+      "spans": [
+        {
+          "segment": "p1_s9",
+          "start": 3,
+          "end": 8
+        }
+      ],
+      "alternatives": [],
+      "window": 0,
+      "raw": "Edorf"
+    }
+  ],
+  "rejected": [],
+  "competitors": [],
+  "ungrounded": [],
+  "unverified": [
+    "title"
+  ],
+  "coverage": {
+    "complete": true,
+    "lines": 10,
+    "entries": 5,
+    "unresolved": 0,
+    "roles": {
+      "entry": 5,
+      "heading": 5
+    },
+    "excluded": {},
+    "potential_duplicates": 0,
+    "reading_order_issues": 0,
+    "withheld_intentional": [],
+    "withheld_failures": []
+  },
+  "completeness": {
+    "processing": true,
+    "coverage": true,
+    "grounding": true,
+    "recall": "unmeasured"
+  },
+  "complete": true,
+  "issues": [],
+  "calls": [
+    {
+      "stage": "document",
+      "record": null,
+      "input_tokens": 63,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": 1024
+    },
+    {
+      "stage": "entry",
+      "record": 0,
+      "input_tokens": 197,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": 1024
+    },
+    {
+      "stage": "entry",
+      "record": 1,
+      "input_tokens": 199,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": 1024
+    },
+    {
+      "stage": "entry",
+      "record": 2,
+      "input_tokens": 197,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": 1024
+    },
+    {
+      "stage": "entry",
+      "record": 3,
+      "input_tokens": 197,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": 1024
+    },
+    {
+      "stage": "entry",
+      "record": 4,
+      "input_tokens": 188,
+      "output_tokens": 5,
+      "seconds": 0.0,
+      "finish": "stop",
+      "ok": true,
+      "error": null,
+      "counted_input_tokens": null,
+      "context_tokens": null,
+      "max_output_tokens": 1024
+    }
+  ],
+  "tokens": {
+    "input": 1041,
+    "output": 30
+  },
+  "fingerprint": "a33a6669815c561fa9b3aba66fe66ef2df9b632b90f895a530edbc4d60c4986d"
+}
