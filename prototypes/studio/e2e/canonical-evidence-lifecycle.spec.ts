@@ -415,6 +415,15 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   expect(rawResult!.indexOf('"title"')).toBeLessThan(rawResult!.indexOf('"year"'))
   expect(rawResult!.indexOf('"year"')).toBeLessThan(rawResult!.indexOf('"tags"'))
   await page.getByRole('tab', { name: 'Review', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'View Evidence for extracted value of title', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'tags › 2 items', exact: true }).click()
+  await page.getByRole('button', { name: 'Edit Tag 1', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Reviewed value for Tag 1', exact: true }).fill('æ (reviewed)')
+  await page.getByRole('textbox', { name: 'Reviewed value for Tag 1', exact: true }).press('Enter')
+  await expect(page.getByText('æ (reviewed)', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'View Evidence for extracted value of Tag 1', exact: true })).toBeVisible()
+  await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Clear', exact: true }).click()
   await expect(page.getByRole('button', { name: /Save/ })).toHaveCount(0)
   await activateWithKeyboard(page, page.getByRole('button', { name: /Approve remaining/ }))
   await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
@@ -448,7 +457,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     expect(sharedStrings.indexOf(orderedHeaders[index - 1]!)).toBeLessThan(
       sharedStrings.indexOf(orderedHeaders[index]!),
     )
-  for (const value of ['Reviewed, café', 'æ', 'quoted "tag"', 'First,\nline', 'Second'])
+  for (const value of ['Reviewed, café', 'æ (reviewed)', 'quoted "tag"', 'First,\nline', 'Second'])
     expect(sharedStrings).toContain(value)
   const sheet = workbook['xl/worksheets/sheet1.xml']!
   expect(sheet.match(/<row/g)).toHaveLength(3)
@@ -467,8 +476,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   expect(csvDownload.suggestedFilename()).toBe('article-lifecycle-extraction-result.csv')
   expect(await readFile((await csvDownload.path())!, 'utf8')).toBe(
     'title,year,tags,findings.kind,findings.detail\r\n' +
-    '"Reviewed, café",1801,"æ, quoted ""tag""",A,"First,\nline"\r\n' +
-    '"Reviewed, café",1801,"æ, quoted ""tag""",B,Second',
+    '"Reviewed, café",1801,"æ (reviewed), quoted ""tag""",A,"First,\nline"\r\n' +
+    '"Reviewed, café",1801,"æ (reviewed), quoted ""tag""",B,Second',
   )
 
   const reviewed = await db.orm.public.Extraction.where({ sourceDocumentId })
@@ -493,6 +502,13 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   )).toMatchObject({
     action: 'EDITED',
     reviewedValue: { value: 'Reviewed, café' },
+    createdAt: expect.any(Date),
+  })
+  expect(persistedDecisions.find(
+    (decision) => JSON.stringify(decision.resultPath) === JSON.stringify(['records', 0, 'tags', 0]),
+  )).toMatchObject({
+    action: 'EDITED',
+    reviewedValue: { value: 'æ (reviewed)' },
     createdAt: expect.any(Date),
   })
 

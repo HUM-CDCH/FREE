@@ -293,6 +293,33 @@ test("downloads the batch as a workbook", async () => {
   }
 });
 
+test("lists each member's contested fields on the workbook's Review notes sheet; the CSV stays value-only", async () => {
+  const members = [
+    { sourceDocumentId: "document-1", sourceDocumentName: "first.pdf", result: extractionResult({ title: "A" }, { title: null }),
+      contested: [{ record: 1, path: ["title"], candidates: ["B", "C"] }] },
+    { sourceDocumentId: "document-2", sourceDocumentName: "second.pdf", result: extractionResult({ title: null }) },
+  ];
+  const options = { filename: "Places", schemaNodes: [field("title")], batchExtractionId };
+  const browser = stubBrowser();
+  try {
+    await exportBatchExtractionResults(members, { ...options, format: "csv" });
+    await exportBatchExtractionResults(members.map(({ contested: _, ...member }) => member), { ...options, format: "csv" });
+    await exportBatchExtractionResults(members, { ...options, format: "xlsx" });
+    const [csv, plainCsv, workbook] = browser.downloads;
+    assert.equal(await csv!.blob.text(), await plainCsv!.blob.text());
+    const archive = unzipSync(new Uint8Array(await workbook!.blob.arrayBuffer()));
+    assert.match(strFromU8(archive["xl/workbook.xml"]!), /<sheet[^>]*name="Review notes"/);
+    const strings = strFromU8(archive["xl/sharedStrings.xml"]!);
+    assert.match(strings, /<t>Record<\/t>.*<t>Field<\/t>.*<t>Note<\/t>.*<t>Candidate 1<\/t>.*<t>Candidate 2<\/t>/s);
+    // One notes row: first.pdf's second record; second.pdf's ordinary empty title is not contested.
+    const notes = strFromU8(archive["xl/worksheets/sheet2.xml"]!);
+    assert.match(notes, /<c r="C2"[^>]*><v>2<\/v>/);
+    assert.doesNotMatch(notes, /r="A3"/);
+  } finally {
+    browser.restore();
+  }
+});
+
 test("rejects an unsupported format before it reads any member", async () => {
   await assert.rejects(
     exportBatchExtractionResults([], {

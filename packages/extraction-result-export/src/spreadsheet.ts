@@ -27,15 +27,17 @@ export function resolveExportChoices(
   };
 }
 
-/** Serializes one table in the chosen format and starts its download. */
+/** Serializes one table in the chosen format and starts its download. CSV holds the values alone, so `notes`
+ *  (the Review notes of contested fields) reach only a workbook. */
 export async function deliverTable(
   table: Table,
   format: ExportFormat,
   filename: string,
+  notes?: Table,
 ): Promise<void> {
   const blob =
     format === "csv"
       ? new Blob([serializeCsv(table)], { type: "text/csv;charset=utf-8" })
-      : await createXlsxBlob(table);
+      : await createXlsxBlob(table, notes);
   downloadBlob(blob, filename);
 }

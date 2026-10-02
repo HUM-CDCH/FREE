@@ -2204,7 +2204,11 @@ describe('BatchExtractionsPanel', () => {
     expect(JSON.parse(String(run?.[1]?.body))).toEqual({ strategy: 'ARTICLE', method: SERVICE_DEFAULTS })
   })
 
-  it('exports the whole Batch Extraction through its pinned Schema Revision', async () => {
+  it.each([
+    ['xlsx', false],
+    ['xlsx', true],
+    ['csv', true],
+  ] as const)('exports the whole Batch Extraction through its pinned Schema Revision (%s, contested=%s)', async (format, contested) => {
     const succeededMember = publishedMember(batch.members[1])
     const listedBatch = {
       ...batch,
@@ -2220,6 +2224,8 @@ describe('BatchExtractionsPanel', () => {
       recordDescription: 'One place record.',
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
     }
+    const result = { records: [{ place: contested ? null : 'Rome' }] }
+    const candidates = ['Rome', 'Paris']
     const fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.startsWith('/api/batch-extractions?'))
@@ -2241,7 +2247,8 @@ describe('BatchExtractionsPanel', () => {
             {
               sourceDocumentId: cancelledDocumentId,
               extractionId: succeededMember.latestExtraction.extractionId,
-              result: { records: [{ place: 'Rome' }] },
+              result,
+              ...(contested ? { contested: [{ resultPath: ['records', 0, 'place'], candidates }] } : {}),
             },
           ],
         })
@@ -2260,7 +2267,7 @@ describe('BatchExtractionsPanel', () => {
     await waitFor(() => expect(exportButton).toBeEnabled())
 
     fireEvent.click(exportButton)
-    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+    fireEvent.click(screen.getByRole('button', { name: format === 'xlsx' ? 'Excel' : 'CSV' }))
 
     await waitFor(() =>
       expect(exportBatchExtractionResults).toHaveBeenCalledWith(
@@ -2268,11 +2275,12 @@ describe('BatchExtractionsPanel', () => {
           {
             sourceDocumentId: cancelledDocumentId,
             sourceDocumentName: 'Cancelled.pdf',
-            result: { records: [{ place: 'Rome' }] },
+            result,
+            ...(contested ? { contested: [{ record: 0, path: ['place'], candidates }] } : {}),
           },
         ],
         {
-          format: 'xlsx',
+          format,
           filename: 'Places revision 1 batch 51000000 partial',
           batchExtractionId,
           schemaNodes: pinnedRevision.schemaNodes,
@@ -2282,7 +2290,10 @@ describe('BatchExtractionsPanel', () => {
     )
     expect(
       screen.getByText(
-        'Includes 1 of 2 Source Documents; 0 pending, 1 failed, 0 cancelled.',
+        'Includes 1 of 2 Source Documents; 0 pending, 1 failed, 0 cancelled.' + (contested
+          ? format === 'xlsx' ? ' 1 contested field is left empty and listed on the Review notes sheet.'
+            : ' CSV leaves 1 contested field empty; their candidates are only in the Excel Review notes sheet and in Studio.'
+          : ''),
       ),
     ).toBeVisible()
   })

@@ -4,6 +4,7 @@ import {
   deliverTable,
   resolveExportChoices,
 } from "./spreadsheet.js";
+import { buildReviewNotesTable, type ContestedField } from "./review-notes.js";
 import { buildExportTable, type ExportChoices, type Table } from "./table.js";
 import type { SchemaNode } from "extraction/schema";
 
@@ -12,6 +13,8 @@ export interface BatchExportMember {
   readonly sourceDocumentId: string;
   readonly sourceDocumentName: string;
   readonly result: unknown;
+  /** The member's fields left empty because their sources disagreed, by path into its records (`record` set). */
+  readonly contested?: readonly ContestedField[];
 }
 
 const SOURCE_DOCUMENT_COLUMN = "Source Document";
@@ -114,6 +117,13 @@ export async function exportBatchExtractionResults(
     choices,
     options.batchExtractionId,
   );
+  const contested = members.flatMap((member) => (member.contested ?? []).map((field) => ({
+    ...field,
+    provenance: {
+      [SOURCE_DOCUMENT_COLUMN]: member.sourceDocumentName,
+      [SOURCE_DOCUMENT_ID_COLUMN]: member.sourceDocumentId,
+    },
+  })));
   await deliverTable(
     table,
     options.format,
@@ -122,5 +132,6 @@ export async function exportBatchExtractionResults(
       options.format,
       "batch-extraction-results",
     ),
+    contested.length > 0 ? buildReviewNotesTable(contested) : undefined,
   );
 }

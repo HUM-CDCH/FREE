@@ -5,10 +5,12 @@ import {
   deliverTable,
   resolveExportChoices,
 } from "./spreadsheet.js";
+import { buildReviewNotesTable, type ContestedField } from "./review-notes.js";
 import { buildExportTable, ROOT_ROWS, type ExportChoices } from "./table.js";
 import type { SchemaNode } from "extraction/schema";
 
 export type { ExportFormat } from "./filename.js";
+export type { ContestedField } from "./review-notes.js";
 export {
   buildBatchExportTable,
   exportBatchExtractionResults,
@@ -33,6 +35,9 @@ export interface ExportExtractionResultOptions {
   readonly filename: string;
   readonly schemaNodes: readonly SchemaNode[];
   readonly choices?: Partial<ExportChoices>;
+  /** Fields left empty because their sources disagreed, by path into `result`: listed on the workbook's Review notes
+   *  sheet; a CSV, value-only, cannot carry them. */
+  readonly contested?: readonly ContestedField[];
 }
 
 /**
@@ -55,5 +60,6 @@ export async function exportExtractionResult(
     table,
     options.format,
     createExportFilename(options.filename, options.format),
+    options.contested?.length ? buildReviewNotesTable(options.contested) : undefined,
   );
 }

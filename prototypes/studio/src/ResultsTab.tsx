@@ -92,10 +92,11 @@ function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, actio
   return undefined
 }
 
-/** A recipe Catalog value's grounding in the researcher's words; like the checks, it describes the original value. */
-function evidenceDetail(link: EvidenceLink, action?: ReviewDecisionAction): string | undefined {
+/** A recipe Catalog value's grounding in the researcher's words; like the checks, it describes the original
+ *  value, so after an edit or rejection it names that extracted value instead. */
+function evidenceDetail(link: EvidenceLink, action: ReviewDecisionAction | undefined, extracted: unknown): string | undefined {
   const grounding = link.grounding
-  if (action === 'EDITED' || action === 'REJECTED') return undefined
+  if (action === 'EDITED' || action === 'REJECTED') return `Extracted value: ${String(extracted)}`
   const location =
     link.precision === 'cell'
       ? 'Located to a table cell'
@@ -615,6 +616,23 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     ])),
     [visibleReviewDecisions],
   )
+  // Values the service left empty because their sources disagreed, keyed like the Evidence links; one a review has
+  // filled or rejected is no longer an open conflict.
+  const openContested = useMemo(
+    () => (state.status === 'ready' ? attempt?.diagnostics?.contested ?? [] : []).flatMap(({ resultPath, candidates }) => {
+      const path = resultPath.map(String).slice(articlePathPrefix.length)
+      const value = getAtPath(displayResult, path)
+      return (value === null || value === undefined || value === '') &&
+        reviewDecisionByPath.get(resultPathKey(resultPath))?.action !== 'REJECTED'
+        ? [{ path, candidates }]
+        : []
+    }),
+    [articlePathPrefix.length, attempt, displayResult, reviewDecisionByPath, state.status],
+  )
+  const contestedByPath = useMemo(
+    () => new Map(openContested.map(({ path, candidates }) => [JSON.stringify(path), candidates])),
+    [openContested],
+  )
   const checkCount = state.status === 'ready'
     ? state.evidenceLinks.filter((link) => evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action) !== undefined).length
     : 0
@@ -695,7 +713,8 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               )} */}
               {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())}
               {summaryItem('Fields', stats.fields)}
-              {summaryItem('Missing', stats.missing)}
+              {summaryItem('Missing', stats.missing - openContested.length)}
+              {openContested.length > 0 && summaryItem('Contested', openContested.length)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
               {state.ungroundedCount > 0 && summaryItem('Ungrounded', state.ungroundedCount)}
               {checkCount > 0 && summaryItem('To check', checkCount)}
@@ -723,6 +742,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 <ExtractionResultExportControl
                   schema={exportSchema}
                   disabled={displayResult === null}
+                  contestedCount={openContested.length}
                   onExport={async (format, choices) => {
                     if (displayResult === null || exportSchema === null) return
                     await exportExtractionResult(displayResult, {
@@ -730,6 +750,15 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       filename: sourceDocumentName,
                       schemaNodes: exportSchema.schemaNodes,
                       choices,
+                      ...(openContested.length > 0 ? {
+                        contested: openContested.map(({ path, candidates }) => {
+                          const steps = path.map((step) => /^\d+$/.test(step) ? Number(step) : step)
+                          // Several records display as an array: its first step is the record.
+                          return Array.isArray(displayResult) && typeof steps[0] === 'number'
+                            ? { record: steps[0], path: steps.slice(1), candidates }
+                            : { path: steps, candidates }
+                        }),
+                      } : {}),
                     })
                   }}
                 />
@@ -906,8 +935,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                     }}
                     getEvidenceDetail={(path) => {
                       const link = evidenceLinkByPath.get(JSON.stringify(path))
-                      return link && evidenceDetail(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action)
+                      return link && evidenceDetail(
+                        link,
+                        reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action,
+                        state.status === 'ready' ? getAtPath(state.result, link.resultPath.map(String)) : undefined,
+                      )
                     }}
+                    getContested={(path) => contestedByPath.get(JSON.stringify(path))}
                     onSelectEvidence={onSelectEvidence}
                     review={noReviewableResult ? undefined : {
                       getDecision: (path) => reviewDecisionByPath.get(resultPathKey(absoluteReviewPath(path))),

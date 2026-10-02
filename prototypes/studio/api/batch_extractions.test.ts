@@ -76,7 +76,8 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
         {
           sourceDocumentId: DOCUMENT,
           extractionId: '51000000-0000-4000-8006-000000000001',
-          result: { records: [{ title: 'Alpha' }] },
+          result: { records: [{ title: 'Alpha', year: null }] },
+          contested: [{ resultPath: ['records', 0, 'year'], candidates: [1901, 1902] }],
         },
       ],
     })),
@@ -220,7 +221,7 @@ describe('/api/batch-extractions transport', () => {
     expect(await results.json()).toMatchObject({
       batchExtractionId: BATCH,
       successfulResults: 1,
-      results: [{ sourceDocumentId: DOCUMENT }],
+      results: [{ sourceDocumentId: DOCUMENT, contested: [{ resultPath: ['records', 0, 'year'], candidates: [1901, 1902] }] }],
     })
   })
 

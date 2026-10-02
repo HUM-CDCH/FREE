@@ -303,6 +303,13 @@ const supportProofSchema = z
   })
   .strict()
 
+/** One unresolved scalar conflict: its absolute result path and the disagreeing candidate values, nothing more. */
+export const contestedValueSchema = z
+  .object({ resultPath: resultPathSchema, candidates: z.array(z.json()) })
+  .strict()
+
+export type ContestedValue = z.infer<typeof contestedValueSchema>
+
 export const extractionDiagnosticsSchema = z
   .object({
     phase: z.enum([
@@ -324,6 +331,8 @@ export const extractionDiagnosticsSchema = z
     effectiveMethod: effectiveMethodSchema.nullable().optional(),
     eligibility: groundingEligibilitySchema.nullable().optional(),
     support: z.array(supportProofSchema).nullable().optional(),
+    /** Values the service left empty because their sources disagreed (absent when none): not documented absence. */
+    contested: z.array(contestedValueSchema).optional(),
   })
   .strict()
 

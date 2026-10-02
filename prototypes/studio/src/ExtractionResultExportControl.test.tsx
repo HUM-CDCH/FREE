@@ -73,6 +73,16 @@ describe('ExtractionResultExportControl', () => {
     return act(async () => resolveExport?.())
   })
 
+  it('says beside the CSV option that it leaves contested fields empty, only when there are some', () => {
+    const { rerender } = render(<ExtractionResultExportControl schema={schema} onExport={onExport} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+
+    rerender(<ExtractionResultExportControl schema={schema} contestedCount={3} onExport={onExport} />)
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'CSV leaves 3 contested fields empty; their candidates are only in the Excel Review notes sheet and in Studio.')
+  })
+
   it('hands both schema-led choices to the chosen format', () => {
     render(<ExtractionResultExportControl schema={schema} onExport={onExport} />)
 

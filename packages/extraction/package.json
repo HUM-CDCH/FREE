@@ -18,7 +18,7 @@
     "./workflows": "./src/workflows.ts"
   },
   "scripts": {
-    "test": "tsx --test src/module.test.ts src/parsed-document.test.ts src/kei-handoff.test.ts src/kei-artifact.test.ts src/workflows.test.ts src/review-rules.test.ts src/extraction-method.test.ts src/schema.test.ts src/architecture.test.ts",
+    "test": "tsx --test src/module.test.ts src/parsed-document.test.ts src/kei-handoff.test.ts src/kei-artifact.test.ts src/workflows.test.ts src/review-rules.test.ts src/extraction-method.test.ts src/schema.test.ts src/architecture.test.ts src/contested-values.test.ts",
     "test:postgres": "tsx --test --test-concurrency=1 src/*.integration.test.ts src/kei-handoff.postgres.test.ts",
     "typecheck": "tsc --noEmit"
   },

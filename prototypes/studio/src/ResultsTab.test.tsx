@@ -720,6 +720,64 @@ describe('ResultsTab grounded values', () => {
     )
   })
 
+  describe('a value the sources disagreed on', () => {
+    const contestedAttempt = (resultPayload: ExtractionAttempt['resultPayload'], contested: NonNullable<ExtractionAttempt['diagnostics']>['contested']): ExtractionAttempt =>
+      ({ ...articleAttempt, resultPayload, diagnostics: { ...articleAttempt.diagnostics!, contested } })
+    const summary = (label: string) =>
+      [...document.querySelectorAll('span')].find((element) => element.textContent?.startsWith(`${label}:`))?.textContent
+    const renderContested = (result: NonNullable<ExtractionAttempt['resultPayload']>, contested: NonNullable<ExtractionAttempt['diagnostics']>['contested'],
+      decisions: ReviewDecisionInput[] = []) =>
+      render(
+        <ResultsTab
+          {...defaultRunProps}
+          controller={controller({ status: 'ready', result, evidenceLinks: [], ungroundedCount: 0 },
+            contestedAttempt(result, contested), { decisions })}
+          schemaReady
+          documentMarkdown="# Source"
+          sourceDocumentName="contested.pdf"
+          exportSchema={{ recordDescription: 'A work.', schemaNodes: [
+            { id: 'place', name: 'place', type: 'string' }, { id: 'year', name: 'year', type: 'integer' },
+          ] }}
+        />,
+      )
+
+    it('shows Contested with its candidates, apart from an ordinary Missing value, and counts each apart', () => {
+      renderContested({ records: [{ place: null, year: null }] },
+        [{ resultPath: ['records', 0, 'year'], candidates: [1901, 1902] }])
+
+      expect(screen.getByText('Contested')).toBeInTheDocument()
+      expect(screen.getByRole('note', { name: 'Contested: sources disagreed (1901 · 1902)' })).toBeInTheDocument()
+      expect(screen.getByText('Missing')).toBeInTheDocument()
+      expect(summary('Missing')).toBe('Missing: 1')
+      expect(summary('Contested')).toBe('Contested: 1')
+    })
+
+    it('is no longer contested once a review supplied a value', () => {
+      renderContested({ records: [{ place: null, year: null }] },
+        [{ resultPath: ['records', 0, 'year'], candidates: [1901, 1902] }],
+        [{ resultPath: ['records', 0, 'year'], evidenceAnchorId: 'anchor-year', reviewedOccurrenceIds: [], action: 'EDITED', reviewedValue: 1901 }])
+
+      expect(screen.queryByText('Contested')).not.toBeInTheDocument()
+      expect(screen.getByText('1901')).toBeInTheDocument()
+      expect(summary('Contested')).toBeUndefined()
+    })
+
+    it('says what a CSV loses and hands the export the contested fields for the workbook notes', () => {
+      renderContested({ records: [{ place: 'Oslo', year: null }, { place: null, year: null }] },
+        [{ resultPath: ['records', 1, 'place'], candidates: ['Bergen', 'Bodø'] }])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+      expect(screen.getByRole('note')).toHaveTextContent(
+        'CSV leaves 1 contested field empty; their candidates are only in the Excel Review notes sheet and in Studio.')
+      fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+
+      expect(exportExtractionResult).toHaveBeenCalledWith(
+        [{ place: 'Oslo', year: null }, { place: null, year: null }],
+        expect.objectContaining({ format: 'xlsx', contested: [{ record: 1, path: ['place'], candidates: ['Bergen', 'Bodø'] }] }),
+      )
+    })
+  })
+
   it('exports the inspected historical result to CSV with its historical schema', () => {
     const historicalAttempt: ExtractionAttempt = {
       ...articleAttempt,
@@ -824,6 +882,49 @@ describe('ResultsTab grounded values', () => {
     expect(setDecision).toHaveBeenLastCalledWith(
       ['records', 0, 'person', 'age'], 'EDITED', 7,
     )
+  })
+
+  it('edits one item of a scalar array as one value of the item type', () => {
+    const setDecision = vi.fn()
+    const path = ['records', 0, 'grave_goods', 2]
+    const attempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ grave_goods: ['pin', 'bead', 'sherd'] }] },
+      evidenceLinks: [{ resultPath: path, evidenceAnchorId: 'anchor-sherd' }],
+    }
+    const schema: SchemaDefinition = {
+      recordDescription: 'One grave.',
+      schemaNodes: [{ id: 'grave_goods', name: 'grave_goods', type: 'array', itemType: 'string' }],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          { status: 'ready', result: attempt.resultPayload, evidenceLinks: attempt.evidenceLinks, ungroundedCount: 0 },
+          attempt,
+          {
+            available: true,
+            canAccept: true,
+            decisions: [{ resultPath: path, evidenceAnchorId: 'anchor-sherd', reviewedOccurrenceIds: ['o'],
+                          action: 'APPROVED', reviewedValue: null }],
+            setDecision,
+          },
+        )}
+        schemaReady
+        pinnedSchema={schema}
+        exportSchema={schema}
+        documentMarkdown="# Source"
+        sourceDocumentName="grave.pdf"
+      />,
+    )
+
+    fireEvent.click(screen.getByText('grave_goods', { exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: /^Edit / }))
+    const input = screen.getByLabelText(/^Reviewed value for /)
+    fireEvent.change(input, { target: { value: 'bronze pin, broken' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(setDecision).toHaveBeenLastCalledWith(path, 'EDITED', 'bronze pin, broken')
   })
 
   it('reverses a rejected value back to its original approved value', () => {
@@ -1608,6 +1709,40 @@ describe('ResultsTab recipe review material', () => {
     rerender(<ResultsTab {...props} controller={withDecision({ ...decision, action: 'EDITED', reviewedValue: 'Grab' })} />)
     expect(screen.queryByText(/Read after its printed key/)).not.toBeInTheDocument()
     expect(screen.getByText('Entry number from the segmentation')).toBeInTheDocument()
+  })
+
+  it('keeps a grounded value\'s Evidence reachable after an edit or rejection, as Evidence for the extracted value', () => {
+    const span = { segment: 'p1_s2', start: 4, end: 12 }
+    const evidenceLinks: EvidenceLink[] = [{
+      resultPath: ['records', 0, 'site_name'], evidenceAnchorId: 'a_site', verbatim: true, lexicalHits: 1,
+      grounding: { linkedBy: 'key', provenance: 'token', textSpans: [span], keySpans: [], alternatives: [],
+                   heading: null, precision: 'segment', raw: 'Eichdorf', normalized: null },
+    }]
+    const result = { records: [{ site_name: 'Eichdorf' }] }
+    const decision: ReviewDecisionInput = { resultPath: ['records', 0, 'site_name'], evidenceAnchorId: 'a_site',
+                                            reviewedOccurrenceIds: ['o'], action: 'APPROVED', reviewedValue: null }
+    const onSelectEvidence = vi.fn()
+    const props = { ...defaultRunProps, schemaReady: true, documentMarkdown: '', sourceDocumentName: 'Catalogue', onSelectEvidence }
+    const withDecision = (reviewed: ReviewDecisionInput) =>
+      controller({ status: 'ready', result, evidenceLinks, ungroundedCount: 0 }, null, { decisions: [reviewed] })
+    const { rerender } = render(<ResultsTab {...props} controller={withDecision(decision)} />)
+    expect(screen.getByRole('button', { name: 'View Evidence for site_name' })).toBeInTheDocument()
+    expect(screen.getByText('Read after its printed key')).toBeInTheDocument()
+
+    for (const reviewed of [
+      { ...decision, action: 'EDITED' as const, reviewedValue: 'Eichdorf-Süd' },
+      { ...decision, action: 'REJECTED' as const },
+    ]) {
+      onSelectEvidence.mockClear()
+      rerender(<ResultsTab {...props} controller={withDecision(reviewed)} />)
+      if (reviewed.action === 'EDITED') expect(screen.getByText('Eichdorf-Süd')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'View Evidence for site_name' })).not.toBeInTheDocument()
+      expect(screen.queryByText(/Read after its printed key/)).not.toBeInTheDocument()
+      expect(screen.getByText('Extracted value: Eichdorf')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'View Evidence for extracted value of site_name' }))
+      expect(onSelectEvidence).toHaveBeenCalledWith('a_site')
+    }
+    expect(screen.getByText('Missing')).toBeInTheDocument()
   })
 
   it('names every reason coverage is incomplete and lists what segmentation could not settle', () => {

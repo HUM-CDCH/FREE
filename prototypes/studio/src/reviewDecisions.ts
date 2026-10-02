@@ -51,14 +51,16 @@ export function applyReviewDecisions(
   return copy
 }
 
+/** The schema node a result path names. One item of a scalar array (`['grave_goods', 2]`) names a node of the
+ *  array's item type, as the server's review rules read it, so an item edit is one value, not a list. */
 export function schemaNodeAtResultPath(
   nodes: readonly SchemaNode[],
   resultPath: readonly (string | number)[],
 ): SchemaNode | null {
-  const path = resultPath
+  const segments = resultPath
     .map(String)
     .filter((segment, index) => !(index === 0 && segment === 'records'))
-    .filter((segment) => !/^\d+$/.test(segment))
+  const path = segments.filter((segment) => !/^\d+$/.test(segment))
   let level = nodes
   let current: SchemaNode | null = null
   for (const segment of path) {
@@ -66,6 +68,8 @@ export function schemaNodeAtResultPath(
     if (!current) return null
     level = current.children ?? []
   }
+  if (current?.type === 'array' && current.itemType && /^\d+$/.test(segments.at(-1) ?? ''))
+    return { id: current.id, name: current.name, type: current.itemType }
   return current
 }
 

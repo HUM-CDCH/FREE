@@ -11,6 +11,7 @@ import {
 } from '../schemaRevisions'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import { Button } from '../ui'
+import { contestedNotice } from '../ExtractionResultExportControl'
 import { requestModelKeyResend } from '../auth/authenticatedFetch'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
@@ -538,15 +539,24 @@ export default function BatchExtractionsPanel({
         'This Batch Extraction has produced no Extraction Result to export.',
       )
     const partial = snapshot.successfulResults < snapshot.totalMembers
+    const contested = snapshot.results.reduce((count, result) => count + (result.contested?.length ?? 0), 0)
     setExportCoverage({
       batchExtractionId: openBatch.batchExtractionId,
-      message: `Includes ${snapshot.successfulResults} of ${snapshot.totalMembers} Source Documents; ${snapshot.pending} pending, ${snapshot.failed} failed, ${snapshot.cancelled} cancelled.`,
+      message: `Includes ${snapshot.successfulResults} of ${snapshot.totalMembers} Source Documents; ${snapshot.pending} pending, ${snapshot.failed} failed, ${snapshot.cancelled} cancelled.${
+        contested === 0 ? ''
+          : format === 'csv' ? ` ${contestedNotice(contested)}`
+            : ` ${contested} contested ${contested === 1 ? 'field is' : 'fields are'} left empty and listed on the Review notes sheet.`}`,
     })
     await exportBatchExtractionResults(
       snapshot.results.map((result) => ({
         sourceDocumentId: result.sourceDocumentId,
         sourceDocumentName: documentName(result.sourceDocumentId),
         result: result.result,
+        ...(result.contested?.length ? {
+          contested: result.contested.map(({ resultPath: [, record, ...path], candidates }) => ({
+            record: Number(record), path, candidates,
+          })),
+        } : {}),
       })),
       {
         format,

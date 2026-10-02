@@ -1,5 +1,6 @@
 import { canonicalPackageStore, LIVE_WORKFLOW_STATUSES, workflowStatusesOf } from 'db'
 import {
+  contestedValues,
   createExtractions,
   createExtractionStore,
   createKeiExpClient,
@@ -73,6 +74,7 @@ function transportDiagnostics(
     diagnostics.ungroundedPaths.length > 0 ||
     diagnostics.groundingIssues.length > 0 ||
     phase === 'grounding'
+  const contested = contestedValues(diagnostics, extraction.result)
   return {
     phase,
     durationMs: diagnostics.durationMs,
@@ -105,6 +107,7 @@ function transportDiagnostics(
     ...(diagnostics.effectiveMethod ? { effectiveMethod: diagnostics.effectiveMethod } : {}),
     ...(diagnostics.eligibility ? { eligibility: diagnostics.eligibility } : {}),
     ...(diagnostics.support ? { support: diagnostics.support } : {}),
+    ...(contested.length > 0 ? { contested } : {}),
   }
 }
 

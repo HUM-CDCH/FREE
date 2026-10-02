@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { exportExtractionResult } from "./index.js";
+import { strFromU8, unzipSync } from "fflate";
 import { stubBrowser } from "./test-browser.js";
 
 const field = (id: string, name: string, type: "string" | "number" | "boolean" = "string") =>
@@ -45,6 +46,27 @@ test("downloads the visible result as a workbook with the derived name", async (
     const [download] = browser.downloads;
     assert.equal(download!.filename, "report-extraction-result.xlsx");
     assert.deepEqual([...new Uint8Array(await download!.blob.arrayBuffer()).slice(0, 2)], [0x50, 0x4b]);
+  } finally {
+    browser.restore();
+  }
+});
+
+test("keeps a contested field an empty cell, listing its candidates on the workbook's Review notes sheet alone", async () => {
+  const browser = stubBrowser();
+  const options = { filename: "source.pdf", schemaNodes: [field("name", "name"), field("year", "year", "number")] };
+  const contested = [{ path: ["year"], candidates: [1901, 1902] }];
+  try {
+    await exportExtractionResult({ name: "Ada", year: null }, { ...options, format: "csv", contested });
+    await exportExtractionResult({ name: "Ada", year: null }, { ...options, format: "xlsx", contested });
+    await exportExtractionResult({ name: "Ada", year: null }, { ...options, format: "xlsx" });
+    const [csv, workbook, plain] = browser.downloads;
+    assert.equal(await csv!.blob.text(), "name,year\r\nAda,");
+    const files = unzipSync(new Uint8Array(await workbook!.blob.arrayBuffer()));
+    const plainFiles = unzipSync(new Uint8Array(await plain!.blob.arrayBuffer()));
+    assert.equal(strFromU8(files["xl/worksheets/sheet1.xml"]!), strFromU8(plainFiles["xl/worksheets/sheet1.xml"]!));
+    assert.equal(plainFiles["xl/worksheets/sheet2.xml"], undefined);
+    assert.match(strFromU8(files["xl/workbook.xml"]!), /<sheet[^>]*name="Review notes"/);
+    assert.match(strFromU8(files["xl/worksheets/sheet2.xml"]!), /<c r="C2"[^>]*><v>1901<\/v><\/c><c r="D2"[^>]*><v>1902<\/v>/);
   } finally {
     browser.restore();
   }

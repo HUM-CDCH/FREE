@@ -17,6 +17,8 @@ type ExtractionResultExportControlProps = {
   disabled?: boolean
   /** Explains why an otherwise available export is disabled. */
   disabledReason?: string | null
+  /** Fields the result leaves empty because their sources disagreed: a CSV cannot say so. */
+  contestedCount?: number
   onExport: (format: ExportFormat, choices: ExportChoices) => Promise<void>
 }
 
@@ -40,6 +42,12 @@ function DownloadIcon() {
   )
 }
 
+/** What a value-only CSV loses: said wherever a CSV of contested fields is offered or made. */
+// eslint-disable-next-line react-refresh/only-export-components -- the batch export reports the same limit
+export function contestedNotice(count: number): string {
+  return `CSV leaves ${count} contested ${count === 1 ? 'field' : 'fields'} empty; their candidates are only in the Excel Review notes sheet and in Studio.`
+}
+
 /**
  * The researcher's spreadsheet export: the schema-led choices, then the format.
  * The caller owns what is exported, so one Extraction Result and a whole Batch
@@ -49,6 +57,7 @@ function ExtractionResultExportControl({
   schema,
   disabled = false,
   disabledReason = null,
+  contestedCount = 0,
   onExport,
 }: ExtractionResultExportControlProps) {
   const [open, setOpen] = useState(false)
@@ -163,6 +172,11 @@ function ExtractionResultExportControl({
                 {label}
               </button>
             ))}
+            {contestedCount > 0 && (
+              <p role="note" className="px-2.5 pt-1 text-[11px] leading-snug text-ink-muted">
+                {contestedNotice(contestedCount)}
+              </p>
+            )}
           </div>
         </ModalDialog>
       )}
