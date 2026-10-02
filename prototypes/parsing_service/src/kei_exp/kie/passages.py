@@ -67,16 +67,18 @@ class Evidence:
 
 
 def order_issues(passages: Sequence[Passage]) -> list[str]:
-    """Where consecutive passages of one page go backwards in (unit, crop order): the page file's reading order is
-    units ascending, then crops by their cut order. Reported, never reordered."""
-    issues = []
-    for before, after in pairwise(passages):
-        if before.page != after.page:
-            continue
-        if (after.unit, after.crop_order or 0) < (before.unit, before.crop_order or 0):
-            issues.append(f"{after.id} (unit {after.unit}, crop order {after.crop_order}) follows {before.id} "
-                          f"(unit {before.unit}, crop order {before.crop_order}) in the page file")
-    return issues
+    """Where passages of one page go backwards in (unit, crop order): the page file's reading order is units
+    ascending, then crops by their cut order. A unit's whole-page passages (no crop: a native page's blocks) are
+    in reading order among its crops, which a hybrid page interleaves, so they are held to the unit order alone
+    and a crop is compared with the page's previous crop. Reported, never reordered."""
+    backwards = [(before, after) for before, after in pairwise(passages)
+                 if before.page == after.page and after.unit < before.unit]
+    cropped = [passage for passage in passages if passage.crop is not None]
+    backwards += [(before, after) for before, after in pairwise(cropped) if before.page == after.page
+                  and before.unit == after.unit and (after.crop_order or 0) < (before.crop_order or 0)]
+    return [f"{after.id} (unit {after.unit}, crop order {after.crop_order}) follows {before.id} "
+            f"(unit {before.unit}, crop order {before.crop_order}) in the page file"
+            for before, after in sorted(backwards, key=lambda pair: pair[1].index)]
 
 
 def load(run_dir: Path) -> Evidence:

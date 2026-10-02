@@ -9,15 +9,16 @@ from contextlib import nullcontext
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from kei_exp.cut import CutError, cut_pages, whole_pages
+from kei_exp.cut import CutError, artwork_crops, cut_pages, whole_pages
 from kei_exp.kie.ingest_model import IngestConfig
 from kei_exp.models import MODELS
 from kei_exp.pages import BookPages, PdfPages
 from kei_exp.progress import Emit, Event, print_event
-from kei_exp.regions import Crop
+from kei_exp.regions import Crop, anchor
 from kei_exp.report import write_report
 from kei_exp.result import Input, Inventory, Source, assemble_pages, page_markdown, write_result
-from kei_exp.transcription.native import NativeText, has_native_text
+from kei_exp.transcription import hybrid
+from kei_exp.transcription.native import NativeText, native_regions
 from kei_exp.transcription.surya import SuryaOcr
 from kei_exp.transcription.types import (
     ConversionError,
@@ -70,14 +71,17 @@ def check_ingest(page_source: str, ingest: dict | None) -> None:
 def resolve(params: RunParams) -> Execution:
     """The execution choice for params, made once per run.
 
-    Embedded text on every selected page runs the native transcriber, with no model, server, cut or image knob;
-    otherwise the record's transcriber runs with the request's settings. ValueError: knobs set that the transcriber
-    does not honour. ConversionError: the page range lies outside the PDF.
+    Embedded text on every selected nonblank page runs natively; substantial textless artwork supplements it
+    with image-only OCR by the record's transcriber, whose knobs apply (`supplement`). A fully native run needs
+    no model or server. Otherwise scanned/mixed documents use the record's transcriber and the request's
+    settings. ValueError: knobs set that the transcriber does not honour. ConversionError: the page range lies
+    outside the PDF.
     """
     if params.page_source not in ("pdf", "ingest"):
         raise ValueError(f"page_source must be pdf or ingest, not {params.page_source!r}")
     check_ingest(params.page_source, params.ingest)
-    if has_native_text(params.pdf, params.pages):
+    regions = native_regions(params.pdf, params.pages)
+    if regions == ():
         return Execution(pdf=params.pdf, source_name=params.source_name, transcriber=NativeText.kind,
                          model=None, repo=None, url=None, cut="none",
                          layout_model=None, crop_dpi=None, max_image_size=None, max_output_tokens=None,
@@ -85,6 +89,13 @@ def resolve(params: RunParams) -> Execution:
                          page_source="pdf", ingest_dir=None)
     check_knobs(params)
     record = MODELS[params.model]
+    if regions is not None:
+        return Execution(pdf=params.pdf, source_name=params.source_name, transcriber=hybrid.KIND,
+                         model=params.model, repo=record.repo, url=params.url, cut="none", layout_model=None,
+                         crop_dpi=params.crop_dpi, max_image_size=params.max_image_size,
+                         max_output_tokens=params.max_output_tokens, stream=params.stream, pages=params.pages,
+                         debug_dir=params.debug_dir, result_dir=params.result_dir, page_source="pdf", ingest_dir=None,
+                         ocr_regions=regions)
     return Execution(pdf=params.pdf, source_name=params.source_name, transcriber=record.kind,
                      model=params.model, repo=record.repo, url=params.url,
                      cut=params.cut, layout_model=params.layout_model if params.cut == "auto" else None,
@@ -121,6 +132,61 @@ def inventory(numbers: list[int], crops: list[Crop] | None, book: BookPages | No
     return Inventory(pages, inputs, book)
 
 
+def announce(emit: Emit, crop: Crop, ordinal: int, book: BookPages | None) -> None:
+    """The `region` event of crop `ordinal`, emitted as it is rendered. It names the PDF page and the box on it:
+    over the ingest the crop's page is a book page, a unit."""
+    page, region, image = crop
+    spread = book.page(page).ingest.spread if book is not None else page
+    bbox = book.page(page).to_page_points(region.bbox) if book is not None else region.bbox
+    emit({"type": "region", "page": spread, "unit": page if book is not None else 0,
+          "crop": ordinal, "order": region.order, "kind": region.kind, "bbox": list(bbox),
+          "width": image.width, "height": image.height, "ink": round(region.ink, 3)})
+
+
+def supplement(execution: Execution, inputs: Inventory, emit: Emit) -> Transcription:
+    """A hybrid execution: the native transcriber on the selected pages, then the record's transcriber on one
+    crop per region of textless artwork, merged by `kei_exp.transcription.hybrid`.
+
+    Each region reads at one anchor among its page's native blocks (`kei_exp.regions.anchor`, running heads and
+    feet kept in place but never placing it), computed here once for both the Markdown and the page file; its
+    crop's order is its rank among its page's regions in that reading order, so a page file's crops read in their
+    cut order. Crop n is `execution.ocr_regions[n - 1]`.
+    """
+    assert execution.ocr_regions and execution.model is not None and execution.crop_dpi is not None
+    emit({"type": "log", "text": f"Preserving native PDF text; OCR only on {len(execution.ocr_regions)} embedded regions."})
+    native = TRANSCRIBERS[NativeText.kind].transcribe(execution, None, page_events(emit, inputs))
+    blocks = {record.source_page: record.payload.get("blocks", []) for record in native.pages}
+    regions = execution.ocr_regions
+    anchors = [anchor([tuple(block["bbox"]) for block in blocks.get(region.page, [])], region.bbox,
+                      {n for n, block in enumerate(blocks.get(region.page, [])) if block["label"] in hybrid.FURNITURE})
+               for region in regions]
+    orders: dict[int, int] = {}
+    counts: dict[int, int] = {}
+    for n in sorted(range(len(regions)), key=lambda n: (regions[n].page, anchors[n], n)):
+        orders[n] = counts.get(regions[n].page, 0)
+        counts[regions[n].page] = orders[n] + 1
+    crops: list[Crop] = []
+    try:
+        with PdfPages(execution.pdf) as pages:
+            for crop in artwork_crops(pages, ((region.page, region.bbox, orders[n])
+                                              for n, region in enumerate(regions)), execution.crop_dpi):
+                crops.append(crop)
+                announce(emit, crop, len(crops), None)
+        record = MODELS[execution.model]
+        selected = replace(execution, transcriber=record.kind, ocr_regions=())
+        ocr_inputs = inventory(sorted({region.page for region in regions}), crops, None)
+        recognized = TRANSCRIBERS[record.kind].transcribe(selected, crops, page_events(emit, ocr_inputs))
+        return hybrid.supplement(native, recognized, crops, anchors)
+    except CutError as error:
+        for _, _, image in crops:
+            image.close()
+        raise ConversionError(f"Artwork crop failed: {error}") from error
+    except Exception:
+        for _, _, image in crops:
+            image.close()
+        raise
+
+
 def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | None = None) -> str:
     """Cut the supplied pages, transcribe them, write the result, and return its Markdown.
 
@@ -148,14 +214,9 @@ def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | Non
                     produced = cut_pages(pages, numbers, execution.crop_dpi, layout_model=execution.layout_model)
                 else:
                     produced = whole_pages(pages, numbers, execution.crop_dpi)
-                for page, region, image in produced:  # announced as each is cut, while the source is open
-                    crops.append((page, region, image))
-                    # The event names the PDF page and the box on it: over the ingest `page` is a book page, a unit.
-                    spread = book.page(page).ingest.spread if book is not None else page
-                    bbox = book.page(page).to_page_points(region.bbox) if book is not None else region.bbox
-                    emit({"type": "region", "page": spread, "unit": page if book is not None else 0,
-                          "crop": len(crops), "order": region.order, "kind": region.kind, "bbox": list(bbox),
-                          "width": image.width, "height": image.height, "ink": round(region.ink, 3)})
+                for crop in produced:  # announced as each is cut, while the source is open
+                    crops.append(crop)
+                    announce(emit, crop, len(crops), book)
         except CutError as error:
             raise ConversionError(f"Layout cut failed: {error}") from error
     else:  # whole PDF pages: the transcriber renders them itself, and its inputs are the selected pages
@@ -168,6 +229,8 @@ def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | Non
         # The cut found nothing on any page. An empty list never reaches a transcriber, which reads it as "the
         # whole PDF"; the run is judged below with the refusal it always had.
         outcome = Transcription({}, [], unattributed="the layout cut found no content")
+    elif execution.transcriber == hybrid.KIND:
+        outcome = supplement(execution, inputs, emit)
     else:
         outcome = TRANSCRIBERS[execution.transcriber].transcribe(execution, crops, sink)
     seconds = time.monotonic() - clock

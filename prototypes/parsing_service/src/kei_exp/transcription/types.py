@@ -13,6 +13,7 @@ from typing import Protocol
 from PIL import Image
 
 from kei_exp.files import load_dotenv
+from kei_exp.geometry import PointBox
 from kei_exp.progress import Emit
 from kei_exp.regions import DEFAULT_LAYOUT_MODEL, Crop
 
@@ -21,7 +22,9 @@ DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/comp
 # The version of the rules by which a transcriber turns what its engine read into canonical text, per transcriber
 # kind, recorded in the recipe: a change here writes other text for the same PDF, so it must not share a fingerprint.
 # native 2: a list item publishes its source text with the printed marker (Docling strips it from `text`).
-TEXT_RULES: dict[str, int] = {"native": 2}
+# hybrid 1: native pages with textless artwork read by OCR, spliced at the artwork's place. A hybrid page also
+# publishes native blocks and OCR text, so a hybrid recipe records those kinds' rules too (`kei_exp.result.recipe`).
+TEXT_RULES: dict[str, int] = {"native": 2, "hybrid": 1}
 # The RunParams fields each transcriber kind honours beyond pdf, model, url, cut, layout_model, crop_dpi, pages and
 # debug_dir: every adapter's `knobs`, and what the API lists per model without constructing an adapter.
 TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
@@ -29,6 +32,13 @@ TRANSCRIBER_KNOBS: dict[str, frozenset[str]] = {
     "surya": frozenset({"stream"}),  # live tokens per page; the image and token budgets are Surya's own
     "native": frozenset(),
 }
+
+
+@dataclass(frozen=True)
+class OcrRegion:
+    """Textless embedded artwork to read, in its PDF page's top-left points."""
+    page: int
+    bbox: PointBox
 
 
 @dataclass(frozen=True)
@@ -61,7 +71,8 @@ class Execution:
     asked for; params.json and the debug report record these fields as they are.
     """
     pdf: Path
-    transcriber: str                         # registry key: vlm | surya | native
+    transcriber: str                         # vlm | surya | native, a registry key; or hybrid, which the OCR stage
+                                             # runs as native text plus the model's transcriber on ocr_regions
     model: str | None                        # record key; None when no model runs
     repo: str | None                         # the model's vLLM id
     url: str | None
@@ -78,6 +89,7 @@ class Execution:
     ingest_dir: Path | None
     source_name: str | None = None
     ingest: dict | None = None               # the requested IngestConfig settings; None for defaults and native runs
+    ocr_regions: tuple[OcrRegion, ...] = ()   # hybrid only: native text plus these image/form crops
 
 
 class ConversionError(RuntimeError):
@@ -113,6 +125,16 @@ class PageRecord:
     text: str                      # plain text: block HTML through html_to_text, a DocTags export, a VLM's Markdown as is
     incomplete: str | None         # why this input's output is not trustworthy; None when it is
     source_page: int | None        # the backend's page number for a whole page; None for a crop
+    ocr: tuple["OcrRecord", ...] = ()  # hybrid supplements; each keeps its own engine space and render transform
+
+
+@dataclass(frozen=True)
+class OcrRecord:
+    """One image-only OCR input and its unchanged backend outcome, attached to its native page."""
+    ordinal: int                   # the crop: its position in Execution.ocr_regions, 1-based
+    crop: Crop
+    record: PageRecord
+    anchor: int                    # reads before this index of the native page's blocks (len: after the last)
 
 
 @dataclass(frozen=True)
@@ -172,4 +194,3 @@ def html_to_text(html: str) -> str:
     parser.feed(html)
     parser.close()
     return "".join(parser.parts).rstrip()
-

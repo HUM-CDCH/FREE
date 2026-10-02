@@ -108,9 +108,21 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   is `serving` only while the OCR server has it loaded, which is what the
   listing observed, not a promise. Layout detectors run inside this service and
   are always selectable. Native parsing is used when the PDF has text on every
-  selected nonblank page and no substantial textless embedded artwork. A vector
-  or image table without text requires OCR even when surrounding prose has text;
-  a native table with no readable cells makes conversion incomplete.
+  selected nonblank page and no substantial textless embedded artwork. When all
+  selected nonblank pages have native text, substantial textless images or vector
+  forms are OCR'd as crops while the surrounding prose stays native. Overlapping
+  artwork becomes one crop; native captions outside it remain native. The result
+  keeps both the native blocks and OCR crop transforms in page reading order:
+  each crop reads before the next native block below it in its column (or
+  after the last above it, and after any earlier column), and its crop's
+  `order` is its rank in that reading order (its `crop` ordinal is discovery
+  order, not reading order). Running headers and footers stay in the page file
+  where Docling put them but never place a crop, and the page's Markdown drops
+  them as Docling's native export does.
+  Page-sized scans with a text overlay, mixed native/scanned documents and rotated
+  textless artwork retain the scan path. A native table with no readable cells
+  outside an OCR crop makes conversion incomplete; an incomplete OCR crop also
+  makes its page and conversion incomplete.
   Automatic crops split only at gaps confirmed free of ink. A proposed boundary
   crossing printed content keeps its adjacent blocks together; other safe cuts remain. A page with only
   headers/footers accounting for at least 90% of its ink is transcribed whole, including its furniture.

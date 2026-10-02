@@ -4,7 +4,7 @@ See docs/ingest-cuts.md. Coordinates are source page points. Page sources own re
 lifetimes; this module owns only layout preparation and its errors, not canonical post-OCR KIE layout. The regions
 and crops it yields, and the layout models it may run, are data in `kei_exp.regions`.
 """
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import replace
 from functools import lru_cache
 from io import BytesIO
@@ -323,4 +323,17 @@ def whole_pages(pages: PageSource, numbers: list[int], dpi: int) -> Iterator[Cro
     for number in numbers:
         page = pages.page(number)
         region = Region("page", (0.0, 0.0, *page.get_size()), 0, 1.0, page.crop_transform(dpi))
+        yield number, region, render_region(page, region, dpi)
+
+
+def artwork_crops(pages: PageSource, regions: Iterable[tuple[int, PointBox, int]], dpi: int) -> Iterator[Crop]:
+    """One figure crop per (page, box, reading order) of a born-digital page's textless artwork, as each is
+    rendered. The box needs no layout: it is the embedded object's own. Ink is the cut's measure (gray < 128)
+    on a 72 dpi preview of the whole page, which has no scanner border to measure within."""
+    for number, bbox, order in regions:
+        page = pages.page(number)
+        with page.render(72) as preview, preview.crop(bbox) as inside:
+            total = sum(preview.histogram()[:128])
+            ink = sum(inside.histogram()[:128]) / total if total else 0.0
+        region = Region("figure", bbox, order, ink, page.crop_transform(dpi, bbox))
         yield number, region, render_region(page, region, dpi)

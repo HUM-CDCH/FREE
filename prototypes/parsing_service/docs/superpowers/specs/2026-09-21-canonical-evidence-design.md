@@ -133,7 +133,8 @@ generation: str                      # the manifest's; a page file of another ge
 page: int                            # the PDF page, 1-based
 size_pt: (width, height)
 units: list[Unit]
-segments: list[PageSegment]          # reading order: units, then crops, then blocks
+segments: list[PageSegment]          # reading order: units, then crops by their order, then blocks; a
+                                     # native page's blocks (no crop) read among its artwork crops
 markdown: str
 complete: bool
 warnings: list[str]

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from kei_exp.files import publish
 from kei_exp.progress import Emit
+from kei_exp.regions import region_info
 from kei_exp.transcription.types import Execution, Transcription
 
 
@@ -20,6 +21,15 @@ def write_report(outcome: Transcription, execution: Execution, started: str, sec
     directory.mkdir(parents=True, exist_ok=True)
     entries = []
     for page in outcome.pages:
+        supplements = []
+        for supplement in page.ocr:
+            _, _, image = supplement.crop
+            image.save(directory / f"ocr-{supplement.ordinal}.png")
+            record = supplement.record
+            supplements.append({"crop": supplement.ordinal, "region": region_info(supplement.crop),
+                                "image_pixels": list(image.size), "incomplete": record.incomplete,
+                                "input_tokens": record.input_tokens, "output_tokens": record.output_tokens,
+                                "markdown": record.markdown, "text": record.text, **record.payload})
         pixels = None
         if page.image is not None:
             page.image.save(directory / f"page-{page.page}.png")
@@ -31,6 +41,7 @@ def write_report(outcome: Transcription, execution: Execution, started: str, sec
             "input_tokens": page.input_tokens, "output_tokens": page.output_tokens, "stop": page.stop,
             "capped": page.capped, "incomplete": page.incomplete, "source_page": page.source_page,
             "markdown": page.markdown, "text": page.text, **page.payload,
+            **({"ocr": supplements} if supplements else {}),
         })
     report = {
         "transcriber": execution.transcriber, "model": execution.model, "repo": execution.repo, "url": execution.url,

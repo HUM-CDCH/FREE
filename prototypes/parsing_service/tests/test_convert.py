@@ -91,7 +91,7 @@ def fake() -> Iterator[FakeTranscriber]:
 @pytest.fixture
 def scanned() -> Iterator[None]:
     """input.pdf read as a scan: no embedded text, so resolve() picks the record's transcriber, not native text."""
-    with patch("kei_exp.kie.stages.ocr.has_native_text", return_value=False):
+    with patch("kei_exp.kie.stages.ocr.native_regions", return_value=None):
         yield
 
 
@@ -106,7 +106,7 @@ def opened_pdf() -> Iterator[Any]:
 def run(*flags: str) -> int:
     """main() with --cut none against the fake record; returns the exit code (0 when main returned)."""
     with (patch("sys.argv", ["kei-exp", "input.pdf", "--model", "fake", "--cut", "none", *flags]),
-          patch("kei_exp.kie.stages.ocr.has_native_text", return_value=False)):
+          patch("kei_exp.kie.stages.ocr.native_regions", return_value=None)):
         try:
             main()
         except SystemExit as error:
@@ -304,7 +304,7 @@ def test_the_execution_carries_the_requests_effective_settings(fake, scanned):
 
 def test_native_text_is_an_execution_of_its_own():
     # Native text is an execution of its own: no model, server, cut or knobs, whatever the request asked for.
-    with patch("kei_exp.kie.stages.ocr.has_native_text", return_value=True):
+    with patch("kei_exp.kie.stages.ocr.native_regions", return_value=()):
         execution = resolve(RunParams(pdf=Path("input.pdf"), model="fake", stream=True, max_image_size=1,
                                       crop_dpi=300, pages=(1, 1), debug_dir=Path("debug")))
     assert execution == Execution(pdf=Path("input.pdf"), transcriber="native", model=None, repo=None, url=None,
@@ -504,10 +504,10 @@ def test_the_recorded_layout_is_what_the_worker_resolves(tmp_path, monkeypatch):
     (directory / "input.pdf").write_bytes(b"%PDF-1.4")
     params = {"model": "surya", "layout_model": "layout_heron_101", "page_source": "ingest",
               "ingest": {"split": "spread", "overrides": {"1": 4800}}}
-    monkeypatch.setattr(ocr_stage, "has_native_text", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(ocr_stage, "native_regions", lambda *_args, **_kwargs: None)
     assert runs.execution_for(directory, params).ingest == {"split": "spread", "overrides": {"1": 4800}}
     assert runs.execution_for(directory, {"model": "surya", "layout_model": "layout_heron_101",
                                           "page_source": "ingest"}).ingest is None
-    monkeypatch.setattr(ocr_stage, "has_native_text", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(ocr_stage, "native_regions", lambda *_args, **_kwargs: ())
     native = runs.execution_for(directory, params)
     assert (native.page_source, native.ingest) == ("pdf", None)

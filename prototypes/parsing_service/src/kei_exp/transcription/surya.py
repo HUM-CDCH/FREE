@@ -1,22 +1,19 @@
 """Surya OCR 2 through the shared vLLM server: one full-page request per image, block HTML joined for Docling."""
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from io import BytesIO
 from pathlib import Path
 from time import monotonic, sleep
 from types import SimpleNamespace
 from typing import NamedTuple, cast
 
 import pypdfium2 as pdfium
-from docling.datamodel.backend_options import HTMLBackendOptions
-from docling.datamodel.base_models import ConversionStatus, DocumentStream, InputFormat
-from docling.document_converter import DocumentConverter, HTMLFormatOption
 from PIL import Image
 
 from kei_exp._pdfium import pdfium_lock
 from kei_exp.models import MODELS
 from kei_exp.progress import STOP_REASONS, Emit
 from kei_exp.regions import Crop, region_info
+from kei_exp.transcription import html as html_export
 from kei_exp.transcription.types import (
     TRANSCRIBER_KNOBS,
     ConversionError,
@@ -273,17 +270,6 @@ ADVICE = ("content is missing: raise the surya record's max_new_tokens and conte
           "debug report)")
 
 
-def _markdown(converter: DocumentConverter, html: str, name: str) -> tuple[str, str | None]:
-    """One input's block HTML as Markdown through Docling's HTML backend, or "" and why Docling could not read it."""
-    if not html.strip():
-        return "", None
-    source = DocumentStream(name=f"{name}.html", stream=BytesIO(f"<html><body>{html}</body></html>".encode()))
-    result = converter.convert(source, raises_on_error=False)
-    if result.status != ConversionStatus.SUCCESS:
-        return "", "; ".join(error.error_message for error in result.errors) or result.status.value
-    return result.document.export_to_markdown(), None
-
-
 class SuryaOcr:
     """Transcriber over the surya-ocr client: full-page OCR per image, Markdown through Docling's HTML backend."""
     kind = "surya"
@@ -312,18 +298,14 @@ class SuryaOcr:
         # Docling's HTML backend takes everything before the first heading for a web page's furniture (navigation,
         # banners) and leaves it out of the Markdown. A catalogue page that continues a section starts with exactly
         # that: its page number and the entries before the next heading. Nothing Surya read is furniture.
-        converter = DocumentConverter(format_options={
-            # Pylance reads no defaults for the options docling declares through Field(); every field looks required.
-            InputFormat.HTML: HTMLFormatOption(
-                backend_options=HTMLBackendOptions(infer_furniture=False)),  # pyright: ignore[reportCallIssue]
-        })
+        converter = html_export.converter()
         first = execution.pages[0] if execution.pages else 1
         kept = [manager.kept(index) for index in range(len(images))]
         pages = []
         for number, (image, page, output) in enumerate(zip(images, results, kept), 1):
             blocks = page.blocks
             html = "\n".join(block.html for block in blocks if not block.skipped)
-            markdown, unreadable = _markdown(converter, html, f"{execution.pdf.stem}-{number}")
+            markdown, unreadable = html_export.markdown(converter, html, f"{execution.pdf.stem}-{number}")
             reasons = []
             if output and output.capped:
                 reasons.append(f"{where(crops, execution.pages, number)} stopped at its {output.capped}")
