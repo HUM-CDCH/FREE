@@ -48,10 +48,12 @@ PROMPT_VERSION = 15
 # item two contexts returned is joined only when their shared source prints it as exactly one occurrence. 5: a list
 # item's claim is offered the table cells of its own row (printing its item's most distinctive other value) when
 # its value is printed in many rows. 6: a claim's contexts are ranked with its enclosing object's other values too
-# (`routing.VERSION` 2), so without an origin the context printing its own item is checked first.
-# 7: a list item's claim prints its own row in the table context when no offered cell lies in the item's own row
+# (`routing.VERSION` 2), so without an origin the context printing its own item is checked first. 7: the root's reply
+# may use the served context its input leaves (a bounded context keeps as many reply tokens as its request counts),
+# and an Article no value context answered fails rather than publishing an all-null root (`article.RootUnanswered`).
+# 8: a list item's claim prints its own row in the table context when no offered cell lies in the item's own row
 # and the item is located to one row, so section headers can be placed.
-ARTICLE_VERSION = 7
+ARTICLE_VERSION = 8
 
 
 def fingerprint(result: dict, request, model: dict) -> str:

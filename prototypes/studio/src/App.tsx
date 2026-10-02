@@ -67,6 +67,13 @@ function pageRanges(pages: readonly number[]): string {
 const SAMPLE_PAGE_LIMIT = 30
 /** Every result path: the sample's Evidence is painted whole, and stable so painting does not repeat per render. */
 const EVERY_RESULT_PATH: readonly string[] = []
+const STRATEGY_NAME: Readonly<Record<ExtractionStrategy, string>> = { ARTICLE: 'Article', CATALOG: 'Catalog' }
+
+/** Why Save & re-run sample cannot repeat a sample after the schema's Article/Catalog choice changed: it repeats the
+ *  sample's own method, and admission runs a revision only under the strategy its scope names. */
+function sampleStrategyChanged(sample: ExtractionStrategy, schema: ExtractionStrategy): string {
+  return `This sample ran as ${STRATEGY_NAME[sample]}, and the schema is now ${STRATEGY_NAME[schema]}. Run a new sample to extract it as ${STRATEGY_NAME[schema]}.`
+}
 
 function isFreeHighlightTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) {
@@ -207,6 +214,7 @@ export function DocumentWorkspace({
   const [selectingSamplePages, setSelectingSamplePages] = useState(false)
   const pageNavigationId = useId()
   const sampleControlsId = useId()
+  const sampleRerunRefusalId = useId()
   const pagesToggleRef = useRef<HTMLButtonElement>(null)
   // Article or Catalog is the schema's own saved record scope (the Current Schema Revision's, or the choice its next
   // save declares); null until one is chosen. The selector never changes the strategy of an active or persisted attempt.
@@ -757,11 +765,13 @@ export function DocumentWorkspace({
         return
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
-      // The saved revision's own scope decides what a new run is; admission refuses any other. A retried admission
-      // keeps its own identity, strategy included.
-      if (!previous && revision.recordScope === null)
+      // The saved revision's own scope decides what a run is; admission refuses any other. A re-run sample repeats its
+      // own method, strategy included, so it runs only while the scope still names that strategy.
+      if (revision.recordScope === null)
         throw new Error('Choose Article or Catalog before extraction.')
-      const strategy = previous?.strategy ?? strategyOf(revision.recordScope!)
+      const strategy = strategyOf(revision.recordScope)
+      if (previous && previous.strategy !== strategy)
+        throw new Error(sampleStrategyChanged(previous.strategy, strategy))
       // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
       const catalogRecipe = previous ? previous.catalogRecipe : savedState.unifiedCatalog ? null : nextCatalogRecipe || null
       const method = previous ? { models: previous.requestedModels ?? null, settings: previous.requestedSettings! } : savedMethodFor(savedState, strategy, catalogRecipe)
@@ -823,6 +833,12 @@ export function DocumentWorkspace({
     indexing ||
     schemaSnap.save?.status === 'conflict' ||
     schemaSnap.save?.status === 'error'
+  // Save & re-run sample repeats the shown sample's own method; once the schema's scope names the other strategy, a
+  // new sample (under the schema's scope) takes its place.
+  const sampleRerunRefusal =
+    shownSample && nextExtractionStrategy !== null && shownSample.strategy !== nextExtractionStrategy
+      ? sampleStrategyChanged(shownSample.strategy, nextExtractionStrategy)
+      : null
   const runLabel = running
     ? extraction.cancellationRequested
       ? 'Cancellation requested…'
@@ -1068,8 +1084,11 @@ export function DocumentWorkspace({
                   </span>}
                   {sample.cancellationError && <span role="alert" className="text-danger">{sample.cancellationError}</span>}
                   {shownSample?.requestedPages && <Button className="min-h-9"
-                    disabled={runExtractionUnavailable || !shownSample.requestedSettings}
+                    disabled={runExtractionUnavailable || !shownSample.requestedSettings || sampleRerunRefusal !== null}
+                    aria-describedby={sampleRerunRefusal ? sampleRerunRefusalId : undefined}
                     onClick={() => void runExtraction([...shownSample.requestedPages!], shownSample)}>Save &amp; re-run sample</Button>}
+                  {shownSample?.requestedPages && sampleRerunRefusal &&
+                    <span id={sampleRerunRefusalId} className="min-w-0 text-ink-muted">{sampleRerunRefusal}</span>}
                   {sample.monitorError && (
                     <>
                       <span role="status" className="text-danger">{sample.monitorError}</span>

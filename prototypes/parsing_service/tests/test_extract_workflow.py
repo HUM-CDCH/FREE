@@ -14,6 +14,7 @@ from kei_exp import runs
 from kei_exp.failures import KeiFailure
 from kei_exp.kie.extract import grounded, tokens
 from kei_exp.kie.extract import run as extraction
+from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.passages import load
 from kei_exp.kie.recipe import load_recipe
 from kei_exp.kie.segmentation import load_segmentation
@@ -185,6 +186,19 @@ def test_an_article_that_is_not_one_root_fails_the_step_as_a_record_scope_violat
         workflow.extract_run(WID, run_id, generation, body)
     assert failed.value.code == contract["code"] == "extraction_failed"
     assert failed.value.reason.startswith(contract["reason_prefix"])
+    assert not (runs.RUNS / run_id / "extractions").exists()
+
+
+def test_an_article_whose_root_no_context_answered_fails_the_step_and_publishes_nothing(parsed, scripted):
+    """Every root call cut off (a list too long for its reply): no all-null root is published as a result; the step
+    fails `extraction_failed`, its reason starting `article_root_unanswered:`."""
+    run_id, generation = parsed
+    scripted["script"] = lambda system, user, schema: Reply('{"site_name": ', 50, 4096, "length", 0.0)
+    body = kei_helper.extract_request(run_id, generation, V1["article"])["request"]
+    with pytest.raises(KeiFailure) as failed:
+        workflow.extract_run(WID, run_id, generation, body)
+    assert failed.value.code == "extraction_failed"
+    assert failed.value.reason.startswith("article_root_unanswered:") and "cut off" in failed.value.reason
     assert not (runs.RUNS / run_id / "extractions").exists()
 
 

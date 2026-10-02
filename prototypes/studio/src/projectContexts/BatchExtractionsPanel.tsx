@@ -9,6 +9,7 @@ import type { NavigableRoute } from '../projectNavigation'
 import {
   getSchemaRevision,
   listExtractionSchemas,
+  listSchemaRevisions,
 } from '../schemaRevisions'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import { Button } from '../ui'
@@ -104,6 +105,7 @@ function methodChanged(error: unknown): error is BatchRequestError {
 
 /** Said wherever a start waits for the schema's Article/Catalog choice. */
 const STRATEGY_HELP = 'Article: one object for the whole document. Catalog: a collection of records.'
+const STRATEGY_NAME: Readonly<Record<ExtractionStrategy, string>> = { ARTICLE: 'Article', CATALOG: 'Catalog' }
 
 const noSubscription = () => () => {}
 const noSnapshot = (): SchemaEditorSnapshot | null => null
@@ -210,6 +212,11 @@ export default function BatchExtractionsPanel({
     message: string
   } | null>(null)
   const [pinnedBatchSchemaReload, setPinnedBatchSchemaReload] = useState(0)
+  // The current revision of the open batch's schema, for Run again; unknown until read.
+  const [pinnedSchemaCurrent, setPinnedSchemaCurrent] = useState<{
+    extractionSchemaId: string
+    schemaRevisionId: string
+  } | null>(null)
   const [exportCoverage, setExportCoverage] = useState<{
     batchExtractionId: string
     message: string
@@ -511,6 +518,20 @@ export default function BatchExtractionsPanel({
     pinnedBatchSchemaFailure?.schemaRevisionId === pinnedSchemaRevisionId
       ? pinnedBatchSchemaFailure.message
       : null
+  // Run again repeats the batch on its own Schema Revision under its own strategy, which admission accepts only while
+  // that revision is its schema's current one and its scope names the strategy. A revision a later save replaced, or
+  // one left undeclared (it ran as both Article and Catalog), runs again only as a New Batch Extraction.
+  const runAgainRefusal = !openBatch
+    ? null
+    : pinnedSchemaCurrent?.extractionSchemaId === openBatch.extractionSchemaId &&
+        pinnedSchemaCurrent.schemaRevisionId !== openBatch.schemaRevisionId
+      ? `Schema Revision ${openBatch.schemaRevisionNumber} is no longer the current revision of ${openBatch.extractionSchemaName}, so this Batch Extraction cannot run again. Start a New Batch Extraction with the schema instead.`
+      : currentPinnedBatchSchema &&
+          currentPinnedBatchSchema.recordScope !== recordScopeOf(openBatch.strategy)
+        ? `Schema Revision ${openBatch.schemaRevisionNumber} ${currentPinnedBatchSchema.recordScope === null
+          ? 'declares neither Article nor Catalog'
+          : `is saved as ${STRATEGY_NAME[strategyOf(currentPinnedBatchSchema.recordScope)]}`}, so this Batch Extraction cannot run again as ${STRATEGY_NAME[openBatch.strategy]}. Start a New Batch Extraction with the schema and choose Article or Catalog there.`
+        : null
   // The Schema Revision the open Batch Extraction pinned, so its export offers
   // the schema-led choices of the schema that actually produced the results.
   useEffect(() => {
@@ -546,6 +567,19 @@ export default function BatchExtractionsPanel({
     pinnedSchemaRevisionId,
     pinnedBatchSchemaReload,
   ])
+  // The schema's newest revision is its current one. Unread, Run again stays offered and admission decides.
+  useEffect(() => {
+    if (!pinnedExtractionSchemaId || !pinnedSchemaRevisionId) return
+    const controller = new AbortController()
+    listSchemaRevisions(projectContextId, pinnedExtractionSchemaId, 1, controller.signal).then(
+      ([newest]) => {
+        if (!controller.signal.aborted && newest)
+          setPinnedSchemaCurrent({ extractionSchemaId: pinnedExtractionSchemaId, schemaRevisionId: newest.schemaRevisionId })
+      },
+      () => {},
+    )
+    return () => controller.abort()
+  }, [projectContextId, pinnedExtractionSchemaId, pinnedSchemaRevisionId, pinnedBatchSchemaReload])
 
   /** One spreadsheet over every Extraction Result this batch has produced. */
   const exportOpenBatch = async (
@@ -1305,6 +1339,7 @@ export default function BatchExtractionsPanel({
             }
             opening={openingAnyBatch}
             canRunAgain={saved.state.status === 'ready'}
+            runAgainRefusal={runAgainRefusal}
             runAgainMethod={
               <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
                 method={saved.state.status === 'ready' ? savedMethodFor(saved.state, openBatch.strategy, null) : null}

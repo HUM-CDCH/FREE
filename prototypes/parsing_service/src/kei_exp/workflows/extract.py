@@ -5,10 +5,11 @@ Cancellation is checked before any model call and then between records on every 
 each entry (its entries in KEI_CATALOG_CHUNKS chunks), the version 1 Catalog before each discovery call and before each
 record's extraction and verification, Article before each value context's call and each grounding batch, and the
 unified Catalog before each of its calls. An Article result that is not exactly one record (its document scope) is
-never published: `extraction_failed`, the reason starting `record_scope_violation:`. A model call that is already running finishes first. The unified Catalog
-publishes its execution, discovery and finished entries' records write-once beside the result and reuses them when
-this step runs again, so a retry after a transient failure resumes at the first unfinished entry; budgets it can no
-longer honor are refused as `budget_refused`."""
+never published: `extraction_failed`, the reason starting `record_scope_violation:`; nor is an Article whose root no
+value context answered (`extraction_failed`, `article_root_unanswered:`). A model call that is already running
+finishes first. The unified Catalog publishes its execution, discovery and finished entries' records write-once beside
+the result and reuses them when this step runs again, so a retry after a transient failure resumes at the first
+unfinished entry; budgets it can no longer honor are refused as `budget_refused`."""
 from __future__ import annotations
 
 import os
@@ -20,6 +21,7 @@ from pydantic import ValidationError
 from kei_exp import runs
 from kei_exp.canonical import sha256_file
 from kei_exp.failures import STEP_RETRY, KeiFailure
+from kei_exp.kie.extract.article import RootUnanswered
 from kei_exp.kie.extract.models import chats_for
 from kei_exp.kie.extract.run import ExtractRequest, RecordScopeViolation, StaleGeneration, extract, publish_extraction
 from kei_exp.kie.extract.unified import BudgetRefused, RecordConflict
@@ -74,7 +76,7 @@ def extract_run(workflow_id: str, run_id: str, generation: str, body: dict) -> d
         raise KeiFailure("stale_generation", str(error)) from error
     except BudgetRefused as error:
         raise KeiFailure("budget_refused", str(error)) from error
-    except (RecordConflict, RecordScopeViolation) as error:  # a scope violation's reason keeps its prefix
+    except (RecordConflict, RecordScopeViolation, RootUnanswered) as error:  # a reason keeps its prefix
         raise KeiFailure("extraction_failed", str(error)) from error
     # Observe cancellation during the final model call before publishing or refreshing the run's GC age.
     check(force=True)
