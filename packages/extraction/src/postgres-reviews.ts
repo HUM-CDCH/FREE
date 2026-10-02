@@ -57,11 +57,11 @@ async function reviewMatches(orm: DatabaseOrm, extractionId: string, digest: str
   return (await reviewDigest(orm, extractionId)) === digest || (await storedDecisionsDigest(orm, extractionId)) === digest
 }
 
-/** A stored draft decision on the fields the contract still has: a draft saved with carried provenance still parses. */
-const legacyFree = (decision: Record<string, unknown>) => {
-  const { carriedFrom: _carriedFrom, ...kept } = decision
-  return kept as unknown as ReviewDraft['decisions'][number]
-}
+/** A stored draft's own decisions: one carried from a sample was never the researcher's, and the review must not
+ *  finalize on it. The survivors lose the empty `carriedFrom` the old contract allowed. */
+const ownDecisions = (decisions: readonly Record<string, unknown>[]) => decisions
+  .filter((decision) => !decision.carriedFrom)
+  .map(({ carriedFrom: _empty, ...own }) => own as unknown as ReviewDraft['decisions'][number])
 
 export async function readStoredReviewDraft(database: Database, accountId: string, extractionId: string): Promise<ReviewDraft | null> {
   return database.transaction(async (transaction) => {
@@ -70,7 +70,7 @@ export async function readStoredReviewDraft(database: Database, accountId: strin
     if (!row) return null
     return {
       version: row.reviewDraftVersion,
-      decisions: row.reviewedAt ? [] : ((row.reviewDraft ?? []) as Record<string, unknown>[]).map(legacyFree),
+      decisions: row.reviewedAt ? [] : ownDecisions((row.reviewDraft ?? []) as Record<string, unknown>[]),
     }
   })
 }

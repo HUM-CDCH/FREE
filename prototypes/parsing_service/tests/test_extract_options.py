@@ -2,6 +2,7 @@
 import pytest
 from pydantic import ValidationError
 
+from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.run import Options
 
 
@@ -10,6 +11,13 @@ def test_a_page_scope_is_refused_as_an_unknown_option():
         Options(strategy="article", pages=[1])
 
 
-def test_dumped_options_carry_no_pages_key():
-    assert "pages" not in Options(strategy="article").dumped()
-    assert "pages" not in Options(strategy="catalog").dumped()
+def test_dumped_article_options_are_exactly_the_recorded_ones():
+    assert Options(strategy="article").dumped() == {
+        "strategy": "article", "models": None, "discovery_chars": 48_000, "record_chars": 24_000}
+
+
+def test_dumped_recipe_catalog_options_are_exactly_the_recorded_ones():
+    options = Options(strategy="catalog", catalog=CatalogOptions(recipe="numbered-catalogue-de@1"))
+    assert options.dumped() == {
+        "strategy": "catalog", "models": None, "discovery_chars": 48_000, "record_chars": 24_000,
+        "catalog": {"recipe": "numbered-catalogue-de@1", "input_tokens": 4096, "output_tokens": 1024}}

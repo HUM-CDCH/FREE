@@ -1837,6 +1837,61 @@ describe('reopened Source Document workspace', () => {
   describe('the next run after a refused or failed one', () => {
     const recipe = 'numbered-catalogue-de@1'
 
+    it('a refused admission keeps the saved revision and re-runs under a new ID; an uncertain one re-runs under the same ID', async () => {
+      const writes: RevisionWrite[] = []
+      const runs: Array<{ id: string; schemaRevisionId: string }> = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url === '/api/schema-revisions' && init?.method === 'POST')
+            return Promise.resolve(appendRevision(init, writes))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            const body = JSON.parse(String(init.body)) as (typeof runs)[number]
+            runs.push(body)
+            return Promise.resolve(runs.length === 1
+              ? Response.json({ error: { code: 'invalid_request', message: 'The run was refused.' } }, { status: 422 })
+              : runs.length === 2
+                ? new Response('Bad gateway', { status: 502 })
+                : Response.json({ ...reopened.persistedExtraction, extractionId: body.id, schemaRevisionId: body.schemaRevisionId }, { status: 201 }))
+          }
+          // Reading the uncertain run fails too, so its admission stays unresolved.
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+
+      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(runs).toHaveLength(1))
+      expect(writes).toHaveLength(1)
+      expect(runs[0]).toMatchObject({ schemaRevisionId: appendedRevisionId(2) })
+
+      // Refused: the revision stays saved, so running again only admits, under a new identity.
+      await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(runs).toHaveLength(2))
+      expect(writes).toHaveLength(1)
+      expect(runs[1]).toEqual({ ...runs[0], id: expect.not.stringMatching(runs[0]!.id) })
+
+      // Uncertain (the gateway failed, and so does reading it): running again posts the same identity, which
+      // admission replays if it did commit (design §4).
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(runs).toHaveLength(3))
+      expect(writes).toHaveLength(1)
+      expect(runs[2]).toEqual(runs[1])
+    })
+
     it('after a failed Catalog attempt, the next run posts that attempt\'s recipe', async () => {
       const bodies: Array<{ id: string; strategy: 'ARTICLE' | 'CATALOG'; catalogRecipe?: string }> = []
       const admitted = new Map<string, ExtractionAttempt>()

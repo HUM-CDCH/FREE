@@ -80,8 +80,9 @@ it('a legacy sample row is never the latest or the latest reviewed attempt', asy
     await module.finalizeReview(full.extraction.extractionId, (await module.prepareReview(full.extraction.extractionId)).reviewDecisions)
     // A row the removed sample workbench wrote: newer than the whole-document run, scoped to one page, reviewed.
     const later = new Date(Date.now() + 60_000)
+    const legacyId = randomUUID()
     await db.orm.public.Extraction.create({
-      id: randomUUID(), sourceDocumentId: document.sourceDocumentId,
+      id: legacyId, sourceDocumentId: document.sourceDocumentId,
       sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId: project.schemaRevisionId,
       strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, batchExtractionId: null,
       requestedPages: [1], outcome: 'SUCCEEDED', reviewedAt: later, createdAt: later,
@@ -90,6 +91,13 @@ it('a legacy sample row is never the latest or the latest reviewed attempt', asy
     assert.equal(reopened?.latestAttempt?.extractionId, full.extraction.extractionId)
     assert.equal(reopened?.latestReviewed?.extractionId, full.extraction.extractionId)
     assert.equal('samples' in (reopened ?? {}), false)
+    // Nor is it a document's result when named, a project summary's Extraction, or a recent activity.
+    assert.equal(await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId, extractionId: legacyId }), null)
+    const listed = await createResearcherProjectStore(project.researcherAccountId, db, { workflowStatuses: execution.statuses })
+      .listProjectContexts(20)
+    assert.equal(listed.find((item) => item.projectContextId === project.projectContextId)?.summary.extractionCount, 1)
+    const activity = await createResearcherProjectStore(project.researcherAccountId, db).listRecentActivity(20)
+    assert.equal(activity.filter((event) => event.kind === 'extraction_appended').length, 1)
   })
 
 it('a SUCCESS workflow over a row without an outcome reads as interrupted after the re-read', async (t) => {

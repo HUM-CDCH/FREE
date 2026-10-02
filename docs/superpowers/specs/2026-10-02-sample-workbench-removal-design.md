@@ -94,9 +94,10 @@ hidden it" and "Remove the sample workbench".
   sample entry points.
 - `postgres-reviews.ts`: the `reviewPairings` read in `readStoredReviewDraft`,
   its write in `saveStoredReviewDraft` and its reset in `resetStoredReview`.
-  Stored draft decisions are projected onto the remaining fields when read
-  (a legacy `carriedFrom` is dropped), so a draft saved before this change
-  still parses under the strict contract and keeps its values and version.
+  A stored draft's decisions carried from a sample are dropped when read (see
+  Error handling), so a draft saved before this change still parses under the
+  strict contract; the researcher's own decisions keep their values and the
+  draft its version.
   A finalized review's replay check also accepts the digest recomputed from
   its stored decisions under the current normalization, so a review finalized
   with carried decisions before this change still replays instead of
@@ -193,9 +194,12 @@ stay. The files: `packages/extraction/src/postgres-admission.integration.test.ts
 - A run request body with `pages`: 422 `invalid_request`.
 - A whole-document run posted under a legacy sample's ID: 409
   `extraction_id_conflict`, nothing enqueued.
-- A stored draft or a finalized review that carries `carriedFrom` or
-  `reviewPairings` from before this change: read back without them, values
-  and version preserved; a repeated finalize of such a review replays.
+- A stored draft from before this change: its hand pairings are ignored, and
+  every decision it carried from a sample is dropped on read (it was never the
+  researcher's own, and the review must not finalize on it); the researcher's
+  own decisions keep their values and the draft keeps its version. A finalized
+  review from before this change reads back without `carriedFrom` on its
+  decisions, and a repeated finalize of it replays.
 - A `loadAdmitted` checkpoint written before this change that carries
   `requestedPages`: the workflow ignores the field; such a workflow is a
   sample's and was settled or cancelled before the deploy, per the drain the
@@ -208,8 +212,9 @@ stay. The files: `packages/extraction/src/postgres-admission.integration.test.ts
   the whole-document attempt as latest; `keiExtractRequest` builds a request
   without `pages`; the run route refuses a body with `pages`; a
   whole-document run under a legacy sample's ID is a conflict; a stored draft
-  and a finalized review with legacy `carriedFrom` and `reviewPairings` read
-  back without them and the finalized one replays; `App` renders no sample
+  with legacy `reviewPairings` and carried decisions reads back without them,
+  and a finalized review with legacy `carriedFrom` reads back without it and
+  replays; `App` renders no sample
   control and `PageNavigation` no checkbox; kei refuses `options.pages` and
   `dumped()` carries no `pages` key (`run.py` unit tests).
 - Removed: the sample cases listed in §1.

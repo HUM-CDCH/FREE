@@ -532,8 +532,9 @@ describe('the admitted method', () => {
     assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')
   })
 
-  it('every admitted run asks kei for the whole document', async () => {
-    const run = harness({ admitted: admittedExtraction() })
+  it('a checkpoint written before the sample workbench was removed still runs the whole document', async () => {
+    // A loadAdmitted checkpoint of a sample run carries its requested pages; kei is asked for none.
+    const run = harness({ admitted: { ...admittedExtraction(), requestedPages: [12, 13] } as AdmittedExtraction })
     await run.run()
     assert.deepEqual((run.submissions[0]!.request as KeiExtractInput).request.options, { strategy: 'article' })
     assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')

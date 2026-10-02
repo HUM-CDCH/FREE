@@ -79,23 +79,32 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
     assert.equal(previousDecision?.action, 'EDITED')
   })
 
-it('a stored draft with legacy pairings and carried provenance reads back without them and keeps its version', async (t) => {
+it('a stored draft with legacy pairings and carried decisions reads back without them and keeps its version', async (t) => {
     t.after(cleanup)
-    const project = await seedProject()
+    const project = await seedProject({ recordDescription: 'One record.', schemaNodes: [
+      { id: 'title-node', name: 'title', type: 'string' }, { id: 'note-node', name: 'note', type: 'string' },
+    ] })
     const { module } = createRuntime(project.researcherAccountId)
     const { extraction } = await module.runSingle(freshInput(project))
     const prepared = await module.prepareReview(extraction.extractionId)
-    const legacy = prepared.reviewDecisions.map((decision, index) => index === 0
-      ? { ...decision, carriedFrom: { extractionId: 'old-sample', sourcePathKey: '["records",0,"title"]' } }
-      : decision)
+    const [title, note] = prepared.reviewDecisions
+    assert.equal(prepared.reviewDecisions.length, 2)
+    // The title decision was carried from a sample; the note decision is the researcher's own, with the empty
+    // provenance the old contract allowed.
+    const own = { ...note!, action: 'REJECTED' as const, reviewedValue: null }
+    const legacy = [
+      { ...title!, carriedFrom: { extractionId: 'old-sample', sourcePathKey: '["records",0,"title"]' } },
+      { ...own, carriedFrom: null },
+    ]
     await db.orm.public.Extraction.where({ id: extraction.extractionId })
       .update({ reviewDraft: legacy, reviewDraftVersion: 4, reviewPairings: [{ record: 0, extractionId: 'old-sample', sourceRecord: 0 }] })
     const draft = await module.readReviewDraft(extraction.extractionId)
     assert.equal(draft.version, 4)
-    assert.equal(draft.decisions.length, prepared.reviewDecisions.length)
+    // A carried decision was never the researcher's own: it is dropped, so the review cannot finalize on it.
+    assert.equal(draft.decisions.length, prepared.reviewDecisions.length - 1)
     assert.equal(draft.decisions.some((decision) => 'carriedFrom' in decision), false)
     assert.equal('pairings' in draft, false)
-    assert.deepEqual(draft.decisions[0]!.resultPath, prepared.reviewDecisions[0]!.resultPath)
+    assert.deepEqual(draft.decisions, [own])
   })
 
 it('projects only the active review revision into batch results after reset', async (t) => {

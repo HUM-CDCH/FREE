@@ -67,12 +67,20 @@ it('combines server-saved decisions with pending fields without treating default
 })
 
 describe('review drafts from before the sample workbench was removed', () => {
-  it('drops a local draft that still carries pairings and keeps the server state', () => {
-    const decision = { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'a_p1_1', reviewedOccurrenceIds: ['o1'], action: 'APPROVED' as const, reviewedValue: null }
+  const local = { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'a_p1_1', reviewedOccurrenceIds: ['o1'], action: 'REJECTED' as const, reviewedValue: null }
+  const server = { ...local, action: 'APPROVED' as const }
+
+  // The local decision differs from the server's, so a lenient parse would recover it as a conflict at version 2.
+  it.each([
+    ['a draft that still carries pairings', { version: 2, decisions: [local], pairings: [{ record: 0, extractionId: 'old', sourceRecord: 0 }] }],
+    ['a decision that still carries carriedFrom', { version: 2, decisions: [{ ...local, carriedFrom: { extractionId: 'old', sourcePathKey: '["records",0,"title"]' } }] }],
+  ])('drops a local draft with %s and keeps the server state', (_name, legacy) => {
     setSessionRecoveryAccount('account-a')
-    rememberReviewDraft('e1', { version: 2, decisions: [decision], pairings: [{ record: 0, extractionId: 'old', sourceRecord: 0 }] } as never)
+    rememberReviewDraft('e1', legacy as never)
     captureSessionRecovery()
-    const recovered = recoverReviewDraft('e1', { version: 3, decisions: [decision] }, [decision])
+    const recovered = recoverReviewDraft('e1', { version: 3, decisions: [server] }, [server])
+    expect(recovered.decisions).toEqual([server])
+    expect(recovered.retry).toBe(false)
     expect(recovered.conflict).toBe(false)
     expect(recovered.version).toBe(3)
     expect('pairings' in recovered).toBe(false)

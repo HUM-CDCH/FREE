@@ -223,6 +223,7 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
       requestedPages: [1], batchExtractionId: null,
     })
     await assert.rejects(module.runSingle(input), rejectsWithCode('extraction_id_conflict'))
+    assert.deepEqual(await app.admission.listWorkflows({ workflowIDs: [`extract:${input.extractionId}`] }), [])
   })
 
   it('explicit reference and service defaults are different requests under one ID', async (t) => {
