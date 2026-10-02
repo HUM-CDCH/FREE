@@ -324,7 +324,7 @@ Sources: [run controls](../../prototypes/studio/src/App.tsx), [Extraction contro
 
 ### SMP — Page samples and review in the Schema panel
 
-Sources: [sample page controls](../../prototypes/studio/src/App.tsx), [sample field cards](../../prototypes/studio/src/SchemaPanel.tsx), [Sample Extraction delivery record](../../openspec/changes/sample-extraction-workbench/tasks.md), [sample specification](../../openspec/changes/sample-extraction-workbench/specs/sample-extraction/spec.md). Only delivered sections 1–2 are included here.
+Sources: [sample page controls](../../prototypes/studio/src/App.tsx), [sample field cards](../../prototypes/studio/src/SchemaPanel.tsx), [Sample Extraction delivery record](../../openspec/changes/archive/2026-10-02-sample-extraction-workbench/tasks.md), [sample specification](../../openspec/changes/archive/2026-10-02-sample-extraction-workbench/specs/sample-extraction/spec.md). Only delivered sections 1–2 are included here.
 
 | ID | Priority / tier | User story | Given → When → Then |
 | --- | --- | --- | --- |
@@ -345,7 +345,7 @@ Sources: [sample page controls](../../prototypes/studio/src/App.tsx), [sample fi
 
 ### XFR — Carrying sample decisions into later single Extractions
 
-Sources: [delivered transfer tasks](../../openspec/changes/sample-extraction-workbench/tasks.md), [transfer specification](../../openspec/changes/sample-extraction-workbench/specs/review-transfer/spec.md), [Schema panel transfer states](../../prototypes/studio/src/SchemaPanel.tsx), [Results transfer controls](../../prototypes/studio/src/ResultsTab.tsx).
+Sources: [delivered transfer tasks](../../openspec/changes/archive/2026-10-02-sample-extraction-workbench/tasks.md), [transfer specification](../../openspec/changes/archive/2026-10-02-sample-extraction-workbench/specs/review-transfer/spec.md), [Schema panel transfer states](../../prototypes/studio/src/SchemaPanel.tsx), [Results transfer controls](../../prototypes/studio/src/ResultsTab.tsx).
 
 | ID | Priority / tier | User story | Given → When → Then |
 | --- | --- | --- | --- |
@@ -571,7 +571,7 @@ These are future story seeds backed by active plans. They are deliberately exclu
 
 This classification belongs to the inspected source/task baseline. The later [authenticated deployment exploration](2026-10-01-studio-exploratory-browser.md) observed codebook-import, coverage and attention controls on the live app. Their visible presence alone does not verify the complete proposed acceptance contracts; reconcile the deployment's build identity and current implementation before selecting future-story tests.
 
-Sources: [workbench tasks, undelivered sections 3–6](../../openspec/changes/sample-extraction-workbench/tasks.md), [selected workflow integration plan](../plans/2026-09-30-workbench-workflow-integration.md), [unified Catalog tasks](../../openspec/changes/unify-catalog-extraction/tasks.md).
+Sources: [workbench tasks, undelivered sections 3–6](../../openspec/changes/archive/2026-10-02-sample-extraction-workbench/tasks.md), [selected workflow integration plan](../plans/2026-09-30-workbench-workflow-integration.md), [unified Catalog tasks](../../openspec/changes/unify-catalog-extraction/tasks.md).
 
 | Future ID | User story | Future acceptance target |
 | --- | --- | --- |

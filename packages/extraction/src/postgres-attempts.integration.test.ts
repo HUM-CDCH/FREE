@@ -71,22 +71,28 @@ describe('Extraction attempts on disposable PostgreSQL', { skip: !fixture && 'se
     assert.equal((await extractionRow(input.extractionId))?.outcome, 'FAILED')
   })
 
-it('a newer reviewed sample is listed apart and displaces neither the full result nor the summary', async (t) => {
+it('a legacy sample row is never the latest or the latest reviewed attempt', async (t) => {
     t.after(cleanup)
     const project = await seedProject()
     const document = project.documents[0]!
     const { module } = createRuntime(project.researcherAccountId)
-    const review = async (extractionId: string) =>
-      module.finalizeReview(extractionId, (await module.prepareReview(extractionId)).reviewDecisions)
     const full = await module.runSingle(freshInput(project))
-    await review(full.extraction.extractionId)
-    const sample = await module.runSingle({ ...freshInput(project), pages: [1] })
-    await review(sample.extraction.extractionId)
+    await module.finalizeReview(full.extraction.extractionId, (await module.prepareReview(full.extraction.extractionId)).reviewDecisions)
+    // A row the removed sample workbench wrote: newer than the whole-document run, scoped to one page, reviewed.
+    const later = new Date(Date.now() + 60_000)
+    const legacyId = randomUUID()
+    await db.orm.public.Extraction.create({
+      id: legacyId, sourceDocumentId: document.sourceDocumentId,
+      sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, batchExtractionId: null,
+      requestedPages: [1], outcome: 'SUCCEEDED', reviewedAt: later, createdAt: later,
+    })
     const reopened = await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId })
     assert.equal(reopened?.latestAttempt?.extractionId, full.extraction.extractionId)
     assert.equal(reopened?.latestReviewed?.extractionId, full.extraction.extractionId)
-    assert.deepEqual(reopened?.samples.map((each) => [each.extractionId, each.requestedPages]),
-      [[sample.extraction.extractionId, [1]]])
+    assert.equal('samples' in (reopened ?? {}), false)
+    // Nor is it a document's result when named, a project summary's Extraction, or a recent activity.
+    assert.equal(await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId, extractionId: legacyId }), null)
     const listed = await createResearcherProjectStore(project.researcherAccountId, db, { workflowStatuses: execution.statuses })
       .listProjectContexts(20)
     assert.equal(listed.find((item) => item.projectContextId === project.projectContextId)?.summary.extractionCount, 1)

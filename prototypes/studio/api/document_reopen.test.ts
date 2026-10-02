@@ -105,7 +105,6 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
       sourceRepresentationRevisionId: representationId,
       latestAttempt: extraction,
       latestReviewed: extraction,
-      samples: [],
     })),
     scheduleBatch: vi.fn(),
     scheduleSuggestedBatch: vi.fn(),
@@ -260,7 +259,6 @@ describe('document reopen ExtractionModule projection', () => {
           sourceRepresentationRevisionId: representationId,
           latestAttempt: attempt,
           latestReviewed: attempt,
-          samples: [],
         })),
       }),
     )(url(query))

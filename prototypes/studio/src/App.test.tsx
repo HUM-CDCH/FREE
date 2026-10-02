@@ -1318,7 +1318,7 @@ describe('reopened Source Document workspace', () => {
       expect(control).toBeDisabled()
   })
 
-  it('navigates a long document with the keyboard and enforces the sample page limit', async () => {
+  it('navigates a long document with the keyboard and offers no sample controls', async () => {
     getDocument.mockReturnValueOnce({
       promise: Promise.resolve({ numPages: 120 }),
       destroy: destroyLoadingTask,
@@ -1336,215 +1336,12 @@ describe('reopened Source Document workspace', () => {
     expect(navigation.getByRole('button', { name: 'Go to page 119' })).toHaveFocus()
     fireEvent.keyDown(document.activeElement!, { key: 'Home' })
     expect(firstPage).toHaveFocus()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Select sample pages' }))
-    for (let page = 1; page <= 30; page += 1)
-      fireEvent.click(navigation.getByRole('checkbox', { name: `Add page ${page} to the sample` }))
-    expect(navigation.getByRole('checkbox', { name: 'Add page 31 to the sample' })).toBeDisabled()
-    fireEvent.click(navigation.getByRole('checkbox', { name: 'Remove page 1 from the sample' }))
-    expect(navigation.getByRole('checkbox', { name: 'Add page 31 to the sample' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Select sample pages' })).not.toBeInTheDocument()
+    expect(navigation.queryAllByRole('checkbox')).toHaveLength(0)
+    expect(screen.queryByText(/admitted samples/)).not.toBeInTheDocument()
     fireEvent.keyDown(firstPage, { key: 'Escape' })
     expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pages' })).toHaveFocus()
-    expect(screen.getByRole('button', { name: 'Run sample on pp. 2–30' })).toBeEnabled()
-  })
-
-  it('keeps page navigation visible and sampling optional, preserves a hidden selection, and admits with the saved schema', async () => {
-    const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
-    const schemaSaves: unknown[] = []
-    const runs: Array<{ id: string; schemaRevisionId: string; pages?: number[] }> = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: string | URL | Request, init?: RequestInit) => {
-        const url = String(input)
-        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
-        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
-        if (url.startsWith('/api/schema-revisions?'))
-          return Promise.resolve(Response.json({ revisions: [] }))
-        if (url === '/api/schema-revisions' && init?.method === 'POST') {
-          const request = JSON.parse(String(init.body)) as { recordDescription: string; schemaNodes: SchemaNode[] }
-          schemaSaves.push(request)
-          return Promise.resolve(Response.json({
-            revision: {
-              schemaRevisionId: savedSchemaRevisionId,
-              extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
-              revisionNumber: 2, origin: 'researcher-edit', createdAt: '2026-08-12T00:00:00.000Z',
-              recordDescription: request.recordDescription, schemaNodes: request.schemaNodes, recordScope: 'document',
-            },
-          }, { status: 201 }))
-        }
-        if (url.endsWith('/api/extractions') && init?.method === 'POST') {
-          const body = JSON.parse(String(init.body)) as (typeof runs)[number]
-          runs.push(body)
-          return Promise.resolve(runs.length === 1
-            ? Response.json({ error: { code: 'invalid_request', message: 'The sample was refused.' } }, { status: 422 })
-            : runs.length === 2
-              ? new Response('Bad gateway', { status: 502 })
-              : Response.json({ ...reopened.persistedExtraction, extractionId: body.id, schemaRevisionId: savedSchemaRevisionId,
-                requestedPages: body.pages }, { status: 201 }))
-        }
-        return Promise.resolve(new Response('pdf'))
-      }),
-    )
-    render(<DocumentWorkspace {...reopened} />)
-    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Go to page 2' }))
-    expect(screen.getByRole('navigation', { name: 'Page navigation' })).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: /page \d+.*sample/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'This page' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Select sample pages' }))
-    expect(screen.getByText('Around page 2:')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '± 1 page' }))
-    expect(screen.getByText('pp. 1–3')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Remove page 3 from the sample' }))
-    expect(screen.getByRole('checkbox', { name: 'Add page 3 to the sample' })).not.toBeChecked()
-    expect(screen.getByText('2 pages')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Done selecting' }))
-    expect(screen.queryByRole('checkbox', { name: /page \d+.*sample/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'This page' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Go to page 1' })).toHaveAccessibleDescription('Sample')
-    fireEvent.click(screen.getByRole('button', { name: 'Pages' }))
-    expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
-    expect(screen.getByText('2 pages')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByTitle('Edit place'))
-    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Run sample on pp. 1–2' }))
-    await waitFor(() => expect(runs).toHaveLength(1))
-    expect(schemaSaves).toHaveLength(1)
-    expect(runs[0]).toMatchObject({ schemaRevisionId: savedSchemaRevisionId, pages: [1, 2] })
-
-    // Refused: the revision stays saved, so running the sample again only admits, under a new identity.
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Run sample on pp. 1–2' })).toBeEnabled())
-    fireEvent.click(screen.getByRole('button', { name: 'Run sample on pp. 1–2' }))
-    await waitFor(() => expect(runs).toHaveLength(2))
-    expect(schemaSaves).toHaveLength(1)
-    expect(runs[1]).toEqual({ ...runs[0], id: expect.not.stringMatching(runs[0]!.id) })
-    // Uncertain (the gateway failed, and so does reading it): the sample bar offers Reconnect, and running again
-    // posts the same identity, which admission replays if it did commit (design §4).
-    expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Run sample on pp. 1–2' }))
-    await waitFor(() => expect(runs).toHaveLength(3))
-    expect(runs[2]).toEqual(runs[1])
-    // The sample is its own attempt: the whole-document result stays what Results shows.
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(await screen.findByText('Ellekilde')).toBeInTheDocument()
-  })
-
-  it.each(['QUEUED', 'RUNNING'] as const)('offers status and cancellation for a reopened %s sample without cancelling the whole-document result', async (executionStatus) => {
-    const { sourceRepresentation, extractionSchema, ...previousAttempt } = reopened.persistedExtraction!
-    const activeSample: ExtractionAttempt = {
-      ...previousAttempt,
-      extractionId: '51000000-0000-4000-8006-000000000002',
-      requestedPages: [2], executionStatus, outcome: null, complete: null,
-      resultPayload: null, evidenceLinks: null, diagnostics: null,
-      modelAttribution: null, reviewable: false,
-    }
-    const cancellations: string[] = []
-    let monitoredSample = activeSample
-    let rejectCancellation = true
-    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input)
-      if (init?.method === 'DELETE') {
-        cancellations.push(url)
-        if (rejectCancellation) {
-          rejectCancellation = false
-          return Promise.resolve(Response.json({ error: { code: 'cancel_failed', message: 'Try cancelling again' } }, { status: 503 }))
-        }
-        return Promise.resolve(Response.json({ extractionId: activeSample.extractionId }, { status: 202 }))
-      }
-      if (url.endsWith(`/extractions/${activeSample.extractionId}`))
-        return Promise.resolve(Response.json({ extraction: monitoredSample, pendingReviewDecisions: null }))
-      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
-      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
-      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
-      return Promise.resolve(new Response('pdf'))
-    }))
-    render(<DocumentWorkspace {...reopened} latestSample={{ ...activeSample, sourceRepresentation, extractionSchema }} />)
-    const cancel = await screen.findByRole('button', { name: 'Cancel sample' })
-    expect(cancel).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Pages' }))
-    expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cancel sample' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Select sample pages' }))
-    fireEvent.click(screen.getByRole('button', { name: 'This page' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Done selecting' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Pages' }))
-    expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cancel sample' })).toBeEnabled()
-    expect(screen.getByText(executionStatus === 'QUEUED' ? 'Sample queued on pp. 2' : 'Sample running on pp. 2')).toHaveAttribute('role', 'status')
-    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
-
-    fireEvent.click(cancel)
-    expect(await screen.findByText('cancel_failed: Try cancelling again')).toHaveAttribute('role', 'alert')
-    expect(screen.getByRole('button', { name: 'Cancel sample' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel sample' }))
-    await waitFor(() => expect(cancellations).toHaveLength(2))
-    expect(cancellations).toEqual(Array(2).fill(`/api/extractions/${activeSample.extractionId}`))
-    expect(screen.getByRole('button', { name: 'Cancellation requested…' })).toBeDisabled()
-    expect(screen.getByText('Sample cancellation requested; a running model call may need to finish first.')).toHaveAttribute('role', 'status')
-
-    // Cancellation is cooperative: no new run is offered until a terminal status is observed.
-    monitoredSample = { ...activeSample, executionStatus: 'FAILED', failure: { code: 'cancelled', message: 'Extraction cancelled' } }
-    expect(await screen.findByRole('button', { name: 'Run sample on pp. 1' }, { timeout: 4_000 })).toBeEnabled()
-    expect(await screen.findByText('Sample cancelled — no result was saved')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(await screen.findByText('Ellekilde')).toBeInTheDocument()
-  })
-
-  it('shows the newest sample only on the Source Representation it ran on', async () => {
-    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
-      const url = String(input)
-      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
-      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
-      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
-      return Promise.resolve(new Response('pdf'))
-    }))
-    const sampleOn = (sourceRepresentationRevisionId: string) => ({
-      ...reopened.persistedExtraction!, extractionId: '51000000-0000-4000-8006-000000000002', requestedPages: [1],
-      resultPayload: { records: [{ place: 'Ellekilde' }] }, sourceRepresentationRevisionId,
-    })
-    const { unmount } = render(<DocumentWorkspace {...reopened} latestSample={sampleOn(reopened.sourceRepresentationId)} />)
-    expect(await screen.findByText(/^Sample · rev 1 · pp\. 1/)).toBeInTheDocument()
-    unmount()
-    render(<DocumentWorkspace {...reopened} latestSample={sampleOn('51000000-0000-4000-8002-000000000009')} />)
-    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    expect(screen.queryByText(/^Sample · rev/)).not.toBeInTheDocument()
-  })
-
-  it('offers Save & re-run sample only while the schema is still the strategy the sample ran as', async () => {
-    const extractionRequests: unknown[] = []
-    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input)
-      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
-      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
-      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
-      if (url === '/api/schema-revisions' && init?.method === 'POST') return Promise.resolve(appendRevision(init))
-      if (url.endsWith('/api/extractions')) {
-        extractionRequests.push(JSON.parse(String(init?.body)))
-        return Promise.resolve(Response.json({ error: { code: 'record_scope_mismatch', message: 'Refused.' } }, { status: 409 }))
-      }
-      return Promise.resolve(new Response('pdf'))
-    }))
-    const articleSample = {
-      ...reopened.persistedExtraction!, extractionId: '51000000-0000-4000-8006-000000000002', requestedPages: [1],
-      requestedModels: null, requestedSettings: { article: null },
-    }
-    render(<DocumentWorkspace {...reopened} latestSample={articleSample} />)
-    const rerun = await screen.findByRole('button', { name: 'Save & re-run sample' })
-    await waitFor(() => expect(rerun).toBeEnabled())
-    // The sample repeats its own method, Article included; a Catalog schema would refuse it (record_scope_mismatch).
-    fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
-    await waitFor(() => expect(rerun).toBeDisabled())
-    expect(rerun).toHaveAccessibleDescription(
-      'This sample ran as Article, and the schema is now Catalog. Run a new sample to extract it as Catalog.')
-    fireEvent.click(rerun)
-    expect(extractionRequests).toEqual([])
-    fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'ARTICLE' } })
-    await waitFor(() => expect(rerun).toBeEnabled())
-    expect(rerun).not.toHaveAccessibleDescription()
   })
 
   it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the schema\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {
@@ -2039,6 +1836,61 @@ describe('reopened Source Document workspace', () => {
 
   describe('the next run after a refused or failed one', () => {
     const recipe = 'numbered-catalogue-de@1'
+
+    it('a refused admission keeps the saved revision and re-runs under a new ID; an uncertain one re-runs under the same ID', async () => {
+      const writes: RevisionWrite[] = []
+      const runs: Array<{ id: string; schemaRevisionId: string }> = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url === '/api/schema-revisions' && init?.method === 'POST')
+            return Promise.resolve(appendRevision(init, writes))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            const body = JSON.parse(String(init.body)) as (typeof runs)[number]
+            runs.push(body)
+            return Promise.resolve(runs.length === 1
+              ? Response.json({ error: { code: 'invalid_request', message: 'The run was refused.' } }, { status: 422 })
+              : runs.length === 2
+                ? new Response('Bad gateway', { status: 502 })
+                : Response.json({ ...reopened.persistedExtraction, extractionId: body.id, schemaRevisionId: body.schemaRevisionId }, { status: 201 }))
+          }
+          // Reading the uncertain run fails too, so its admission stays unresolved.
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+
+      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(runs).toHaveLength(1))
+      expect(writes).toHaveLength(1)
+      expect(runs[0]).toMatchObject({ schemaRevisionId: appendedRevisionId(2) })
+
+      // Refused: the revision stays saved, so running again only admits, under a new identity.
+      await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(runs).toHaveLength(2))
+      expect(writes).toHaveLength(1)
+      expect(runs[1]).toEqual({ ...runs[0], id: expect.not.stringMatching(runs[0]!.id) })
+
+      // Uncertain (the gateway failed, and so does reading it): running again posts the same identity, which
+      // admission replays if it did commit (design §4).
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(runs).toHaveLength(3))
+      expect(writes).toHaveLength(1)
+      expect(runs[2]).toEqual(runs[1])
+    })
 
     it('after a failed Catalog attempt, the next run posts that attempt\'s recipe', async () => {
       const bodies: Array<{ id: string; strategy: 'ARTICLE' | 'CATALOG'; catalogRecipe?: string }> = []

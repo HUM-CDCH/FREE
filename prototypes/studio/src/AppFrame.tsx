@@ -226,7 +226,6 @@ export default function AppFrame({
         extractionSchema: openDocument.extractionSchema,
         persistedExtraction: openDocument.latestAttempt,
         latestReviewedExtraction: openDocument.latestReviewed,
-        latestSample: openDocument.latestSample,
         onOpenExtraction: (extractionId: string) => onNavigate({
           kind: 'document',
           projectContextId: openDocument.projectContext.projectContextId,
@@ -567,7 +566,6 @@ export default function AppFrame({
                 <DocumentWorkspace
                   key={workspace.projectContextId}
                   {...workspace}
-                  sourceDocumentId={route.kind === 'document' ? route.sourceDocumentId : undefined}
                   onInitialResourceLoadFailure={onInitialResourceLoadFailure}
                 />
               </Suspense>

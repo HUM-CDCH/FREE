@@ -52,9 +52,9 @@ export function readAttemptRows(orm: DatabaseOrm, extractionIds: readonly string
   return orm.public.Extraction.where((row) => row.id.in([...extractionIds]))
     .select(
       'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
-      'requestedModels', 'requestedSettings', 'requestedPages', 'outcome', 'complete', 'modelAttribution',
+      'requestedModels', 'requestedSettings', 'outcome', 'complete', 'modelAttribution',
       'diagnostics', 'failure', 'resultPayload', 'evidenceLinks',
-      'reviewable', 'batchExtractionId', 'createdAt', 'reviewedAt', 'reviewTransfer',
+      'reviewable', 'batchExtractionId', 'createdAt', 'reviewedAt',
     )
     .all()
 }
@@ -135,7 +135,6 @@ async function pinsOf(orm: DatabaseOrm, row: AttemptRow) {
     catalogRecipe: row.catalogRecipe,
     requestedModels: modelChoice(row.requestedModels),
     requestedSettings: recordedSettings(row.requestedSettings, row.strategy as ExtractionStrategy, row.catalogRecipe),
-    requestedPages: row.requestedPages as readonly number[] | null,
     batchExtractionId: row.batchExtractionId,
     createdAt: row.createdAt,
   }
@@ -158,7 +157,6 @@ export async function extractionSnapshot(orm: DatabaseOrm, row: AttemptRow): Pro
         'action',
         'reviewedValue',
         'reviewedEvidence',
-        'carriedFrom',
         'createdAt',
       )
       .orderBy((decision) => decision.resultPathKey.asc()).all()
@@ -174,7 +172,6 @@ export async function extractionSnapshot(orm: DatabaseOrm, row: AttemptRow): Pro
     failure: null,
     reviewable: row.reviewable,
     reviewedAt: row.reviewedAt,
-    reviewTransfer: row.reviewTransfer as ExtractionSnapshot['reviewTransfer'],
     reviewDecisions: decisions.map((decision) => ({
       resultPath: decision.resultPath as ExtractionSnapshot['reviewDecisions'][number]['resultPath'],
       evidenceAnchorId: decision.evidenceAnchorId,
@@ -184,7 +181,6 @@ export async function extractionSnapshot(orm: DatabaseOrm, row: AttemptRow): Pro
       ...(decision.reviewedEvidence
         ? { reviewedEvidence: decision.reviewedEvidence as ExtractionSnapshot['reviewDecisions'][number]['reviewedEvidence'] }
         : {}),
-      ...(decision.carriedFrom ? { carriedFrom: decision.carriedFrom as ExtractionSnapshot['reviewDecisions'][number]['carriedFrom'] } : {}),
       createdAt: decision.createdAt,
     })),
   }
@@ -234,7 +230,7 @@ export async function loadDocumentExtractions(
       'reviewedAt')
     .all()
   // An interactive attempt in any state, or a published result of any kind: a pending or failed batch member is not a
-  // result and never displaces one (spec, *One Extraction row*). A Sample Extraction is neither: it is listed apart.
+  // result and never displaces one (spec, *One Extraction row*). A legacy sample row (`requestedPages` set) is neither.
   const whole = rows.filter((row) => row.requestedPages === null)
   const candidates = whole
     .filter((row) => row.batchExtractionId === null || row.outcome === 'SUCCEEDED')
@@ -258,19 +254,13 @@ export async function loadDocumentExtractions(
       right.reviewedAt!.getTime() - left.reviewedAt!.getTime() ||
       right.createdAt.getTime() - left.createdAt.getTime() ||
       right.id.localeCompare(left.id))[0] ?? null
-  // ponytail: every sample of the current revision is read whole, newest first; page them if histories grow long.
-  const samples = rows
-    .filter((row) => row.requestedPages !== null && row.sourceRepresentationRevisionId === currentRepresentationId)
-    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime() || right.id.localeCompare(left.id))
   const attempts = await loadAttempts(orm, statuses, [
     ...(selected ? [selected.id] : []),
     ...(latestReviewed ? [latestReviewed.id] : []),
-    ...samples.map((sample) => sample.id),
   ])
   return {
     sourceRepresentationRevisionId: representationId,
     latestAttempt: selected ? attempts.get(selected.id) ?? null : null,
     latestReviewed: latestReviewed ? attempts.get(latestReviewed.id) ?? null : null,
-    samples: samples.map((sample) => attempts.get(sample.id)!),
   }
 }

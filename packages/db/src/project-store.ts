@@ -1196,7 +1196,7 @@ export function createResearcherProjectStore(
           : await database.orm.public.Extraction.where((extraction) =>
               extraction.sourceDocumentId.in(documentIds),
             )
-              // A Sample Extraction is no document's result and counts in no summary.
+              // A legacy sample row (`requestedPages` set) is no document's result and counts in no summary.
               .where({ outcome: 'SUCCEEDED', requestedPages: null })
               .select(
                 'sourceDocumentId',
@@ -1434,6 +1434,7 @@ export function createResearcherProjectStore(
           : await database.orm.public.Extraction.where((extraction) =>
               extraction.sourceDocumentId.in(documents.map((d) => d.id)),
             )
+              // The activity feed leaves out legacy sample rows (`requestedPages` set) the same way.
               .where({ outcome: 'SUCCEEDED', requestedPages: null })
               .select('sourceDocumentId', 'createdAt', 'reviewedAt')
               .all()

@@ -101,39 +101,10 @@ export type ReviewDecisionInput = Readonly<{
   reviewedValue: unknown | null
   /** An EDITED decision's own Evidence: the published passage its corrected value is printed in. */
   reviewedEvidence?: readonly Readonly<{ evidenceAnchorId: string; reviewedOccurrenceIds: readonly string[] }>[] | null
-  /** The sample decision this one was carried from; absent on the researcher's own. */
-  carriedFrom?: Readonly<{ extractionId: string; sourcePathKey: string }> | null
 }>
 
 export type ReviewDecision = ReviewDecisionInput & Readonly<{
   createdAt: Date
-}>
-
-/** A record as a review transfer aligns it: its segmentation block (recipe Catalog) and every Evidence Anchor its
- *  values cite, sorted. */
-export type TransferRecord = Readonly<{ block: string | null; anchors: readonly string[] }>
-
-/** A sample's decision as pinned: what it decided on which value of which record (`record` indexes its sample's
- *  `records`), by schema node id so a rename carries. */
-export type TransferEntry = Readonly<{
-  extractionId: string
-  draftVersion: number
-  nodeId: string
-  record: number
-  sourcePathKey: string
-  action: ReviewDecisionAction
-  modelValue: unknown
-  reviewedValue: unknown
-  valueType: string
-  evidenceAnchorId: string | null
-  reviewedEvidence: ReviewDecisionInput['reviewedEvidence'] | null
-}>
-
-/** The sample Review Decisions an Extraction pins at admission (design §6): self-contained, so a collected
- *  sample leaves no dangling reference, and never changed afterwards. */
-export type ReviewTransfer = Readonly<{
-  samples: readonly Readonly<{ extractionId: string; segmentation: string | null; records: readonly TransferRecord[] }>[]
-  entries: readonly TransferEntry[]
 }>
 
 export type ModelGenerationMetadata = Readonly<{
@@ -281,8 +252,6 @@ export type ExtractionSnapshot = Readonly<{
   /** The settings admitted with the run (`{article}`, `{generic}` or `{recipe}`, each null for service defaults);
    *  null or absent when the run predates recorded settings ("Not recorded"). */
   requestedSettings?: ActiveSettings | null
-  /** A Sample Extraction's pages; null (or absent) for a whole-document Extraction. */
-  requestedPages?: readonly number[] | null
   /** Only a published Extraction has a result snapshot. */
   outcome: 'SUCCEEDED'
   complete: boolean | null
@@ -296,8 +265,6 @@ export type ExtractionSnapshot = Readonly<{
   createdAt: Date
   reviewedAt: Date | null
   reviewDecisions: readonly ReviewDecision[]
-  /** The sample decisions pinned at admission; null (or absent) when none were. */
-  reviewTransfer?: ReviewTransfer | null
 }>
 
 export type ExtractionAttemptSnapshot = Readonly<{
@@ -316,8 +283,6 @@ export type ExtractionAttemptSnapshot = Readonly<{
   /** The settings admitted with the run (`{article}`, `{generic}` or `{recipe}`, each null for service defaults);
    *  null or absent when the run predates recorded settings ("Not recorded"). */
   requestedSettings?: ActiveSettings | null
-  /** A Sample Extraction's pages; null (or absent) for a whole-document Extraction. */
-  requestedPages?: readonly number[] | null
   executionStatus: ProjectOperationStatus
   /** SUCCEEDED once published; a failed, cancelled or interrupted attempt is FAILED with its failure instead. */
   outcome: 'SUCCEEDED' | null
@@ -344,8 +309,6 @@ export type FreshExtractionInput = Readonly<{
   catalogRecipe?: string | null
   /** The saved method the researcher saw at start: admission refuses it unless it is still the account's, then pins it. */
   method: ExtractionMethodIntent
-  /** A Sample Extraction's pages (ascending, distinct, physical, one-based, at most 30); absent: the whole document. */
-  pages?: readonly number[] | null
 }>
 
 export type RunSingleInput = FreshExtractionInput
@@ -368,19 +331,10 @@ export type ReviewPreparation = Readonly<{
   reviewDecisions: readonly ReviewDecisionInput[]
 }>
 
-/** A researcher's hand pairing of an unmatched destination record with an unmatched pinned sample record. */
-export type ReviewPairing = Readonly<{ record: number; extractionId: string; sourceRecord: number }>
-
 export type ReviewDraft = Readonly<{
   attention?: ReturnType<typeof import('./review-attention.js').reviewAttention>
   version: number
   decisions: readonly ReviewDecisionInput[]
-  /** Hand pairings, saved with the draft; on a save, absent keeps the stored ones. */
-  pairings?: readonly ReviewPairing[]
-  /** The pinned sample records with decisions that overlap a destination record without aligning: pairable by hand. */
-  sources?: readonly Readonly<{ extractionId: string; record: number; label: string }>[]
-  /** Each value's verdict against the sample decisions pinned at admission, by result path key; absent when none were. */
-  transfer?: Readonly<Record<string, Readonly<{ status: 'fixed' | 'reviewed' | 'changed' | 'unmatched'; kept: unknown }>>>
 }>
 
 export type BatchExtractionMemberSnapshot = Readonly<{
@@ -474,8 +428,6 @@ export type DocumentExtractionsSnapshot = Readonly<{
   sourceRepresentationRevisionId: string
   latestAttempt: ExtractionAttemptSnapshot | null
   latestReviewed: ExtractionAttemptSnapshot | null
-  /** The Sample Extractions of the current Source Representation Revision, newest first; never latest above. */
-  samples: readonly ExtractionAttemptSnapshot[]
 }>
 
 

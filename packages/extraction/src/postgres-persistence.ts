@@ -69,7 +69,6 @@ import type {
   ScheduleSuggestedBatchInput,
 } from './types.js'
 
-const SAMPLE_PAGE_LIMIT = 30
 const SUPERSEDED_MESSAGE =
   "This document has been reprocessed. No new Extraction was started. Open the document from the project's Sources list to run on its current source revision. You can continue reviewing this earlier Extraction."
 
@@ -172,18 +171,6 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
   }
 
   async scheduleExtraction(input: RunSingleInput): Promise<RunSingleResult | null> {
-    if (input.pages) {
-      // ponytail: reads the whole parsed document for its page count; record the count on the revision if this is slow.
-      const document = await this.readCanonicalParsedDocument(input.sourceRepresentationRevisionId)
-      if (document === null) return null
-      const pageCount = (document as { page_count?: unknown }).page_count
-      const pages = input.pages
-      if (pages.length === 0 || pages.length > SAMPLE_PAGE_LIMIT || typeof pageCount !== 'number' ||
-          !pages.every((page, index) => Number.isInteger(page) && page >= 1 && page <= pageCount &&
-            (index === 0 || page > pages[index - 1]!)))
-        throw new ExtractionError('invalid_request',
-          `A sample is 1 to ${SAMPLE_PAGE_LIMIT} distinct pages of this document's ${String(pageCount)}, in ascending order.`)
-    }
     const disposition = await admitInteractiveExtraction(this.execution, this.researcherAccountId, input)
     if (disposition === 'missing') return null
     if (disposition === 'conflict')

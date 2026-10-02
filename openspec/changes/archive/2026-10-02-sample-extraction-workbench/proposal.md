@@ -1,3 +1,16 @@
+> Status (2026-10-02): the sample workbench was removed by
+> `chore/remove-sample-workbench`; see
+> `docs/superpowers/specs/2026-10-02-sample-workbench-removal-design.md`.
+> Removed with it: sample-extraction, schema-sample-workbench, review-transfer,
+> "Carried decisions do not make a review authoritative", "Guidance and sample
+> coverage remain factual", and "An edit request may carry the researcher's
+> corrections" (never implemented).
+> Still in force, pending a sync into `openspec/specs`: "A correction keeps the
+> model's Evidence and its own", the modified "Review is an explicit action…",
+> "Review attention describes pinned scalar occurrences", "Field navigation
+> preserves the current editor", "Excel schema import is bounded and explicitly
+> confirmed", and the renamed/modified schema-chat-edit requirement.
+
 # Sample extraction workbench
 
 Status: proposal, 2026-09-29, based on `dev` at `80686ec4`. UX direction:

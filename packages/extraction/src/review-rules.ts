@@ -1,12 +1,10 @@
 import { reviewAttention } from './review-attention.js'
 import { ExtractionError } from './errors.js'
 import type { ParsedDocument } from './parsed-document.js'
-import { isDeepStrictEqual } from 'node:util'
-import { populatedContentPaths, resultPathKey, valueAtPath } from './review-paths.js'
+import { populatedContentPaths, resultPathKey } from './review-paths.js'
 import { isRecord, parseExtractionSchema, partitionSchemaNodes, restoreSchemaNodeOrder, schemaNodeAtPath } from './schema.js'
 import type {
-  EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ReviewDecisionInput, ReviewPairing, ReviewTransfer, TransferEntry,
-  TransferRecord,
+  EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ReviewDecisionInput,
 } from './types.js'
 
 /*
@@ -100,7 +98,6 @@ export function reviewAuthority(input: Readonly<{
       action: decision.action,
       reviewedValue: decision.reviewedValue,
       ...(decision.reviewedEvidence ? { reviewedEvidence: decision.reviewedEvidence } : {}),
-      ...(decision.carriedFrom ? { carriedFrom: decision.carriedFrom } : {}),
     })),
     occurrenceIdsByAnchor: owned,
     evidenceResultPathKeys,
@@ -208,9 +205,6 @@ export function normalizeDecisions(decisions: ReviewAuthority['reviewDecisions']
           reviewedOccurrenceIds: [...new Set(evidence.reviewedOccurrenceIds)].sort(),
         })) }
       : {}),
-    ...(decision.carriedFrom
-      ? { carriedFrom: { extractionId: decision.carriedFrom.extractionId, sourcePathKey: decision.carriedFrom.sourcePathKey } }
-      : {}),
   })).sort((left, right) => left.resultPathKey.localeCompare(right.resultPathKey))
 }
 
@@ -287,252 +281,4 @@ export function correctionEvidenceIsPublished(
 ): boolean {
   return !decision.reviewedEvidence || (decision.action === 'EDITED' && decision.reviewedEvidence.every(
     (evidence) => reviewsAnchor(owned, evidence.evidenceAnchorId, evidence.reviewedOccurrenceIds)))
-}
-
-type TransferSample = ReviewTransfer['samples'][number]
-
-/** An Extraction's records as a transfer aligns them: segmentation block and the sorted anchors its values cite. */
-export function transferSample(
-  extraction: Pick<ExtractionSnapshot, 'extractionId' | 'result' | 'evidence' | 'diagnostics'>,
-): TransferSample {
-  const grounded = extraction.diagnostics.grounded
-  return {
-    extractionId: extraction.extractionId,
-    segmentation: grounded?.segmentationFingerprint ?? null,
-    records: ((extraction.result?.records ?? []) as unknown[]).map((_, index) => ({
-      block: grounded?.recordBlocks[index]?.block ?? null,
-      anchors: [...new Set((extraction.evidence ?? []).filter((link) => link.resultPath[1] === index)
-        .map((link) => link.evidenceAnchorId))].sort(),
-    })),
-  }
-}
-
-/** A sample's decisions as pinned entries, by node id and value type of the sample's own Schema Revision. */
-export function transferEntries(
-  sample: Pick<ExtractionSnapshot, 'extractionId' | 'result'>,
-  decisions: readonly ReviewDecisionInput[],
-  nodes: readonly ExtractionSchemaNode[],
-  draftVersion: number,
-): TransferEntry[] {
-  return decisions.flatMap((decision) => {
-    const node = schemaNodeAtPath(nodes, decision.resultPath)
-    const record = decision.resultPath[1]
-    if (!node || typeof record !== 'number' || decision.evidenceAnchorId === null &&
-      (decision.action !== 'EDITED' || decision.reviewedValue == null || !decision.reviewedEvidence?.length)) return []
-    return [{
-      extractionId: sample.extractionId,
-      draftVersion,
-      nodeId: node.id,
-      record,
-      sourcePathKey: resultPathKey(decision.resultPath),
-      action: decision.action,
-      modelValue: valueAtPath(sample.result, decision.resultPath) ?? null,
-      reviewedValue: decision.reviewedValue,
-      valueType: node.type === 'array' && node.itemType ? node.itemType : node.type,
-      evidenceAnchorId: decision.evidenceAnchorId,
-      reviewedEvidence: decision.reviewedEvidence ?? null,
-    }]
-  })
-}
-
-/**
- * Which record of `other` each record of `records` aligns with (design §7.1): by segmentation block when both ran on
- * the same recipe segmentation, otherwise only a one-to-one, mutual overlap of Evidence Anchors. A record in no pair is
- * unmatched; a merge or a split pairs nothing.
- */
-export function alignRecords(records: TransferSample, other: TransferSample): ReadonlyMap<number, number> {
-  const byBlock = records.segmentation !== null && records.segmentation === other.segmentation
-  const meets = (left: TransferRecord, right: TransferRecord) => byBlock
-    ? left.block !== null && left.block === right.block
-    : left.anchors.some((anchor) => right.anchors.includes(anchor))
-  const pairs = new Map<number, number>()
-  records.records.forEach((record, index) => {
-    const hits = other.records.flatMap((candidate, at) => meets(record, candidate) ? [at] : [])
-    if (hits.length === 1 && records.records.filter((each) => meets(each, other.records[hits[0]!]!)).length === 1)
-      pairs.set(index, hits[0]!)
-  })
-  return pairs
-}
-
-/**
- * The union of samples' decisions, oldest sample first (design §6): where a newer sample decided a schema node of a
- * record aligned with an older one's, the newer decision wins; every other decision is kept. Null when none is left.
- */
-export function unionReviewTransfer(
-  samples: readonly (TransferSample & { entries: readonly TransferEntry[]; pairings?: readonly ReviewPairing[] })[],
-): ReviewTransfer | null {
-  let entries: readonly TransferEntry[] = []
-  // A decision's node in a record; an array item's also by its anchor, so a newer decision leaves the other items'.
-  const key = (entry: TransferEntry, record: number) => `${record} ${entry.nodeId}` +
-    ((JSON.parse(entry.sourcePathKey) as unknown[]).slice(2).some((segment) => typeof segment === 'number')
-      ? ` ${entry.evidenceAnchorId ?? JSON.stringify(entry.reviewedEvidence?.map((evidence) => evidence.evidenceAnchorId).sort())}` : '')
-  samples.forEach((sample, at) => {
-    const decided = new Set(sample.entries.map((entry) => key(entry, entry.record)))
-    // This sample's records aligned with the older samples' records, or paired with them by hand in its review.
-    const pairs = transferPairs(samples.slice(0, at), sample, sample.pairings ?? [])
-    entries = [...entries.filter((entry) => {
-      const record = [...pairs.get(entry.extractionId)!].find(([, source]) => source === entry.record)?.[0]
-      return record === undefined || !decided.has(key(entry, record))
-    }), ...sample.entries]
-  })
-  if (entries.length === 0) return null
-  return {
-    samples: samples.filter((sample) => entries.some((entry) => entry.extractionId === sample.extractionId))
-      .map(({ extractionId, segmentation, records }) => ({ extractionId, segmentation, records })),
-    entries,
-  }
-}
-
-/** How a destination value compares with the pinned review, and the decision it starts its review draft with. */
-export type TransferVerdict = Readonly<{
-  status: 'fixed' | 'reviewed' | 'changed' | 'unmatched'
-  entry: TransferEntry | null
-  decision: Pick<ReviewDecisionInput, 'action' | 'reviewedValue' | 'reviewedEvidence'> | null
-  /** The value the sample reviewed, in the destination type; null when it was rejected or does not convert. */
-  kept: unknown
-}>
-
-/** `value` in a field of `type` when it converts without loss, else undefined. */
-function losslessly(value: unknown, type: string): unknown {
-  if (value === null) return null
-  const text = String(value)
-  if (type === 'integer' || type === 'number') {
-    const number = Number(text)
-    return text !== '' && String(number) === text && (type === 'number' || Number.isInteger(number)) ? number : undefined
-  }
-  if (type === 'boolean') return text === 'true' ? true : text === 'false' ? false : undefined
-  return text
-}
-
-/**
- * Per pinned sample, which of its records each destination record aligns with, plus the researcher's hand pairings of
- * records aligned to nothing on either side, one to one (design §7.1). A pairing that breaks this is ignored.
- */
-function sourceRecordComparer(samples: ReviewTransfer['samples']) {
-  const between = new Map<string, ReadonlyMap<number, number>>()
-  const same = ([left, at]: readonly [string, number], [right, to]: readonly [string, number]) => {
-    if (left === right) return at === to
-    const key = `${left} ${right}`
-    if (!between.has(key)) between.set(key, alignRecords(
-      samples.find((sample) => sample.extractionId === left)!, samples.find((sample) => sample.extractionId === right)!))
-    return between.get(key)!.get(at) === to
-  }
-  return same
-}
-
-function transferPairs(samples: ReviewTransfer['samples'], target: TransferSample, pairings: readonly ReviewPairing[]) {
-  const pairs = new Map(samples.map((sample) => [sample.extractionId, new Map(alignRecords(target, sample))]))
-  // One record across the samples too: a target record aligned with two samples' records that do not align with each
-  // other is a merge, and two target records aligned with records that do are a split; neither aligns.
-  const same = sourceRecordComparer(samples)
-  const partners = (record: number) =>
-    [...pairs].flatMap(([extractionId, aligned]) => aligned.has(record) ? [[extractionId, aligned.get(record)!] as const] : [])
-  const aligned = [...new Set([...pairs.values()].flatMap((each) => [...each.keys()]))]
-  const broken = aligned.filter((record) => partners(record).some((one, _, all) => all.some((other) => !same(one, other))) ||
-    aligned.some((other) => other !== record && partners(record).some((one) => partners(other).some((two) => same(one, two)))))
-  for (const each of pairs.values()) for (const record of broken) each.delete(record)
-  for (const { record, extractionId, sourceRecord } of pairings) {
-    const own = pairs.get(extractionId)
-    if (own && record < target.records.length && sourceRecord < samples.find((sample) => sample.extractionId === extractionId)!.records.length &&
-        ![...pairs.values()].some((aligned) => aligned.has(record)) &&
-        ![...pairs].some(([id, used]) => [...used.values()].some((index) => same([extractionId, sourceRecord], [id, index]))))
-      own.set(record, sourceRecord)
-  }
-  return pairs
-}
-
-/** The page an Evidence Anchor ID names (`a_p{page}_s{index}`), if any. */
-const anchorPage = (anchorId: string) => /^a_p(\d+)_/.exec(anchorId)?.[1]
-
-/** Whether two records cite a passage on the same page (the same anchor, when it names no page): records that could
- *  be one without aligning. */
-const sharePage = (left: TransferRecord, right: TransferRecord) => left.anchors.some((anchor) =>
-  right.anchors.some((other) => (anchorPage(anchor) ?? anchor) === (anchorPage(other) ?? other)))
-
-/** Correction Evidence permits hand pairing when a sample record has no model anchors; it never guesses alignment. */
-function pairableRecord(transfer: ReviewTransfer, sample: TransferSample, index: number): TransferRecord {
-  const record = sample.records[index]!
-  return record.anchors.length ? record : { ...record, anchors: transfer.entries
-    .filter((entry) => entry.extractionId === sample.extractionId && entry.record === index)
-    .flatMap((entry) => entry.reviewedEvidence?.map((evidence) => evidence.evidenceAnchorId) ?? []) }
-}
-
-/** The pinned records with decisions that share a page with a destination record without aligning or being paired,
- *  each labelled for display only by its first decided value's page and model value. */
-export function unmatchedSources(
-  transfer: ReviewTransfer, destination: Parameters<typeof transferSample>[0], pairings: readonly ReviewPairing[] = [],
-) {
-  const target = transferSample(destination)
-  const pairs = transferPairs(transfer.samples, target, pairings)
-  const same = sourceRecordComparer(transfer.samples)
-  return transfer.samples.flatMap((sample) => sample.records.flatMap((_, index) => {
-    const first = transfer.entries.find((entry) => entry.extractionId === sample.extractionId && entry.record === index)
-    if (!first || [...pairs].some(([id, used]) => [...used.values()].some((at) => same([sample.extractionId, index], [id, at]))) ||
-        !target.records.some((each) => sharePage(each, pairableRecord(transfer, sample, index)))) return []
-    const page = anchorPage(first.evidenceAnchorId ?? first.reviewedEvidence?.[0]?.evidenceAnchorId ?? '')
-    return [{ extractionId: sample.extractionId, record: index, label: `${page ? `p. ${page} · ` : ''}${String(first.modelValue ?? first.reviewedValue)}` }]
-  }))
-}
-
-/**
- * Each grounded destination value's verdict against the pinned review (design §7): records align first, fields by
- * schema node id, array items by their anchor inside the record, never by index. After lossless conversion to the
- * destination type, an approval carries on the same value and anchor; a correction carries as an approval (fixed) on
- * the corrected value at its reviewed Evidence, and as itself when the model repeats the corrected value on the same
- * anchor; a rejection carries on the same value and anchor. Anything else under a decision is changed; a record that
- * shares a page with a decided record without aligning is unmatched. A value without a verdict is to review.
- */
-export function transferVerdicts(
-  transfer: ReviewTransfer,
-  destination: Parameters<typeof transferSample>[0],
-  nodes: readonly ExtractionSchemaNode[],
-  pairings: readonly ReviewPairing[] = [],
-): ReadonlyMap<string, TransferVerdict> {
-  const target = transferSample(destination)
-  const pairs = transferPairs(transfer.samples, target, pairings)
-  const sampleOf = (entry: TransferEntry) => transfer.samples.find((sample) => sample.extractionId === entry.extractionId)!
-  const verdicts = new Map<string, TransferVerdict>()
-  const links = new Map((destination.evidence ?? []).map((link) => [resultPathKey(link.resultPath), link]))
-  for (const cell of reviewAttention(destination.result ?? {}, nodes, destination.evidence ?? [], []).cells) {
-    const path = cell.resultPath, link = links.get(resultPathKey(path)), anchor = link?.evidenceAnchorId ?? null
-    const [, record, ...inRecord] = path
-    const node = schemaNodeAtPath(nodes, path)
-    if (typeof record !== 'number' || !node) continue
-    const item = inRecord.some((segment) => typeof segment === 'number')
-    // The newest decision on this node of an aligned record (on this item's anchor, for an array item).
-    const entry = transfer.entries.findLast((each) =>
-      each.nodeId === node.id && pairs.get(each.extractionId)!.get(record) === each.record &&
-      (!item || anchor !== null && [each.evidenceAnchorId, ...(each.reviewedEvidence ?? []).map((evidence) => evidence.evidenceAnchorId)]
-        .includes(anchor)))
-    if (!entry) {
-      const unmatched = ![...pairs.values()].some((aligned) => aligned.has(record)) && transfer.entries.some((each) =>
-        sharePage(pairableRecord(transfer, sampleOf(each), each.record), target.records[record]!))
-      if (link && unmatched) verdicts.set(resultPathKey(path), { status: 'unmatched', entry: null, decision: null, kept: null })
-      continue
-    }
-    const type = node.type === 'array' && node.itemType ? node.itemType : node.type
-    const value = valueAtPath(destination.result, path)
-    const equals = (stored: unknown) => {
-      const converted = losslessly(stored, type)
-      return converted !== undefined && isDeepStrictEqual(converted, value)
-    }
-    // A value to carry or keep, when it converts to the destination field and fits it, allowed values included.
-    const fitting = (stored: unknown) => {
-      const converted = losslessly(stored, type)
-      return converted != null && reviewDecisionMatchesSchema(nodes, { resultPath: path, evidenceAnchorId: anchor,
-        reviewedOccurrenceIds: [], action: 'EDITED', reviewedValue: converted }) ? converted : null
-    }
-    const reviewedValue = fitting(entry.reviewedValue)
-    const repeated = anchor !== null && anchor === entry.evidenceAnchorId && equals(entry.modelValue)
-    const fixed = anchor !== null && entry.action === 'EDITED' && entry.reviewedEvidence?.length === 1 &&
-      entry.reviewedEvidence[0]!.evidenceAnchorId === anchor && equals(entry.reviewedValue)
-    const decision = fixed
-      ? { action: 'APPROVED' as const, reviewedValue: null }
-      : !repeated || (entry.action === 'EDITED' && reviewedValue === null) ? null
-      : entry.action === 'EDITED' ? { action: entry.action, reviewedValue, reviewedEvidence: entry.reviewedEvidence }
-      : { action: entry.action, reviewedValue: null }
-    const kept = entry.action === 'REJECTED' ? null : entry.action === 'EDITED' ? reviewedValue : fitting(entry.modelValue)
-    verdicts.set(resultPathKey(path), { status: fixed ? 'fixed' : decision ? 'reviewed' : 'changed', entry, decision, kept })
-  }
-  return verdicts
 }

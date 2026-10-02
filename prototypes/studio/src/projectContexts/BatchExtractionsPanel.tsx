@@ -1,4 +1,3 @@
-import { SampleFacts } from '../SampleFacts'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   exportBatchExtractionResults,
@@ -226,8 +225,6 @@ export default function BatchExtractionsPanel({
   )
   const [filter, setFilter] = useState('')
   const opening = useRef(false)
-  const sampleFactsRefresh = useRef<((revision?: string) => Promise<void>) | null>(null)
-  const [coverageRevision, setCoverageRevision] = useState<{ selected: string; current: string } | null>(null)
   // The saved-schema editor registers its controller so opening a Batch Extraction
   // can wait for the chosen schema's pending save, and the strategy select reads
   // and saves that schema's Article/Catalog scope.
@@ -700,7 +697,6 @@ export default function BatchExtractionsPanel({
     setRunNotice(null)
     try {
       const savedRevision = await savedSchemaController?.flush()
-      await sampleFactsRefresh.current?.(savedRevision?.schemaRevisionId ?? schemaRevisionId)
       // The saved revision's own scope decides what runs; admission refuses any other.
       const recordScope = savedRevision ? savedRevision.recordScope : chosenRecordScope
       if (recordScope === null)
@@ -1077,9 +1073,6 @@ export default function BatchExtractionsPanel({
               </label>
             </div>
             <div className="mb-3">
-              <SampleFacts projectContextId={projectContextId}
-                schemaRevisionId={schemaRevisionId === SUGGEST_SCHEMA ? null : coverageRevision?.selected === schemaRevisionId ? coverageRevision.current : schemaRevisionId || null}
-                sourceDocumentIds={[...selected]} refreshRef={sampleFactsRefresh} />
               {selectedStrategy !== null && (
                 <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
                   method={saved.state.status === 'ready' ? savedMethodFor(saved.state, selectedStrategy, null) : null}
@@ -1096,7 +1089,6 @@ export default function BatchExtractionsPanel({
                 key={chosenSchema.schemaRevisionId}
                 projectContextId={projectContextId}
                 chosenSchema={chosenSchema}
-                onCurrentRevision={setCoverageRevision}
                 sourceDocumentName={
                   selectedSchema
                     ? `${selectedSchema.name} · Schema Revision ${chosenSchema.revisionNumber}`
@@ -1390,13 +1382,11 @@ function SavedSchemaEditor({
   chosenSchema,
   sourceDocumentName,
   registerController,
-  onCurrentRevision,
 }: {
   projectContextId: string
   chosenSchema: SchemaRevision
   sourceDocumentName: string
   registerController: (controller: SchemaEditorController | null) => void
-  onCurrentRevision(revision: { selected: string; current: string }): void
 }) {
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
@@ -1408,10 +1398,6 @@ function SavedSchemaEditor({
     return () => registerController(null)
   }, [schema, registerController])
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
-  const currentRevision = snap.save?.acknowledged.schemaRevisionId ?? chosenSchema.schemaRevisionId
-  useEffect(() => {
-    onCurrentRevision({ selected: chosenSchema.schemaRevisionId, current: currentRevision })
-  }, [chosenSchema.schemaRevisionId, currentRevision, onCurrentRevision])
   const failure =
     snap.save?.status === 'error'
       ? snap.save.error?.message ?? 'The schema could not be saved.'

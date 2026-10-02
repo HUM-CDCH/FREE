@@ -15,8 +15,6 @@ import {
   type ExtractionStrategy,
   type ReviewDecisionAction,
   type ReviewDecisionInput,
-  type ReviewPairing,
-  type ReviewTransferVerdicts,
 } from '../shared/extraction.contract'
 import { resultPathKey } from '../shared/groundedExtraction'
 
@@ -35,8 +33,6 @@ type ExtractionRunRequest = Readonly<{
   catalogRecipe?: string
   /** The saved method the start view showed; admission refuses it if the account's changed since. */
   method: ExtractionMethodIntent
-  /** A Sample Extraction's pages; absent for the whole document. */
-  pages?: number[]
 }>
 
 export type ReviewTarget = {
@@ -138,7 +134,6 @@ function pendingDecision(
     action: decision.action,
     reviewedValue: decision.reviewedValue,
     ...(decision.reviewedEvidence ? { reviewedEvidence: decision.reviewedEvidence } : {}),
-    ...(decision.carriedFrom ? { carriedFrom: decision.carriedFrom } : {}),
   }
 }
 
@@ -184,15 +179,13 @@ export function useExtraction({
   // default (every field is seeded 'APPROVED' by prepareReview) rather than a
   // decision the researcher actually made.
   const [touchedPaths, setTouchedPaths] = useState<ReadonlySet<string>>(new Set())
-  const draftRef = useRef<{ decisions: ReviewDecisionInput[]; touched: ReadonlySet<string>; pairings?: ReviewPairing[] }>({ decisions: reviewDecisions, touched: touchedPaths })
-  draftRef.current = { ...draftRef.current, decisions: reviewDecisions, touched: touchedPaths }
+  const draftRef = useRef<{ decisions: ReviewDecisionInput[]; touched: ReadonlySet<string> }>({ decisions: reviewDecisions, touched: touchedPaths })
+  draftRef.current = { decisions: reviewDecisions, touched: touchedPaths }
   const [reviewError, setReviewError] = useState<string | null>(null)
   const draftSaveRef = useRef({ version: 0, pending: Promise.resolve(), writes: 0, conflict: false })
   const [reviewReload, setReviewReload] = useState(0)
-  // The review transfer's verdicts, for the attempt they were read with.
-  const [transfer, setTransfer] = useState<{
-    extractionId: string; verdicts: ReviewTransferVerdicts; pairings: ReviewPairing[]; sources: { extractionId: string; record: number; label: string }[]
-  }>({ extractionId: '', verdicts: {}, pairings: [], sources: [] })
+  // The Extraction whose server review was last read; nothing is accepted before that read.
+  const [reviewReadFor, setReviewReadFor] = useState('')
   const [draftSaving, setDraftSaving] = useState(false)
   const [draftSaved, setDraftSaved] = useState(false)
   const [draftError, setDraftError] = useState<string | null>(null)
@@ -220,7 +213,6 @@ export function useExtraction({
     // In-flight saves and draft writes belong to the previous document or attempt.
     saveScopeRef.current = { saving: false }
     draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
-    draftRef.current.pairings = undefined
     setDraftSaving(false)
     setDraftSaved(false)
     setSaving(false)
@@ -322,7 +314,7 @@ export function useExtraction({
     !draftError &&
     !reviewLoading &&
     reviewAvailable &&
-    transfer.extractionId === attempt?.extractionId &&
+    reviewReadFor === attempt?.extractionId &&
     attempt?.reviewedAt === null &&
     reviewDecisions.filter((decision) => decision.evidenceAnchorId !== null).every((decision) => touchedPaths.has(resultPathKey(decision.resultPath)))
   )
@@ -358,7 +350,7 @@ export function useExtraction({
         return
       }
       setReviewLoading(true)
-      setTransfer({ extractionId: '', verdicts: {}, pairings: [], sources: [] })
+      setReviewReadFor('')
       setDraftSaved(false)
       setReviewDecisions([])
       setTouchedPaths(new Set())
@@ -383,21 +375,17 @@ export function useExtraction({
           return
         }
         const recovered = recoverReviewDraft(attempt.extractionId, prepared.reviewDraft, prepared.pendingReviewDecisions ?? [])
-        const pairings = [...recovered.pairings]
-        const pendingPairings = JSON.stringify(pairings) === JSON.stringify(prepared.reviewDraft?.pairings ?? []) ? undefined : pairings
-        setTransfer({ extractionId: attempt.extractionId, verdicts: prepared.reviewDraft?.transfer ?? {},
-          pairings, sources: prepared.reviewDraft?.sources ?? [] })
+        setReviewReadFor(attempt.extractionId)
         draftSaveRef.current = { version: recovered.version, pending: Promise.resolve(), writes: 0, conflict: recovered.conflict }
         // Version-zero drafts have not been acknowledged by the server.
         setDraftSaved(!recovered.conflict && !recovered.retry && (prepared.reviewDraft?.version ?? 0) > 0)
         setDraftError(recovered.conflict ? REVIEW_DRAFT_CONFLICT : null)
-        draftRef.current = { decisions: recovered.decisions, touched: recovered.touchedPaths,
-          pairings: recovered.retry || recovered.conflict ? pendingPairings : undefined }
+        draftRef.current = { decisions: recovered.decisions, touched: recovered.touchedPaths }
         setReviewDecisions(
           recovered.decisions,
         )
         setTouchedPaths(recovered.touchedPaths)
-        if (recovered.retry) updateReview(recovered.decisions, recovered.touchedPaths, pendingPairings)
+        if (recovered.retry) updateReview(recovered.decisions, recovered.touchedPaths)
       } catch (error) {
         if (reviewLoadRef.current !== load) return
         setReviewError(
@@ -503,7 +491,6 @@ export function useExtraction({
     target: ReviewTarget | null = reviewTarget,
     strategy: ExtractionStrategy = 'ARTICLE',
     catalogRecipe: string | null = null,
-    pages: number[] | null = null,
   ) {
     if (!target?.schemaRevisionId) return null
     return runRequest(attempt !== null, {
@@ -512,7 +499,6 @@ export function useExtraction({
       strategy,
       ...(strategy === 'CATALOG' && catalogRecipe ? { catalogRecipe } : {}),
       method,
-      ...(pages ? { pages } : {}),
     })
   }
 
@@ -547,29 +533,25 @@ export function useExtraction({
     }
   }
 
-  function updateReview(decisions: ReviewDecisionInput[], touched: ReadonlySet<string>, pairings = draftRef.current.pairings) {
+  function updateReview(decisions: ReviewDecisionInput[], touched: ReadonlySet<string>) {
     if (!attempt) return
-    draftRef.current = { decisions, touched, pairings }
+    draftRef.current = { decisions, touched }
     setReviewDecisions(decisions)
     setTouchedPaths(touched)
     const scope = draftSaveRef.current
+    const saved = decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath)))
     if (scope.conflict) {
-      rememberReviewDraft(attempt.extractionId, { version: scope.version, decisions: decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), pairings })
+      rememberReviewDraft(attempt.extractionId, { version: scope.version, decisions: saved })
       return
     }
     scope.writes += 1
     setDraftSaving(true)
     setDraftSaved(false)
     setDraftError(null)
-    const write = saveExtractionReviewDraft(attempt.extractionId,
-      decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), scope.version, pairings)
-    scope.pending = write.then((saved) => {
-      scope.version = saved.version
+    const write = saveExtractionReviewDraft(attempt.extractionId, saved, scope.version)
+    scope.pending = write.then((result) => {
+      scope.version = result.version
       if (draftSaveRef.current === scope) setDraftSaved(true)
-      if (pairings && draftSaveRef.current === scope) {
-        if (draftRef.current.pairings === pairings) draftRef.current.pairings = undefined
-        setReviewReload((value) => value + 1)
-      }
     })
     void scope.pending.catch((error: unknown) => {
       if (draftSaveRef.current !== scope) return
@@ -599,21 +581,10 @@ export function useExtraction({
     updateReview(draftRef.current.decisions.map((decision) => {
       if (resultPathKey(decision.resultPath) !== key) return decision
       const next = { ...decision, action, reviewedValue: action === 'EDITED' ? reviewedValue : null }
-      // The researcher's own decision now, no longer one carried from a sample.
-      delete (next as { carriedFrom?: unknown }).carriedFrom
       if (action === 'EDITED' && reviewedEvidence) return { ...next, reviewedEvidence }
       delete (next as { reviewedEvidence?: unknown }).reviewedEvidence
       return next
     }), touched)
-  }
-
-  /** Saves the hand pairings with the draft (the server carries a paired record's decisions or drops an unpaired
-   *  one's), then reads the review again. */
-  function pairRecords(pairings: ReviewPairing[]) {
-    const scope = draftSaveRef.current
-    if (!attempt || saveScopeRef.current.saving || attempt.reviewedAt || scope.conflict) return
-    const { decisions, touched } = draftRef.current
-    updateReview(decisions, touched, pairings)
   }
 
   // Marks every field the researcher hasn't explicitly acted on as touched,
@@ -651,14 +622,6 @@ export function useExtraction({
       ).length,
       isTouched: (resultPath: ReviewDecisionInput['resultPath']) =>
         touchedPaths.has(resultPathKey(resultPath)),
-      /** Each value's verdict against the reviewed samples this run pinned; empty when it pinned none. */
-      transfer: transfer.extractionId === attempt?.extractionId ? transfer.verdicts : {},
-      /** Hand pairings of unmatched records, the pinned sample records still pairable, and the pairing action. */
-      pairing: {
-        pairings: transfer.extractionId === attempt?.extractionId ? transfer.pairings : [],
-        sources: transfer.extractionId === attempt?.extractionId ? transfer.sources : [],
-        pair: pairRecords,
-      },
       reviewedExtractionId: attempt?.reviewedAt
         ? attempt.extractionId
         : null,

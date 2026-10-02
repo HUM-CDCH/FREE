@@ -6,8 +6,6 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { reviewAttention, type ReviewCell } from 'extraction/review-attention'
-import { ReviewAttention } from './ReviewAttention'
 import { deleteModelOperation, requestSchemaEdit } from './api'
 import { sourceCoverageNotice } from './sourceCoverageNotice'
 import type { SchemaEditorController } from './currentSchemaRevision'
@@ -27,10 +25,6 @@ import {
   templateToSchemaDefinition,
 } from 'extraction/schema'
 import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
-import { resultPathKey } from '../shared/groundedExtraction'
-import type { ExtractionController } from './useExtraction'
-import { blockForAnchor, tableForAnchor, type ParsedDocument, type ParsedEvidenceAnchor } from 'extraction/parsed-document'
 import { Button } from './ui'
 import SchemaNameEditor from './SchemaNameEditor'
 import {
@@ -57,84 +51,6 @@ import {
 
 const EMPTY_NODES: SchemaNode[] = []
 
-/** The latest Sample Extraction, shown and reviewed under the field cards it ran on. */
-export type SchemaSample = {
-  attempt: ExtractionAttempt
-  /** Its Schema Revision's number and nodes, when known: values are found by node id, so a rename keeps them. */
-  pinned: { revisionNumber: number; schemaNodes: readonly SchemaNode[] } | null
-  currentRevisionNumber: number | null
-  pagesLabel: string
-  review: Pick<ExtractionController['review'],
-    'decisions' | 'isTouched' | 'setDecision' | 'undo' | 'draftError' | 'draftSaving' | 'retryDraft' | 'error' | 'reload' | 'transfer' | 'canAccept' | 'accept'>
-  parsedDocument: ParsedDocument | null
-  /** The value a page passage was picked for (`resultPathKey`). */
-  focusedPathKey: string | null
-  onFocusValue?: (path: readonly (string | number)[]) => void
-  onSelectEvidence: (anchorId: string) => void
-}
-
-const ANCHOR_PAGE = /^a_p(\d+)_/
-const shown = (value: unknown) => value == null ? '—' : typeof value === 'string' ? value : JSON.stringify(value)
-
-/** One label per record on every card, display only: the recipe entry, the Article identity values, else its first
- *  Evidence page and first non-empty scalar value or position. */
-function recordLabel(attempt: ExtractionAttempt, record: Record<string, unknown>, index: number): string {
-  const entry = attempt.diagnostics?.grounded?.recordBlocks[index]?.entry_label
-  if (entry) return `Nr. ${entry}`
-  const settings = attempt.requestedSettings
-  const identity = settings && 'article' in settings ? settings.article?.identity_fields ?? [] : []
-  const named = identity.map((name) => record[name]).filter((value) => value != null && value !== '')
-  if (named.length) return named.map(shown).join(' · ')
-  const page = attempt.evidenceLinks?.find((link) => link.resultPath[1] === index)?.evidenceAnchorId.match(ANCHOR_PAGE)?.[1]
-  const scalar = Object.values(record).find((value) => (typeof value === 'string' && value !== '') || typeof value === 'number')
-  return `${page ? `p. ${page} · ` : ''}${scalar ?? `record ${index + 1}`}`
-}
-
-function anchorText(document: ParsedDocument, anchor: ParsedEvidenceAnchor): string {
-  if (anchor.kind === 'table_cell')
-    return tableForAnchor(document, anchor)?.cells.find((cell) => cell.cell_id === anchor.cell_id)?.text ?? ''
-  const block = blockForAnchor(document, anchor)
-  return block && 'text' in block ? block.text : ''
-}
-
-const normalText = (text: string) => text.normalize('NFKC').toLowerCase().split(/\s+/).filter(Boolean).join(' ')
-const WORD = /[\p{L}\p{N}]/u
-
-/** As the Parsing Service's `stages.contains`: `value` occurs as a bounded token, not inside a longer word or number. */
-function printsToken(haystack: string, value: string): boolean {
-  const needle = normalText(value)
-  const hay = normalText(haystack)
-  for (let at = needle ? hay.indexOf(needle) : -1; at >= 0; at = hay.indexOf(needle, at + 1))
-    if (!WORD.test(hay[at - 1] ?? ' ') && !WORD.test(hay[at + needle.length] ?? ' ')) return true
-  return false
-}
-
-/** A correction's Evidence: the one published passage on the record's pages that prints the corrected value, else
- *  none, so the correction can never carry as fixed. */
-function printedIn(document: ParsedDocument, pages: ReadonlySet<number>, text: string) {
-  const hits = document.evidence_index.anchors.filter((anchor) =>
-    anchor.producer_observations.some((observation) => pages.has(observation.page_number)) &&
-    printsToken(anchorText(document, anchor), text))
-  return hits.length === 1
-    ? [{ evidenceAnchorId: hits[0]!.anchor_id, reviewedOccurrenceIds: hits[0]!.producer_observations.map((each) => each.occurrence_id) }]
-    : null
-}
-
-function typedCorrection(type: SchemaNode['type'], text: string): unknown {
-  if (type === 'integer' || type === 'number') {
-    const number = Number(text)
-    return text.trim() === '' || !Number.isFinite(number) || (type === 'integer' && !Number.isInteger(number)) ? undefined : number
-  }
-  if (type === 'boolean') return text === 'true' ? true : text === 'false' ? false : undefined
-  return text
-}
-
-/** How a re-run value compares with the reviewed samples (design §7). */
-const TRANSFER_STATUS = {
-  fixed: ['Fixed', 'text-green'], reviewed: ['As reviewed', 'text-ink-muted'],
-  changed: ['Changed', 'text-stale'], unmatched: ['Unmatched record', 'text-ink-muted'],
-} as const
-
 const scrollIntoViewOnce = (element: HTMLElement | null) => element?.scrollIntoView?.({ block: 'nearest' })
 const focusField = (element: HTMLElement | null) => { scrollIntoViewOnce(element); element?.focus({ preventScroll: true }) }
 
@@ -145,85 +61,6 @@ export type FieldContext = {
   nodeId: string
   nodeType: SchemaNode['type']
   resultPaths: (string | number)[][]
-}
-
-function SampleValues({ node, sample, cells, onEditField }: {
-  node: SchemaNode; sample: SchemaSample; cells: ReviewCell[]
-  onEditField?: (nodeId: string, path: (string | number)[]) => void
-}) {
-  const [correcting, setCorrecting] = useState<{ key: string; text: string; anchorId?: string; picking?: boolean } | null>(null)
-  const { attempt, review } = sample
-  const records = attempt.outcome === 'SUCCEEDED' && Array.isArray(attempt.resultPayload?.records)
-    ? attempt.resultPayload.records as Record<string, unknown>[] : null
-  if (!records || !sample.pinned) return null
-  const pinned = enumerateFieldPaths(sample.pinned.schemaNodes).find((each) => each.id === node.id)?.node
-  if (!pinned) return <p className="ml-6 text-xs text-ink-muted">No sample values yet: this field is newer than revision {sample.pinned.revisionNumber}.</p>
-  const occurrences = cells.filter((cell) => cell.nodeId === node.id)
-  if (!occurrences.length) return null
-  return <div className="ml-6 mt-1 flex flex-col gap-1 text-[11.5px]">
-    <p className="text-ink-muted">Sample · rev {sample.pinned.revisionNumber} · {sample.pagesLabel} · {attempt.complete ? 'complete' : 'incomplete'} for these pages
-      {sample.currentRevisionNumber !== null && sample.currentRevisionNumber !== sample.pinned.revisionNumber && ` · values are from revision ${sample.pinned.revisionNumber}`}</p>
-    {attempt.strategy === 'ARTICLE' && <p className="text-ink-muted">Article read only these pages: a record that continues beyond them comes back partial.</p>}
-    {occurrences.map((cell) => {
-      const path = [...cell.resultPath], key = resultPathKey(path), index = Number(path[1])
-      const value = path.reduce<unknown>((parent, part) => parent && typeof parent === 'object' && Object.hasOwn(parent, part)
-        ? (parent as Record<string | number, unknown>)[part] : undefined, attempt.resultPayload)
-      const link = attempt.evidenceLinks?.find((each) => resultPathKey(each.resultPath) === key)
-      const decision = review.decisions.find((each) => resultPathKey(each.resultPath) === key)
-      const touched = decision !== undefined && review.isTouched(path)
-      const verdict = review.transfer[key]
-      const transfer = verdict && (!touched || decision?.carriedFrom) ? verdict : null
-      const pages = new Set((attempt.evidenceLinks ?? []).filter((each) => each.resultPath[1] === index)
-        .map((each) => Number(each.evidenceAnchorId.match(ANCHOR_PAGE)?.[1])))
-      if (!pages.size) (attempt.requestedPages ?? []).forEach((page) => pages.add(page))
-      const anchors = sample.parsedDocument?.evidence_index.anchors.filter((anchor) =>
-        anchor.producer_observations.some((observation) => pages.has(observation.page_number))) ?? []
-      const text = correcting?.key === key ? correcting.text : ''
-      const corrected = typedCorrection(pinned.type === 'array' ? pinned.itemType ?? 'string' : pinned.type, text)
-      const hits = sample.parsedDocument && printedIn(sample.parsedDocument, pages, text)
-      const selected = anchors.find((anchor) => anchor.anchor_id === (correcting?.anchorId ?? hits?.[0]?.evidenceAnchorId))
-      const save = () => {
-        if (corrected === undefined || !selected) return
-        review.setDecision(path, 'EDITED', corrected as never, [{ evidenceAnchorId: selected.anchor_id,
-          reviewedOccurrenceIds: selected.producer_observations.map((each) => each.occurrence_id) }])
-        setCorrecting(null)
-      }
-      return <div key={key} className={`rounded px-1 ${sample.focusedPathKey === key ? 'bg-accent-ghost' : ''}`}
-        ref={sample.focusedPathKey === key ? scrollIntoViewOnce : undefined}>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-ink-muted">{recordLabel(attempt, records[index]!, index)}</span>
-          <button type="button" disabled={!link} title={link ? 'Show its Evidence on the page' : 'No Evidence'}
-            onClick={() => link && sample.onSelectEvidence(link.evidenceAnchorId)} className="font-mono">{shown(value)}</button>
-          <span className="text-ink-muted">{cell.presence} · {touched ? decision!.action.toLowerCase() : 'undecided'}</span>
-          {touched && decision?.action === 'EDITED' && <span className="font-mono text-accent">{shown(decision.reviewedValue)}</span>}
-          {transfer && <span className={TRANSFER_STATUS[transfer.status][1]}>{TRANSFER_STATUS[transfer.status][0]}{transfer.status === 'changed' && transfer.kept !== null && ` · was ${shown(transfer.kept)}`}</span>}
-          {onEditField && <Button onClick={() => onEditField(node.id, path)}>Edit this field</Button>}
-          {!attempt.reviewedAt && decision && (touched ? <Button onClick={() => review.undo(path)}>Undo</Button> : <>
-            {link && <Button onClick={() => review.setDecision(path, 'APPROVED')}>{transfer?.status === 'changed' ? 'Accept new' : 'Right'}</Button>}
-            <Button onClick={() => setCorrecting({ key, text: value == null ? '' : shown(value) })}>{cell.presence === 'missing' ? 'Add value' : 'Correct'}</Button>
-            {transfer?.status === 'changed' && transfer.kept !== null && <Button onClick={() => setCorrecting({ key, text: shown(transfer.kept) })}>Keep {shown(transfer.kept)}</Button>}
-          </>)}
-        </div>
-        {correcting?.key === key && <form className="flex flex-col gap-1" onSubmit={(event) => { event.preventDefault(); save() }}>
-          <input aria-label={`Correct ${pinned.name}`} value={text} autoFocus className="border border-line px-1"
-            onChange={(event) => setCorrecting({ key, text: event.target.value })} />
-          <select aria-label={`Evidence for ${pinned.name}`} value={selected?.anchor_id ?? ''}
-            onChange={(event) => setCorrecting({ ...correcting, anchorId: event.target.value })}>
-            <option value="">Choose canonical Evidence</option>
-            {anchors.map((anchor) => <option key={anchor.anchor_id} value={anchor.anchor_id}>p. {anchor.producer_observations[0]?.page_number} · {anchorText(sample.parsedDocument!, anchor).slice(0, 120)}</option>)}
-          </select>
-          <div className="flex gap-1">
-            <Button onClick={() => { if (selected) sample.onSelectEvidence(selected.anchor_id); setCorrecting({ ...correcting, picking: true }) }}>Pick on page</Button>
-            <Button type="submit" variant="primary" disabled={corrected === undefined || !selected}>Save</Button>
-            <Button onClick={() => setCorrecting(null)}>Cancel</Button>
-          </div>
-          {correcting.picking && anchors.map((anchor) => <Button key={anchor.anchor_id} onClick={() => {
-            sample.onSelectEvidence(anchor.anchor_id); setCorrecting({ ...correcting, anchorId: anchor.anchor_id })
-          }}>p. {anchor.producer_observations[0]?.page_number} · {anchorText(sample.parsedDocument!, anchor).slice(0, 120)}</Button>)}
-        </form>}
-      </div>
-    })}
-  </div>
 }
 
 const CHAT_GREETING = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
@@ -243,9 +80,7 @@ type SchemaPanelProps = {
   showRegenerate?: boolean
   /** Reports edits visible in the panel that are not yet in its controller. */
   onPendingLocalEditChange?: (pending: boolean) => void
-  sample?: SchemaSample | null
   fieldContext?: FieldContext | null
-  onEditField?: (nodeId: string, path: (string | number)[]) => void
 }
 
 type DragState = {
@@ -670,17 +505,12 @@ function SchemaPanel({
   readOnly = false,
   showRegenerate = true,
   onPendingLocalEditChange,
-  sample = null,
   fieldContext = null,
-  onEditField,
 }: SchemaPanelProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const nodes =
     snap.historicalPreview?.schemaNodes ?? snap.draft?.schemaNodes ?? EMPTY_NODES
   const editorReadOnly = readOnly || snap.historicalPreview !== null
-  const attention = sample?.pinned && sample.attempt.resultPayload
-    ? reviewAttention(sample.attempt.resultPayload, sample.pinned.schemaNodes, sample.attempt.evidenceLinks ?? [],
-      sample.review.decisions.filter((decision) => sample.review.isTouched(decision.resultPath))) : null
   const contextNode = fieldContext && enumerateFieldPaths(nodes).find((field) => field.id === fieldContext.nodeId)?.node
   const instructions = useSchemaInstructions()
   // ── render state ──
@@ -1381,8 +1211,6 @@ function SchemaPanel({
           />
         )}
 
-        {sample && !isDiff && <SampleValues key={sample.attempt.extractionId} node={node} sample={sample} cells={attention?.cells ?? []} onEditField={onEditField} />}
-
         {/* Nested children area — shown when there are children or dragging (for drop slot) */}
         {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
@@ -1526,8 +1354,6 @@ function SchemaPanel({
             onCancel={() => setOpenDescId(null)}
           />
         )}
-
-        {sample && !isDiff && <SampleValues key={sample.attempt.extractionId} node={child} sample={sample} cells={attention?.cells ?? []} onEditField={onEditField} />}
 
         {/* Children area — shown when expanded and has children or dragging (for drop slot) */}
         {isGroup && isExpanded && ((child.children ?? []).length > 0 || !!dragging) && (
@@ -1830,39 +1656,11 @@ function SchemaPanel({
               </div>
             )}
             <div className="flex flex-col">
-              {sample?.review.error && (
-                <p role="alert" className="mb-1 flex items-center gap-2 text-[11.5px] text-danger">
-                  <span className="min-w-0 flex-1">Sample review could not be loaded: {sample.review.error}</span>
-                  <Button onClick={sample.review.reload}>Retry</Button>
-                </p>
-              )}
-              {sample?.review.draftError && (
-                <p role="alert" className="mb-1 flex items-center gap-2 text-[11.5px] text-danger">
-                  <span className="min-w-0 flex-1">Sample review not saved: {sample.review.draftError}</span>
-                  <Button onClick={sample.review.retryDraft}>Retry</Button>
-                </p>
-              )}
-              {sample?.review.draftSaving && !sample.review.draftError &&
-                <p role="status" className="mb-1 text-[11px] text-ink-muted">Saving sample review…</p>}
-              {sample && !sample.attempt.reviewedAt && <Button disabled={!sample.review.canAccept}
-                onClick={() => void sample.review.accept()}>Finalize sample review</Button>}
-              {sample?.attempt.reviewedAt && <p className="p-2 text-xs">Sample review finalized for these pages.</p>}
               {fieldContext && <div role="status" className="p-2 text-xs bg-accent-ghost">
                 From Extraction {fieldContext.extractionId} · revision {fieldContext.revisionNumber ?? fieldContext.schemaRevisionId} · {fieldContext.nodeType}
                 {contextNode ? ` → ${contextNode.name} (${contextNode.type}) in the current editor. Unsaved edits are retained.` : ' · This field was removed. No replacement was selected.'}
                 {!contextNode && <Button onClick={() => void schema.previewHistoricalRevision(fieldContext.schemaRevisionId)}>View historical schema</Button>}
               </div>}
-              {attention && <ReviewAttention attention={attention} transfer={sample!.review.transfer}
-                onSelect={(path) => {
-                  sample!.onFocusValue?.(path)
-                  const cell = attention.cells.find((each) => resultPathKey([...each.resultPath]) === resultPathKey(path))
-                  if (cell) setExpandedIds((current) => new Set([...current, ...schemaAncestorIds(nodes, new Set([cell.nodeId]))]))
-                  const link = sample!.attempt.evidenceLinks?.find((each) => resultPathKey(each.resultPath) === resultPathKey(path))
-                  if (link) sample!.onSelectEvidence(link.evidenceAnchorId)
-                }}
-                onEditField={onEditField} />}
-              {sample?.attempt.outcome === 'SUCCEEDED' && Array.isArray(sample.attempt.resultPayload?.records) && sample.attempt.resultPayload.records.length === 0 &&
-                <p className="p-2 text-xs">No records extracted on these pages.</p>}
               {(pending ? pending.reviewNodes : nodes).map((node, i) => renderRootField(node, i))}
               {provisionalField && editing?.id === provisionalField.id && (
                 <FieldEditForm

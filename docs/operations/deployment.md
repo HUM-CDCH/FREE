@@ -644,6 +644,52 @@ Extraction.
    scopes researchers chose), uploads and reprocessing, model-configuration
    changes, and the matching DBOS and `parsing-runs` state.
 
+## Upgrade: sample workbench removal
+
+This change removes Sample Extractions, the pinned review transfer and hand
+pairings. It has no migration: the retired columns `requestedPages`,
+`reviewTransfer` and `reviewPairings` on `Extraction` stay, are never written
+again, and a later migration drops them. A legacy sample row stays in the
+database but is never a document's latest attempt or latest reviewed result,
+never counts in a project summary or the recent-activity feed, and its ID is
+refused (`extraction_id_conflict`, 409) if a whole-document run reuses it.
+
+The upgraded client and API speak a narrower contract:
+
+- A run request that names `pages` is refused with `invalid_request` (422).
+- The reopen and review responses no longer carry `latestSample`, the review
+  transfer, its sources or the pairings, and review decisions no longer carry
+  `carriedFrom`.
+- A review draft saved before the upgrade loses every decision it carried
+  from a sample when it is read: those decisions were never the researcher's
+  own, so the review must not finalize on them. The researcher's own
+  decisions keep their values and the draft keeps its version. A finalized
+  review reads back without `carriedFrom` and still replays.
+
+Before you upgrade, count the drafts whose carried decisions the upgrade
+drops, so you can tell the affected researchers to review those fields again:
+`SELECT count(*) FROM "extraction" WHERE "reviewedAt" IS NULL AND jsonb_path_exists("reviewDraft", '$[*].carriedFrom')`.
+Run it after the drain (step 1 below), when no draft can change.
+
+1. **Drain, back up, deploy.** Follow steps 1 to 3 of
+   [Upgrade: Schema Revision record scope](#upgrade-schema-revision-record-scope):
+   drain until no DBOS or kei workflow is enqueued, delayed or pending, so no
+   sample run resumes across the upgrade; back up; then deploy Studio and the
+   Parsing Service together from the merged head with
+   `node scripts/free.mjs production`. The Parsing Service now refuses
+   `options.pages` as an unknown option.
+2. **Refresh every open Studio tab.** A tab loaded before the deploy runs the
+   old client: its reopen and review parsers reject the new responses, and
+   its run requests that name `pages` are refused with 422. Ask researchers to
+   reload Studio before they continue.
+3. **Verify.** Check the health route, reopen a document that had a sample
+   and confirm it shows its whole-document result, and open a historical
+   reviewed Extraction to check it shows the same values as before. Reopen
+   access.
+4. **Roll back.** Nothing in the database changed, so the previous images
+   start on it; drafts saved after the upgrade no longer carry the dropped
+   decisions.
+
 ## Cutover to durable execution (one-time, clean slate)
 
 This runbook moves a deployment from Procrastinate to DBOS once, before FREE

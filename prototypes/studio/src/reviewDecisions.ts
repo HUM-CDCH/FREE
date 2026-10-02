@@ -33,7 +33,6 @@ export function toReviewDecisionInput(decision: ReviewDecision): ReviewDecisionI
     action: decision.action,
     reviewedValue: decision.reviewedValue,
     ...(decision.reviewedEvidence && { reviewedEvidence: decision.reviewedEvidence }),
-    ...(decision.carriedFrom && { carriedFrom: decision.carriedFrom }),
   }
 }
 

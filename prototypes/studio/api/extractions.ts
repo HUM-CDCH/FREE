@@ -94,7 +94,6 @@ export function createResearcherApiHandlers(
       strategy: parsed.data.strategy,
       ...(parsed.data.catalogRecipe ? { catalogRecipe: parsed.data.catalogRecipe } : {}),
       method: parsed.data.method,
-      ...(parsed.data.pages ? { pages: parsed.data.pages } : {}),
     }
     const completed = await module.runSingle(input).catch(unavailableUnlessDomain)
     return json(extractionAttemptDto(completed.extraction), {

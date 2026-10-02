@@ -21,8 +21,6 @@ import argparse
 import json
 import sys
 from collections.abc import Callable
-from dataclasses import replace
-from itertools import pairwise
 from pathlib import Path
 from typing import Literal
 
@@ -53,14 +51,7 @@ class Options(BaseModel):
     record_chars: int = Field(default=24_000, ge=1_000)     # generic Catalog text/grounding cap; Article uses tokens
     catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
     article: ArticleOptions | None = None
-    pages: list[int] | None = Field(default=None, min_length=1)  # a Sample Extraction's physical PDF pages
     unified: UnifiedOptions | None = None  # the unified Catalog method: result version 3
-
-    @model_validator(mode="after")
-    def _pages_are_canonical(self) -> Options:
-        if self.pages is not None and (self.pages[0] < 1 or any(a >= b for a, b in pairwise(self.pages))):
-            raise ValueError("options.pages must be ascending, distinct, one-based PDF page numbers")
-        return self
 
     @model_validator(mode="after")
     def _models_are_served(self) -> Options:
@@ -88,9 +79,9 @@ class Options(BaseModel):
         return self
 
     def dumped(self) -> dict:
-        """The options as the artifact and the fingerprint record them; no `catalog` key on the version 1 path and no
-        `pages` key on a whole-document request, so its fingerprint is the one it had before samples."""
-        result = self.model_dump(exclude={name for name in ("catalog", "article", "pages", "unified")
+        """The options as the artifact and the fingerprint record them: no `catalog` key on the version 1 path, and
+        the unified method without the character limits it never reads."""
+        result = self.model_dump(exclude={name for name in ("catalog", "article", "unified")
                                           if getattr(self, name) is None})
         if self.catalog is not None and self.catalog.factors is None:
             result["catalog"].pop("factors")
@@ -197,12 +188,6 @@ def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, 
     the research harness calls this with a case's own evidence (`run_dir` None: nothing is published, and a recipe,
     which needs its run's segmentation, is refused by `grounded.extract`)."""
     chat = as_router(chat)
-    pages = request.options.pages
-    if pages is not None and request.options.catalog is None:
-        # A sample: Article and generic Catalog read only its pages. The recipe Catalog segments the whole document
-        # and keeps the entries on them itself (`grounded.extract`), so its published segmentation stays whole.
-        evidence = replace(evidence, passages=tuple(p for p in evidence.passages if p.page in pages),
-                           withheld=tuple(p for p in evidence.withheld if p.page in pages))
     scope = request.record_scope
     if scope == "document":
         result = article.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,

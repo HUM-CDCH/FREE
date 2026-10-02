@@ -10,9 +10,6 @@ import type {
   ExtractionAttempt,
   ReviewDecisionAction,
   ReviewDecisionInput,
-  ReviewPairing,
-  ReviewTransferVerdicts,
-  ReviewTransferSources,
 } from '../shared/extraction.contract'
 
 export type GridColumn = {
@@ -33,9 +30,6 @@ export type MemberReviewState =
       editable: boolean
       saving: boolean
       saveError: string | null
-      transfer: ReviewTransferVerdicts
-      pairings: readonly ReviewPairing[]
-      sources: ReviewTransferSources
     }
 
 function buildColumns(schemaNodes: readonly SchemaNode[] | null): GridColumn[] {
@@ -75,7 +69,6 @@ export function pendingReviewCount(state: MemberReviewState): number {
 
 function explicitDecision(decision: ReviewDecisionInput, action: ReviewDecisionAction = 'APPROVED', reviewedValue: ReviewDecisionInput['reviewedValue'] = null): ReviewDecisionInput {
   const next = { ...decision, action, reviewedValue: action === 'EDITED' ? reviewedValue : null }
-  delete next.carriedFrom
   delete next.reviewedEvidence
   return next
 }
@@ -156,11 +149,11 @@ export function useBatchExtractionReviewGrid(
     )
     .join('|')
 
-  function persistDraft(state: Extract<MemberReviewState, { status: 'ready' }>, refreshPairing = false) {
+  function persistDraft(state: Extract<MemberReviewState, { status: 'ready' }>) {
     const id = state.attempt.extractionId
     const decisions = state.decisions.filter((decision) => state.touched.has(resultPathKey(decision.resultPath)))
     if (draftConflicts.current.has(id)) {
-      rememberReviewDraft(id, { version: draftVersions.current.get(id) ?? 0, decisions, pairings: state.pairings })
+      rememberReviewDraft(id, { version: draftVersions.current.get(id) ?? 0, decisions })
       return
     }
     setDraftSaving((count) => count + 1)
@@ -168,12 +161,9 @@ export function useBatchExtractionReviewGrid(
     const write = saveExtractionReviewDraft(id,
       decisions,
       draftVersions.current.get(id) ?? 0,
-      state.pairings,
     ).then((saved) => {
       if (scopeRef.current !== scope) return
       draftVersions.current.set(id, saved.version)
-      const signal = loadControllerRef.current?.signal
-      if (refreshPairing && signal) return loadMember(state.attempt.sourceDocumentId, id, signal)
     })
     draftWrites.current.set(id, write)
     void write.catch((error: unknown) => {
@@ -197,7 +187,7 @@ export function useBatchExtractionReviewGrid(
         draftWrites.current.delete(state.attempt.extractionId)
         const signal = loadControllerRef.current?.signal
         if (signal) loadMember(sourceDocumentId, state.attempt.extractionId, signal)
-      } else persistDraft(state, true)
+      } else persistDraft(state)
     }
   }
 
@@ -225,13 +215,9 @@ export function useBatchExtractionReviewGrid(
           editable: extraction.reviewable && extraction.reviewedAt === null,
           saving: false,
           saveError: null,
-          transfer: reviewDraft?.transfer ?? {},
-          pairings: recovered.pairings,
-          sources: reviewDraft?.sources ?? [],
         }
         setMembers((current) => new Map(current).set(sourceDocumentId, state))
-        if (recovered.retry && state.editable) persistDraft(state,
-          JSON.stringify(recovered.pairings) !== JSON.stringify(reviewDraft?.pairings ?? []))
+        if (recovered.retry && state.editable) persistDraft(state)
       },
       (error: unknown) => {
         if (signal.aborted) return
@@ -415,7 +401,6 @@ export function useBatchExtractionReviewGrid(
           attempt: { ...state.attempt, reviewedAt: null, reviewDecisions: [] },
           decisions: state.decisions.map((decision) => explicitDecision(decision)),
           touched: new Set(), editable: true, saving: false, saveError: null,
-          pairings: [], transfer: {}, sources: [],
         }))
         const signal = loadControllerRef.current?.signal
         if (signal) await loadMember(sourceDocumentId, id, signal)
@@ -532,29 +517,6 @@ export function useBatchExtractionReviewGrid(
     }
   }
 
-  async function pairRecords(sourceDocumentId: string, pairings: readonly ReviewPairing[]) {
-    const state = membersRef.current.get(sourceDocumentId), scope = scopeRef.current
-    if (state?.status !== 'ready' || !state.editable || state.saving || draftConflicts.current.has(state.attempt.extractionId)) return
-    const id = state.attempt.extractionId
-    const current = () => scopeRef.current === scope && membersRef.current.get(sourceDocumentId)?.status === 'ready' &&
-      (membersRef.current.get(sourceDocumentId) as typeof state).attempt.extractionId === id
-    setMembers((members) => new Map(members).set(sourceDocumentId, { ...state, saving: true, saveError: null }))
-    try {
-      await draftWrites.current.get(id)
-      const saved = await saveExtractionReviewDraft(id, state.decisions.filter((decision) => state.touched.has(resultPathKey(decision.resultPath))),
-        draftVersions.current.get(id) ?? 0, pairings)
-      if (!current()) return
-      draftVersions.current.set(id, saved.version)
-      const signal = loadControllerRef.current?.signal
-      if (signal) await loadMember(sourceDocumentId, id, signal)
-    } catch (error) {
-      if (!current()) return
-      const message = failureText(error, 'The pairing could not be saved.')
-      if (message === REVIEW_DRAFT_CONFLICT) { draftConflicts.current.add(id); setDraftError(message) }
-      setMembers((members) => new Map(members).set(sourceDocumentId, { ...state, saving: false, saveError: message }))
-    }
-  }
-
   const dirtyCount = [...members.values()]
     .filter((state) => state.status === 'ready' && state.editable && state.touched.size > 0).length
 
@@ -580,6 +542,5 @@ export function useBatchExtractionReviewGrid(
     revertRow,
     saveMember,
     retryMember,
-    pairRecords,
   }
 }

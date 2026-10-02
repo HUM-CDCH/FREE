@@ -1,4 +1,3 @@
-import { SampleFacts } from './SampleFacts'
 import {
   authenticatedFetch,
   reportAuthenticationRequired,
@@ -33,7 +32,6 @@ import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
 import { recordScopeOf, strategyOf, type SchemaDefinition } from 'extraction/schema'
 import { browserStudioPath } from './studioUrl.js'
 import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
-import { resultPathKey } from '../shared/groundedExtraction'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -52,29 +50,6 @@ const HIGHLIGHT_ANNOTATIONS_ENABLED = false
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
 // (AnnotationEditorLayer #textLayerPointerDown): the text-layer background
 // and its non-text children.
-/** Sorted pages as the researcher reads them: `12–14, 17`. */
-function pageRanges(pages: readonly number[]): string {
-  const parts: string[] = []
-  for (let i = 0; i < pages.length; i += 1) {
-    let j = i
-    while (j + 1 < pages.length && pages[j + 1] === pages[j]! + 1) j += 1
-    parts.push(j > i ? `${pages[i]}–${pages[j]}` : String(pages[i]))
-    i = j
-  }
-  return parts.join(', ')
-}
-
-const SAMPLE_PAGE_LIMIT = 30
-/** Every result path: the sample's Evidence is painted whole, and stable so painting does not repeat per render. */
-const EVERY_RESULT_PATH: readonly string[] = []
-const STRATEGY_NAME: Readonly<Record<ExtractionStrategy, string>> = { ARTICLE: 'Article', CATALOG: 'Catalog' }
-
-/** Why Save & re-run sample cannot repeat a sample after the schema's Article/Catalog choice changed: it repeats the
- *  sample's own method, and admission runs a revision only under the strategy its scope names. */
-function sampleStrategyChanged(sample: ExtractionStrategy, schema: ExtractionStrategy): string {
-  return `This sample ran as ${STRATEGY_NAME[sample]}, and the schema is now ${STRATEGY_NAME[schema]}. Run a new sample to extract it as ${STRATEGY_NAME[schema]}.`
-}
-
 function isFreeHighlightTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) {
     return false
@@ -136,7 +111,6 @@ async function readParsedDocument(
 
 export type DocumentWorkspaceProps = {
   pdfUrl: string
-  sourceDocumentId?: string
   filename: string
   projectContextId: string
   sourceRepresentationId: string
@@ -150,8 +124,6 @@ export type DocumentWorkspaceProps = {
   extractionSchema: DocumentSnapshot['extractionSchema']
   persistedExtraction: DocumentSnapshot['latestAttempt']
   latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
-  /** The newest Sample Extraction of this Source Representation. */
-  latestSample?: DocumentSnapshot['latestSample']
   onOpenExtraction: (extractionId: string) => void
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
@@ -170,7 +142,6 @@ type PinnedAttemptSchema = SchemaDefinition & {
 
 export function DocumentWorkspace({
   pdfUrl,
-  sourceDocumentId,
   filename,
   projectContextId,
   sourceRepresentationId,
@@ -180,7 +151,6 @@ export function DocumentWorkspace({
   extractionSchema,
   persistedExtraction,
   latestReviewedExtraction = null,
-  latestSample = null,
   onOpenExtraction,
   onInitialResourceLoadFailure,
   onSourceSuperseded,
@@ -207,14 +177,10 @@ export function DocumentWorkspace({
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
   const [savingForRun, setSavingForRun] = useState(false)
-  // The page the viewer shows (pdf.js `pagechanging`) and the pages the next Sample Extraction runs on.
+  // The page the viewer shows (pdf.js `pagechanging`).
   const [currentPage, setCurrentPage] = useState(1)
-  const [samplePages, setSamplePages] = useState<number[]>([])
   const [pagesOpen, setPagesOpen] = useState(true)
-  const [selectingSamplePages, setSelectingSamplePages] = useState(false)
   const pageNavigationId = useId()
-  const sampleControlsId = useId()
-  const sampleRerunRefusalId = useId()
   const pagesToggleRef = useRef<HTMLButtonElement>(null)
   // Article or Catalog is the schema's own saved record scope (the Current Schema Revision's, or the choice its next
   // save declares); null until one is chosen. The selector never changes the strategy of an active or persisted attempt.
@@ -235,7 +201,7 @@ export function DocumentWorkspace({
   // restored, or historical — resolves the exact revision it ran with.
   const reopenedSchemas = useMemo(() => {
     const known: Record<string, PinnedAttemptSchema> = {}
-    for (const reopenedAttempt of [persistedExtraction, latestReviewedExtraction, latestSample])
+    for (const reopenedAttempt of [persistedExtraction, latestReviewedExtraction])
       if (reopenedAttempt)
         known[reopenedAttempt.schemaRevisionId] = {
           schemaRevisionId: reopenedAttempt.schemaRevisionId,
@@ -244,7 +210,7 @@ export function DocumentWorkspace({
           schemaNodes: reopenedAttempt.extractionSchema.schemaNodes,
         }
     return known
-  }, [persistedExtraction, latestReviewedExtraction, latestSample])
+  }, [persistedExtraction, latestReviewedExtraction])
   const [knownSchemas, setKnownSchemas] = useState(reopenedSchemas)
   const [finishedExtractionReport, setFinishedExtractionReport] = useState<{
     attempt: ExtractionAttempt
@@ -344,8 +310,6 @@ export function DocumentWorkspace({
     eventBus.on('pagechanging', ({ pageNumber }: { pageNumber: number }) => setCurrentPage(pageNumber),
       { signal: abortController.signal })
     setCurrentPage(1)
-    setSamplePages([])
-    setSelectingSamplePages(false)
 
     container.addEventListener(
       'wheel',
@@ -609,20 +573,6 @@ export function DocumentWorkspace({
     })
     onSourceSuperseded?.()
   }
-  // A Sample Extraction is its own attempt: it never replaces the whole-document one the Results tab shows.
-  const sample = useExtraction({
-    schemaReady,
-    indexing,
-    initialAttempt: latestSample,
-    documentKey: sourceRepresentationId,
-    reviewTarget,
-    onTerminal: (attempt) => showToast(attempt.failure?.code === 'cancelled'
-      ? 'Sample cancelled — no result was saved'
-      : attempt.executionStatus === 'FAILED' ? 'Sample failed' : '✓ Sample complete'),
-    onError: (message) => showToast(message),
-    onSuperseded,
-    onMethodChanged: setMethodConflict,
-  })
   const extraction = useExtraction({
     schemaReady,
     indexing,
@@ -682,8 +632,6 @@ export function DocumentWorkspace({
   const running =
     latestAttempt?.executionStatus === 'QUEUED' ||
     latestAttempt?.executionStatus === 'RUNNING'
-  const sampleRunning =
-    sample.attempt?.executionStatus === 'QUEUED' || sample.attempt?.executionStatus === 'RUNNING'
   const reviewedOnAnotherSource = latestReviewedExtraction &&
     latestReviewedExtraction.sourceRepresentationRevisionId !== sourceRepresentationId
   const inspectionChoices = latestAttempt && latestReviewedExtraction && !reviewedOnAnotherSource && latestAttempt.extractionId !== latestReviewedExtraction.extractionId
@@ -725,34 +673,25 @@ export function DocumentWorkspace({
     return () => controller.abort()
   }, [projectContextId, extractionSchemaId, missingSchemaRevisionId])
 
-  // On the Schema tab the page shows the sample's Evidence, and a passage picks the value it supports.
-  // Only a sample of the Source Representation on screen: its anchors mean nothing on another one.
-  const shownSample = sample.attempt?.sourceRepresentationRevisionId === sourceRepresentationId ? sample.attempt : null
-  const onSampleTab = effectiveRailOpen && railTab === 'schema' && shownSample !== null
-  const sampleSchema = shownSample ? knownSchemas[shownSample.schemaRevisionId] ?? null : null
-  const [focusedSampleKey, setFocusedSampleKey] = useState<string | null>(null)
-  const pickSampleValue = useCallback((path: readonly (string | number)[]) => setFocusedSampleKey(resultPathKey([...path])), [])
-  const overlaySchema = onSampleTab ? sampleSchema : inspectedAttemptSchema
   const evidenceFieldNames = useMemo(
     () =>
-      overlaySchema?.schemaNodes.map((node) => node.name) ?? [],
-    [overlaySchema],
+      inspectedAttemptSchema?.schemaNodes.map((node) => node.name) ?? [],
+    [inspectedAttemptSchema],
   )
   const selectEvidenceAnchor = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,
     parsedDocument,
-    attempt: onSampleTab ? shownSample : inspectedAttempt,
+    attempt: inspectedAttempt,
     fieldNames: evidenceFieldNames,
-    resultPath: onSampleTab ? EVERY_RESULT_PATH : resultPath,
-    active: onSampleTab || (effectiveRailOpen && railTab === 'results'),
-    onPick: onSampleTab ? pickSampleValue : undefined,
+    resultPath,
+    active: effectiveRailOpen && railTab === 'results',
   })
 
-  /** Saves pending schema edits as the Current Schema Revision, then admits the run: a Sample Extraction on `pages`,
-   *  else the whole document. A failed admission leaves the revision saved; running again only admits. */
-  async function runExtraction(pages: number[] | null = null, previous?: ExtractionAttempt) {
-    if (savingForRun || running || sampleRunning || !sourceRepresentationCurrent || saved.state.status !== 'ready') return
+  /** Saves pending schema edits as the Current Schema Revision, then admits the run over the whole document. A failed
+   *  admission leaves the revision saved; running again only admits. */
+  async function runExtraction() {
+    if (savingForRun || running || !sourceRepresentationCurrent || saved.state.status !== 'ready') return
     const savedState = saved.state
     setSavingForRun(true)
     const targetSourceRepresentationId = sourceRepresentationId
@@ -765,20 +704,17 @@ export function DocumentWorkspace({
         return
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
-      // The saved revision's own scope decides what a run is; admission refuses any other. A re-run sample repeats its
-      // own method, strategy included, so it runs only while the scope still names that strategy.
+      // The saved revision's own scope decides what a run is; admission refuses any other.
       if (revision.recordScope === null)
         throw new Error('Choose Article or Catalog before extraction.')
       const strategy = strategyOf(revision.recordScope)
-      if (previous && previous.strategy !== strategy)
-        throw new Error(sampleStrategyChanged(previous.strategy, strategy))
       // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
-      const catalogRecipe = previous ? previous.catalogRecipe : savedState.unifiedCatalog ? null : nextCatalogRecipe || null
-      const method = previous ? { models: previous.requestedModels ?? null, settings: previous.requestedSettings! } : savedMethodFor(savedState, strategy, catalogRecipe)
+      const catalogRecipe = savedState.unifiedCatalog ? null : nextCatalogRecipe || null
+      const method = savedMethodFor(savedState, strategy, catalogRecipe)
       setMethodConflict(null)
       // The researcher asked for this run, so it is what they now inspect;
       // its schema is known before the server acknowledges the attempt.
-      if (!pages) setSelectedInspectionId(null)
+      setSelectedInspectionId(null)
       setKnownSchemas((known) => ({
         ...known,
         [revision.schemaRevisionId]: {
@@ -788,7 +724,7 @@ export function DocumentWorkspace({
           schemaNodes: revision.schemaNodes,
         },
       }))
-      const acknowledged = await (pages ? sample : extraction).runExtraction(
+      const acknowledged = await extraction.runExtraction(
         method,
         {
           sourceRepresentationId: targetSourceRepresentationId,
@@ -796,9 +732,8 @@ export function DocumentWorkspace({
         },
         strategy,
         catalogRecipe,
-        pages,
       )
-      if (!acknowledged || pages) return
+      if (!acknowledged) return
       selectNextRunAfter(acknowledged)
       if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
         if (acknowledged.outcome === 'SUCCEEDED')
@@ -825,7 +760,6 @@ export function DocumentWorkspace({
     saved.state.status !== 'ready' ||
     savingForRun ||
     running ||
-    sampleRunning ||
     !sourceRepresentationId ||
     !sourceRepresentationCurrent ||
     !schemaReady ||
@@ -833,12 +767,6 @@ export function DocumentWorkspace({
     indexing ||
     schemaSnap.save?.status === 'conflict' ||
     schemaSnap.save?.status === 'error'
-  // Save & re-run sample repeats the shown sample's own method; once the schema's scope names the other strategy, a
-  // new sample (under the schema's scope) takes its place.
-  const sampleRerunRefusal =
-    shownSample && nextExtractionStrategy !== null && shownSample.strategy !== nextExtractionStrategy
-      ? sampleStrategyChanged(shownSample.strategy, nextExtractionStrategy)
-      : null
   const runLabel = running
     ? extraction.cancellationRequested
       ? 'Cancellation requested…'
@@ -1058,66 +986,13 @@ export function DocumentWorkspace({
                   <Button ref={pagesToggleRef} aria-expanded={pagesOpen} aria-controls={pageNavigationId}
                     className="min-h-9" onClick={() => setPagesOpen((open) => !open)}>Pages</Button>
                   <span className="text-ink-muted">{currentPage} / {loadState.pageCount}</span>
-                  <Button aria-expanded={selectingSamplePages} aria-controls={sampleControlsId}
-                    className="ml-auto min-h-9" onClick={() => {
-                      setSelectingSamplePages((selecting) => !selecting)
-                      if (!selectingSamplePages) setPagesOpen(true)
-                    }}>{selectingSamplePages ? 'Done selecting' : 'Select sample pages'}</Button>
-                  {(selectingSamplePages || samplePages.length > 0) &&
-                    <span className="min-w-0 max-w-40 truncate text-ink-muted" title={`pp. ${pageRanges(samplePages)}`}>
-                      {samplePages.length} {samplePages.length === 1 ? 'page' : 'pages'}
-                    </span>}
-                  {(selectingSamplePages || samplePages.length > 0 || sampleRunning) &&
-                    <Button variant="primary" className="min-h-9"
-                      aria-label={sampleRunning ? undefined : samplePages.length ? `Run sample on pp. ${pageRanges(samplePages)}` : 'Run sample'}
-                      disabled={sampleRunning ? sample.cancellationRequested : samplePages.length === 0 || runExtractionUnavailable}
-                      title={sampleRunning ? 'Cancel the active sample; the current model call may need to finish first' : undefined}
-                      onClick={() => sampleRunning ? void sample.requestCancellation() : void runExtraction(samplePages)}>
-                      {sampleRunning
-                        ? sample.cancellationRequested ? 'Cancellation requested…' : 'Cancel sample'
-                        : 'Run sample'}
-                    </Button>}
-                  {sampleRunning && <span role="status" className="text-ink-muted">
-                    {sample.cancellationRequested
-                      ? 'Sample cancellation requested; a running model call may need to finish first.'
-                      : `Sample ${sample.attempt?.executionStatus === 'QUEUED' ? 'queued' : 'running'} on pp. ${pageRanges(sample.attempt?.requestedPages ?? [])}`}
-                  </span>}
-                  {sample.cancellationError && <span role="alert" className="text-danger">{sample.cancellationError}</span>}
-                  {shownSample?.requestedPages && <Button className="min-h-9"
-                    disabled={runExtractionUnavailable || !shownSample.requestedSettings || sampleRerunRefusal !== null}
-                    aria-describedby={sampleRerunRefusal ? sampleRerunRefusalId : undefined}
-                    onClick={() => void runExtraction([...shownSample.requestedPages!], shownSample)}>Save &amp; re-run sample</Button>}
-                  {shownSample?.requestedPages && sampleRerunRefusal &&
-                    <span id={sampleRerunRefusalId} className="min-w-0 text-ink-muted">{sampleRerunRefusal}</span>}
-                  {sample.monitorError && (
-                    <>
-                      <span role="status" className="text-danger">{sample.monitorError}</span>
-                      <Button className="min-h-9" onClick={sample.reconnect}>Reconnect</Button>
-                    </>
-                  )}
                 </div>
-                {selectingSamplePages && <div id={sampleControlsId} role="group" aria-label="Sample page selection"
-                  className="mt-1.5 flex flex-wrap items-center gap-2 border-t border-line pt-1.5">
-                  <span className="font-semibold">{samplePages.length ? `pp. ${pageRanges(samplePages)}` : 'Choose up to 30 pages'}</span>
-                  <span className="ml-auto text-ink-muted">Around page {currentPage}:</span>
-                  {(['This page', '± 1 page', '± 2 pages'] as const).map((label, reach) => (
-                    <Button key={label} variant="pill" className="min-h-9" onClick={() => setSamplePages(Array.from(
-                      { length: 2 * reach + 1 }, (_, index) => currentPage - reach + index,
-                    ).filter((page) => page >= 1 && page <= loadState.pageCount))}>{label}</Button>
-                  ))}
-                  <Button className="min-h-9" disabled={samplePages.length === 0}
-                    onClick={() => setSamplePages([])}>Clear</Button>
-                </div>}
               </div>
             )}
             <div className="relative flex min-h-0 flex-1">
               {loadState.status === 'ready' && pagesOpen && <PageNavigation
                 id={pageNavigationId} pageCount={loadState.pageCount} currentPage={currentPage}
-                selectedPages={samplePages} selecting={selectingSamplePages} selectionLimit={SAMPLE_PAGE_LIMIT}
                 onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }}
-                onTogglePage={(page) => setSamplePages((pages) => pages.includes(page)
-                  ? pages.filter((each) => each !== page)
-                  : [...pages, page].sort((left, right) => left - right))}
                 onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }} />}
               <div className="relative min-w-0 flex-1">
                 <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
@@ -1161,9 +1036,6 @@ export function DocumentWorkspace({
             }`}
             aria-label="Evidence, schema and results"
           >
-            {effectiveRailOpen && projectContextId && sourceDocumentId && <SampleFacts projectContextId={projectContextId} schemaRevisionId={currentSchemaRevision?.schemaRevisionId ?? null}
-              sourceDocumentIds={[sourceDocumentId]} busy={running || sampleRunning}
-              refresh={`${sourceRepresentationId}:${sample.attempt?.extractionId}:${sample.attempt?.executionStatus}:${sample.attempt?.reviewedAt}:${sample.review.draftSaving}:${extraction.attempt?.extractionId}:${extraction.attempt?.executionStatus}:${extraction.attempt?.reviewedAt}`} />}
             <RightRail
               open={effectiveRailOpen}
               onToggle={() => setRailOpen((open) => !open)}
@@ -1209,20 +1081,6 @@ export function DocumentWorkspace({
               }}
               onSelectEvidence={selectEvidenceAnchor}
               onResultPathChange={setResultPath}
-              sample={shownSample && {
-                attempt: shownSample,
-                pinned: sampleSchema,
-                currentRevisionNumber: currentSchemaRevision?.revisionNumber ?? null,
-                pagesLabel: `pp. ${pageRanges(shownSample.requestedPages ?? [])}`,
-                review: sample.review,
-                parsedDocument,
-                focusedPathKey: focusedSampleKey,
-                onFocusValue: pickSampleValue,
-                onSelectEvidence: (anchorId) => {
-                  const anchor = parsedDocument?.evidence_index.anchors.find((each) => each.anchor_id === anchorId)
-                  if (anchor) selectEvidenceAnchor(anchor)
-                },
-              }}
             />
           </aside>
         </div>

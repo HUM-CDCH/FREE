@@ -7,7 +7,6 @@ import { ExtractionError } from './errors.js'
 import { REFERENCE_ARTICLE } from './extraction-method.js'
 import { keiExtractWorkflowId, type KeiExtractInput } from './kei-handoff.js'
 import { createExtractionModule } from './module.js'
-import { saveStoredReviewDraft } from './postgres-reviews.js'
 import { fixture } from './testing/extraction-fixture.js'
 import { RUN_EXTRACTION } from './workflows.js'
 
@@ -17,26 +16,8 @@ describe('Extraction admission on disposable PostgreSQL', { skip: !fixture && 's
     db, createResearcherExtractionPersistence, packages, kei, app,
     execution, deterministicArtifact, seedProject, withRecordScope, scheduler, createRuntime,
     freshInput, heldByKei, extractionRow, cleanup, configureAccount, modelConfigurations, rejectsWithCode,
-    untilLockWait, untilSignalled, succeeded, addRepresentation,
+    untilLockWait, untilSignalled,
   } = fixture
-
-  /** A published sample whose saved draft approves its one value on `anchor`. */
-  async function approvedSample(project: Awaited<ReturnType<typeof seedProject>>, pages: number[], anchor: string) {
-    const id = randomUUID()
-    const path = ['records', 0, 'title']
-    await db.orm.public.Extraction.create({
-      id, sourceDocumentId: project.documents[0]!.sourceDocumentId, schemaRevisionId: project.schemaRevisionId,
-      sourceRepresentationRevisionId: project.documents[0]!.sourceRepresentationRevisionId, strategy: 'ARTICLE',
-      requestedPages: pages, outcome: 'SUCCEEDED', complete: true, reviewable: true,
-      diagnostics: succeeded(id, project).diagnostics, resultPayload: { records: [{ title: 'Alpha' }] },
-      evidenceLinks: [{ resultPath: path, evidenceAnchorId: anchor }],
-      reviewDraft: [{ resultPath: path, evidenceAnchorId: anchor, reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null }],
-      reviewDraftVersion: 1,
-    })
-    return id
-  }
-  const reviewTransferOf = async (extractionId: string) =>
-    (await db.orm.public.Extraction.select('reviewTransfer').first({ id: extractionId }))?.reviewTransfer
 
   it('admits an Extraction row and its runExtraction workflow in one transaction', async (t) => {
     t.after(cleanup)
@@ -228,50 +209,21 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
     await heldByKei(input.extractionId)
   })
 
-  it("a sample's pages are its admission identity, never its method", async (t) => {
+  it('a whole-document run under a legacy sample ID is a conflict, never a replay', async (t) => {
     t.after(cleanup)
     const project = await seedProject()
-    kei.holding = true
-    const module = scheduler(project.researcherAccountId)
-    await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
-    const sample = { ...freshInput(project, randomUUID(), intent(SPANS)), pages: [1] }
-    // The start view's saved method is still the account's: the scope never makes it stale.
-    assert.equal((await module.runSingle(sample)).disposition, 'created')
-    assert.deepEqual((await extractionRow(sample.extractionId))?.requestedPages, [1])
-    assert.equal((await module.runSingle(sample)).disposition, 'replayed')
-    await assert.rejects(module.runSingle({ ...sample, pages: null }), rejectsWithCode('extraction_id_conflict'))
-    await assert.rejects(module.runSingle({ ...sample, extractionId: randomUUID(), pages: [2] }), rejectsWithCode('invalid_request'))
-    await heldByKei(sample.extractionId)
-  })
-
-  it('pins the decisions of samples on two page sets at admission, and a later sample edit changes nothing', async (t) => {
-    t.after(cleanup)
-    const project = await seedProject()
-    kei.holding = true
-    const first = await approvedSample(project, [12, 13, 14], 'a_p12_s4')
-    const second = await approvedSample(project, [40, 41, 42], 'a_p40_s1')
+    const document = project.documents[0]!
+    const { module } = createRuntime(project.researcherAccountId)
     const input = freshInput(project)
-    assert.equal((await scheduler(project.researcherAccountId).runSingle(input)).disposition, 'created')
-    const pinned = await reviewTransferOf(input.extractionId)
-    assert.deepEqual((pinned as { entries: { extractionId: string; nodeId: string; evidenceAnchorId: string; action: string }[] })
-      .entries.map((entry) => [entry.extractionId, entry.nodeId, entry.evidenceAnchorId, entry.action]),
-    [[first, 'title-node', 'a_p12_s4', 'APPROVED'], [second, 'title-node', 'a_p40_s1', 'APPROVED']])
-    await saveStoredReviewDraft(db as Database, project.researcherAccountId, first, { version: 1, decisions: [] })
-    assert.deepEqual(await reviewTransferOf(input.extractionId), pinned)
-    await heldByKei(input.extractionId)
-  })
-
-  it('pins nothing across a reprocessed source', async (t) => {
-    t.after(cleanup)
-    const project = await seedProject()
-    kei.holding = true
-    await approvedSample(project, [1], 'a_p1_s0')
-    const input = {
-      ...freshInput(project), sourceRepresentationRevisionId: await addRepresentation(project.documents[0]!, 'article-v2.pdf'),
-    }
-    assert.equal((await scheduler(project.researcherAccountId).runSingle(input)).disposition, 'created')
-    assert.equal(await reviewTransferOf(input.extractionId), null)
-    await heldByKei(input.extractionId)
+    // The row an old sample run left under this ID: same pins, a page scope.
+    await db.orm.public.Extraction.create({
+      id: input.extractionId, sourceDocumentId: document.sourceDocumentId,
+      sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: null },
+      requestedPages: [1], batchExtractionId: null,
+    })
+    await assert.rejects(module.runSingle(input), rejectsWithCode('extraction_id_conflict'))
+    assert.deepEqual(await app.admission.listWorkflows({ workflowIDs: [`extract:${input.extractionId}`] }), [])
   })
 
   it('explicit reference and service defaults are different requests under one ID', async (t) => {

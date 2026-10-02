@@ -6,7 +6,7 @@ export type ReviewCell = {
   nodeId: string
   resultPath: ResultPath
   presence: 'grounded' | 'ungrounded' | 'missing'
-  decision: { action: ReviewDecisionInput['action']; provenance: 'explicit' | 'carried' } | null
+  decision: { action: ReviewDecisionInput['action'] } | null
 }
 
 /** Classify the pinned tree's scalar occurrences. Pass saved/explicit decisions, never prepared approvals. */
@@ -38,7 +38,7 @@ export function reviewAttention(
     const decision = decided.get(key)
     cells.push({ nodeId: node.id, resultPath,
       presence: value === undefined || value === null || value === '' ? 'missing' : grounded.has(key) ? 'grounded' : 'ungrounded',
-      decision: decision ? { action: decision.action, provenance: decision.carriedFrom ? 'carried' : 'explicit' } : null })
+      decision: decision ? { action: decision.action } : null })
   }
   const tree = partitionSchemaNodes(nodes).recordNodes
   if (Array.isArray(result.records)) result.records.forEach((record, index) => children(tree, record, ['records', index]))

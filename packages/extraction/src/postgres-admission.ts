@@ -34,11 +34,9 @@ import {
   type ActiveSettings,
   type ExtractionMethodIntent,
 } from './extraction-method.js'
-import { extractionSnapshot, readAttemptRows } from './postgres-attempts.js'
 import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
 import { refuseRecordScope, storedRecordScope } from './record-scope.js'
-import { transferEntries, transferSample, unionReviewTransfer } from './review-rules.js'
 import { parseExtractionSchema, type RecordScope } from './schema.js'
 import {
   EXTRACTION_QUEUE,
@@ -48,9 +46,6 @@ import {
 import type {
   ExtractionModelChoice,
   ExtractionStrategy,
-  ReviewDecisionInput,
-  ReviewPairing,
-  ReviewTransfer,
   RunSingleInput,
   ScheduleBatchInput,
   ScheduleBatchResult,
@@ -140,7 +135,6 @@ type AdmissionPins = Readonly<{
   catalogRecipe: string | null
   requestedModels: ExtractionModelChoice | null
   requestedSettings: ActiveSettings
-  requestedPages: readonly number[] | null
   schemaTree: unknown
   /** The pinned revision's declared record scope; null for a legacy revision that declares none. */
   recordScope: RecordScope | null
@@ -186,7 +180,6 @@ async function resolveAdmission(
     catalogRecipe,
     requestedModels: method.models,
     requestedSettings: method.settings,
-    requestedPages: input.pages ?? null,
     schemaTree: schema.schemaTree,
     recordScope: storedRecordScope(schema.recordScope),
     preprocessId: representation.preprocessId,
@@ -205,7 +198,7 @@ type AdmittedIdentity = Readonly<{
   batchExtractionId: string | null
 }>
 
-/** An identical interactive request: the same pins and choices, and the same pages (scope is identity, not method). A batch member's ID is never an interactive one. */
+/** An identical interactive request: the same pins and choices. A legacy sample row (a page scope) never equals a new request, so reusing its ID is a conflict. A batch member's ID is never an interactive one. */
 function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
   return row.batchExtractionId === null &&
     row.sourceDocumentId === pins.sourceDocumentId &&
@@ -216,42 +209,7 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
     isDeepStrictEqual(modelChoice(row.requestedModels), pins.requestedModels) &&
     // A NULL (historical) row was admitted before settings were recorded, so it never equals a recorded method.
     isDeepStrictEqual(row.requestedSettings ?? null, pins.requestedSettings) &&
-    isDeepStrictEqual(row.requestedPages ?? null, pins.requestedPages)
-}
-
-/**
- * The sample decisions a single Extraction pins (design §6): those of every sample of its document, Source
- * Representation Revision and Extraction Schema, a finalized review's else its saved draft's, read in the admission
- * transaction.
- */
-async function samplesReviewTransfer(orm: DatabaseOrm,
-  pins: Pick<AdmissionPins, 'sourceDocumentId' | 'sourceRepresentationRevisionId' | 'extractionSchemaId'>,
-): Promise<ReviewTransfer | null> {
-  const revisions = await orm.public.SchemaRevision.where({ extractionSchemaId: pins.extractionSchemaId }).select('id').all()
-  const rows = (await orm.public.Extraction.where({
-    sourceDocumentId: pins.sourceDocumentId, sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
-    outcome: 'SUCCEEDED', reviewable: true,
-  }).where((row) => row.schemaRevisionId.in(revisions.map((revision) => revision.id)))
-    .select('id', 'requestedPages', 'reviewDraft', 'reviewDraftVersion', 'reviewPairings').all())
-    .filter((row) => row.requestedPages !== null)
-  const samples = []
-  for (const row of await readAttemptRows(orm, rows.map((each) => each.id))) {
-    const sample = await extractionSnapshot(orm, row)
-    const draft = rows.find((each) => each.id === row.id)!
-    const revision = await orm.public.SchemaRevision.select('schemaTree').first({ id: sample.schemaRevisionId })
-    const nodes = parseExtractionSchema(revision?.schemaTree).schemaNodes
-    const decisions = sample.reviewedAt ? sample.reviewDecisions : (draft.reviewDraft ?? []) as unknown as ReviewDecisionInput[]
-    samples.push({
-      ...transferSample(sample),
-      createdAt: sample.createdAt,
-      entries: transferEntries(sample, decisions, nodes, draft.reviewDraftVersion),
-      // Its hand pairings count as alignment when newer decisions override older ones.
-      pairings: (draft.reviewPairings ?? []) as unknown as ReviewPairing[],
-    })
-  }
-  samples.sort((left, right) =>
-    left.createdAt.getTime() - right.createdAt.getTime() || left.extractionId.localeCompare(right.extractionId))
-  return unionReviewTransfer(samples)
+    row.requestedPages === null
 }
 
 /** DBOS refused the workflow ID (workflowIDReusePolicy 'reject'): its Extraction is gone, so the ID is spent. */
@@ -307,8 +265,6 @@ export async function admitInteractiveExtraction(
         { models: pins.requestedModels, settings: pins.requestedSettings })))
         return 'method-changed'
       refuseUnusableIdentityFields(pins.requestedSettings, pins.schemaTree)
-      // Pinned once, here: a replay above keeps the snapshot its first admission pinned.
-      const reviewTransfer = await samplesReviewTransfer(transaction.orm, pins)
       await transaction.orm.public.Extraction.create({
         id: input.extractionId,
         sourceDocumentId: pins.sourceDocumentId,
@@ -318,9 +274,6 @@ export async function admitInteractiveExtraction(
         catalogRecipe: pins.catalogRecipe,
         requestedModels: pins.requestedModels,
         requestedSettings: pins.requestedSettings,
-        // Omitted, not null, for the whole document: the column stays SQL NULL, which whole-document reads filter on.
-        ...(pins.requestedPages ? { requestedPages: pins.requestedPages } : {}),
-        ...(reviewTransfer ? { reviewTransfer } : {}),
         batchExtractionId: null,
       })
       await execution.enqueue(client, {
@@ -556,7 +509,6 @@ export async function admitBatchMember(
   member: BatchMemberAdmission,
 ): Promise<void> {
   const id = batchMemberExtractionId(member.batchExtractionId, member.sourceDocumentId)
-  const reviewTransfer = await samplesReviewTransfer(orm, member)
   await orm.public.Extraction.create({
     id,
     sourceDocumentId: member.sourceDocumentId,
@@ -567,7 +519,6 @@ export async function admitBatchMember(
     requestedModels: member.requestedModels,
     requestedSettings: member.requestedSettings,
     batchExtractionId: member.batchExtractionId,
-    ...(reviewTransfer ? { reviewTransfer } : {}),
   })
   await execution.enqueue(client, {
     workflowName: RUN_EXTRACTION,

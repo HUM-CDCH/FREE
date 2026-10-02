@@ -32,9 +32,6 @@ export type AdmittedExtraction = Readonly<{
   /** The settings admission pinned (`Extraction.requestedSettings`); never today's account configuration. Absent in a
    *  `loadAdmitted` checkpoint written before settings were recorded, which ran on service defaults. */
   requestedSettings?: unknown
-  /** A Sample Extraction's pages (`Extraction.requestedPages`). Absent in a checkpoint written before samples, and
-   *  null for a whole-document Extraction: both run on the whole document. */
-  requestedPages?: readonly number[] | null
   batchExtractionId: string | null
   /** The pinned revision's `preprocessId`: `kei-exp:<run>:<generation>` for a representation kei made. */
   preprocessId: string
@@ -98,7 +95,7 @@ function keiExtractRequest(admitted: AdmittedExtraction): KeiExtractInput | Extr
     generation: run.generation,
     request: {
       schema,
-      options: { ...keiMethodOptions(method), ...(admitted.requestedPages ? { pages: admitted.requestedPages } : {}) },
+      options: keiMethodOptions(method),
     },
   }
 }

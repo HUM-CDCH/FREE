@@ -112,7 +112,6 @@ const emptyExtractions: ReopenExtractions = {
           sourceRepresentationRevisionId,
           latestAttempt: null,
           latestReviewed: null,
-          samples: [],
         }
       : null
   },

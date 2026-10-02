@@ -1,6 +1,6 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
-import SchemaPanel, { type SchemaSample, type FieldContext } from './SchemaPanel'
+import SchemaPanel, { type FieldContext } from './SchemaPanel'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
@@ -49,8 +49,6 @@ type RightRailProps = {
   onRenameSchema?: (name: string) => Promise<string | null>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
   onResultPathChange: (path: string[] | null) => void
-  /** The latest Sample Extraction, reviewed in the Schema tab. */
-  sample?: SchemaSample | null
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
@@ -86,12 +84,11 @@ function RightRail({
   onRenameSchema,
   onSelectEvidence,
   onResultPathChange,
-  sample = null,
 }: RightRailProps) {
   const [fieldContext, setFieldContext] = useState<FieldContext | null>(null)
-  const editField = (nodeId: string, path: (string | number)[], fromSample = false) => {
-    const attempt = fromSample ? sample?.attempt : inspection.attempt
-    const pinned = fromSample ? sample?.pinned : inspection.pinnedSchema
+  const editField = (nodeId: string, path: (string | number)[]) => {
+    const attempt = inspection.attempt
+    const pinned = inspection.pinnedSchema
     if (!attempt || !pinned) return
     const node = enumerateFieldPaths(pinned.schemaNodes).find((field) => field.id === nodeId)?.node
     if (!node) return
@@ -209,14 +206,12 @@ function RightRail({
           sourceRepresentationId={sourceRepresentationId}
           schemaName={schemaName}
           onRenameSchema={onRenameSchema}
-          sample={sample}
           fieldContext={fieldContext}
-          onEditField={(id, path) => editField(id, path, true)}
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>
         <ResultsTab
-          onEditField={(id, path) => editField(id, path)}
+          onEditField={editField}
           key={inspection.attempt?.extractionId ?? 'none'}
           controller={extraction}
           onRunExtraction={onRunExtraction}

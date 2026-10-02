@@ -831,7 +831,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const evidence = [{ evidenceAnchorId: 'canonical', reviewedOccurrenceIds: ['occurrence'] }]
     act(() => result.current.review.setDecision(pending.resultPath, 'EDITED', 'corrected', evidence))
     await waitFor(() => expect(api.saveExtractionReviewDraft).toHaveBeenCalledWith(original.extractionId,
-      [{ ...pending, action: 'EDITED', reviewedValue: 'corrected', reviewedEvidence: evidence }], 0, undefined))
+      [{ ...pending, action: 'EDITED', reviewedValue: 'corrected', reviewedEvidence: evidence }], 0))
   })
 
   it('uses server-derived pending decisions when finalizing review', async () => {
