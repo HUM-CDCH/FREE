@@ -4,7 +4,7 @@ import type {
 } from '../../../packages/db/src/project-store.js'
 import { schemaRevisionWriteRequestSchema } from '../shared/schemaRevision.contract.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
-import { parseSchemaDefinition } from 'extraction/schema'
+import { savedSchemaDefinition } from 'extraction/schema'
 import { summarizeSchemaRevision } from '../shared/schemaChanges.js'
 import {
   ApiError,
@@ -32,7 +32,8 @@ function identity(url: URL, name: string): string {
 }
 
 function revisionDto(revision: SchemaRevisionRecord) {
-  const definition = parseSchemaDefinition(revision.schemaTree)
+  // The stored tree with its revision's record scope beside it: the definition as every boundary reads it.
+  const definition = savedSchemaDefinition(revision.schemaTree, revision.recordScope)
   return {
     schemaRevisionId: revision.schemaRevisionId,
     extractionSchemaId: revision.extractionSchemaId,
@@ -110,9 +111,10 @@ export function createSchemaRevisionHandlers(
               revisionNumber: revision.revisionNumber,
               origin: revision.origin,
               createdAt: revision.createdAt.toISOString(),
+              recordScope: revision.recordScope,
               summary: summarizeSchemaRevision(
-                previous ? parseSchemaDefinition(previous.schemaTree) : null,
-                parseSchemaDefinition(revision.schemaTree),
+                previous ? savedSchemaDefinition(previous.schemaTree, previous.recordScope) : null,
+                savedSchemaDefinition(revision.schemaTree, revision.recordScope),
               ),
             }
           }),
@@ -138,6 +140,8 @@ export function createSchemaRevisionHandlers(
           'Schema Revision request is invalid.',
         )
       const input = parsed.data
+      // Omitted, an append inherits its head's record scope and an initialization declares none.
+      const recordScope = input.recordScope === undefined ? [] : [input.recordScope] as const
       const result = await ('extractionSchemaId' in input
         ? store.appendSchemaRevision(
             input.projectContextId,
@@ -148,6 +152,7 @@ export function createSchemaRevisionHandlers(
               schemaNodes: input.schemaNodes,
             },
             input.sourceCoverage,
+            ...recordScope,
           )
         : store.initializeSchemaRevision(
             input.projectContextId,
@@ -156,6 +161,7 @@ export function createSchemaRevisionHandlers(
               schemaNodes: input.schemaNodes,
             },
             input.sourceCoverage ?? null,
+            ...recordScope,
           ))
         .catch((cause) => {
           throw persistenceUnavailable(cause)

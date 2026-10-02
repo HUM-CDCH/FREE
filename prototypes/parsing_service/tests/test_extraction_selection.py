@@ -54,7 +54,9 @@ def test_selection_requires_bounded_context_and_does_not_change_default_serializ
     assert ArticleOptions(context="bounded", selection="supported").model_dump()["selection"] == "supported"
 
 
-def test_pipeline_omits_unselected_value_calls_but_preserves_inventory_coverage(monkeypatch):
+def test_under_document_scope_every_unit_is_the_documents_support_and_none_is_omitted(monkeypatch):
+    """Selection keeps the units owning an identity's support; the document's one identity is supported by every
+    passage, so the pipeline selects every unit and reads every one (the unit-level rules are tested above)."""
     from kei_exp.kie.extract import run
     from kei_exp.kie.extract.models import Router
     from tests.test_extract_grounded import CountingChat, WordCounter
@@ -68,24 +70,18 @@ def test_pipeline_omits_unselected_value_calls_but_preserves_inventory_coverage(
         {"id": "site", "name": "site", "type": "string"},
         {"id": "temperature", "name": "temperature", "type": "number",
          "description": "temperature calorimetry"}]})
-    seen = {"inventory": [], "fields": []}
-
-    def inventory(system, user, reply_schema):
-        seen["inventory"].append(user)
-        return {"records": [{"label": "Alpha", "identity": {"site": "Alpha"},
-                              "passages": [source[0].id]}] if "Alpha" in user else []}
+    seen = []
 
     def fields(system, user, reply_schema):
-        seen["fields"].append(user)
-        return {"site": "Alpha", "temperature": 42 if "calorimetry" in user else None}
+        seen.append(user)
+        return {"site": "Alpha" if "Alpha" in user else None, "temperature": 42 if "calorimetry" in user else None}
 
     request = run.ExtractRequest(schema=schema, options={"strategy": "article", "article": {
-        "context": "bounded", "context_tokens": 8192, "selection": "supported", "prompt": "schema",
-        "identity": "conservative", "identity_fields": ["site"], "grounding": "off"}})
-    result = run.extract(None, request, Router(CountingChat(fields), CountingChat(inventory)),
+        "context": "bounded", "context_tokens": 8192, "selection": "supported", "grounding": "off"}})
+    result = run.extract(None, request, Router(CountingChat(fields), CountingChat(lambda *_: pytest.fail("inventory"))),
                          counter={role: WordCounter() for role in ("fields", "reasoning")})
-    assert len(seen["inventory"]) == 5 and len(seen["fields"]) == 3
-    assert result["records"][0]["temperature"] == 42
-    assert not any("bibliography" in user or "unrelated" in user for user in seen["fields"])
-    assert result["selections"][0]["omitted_units"] == [2, 4]
+    assert len(seen) == 5 and result["records"] == [{"site": "Alpha", "temperature": 42}]
+    assert result["selections"][0]["omitted_units"] == [] and result["selections"][0]["record"] == 0
+    assert {reason for unit in result["selections"][0]["selected_units"] for reason in unit["reasons"]} == {
+        "identity_support"}
     assert result["selection_version"] == 1 and not result["complete"]

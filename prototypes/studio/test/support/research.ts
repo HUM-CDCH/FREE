@@ -92,6 +92,8 @@ export async function seedResearch(packages: CanonicalPackageStore): Promise<See
     revisionNumber: 1,
     origin: 'RESEARCHER_EDIT',
     schemaTree: EXTRACTION_SCHEMA,
+    // An Article: the workflow tests admit their Extractions under that scope.
+    recordScope: 'document',
   })
   return {
     researcherAccountId,

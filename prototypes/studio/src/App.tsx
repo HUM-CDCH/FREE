@@ -29,7 +29,7 @@ import { PageNavigation } from './PageNavigation'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
-import type { SchemaDefinition } from 'extraction/schema'
+import { recordScopeOf, strategyOf, type SchemaDefinition } from 'extraction/schema'
 import { browserStudioPath } from './studioUrl.js'
 import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
 import { resultPathKey } from '../shared/groundedExtraction'
@@ -207,11 +207,11 @@ export function DocumentWorkspace({
   const pageNavigationId = useId()
   const sampleControlsId = useId()
   const pagesToggleRef = useRef<HTMLButtonElement>(null)
-  // One-shot per-run selection: each new run defaults back to Article, and the
-  // selector never changes the strategy of an active or persisted attempt.
-  const [nextExtractionStrategy, setNextExtractionStrategy] =
-    useState<ExtractionStrategy>('ARTICLE')
-  // Catalog only, one-shot like the strategy: '' keeps generic model discovery of record boundaries.
+  // Article or Catalog is the schema's own saved record scope (the Current Schema Revision's, or the choice its next
+  // save declares); null until one is chosen. The selector never changes the strategy of an active or persisted attempt.
+  const nextExtractionStrategy: ExtractionStrategy | null =
+    schemaSnap.recordScope === null ? null : strategyOf(schemaSnap.recordScope)
+  // Generic Catalog only, a one-shot per-run method choice: '' keeps generic model discovery of record boundaries.
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
@@ -261,7 +261,6 @@ export function DocumentWorkspace({
     setRenderedSourceRepresentationId(sourceRepresentationId)
     setLoadState({ status: 'loading' })
     setZoomPercent(100)
-    setNextExtractionStrategy('ARTICLE')
     setNextCatalogRecipe('')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setKnownSchemas(reopenedSchemas)
@@ -648,12 +647,12 @@ export function DocumentWorkspace({
   })
 
   /**
-   * The one-shot selection for the next run once `attempt` is acknowledged or has ended: a failed Catalog attempt is
-   * run again with its own recipe; anything else defaults back to Article.
+   * The one-shot boundaries choice for the next run once `attempt` is acknowledged or has ended: a failed Catalog
+   * attempt is run again with its own recipe; anything else returns to model discovery. Article or Catalog itself is
+   * the schema's saved record scope and never resets.
    */
   function selectNextRunAfter(attempt: ExtractionAttempt) {
     const repeat = attempt.executionStatus === 'FAILED' && attempt.strategy === 'CATALOG'
-    setNextExtractionStrategy(repeat ? 'CATALOG' : 'ARTICLE')
     setNextCatalogRecipe(repeat ? attempt.catalogRecipe ?? '' : '')
   }
 
@@ -757,7 +756,11 @@ export function DocumentWorkspace({
         return
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
-      const strategy = previous?.strategy ?? nextExtractionStrategy
+      // The saved revision's own scope decides what a new run is; admission refuses any other. A retried admission
+      // keeps its own identity, strategy included.
+      if (!previous && revision.recordScope === null)
+        throw new Error('Choose Article or Catalog before extraction.')
+      const strategy = previous?.strategy ?? strategyOf(revision.recordScope!)
       // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
       const catalogRecipe = previous ? previous.catalogRecipe : savedState.unifiedCatalog ? null : nextCatalogRecipe || null
       const method = previous ? { models: previous.requestedModels ?? null, settings: previous.requestedSettings! } : savedMethodFor(savedState, strategy, catalogRecipe)
@@ -810,6 +813,7 @@ export function DocumentWorkspace({
     !sourceRepresentationId ||
     !sourceRepresentationCurrent ||
     !schemaReady ||
+    nextExtractionStrategy === null ||
     indexing ||
     schemaSnap.save?.status === 'conflict' ||
     schemaSnap.save?.status === 'error'
@@ -820,8 +824,8 @@ export function DocumentWorkspace({
     : extraction.hasResults
       ? '↻ Re-run extraction'
       : '▶ Run extraction'
-  // The one-shot selection runExtraction posts, named on every Results-tab run
-  // action so none of them promises to repeat the inspected attempt.
+  // The selection runExtraction posts, named on every Results-tab run action so
+  // none of them promises to repeat the inspected attempt. None without a choice.
   const runExtractionStrategy: RunExtractionStrategy =
     nextExtractionStrategy === 'CATALOG'
       ? {
@@ -830,11 +834,18 @@ export function DocumentWorkspace({
             CATALOG_RECIPES.find((recipe) => recipe.id === nextCatalogRecipe)?.label ??
             'Model discovery',
         }
-      : { strategy: 'ARTICLE' }
+      : nextExtractionStrategy === 'ARTICLE'
+        ? { strategy: 'ARTICLE' }
+        : { strategy: null }
+  // Said wherever a run waits for the Article/Catalog choice.
+  const strategyHelp = 'Article: one object for the whole document. Catalog: a collection of records.'
+  const strategyUnchosen = !running && schemaReady && nextExtractionStrategy === null
 
   const hintText =
     running
       ? 'Extraction is running. Follow its status in the Results tab'
+      : strategyUnchosen
+      ? strategyHelp
       : extraction.hasResults
       ? 'View the extracted JSON in the Results tab'
       : !sourceRepresentationCurrent
@@ -927,17 +938,24 @@ export function DocumentWorkspace({
               </button>
             </div>
           )}
-          <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
+          <label
+            className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted"
+            title={strategyHelp}
+          >
             Strategy
             <select
               aria-label="Extraction strategy"
-              value={running ? latestAttempt.strategy : nextExtractionStrategy}
+              aria-describedby={strategyUnchosen ? 'extraction-strategy-help' : undefined}
+              value={running ? latestAttempt.strategy : nextExtractionStrategy ?? ''}
               disabled={running || savingForRun}
               onChange={(event) =>
-                setNextExtractionStrategy(event.target.value as ExtractionStrategy)
+                schema.setRecordScope(recordScopeOf(event.target.value as ExtractionStrategy))
               }
               className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink"
             >
+              {!running && nextExtractionStrategy === null && (
+                <option value="" disabled>Choose…</option>
+              )}
               <option value="ARTICLE">Article</option>
               <option value="CATALOG">Catalog</option>
             </select>
@@ -960,7 +978,7 @@ export function DocumentWorkspace({
               </select>
             </label>
           )}
-          {!running && (
+          {!running && nextExtractionStrategy !== null && (
             <SavedMethodSummary variant="toolbar" saved={saved.state} conflict={methodConflict}
               method={saved.state.status === 'ready'
                 ? savedMethodFor(saved.state, nextExtractionStrategy, nextExtractionStrategy === 'CATALOG' && !saved.state.unifiedCatalog ? nextCatalogRecipe || null : null)
@@ -985,7 +1003,9 @@ export function DocumentWorkspace({
                   : schemaReady
                     ? nextExtractionStrategy === 'CATALOG'
                       ? 'Find catalogue entries and extract one record per entry'
-                      : 'Run one values extraction across the whole Source Document'
+                      : nextExtractionStrategy === 'ARTICLE'
+                        ? 'Run one values extraction across the whole Source Document'
+                        : `Choose Article or Catalog first. ${strategyHelp}`
                     : 'Generate a schema in the Schema tab first'
             }
             onClick={() =>
@@ -1089,7 +1109,7 @@ export function DocumentWorkspace({
             <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden justify-center sm:flex">
               <p className="flex min-w-0 items-center gap-2 rounded-full bg-ink px-4 py-2 text-xs font-medium text-canvas shadow-float">
                 <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent-soft" />
-                <span className="truncate">{hintText}</span>
+                <span id={strategyUnchosen ? 'extraction-strategy-help' : undefined} className="truncate">{hintText}</span>
               </p>
             </div>
           </section>

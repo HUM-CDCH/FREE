@@ -116,6 +116,8 @@ test.beforeAll(async () => {
       recordDescription: 'One deliberately ordered record.',
       schemaNodes: historicalNodes,
     },
+    // Saved as a Catalog then: restoring this content must not bring that scope back.
+    recordScope: 'records',
   })
   await db.orm.public.SchemaRevision.create({
     id: '73000000-0000-4000-8004-000000000002',
@@ -126,6 +128,7 @@ test.beforeAll(async () => {
       recordDescription: 'One current record.',
       schemaNodes: currentNodes,
     },
+    recordScope: 'document',
   })
 })
 
@@ -186,8 +189,10 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   const restored = await page.request.get(
     `/api/schema-revisions/${latest.revisions[0].schemaRevisionId}?projectContextId=${id.project}&extractionSchemaId=${id.schema}`,
   )
-  const restoredBody = (await restored.json()) as { revision: { schemaNodes: unknown } }
+  const restoredBody = (await restored.json()) as { revision: { schemaNodes: unknown; recordScope: string | null } }
   expect(restoredBody.revision.schemaNodes).toEqual(historicalNodes)
+  // Restored content inherits the current Article scope; the historical revision's Catalog never silently returns.
+  expect(restoredBody.revision.recordScope).toBe('document')
 
   await page.close()
   const freshContext = await browser.newContext()

@@ -34,7 +34,9 @@ def frozen(tmp_path, monkeypatch):
     provider = {"base_url": "http://unused", "model": "fake/extractor", "context_tokens": WordCounter.context_tokens}
     parent = tmp_path / "parent"
     directory = parent / "cells/Doc--bounded--0"
-    fields = study.Capture(CountingChat(lambda s, u, schema: {"title": "Document", "year": 1827 if "1827" in u else None}),
+    # Article is one document root (version 2): its site is read by the value calls, no longer bound by an inventory.
+    fields = study.Capture(CountingChat(lambda s, u, schema: {"title": "Document", "site": "Hill" if "Hill" in u else None,
+                                                              "year": 1827 if "1827" in u else None}),
                            directory / "calls", "fields")
     reason = study.Capture(CountingChat(reasoning), directory / "calls", "reasoning")
     options = {"strategy": "article", "article": {"context": "bounded", "identity": "conservative",
@@ -74,7 +76,7 @@ def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(fr
     _, bundles, original, _ = frozen
     bundle = read(bundles / "Doc.json")
     assert bundle["records"] == original["records"] and bundle["inventory"] == original["inventory"]
-    assert {call["stage"] for call in bundle["upstream_calls"]} == {"document", "inventory", "record"}
+    assert {call["stage"] for call in bundle["upstream_calls"]} == {"document", "record"}  # no identity inventory
     assert bundle["provenance"]["fresh_calls"] == 0
     assert bundle["value_origins"][0][1] == {"path": ["year"], "kind": "value",
         "sources": [{"unit": 1, "path": ["year"]}]}

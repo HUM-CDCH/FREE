@@ -131,6 +131,9 @@ model SchemaRevision {
   revisionNumber             Int
   origin                     SchemaRevisionOrigin
   schemaTree                 Json
+  // The definition's task scope: "document" (Article, one document-level object) or "records" (Catalog, a collection
+  // of records); validated in code. Null is an undeclared legacy definition whose task selection was ambiguous.
+  recordScope                String?
   modelAttribution           Json?
   createdAt                  Timestamptz6               @default(now())
   extractionSchema           ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)

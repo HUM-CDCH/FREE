@@ -60,7 +60,10 @@ after(async () => {
 })
 
 function extractSubmission(extractionId: string, attributes: Record<string, unknown> = {}): KeiSubmission {
-  const { enqueue, request } = contract('extract.input')
+  const { enqueue, request: fixture } = contract('extract.input')
+  // Studio always sends the revision's record scope beside the tree; a fixture without one gains its strategy's.
+  const request = { ...fixture, request: { ...fixture.request, schema: {
+    recordScope: fixture.request.options.strategy === 'article' ? 'document' : 'records', ...fixture.request.schema } } }
   return {
     workflow: 'extract', workflowId: keiExtractWorkflowId(extractionId), queueName: enqueue.queue_name,
     priority: enqueue.priority, timeoutMs: enqueue.workflow_timeout_ms, request,

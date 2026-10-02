@@ -1,11 +1,13 @@
-"""Article record discovery across noncontiguous source evidence.
+"""Article: the document-scope extraction, one document-level object that may contain arrays.
 
-`extract` is the Article implementation: identities inventoried in each source context, each record's values
-extracted and then verified in every source context, and the artifact assembled in `assembly.py`, as the version 1
-Catalog's is. This module owns the inventory prompt and reply schema (`inventory_request`), identity validation
-and reconciliation, and each record's value contexts. Every model call goes through `calls.complete`; the shared
-value prompts live in `stages.py` and grounding in `grounding.py`. The complete-source reference
-is preserved for reproducible comparisons while bounded variants are developed.
+`extract` is the Article implementation: the document's one root read in each of its value contexts (the complete
+source by default, bounded parts with `options.article.context`), assembled across them by
+`contexts.assemble_document`, verified in every source context, and the artifact assembled in `assembly.py`, as the
+version 1 Catalog's is (`document_root`). No identity is inventoried: the artifact's `inventory` holds the one document
+identity, every passage its support. The inventory of noncontiguous records (`inventory_request`, `inventory`,
+`reconcile_identities`, `extract_records`) stays for the research replays that read captured version 1 studies; the
+service path does not call it. Every model call goes through `calls.complete`; the shared value prompts live in
+`stages.py` and grounding in `grounding.py`.
 """
 from __future__ import annotations
 
@@ -17,21 +19,24 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kei_exp.kie.extract.assembly import artifact, document_values, ground_records, unchecked
+from kei_exp.kie.extract.assembly import ARTICLE_VERSION, artifact, document_values, ground_records, unchecked
 from kei_exp.kie.extract.calls import Call, complete
-from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, partition, reconcile_values
+from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, assemble_document, partition, reconcile_values
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import REFERENCE, ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.rendering import RENDERING_VERSION, structured_source
 from kei_exp.kie.extract.routing import VERSION as GROUNDING_ROUTING_VERSION, value_origins
 from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
-from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
+from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, conform, json_schema
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.selection import select_contexts
 from kei_exp.kie.extract.stages import Issue, _instruction, _labelled, extract_record, normal, record_request, leaves
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter, counters_for
 from kei_exp.kie.passages import Evidence, Passage, text_of
+
+# The one document identity's label, shown where a record's identity would be (grounding); no identity attribute.
+DOCUMENT_LABEL = "the whole document"
 
 
 @dataclass
@@ -50,11 +55,12 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
     """The Article artifact for `request` (the validated `run.ExtractRequest`) over `evidence`.
 
-    Both roles need a served context size: `counter` is one counter per role, by default the counter of each role's
-    endpoint. `before_entry` is called before each context's document-level and inventory calls, each record call,
-    each record's verification and each grounding batch, and, with bounded contexts, before each count that sizes a
-    context and each selection; what it raises ends the extraction. `run_dir` and `chunks` are not used: Article
-    reads only the evidence and runs unsplit."""
+    The result is exactly one record, the document's root (`run.dispatch` holds it to that). Both roles need a served
+    context size: `counter` is one counter per role, by default the counter of each role's endpoint. `before_entry` is
+    called before each context's document-level call, each value context's call, the root's verification and each
+    grounding batch, and, with bounded contexts, before each count that sizes a context and the selection; what it
+    raises ends the extraction. `run_dir` and `chunks` are not used: Article reads only the evidence and runs
+    unsplit."""
     check = before_entry or unchecked
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
@@ -73,8 +79,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
         budget=options.record_chars, check=check, counter=counter["fields"],
         structured=method.rendering == "structured")
-    extracted = extract_records(evidence.passages, schema, chat, counters=counter,
-                                record_chars=options.record_chars, check=check, method=method, contexts=contexts)
+    extracted = document_root(evidence.passages, schema, chat, counters=counter,
+                              record_chars=options.record_chars, check=check, method=method, contexts=contexts)
     calls += extracted.calls
     issues += extracted.issues
     support = ground_records(extracted.slices, schema, chat, check=check, budget=options.record_chars,
@@ -87,6 +93,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                       fields=[fields for _, fields in extracted.slices], document=document, links=links,
                       calls=calls, issues=issues)
     result["inventory"] = extracted.identities
+    result["article_version"] = ARTICLE_VERSION
     if options.article is not None:  # the reference artifact carries no method fields
         result["method_version"] = 1
         result["contexts"] = [context.dumped() for context in contexts]
@@ -109,7 +116,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         result["conflicts"] = {"document": document_conflicts, "records": extracted.conflicts}
         result["completion"] = {
             "processing": all(call.ok for call in calls),
-            "source_coverage": "attempted" if all(call.ok for call in calls if call.stage == "inventory") else "partial",
+            "source_coverage": "attempted" if all(call.ok for call in calls if call.stage == "record") else "partial",
             "grounding": "disabled" if method.grounding == "off" else (
                 "complete" if not result["ungrounded"] else "partial"),
             "record_recall": "unmeasured", "document_fields": "unverified" if schema.document_nodes else "not_applicable"}
@@ -121,9 +128,56 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                 "eligible_record_leaves": len(eligible), "skipped": support.skipped}
             result["completion"]["eligible_grounding"] = (
                 "not_applicable" if not eligible else "complete" if eligible <= {link.path for link in links} else "partial")
-        # Successful calls and linked returned fields cannot establish inventory recall.
+        # Successful calls and linked returned fields cannot establish that every array item was found.
         result["complete"] = False
     return result
+
+
+def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
+                  record_chars: int, check: Callable[[], None], method: ArticleOptions = REFERENCE,
+                  contexts: list[Context] | None = None) -> Records:
+    """The document's one root, from each of its value contexts, assembled; grounding belongs to the shared path.
+
+    The whole document is the object: no identity is inventoried or bound, and every record field is asked of every
+    value context under `stages.DOCUMENT`. With bounded contexts the source is partitioned (with its overlap) to fit
+    that request, and `selection` sees every passage as the identity's support. Several contexts' answers are
+    assembled by `contexts.assemble_document`: every array item kept in context order, equal items from different
+    contexts named by a `possible_repeated_items` issue, a disagreeing scalar null with its conflict."""
+    structured = method.rendering == "structured"
+    item = {"identity": {}, "label": DOCUMENT_LABEL, "passages": [p.id for p in passages]}
+    issues: list[Issue] = []
+    calls = []
+    selections = []
+    groups = contexts if contexts is not None else [Context(tuple(passages))]
+    if method.context == "bounded":
+        def fits(group):
+            check()
+            source = structured_source(group) if structured else text_of(group)
+            system, user, reply_schema = record_request(source, schema, None, None, document=True)
+            return counters["fields"].request_tokens(system, user, reply_schema) + 4096 <= counters["fields"].context_tokens
+        groups = partition(passages, fits, overlap=method.overlap_passages,
+                           structural=method.grouping == "structural") or [Context(())]
+    if method.selection is not None and item["passages"]:
+        check()
+        groups, selection = select_contexts(groups, passages, item["passages"], schema)
+        selections.append({"record": 0, **selection})
+    candidates = []
+    for group in groups:
+        check()
+        fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars, record=0,
+            counter=counters["fields"], structured=structured, document=True)
+        calls += attempts
+        issues += problems
+        candidates.append(fields)
+    root, contested, repeats = (assemble_document(candidates) if len(candidates) != 1
+                                else (candidates[0], [], []))
+    root = conform(root, schema.record_nodes)
+    origins = [value_origins(candidates, root, {}, item["passages"])] if method.grounding_routing is not None else []
+    issues += [Issue("conflicting_values", json.dumps(conflict, ensure_ascii=False), 0) for conflict in contested]
+    issues += [Issue("possible_repeated_items", json.dumps(repeat, ensure_ascii=False), 0,
+                     ("records", 0, *repeat["path"])) for repeat in repeats]
+    return Records([item], [(list(passages), root)], calls, issues,
+                   [{"record": 0, **conflict} for conflict in contested], [groups], selections, origins)
 
 
 def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,

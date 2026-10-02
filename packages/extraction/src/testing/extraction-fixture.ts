@@ -18,6 +18,7 @@ import {
   keiExtractWorkflowId, type KeiExtractInput, type KeiFailureCode, type KeiHandoff, type KeiPoll, type KeiSubmission,
 } from '../kei-handoff.js'
 import { createExtractionModule } from '../module.js'
+import type { RecordScope } from '../schema.js'
 import type {
   BatchExtractionSnapshot, ExtractionAttemptSnapshot, ExtractionModule, RunSingleInput,
 } from '../types.js'
@@ -105,7 +106,7 @@ async function setup(disposableDatabaseUrl: string) {
     const nodes = (schema as { schemaNodes?: Array<{ name: string }> }).schemaNodes ?? []
     return keiExpArtifact({
       run_id: request.run_id, generation: request.generation, strategy, model: 'deterministic',
-      schema: schema as { recordDescription: string; schemaNodes: unknown[] },
+      schema: schema,
       // As kei dumps the options it ran under: every option it was sent, `models` null when it chose no role.
       options: { model: 'deterministic', ...options, strategy, models: (options.models as Record<string, string> | undefined) ?? null },
       started: new Date().toISOString(), seconds: 0.001,
@@ -425,6 +426,8 @@ async function setup(disposableDatabaseUrl: string) {
     schemaTree: unknown = ARTICLE_SCHEMA,
     filenames: readonly string[] = ['article.pdf'],
     ownerId?: string,
+    /** The revision's declared record scope: Article (`document`) unless a test runs Catalog or a legacy revision. */
+    recordScope: RecordScope | null = 'document',
   ): Promise<SeededProject> {
     const researcherAccountId = ownerId ?? randomUUID()
     if (!accounts.has(researcherAccountId)) {
@@ -456,6 +459,7 @@ async function setup(disposableDatabaseUrl: string) {
       revisionNumber: 1,
       origin: 'SUGGESTION',
       schemaTree,
+      recordScope,
     })
     const documents: SeededDocument[] = []
     for (const filename of filenames) {
@@ -498,6 +502,22 @@ async function setup(disposableDatabaseUrl: string) {
       schemaRevisionId,
       documents,
     }
+  }
+
+  /** The project with a new current Schema Revision: the same tree, declaring `recordScope` (null: a legacy one). */
+  async function withRecordScope(project: SeededProject, recordScope: RecordScope | null): Promise<SeededProject> {
+    const current = await db.orm.public.SchemaRevision.where({ extractionSchemaId: project.extractionSchemaId })
+      .select('revisionNumber', 'schemaTree').orderBy((revision) => revision.revisionNumber.desc()).first()
+    const schemaRevisionId = randomUUID()
+    await db.orm.public.SchemaRevision.create({
+      id: schemaRevisionId,
+      extractionSchemaId: project.extractionSchemaId,
+      revisionNumber: current!.revisionNumber + 1,
+      origin: 'RESEARCHER_EDIT',
+      schemaTree: current!.schemaTree,
+      recordScope,
+    })
+    return { ...project, schemaRevisionId }
   }
 
   async function addRepresentation(document: SeededDocument, filename: string) {
@@ -743,7 +763,7 @@ async function setup(disposableDatabaseUrl: string) {
     sha256, ARTICLE_SCHEMA, db, stableJson,
     stableUuid, createResearcherProjectStore, createResearcherExtractionPersistence, createExtractionStore, settleExtraction,
     packages, kei, scriptedPorts, ports, app,
-    execution, executionCancels, deterministicArtifact, seedProject, addRepresentation,
+    execution, executionCancels, deterministicArtifact, seedProject, withRecordScope, addRepresentation,
     raceRevision, scheduler, eventually, untilLockWait, untilSignalled, waitForAttempt, createRuntime,
     freshInput, rejectsWithCode, waitForBatch, studioWorkflow, heldByKei,
     extractionRow, succeeded, cleanup, disposableDatabaseUrl, spawnKeiStandIn,

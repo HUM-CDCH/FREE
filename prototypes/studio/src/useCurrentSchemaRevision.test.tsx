@@ -32,6 +32,7 @@ function revision(
     schemaRevisionId: `33333333-3333-4333-8333-${String(revisionNumber).padStart(12, '0')}`,
     revisionNumber,
     recordDescription,
+    recordScope: 'document',
     schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
   }
 }

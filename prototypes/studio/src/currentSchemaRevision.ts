@@ -3,6 +3,7 @@ import {
   enumerateFieldPaths,
   mkId,
   templateToSchemaDefinition,
+  type RecordScope,
   type SchemaDefinition,
   type SchemaNode,
 } from 'extraction/schema'
@@ -36,14 +37,19 @@ export type SchemaEditorPersistence = {
    * declaration of the suggestion it was edited from; a wholesale replacement names its own, null for none.
    */
   edit(definition: SchemaDefinition, sourceCoverage?: SourceCoverage | null): void
+  /** Save the Article/Catalog choice as the definition's record scope: a schema change, like an edit. Absent when the
+   *  persistence keeps no Schema Revision (a local draft). */
+  setRecordScope?(recordScope: RecordScope): void
   /** Durable Extraction Schema identity; absent for local drafts. */
   extractionSchemaId?(): string | null
   /** The Project Context the durable schema lives in: the scope of the model operations a reloaded page looks for. */
   projectContextId?(): string
+  /** `recordScope`: the Article/Catalog choice made before the first revision; omitted, the revision declares none. */
   initialize?(
     definition: SchemaDefinition,
     signal?: AbortSignal,
     sourceCoverage?: SourceCoverage | null,
+    recordScope?: RecordScope,
   ): Promise<SchemaRevision>
   flush?(): Promise<AcknowledgedSchemaRevision | null>
   saveState?(): SchemaSaveState | null
@@ -72,6 +78,7 @@ export type DurableSchemaPersistence = SchemaEditorPersistence &
       | 'extractionSchemaId'
       | 'projectContextId'
       | 'initialize'
+      | 'setRecordScope'
       | 'flush'
       | 'saveState'
       | 'reloadCurrent'
@@ -115,17 +122,19 @@ export function durableSchemaPersistence(options: {
   projectContextId: string
   initial: AcknowledgedSchemaRevision | null
   debounceMs?: number
-  /** `sourceCoverage` omitted: the new revision inherits its head's declaration (see `SchemaEditorPersistence.edit`). */
+  /** `sourceCoverage` or `recordScope` omitted: the new revision inherits its head's (see `SchemaEditorPersistence.edit`). */
   append(
     extractionSchemaId: string,
     expectedRevisionNumber: number,
     definition: SchemaDefinition,
     sourceCoverage?: SourceCoverage | null,
+    recordScope?: RecordScope,
   ): Promise<SchemaRevision>
   initialize(
     definition: SchemaDefinition,
     signal?: AbortSignal,
     sourceCoverage?: SourceCoverage | null,
+    recordScope?: RecordScope,
   ): Promise<SchemaRevision>
   reconcileInitialization?(): Promise<SchemaRevision | null>
   listRevisions(
@@ -150,10 +159,10 @@ export function durableSchemaPersistence(options: {
   let replacement: { sourceCoverage: SourceCoverage | null } | null = null
   // One append binding per coordinator; the Extraction Schema id arrives with
   // the first revision when the scope starts without one.
-  const appendCurrent = async (expected: number, definition: SchemaDefinition) => {
+  const appendCurrent = async (expected: number, definition: SchemaDefinition, recordScope?: RecordScope) => {
     if (extractionSchemaId === null) throw new Error('No durable schema is open.')
     const carried = replacement
-    const saved = await options.append(extractionSchemaId, expected, definition, carried?.sourceCoverage)
+    const saved = await options.append(extractionSchemaId, expected, definition, carried?.sourceCoverage, recordScope)
     if (replacement === carried) replacement = null
     return saved
   }
@@ -171,7 +180,7 @@ export function durableSchemaPersistence(options: {
     projectContextId() {
       return options.projectContextId
     },
-    async initialize(definition, signal, sourceCoverage) {
+    async initialize(definition, signal, sourceCoverage, recordScope) {
       if (coordinator) throw new Error('A durable schema is already open.')
       if (uncertainInitialization) {
         if (!options.reconcileInitialization) throw new Error('Reload the project to reconcile the uncertain schema save.')
@@ -183,7 +192,7 @@ export function durableSchemaPersistence(options: {
         uncertainInitialization = false
       }
       try {
-        const revision = await options.initialize(definition, signal, sourceCoverage)
+        const revision = await options.initialize(definition, signal, sourceCoverage, recordScope)
         attach(revision); notify(); return revision
       } catch (error) { uncertainInitialization = true; throw error }
     },
@@ -191,6 +200,9 @@ export function durableSchemaPersistence(options: {
       if (!coordinator) return
       if (sourceCoverage !== undefined) replacement = { sourceCoverage }
       coordinator.edit(definition)
+    },
+    setRecordScope(recordScope) {
+      coordinator?.setRecordScope(recordScope)
     },
     flush() {
       return coordinator ? coordinator.flush() : Promise.resolve(null)
@@ -276,6 +288,12 @@ export type SchemaEditorSnapshot = {
    *  (edits included), null once it is replaced wholesale or when the generation read the whole source. The saved
    *  revision keeps the declaration and edits inherit it, so a reopened schema shows it again. */
   sourceCoverage: Extract<SourceCoverage, { complete: false }> | null
+  /**
+   * The definition's Article/Catalog choice (`document` / `records`): the one the next save declares, else the
+   * acknowledged revision's; before the first revision, the choice its initialization will declare. Null when none is
+   * chosen (a legacy revision or a new schema): a run needs a choice first.
+   */
+  recordScope: RecordScope | null
 }
 
 export type SchemaEditorController = {
@@ -305,6 +323,9 @@ export type SchemaEditorController = {
   adoptDraft(definition: SchemaDefinition): void
   clearDraft(message: string): SchemaMutationResult
   setRecordDescription(recordDescription: string): void
+  /** Choose Article (`document`) or Catalog (`records`): saved as a new revision's record scope, or declared by the
+   *  first revision when none exists yet. */
+  setRecordScope(recordScope: RecordScope): void
 
   /** Create a new Current Schema Revision from a Historical Schema Revision. */
   previewHistoricalRevision(schemaRevisionId: string): Promise<SchemaRevision>
@@ -358,6 +379,8 @@ export function createSchemaEditorController(
    *  replacement that opened the editor. */
   let generatedCoverage: { coverage: SourceCoverage | null; replacementVersion: number } | null =
     options.initialSourceCoverage ? { coverage: options.initialSourceCoverage, replacementVersion } : null
+  /** The choice held for the first revision while no durable revision exists. */
+  let pendingRecordScope: RecordScope | null = null
   let disposed = false
 
   const listeners = new Set<() => void>()
@@ -393,6 +416,7 @@ export function createSchemaEditorController(
         generatedCoverage?.replacementVersion === replacementVersion && generatedCoverage.coverage?.complete === false
           ? generatedCoverage.coverage
           : null,
+      recordScope: save ? save.recordScope : pendingRecordScope,
     }
   }
   function publish() {
@@ -490,7 +514,7 @@ export function createSchemaEditorController(
       return true
     }
     if (!persistence.initialize) throw new Error('Schema generation is unavailable for this draft.')
-    const revision = await persistence.initialize(definition, signal, sourceCoverage)
+    const revision = await persistence.initialize(definition, signal, sourceCoverage, pendingRecordScope ?? undefined)
     if (signal?.aborted || disposed) return false
     replacementVersion += 1
     draft = definition
@@ -656,6 +680,23 @@ export function createSchemaEditorController(
         { recordDescription, schemaNodes: draft.schemaNodes },
         '✎ Record description updated',
       )
+    },
+    setRecordScope(recordScope) {
+      const save = persistence.saveState?.() ?? null
+      if (!save) {
+        // No revision yet: the first one declares the choice.
+        if (recordScope === pendingRecordScope) return
+        pendingRecordScope = recordScope
+        publish()
+        return
+      }
+      if (recordScope === save.recordScope || !persistence.setRecordScope) return
+      // The acknowledged revision runs the other scope: it is no longer what a run would use until the save lands.
+      extractableSchemaRevisionId = null
+      historicalPreview = null
+      persistence.setRecordScope(recordScope)
+      publish()
+      options.onCommitMessage?.(`✎ Strategy changed to ${recordScope === 'document' ? 'Article' : 'Catalog'}`)
     },
 
     async previewHistoricalRevision(schemaRevisionId) {

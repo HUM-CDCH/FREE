@@ -3,12 +3,14 @@ import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
 import { keiExpManifestSchema, keiExpPageSchema, parsedDocumentFromKeiExp } from '../../../prototypes/studio/api/_kei_exp.js'
 import unifiedContract from '../../../prototypes/parsing_service/tests/fixtures/contracts/extract.result.v3.json' with { type: 'json' }
+import recordScopeContract from '../../../prototypes/parsing_service/tests/fixtures/contracts/record-scope.json' with { type: 'json' }
 import measuredTable from '../../../prototypes/studio/test/fixtures/kei-exp/ellekilde-table-v5.json' with { type: 'json' }
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import { ExtractionError } from './errors.js'
 import { acceptKeiArtifact, type ArtifactPins, type KeiExpArtifact } from './kei-artifact.js'
 import { keiExpArtifact, keiExpCall, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
 import type { KeiExtractInput } from './kei-handoff.js'
+import type { RecordScope } from './schema.js'
 import { decodeParsedDocument, type ParsedDocument } from './parsed-document.js'
 import { occurrenceOwnership, reviewableExtraction, reviewAuthority } from './review-rules.js'
 import type { EvidenceGrounding, ExtractionModelChoice, ExtractionSnapshot, VerifiedGrounding } from './types.js'
@@ -17,11 +19,14 @@ const schema = {
   recordDescription: 'Article records.',
   schemaNodes: [{ id: 'title', name: 'title', type: 'string' as const }, { id: 'year', name: 'year', type: 'integer' as const }],
 }
+/** The schema as runExtraction sends it and kei-exp echoes it: the pinned tree with the revision's record scope. */
+const scoped = (recordScope: RecordScope, tree: typeof schema = schema) => ({ ...tree, recordScope })
 const runId = parsedDocument.document.document_id
 const issues = [{ code: 'missing_value', detail: 'No year', record: 0, path: ['records', 0, 'year'] }]
 function artifact(overrides: Partial<KeiExpArtifact> = {}): KeiExpArtifact {
   return keiExpArtifact({
-    run_id: runId, strategy: 'article', model: 'selected-model', schema,
+    run_id: runId, strategy: 'article', model: 'selected-model',
+    schema: scoped(overrides.strategy === 'catalog' ? 'records' : 'document'),
     options: { strategy: 'article', model: 'selected-model', discovery_chars: 48_000, record_chars: 24_000 },
     records: [{ title: 'Alpha', year: null }],
     evidence: [keiExpEvidence()],
@@ -47,7 +52,7 @@ function request({ strategy = 'ARTICLE', recipe = null, models = null, generatio
   return {
     run_id: runId, generation,
     request: {
-      schema,
+      schema: scoped(strategy === 'CATALOG' ? 'records' : 'document'),
       options: {
         strategy: strategy === 'CATALOG' ? 'catalog' : 'article',
         ...(models === null ? {} : { models }),
@@ -75,10 +80,10 @@ describe('kei artifact acceptance', () => {
     })) }
     const skipped = { code: 'evidence_policy_skipped', detail: 'derived: source verification not requested',
       record: 0, path: ['records', 0, 'title'] }
-    const raw = artifact({ schema: policySchema, records: [{ title: 'reported' }],
+    const raw = artifact({ schema: scoped('document', policySchema), records: [{ title: 'reported' }],
       evidence: [], ungrounded: [skipped.path], issues: [skipped] })
     const input = request()
-    input.request.schema = policySchema
+    input.request.schema = scoped('document', policySchema)
     const { pins } = accept(artifact())
     const result = acceptKeiArtifact(pins, document, raw, input)
     assert.equal(result.complete, false)
@@ -107,7 +112,7 @@ describe('kei artifact acceptance', () => {
   })
 
   it('maps the version 2 artifact of a Catalog recipe without dropping what review needs', () => {
-    const base = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema })
+    const base = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema: scoped('records') })
     // A glossary expansion travels beside the raw value, spans renamed to the client's casing.
     const glossary = { value: 'Heidekreis', rule: 'glossary' as const, key_span: { segment: 'p1_s0', start: 0, end: 5 },
                        expansion_span: { segment: 'p1_s0', start: 8, end: 18 } }
@@ -143,12 +148,12 @@ describe('kei artifact acceptance', () => {
 
   it('refuses a version 2 artifact produced under another recipe than the one requested', () => {
     const other = keiExpGroundedArtifact({
-      run_id: runId, model: 'selected-model', schema,
+      run_id: runId, model: 'selected-model', schema: scoped('records'),
       segmentation: { ...keiExpGroundedArtifact().segmentation, recipe: { ...keiExpGroundedArtifact().segmentation.recipe, version: 2 } },
     })
     refused(() => accept(other, { strategy: 'CATALOG', recipe: 'numbered-catalogue-de@1' }))
     // A generic Catalog request never accepts a recipe's artifact, and a recipe's request never a generic one.
-    refused(() => accept(keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema }), { strategy: 'CATALOG' }))
+    refused(() => accept(keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema: scoped('records') }), { strategy: 'CATALOG' }))
     refused(() => accept(artifact({ strategy: 'catalog' }), { strategy: 'CATALOG', recipe: 'numbered-catalogue-de@1' }))
   })
 
@@ -164,6 +169,25 @@ describe('kei artifact acceptance', () => {
     }
     const value = artifact({ evidence: [keiExpEvidence({ linked_by: 'model' })] })
     assert.equal(accept(value).extraction.evidence![0].linkedBy, undefined)
+  })
+
+  it('holds a result to its record scope: a document is exactly one root, records any number (record-scope.json)', () => {
+    for (const row of recordScopeContract.artifacts) {
+      const strategy = row.recordScope === 'document' ? 'ARTICLE' : 'CATALOG'
+      const records = Array.from({ length: row.records }, (_, index) => ({ title: `Entry ${index + 1}`, year: null }))
+      const value = artifact({ strategy: strategy === 'CATALOG' ? 'catalog' : 'article', records, evidence: [],
+        ungrounded: records.map((_, index) => ['records', index, 'title']) })
+      if (row.accepted) {
+        const { extraction } = accept(value, { strategy })
+        // The envelope is always `{records: [...]}`, whatever the scope.
+        assert.deepEqual(extraction.result, { records }, JSON.stringify(row))
+      } else {
+        assert.throws(() => accept(value, { strategy }), (error: unknown) =>
+          error instanceof ExtractionError && error.code === 'invalid_model_output' &&
+          error.message === `The document record scope requires exactly one root record; kei-exp returned ${row.records}.`,
+        JSON.stringify(row))
+      }
+    }
   })
 
   it('counts model calls and tolerates a model server that reports no token usage', () => {
@@ -184,7 +208,10 @@ describe('kei artifact acceptance', () => {
       artifact({ run_id: 'other' }),
       artifact({ generation: 'other' }),
       artifact({ strategy: 'catalog' }),
-      artifact({ schema: { ...schema, recordDescription: 'Other schema' } }),
+      artifact({ schema: { ...scoped('document'), recordDescription: 'Other schema' } }),
+      // The tree under another record scope, or without the scope it was sent with.
+      artifact({ schema: scoped('records') }),
+      artifact({ schema }),
       artifact({ options: { strategy: 'article', model: null, models: { fields: 'nuextract' } } }),
     ]) refused(() => accept(value))
     // The same artifact against a request for another generation, strategy, recipe or model choice.
@@ -260,7 +287,7 @@ describe('kei artifact acceptance', () => {
     const table = decodeParsedDocument(translated.document)
     const generic = artifact({ generation: 'g1', evidence: [keiExpEvidence({ cell: 'r1_c0', precision: 'cell' })] })
     assert.equal(accept(generic, { document: table }).extraction.evidence?.[0].evidenceAnchorId, 'a_p1_s0_r1_c0')
-    const grounded = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema, generation: 'g1' })
+    const grounded = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema: scoped('records'), generation: 'g1' })
     grounded.evidence = grounded.evidence.slice(0, 1).map(link => ({ ...link, segment: 'p1_s0', page: 1, cell: 'r1_c0', precision: 'cell' }))
     const groundedResult = accept(grounded, { strategy: 'CATALOG', recipe: 'numbered-catalogue-de@1', document: table }).extraction
     assert.equal(groundedResult.evidence?.[0].evidenceAnchorId, 'a_p1_s0_r1_c0')
@@ -328,7 +355,7 @@ describe('what the Parsing Service reports it ran', () => {
   it('a reference run reports no Article method; a recipe run with verification off keeps typed proposals, not links', () => {
     assert.deepEqual(accept(artifact({ prompt_version: 12 })).extraction.diagnostics.effectiveMethod?.versions, { prompt: 12 })
     const proposed = [{ path: ['records', 0, 'title'], value: 'Alpha', quote: 'Alpha', key: null, provenance: 'token', spans: [], alternatives: [], window: 0, reason: 'verification_disabled' }]
-    const grounded = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema,
+    const grounded = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema: scoped('records'),
       proposed, evidence: [], completeness: { processing: true, coverage: true, grounding: false, recall: 'unmeasured' } })
     const { extraction } = accept(grounded, { strategy: 'CATALOG', recipe: `${grounded.segmentation.recipe.id}@${grounded.segmentation.recipe.version}` })
     assert.deepEqual(extraction.diagnostics.grounded?.proposed, proposed)
@@ -409,7 +436,8 @@ describe('unified Catalog artifacts', () => {
       reviewedOccurrenceIds: [...(owners.get(link.evidenceAnchorId) ?? [])], action: 'APPROVED' as const, reviewedValue: null,
     }))
     const authority = reviewAuthority({ extraction: reviewableExtraction(snapshot), document: pinned,
-      schemaTree: input.request.schema, decisions, expectedDraftVersion: 1 })
+      schemaTree: { recordDescription: input.request.schema.recordDescription, schemaNodes: input.request.schema.schemaNodes },
+      decisions, expectedDraftVersion: 1 })
     assert.equal(authority.reviewDecisions.length, accepted.evidence!.length)
     assert.ok(accepted.evidence!.some((link) => link.resultPath.includes('finds')))  // a list item's values review too
   })

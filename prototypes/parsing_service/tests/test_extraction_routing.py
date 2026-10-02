@@ -144,15 +144,12 @@ def test_assembled_routing_changes_only_grounding_and_publishes_origin_paths(mon
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
     monkeypatch.setattr("kei_exp.kie.extract.article.source_contexts", lambda *_: contexts)
     monkeypatch.setattr("kei_exp.kie.extract.article.partition", lambda *_args, **_kwargs: contexts)
-    def reason(system, user, schema):
-        if "records" in schema["properties"]:
-            offered = schema["properties"]["records"]["items"]["properties"]["passages"]["items"]["enum"]
-            return {"records": [{"label": "Hill", "identity": {"site": "Hill"}, "passages": offered}]}
+    def reason(system, user, schema):  # grounding only: the document root takes no inventory
         return {claim: {"label": prop["properties"]["label"]["enum"][0], "attribution": True}
                 for claim, prop in schema["properties"].items()}
     results, requests = [], []
     for routing in (None, "origin_lexical"):
-        values = CountingChat(lambda s, u, schema: {"year": 1827 if "1827" in u else None})
+        values = CountingChat(lambda s, u, schema: {"site": "Hill", "year": 1827 if "1827" in u else None})
         reasoning = CountingChat(reason)
         request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
             "context": "bounded", "identity": "conservative", "identity_fields": ["site"],
@@ -164,8 +161,10 @@ def test_assembled_routing_changes_only_grounding_and_publishes_origin_paths(mon
     assert requests[0] == requests[1] and plain["records"] == routed["records"]
     assert plain["fingerprint"] != routed["fingerprint"] and "value_origins" not in plain
     assert routed["grounding_routing_version"] == 1
-    assert routed["value_origins"][1] == {"path": ["records", 0, "year"], "kind": "value",
-        "sources": [{"unit": 1, "path": ["year"]}]}
+    assert routed["value_origins"] == [
+        {"path": ["records", 0, "site"], "kind": "value", "sources": [{"unit": 0, "path": ["site"]},
+                                                                      {"unit": 1, "path": ["site"]}]},
+        {"path": ["records", 0, "year"], "kind": "value", "sources": [{"unit": 1, "path": ["year"]}]}]
     assert routed["grounding_routes"][1]["attempted"] == [1]
 
 

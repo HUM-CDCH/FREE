@@ -121,3 +121,47 @@ def reconcile_values(values: Sequence[dict]) -> tuple[dict, list[dict]]:
         return None
 
     return combine(values, []) or {}, conflicts
+
+
+def assemble_document(values: Sequence[dict]) -> tuple[dict, list[dict], list[dict]]:
+    """One document root from its value contexts' answers, in context order: the root, its conflicts and the
+    possible repeats. Not `reconcile_values`, whose exact array union would collapse equal items into one.
+
+    Arrays concatenate and keep every item, object or scalar: equal items read in different contexts are all kept,
+    and named (`{"path", "contexts", "indices"}` into the assembled array) as possible repeats, never merged.
+    Objects merge field by field; a missing or null contribution never erases another context's value. Equal scalars
+    are one value; different ones are null, with their conflict (`{"path", "candidates"}`) as `reconcile_values`
+    reports it.
+    """
+    conflicts: list[dict] = []
+    repeats: list[dict] = []
+
+    def combine(items, path):
+        present = [(context, v) for context, v in items if v is not None]
+        if not present:
+            return None
+        if all(isinstance(v, dict) for _, v in present):
+            keys = dict.fromkeys(k for _, v in present for k in v)
+            return {k: combine([(context, v.get(k)) for context, v in present], [*path, k]) for k in keys}
+        if all(isinstance(v, list) for _, v in present):
+            kept = [(context, item) for context, v in present for item in v]
+            seen: list = []
+            for item in (item for _, item in kept):
+                if item in seen:
+                    continue
+                seen.append(item)
+                indices = [index for index, (_, other) in enumerate(kept) if other == item]
+                sources = sorted({kept[index][0] for index in indices})
+                if len(sources) > 1:
+                    repeats.append({"path": path, "contexts": sources, "indices": indices})
+            return [item for _, item in kept]
+        unique = []
+        for _, value in present:
+            if value not in unique:
+                unique.append(value)
+        if len(unique) == 1:
+            return unique[0]
+        conflicts.append({"path": path, "candidates": unique})
+        return None
+
+    return combine(list(enumerate(values)), []) or {}, conflicts, repeats

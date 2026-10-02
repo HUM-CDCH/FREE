@@ -33,8 +33,14 @@ function fakeClient(rows: Row[] = []) {
 test('every contract fixture parses with Studio\'s schema and round-trips', () => {
   const convertRequest = fixture('convert.input').request
   assert.deepEqual(handoff.keiConvertInputSchema.parse(convertRequest), convertRequest)
-  const extractRequest = fixture('extract.input').request
+  const fixtureRequest = fixture('extract.input').request
+  // Studio always sends the pinned revision's record scope beside the tree. A fixture request without one (which the
+  // service would derive from its strategy) gains the scope its strategy names; Studio's schema refuses it bare.
+  const extractRequest = { ...fixtureRequest, request: { ...fixtureRequest.request,
+    schema: { recordScope: fixtureRequest.request.options.strategy === 'article' ? 'document' : 'records', ...fixtureRequest.request.schema } } }
   assert.deepEqual(handoff.keiExtractInputSchema.parse(extractRequest), extractRequest)
+  const { recordScope: _, ...bare } = extractRequest.request.schema
+  assert.equal(handoff.keiExtractInputSchema.safeParse({ ...extractRequest, request: { ...extractRequest.request, schema: bare } }).success, false)
   assert.deepEqual(handoff.keiConvertOkSchema.parse(fixture('convert.output.ok')), fixture('convert.output.ok'))
   assert.deepEqual(handoff.keiExtractOkSchema.parse(fixture('extract.output.ok')), fixture('extract.output.ok'))
   assert.deepEqual(handoff.keiFailureSchema.parse(fixture('convert.output.failed')), fixture('convert.output.failed'))

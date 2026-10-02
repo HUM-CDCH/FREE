@@ -2,12 +2,12 @@
 
 This module owns the value prompts: the guardrail and schema instruction (`_instruction`, which Article's inventory
 shares), the labelled-passage rendering Article inventory and Catalog discovery share (`_labelled`), and the
-document and record requests (`extract_document`, `record_request`). Each record is extracted with one
-structured-output call under that guardrail; its answer is conformed to the schema here. The merge orders a
-record's fields as the schema does and adds the document-level and filename fields. Article requests use
-served-token admission. The call itself — routing to a role's model, admission, invocation, reading the reply and
-its `Call` accounting — is `calls.complete`. How records are found belongs to each strategy: version 1 Catalog
-discovery lives in `catalog.py`, the Article inventory of noncontiguous records and their supporting passages in
+document and record requests (`extract_document`, `record_request`, which also asks for Article's document-scope root
+under `DOCUMENT`). Each record is extracted with one structured-output call under that guardrail; its answer is
+conformed to the schema here. The merge orders a record's fields as the schema does and adds the document-level and
+filename fields. Article requests use served-token admission. The call itself — routing to a role's model, admission,
+invocation, reading the reply and its `Call` accounting — is `calls.complete`. How records are found belongs to each
+strategy: version 1 Catalog discovery lives in `catalog.py`, Article's one document root and its value contexts in
 `article.py`. Grounding the extracted values lives in `grounding.py`, which uses the value helpers defined here.
 """
 from __future__ import annotations
@@ -37,6 +37,10 @@ ARTICLE = ("Extract only the specified record, combining its evidence across the
            "reported on different bases or in different units. Never substitute group averages, another record's "
            "measurements, or protocol settings for this record's measurements. A proposed or attempted isolation "
            "is not proof of a recovered material or type. Use the field's defined identity labels.")
+# Article's document scope: the document itself is the one object, so no identity is named and nothing is excluded.
+DOCUMENT = ("The document is the one object to extract: the source below is all or part of it, and it holds no other "
+            "records to tell apart. Every requested field, including every array, gathers everything the source "
+            "states: an array lists every item given, in source order, each item with its own fields.")
 
 
 @dataclass(frozen=True)
@@ -127,8 +131,9 @@ def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: 
 def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, budget: int,
                    record: int | None = None, identity: dict | None = None, record_name: str | None = None,
                    counter: TokenCounter | None = None, neutral: bool = False,
-                   structured: bool = False) -> tuple[dict, list[Call], list[Issue]]:
-    """One record's fields from one structured-output call over its passages."""
+                   structured: bool = False, document: bool = False) -> tuple[dict, list[Call], list[Issue]]:
+    """One record's fields from one structured-output call over its passages; with `document`, the document's own
+    root (Article) from one of its value contexts."""
     nodes = [node for node in schema.record_nodes if identity is None or node.name not in identity]
     if not nodes:
         return dict(identity or {}), [], []
@@ -137,7 +142,8 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
         raise BudgetUnavailable("Structured source rendering requires a token counter")
     source = (structured_source(passages) if structured else
               text_of(passages) if counter else _clipped(passages, budget, issues, record))
-    system, user, reply_schema = record_request(source, schema, identity, record_name, neutral=neutral)
+    system, user, reply_schema = record_request(source, schema, identity, record_name, neutral=neutral,
+                                                document=document)
     answer, attempts = complete(chat, stage="record", record=record, system=system, user=user,
                                 schema=reply_schema, counter=counter, max_tokens=4096 if counter else None)
     if not attempts[-1].ok:
@@ -145,9 +151,14 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
     return {**(identity or {}), **conform(answer, nodes)}, attempts, issues
 
 
-def record_request(source: str, schema: Schema, identity: dict | None, record_name: str | None, *, neutral=False):
-    """The same prompt builder serves token admission and execution."""
+def record_request(source: str, schema: Schema, identity: dict | None, record_name: str | None, *, neutral=False,
+                   document=False):
+    """The same prompt builder serves token admission and execution. `document` is Article's document scope: every
+    record field is asked of the whole document under `DOCUMENT`, with no identity, record name or exclusion."""
     nodes = [node for node in schema.record_nodes if identity is None or node.name not in identity]
+    if document:
+        user = f"### Source document\n{source}\n\nReturn the JSON object now."
+        return DOCUMENT + "\n" + _instruction(schema, nodes), user, json_schema(nodes)
     user = f"### Source document\n{source}\n\n" if record_name else f"### Record\n{source}\n\n"
     user += "Return the JSON object now."
     system = ((f"Extract ONLY the record {record_name}: " + "; ".join(f"{key}: {value}" for key, value in (identity or {}).items()) +

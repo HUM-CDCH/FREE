@@ -112,16 +112,18 @@ export function useDurableCurrentSchemaRevision(
       projectContextId: scope.projectContextId,
       initial,
       debounceMs: scope.debounceMs,
-      append: (extractionSchemaId, expectedRevisionNumber, definition, sourceCoverage) =>
+      append: (extractionSchemaId, expectedRevisionNumber, definition, sourceCoverage, recordScope) =>
         appendSchemaRevision(
           scope.projectContextId,
           extractionSchemaId,
           expectedRevisionNumber,
           definition,
           sourceCoverage,
+          undefined,
+          recordScope,
         ),
-      initialize: (definition, signal, sourceCoverage) =>
-        initializeSchemaRevision(scope.projectContextId, definition, sourceCoverage, signal),
+      initialize: (definition, signal, sourceCoverage, recordScope) =>
+        initializeSchemaRevision(scope.projectContextId, definition, sourceCoverage, signal, recordScope),
       reconcileInitialization: async () => {
         const latest = (await listExtractionSchemas(scope.projectContextId, 1))[0]
         return latest?.currentRevision ? getSchemaRevision(scope.projectContextId, latest.extractionSchemaId, latest.currentRevision.schemaRevisionId) : null

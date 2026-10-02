@@ -112,7 +112,7 @@ function renderRail({
 describe('RightRail developer UI visibility', () => {
   it('jumps from Results to the current draft while closing a historical preview', async () => {
     const historical: SchemaRevision = { schemaRevisionId: 'revision-1', extractionSchemaId: 'schema-1', revisionNumber: 1,
-      origin: 'researcher-edit', createdAt: '2026-09-30T00:00:00Z', recordDescription: 'One record.',
+      origin: 'researcher-edit', createdAt: '2026-09-30T00:00:00Z', recordDescription: 'One record.', recordScope: null,
       schemaNodes: [{ id: 'title', name: 'title', type: 'string' }, { id: 'gender', name: 'gender', type: 'string' }] }
     const schema = createSchemaEditorController({ ...localSchemaPersistence({ onEdit: () => {} }), getRevision: async () => historical },
       { initialDraft: historical })

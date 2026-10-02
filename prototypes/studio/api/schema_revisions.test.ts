@@ -20,8 +20,8 @@ const definition = (name: string) => ({
   schemaNodes: nodes(name),
 })
 const revisions: SchemaRevisionRecord[] = [
-  { schemaRevisionId: REVISION_2, extractionSchemaId: SCHEMA, revisionNumber: 2, origin: 'researcher-edit', schemaTree: definition('year'), createdAt: new Date('2026-08-01T12:01:00Z') },
-  { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: definition('site'), createdAt: new Date('2026-08-01T12:00:00Z') },
+  { schemaRevisionId: REVISION_2, extractionSchemaId: SCHEMA, revisionNumber: 2, origin: 'researcher-edit', schemaTree: definition('year'), recordScope: 'records', createdAt: new Date('2026-08-01T12:01:00Z') },
+  { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: definition('site'), recordScope: null, createdAt: new Date('2026-08-01T12:00:00Z') },
 ]
 const EXCERPTED = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
 
@@ -115,6 +115,52 @@ describe('Schema Revision routes', () => {
     expect(fixture.initializeSchemaRevision).toHaveBeenCalledWith(PROJECT, definition('site'), EXCERPTED)
   })
 
+  it('reads every revision with its record scope beside the tree, null for an undeclared legacy one', async () => {
+    const { GET } = createSchemaRevisionHandlers(store({ getSchemaRevision: vi.fn(async () => revisions[0]) }))
+    const declared = schemaRevisionResponseSchema.parse(await (await GET(new Request(
+      `http://test/api/schema-revisions/${REVISION_2}?projectContextId=${PROJECT}&extractionSchemaId=${SCHEMA}`))).json()).revision
+    expect(declared).toMatchObject({ ...definition('year'), recordScope: 'records' })
+    const legacy = await createSchemaRevisionHandlers(store()).GET(new Request(
+      `http://test/api/schema-revisions/${REVISION_1}?projectContextId=${PROJECT}&extractionSchemaId=${SCHEMA}`))
+    expect(schemaRevisionResponseSchema.parse(await legacy.json()).revision.recordScope).toBeNull()
+    const list = await createSchemaRevisionHandlers(store()).GET(new Request(
+      `http://test/api/schema-revisions?projectContextId=${PROJECT}&extractionSchemaId=${SCHEMA}`))
+    expect(schemaRevisionListResponseSchema.parse(await list.json()).revisions.map((revision) => [revision.recordScope, revision.summary]))
+      .toEqual([['records', 'Saved as Catalog, 1 record description updated, 1 added, 1 removed'], [null, 'Initial schema']])
+  })
+
+  it('forwards a written record scope to the store: absent inherits (append) or declares none (initialization)', async () => {
+    const fixture = store()
+    const { POST } = createSchemaRevisionHandlers(fixture)
+    const post = (body: object) => POST(new Request('http://test/api/schema-revisions', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    }))
+    const append = { projectContextId: PROJECT, extractionSchemaId: SCHEMA, expectedRevisionNumber: 1, ...definition('year') }
+
+    expect((await post({ ...append, recordScope: 'records' })).status).toBe(201)
+    expect((await post(append)).status).toBe(201)
+    expect((await post({ projectContextId: PROJECT, ...definition('site'), recordScope: 'document' })).status).toBe(201)
+    expect((await post({ projectContextId: PROJECT, ...definition('site') })).status).toBe(201)
+    expect(vi.mocked(fixture.appendSchemaRevision).mock.calls).toEqual([
+      [PROJECT, SCHEMA, 1, definition('year'), undefined, 'records'],
+      [PROJECT, SCHEMA, 1, definition('year'), undefined],
+    ])
+    expect(vi.mocked(fixture.initializeSchemaRevision).mock.calls).toEqual([
+      [PROJECT, definition('site'), null, 'document'],
+      [PROJECT, definition('site'), null],
+    ])
+    // The tree never carries the scope: it is stored beside it.
+    for (const call of [...vi.mocked(fixture.appendSchemaRevision).mock.calls, ...vi.mocked(fixture.initializeSchemaRevision).mock.calls])
+      expect(Object.keys(call.find((argument) => typeof argument === 'object' && argument !== null && 'schemaNodes' in argument)!))
+        .toEqual(['recordDescription', 'schemaNodes'])
+
+    // Only the two scopes are a declaration; a written scope cannot un-declare one.
+    for (const recordScope of ['article', 'catalog', 'Document', null, ''])
+      expect((await post({ ...append, recordScope })).status).toBe(422)
+    expect((await post({ projectContextId: PROJECT, ...definition('site'), recordScope: null })).status).toBe(422)
+    expect(fixture.appendSchemaRevision).toHaveBeenCalledTimes(2)
+  })
+
   it('returns the winning head for a stale write without exposing persistence details', async () => {
     const { POST } = createSchemaRevisionHandlers(store({
       appendSchemaRevision: vi.fn(async () => ({ status: 'conflict' as const, currentRevision: revisions[0] })),
@@ -138,7 +184,7 @@ describe('Schema Revision routes', () => {
 
     expect(response.status).toBe(200)
     expect(schemaRevisionListResponseSchema.parse(body).revisions).toEqual([
-      expect.objectContaining({ schemaRevisionId: REVISION_2, revisionNumber: 2, summary: '1 record description updated, 1 added, 1 removed' }),
+      expect.objectContaining({ schemaRevisionId: REVISION_2, revisionNumber: 2, summary: 'Saved as Catalog, 1 record description updated, 1 added, 1 removed' }),
     ])
     expect(JSON.stringify(body)).not.toContain('schemaNodes')
     expect(fixture.listSchemaRevisions).toHaveBeenCalledWith(PROJECT, SCHEMA, 2)

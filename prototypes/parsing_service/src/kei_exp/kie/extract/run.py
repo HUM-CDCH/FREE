@@ -11,7 +11,9 @@ router, keyword-only `counter`, `chunks` and `before_entry`, returning the finis
 is `unified.extract` (version 3, `options.unified`), which also takes the extraction ID its records are published
 under; the legacy recipe Catalog's is `grounded.extract`, Article's `article.extract` and the legacy version 1
 Catalog's `catalog.extract`; the last two assemble their version 1 artifact in `assembly.py`. `extract` chooses one
-from the options and does not know what it does; no implementation imports this module.
+from the request's task scope (`ExtractRequest.record_scope`: Article for "document", a Catalog for "records") and
+options, does not know what it does, and holds its result to the scope's cardinality (`dispatch`); no implementation
+imports this module.
 """
 from __future__ import annotations
 
@@ -33,10 +35,14 @@ from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router, as_router, chats_for
-from kei_exp.kie.extract.schema import Schema
+from kei_exp.kie.extract.schema import RecordScope, Schema
 from kei_exp.kie.extract.unified import ITEM, UnifiedOptions
 from kei_exp.kie.passages import Evidence, load
 from kei_exp.kie.recipe import load_recipe
+
+# The task scope each service strategy serves (`tests/fixtures/contracts/record-scope.json`, `service_strategies`):
+# Article is one document-level object, a Catalog (generic, recipe or unified) a collection of records.
+SERVICE_STRATEGIES: dict[str, RecordScope] = {"article": "document", "catalog": "records"}
 
 
 class Options(BaseModel):
@@ -95,10 +101,28 @@ class Options(BaseModel):
 
 
 class ExtractRequest(BaseModel):
-    """The `request` of the `extract` workflow's input (`workflows.contracts.ExtractInput`), and the CLI's."""
+    """The `request` of the `extract` workflow's input (`workflows.contracts.ExtractInput`), and the CLI's.
+
+    A schema that declares `recordScope` fixes the strategy: "document" is Article's, "records" a Catalog's, and any
+    other pairing is refused before a model call. One that declares none (the CLI, the research harness, a legacy
+    caller) takes its scope from the task selection, `options.strategy`: never from its fields or a model's output."""
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     schema_: Schema = Field(alias="schema")
     options: Options = Field(default_factory=Options)
+
+    @property
+    def record_scope(self) -> RecordScope:
+        """The effective task scope: the schema's declaration, or the one its strategy serves."""
+        return self.schema_.record_scope or SERVICE_STRATEGIES[self.options.strategy]
+
+    @model_validator(mode="after")
+    def _strategy_serves_the_scope(self):
+        declared = self.schema_.record_scope
+        if declared is not None and SERVICE_STRATEGIES[self.options.strategy] != declared:
+            raise ValueError(f"record_scope_mismatch: the schema's recordScope is {declared!r}, which the "
+                             f"{self.options.strategy!r} strategy does not serve (it serves "
+                             f"{SERVICE_STRATEGIES[self.options.strategy]!r})")
+        return self
 
     @model_validator(mode="after")
     def _item_name_is_free(self):
@@ -123,6 +147,12 @@ def _nodes(node):
     yield node
     for child in node.children or []:
         yield from _nodes(child)
+
+
+class RecordScopeViolation(ValueError):
+    """An implementation returned a record count its task scope forbids: a document-scope (Article) result is
+    exactly one record. Never published; the worker reports it as `extraction_failed`, its reason starting
+    `record_scope_violation:`."""
 
 
 class StaleGeneration(ValueError):
@@ -161,9 +191,11 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
 def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, chat: Chat | Router, *, counter=None,
              chunks: int = 1, before_entry: Callable[[], None] | None = None,
              extraction_id: str | None = None) -> dict:
-    """The implementation the options choose, over `evidence` already read. `extract` is the service's way in; the
-    research harness calls this with a case's own evidence (`run_dir` None: nothing is published, and a recipe, which
-    needs its run's segmentation, is refused by `grounded.extract`)."""
+    """The implementation the request's scope and options choose, over `evidence` already read, and its result held
+    to the scope's cardinality: a document-scope result that is not exactly one record is a `RecordScopeViolation`,
+    never an artifact; a records-scope result may hold any number, none included. `extract` is the service's way in;
+    the research harness calls this with a case's own evidence (`run_dir` None: nothing is published, and a recipe,
+    which needs its run's segmentation, is refused by `grounded.extract`)."""
     chat = as_router(chat)
     pages = request.options.pages
     if pages is not None and request.options.catalog is None:
@@ -171,16 +203,21 @@ def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, 
         # and keeps the entries on them itself (`grounded.extract`), so its published segmentation stays whole.
         evidence = replace(evidence, passages=tuple(p for p in evidence.passages if p.page in pages),
                            withheld=tuple(p for p in evidence.withheld if p.page in pages))
-    if request.options.unified is not None:
-        return unified.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
-                               before_entry=before_entry, extraction_id=extraction_id)
-    if request.options.catalog is not None:
-        implementation = grounded.extract
-    elif request.options.strategy == "article":
-        implementation = article.extract
+    scope = request.record_scope
+    if scope == "document":
+        result = article.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
+                                 before_entry=before_entry)
+    elif request.options.unified is not None:
+        result = unified.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
+                                 before_entry=before_entry, extraction_id=extraction_id)
     else:
-        implementation = catalog.extract
-    return implementation(run_dir, evidence, request, chat, counter=counter, chunks=chunks, before_entry=before_entry)
+        implementation = grounded.extract if request.options.catalog is not None else catalog.extract
+        result = implementation(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
+                                before_entry=before_entry)
+    if scope == "document" and len(result["records"]) != 1:
+        raise RecordScopeViolation(f"record_scope_violation: a document-scope extraction is exactly one record, "
+                                   f"and the {request.options.strategy!r} strategy returned {len(result['records'])}")
+    return result
 
 
 def publish_extraction(run_dir: Path, extraction_id: str, result: dict) -> Path:

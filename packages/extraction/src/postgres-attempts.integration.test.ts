@@ -18,7 +18,7 @@ describe('Extraction attempts on disposable PostgreSQL', { skip: !fixture && 'se
     disposableDatabaseUrl, ARTICLE_SCHEMA, db, stableJson, stableUuid,
     createResearcherProjectStore, createResearcherExtractionPersistence, createExtractionStore, settleExtraction, packages,
     kei, app, execution, executionCancels, deterministicArtifact,
-    seedProject, scheduler, eventually, createRuntime, freshInput,
+    seedProject, withRecordScope, scheduler, eventually, createRuntime, freshInput,
     rejectsWithCode, waitForBatch, studioWorkflow, heldByKei, extractionRow,
     succeeded, cleanup,
   } = fixture
@@ -285,7 +285,7 @@ it('runExtraction records keiRunId from the pinned revision', async (t) => {
 
 it('persists and reopens a partial remote Catalog result without local stage diagnostics', async (t) => {
     t.after(cleanup)
-    const project = await seedProject()
+    const project = await withRecordScope(await seedProject(), 'records')
     kei.respond = (request) => ({ artifact: { ...deterministicArtifact(request), complete: false } })
     const { module } = createRuntime(project.researcherAccountId)
     const input = { ...freshInput(project), strategy: 'CATALOG' as const, method: { models: null, settings: { generic: null } } }
@@ -303,7 +303,7 @@ it('persists and reopens a partial remote Catalog result without local stage dia
 
 it('persists and reopens a version 2 recipe result with its span evidence and review material', async (t) => {
     t.after(cleanup)
-    const project = await seedProject()
+    const project = await withRecordScope(await seedProject(), 'records')
     kei.respond = (request) => ({
       artifact: keiExpGroundedArtifact({
         run_id: request.run_id, generation: request.generation, schema: request.request.schema as never, model: 'deterministic',

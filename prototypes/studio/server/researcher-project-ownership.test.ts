@@ -289,6 +289,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
         recordDescription: 'One private record.',
         schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
       },
+      recordScope: null,
       sourceCoverage: null,
     },
   })
@@ -306,6 +307,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
         ? ('suggestion' as const)
         : ('researcher-edit' as const),
     schemaTree,
+    recordScope: null,
     createdAt: CREATED_AT,
   })
 

@@ -153,9 +153,7 @@ def test_assembled_schedule_retries_unresolved_claims_only(monkeypatch, schedule
     source = passages(["Hill", "1827"])
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
     monkeypatch.setattr("kei_exp.kie.extract.article.source_contexts", lambda *_: [Context((p,)) for p in source])
-    def reasoning(system, user, schema):
-        if "records" in schema["properties"]:
-            return {"records": [{"label": "Hill", "identity": {"site": "Hill"}, "passages": [source[0].id]}]}
+    def reasoning(system, user, schema):  # grounding only: the document root takes no inventory
         first = "E1: p1_s0 " in user
         return {claim: {"label": "E1" if first and "site" in user.split(f"{claim} (")[1].split("):")[0]
                        else "NONE" if first else "E1", "attribution": True}
@@ -164,7 +162,7 @@ def test_assembled_schedule_retries_unresolved_claims_only(monkeypatch, schedule
     request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
         "context": "bounded", "grounding": "spans", "grounding_schedule": schedule,
         "identity": "conservative", "identity_fields": ["site"]}})
-    result = run.extract(None, request, Router(CountingChat(lambda *_: {"year": 1827}), chat),
+    result = run.extract(None, request, Router(CountingChat(lambda *_: {"site": "Hill", "year": 1827}), chat),
         counter={role: WordCounter() for role in ("fields", "reasoning")})
     grounding = [c for c in chat.calls if "### Claims" in c["user"]]
     assert [len(c["schema"]["required"]) for c in grounding] == expected

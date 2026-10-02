@@ -26,12 +26,35 @@ import { packageIsReferenced } from './garbage-references.js'
 export type SchemaRevisionOrigin =
   'suggestion' | 'researcher-edit' | 'model-edit'
 
+/**
+ * A saved definition's task scope (`SchemaRevision.recordScope`, beside the tree, never inside it): `document` is one
+ * Article-level object, `records` a Catalog of record objects. Null is an undeclared legacy definition whose task
+ * selection was ambiguous; it must be given a scope before it runs.
+ */
+export type RecordScope = 'document' | 'records'
+
+export function isRecordScope(value: unknown): value is RecordScope {
+  return value === 'document' || value === 'records'
+}
+
+function storedRecordScope(value: unknown): RecordScope | null {
+  if (value === null || value === undefined) return null
+  if (isRecordScope(value)) return value
+  throw new Error('A stored Schema Revision declares an unknown record scope.')
+}
+
+function writtenRecordScope(value: RecordScope | null): RecordScope | null {
+  if (value !== null && !isRecordScope(value)) throw new Error('A Schema Revision record scope must be document or records.')
+  return value
+}
+
 export type SchemaRevisionRecord = {
   schemaRevisionId: string
   extractionSchemaId: string
   revisionNumber: number
   origin: SchemaRevisionOrigin
   schemaTree: unknown
+  recordScope: RecordScope | null
   createdAt: Date
 }
 
@@ -60,6 +83,7 @@ type StoredSchemaRevision = {
   revisionNumber: number
   origin: 'SUGGESTION' | 'RESEARCHER_EDIT' | 'MODEL_EDIT'
   schemaTree: unknown
+  recordScope?: string | null
   /** Selected only where a revision's source declaration is read: the append's head and the reopened revision. */
   modelAttribution?: unknown
   createdAt: Date
@@ -71,6 +95,7 @@ const revisionFields = [
   'revisionNumber',
   'origin',
   'schemaTree',
+  'recordScope',
   'createdAt',
 ] as const
 
@@ -90,6 +115,7 @@ function schemaRevision(row: StoredSchemaRevision): SchemaRevisionRecord {
     revisionNumber: row.revisionNumber,
     origin: revisionOrigins[row.origin],
     schemaTree: row.schemaTree,
+    recordScope: storedRecordScope(row.recordScope),
     createdAt: row.createdAt,
   }
 }
@@ -134,6 +160,7 @@ async function ownedSchemaRevision(
       revisionNumber: fields.schemaRevision.revisionNumber,
       origin: fields.schemaRevision.origin,
       schemaTree: fields.schemaRevision.schemaTree,
+      recordScope: fields.schemaRevision.recordScope,
       modelAttribution: fields.schemaRevision.modelAttribution,
       createdAt: fields.schemaRevision.createdAt,
     }))
@@ -334,6 +361,7 @@ export type DocumentReopenSnapshot = {
     schemaRevisionId: string
     revisionNumber: number
     schemaTree: unknown
+    recordScope: RecordScope | null
     /** What the Schema Suggestion behind this revision read of its source (Studio validates it); null when none. */
     sourceCoverage: unknown
   } | null
@@ -764,11 +792,15 @@ export type ResearcherProjectStore = {
     batchSchemaSuggestionId: string,
     expectedAttempt: number,
   ): Promise<RetryBatchSchemaSuggestionResult>
-  /** `sourceCoverage` is the declaration of the Schema Suggestion that produced the tree, when it made one. */
+  /**
+   * `sourceCoverage` is the declaration of the Schema Suggestion that produced the tree, when it made one. `recordScope`
+   * is the definition's task scope; omitted or null, the revision declares none (a choice is required before it runs).
+   */
   initializeSchemaRevision(
     projectContextId: string,
     schemaTree: unknown,
     sourceCoverage?: unknown,
+    recordScope?: RecordScope | null,
   ): Promise<AppendSchemaRevisionResult | null>
   listExtractionSchemas(
     projectContextId: string,
@@ -782,6 +814,8 @@ export type ResearcherProjectStore = {
   /**
    * Omitted, `sourceCoverage` is inherited from the head: an edit keeps the declaration of the suggestion it was made
    * from. A replacement names its own suggestion's declaration, or null for content no suggestion produced.
+   * Omitted, `recordScope` is inherited from the head too, so a schema edit, an interaction proposal or a suggestion
+   * merge never drops it; a given scope (a scope change is an explicit append) is stored as given.
    */
   appendSchemaRevision(
     projectContextId: string,
@@ -789,6 +823,7 @@ export type ResearcherProjectStore = {
     expectedRevisionNumber: number,
     schemaTree: unknown,
     sourceCoverage?: unknown,
+    recordScope?: RecordScope | null,
   ): Promise<AppendSchemaRevisionResult | null>
   listSchemaRevisions(
     projectContextId: string,
@@ -1566,6 +1601,7 @@ export function createResearcherProjectStore(
                   'extractionSchemaId',
                   'revisionNumber',
                   'schemaTree',
+                  'recordScope',
                   'modelAttribution',
                 )
                 .orderBy((revision) => revision.revisionNumber.desc())
@@ -1601,6 +1637,7 @@ export function createResearcherProjectStore(
                   schemaRevisionId: currentSchemaRevision.id,
                   revisionNumber: currentSchemaRevision.revisionNumber,
                   schemaTree: currentSchemaRevision.schemaTree,
+                  recordScope: storedRecordScope(currentSchemaRevision.recordScope),
                   sourceCoverage: declaredSourceCoverage(currentSchemaRevision.modelAttribution),
                 }
               : null,
@@ -1954,7 +1991,8 @@ export function createResearcherProjectStore(
       if (!suggestion) throw new Error('Retried Batch Schema Suggestion could not be read.')
       return { status: result, suggestion }
     },
-    async initializeSchemaRevision(projectContextId, schemaTree, sourceCoverage) {
+    async initializeSchemaRevision(projectContextId, schemaTree, sourceCoverage, recordScope) {
+      const scope = writtenRecordScope(recordScope ?? null)
       return database.transaction(async ({ orm }) => {
         const project = await orm.public.ProjectContext.select('id').first({
           id: projectContextId,
@@ -1998,6 +2036,7 @@ export function createResearcherProjectStore(
           revisionNumber: 1,
           origin: 'SUGGESTION',
           schemaTree,
+          recordScope: scope,
           modelAttribution: modelAttribution(sourceCoverage),
         })
         return {
@@ -2079,7 +2118,9 @@ export function createResearcherProjectStore(
       expectedRevisionNumber,
       schemaTree,
       sourceCoverage,
+      recordScope,
     ) {
+      const givenScope = recordScope === undefined ? undefined : writtenRecordScope(recordScope)
       if (
         !(await ownsProjectContext(
           database.orm,
@@ -2124,6 +2165,7 @@ export function createResearcherProjectStore(
             revisionNumber: expectedRevisionNumber + 1,
             origin: 'RESEARCHER_EDIT',
             schemaTree,
+            recordScope: givenScope === undefined ? head?.recordScope ?? null : givenScope,
             modelAttribution: modelAttribution(
               sourceCoverage === undefined
                 ? declaredSourceCoverage((row as StoredSchemaRevision | null)?.modelAttribution)

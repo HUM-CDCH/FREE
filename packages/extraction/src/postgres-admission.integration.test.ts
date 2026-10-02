@@ -15,7 +15,7 @@ describe('Extraction admission on disposable PostgreSQL', { skip: !fixture && 's
   if (!fixture) return
   const {
     db, createResearcherExtractionPersistence, packages, kei, app,
-    execution, deterministicArtifact, seedProject, scheduler, createRuntime,
+    execution, deterministicArtifact, seedProject, withRecordScope, scheduler, createRuntime,
     freshInput, heldByKei, extractionRow, cleanup, configureAccount, modelConfigurations, rejectsWithCode,
     untilLockWait, untilSignalled, succeeded, addRepresentation,
   } = fixture
@@ -40,7 +40,7 @@ describe('Extraction admission on disposable PostgreSQL', { skip: !fixture && 's
 
   it('admits an Extraction row and its runExtraction workflow in one transaction', async (t) => {
     t.after(cleanup)
-    const project = await seedProject()
+    const project = await withRecordScope(await seedProject(), 'records')
     const module = scheduler(project.researcherAccountId)
     kei.holding = true
     const models = { fields: 'nuextract' }
@@ -94,7 +94,7 @@ it('a failure after the enqueue rolls back both the row and the workflow', async
 
 it('stores the Catalog recipe chosen for an Extraction on its row and hands it to kei', async (t) => {
     t.after(cleanup)
-    const project = await seedProject()
+    const project = await withRecordScope(await seedProject(), 'records')
     const module = scheduler(project.researcherAccountId)
     kei.holding = true
     const extractionId = randomUUID()
@@ -324,6 +324,83 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
     assert.equal(kei.submissions.length, 0)
   })
 
+  describe('the Schema Revision\'s record scope', () => {
+    const CATALOG = { models: null, settings: { generic: null } } as const
+    const nothingStarted = async (extractionId: string) => {
+      assert.equal(await extractionRow(extractionId), null)
+      assert.deepEqual(await app.admission.listWorkflows({ workflowIDs: [`extract:${extractionId}`] }), [])
+      assert.equal(kei.submissions.length, 0)
+    }
+    const batchOf = (project: Awaited<ReturnType<typeof seedProject>>, strategy: 'ARTICLE' | 'CATALOG') => ({
+      projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId, strategy,
+      sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId), repetition: 'create-new' as const,
+      method: strategy === 'CATALOG' ? CATALOG : { models: null, settings: { article: null } },
+    })
+
+    it('a revision that declares none refuses Article and Catalog alike before anything is started', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(undefined, undefined, undefined, null)
+      const module = scheduler(project.researcherAccountId)
+      const article = freshInput(project)
+      await assert.rejects(module.runSingle(article), rejectsWithCode('record_scope_required'))
+      await nothingStarted(article.extractionId)
+      const catalog = { ...freshInput(project), strategy: 'CATALOG' as const, method: CATALOG }
+      await assert.rejects(module.runSingle(catalog), rejectsWithCode('record_scope_required'))
+      await nothingStarted(catalog.extractionId)
+    })
+
+    it('a strategy the revision\'s scope does not name is refused; its own strategy is admitted', async (t) => {
+      t.after(cleanup)
+      const article = await seedProject()
+      const module = scheduler(article.researcherAccountId)
+      const catalog = { ...freshInput(article), strategy: 'CATALOG' as const, method: CATALOG }
+      await assert.rejects(module.runSingle(catalog), (error: unknown) =>
+        error instanceof ExtractionError && error.code === 'record_scope_mismatch' &&
+        error.message === 'The selected Schema Revision is saved as Article (document scope); it cannot run as Catalog.')
+      await nothingStarted(catalog.extractionId)
+      const records = await withRecordScope(article, 'records')
+      await assert.rejects(module.runSingle(freshInput(records)), rejectsWithCode('record_scope_mismatch'))
+      assert.equal(kei.submissions.length, 0)
+      assert.equal((await module.runSingle({ ...catalog, schemaRevisionId: records.schemaRevisionId })).disposition, 'created')
+      assert.equal((await module.runSingle(freshInput(article))).disposition, 'created')
+      // The run snapshot stays the Extraction's own strategy column.
+      assert.equal((await db.orm.public.Extraction.select('strategy').first({ id: catalog.extractionId }))?.strategy, 'CATALOG')
+    })
+
+    it('an Extraction admitted before its revision declared a scope still replays', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(undefined, undefined, undefined, null)
+      const module = scheduler(project.researcherAccountId)
+      const input = freshInput(project)
+      // Admitted before this release: a row on a revision the backfill left undeclared (it ran as both strategies).
+      await db.orm.public.Extraction.create({
+        id: input.extractionId, sourceDocumentId: project.documents[0]!.sourceDocumentId,
+        sourceRepresentationRevisionId: project.documents[0]!.sourceRepresentationRevisionId,
+        schemaRevisionId: project.schemaRevisionId, strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null,
+        requestedSettings: input.method.settings, batchExtractionId: null, outcome: 'SUCCEEDED',
+      })
+      assert.equal((await module.runSingle(input)).disposition, 'replayed')
+      await assert.rejects(module.runSingle(freshInput(project)), rejectsWithCode('record_scope_required'))
+    })
+
+    it('a batch is refused as a whole, naming its revision, before any member is admitted', async (t) => {
+      t.after(cleanup)
+      const legacy = await seedProject(undefined, ['a.pdf', 'b.pdf'], undefined, null)
+      const module = scheduler(legacy.researcherAccountId)
+      await assert.rejects(module.scheduleBatch(batchOf(legacy, 'ARTICLE')), (error: unknown) =>
+        error instanceof ExtractionError && error.code === 'record_scope_required' &&
+        error.message.startsWith('Schema Revision 1 of this Batch Extraction does not declare'))
+      const article = await withRecordScope(legacy, 'document')
+      await assert.rejects(module.scheduleBatch(batchOf(article, 'CATALOG')), (error: unknown) =>
+        error instanceof ExtractionError && error.code === 'record_scope_mismatch' &&
+        error.message === 'Schema Revision 2 of this Batch Extraction is saved as Article (document scope); it cannot run as Catalog.')
+      assert.equal((await db.orm.public.BatchExtraction.where({ projectContextId: legacy.projectContextId }).select('id').all()).length, 0)
+      assert.equal((await db.orm.public.Extraction.where({ schemaRevisionId: article.schemaRevisionId }).select('id').all()).length, 0)
+      assert.equal(kei.submissions.length, 0)
+      assert.equal((await module.scheduleBatch(batchOf(article, 'ARTICLE'))).disposition, 'created')
+    })
+  })
+
   it('an Apply in flight commits before the admission compares; the admission then refuses the stale preview', async (t) => {
     t.after(cleanup)
     const project = await seedProject()
@@ -423,7 +500,7 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
     it('pins the unified method, with its defaults version and no recipe, and hands kei options.unified', async (t) => {
       t.after(cleanup)
       enabled(t)
-      const project = await seedProject()
+      const project = await withRecordScope(await seedProject(), 'records')
       kei.holding = true
       await configureAccount(project.researcherAccountId, { extractionSettings: { catalog: { unified: { overlap: 0 } } } })
       const method = { models: null, settings: { unified: { defaults: 1, overlap: 0 } } }
@@ -441,21 +518,23 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
     it('refuses a stale legacy start view, and legacy preferences until they are migrated; Article still admits', async (t) => {
       t.after(cleanup)
       enabled(t)
-      const project = await seedProject()
+      const article = await seedProject()
+      // Article runs the first (document-scope) revision; Catalog a later one saved as Catalog.
+      const project = await withRecordScope(article, 'records')
       const module = scheduler(project.researcherAccountId)
       await assert.rejects(module.runSingle(catalog(project, { models: null, settings: { generic: null } })), rejectsWithCode('method_changed'))
       await assert.rejects(module.runSingle({ ...catalog(project, { models: null, settings: { recipe: null } }),
         catalogRecipe: 'numbered-catalogue-de@1' }), rejectsWithCode('method_changed'))
       await configureAccount(project.researcherAccountId, { extractionSettings: { catalog: { generic: { record_chars: 30_000 } } } })
       await assert.rejects(module.runSingle(catalog(project, UNIFIED)), rejectsWithCode('catalog_migration_required'))
-      assert.equal((await module.runSingle(freshInput(project))).disposition, 'created')
+      assert.equal((await module.runSingle(freshInput(article))).disposition, 'created')
       await configureAccount(project.researcherAccountId, {})  // the migration applied: service defaults
       assert.equal((await module.runSingle(catalog(project, UNIFIED))).disposition, 'created')
     })
 
     it('replays an ID admitted on a legacy method before the switch, never re-admitting it as unified', async (t) => {
       t.after(cleanup)
-      const project = await seedProject()
+      const project = await withRecordScope(await seedProject(), 'records')
       const module = scheduler(project.researcherAccountId)
       const legacy = catalog(project, { models: null, settings: { generic: null } })
       assert.equal((await module.runSingle(legacy)).disposition, 'created')
@@ -470,7 +549,7 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
     it('pins every batch member on the unified method', async (t) => {
       t.after(cleanup)
       enabled(t)
-      const project = await seedProject()
+      const project = await withRecordScope(await seedProject(), 'records')
       const batch = await scheduler(project.researcherAccountId).scheduleBatch({
         projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId, strategy: 'CATALOG',
         sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId), repetition: 'create-new',
@@ -488,7 +567,7 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
 
     it('without the switch, a unified start view is stale: legacy admission is unchanged', async (t) => {
       t.after(cleanup)
-      const project = await seedProject()
+      const project = await withRecordScope(await seedProject(), 'records')
       await assert.rejects(scheduler(project.researcherAccountId).runSingle(catalog(project, UNIFIED)), rejectsWithCode('method_changed'))
     })
   })

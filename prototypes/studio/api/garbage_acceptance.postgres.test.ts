@@ -29,7 +29,7 @@ async function seedArticleSchema(projectContextId: string): Promise<string> {
   const revisionId = randomUUID()
   await db.orm.public.ExtractionSchema.create({ id: schemaId, projectContextId, name: 'GC Article' })
   await db.orm.public.SchemaRevision.create({ id: revisionId, extractionSchemaId: schemaId,
-    revisionNumber: 1, origin: 'SUGGESTION',
+    revisionNumber: 1, origin: 'SUGGESTION', recordScope: 'document',
     schemaTree: { recordDescription: 'One record.', schemaNodes: [
       { id: 'title-node', name: 'title', type: 'string' },
     ] },

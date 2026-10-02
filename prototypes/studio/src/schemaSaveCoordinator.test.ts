@@ -14,6 +14,7 @@ const revision = (number: number, name: string): SchemaRevision => ({
   revisionNumber: number,
   origin: 'researcher-edit',
   createdAt: `2026-08-01T12:0${number}:00.000Z`,
+  recordScope: 'document',
   ...definition(name),
 })
 
@@ -158,5 +159,46 @@ describe('schema save coordinator', () => {
       acknowledged: winning,
       draft: definition('rival'),
     })
+  })
+
+  it('saves a scope change as an append that names it, and edits as appends that inherit it', async () => {
+    const save = vi.fn(async (expected: number, draft: SchemaDefinition, recordScope?: 'document' | 'records') => ({
+      ...revision(expected + 1, draft.schemaNodes[0].name),
+      recordScope: recordScope ?? 'document',
+    }))
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 60_000)
+
+    coordinator.setRecordScope('document')
+    await coordinator.flush()
+    expect(save).not.toHaveBeenCalled()
+
+    coordinator.setRecordScope('records')
+    expect(coordinator.state).toMatchObject({ status: 'dirty', recordScope: 'records' })
+    await expect(coordinator.flush()).resolves.toMatchObject({ revisionNumber: 2, recordScope: 'records' })
+    expect(save).toHaveBeenLastCalledWith(1, definition('site'), 'records')
+
+    // The acknowledged revision now holds the scope: the next edit names none and the server keeps it.
+    vi.mocked(save).mockImplementationOnce(async (expected, draft) => ({
+      ...revision(expected + 1, draft.schemaNodes[0].name),
+      recordScope: 'records',
+    }))
+    coordinator.edit(definition('year'))
+    await coordinator.flush()
+    expect(save).toHaveBeenLastCalledWith(2, definition('year'))
+    expect(coordinator.state).toMatchObject({ status: 'saved', recordScope: 'records' })
+  })
+
+  it('keeps a scope chosen during a conflict until the winning revision is reloaded', async () => {
+    const winning = { ...revision(2, 'rival'), recordScope: null }
+    const save = vi.fn(async () => {
+      throw new SchemaRevisionConflictError(winning)
+    })
+    const coordinator = createSchemaSaveCoordinator(revision(1, 'site'), save, 60_000)
+    coordinator.setRecordScope('records')
+    await expect(coordinator.flush()).rejects.toBeInstanceOf(SchemaRevisionConflictError)
+    coordinator.setRecordScope('document')
+    expect(coordinator.state).toMatchObject({ status: 'conflict', recordScope: 'document' })
+    coordinator.reloadCurrent()
+    expect(coordinator.state).toMatchObject({ status: 'saved', recordScope: null })
   })
 })

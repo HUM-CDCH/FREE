@@ -80,7 +80,7 @@ async function children(owner: string, project: string, document: string, pdf: U
   await handoff.submit({ workflow: 'extract', workflowId: `kei-extract:${extraction}`, queueName: 'kei-extract',
     priority: 1, timeoutMs: 600_000, authenticatedUser: owner,
     attributes: { projectContextId: project, sourceDocumentId: document },
-    request: { run_id: 'run-1', generation: 'gen-1', request: { schema: {}, options: {} } },
+    request: { run_id: 'run-1', generation: 'gen-1', request: { schema: { recordDescription: 'One record.', schemaNodes: [], recordScope: 'document' }, options: {} } },
   })
   await handoff.submit({ workflow: 'convert', workflowId: `kei-convert:${reprocess}`, queueName: 'kei-convert-small',
     priority: 1, timeoutMs: 600_000, authenticatedUser: owner,
@@ -148,7 +148,7 @@ describe('deletion cancels its live DBOS scope', () => {
     await createKeiHandoff(studioDbos().kei).submit({ workflow: 'extract', workflowId: child,
       queueName: 'kei-extract', priority: 1, timeoutMs: 600_000, authenticatedUser: owner,
       attributes: { projectContextId: project, sourceDocumentId: document },
-      request: { run_id: 'run-1', generation: 'gen-1', request: { schema: {}, options: {} } },
+      request: { run_id: 'run-1', generation: 'gen-1', request: { schema: { recordDescription: 'One record.', schemaNodes: [], recordScope: 'document' }, options: {} } },
     })
     await until(async () => expect(await standIn.held()).toHaveLength(1))
     const response = await createSourceDocumentDeletion(store)(new Request(

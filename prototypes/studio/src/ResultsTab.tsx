@@ -37,6 +37,8 @@ type PinnedSchema = SchemaDefinition & {
 export type RunExtractionStrategy =
   | { strategy: 'ARTICLE' }
   | { strategy: 'CATALOG'; boundaries: string }
+  /** The schema names neither Article nor Catalog yet: a run waits for that choice. */
+  | { strategy: null }
 
 type ResultsTabProps = {
   controller: ExtractionController
@@ -361,11 +363,11 @@ function RunExtractionButton({
   ...button
 }: Omit<ButtonProps, 'children'> & { run: RunExtractionStrategy; withCurrentSchema?: boolean }) {
   const boundariesId = useId()
-  const strategy = run.strategy === 'CATALOG' ? 'Catalog' : 'Article'
+  const strategy = run.strategy === 'CATALOG' ? 'Catalog ' : run.strategy === 'ARTICLE' ? 'Article ' : ''
   return (
     <>
       <Button {...button} aria-describedby={run.strategy === 'CATALOG' ? boundariesId : undefined}>
-        {`Run ${strategy} extraction${withCurrentSchema ? ' with current schema' : ''}`}
+        {`Run ${strategy}extraction${withCurrentSchema ? ' with current schema' : ''}`}
       </Button>
       {run.strategy === 'CATALOG' && (
         <span id={boundariesId} className="self-center text-[11px] text-ink-muted">

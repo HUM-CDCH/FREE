@@ -1,4 +1,5 @@
-"""Article reads noncontiguous records with complete input and served-token admission."""
+"""Article reads one document root with complete input and served-token admission; the inventory of
+noncontiguous records it used to take stays for the research replays and is tested here as a unit."""
 import dataclasses
 
 import pytest
@@ -6,46 +7,46 @@ import pytest
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.llm import Reply
-from kei_exp.kie.extract.article import inventory
+from kei_exp.kie.extract.article import DOCUMENT_LABEL, inventory
 from kei_exp.kie.extract.calls import complete
 from kei_exp.kie.extract.grounding import verify
-from kei_exp.kie.extract.stages import extract_record
+from kei_exp.kie.extract.stages import DOCUMENT, extract_record
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.tokens import BudgetUnavailable
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
-def test_article_retains_late_measurements_and_extracts_every_inventoried_identity(monkeypatch):
+def test_article_reads_the_complete_source_as_one_document_root_without_an_identity_inventory(monkeypatch):
+    """Document scope: the late results and the uncited methods are both read, every field (identity-like ones too)
+    is asked of the whole document, and its repeated array items are the model's to keep."""
     source = passages(["31. Hill; 32. Brook.", "Methods: aqueous solution. " + "x" * 25_000,
                        "Results: Hill 1827. Brook 1828."])
     monkeypatch.setattr(run, "load", lambda _: evidence(source))
-    seen = []
+    systems = []
 
     def reason(system, user, schema):
-        if "records" in schema["properties"]:
-            assert "Results: Hill 1827. Brook 1828." in user
-            return {"records": [{"label": name, "identity": {"site": name.split()[1]},
-                                 "passages": ["p1_s0", "p1_s2"]}
-                                for name in ("31. Hill", "32. Brook")]}
-        assert "### Record identity" in user and "Results: Hill 1827" in user
+        assert "records" not in schema["properties"], "no identity inventory"
+        assert f"### Record identity\n{DOCUMENT_LABEL}" in user and "Results: Hill 1827" in user
         return {claim: "NONE" for claim in schema["properties"]}
 
     def fields(system, user, schema):
         assert "Results: Hill 1827. Brook 1828." in user
-        assert "Methods: aqueous solution." in user  # inventory citations cannot hide an uncited method
+        assert "Methods: aqueous solution." in user
         if "title" in schema["properties"]:
             return {"title": "Sites"}
-        seen.append(system.split("Extract ONLY the record ")[1].split(":")[0])
-        assert "site" not in schema["properties"]  # identity is bound once by the inventory
-        return {"entry_no": "31" if "31. Hill" == seen[-1] else "32", "year": 1827 if len(seen) == 1 else 1828}
+        systems.append(system)
+        assert "site" in schema["properties"]  # nothing is bound before the value call
+        return {"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "spear"]}
     result = run.extract(None, run.ExtractRequest(schema=SCHEMA, options={"strategy": "article"}),
                          Router(CountingChat(fields), CountingChat(reason)),
                          counter={role: WordCounter() for role in ("fields", "reasoning")})
-    assert seen == ["31. Hill", "32. Brook"]
-    assert [record["year"] for record in result["records"]] == [1827, 1828]
-    assert [record["site"] for record in result["records"]] == ["Hill", "Brook"]
-    assert len(result["inventory"]) == 2 and not result["issues"]
+    assert len(systems) == 1 and DOCUMENT in systems[0] and "Extract ONLY the record" not in systems[0]
+    assert result["records"] == [{"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "spear"],
+                                  "title": "Sites", "filename": "beier.pdf"}]
+    assert result["inventory"] == [{"identity": {}, "label": DOCUMENT_LABEL, "passages": ["p1_s0", "p1_s1", "p1_s2"]}]
+    assert not result["issues"] and result["article_version"] == 2
+    assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]
     assert all(call["counted_input_tokens"] + call["max_output_tokens"] <= call["context_tokens"]
                for call in result["calls"])
     assert not result["complete"] and result["ungrounded"]  # a model's NONE remains explicit

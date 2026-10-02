@@ -89,6 +89,7 @@ function snapshot(schemaTree: unknown = definition): DocumentReopenSnapshot {
       schemaRevisionId,
       revisionNumber: 2,
       schemaTree,
+      recordScope: 'document',
       sourceCoverage: null,
     },
   }
@@ -146,6 +147,29 @@ describe('document reopen ExtractionModule projection', () => {
         extractionSchema: { revisionNumber: 2, ...definition },
       })
     }
+  })
+
+  it('reopens the current schema and each attempt\'s pinned schema with their own record scopes', async () => {
+    const current = snapshot()
+    current.extractionSchema = { ...current.extractionSchema!, schemaRevisionId: '66666666-6666-4666-8666-666666666666',
+      revisionNumber: 3, recordScope: 'records' }
+    const pinned = snapshot()
+    pinned.extractionSchema = { ...pinned.extractionSchema!, recordScope: null }
+    const response = await createGetDocumentReopen({
+      getDocumentReopenSnapshot: vi.fn(async (_project: string, _document: string, pins?: unknown) => pins ? pinned : current),
+    }, extractionModule())(url())
+    const body = documentReopenResponseSchema.parse(await response.json())
+    expect(body.extractionSchema).toMatchObject({ revisionNumber: 3, recordScope: 'records', ...definition })
+    for (const attempt of [body.latestAttempt, body.latestReviewed])
+      expect(attempt?.extractionSchema).toEqual({ extractionSchemaId, revisionNumber: 2, ...definition, recordScope: null })
+  })
+
+  it('refuses a stored scope other than document or records as unreadable state', async () => {
+    const current = snapshot()
+    current.extractionSchema = { ...current.extractionSchema!, recordScope: 'catalog' as never }
+    const response = await createGetDocumentReopen({ getDocumentReopenSnapshot: vi.fn(async () => current) },
+      extractionModule())(url())
+    expect(response.status).toBe(503)
   })
 
   it('opens the current schema with the source declaration its revision was saved with; an unreadable one is not recorded', async () => {

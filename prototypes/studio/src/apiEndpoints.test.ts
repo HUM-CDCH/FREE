@@ -29,6 +29,7 @@ const revision: SchemaRevisionRecord = {
     recordDescription: 'One report.',
     schemaNodes: [],
   },
+  recordScope: 'document',
   createdAt: new Date('2026-08-01T12:00:00.000Z'),
 }
 

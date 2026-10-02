@@ -1,5 +1,5 @@
 import { authenticatedFetch } from './auth/authenticatedFetch.ts'
-import type { SchemaDefinition } from 'extraction/schema'
+import type { RecordScope, SchemaDefinition } from 'extraction/schema'
 import {
   extractionSchemaListResponseSchema,
   extractionSchemaResponseSchema,
@@ -119,17 +119,27 @@ async function writeSchemaRevision(
   return schemaRevisionResponseSchema.parse(value).revision
 }
 
-/** `sourceCoverage`: what the Schema Suggestion behind the definition read of its source, when it made one. */
+/**
+ * `sourceCoverage`: what the Schema Suggestion behind the definition read of its source, when it made one.
+ * `recordScope`: the Article (`document`) or Catalog (`records`) choice; omitted, the revision declares none.
+ */
 export function initializeSchemaRevision(
   projectContextId: string,
   definition: SchemaDefinition,
   sourceCoverage?: SourceCoverage | null,
   signal?: AbortSignal,
+  recordScope?: RecordScope,
 ): Promise<SchemaRevision> {
-  return writeSchemaRevision({ projectContextId, ...definition, sourceCoverage }, signal)
+  return writeSchemaRevision(
+    { projectContextId, ...writtenDefinition(definition, recordScope), sourceCoverage },
+    signal,
+  )
 }
 
-/** Without `sourceCoverage` the new revision inherits its head's declaration: an edit of the suggested schema. */
+/**
+ * Without `sourceCoverage` the new revision inherits its head's declaration: an edit of the suggested schema. Without
+ * `recordScope` it inherits its head's scope; given, it is a scope change.
+ */
 export function appendSchemaRevision(
   projectContextId: string,
   extractionSchemaId: string,
@@ -137,9 +147,26 @@ export function appendSchemaRevision(
   definition: SchemaDefinition,
   sourceCoverage?: SourceCoverage | null,
   signal?: AbortSignal,
+  recordScope?: RecordScope,
 ): Promise<SchemaRevision> {
   return writeSchemaRevision(
-    { projectContextId, extractionSchemaId, expectedRevisionNumber, ...definition, sourceCoverage },
+    {
+      projectContextId,
+      extractionSchemaId,
+      expectedRevisionNumber,
+      ...writtenDefinition(definition, recordScope),
+      sourceCoverage,
+    },
     signal,
   )
+}
+
+/** Exactly the written definition: a caller's extra fields (a revision's own `recordScope: null` included) never
+ *  reach the request, and the scope is sent only when one is chosen. */
+function writtenDefinition(definition: SchemaDefinition, recordScope: RecordScope | undefined) {
+  return {
+    recordDescription: definition.recordDescription,
+    schemaNodes: definition.schemaNodes,
+    ...(recordScope ? { recordScope } : {}),
+  }
 }

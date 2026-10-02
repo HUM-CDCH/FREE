@@ -7,6 +7,7 @@ import { ExtractionError } from './errors.js'
 import { extractionMethod, keiMethodOptions, settingsSlot } from './extraction-method.js'
 import { keiExpArtifact, keiExpEvidence } from './kei-exp-fixture.js'
 import { SUBMIT_TO_KEI_RETRY, type KeiExtractInput, type KeiHandoff, type KeiPoll, type KeiSubmission } from './kei-handoff.js'
+import { recordScopeOf } from './schema.js'
 import type { ExtractionStrategy } from './types.js'
 import { ARTIFACT_READ_RETRY } from './workflow-steps.js'
 import {
@@ -24,13 +25,15 @@ function admittedExtraction(overrides: Partial<AdmittedExtraction> = {}): Admitt
     sourceDocumentId: randomUUID(), sourceRepresentationRevisionId: randomUUID(), schemaRevisionId: randomUUID(),
     extractionSchemaId: randomUUID(), strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null,
     requestedSettings: { [slot]: null }, batchExtractionId: null, preprocessId: `kei-exp:${RUN}:g1`, schemaTree: schema,
+    recordScope: recordScopeOf(overrides.strategy ?? 'ARTICLE'),
     ...overrides,
   }
 }
 const strategyOf = (strategy: ExtractionStrategy) => (strategy === 'CATALOG' ? 'catalog' : 'article')
 const artifactFor = (admitted: AdmittedExtraction, overrides: Parameters<typeof keiExpArtifact>[0] = {}) =>
   keiExpArtifact({
-    run_id: RUN, generation: 'g1', strategy: strategyOf(admitted.strategy), model: 'fields-model', schema,
+    run_id: RUN, generation: 'g1', strategy: strategyOf(admitted.strategy), model: 'fields-model',
+    schema: { ...schema, recordScope: recordScopeOf(admitted.strategy) },
     options: { model: null, ...keiMethodOptions(extractionMethod(admitted.strategy, admitted.catalogRecipe,
       admitted.requestedModels, admitted.requestedSettings)), models: admitted.requestedModels,
       ...(admitted.requestedPages ? { pages: admitted.requestedPages } : {}) },
@@ -207,7 +210,7 @@ describe('runExtraction', () => {
       }) })
       await h.run()
       assert.deepEqual(h.submissions[0]!.request, {
-        run_id: RUN, generation: 'gen-7', request: { schema, options: entry.options },
+        run_id: RUN, generation: 'gen-7', request: { schema: { ...schema, recordScope: recordScopeOf(entry.strategy) }, options: entry.options },
       }, entry.name)
     }
   })
@@ -327,6 +330,58 @@ describe('runExtraction', () => {
     assert.deepEqual(h.submissions, [])
     assert.deepEqual(h.names(), ['loadAdmitted', 'publishFailure'])
     assert.equal(failureOf(h).code, 'invalid_source_representation')
+  })
+
+  it('sends the pinned tree with the revision\'s record scope beside it', async () => {
+    for (const strategy of ['ARTICLE', 'CATALOG'] as const) {
+      const h = harness({ admitted: admittedExtraction({ strategy, recordScope: recordScopeOf(strategy) }) })
+      await h.run()
+      assert.deepEqual((h.submissions[0]!.request as KeiExtractInput).request.schema,
+        { ...schema, recordScope: strategy === 'ARTICLE' ? 'document' : 'records' })
+      assert.equal(h.row.outcome?.outcome, 'SUCCEEDED')
+    }
+  })
+
+  it('an Extraction admitted on a revision without a scope runs the scope its admitted strategy names', async () => {
+    const { recordScope: _absent, ...checkpointed } = admittedExtraction({ strategy: 'CATALOG' })
+    for (const admitted of [admittedExtraction({ strategy: 'CATALOG', recordScope: null }), checkpointed as AdmittedExtraction]) {
+      const h = harness({ admitted })
+      await h.run()
+      assert.equal((h.submissions[0]!.request as KeiExtractInput).request.schema.recordScope, 'records')
+      assert.equal(h.row.outcome?.outcome, 'SUCCEEDED')
+    }
+  })
+
+  it('a revision whose scope is not the admitted strategy\'s fails the Extraction and submits nothing', async () => {
+    const h = harness({ admitted: admittedExtraction({ strategy: 'CATALOG', recordScope: 'document' }) })
+    await h.run()
+    assert.deepEqual(h.submissions, [])
+    assert.equal(failureOf(h).code, 'invalid_extraction_pins')
+  })
+
+  it('a document-scope result with another number of root records fails with invalid_model_output', async () => {
+    for (const records of [[], [{ title: 'Alpha' }, { title: 'Beta' }]]) {
+      const admitted = admittedExtraction()
+      const h = harness({ admitted, artifact: artifactFor(admitted, { records, evidence: [] }) })
+      await h.run()
+      assert.deepEqual(failureOf(h), {
+        code: 'invalid_model_output', phase: 'persisting',
+        message: `The document record scope requires exactly one root record; kei-exp returned ${records.length}.`,
+      })
+    }
+  })
+
+  it('the Parsing Service\'s record scope violation fails the Extraction with a message naming the scope', async () => {
+    const violation = (strategy: ExtractionStrategy) => extractionFailureOf({ ok: false, code: 'extraction_failed',
+      reason: 'record_scope_violation: document scope requires exactly one root record, got 2', retryable: false }, strategy)
+    assert.deepEqual(violation('ARTICLE'), {
+      code: 'invalid_model_output', phase: 'extracting',
+      message: 'The extraction result did not fit the schema\'s record scope (Article: exactly one document-level record): document scope requires exactly one root record, got 2',
+    })
+    assert.match(violation('CATALOG').message, /\(Catalog: a collection of records\)/)
+    // Another extraction_failed reason keeps its general message.
+    assert.match(extractionFailureOf({ ok: false, code: 'extraction_failed', reason: 'the model refused', retryable: false }, 'ARTICLE').message,
+      /^kei-exp could not complete the Extraction: the model refused$/)
   })
 
   it('a pinned schema that no longer parses fails with invalid_schema_revision and submits nothing', async () => {

@@ -258,6 +258,8 @@ describe('/api/extractions transport', () => {
   it.each([
     ['method_changed', 409],
     ['catalog_migration_required', 409],
+    ['record_scope_required', 409],
+    ['record_scope_mismatch', 409],
     ['invalid_identity_fields', 422],
     ['invalid_model_config', 500],
   ] as const)('answers %s with %i', async (code, status) => {

@@ -91,18 +91,18 @@ describe('planRecovery', () => {
 })
 
 describe('recoveryView', () => {
-  const acknowledged = { schemaRevisionId: R1, extractionSchemaId: 'schema-1', revisionNumber: 1, recordDescription: 'One entry.', schemaNodes: [] }
+  const acknowledged = { schemaRevisionId: R1, extractionSchemaId: 'schema-1', revisionNumber: 1, recordDescription: 'One entry.', recordScope: null, schemaNodes: [] }
   const snapshot = (over: Partial<SchemaEditorSnapshot> = {}): SchemaEditorSnapshot => ({
     view: 'editing', generating: false, generationError: null, cancellationError: null, draft: { recordDescription: 'One entry.', schemaNodes: [] },
-    draftVersion: 0, replacementVersion: 0, save: { status: 'saved', acknowledged, draft: { recordDescription: 'One entry.', schemaNodes: [] } },
+    draftVersion: 0, replacementVersion: 0, save: { status: 'saved', acknowledged, draft: { recordDescription: 'One entry.', schemaNodes: [] }, recordScope: null },
     history: [], extractionSchemaId: 'schema-1', currentRevisionNumber: 1, extractableSchemaRevisionId: R1,
-    creatingFromRevisionId: null, previewingRevisionId: null, historicalPreview: null, sourceCoverage: null, ...over,
+    creatingFromRevisionId: null, previewingRevisionId: null, historicalPreview: null, sourceCoverage: null, recordScope: null, ...over,
   })
 
   it('names the clean current revision only when saved and the draft is exactly the acknowledged one', () => {
     expect(recoveryView(snapshot(), false)).toEqual({ cleanCurrentRevisionId: R1, noSchemaYet: false, busy: false })
     expect(recoveryView(snapshot({ extractableSchemaRevisionId: null }), false).cleanCurrentRevisionId).toBeNull()
-    expect(recoveryView(snapshot({ save: { status: 'dirty', acknowledged, draft: { recordDescription: 'x', schemaNodes: [] } } }), false).cleanCurrentRevisionId).toBeNull()
+    expect(recoveryView(snapshot({ save: { status: 'dirty', acknowledged, draft: { recordDescription: 'x', schemaNodes: [] }, recordScope: null } }), false).cleanCurrentRevisionId).toBeNull()
     expect(recoveryView(snapshot({ save: null }), false).cleanCurrentRevisionId).toBeNull()
   })
 

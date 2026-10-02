@@ -37,8 +37,9 @@ import {
 import { extractionSnapshot, readAttemptRows } from './postgres-attempts.js'
 import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
+import { refuseRecordScope, storedRecordScope } from './record-scope.js'
 import { transferEntries, transferSample, unionReviewTransfer } from './review-rules.js'
-import { parseExtractionSchema } from './schema.js'
+import { parseExtractionSchema, type RecordScope } from './schema.js'
 import {
   EXTRACTION_QUEUE,
   extractionAttributes,
@@ -141,6 +142,8 @@ type AdmissionPins = Readonly<{
   requestedSettings: ActiveSettings
   requestedPages: readonly number[] | null
   schemaTree: unknown
+  /** The pinned revision's declared record scope; null for a legacy revision that declares none. */
+  recordScope: RecordScope | null
   preprocessId: string
 }>
 
@@ -157,7 +160,8 @@ async function resolveAdmission(
   const document = representation
     ? await orm.public.SourceDocument.select('projectContextId').first({ id: representation.sourceDocumentId })
     : null
-  const schema = await orm.public.SchemaRevision.select('extractionSchemaId', 'schemaTree').first({ id: input.schemaRevisionId })
+  const schema = await orm.public.SchemaRevision.select('extractionSchemaId', 'schemaTree', 'recordScope')
+    .first({ id: input.schemaRevisionId })
   const schemaOwner = schema
     ? await orm.public.ExtractionSchema.select('projectContextId').first({ id: schema.extractionSchemaId })
     : null
@@ -184,6 +188,7 @@ async function resolveAdmission(
     requestedSettings: method.settings,
     requestedPages: input.pages ?? null,
     schemaTree: schema.schemaTree,
+    recordScope: storedRecordScope(schema.recordScope),
     preprocessId: representation.preprocessId,
   }
 }
@@ -294,6 +299,9 @@ export async function admitInteractiveExtraction(
       // No revision left means the document vanished while this waited for the lock.
       if (!current) return 'missing'
       if (current.id !== pins.sourceRepresentationRevisionId) return 'superseded'
+      // After the replay checks, so an identical repeat of an admitted ID still replays: a new Extraction runs only the
+      // strategy its revision's record scope names, and a revision that declares none waits for that choice.
+      refuseRecordScope(pins.recordScope, pins.strategy)
       // After the replay checks: an identical repeat replays even when the account's settings changed since (design §7).
       if (!(await savedMethodStillCurrent(client, pins.owner, pins.strategy, pins.catalogRecipe,
         { models: pins.requestedModels, settings: pins.requestedSettings })))
@@ -411,6 +419,8 @@ export async function admitBatchExtraction(
         await orm.public.SchemaRevision.select(
           'extractionSchemaId',
           'schemaTree',
+          'recordScope',
+          'revisionNumber',
         ).first({ id: input.schemaRevisionId })
       const owner = schema
         ? await orm.public.ExtractionSchema.select(
@@ -431,6 +441,13 @@ export async function admitBatchExtraction(
         .first()
       if (current?.id !== input.schemaRevisionId)
         return 'invalid' as const
+      // An equal selection replayed above; a new batch runs every member under the one strategy its revision's record
+      // scope names, refused before any document is locked or member admitted.
+      refuseRecordScope(
+        storedRecordScope(schema.recordScope),
+        input.strategy,
+        `Schema Revision ${schema.revisionNumber} of this Batch Extraction`,
+      )
       const members: Array<{
         sourceDocumentId: string
         sourceRepresentationRevisionId: string

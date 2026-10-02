@@ -53,16 +53,20 @@ Source material and annotations from a single source document that FREE may cons
 _Avoid_: annotation text, surrounding text, document context, full context
 
 **Extraction Strategy**:
-A per-Extraction choice of how FREE applies an Extraction Schema to Source Context. Article and Catalog are Extraction Strategies and do not replace Direct Extraction or Schema-Guided Extraction.
+How FREE applies an Extraction Schema to Source Context: Article or Catalog. The researcher selects it, and the selection is saved with the Schema Revision as its Record Scope, so every Extraction on that revision uses it. Article and Catalog are Extraction Strategies and do not replace Direct Extraction or Schema-Guided Extraction.
 _Avoid_: document type, extraction mode, profile
 
 **Article Extraction Strategy**:
-An Extraction Strategy that inventories distinct records across the complete canonical Source Context, then applies the Extraction Schema to each record using evidence from across the source's sections.
+An Extraction Strategy whose result is exactly one document-level object (Record Scope `document`), which may contain arrays. Its values are gathered from the complete canonical Source Context; values read in separate parts of the source are combined into that one object without dropping list items.
 _Avoid_: article mode, narrative mode, direct extraction
 
 **Catalog Extraction Strategy**:
-An Extraction Strategy that discovers repeated records in canonical Source Context, extracts each record separately, and combines them under the Extraction Schema's root records collection.
+An Extraction Strategy whose result is a collection of record objects (Record Scope `records`), each of which may contain arrays. It discovers the repeated records in canonical Source Context, extracts each separately, and combines them under the result's records collection; an empty collection is a valid result. Generic, recipe and unified Catalog are methods of this strategy, not scopes.
 _Avoid_: catalog mode, hierarchical extraction, schema-guided extraction
+
+**Record Scope**:
+The authoritative declaration, saved with a Schema Revision, of what one Extraction result is: `document` (one object per Source Document: Article) or `records` (a collection of records: Catalog). It is set only through the Article/Catalog selection, never inferred from array fields or model output, and checked when an Extraction is admitted and when its result is accepted (a `document` result has exactly one root). A Schema Revision from before the declaration existed has one when its Extractions all used one strategy; otherwise the researcher chooses before the next Extraction.
+_Avoid_: cardinality, extraction mode, document type
 
 **Direct Extraction**:
 An extraction mode where a humanities researcher extracts information from a source document without first creating annotations, reviewing schema suggestions, or approving an extraction schema.

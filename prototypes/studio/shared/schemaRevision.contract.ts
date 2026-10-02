@@ -3,6 +3,7 @@ import { canonicalUuidSchema } from './projectContext.contract.js'
 import { sourceCoverageSchema } from './schemaSuggestionSource.contract.js'
 import {
   recordDescriptionSchema,
+  recordScopeSchema,
   schemaDefinitionSchema,
   schemaNodesSchema,
 } from 'extraction/schema'
@@ -23,6 +24,12 @@ export const schemaRevisionSchema = z
     origin: schemaRevisionOriginSchema,
     createdAt: timestamp,
     recordDescription: recordDescriptionSchema,
+    /**
+     * The definition's task scope, the one authority for Article (`document`: one document-level object) or Catalog
+     * (`records`: a collection of records). Null is a legacy definition whose task selection was ambiguous: a choice
+     * is required before it can run.
+     */
+    recordScope: recordScopeSchema.nullable(),
     schemaNodes: schemaNodesSchema,
   })
   .strict()
@@ -95,12 +102,20 @@ export const extractionSchemaResponseSchema = z
  */
 const writtenSourceCoverageSchema = sourceCoverageSchema.nullable().optional()
 
+/**
+ * The record scope a written revision declares. Absent from an append, the revision inherits its head's scope (an
+ * edit never drops it); given, it is stored (a scope change is an explicit append). Absent from an initialization,
+ * the revision declares none.
+ */
+const writtenRecordScopeSchema = recordScopeSchema.optional()
+
 export const appendSchemaRevisionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
     extractionSchemaId: canonicalUuidSchema,
     expectedRevisionNumber: z.number().int().nonnegative(),
     ...schemaDefinitionSchema.shape,
+    recordScope: writtenRecordScopeSchema,
     sourceCoverage: writtenSourceCoverageSchema,
   })
   .strict()
@@ -109,6 +124,7 @@ export const initializeSchemaRevisionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
     ...schemaDefinitionSchema.shape,
+    recordScope: writtenRecordScopeSchema,
     sourceCoverage: writtenSourceCoverageSchema,
   })
   .strict()

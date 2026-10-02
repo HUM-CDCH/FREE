@@ -81,10 +81,18 @@ def _descendants(node: Node) -> Iterator[Node]:
         yield from _descendants(child)
 
 
+RecordScope = Literal["document", "records"]
+
+
 class Schema(BaseModel):
-    """FREE's `SchemaDefinition`: what one record is, and its fields."""
+    """FREE's `SchemaDefinition`: what one record is, its fields and, when declared, the task's scope.
+
+    `recordScope` is authoritative: "document" (Article) is one document-level object, "records" (Catalog) a
+    collection of record objects; either may contain arrays. A legacy definition declares none, and its request's
+    task selection stands in (`run.ExtractRequest.record_scope`). It is echoed in the artifact's schema unchanged."""
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     record_description: str = Field(alias="recordDescription", min_length=1, max_length=1000)
+    record_scope: RecordScope | None = Field(default=None, alias="recordScope")
     nodes: list[Node] = Field(alias="schemaNodes", min_length=1)
 
     @model_validator(mode="after")

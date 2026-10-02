@@ -23,12 +23,16 @@ function upload(page: Page, projectId: string, pdf = cataloguePdf(), name = 'sou
 
 async function revision(page: Page, projectId: string): Promise<string> {
   const response = await page.request.post('/api/schema-revisions', { headers, data: {
-    projectContextId: projectId, recordDescription: 'Numbered archaeological sites.',
-    schemaNodes: [
-      { id: 'site', name: 'site', type: 'verbatim-string', description: 'Site name.' },
-      { id: 'finds', name: 'finds', type: 'verbatim-string', description: 'Material found.' },
-      { id: 'year', name: 'year', type: 'integer', description: 'Year after dated.' },
-    ],
+    // An Article, the one strategy `extract` runs: the catalogue is one object and its sites one array of it.
+    projectContextId: projectId, recordDescription: 'The site catalogue as one document.', recordScope: 'document',
+    schemaNodes: [{
+      id: 'sites', name: 'sites', type: 'array', description: 'Every numbered site, in source order.',
+      children: [
+        { id: 'site', name: 'site', type: 'verbatim-string', description: 'Site name.' },
+        { id: 'finds', name: 'finds', type: 'verbatim-string', description: 'Material found.' },
+        { id: 'year', name: 'year', type: 'integer', description: 'Year after dated.' },
+      ],
+    }],
   } })
   expect(response.status(), await response.text()).toBe(201)
   return (await response.json()).revision.schemaRevisionId as string

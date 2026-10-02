@@ -38,6 +38,10 @@ EXTRACTION_VERSION = 1
 # 14: Catalog discovery examples are domain-neutral structure, not from the development corpus.
 # 15: every grounding batch shows the record's fields, so a claim split from its record's name keeps its record.
 PROMPT_VERSION = 15
+# Article's own version, pinned in its fingerprint and artifact beside the shared PROMPT_VERSION (which the version 1
+# Catalog's frozen artifact also carries). 2: document scope, one root and no identity inventory; its prompt is
+# `stages.DOCUMENT`; arrays are assembled across value contexts without deduplication.
+ARTICLE_VERSION = 2
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
@@ -46,6 +50,7 @@ def fingerprint(result: dict, request, model: dict) -> str:
         "generation": result["generation"], "digest": result["digest"],
         "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),
         "options": request.options.dumped(), "model": model, "prompt_version": PROMPT_VERSION,
+        **({"article_version": ARTICLE_VERSION} if request.options.strategy == "article" else {}),
         **({"method_version": 1} if request.options.article is not None else {}),
         **({"rendering_version": RENDERING_VERSION} if request.options.article is not None
            and request.options.article.rendering is not None else {}),

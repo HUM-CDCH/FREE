@@ -12,7 +12,7 @@
     "generation": "20260926T120000.000000Z-0a1b2c3d",
     "request": {
       "schema": {
-        "recordDescription": "One numbered entry of an archaeological catalogue.",
+        "recordDescription": "One numbered entry of an archaeological catalogue.", "recordScope": "records",
         "schemaNodes": [
           {"id": "n", "name": "entry_no", "type": "integer"},
           {"id": "s", "name": "site_name", "type": "string", "description": "the find place after the number"},

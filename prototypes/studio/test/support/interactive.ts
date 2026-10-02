@@ -41,6 +41,7 @@ export async function seedSchemaRevision(scope: InteractiveScope): Promise<{ ext
     revisionNumber: 1,
     origin: 'RESEARCHER_EDIT',
     schemaTree: { recordDescription: 'One catalogue entry.', schemaNodes: [] },
+    recordScope: 'records',
   })
   return { extractionSchemaId, schemaRevisionId }
 }
