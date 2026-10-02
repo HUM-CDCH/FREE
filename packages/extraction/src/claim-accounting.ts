@@ -13,6 +13,11 @@ const RECORD_LEVEL_CODES: ReadonlyMap<string, string> = new Map([
   ['call_failed', 'call_failed_unattributed'], ['no_evidence', 'no_evidence'],
 ])
 
+/** `assembly.ARTICLE_VERSION` from which Article's verifier names each claim of a failed call (`grounding.verify`'s
+ *  `projected`). An Article result stored before it (no recorded version: the Parsing Service on dev; or below it)
+ *  records a failed grounding call with its record but without a path, as the generic Catalog verifier does. */
+export const ARTICLE_CLAIM_ATTRIBUTION_VERSION = 4
+
 export type ClaimState = 'supported' | 'unsupported' | 'not_completed' | 'excluded'
 export type UnfinishedClaim = Readonly<{ resultPath: ResultPath; reasons: readonly string[] }>
 /** Every claim (populated record leaf the service grounded or listed ungrounded) once: excluded by a schema evidence
@@ -39,9 +44,11 @@ const counted = (values: readonly string[]): Record<string, number> => {
  *  attributed to a value, so every eligible ungrounded claim of that record without unfinished reasons of its own is
  *  marked not completed with it (an understatement, disclosed by its reason). A record-level `call_failed` is reported
  *  as `call_failed_unattributed`: the same issue list carries record-extraction failures it cannot be told from. A
- *  path-less issue without a record (document extraction, discovery windows) attributes nothing, nor does any of
- *  Article's path-less `call_failed` issues (extraction-stage failures), as `assembly.grounding_accounting` reads every
- *  path-less issue. */
+ *  path-less issue without a record (document extraction, discovery windows) attributes nothing. An Article result
+ *  whose grounder predates per-claim attribution (`versions.article` absent or below
+ *  `ARTICLE_CLAIM_ATTRIBUTION_VERSION`) is read by the same record-level rule: its failed grounding calls carry no path.
+ *  From that version on, Article's path-less `call_failed` issues are extraction-stage failures and attribute nothing,
+ *  as `assembly.grounding_accounting` reads every path-less issue. */
 export function claimAccounting(
   extraction: Pick<ExtractionAttemptSnapshot, 'strategy' | 'evidence' | 'diagnostics'>,
 ): ClaimAccounting | null {
@@ -70,6 +77,8 @@ export function claimAccounting(
   } else {
     const eligibleKeys = new Set(eligibleUngrounded.map(resultPathKey))
     const genericCatalog = strategy === 'CATALOG' && !diagnostics.grounded && !diagnostics.unified
+    const legacyArticle = strategy === 'ARTICLE' &&
+      !((diagnostics.effectiveMethod?.versions.article ?? 0) >= ARTICLE_CLAIM_ATTRIBUTION_VERSION)
     const recordLevel = new Map<number, Set<string>>()
     for (const issue of diagnostics.groundingIssues) {
       const code = issue.code
@@ -78,7 +87,7 @@ export function claimAccounting(
       if (!Array.isArray(path)) {
         const record = issue.record
         const reported = RECORD_LEVEL_CODES.get(code)
-        if (genericCatalog && reported && typeof record === 'number' && Number.isInteger(record))
+        if ((genericCatalog || legacyArticle) && reported && typeof record === 'number' && Number.isInteger(record))
           recordLevel.set(record, (recordLevel.get(record) ?? new Set()).add(reported))
         continue
       }

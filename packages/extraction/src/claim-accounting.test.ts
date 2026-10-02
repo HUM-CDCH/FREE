@@ -161,15 +161,43 @@ describe('claim accounting from the persisted Extraction', () => {
     assert.equal(accounting?.notCompleted, 0)
   })
 
+  const articleVersion = (article?: number) => ({
+    options: { strategy: 'article' }, versions: { prompt: 15, ...(article === undefined ? {} : { article }) },
+  })
+
   it('an Article attempt keeps the path rule: a path-less failed call is an extraction-stage failure', () => {
     const accounting = claimAccounting({
       strategy: 'ARTICLE',
       evidence: [],
-      diagnostics: diagnostics({ ungroundedPaths: [path('b'), path('c')], groundingIssues: [pathless('call_failed', 0)] }),
+      diagnostics: diagnostics({
+        ungroundedPaths: [path('b'), path('c')], groundingIssues: [pathless('call_failed', 0)], effectiveMethod: articleVersion(4),
+      }),
     })
     assert.equal(accounting?.unsupported, 2)
     assert.equal(accounting?.notCompleted, 0)
     assert.deepEqual(accounting?.reasons, {})
+  })
+
+  it('an Article attempt stored before per-claim attribution reads a record-level failed call as generic Catalog does', () => {
+    // As dev's `grounding.verify` records a failed grounding call: the record, no path; no `article_version` recorded.
+    const devFailure = { code: 'call_failed', detail: 'the grounding call failed', record: 0, path: null }
+    for (const effectiveMethod of [undefined, articleVersion(), articleVersion(3)]) {
+      const accounting = claimAccounting({
+        strategy: 'ARTICLE',
+        evidence: [{ resultPath: at(0, 'a'), evidenceAnchorId: 'a_p1_s0' }],
+        diagnostics: diagnostics({
+          ungroundedPaths: [at(0, 'b'), at(0, 'c'), at(1, 'b')], groundingIssues: [devFailure],
+          ...(effectiveMethod ? { effectiveMethod } : {}),
+        }),
+      })
+      assert.deepEqual(accounting, {
+        claims: 4, excluded: 0, eligible: 4, supported: 1, unsupported: 1, notCompleted: 2,
+        reasons: { call_failed_unattributed: 2 }, excludedPolicies: {},
+        unfinished: [
+          { resultPath: at(0, 'b'), reasons: ['call_failed_unattributed'] }, { resultPath: at(0, 'c'), reasons: ['call_failed_unattributed'] },
+        ],
+      })
+    }
   })
 
   it('counts a repeated ungrounded path as one claim', () => {
