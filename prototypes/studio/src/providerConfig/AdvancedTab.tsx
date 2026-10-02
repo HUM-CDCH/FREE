@@ -429,6 +429,16 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue }: Pick<Props, 'd
   )
   const reserves = Object.entries(defaults.reserves).map(([stage, tokens]) => `${stage} ${tokens.toLocaleString('en-US')}`).join(', ')
   const method = { defaults: UNIFIED_CATALOG_DEFAULTS_VERSION, ...shown }
+  const changed = JSON.stringify(unified ?? null) !== JSON.stringify(saved.extractionSettings.catalog?.unified ?? null)
+  // One control per view, as for the other strategies: the dialog fits the viewport without an inner scroll area.
+  const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('catalog.')) : undefined
+  const pages = ([
+    ['input_tokens', number('input_tokens', 'tokens, 512 or more; empty for Auto', 'The largest request of any call. Auto is the served context minus the reply reserve. A smaller ceiling splits the source into more requests; no source text is left out to fit.', 'Auto')],
+    ['output_tokens', number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}.`, 'Stage defaults')],
+    ['overlap', number('overlap', 'source lines, 0 to 4', 'Neighboring lines shown again as context where the source is split. Each line is read as its own text once; a record continues across a split only when both sides say so.', String(defaults.overlap))],
+    ['headings', toggle('headings')],
+    ['verification', toggle('verification')],
+  ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${UNIFIED_LABELS[key]}`, control }))
   return (
     <>
       <p className="text-[12px] text-ink">{custom ? settingsHeadline({ unified: method }) : `Service defaults, version ${UNIFIED_CATALOG_DEFAULTS_VERSION}`}</p>
@@ -441,28 +451,22 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue }: Pick<Props, 'd
             are refused; Article Extractions and existing results are unaffected.</p>
         </div>
       )}
-      <SettingsViews label="Catalog setting" titles={['Catalog', 'Effective settings']}
-        selected={focusIssue && editor.settingsIssues.some((issue) => issue.path.startsWith('catalog.')) ? 'Catalog' : undefined}>
-        <section aria-label="Catalog" className="flex flex-col gap-2">
+      <SettingsViews label="Catalog setting" titles={[...pages.map((page) => page.title), 'Effective settings']}
+        selected={pages.find((page) => page.path === issue?.path)?.title}>
+        {pages.map((page) => <section key={page.path} aria-label="Catalog" className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between gap-2">
             <h4 className="text-[12px] font-semibold text-ink">Catalog</h4>
-            {JSON.stringify(unified ?? null) !== JSON.stringify(saved.extractionSettings.catalog?.unified ?? null) &&
-              <span className="text-[10.5px] font-semibold text-accent">Changed</span>}
+            {changed && <span className="text-[10.5px] font-semibold text-accent">Changed</span>}
             {explain(SECTION_TOPIC.unified, 'Catalog')}
           </div>
           <p className="text-[11px] text-ink-faint">One method for every new single and batch Catalog Extraction.</p>
-          <fieldset disabled={!custom} className="flex min-w-0 flex-col gap-3">
-            {number('input_tokens', 'tokens, 512 or more; empty for Auto', 'The largest request of any call. Auto is the served context minus the reply reserve. A smaller ceiling splits the source into more requests; no source text is left out to fit.', 'Auto')}
-            {number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}.`, 'Stage defaults')}
-            {number('overlap', 'source lines, 0 to 4', 'Neighboring lines shown again as context where the source is split. Each line is read as its own text once; a record continues across a split only when both sides say so.', String(defaults.overlap))}
-            {toggle('headings')}
-            {toggle('verification')}
-            {!(shown.verification ?? defaults.verification) && <p className="text-[11px] text-ink-muted">Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.</p>}
-            <p className="text-[10.5px] text-ink-faint">Records and fields come from the schema; models from the Models tab. Document-level fields remain unverified.</p>
-          </fieldset>
-        </section>
+          <fieldset disabled={!custom} className="flex min-w-0 flex-col gap-3">{page.control}</fieldset>
+          {page.path === 'catalog.unified.verification' && !(shown.verification ?? defaults.verification) &&
+            <p className="text-[11px] text-ink-muted">Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.</p>}
+        </section>)}
         <section aria-label="Effective settings" className="flex flex-col gap-2">
           <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>
+          <p className="text-[10.5px] text-ink-faint">Records and fields come from the schema; models from the Models tab. Document-level fields remain unverified.</p>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
             {unifiedLines(method).map((line) => [<dt key={`${line.label}-t`} className="text-ink-muted">{line.label}</dt>, <dd key={`${line.label}-d`} className="text-ink">{line.value}</dd>])}
           </dl>
