@@ -479,8 +479,9 @@ topology. `STUDIO_ORIGIN` remains the origin only; `STUDIO_BASE_PATH` owns the
 path, so the same Studio image can run under any configured prefix without
 proxy-specific URL rewriting.
 
-Nginx adds `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and a
-no-referrer policy to every response. The deployment intentionally does not
+Nginx adds `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and
+`Referrer-Policy: same-origin` to every response (`no-referrer` would make
+browsers send `Origin: null` on the logout form POST, which Studio rejects). The deployment intentionally does not
 send HSTS: a private hostname depends on institution- or VPN-managed trust and
 certificate renewal, and pinning HTTPS in browsers could prevent operator
 recovery after that private trust configuration changes. HTTPS remains the only
