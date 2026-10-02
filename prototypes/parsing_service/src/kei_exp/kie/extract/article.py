@@ -33,12 +33,20 @@ from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, conform, json_schema
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.selection import select_contexts
-from kei_exp.kie.extract.stages import Issue, _instruction, _labelled, extract_record, normal, record_request, leaves
+from kei_exp.kie.extract.stages import (REPLY_TOKENS, Issue, _instruction, _labelled, extract_record, normal,
+                                        record_request, leaves)
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter, counters_for
 from kei_exp.kie.passages import Evidence, Passage, text_of
 
 # The one document identity's label, shown where a record's identity would be (grounding); no identity attribute.
 DOCUMENT_LABEL = "the whole document"
+
+
+class RootUnanswered(ValueError):
+    """No value context's call answered the document's root (each reply was cut off or unreadable, or the request was
+    refused before it was sent), so there is no root to publish: an all-null one would read as a document that states
+    nothing. Never published; the worker reports it as `extraction_failed`, its reason starting
+    `article_root_unanswered:`. Some contexts answering is a partial root, with each failed context's `call_failed`."""
 
 
 @dataclass
@@ -57,12 +65,12 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
     """The Article artifact for `request` (the validated `run.ExtractRequest`) over `evidence`.
 
-    The result is exactly one record, the document's root (`run.dispatch` holds it to that). Both roles need a served
-    context size: `counter` is one counter per role, by default the counter of each role's endpoint. `before_entry` is
-    called before each context's document-level call, each value context's call, the root's verification and each
-    grounding batch, and, with bounded contexts, before each count that sizes a context and the selection; what it
-    raises ends the extraction. `run_dir` and `chunks` are not used: Article reads only the evidence and runs
-    unsplit."""
+    The result is exactly one record, the document's root (`run.dispatch` holds it to that); when no value context
+    answered the root, `RootUnanswered` is raised before grounding instead. Both roles need a served context size:
+    `counter` is one counter per role, by default the counter of each role's endpoint. `before_entry` is called before
+    each context's document-level call, each value context's call, the root's verification and each grounding batch,
+    and, with bounded contexts, before each count that sizes a context and the selection; what it raises ends the
+    extraction. `run_dir` and `chunks` are not used: Article reads only the evidence and runs unsplit."""
     check = before_entry or unchecked
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
@@ -83,6 +91,10 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         structured=method.rendering == "structured")
     extracted = document_root(evidence.passages, schema, chat, counters=counter,
                               record_chars=options.record_chars, check=check, method=method, contexts=contexts)
+    if extracted.calls and not any(call.ok for call in extracted.calls):
+        raise RootUnanswered(f"article_root_unanswered: none of the {len(extracted.value_contexts[0])} value "
+                             f"context(s) answered the document's root; the last call failed: "
+                             f"{extracted.calls[-1].error}")
     calls += extracted.calls
     issues += extracted.issues
     support = ground_records(extracted.slices, schema, chat, check=check, budget=options.record_chars,
@@ -162,7 +174,9 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
             check()
             source = structured_source(group) if structured else text_of(group)
             system, user, reply_schema = record_request(source, schema, None, None, document=True)
-            return counters["fields"].request_tokens(system, user, reply_schema) + 4096 <= counters["fields"].context_tokens
+            counted = counters["fields"].request_tokens(system, user, reply_schema)
+            # A context's root restates what the context gives: its reply keeps as many tokens as its request counts.
+            return counted + max(REPLY_TOKENS, counted) <= counters["fields"].context_tokens
         groups = partition(passages, fits, overlap=method.overlap_passages,
                            structural=method.grouping == "structural") or [Context(())]
     if method.selection is not None and item["passages"]:

@@ -180,7 +180,7 @@ def test_a_bounded_article_root_with_many_items_is_grounded_where_each_value_was
     item_users = [user for user in users if "77" in user]
     assert item_users and all(len(set(re.findall(r"Page (\d)", user.split("### Evidence")[1]))) == 1
                               for user in item_users)  # each item claim is checked in the context it was read from
-    assert result["article_version"] == article.ARTICLE_VERSION == 6
+    assert result["article_version"] == article.ARTICLE_VERSION == 7
 
 
 def test_contested_unsupported_and_uncompleted_claims_stay_distinct_through_the_article_path():

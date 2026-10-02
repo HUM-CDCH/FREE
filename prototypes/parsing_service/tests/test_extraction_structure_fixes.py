@@ -1,10 +1,12 @@
 """Regressions from real quoted replies and source structure lost at unit boundaries."""
 import json
+import re
 from dataclasses import replace
 
 import pytest
 
 from kei_exp.kie.extract import assembly, run
+from kei_exp.kie.extract.article import RootUnanswered
 from kei_exp.kie.extract.contexts import partition
 from kei_exp.kie.extract.llm import ModelOutputError, parse_json
 from kei_exp.kie.extract.method import ArticleOptions
@@ -136,11 +138,12 @@ def test_oversized_table_with_qualifier_is_refused_before_any_model_call(monkeyp
     chat = CountingChat(lambda *_: pytest.fail('oversized structural unit reached the model'))
     method = {'context': 'bounded', 'context_tokens': 8192, 'grouping': 'structural',
               'rendering': 'structured', 'grounding': 'off'}
-    result = run.extract(None, run.ExtractRequest(schema=SCHEMA, options={'strategy': 'article', 'article': method}),
-                         chat, counter={r: WordCounter() for r in ['fields', 'reasoning']})
-    assert result['contexts'][0]['primary'] == [p.id for p in source]
-    assert not result['completion']['processing'] and result['completion']['source_coverage'] == 'partial'
-    assert any(not c['ok'] and 'exceed' in c['error'] for c in result['calls'])
+    # The one context it is kept in cannot be read, so the Article has no root and fails rather than publish one.
+    with pytest.raises(RootUnanswered, match='none of the 1 value context') as refused:
+        run.extract(None, run.ExtractRequest(schema=SCHEMA, options={'strategy': 'article', 'article': method}),
+                    chat, counter={r: WordCounter() for r in ['fields', 'reasoning']})
+    counted = int(re.search(r'(\d+) input \+ 4096 output tokens exceed the served context 8192', str(refused.value))[1])
+    assert counted > 7000  # the table kept its qualifier: the unit was refused intact
     assert not chat.calls
 
 

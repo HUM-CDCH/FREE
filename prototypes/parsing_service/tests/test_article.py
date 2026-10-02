@@ -7,12 +7,13 @@ import pytest
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.llm import Reply
-from kei_exp.kie.extract.article import DOCUMENT_LABEL, inventory
+from kei_exp.kie.extract.article import DOCUMENT_LABEL, RootUnanswered, inventory
 from kei_exp.kie.extract.calls import complete
 from kei_exp.kie.extract.grounding import verify
-from kei_exp.kie.extract.stages import DOCUMENT, extract_record
+from kei_exp.kie.extract.stages import DOCUMENT, extract_record, record_request
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.tokens import BudgetUnavailable
+from kei_exp.kie.passages import text_of
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
@@ -45,7 +46,7 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
     assert result["records"] == [{"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "spear"],
                                   "title": "Sites", "filename": "beier.pdf"}]
     assert result["inventory"] == [{"identity": {}, "label": DOCUMENT_LABEL, "passages": ["p1_s0", "p1_s1", "p1_s2"]}]
-    assert not result["issues"] and result["article_version"] == 6
+    assert not result["issues"] and result["article_version"] == 7
     assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]
     assert all(call["counted_input_tokens"] + call["max_output_tokens"] <= call["context_tokens"]
                for call in result["calls"])
@@ -148,3 +149,93 @@ def test_article_refuses_unknown_context_and_reports_incorrect_server_counts(mon
     _, calls = complete(chat, stage="record", record=0, system="S", user="U", schema={"type": "object"},
                        max_tokens=100, counter=WordCounter())
     assert not calls[-1].ok and "server reported 999" in calls[-1].error
+
+
+# A document-scope list: each find the reply lists costs `PER_FIND` reply tokens, so 2,000 do not fit 4,096.
+FINDS = [f"sherd {n}" for n in range(3000)]
+PER_FIND = 4
+
+
+class Lister(CountingChat):
+    """Answers the root with every find its context lists, cut off when its reply allowance is under `PER_FIND` tokens
+    per find (or whenever `cut` says so); the document field and any grounding answer at once."""
+    def __init__(self, cut=lambda user: False):
+        def script(system, user, schema):
+            if "finds" in schema["properties"]:
+                return {"entry_no": None, "site": "Hill", "year": None,
+                        "finds": [find for find in FINDS if f"{find}," in user]}
+            return {"title": "Finds"} if "title" in schema["properties"] else {k: "NONE" for k in schema["properties"]}
+        super().__init__(script)
+        self.cut = cut
+
+    def complete(self, *, system, user, schema, max_tokens=None):
+        reply = super().complete(system=system, user=user, schema=schema, max_tokens=max_tokens)
+        if "finds" in schema["properties"] and (self.cut(user) or max_tokens < PER_FIND * reply.text.count("sherd")):
+            return dataclasses.replace(reply, text='{"finds": [', finish="length")
+        return reply
+
+
+def finds_request(**article):
+    return run.ExtractRequest.model_validate({"schema": {**SCHEMA.model_dump(by_alias=True, exclude_none=True),
+        "recordScope": "document"}, "options": {"strategy": "article", "article": {"grounding": "off", **article}}})
+
+
+def finds_source(count, parts=1):
+    """`count` finds in `parts` passages of about `2 * count / parts` words each."""
+    size = count // parts
+    return evidence(passages([f"Part {part}. Finds: " + " ".join(f"{find}," for find in FINDS[part * size:(part + 1) * size])
+                              for part in range(parts)]))
+
+
+def counters():
+    return {role: WordCounter() for role in ("fields", "reasoning")}
+
+
+def test_a_long_list_root_may_reply_with_the_served_context_its_input_leaves():
+    """The measured failure: a 4,096-token reply cut a long list off, and its null answer became an all-null root
+    under a successful run. The root's call now gets the context its counted input leaves; other calls keep theirs."""
+    result = run.dispatch(None, finds_source(2000), finds_request(), Lister(), counter=counters())
+    (root,) = [call for call in result["calls"] if call["stage"] == "record"]
+    assert root["ok"] and root["max_output_tokens"] == WordCounter.context_tokens - root["counted_input_tokens"]
+    assert root["max_output_tokens"] >= PER_FIND * 2000 > 4096
+    assert result["records"][0]["finds"] == FINDS[:2000] and not result["issues"]
+    (document,) = [call for call in result["calls"] if call["stage"] == "document"]
+    assert document["max_output_tokens"] == 2048
+
+
+def test_a_context_too_full_for_a_4096_token_reply_is_refused_before_it_is_sent():
+    source = finds_source(2000)
+    system, user, reply_schema = record_request(text_of(source.passages), SCHEMA, None, None, document=True)
+    counter = WordCounter()
+    counter.context_tokens = WordCounter().request_tokens(system, user, reply_schema) + 4000
+    chat = Lister()
+    with pytest.raises(RootUnanswered, match="4096 output tokens exceed the served context"):
+        run.dispatch(None, source, finds_request(), chat, counter={"fields": counter, "reasoning": counter})
+    assert not [call for call in chat.calls if "finds" in call["schema"]["properties"]]
+
+
+def test_an_article_no_context_answered_fails_instead_of_publishing_an_all_null_root():
+    """Every root call cut off: no root, so no result. One bounded context answering keeps a partial root with the
+    other's `call_failed`, never complete."""
+    with pytest.raises(RootUnanswered, match=r"^article_root_unanswered: none of the 1 value context\(s\) .*cut off"):
+        run.dispatch(None, finds_source(2000), finds_request(), Lister(cut=lambda user: True), counter=counters())
+    bounded = finds_request(context="bounded", context_tokens=8192)
+    with pytest.raises(RootUnanswered, match="none of the 2 value context"):
+        run.dispatch(None, finds_source(2000, 2), bounded, Lister(cut=lambda user: True), counter=counters())
+    result = run.dispatch(None, finds_source(2000, 2), bounded, Lister(cut=lambda user: "Part 1." in user),
+                          counter=counters())
+    assert result["records"][0]["finds"] == FINDS[:1000] and result["complete"] is False
+    assert [issue["code"] for issue in result["issues"]] == ["call_failed"]
+
+
+def test_a_bounded_root_context_keeps_as_many_reply_tokens_as_its_request_counts():
+    """Two parts of about 3,100 tokens each fit one 11,264-token request beside a 4,096-token reply, but not beside a
+    reply as large as that request: each part is its own context, and its reply may use all the rest."""
+    result = run.dispatch(None, finds_source(3000, 2), finds_request(context="bounded", context_tokens=11264),
+                          Lister(), counter=counters())
+    roots = [call for call in result["calls"] if call["stage"] == "record"]
+    assert len(result["value_contexts"][0]) == len(roots) == 2
+    assert sum(call["counted_input_tokens"] for call in roots) + 4096 <= 11264  # one context under a fixed reserve
+    assert all(call["ok"] and call["max_output_tokens"] == 11264 - call["counted_input_tokens"]
+               >= call["counted_input_tokens"] for call in roots)
+    assert result["records"][0]["finds"] == FINDS

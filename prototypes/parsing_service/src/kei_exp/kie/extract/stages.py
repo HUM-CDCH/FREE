@@ -41,6 +41,8 @@ ARTICLE = ("Extract only the specified record, combining its evidence across the
 DOCUMENT = ("The document is the one object to extract: the source below is all or part of it, and it holds no other "
             "records to tell apart. Every requested field, including every array, gathers everything the source "
             "states: an array lists every item given, in source order, each item with its own fields.")
+# A counted record call's reply allowance, and the least Article's document root is given (`extract_record`).
+REPLY_TOKENS = 4096
 
 
 @dataclass(frozen=True)
@@ -133,7 +135,9 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
                    counter: TokenCounter | None = None, neutral: bool = False,
                    structured: bool = False, document: bool = False) -> tuple[dict, list[Call], list[Issue]]:
     """One record's fields from one structured-output call over its passages; with `document`, the document's own
-    root (Article) from one of its value contexts."""
+    root (Article) from one of its value contexts. A counted record call may reply with `REPLY_TOKENS`; the root
+    restates every item its context gives, so its reply may use the served context its counted input leaves, and a
+    context too full for `REPLY_TOKENS` is refused before sending (`calls.complete`)."""
     nodes = [node for node in schema.record_nodes if identity is None or node.name not in identity]
     if not nodes:
         return dict(identity or {}), [], []
@@ -144,8 +148,12 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
               text_of(passages) if counter else _clipped(passages, budget, issues, record))
     system, user, reply_schema = record_request(source, schema, identity, record_name, neutral=neutral,
                                                 document=document)
+    max_tokens = REPLY_TOKENS if counter else None
+    if document and counter is not None:
+        counted = counter.request_tokens(system, user, reply_schema)
+        max_tokens = max(REPLY_TOKENS, (counter.context_tokens or 0) - counted)
     answer, attempts = complete(chat, stage="record", record=record, system=system, user=user,
-                                schema=reply_schema, counter=counter, max_tokens=4096 if counter else None)
+                                schema=reply_schema, counter=counter, max_tokens=max_tokens)
     if not attempts[-1].ok:
         issues.append(Issue("call_failed", attempts[-1].error or "record extraction failed", record))
     return {**(identity or {}), **conform(answer, nodes)}, attempts, issues
