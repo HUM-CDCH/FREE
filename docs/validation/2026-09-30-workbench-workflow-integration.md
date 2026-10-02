@@ -4,8 +4,8 @@ Status: implemented and verified; independent review complete.
 
 Implementation request: `docs/plans/2026-09-30-workbench-workflow-integration.md`
 in the original checkout. Its accepted scenarios are recorded in the active
-[workflow-integration specification](../../openspec/changes/sample-extraction-workbench/specs/workflow-integration/spec.md)
-and updated [review-transfer specification](../../openspec/changes/sample-extraction-workbench/specs/review-transfer/spec.md).
+[workflow-integration specification](../../openspec/changes/archive/2026-10-02-sample-extraction-workbench/specs/workflow-integration/spec.md)
+and updated [review-transfer specification](../../openspec/changes/archive/2026-10-02-sample-extraction-workbench/specs/review-transfer/spec.md).
 PR4 (description suggestions from corrections) remains pending independently.
 
 ## Frozen heads and delivery boundaries

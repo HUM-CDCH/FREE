@@ -230,7 +230,7 @@ export async function loadDocumentExtractions(
       'reviewedAt')
     .all()
   // An interactive attempt in any state, or a published result of any kind: a pending or failed batch member is not a
-  // result and never displaces one (spec, *One Extraction row*). A legacy Sample Extraction (a page scope) is neither.
+  // result and never displaces one (spec, *One Extraction row*). A legacy sample row (`requestedPages` set) is neither.
   const whole = rows.filter((row) => row.requestedPages === null)
   const candidates = whole
     .filter((row) => row.batchExtractionId === null || row.outcome === 'SUCCEEDED')

@@ -180,7 +180,7 @@ export function useExtraction({
   // decision the researcher actually made.
   const [touchedPaths, setTouchedPaths] = useState<ReadonlySet<string>>(new Set())
   const draftRef = useRef<{ decisions: ReviewDecisionInput[]; touched: ReadonlySet<string> }>({ decisions: reviewDecisions, touched: touchedPaths })
-  draftRef.current = { ...draftRef.current, decisions: reviewDecisions, touched: touchedPaths }
+  draftRef.current = { decisions: reviewDecisions, touched: touchedPaths }
   const [reviewError, setReviewError] = useState<string | null>(null)
   const draftSaveRef = useRef({ version: 0, pending: Promise.resolve(), writes: 0, conflict: false })
   const [reviewReload, setReviewReload] = useState(0)

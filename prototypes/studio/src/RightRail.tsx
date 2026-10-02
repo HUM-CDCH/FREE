@@ -206,7 +206,7 @@ function RightRail({
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>
         <ResultsTab
-          onEditField={(id, path) => editField(id, path)}
+          onEditField={editField}
           key={inspection.attempt?.extractionId ?? 'none'}
           controller={extraction}
           onRunExtraction={onRunExtraction}

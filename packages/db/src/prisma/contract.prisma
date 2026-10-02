@@ -220,8 +220,10 @@ model Extraction {
   // service defaults), frozen at admission with `requestedModels`; execution reads only these. Null: admitted before
   // settings were recorded ("Not recorded"), never inferred from today's account configuration.
   requestedSettings              Json?
-  // Retired on 2026-10-02 with the sample workbench. Never written since; read only as `IS NULL` to keep legacy sample
-  // rows out of a document's latest attempt. A later migration drops it.
+  // Retired on 2026-10-02 with the sample workbench. Never written since; read only as a null check (a document's
+  // latest attempt and latest reviewed result, the project summary, the recent-activity feed, and sameAdmission,
+  // which refuses a reuse of a legacy sample's ID) to keep legacy sample rows out. A later migration disposes of
+  // those rows, then drops it.
   requestedPages                 Json?
   // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
   reviewTransfer                 Json?
