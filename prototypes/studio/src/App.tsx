@@ -10,7 +10,6 @@ import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
-import type { RunExtractionStrategy } from './ResultsTab'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
 import { deleteModelOperation, requestSchema } from './api'
@@ -815,19 +814,6 @@ export function DocumentWorkspace({
     schemaSnap.save?.status === 'error'
   const badge = resultsBadgeFor(extraction)
   const runLabel = running ? (extraction.cancellationRequested ? 'Cancellation requested…' : '■ Stop extraction') : '▶ Run extraction'
-  // The selection runExtraction posts, named on every Results-tab run action so
-  // none of them promises to repeat the inspected attempt. None without a choice.
-  const runExtractionStrategy: RunExtractionStrategy =
-    nextExtractionStrategy === 'CATALOG'
-      ? {
-          strategy: 'CATALOG',
-          boundaries:
-            CATALOG_RECIPES.find((recipe) => recipe.id === nextCatalogRecipe)?.label ??
-            'Model discovery',
-        }
-      : nextExtractionStrategy === 'ARTICLE'
-        ? { strategy: 'ARTICLE' }
-        : { strategy: null }
   return (
     <div
       className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-canvas text-ink"
@@ -982,9 +968,6 @@ export function DocumentWorkspace({
               onGenerateInstructions={handleGenerate}
               onClearDraft={resetSchema}
               extraction={extraction}
-              onRunExtraction={sourceRepresentationCurrent ? runExtraction : undefined}
-              runExtractionDisabled={runExtractionUnavailable}
-              runExtractionStrategy={runExtractionStrategy}
               inspection={{
                 attempt: inspectedAttempt,
                 readOnly: inspectionReadOnly,

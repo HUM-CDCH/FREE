@@ -218,7 +218,6 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   const savedMethod = { models: { fields: 'instruct' }, settings: strategy === 'CATALOG' ? { generic: null } : { article: null } }
   // The schema's saved Article/Catalog scope is what the toolbar shows and every run here uses.
   const recordScope = strategy === 'CATALOG' ? 'records' : 'document'
-  const strategyLabel = strategy === 'CATALOG' ? 'Catalog' : 'Article'
   await db.orm.public.ProjectContext.create({
     id: projectContextId,
     researcherAccountId,
@@ -649,7 +648,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByText(firstSchemaRevisionId, { exact: true })).toBeVisible()
   await expect(freshPage.getByText('Previous schema')).toBeVisible()
   await expect(freshPage.getByText('Review applies to Schema Revision 1')).toBeVisible()
-  await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction with current schema$/ })).toHaveCount(0)
+  await expect(freshPage.getByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).toHaveCount(0)
   await freshPage.getByRole('tab', { name: 'Review' }).click()
   await expect(
     freshPage.getByRole('tabpanel', { name: /Results/ }),
@@ -699,11 +698,11 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await freshPage.getByRole('tab', { name: /^Schema/ }).click()
   await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
-  // The failed attempt's Results action names the schema's saved strategy.
-  await freshPage.getByRole('button', {
-    name: strategy === 'CATALOG' ? 'Run Catalog extraction' : 'Run Article extraction',
-    exact: true,
-  }).click()
+  // The tab strip's Run is the only run (decision 03); its title names the schema's saved strategy (decision 05).
+  await expect(freshPage.getByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).toHaveCount(0)
+  await expect(freshPage.getByRole('button', { name: '▶ Run extraction', exact: true })).toHaveAttribute('title',
+    strategy === 'CATALOG' ? 'Find the catalogue entries and extract one record per entry' : 'Extract one record from the whole document')
+  await freshPage.getByRole('button', { name: '▶ Run extraction', exact: true }).click()
   await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toBeEnabled()
@@ -858,9 +857,12 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByText('Running extraction…')).toBeHidden({ timeout: 30_000 })
   await expect(status).toContainText('Completed')
   await expect(status).toContainText('Review applies to Schema Revision 3')
-  // Revision 4 was an edit, so it kept the schema's scope: the next run is the same strategy.
-  await expect(status.getByRole('button', { name: `Run ${strategyLabel} extraction with current schema` })).toBeEnabled()
-  await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction$/ })).toHaveCount(0)
+  // Revision 4 was an edit, so it kept the schema's scope: the next run, the tab strip's (the only one, decision 03), is
+  // the same strategy (its title, decision 05).
+  await expect(freshPage.getByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).toHaveCount(0)
+  await expect(freshPage.getByRole('button', { name: '▶ Run extraction', exact: true })).toBeEnabled()
+  await expect(freshPage.getByRole('button', { name: '▶ Run extraction', exact: true })).toHaveAttribute('title',
+    strategy === 'CATALOG' ? 'Find the catalogue entries and extract one record per entry' : 'Extract one record from the whole document')
   await expect(freshPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
   await activateWithKeyboard(freshPage, freshPage.getByRole('button', { name: /Approve remaining/ }))
   await expect(freshPage.getByText('Review saved', { exact: true })).toBeVisible()

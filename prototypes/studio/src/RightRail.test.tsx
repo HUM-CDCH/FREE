@@ -105,9 +105,6 @@ function renderRail({
       schema={testSchema()}
       onClearDraft={vi.fn()}
       extraction={extraction}
-      onRunExtraction={vi.fn()}
-      runExtractionDisabled={false}
-      runExtractionStrategy={{ strategy: 'ARTICLE' }}
       inspection={inspection}
       currentSchemaRevision={null}
       sourceDocumentName="test.pdf"
@@ -140,7 +137,6 @@ describe('RightRail developer UI visibility', () => {
       return <RightRail open onToggle={() => {}} tab={tab} onTabChange={(next) => setTab(next === 'results' ? next : 'schema')}
         schema={schema} onClearDraft={() => {}} extraction={{ ...defaultController, attempt, hasResults: true,
           state: { status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0 } }}
-        runExtractionDisabled={false} runExtractionStrategy={{ strategy: 'ARTICLE' }}
         inspection={{ ...defaultInspection, attempt, pinnedSchema: historical }} currentSchemaRevision={null}
         sourceDocumentName="test.pdf" sourceRepresentationId="source-1" onSelectEvidence={() => {}} onResultPathChange={() => {}} />
     }

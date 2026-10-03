@@ -217,7 +217,7 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     const recordScope = strategy === 'ARTICLE' ? 'document' : 'records'
     const selector = page.getByRole('combobox', { name: 'Record scope' })
     await expect(selector).toHaveValue('')
-    await expect(page.getByRole('button', { name: /Run extraction/ })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '▶ Run extraction', exact: true })).toBeDisabled()
     const saved = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/schema-revisions' &&
       response.request().method() === 'POST')
     await selector.selectOption(recordScope)
@@ -230,7 +230,7 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
 
     const admitted = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/extractions' &&
       response.request().method() === 'POST')
-    await page.getByRole('button', { name: /Run extraction/ }).click()
+    await page.getByRole('button', { name: '▶ Run extraction', exact: true }).click()
     const admission = await admitted
     expect(admission.status(), await admission.text()).toBe(201)
     const id = (await admission.json()).extractionId as string

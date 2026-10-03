@@ -3,7 +3,7 @@ import { exportExtractionResult, type ExtractionProvenance, type ProvenanceClaim
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import { MethodUsed } from './MethodUsed'
 import ResultValue, { RecordHeader, singularItemLabel } from './ui/ResultValue'
-import { Overline, Spinner, Button, ModalDialog, Pill, type ButtonProps } from './ui'
+import { Overline, Spinner, Button, ModalDialog, Pill } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
@@ -29,28 +29,13 @@ type PinnedSchema = SchemaDefinition & {
   schemaRevisionId?: string
 }
 
-/**
- * What every run action here starts: the toolbar's current Extraction Strategy
- * and, for Catalog, its record boundaries (a recipe's label or Model
- * discovery). A run never repeats the displayed attempt, so the actions name
- * this selection instead of that attempt's strategy.
- */
-export type RunExtractionStrategy =
-  | { strategy: 'ARTICLE' }
-  | { strategy: 'CATALOG'; boundaries: string }
-  /** The schema names neither Article nor Catalog yet: a run waits for that choice. */
-  | { strategy: null }
+/** One way to run (decision 03): the tab strip's "▶ Run extraction". The Results tab starts no Extraction itself; its
+ *  empty state points at that button. Nowhere else: a view of an earlier Source Representation, whose Run is disabled,
+ *  shows the other states too. */
+const RUN_POINTER = 'Press ▶ Run extraction above.'
 
 type ResultsTabProps = {
   controller: ExtractionController
-  /**
-   * Starts a fresh Extraction. Absent when the open view starts none, e.g. an
-   * Extraction reopened on an earlier Source Representation: then no run
-   * action renders at all, while review and cancellation stay as they are.
-   */
-  onRunExtraction?: () => void | Promise<void>
-  runExtractionDisabled: boolean
-  runExtractionStrategy: RunExtractionStrategy
   schemaReady: boolean
   documentMarkdown: string | null
   sourceDocumentName: string
@@ -360,31 +345,6 @@ function statusLabel(state: ExtractionState, attempt: ExtractionAttempt | null):
 }
 
 /**
- * A run action named for the fresh Extraction it starts. For Catalog, the
- * record boundaries follow it as visible text that also describes the button.
- */
-function RunExtractionButton({
-  run,
-  withCurrentSchema = false,
-  ...button
-}: Omit<ButtonProps, 'children'> & { run: RunExtractionStrategy; withCurrentSchema?: boolean }) {
-  const boundariesId = useId()
-  const strategy = run.strategy === 'CATALOG' ? 'Catalog ' : run.strategy === 'ARTICLE' ? 'Article ' : ''
-  return (
-    <>
-      <Button {...button} aria-describedby={run.strategy === 'CATALOG' ? boundariesId : undefined}>
-        {`Run ${strategy}extraction${withCurrentSchema ? ' with current schema' : ''}`}
-      </Button>
-      {run.strategy === 'CATALOG' && (
-        <span id={boundariesId} className="self-center text-compact text-ink-muted">
-          Boundaries: {run.boundaries}
-        </span>
-      )}
-    </>
-  )
-}
-
-/**
  * Progress, Schema Revision comparison and connection state, each readable on
  * its own: the status never hides behind the revision badge, and a lost
  * connection keeps the last known status on screen.
@@ -396,9 +356,6 @@ function ExtractionStatus({
   usedSchema,
   currentSchemaRevision,
   readOnly,
-  runExtractionDisabled,
-  runExtractionStrategy,
-  onRunExtraction,
 }: {
   controller: ExtractionController
   state: ExtractionState
@@ -406,9 +363,6 @@ function ExtractionStatus({
   usedSchema: PinnedSchema | null
   currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
   readOnly: boolean
-  runExtractionDisabled: boolean
-  runExtractionStrategy: RunExtractionStrategy
-  onRunExtraction?: () => void | Promise<void>
 }) {
   const [schemaOpen, setSchemaOpen] = useState(false)
   const label = statusLabel(state, attempt)
@@ -476,20 +430,7 @@ function ExtractionStatus({
         </div>
       )}
       {completed && previousSchema && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <p className="text-compact text-ink-muted">Review applies to {usedRevisionLabel}</p>
-          {!readOnly && onRunExtraction && (
-            <RunExtractionButton
-              run={runExtractionStrategy}
-              withCurrentSchema
-              variant="secondary"
-              size="sm"
-              className={pressable}
-              disabled={runExtractionDisabled}
-              onClick={() => void onRunExtraction()}
-            />
-          )}
-        </div>
+        <p className="mt-2 text-compact text-ink-muted">Review applies to {usedRevisionLabel}</p>
       )}
       <button
         type="button"
@@ -524,15 +465,9 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField, headerExtras }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField, headerExtras }: ResultsTabProps) {
   const approvalDescriptionId = useId()
   const attempt = inspectedAttempt ?? controller.attempt
-  // The header's single "… with current schema" run action replaces the
-  // summary row's plain one whenever the result predates the Current Schema Revision.
-  const previousSchema =
-    attempt !== null &&
-    currentSchemaRevision !== null &&
-    attempt.schemaRevisionId !== currentSchemaRevision.schemaRevisionId
   const state = useMemo(
     () => inspectedAttempt
       ? extractionStateFromAttempt(inspectedAttempt)
@@ -595,8 +530,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
   const displayResult = useMemo(() => pinnedSchema
     ? orderResultFields(unorderedResult, pinnedSchema.schemaNodes)
     : unorderedResult, [unorderedResult, pinnedSchema])
-  const activeAttempt =
-    attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
   const stats = useMemo(
     () => (displayResult !== null ? resultStats(displayResult) : null),
     [displayResult],
@@ -761,9 +694,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
         usedSchema={pinnedSchema}
         currentSchemaRevision={currentSchemaRevision}
         readOnly={readOnly || Boolean(inspectedAttempt)}
-        runExtractionDisabled={runExtractionDisabled}
-        runExtractionStrategy={runExtractionStrategy}
-        onRunExtraction={onRunExtraction}
       />
 
       {state.status === 'ready' && stats && (
@@ -907,9 +837,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                         onClick={() => void controller.review.accept()}>{controller.review.error ? 'Retry' : 'Save review'}</Button>
                     )}
                   </>
-                )}
-                {!readOnly && !previousSchema && onRunExtraction && (
-                  <RunExtractionButton run={runExtractionStrategy} variant="secondary" size="sm" disabled={runExtractionDisabled || activeAttempt} onClick={() => void onRunExtraction()} />
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-3" role="tablist" aria-label="Result view">
@@ -1163,11 +1090,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-content font-semibold text-danger">Extraction failed</p>
           <p className="mt-1 wrap-anywhere text-secondary leading-snug text-ink-muted">{state.message}</p>
-          {!readOnly && onRunExtraction && (
-            <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <RunExtractionButton run={runExtractionStrategy} variant="positive" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
-            </div>
-          )}
+
         </div>
       )}
 
@@ -1179,32 +1102,14 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               ? 'Run extraction to apply the schema across the source document.'
               : 'Generate a schema in the Schema tab first, then run extraction.'}
           </p>
-          {!readOnly && onRunExtraction && (schemaReady ? (
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              <RunExtractionButton run={runExtractionStrategy} variant="positive" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
-            </div>
-          ) : (
-            <Button
-              variant="positive"
-              size="md"
-              className="mt-4"
-              disabled={runExtractionDisabled}
-              onClick={() => void onRunExtraction()}
-            >
-              Generate a schema first
-            </Button>
-          ))}
+          {!readOnly && schemaReady && <p className="mt-1.5 text-compact font-semibold text-ink">{RUN_POINTER}</p>}
         </div>
       )}
 
       {state.status === 'cancelled' && (
         <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
           <p className="text-content font-semibold text-ink">Extraction cancelled</p>
-          {!readOnly && onRunExtraction && (
-            <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <RunExtractionButton run={runExtractionStrategy} variant="positive" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
-            </div>
-          )}
+
         </div>
       )}
     </div>

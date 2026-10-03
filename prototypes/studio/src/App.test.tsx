@@ -1426,9 +1426,8 @@ describe('reopened Source Document workspace', () => {
     )
   })
 
-  it.each(['toolbar', 'results'] as const)(
-    'waits for a dirty schema save before starting an Article rerun from the %s',
-    async (runSurface) => {
+  // The tab strip's Run is the only run (decision 03); the Results tab no longer offers a second surface to test.
+  it('waits for a dirty schema save before starting an Article rerun from the tab strip', async () => {
     const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
     let resolveExtraction!: (response: Response) => void
     const extractionResponse = new Promise<Response>((resolve) => {
@@ -1479,16 +1478,10 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByTitle('Edit place'))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    if (runSurface === 'results')
-      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    const run = screen.getByRole('button', {
-      name: runSurface === 'toolbar' ? '▶ Run extraction' : 'Run Article extraction',
-    })
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
     fireEvent.click(run)
-    if (runSurface === 'toolbar') {
-      fireEvent.click(run)
-      await waitFor(() => expect(run).toBeDisabled())
-    }
+    fireEvent.click(run)
+    await waitFor(() => expect(run).toBeDisabled())
 
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
     expect(extractionRequests[0]).toEqual(expect.objectContaining({
@@ -1520,8 +1513,7 @@ describe('reopened Source Document workspace', () => {
     ).toBeVisible()
     expect(extractionRequests).toHaveLength(1)
     expect(cancellationRequests).toEqual([])
-    },
-  )
+  })
 
   it('marks the result as previous only once a new Schema Revision is saved, then runs and cancels with the current one', async () => {
     const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
@@ -1585,11 +1577,12 @@ describe('reopened Source Document workspace', () => {
       { timeout: 4_000 },
     )
     expect(screen.getByText('Previous schema')).toBeInTheDocument()
+    // The tab strip's Run is the only run (decision 03).
     expect(screen.getByText('Review applies to Schema Revision 1')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Run (Article|Catalog) extraction$/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
     expect(screen.getByText('Ellekilde')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction with current schema' }))
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
     expect(extractionRequests[0]!.schemaRevisionId).toBe(savedSchemaRevisionId)
     extractionResponse.resolve(Response.json({
@@ -1843,33 +1836,37 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByLabelText('Record scope')).toHaveValue('records')
     }
 
-    /** Opens Results and finds its run action by the exact name it must carry. */
-    function resultsRunAction(name: string) {
+    /** The one run (decision 03): the tab strip's, titled for the schema's strategy (decision 05). Results, opened,
+     *  offers no run of its own. */
+    function tabStripRun(strategy: 'ARTICLE' | 'CATALOG') {
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-      return screen.getByRole('button', { name })
+      expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
+      const run = screen.getByRole('button', { name: '▶ Run extraction' })
+      expect(run).toHaveAttribute('title', strategy === 'CATALOG'
+        ? 'Find the catalogue entries and extract one record per entry'
+        : 'Extract one record from the whole document')
+      return run
     }
 
-    it('names and posts the schema\'s Catalog after a Catalog run that succeeds', async () => {
+    it('titles and posts the schema\'s Catalog after a Catalog run that succeeds', async () => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
       fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
 
-      const action = resultsRunAction('Run Catalog extraction')
-      expect(action).toHaveAccessibleDescription('Boundaries: Model discovery')
-      fireEvent.click(action)
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
+      fireEvent.click(tabStripRun('CATALOG'))
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual(posted('CATALOG'))
     })
 
-    it('names and posts the same Catalog run after one that fails', async () => {
+    it('titles and posts the same Catalog run after one that fails', async () => {
       const bodies = stubRuns('FAILED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
 
-      const action = resultsRunAction('Run Catalog extraction')
-      expect(action).toHaveAccessibleDescription('Boundaries: Model discovery')
-      fireEvent.click(action)
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
+      fireEvent.click(tabStripRun('CATALOG'))
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual(posted('CATALOG'))
     })
@@ -1877,7 +1874,7 @@ describe('reopened Source Document workspace', () => {
     it.each([
       ['failed', 'FAILED', 'Extraction failed'],
       ['completed', 'SUCCEEDED', 'Catalogued'],
-    ] as const)('names and posts the schema\'s Article after reopening a %s Catalog attempt', async (_label, outcome, shown) => {
+    ] as const)('titles and posts the schema\'s Article after reopening a %s Catalog attempt', async (_label, outcome, shown) => {
       const bodies = stubRuns(outcome)
       await renderWorkspace({
         ...catalogAttempts[outcome],
@@ -1886,11 +1883,10 @@ describe('reopened Source Document workspace', () => {
       })
       expect(screen.getByLabelText('Record scope')).toHaveValue('document')
 
-      const action = resultsRunAction('Run Article extraction')
-      // Results shows the reopened Catalog attempt, not an empty workspace's run action.
+      const run = tabStripRun('ARTICLE')
+      // Results shows the reopened Catalog attempt, not an empty workspace.
       expect(screen.getByText(shown)).toBeVisible()
-      expect(action).not.toHaveAccessibleDescription()
-      fireEvent.click(action)
+      fireEvent.click(run)
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('ARTICLE'))
     })
@@ -1898,21 +1894,21 @@ describe('reopened Source Document workspace', () => {
     it.each([
       ['selects the recipe again', 'numbered-catalogue-de@1', 'Numbered catalogue (German)'],
       ['keeps Model discovery', undefined, 'Model discovery'],
-    ] as const)('after a recipe run, names and posts Catalog as the researcher %s', async (_label, recipe, boundaries) => {
+    ] as const)('after a recipe run, titles and posts Catalog as the researcher %s', async (_label, recipe, boundaries) => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies, 'numbered-catalogue-de@1')
       fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
       // The recipe is one-shot: the schema stays a Catalog, and its next run starts at Model discovery.
       expect(screen.getByLabelText('Boundaries')).toHaveValue('')
-      expect(resultsRunAction('Run Catalog extraction')).toHaveAccessibleDescription('Boundaries: Model discovery')
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
       if (recipe)
         fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
 
-      const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
-      expect(action).toHaveAccessibleDescription(`Boundaries: ${boundaries}`)
-      expect(screen.getByText(`Boundaries: ${boundaries}`)).toBeVisible()
-      fireEvent.click(action)
+      // The schema header names the boundaries the run posts; the Results tab no longer repeats them.
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue(boundaries)
+      expect(screen.queryByText(/^Boundaries: /)).not.toBeInTheDocument()
+      fireEvent.click(tabStripRun('CATALOG'))
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual(posted('CATALOG', recipe))
     })
@@ -1974,7 +1970,8 @@ describe('reopened Source Document workspace', () => {
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-      expect(screen.getByRole('button', { name: 'Run extraction' })).toBeDisabled()
+      // The Results tab offers no run of its own (decision 03).
+      expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
 
       fireEvent.change(selector, { target: { value: 'records' } })
       expect(selector).toHaveValue('records')
@@ -2280,9 +2277,9 @@ describe('reopened Source Document workspace', () => {
       // The schema stays a Catalog, and the failed attempt's recipe is the next run's boundaries.
       expect(screen.getByLabelText('Record scope')).toHaveValue('records')
       expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Numbered catalogue (German)')
-      const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
-      expect(action).toHaveAccessibleDescription('Boundaries: Numbered catalogue (German)')
-      fireEvent.click(action)
+      // The tab strip's Run is the only run (decision 03).
+      expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual({
         id: expect.any(String),
@@ -3002,8 +2999,9 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     return mounted
   }
 
+  /** The Results tab's own run actions: none since decision 03 (the tab strip's Run is the only one). */
   const resultsRunActions = () =>
-    screen.queryAllByRole('button', { name: /^Run (Article|Catalog) extraction/ })
+    screen.queryAllByRole('button', { name: /^Run (Article |Catalog )?extraction/ })
 
   it.each([
     [
@@ -3111,7 +3109,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
         },
       },
     ],
-  ] as const)('keeps the run actions of %s', async (_label, view) => {
+  ] as const)('keeps the run of %s', async (_label, view) => {
     const { runs } = stubWorkspace()
     await renderView(view)
 
@@ -3119,7 +3117,9 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     expect(run).toBeEnabled()
     expect(run).toHaveAttribute('title', 'Extract one record from the whole document')
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction' }))
+    // The tab strip's Run is the only run (decision 03).
+    expect(resultsRunActions()).toEqual([])
+    fireEvent.click(run)
     await waitFor(() => expect(runs).toHaveLength(1))
     expect(runs[0]).toMatchObject({ sourceRepresentationRevisionId: reopened.sourceRepresentationId })
   })
@@ -3153,7 +3153,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     // "Open latest reviewed" sits in the Results header.
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeEnabled()
+    expect(resultsRunActions()).toEqual([])
 
     fireEvent.click(run)
     await waitFor(() => expect(runs).toHaveLength(1))

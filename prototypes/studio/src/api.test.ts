@@ -562,9 +562,6 @@ describe('ResultsTab markdown', () => {
     const html = renderToStaticMarkup(
       createElement(ResultsTab, {
         controller: readyController(),
-        onRunExtraction: async () => undefined,
-        runExtractionDisabled: false,
-        runExtractionStrategy: { strategy: 'ARTICLE' },
         schemaReady: true,
         documentMarkdown: '# Parsed source',
         sourceDocumentName: 'source.pdf',

@@ -5,7 +5,7 @@ import { useCallback, useState } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportExtractionResult } from 'extraction-result-export'
-import ResultsTab, { type RunExtractionStrategy } from './ResultsTab'
+import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
@@ -65,13 +65,9 @@ function controller(
   }
 }
 
-const articleRun: RunExtractionStrategy = { strategy: 'ARTICLE' }
 
-const defaultRunProps = {
-  onRunExtraction: async () => undefined,
-  runExtractionDisabled: false,
-  runExtractionStrategy: articleRun,
-}
+/** The Results tab starts no Extraction of its own (decision 03): every run is the tab strip's "▶ Run extraction". */
+const PANEL_RUN = /^(Run (Article |Catalog )?extraction|Generate a schema first)/
 
 const articleAttempt: ExtractionAttempt = {
   extractionId: '11111111-1111-4111-8111-111111111111',
@@ -155,7 +151,7 @@ describe('ResultsTab grounded values', () => {
         { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor', reviewedOccurrenceIds: [], action: 'EDITED' as const, reviewedValue: 'Corrected', createdAt: '2026-09-06T00:00:00Z' },
         { resultPath: ['records', 0, 'year'], evidenceAnchorId: 'anchor', reviewedOccurrenceIds: [], action: 'REJECTED' as const, reviewedValue: null, createdAt: '2026-09-06T00:00:00Z' },
       ] }
-    const props = { ...defaultRunProps, controller: controller({ status: 'idle' }), schemaReady: true,
+    const props = { controller: controller({ status: 'idle' }), schemaReady: true,
       documentMarkdown: '', sourceDocumentName: 'Source', inspectedAttempt: historical,
       exportSchema: { recordDescription: 'Current', schemaNodes: [{ id: 'year', name: 'year', type: 'integer' as const }] } }
     const { container, rerender } = render(<ResultsTab {...props} pinnedSchema={{ recordDescription: 'Historical', schemaNodes: [
@@ -170,7 +166,7 @@ describe('ResultsTab grounded values', () => {
 
   it('uses the pinned schema order in Review and Values as code', () => {
     const result = { records: [{ year: 2020, title: 'Grounded' }] }
-    const { container } = render(<ResultsTab {...defaultRunProps}
+    const { container } = render(<ResultsTab
       controller={controller({ status: 'ready', result, evidenceLinks: [], ungroundedCount: 0 })}
       schemaReady documentMarkdown="" sourceDocumentName="Source"
       pinnedSchema={{ recordDescription: 'Source', schemaNodes: [
@@ -187,7 +183,7 @@ describe('ResultsTab grounded values', () => {
     const attempt: ExtractionAttempt = { ...articleAttempt, complete: true, resultPayload: { records: [{ title: 'Report' }] },
       evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }] }
     const onEditField = vi.fn()
-    render(<ResultsTab {...defaultRunProps}
+    render(<ResultsTab
       controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0 }, attempt)}
       schemaReady documentMarkdown="" sourceDocumentName="Source" onEditField={onEditField}
       pinnedSchema={{ recordDescription: 'One record.', schemaNodes: [
@@ -212,7 +208,7 @@ describe('ResultsTab grounded values', () => {
 
   it('opens one record of several on its heading and the page its first Evidence names', () => {
     const result = { records: [{ place: 'Oslo' }, { place: 'Bergen' }] }
-    render(<ResultsTab {...defaultRunProps}
+    render(<ResultsTab
       controller={controller({ status: 'ready', result, evidenceLinks: [{ resultPath: ['records', 1, 'place'], evidenceAnchorId: 'anchor-bergen' }], ungroundedCount: 0 })}
       schemaReady documentMarkdown="" sourceDocumentName="Source" evidencePages={new Map([['anchor-bergen', 6]])} />)
     expect(screen.queryByText('· page 6')).not.toBeInTheDocument()
@@ -231,7 +227,7 @@ describe('ResultsTab grounded values', () => {
     const attempt = (strategy: 'ARTICLE' | 'CATALOG'): ExtractionAttempt =>
       ({ ...articleAttempt, strategy, complete: true, resultPayload: result, evidenceLinks })
     const tab = (strategy: 'ARTICLE' | 'CATALOG') => (
-      <ResultsTab {...defaultRunProps}
+      <ResultsTab
         controller={controller({ status: 'ready', result, evidenceLinks, ungroundedCount: 0 }, attempt(strategy))}
         schemaReady documentMarkdown="" sourceDocumentName="Source" evidencePages={new Map([['anchor-oslo', 3]])} />
     )
@@ -261,7 +257,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller(
           {
             status: 'ready',
@@ -297,7 +292,6 @@ describe('ResultsTab grounded values', () => {
   it('shows one server-owned progress state without raw output', () => {
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller(
           { status: 'running', step: 'extraction' },
           {
@@ -323,7 +317,6 @@ describe('ResultsTab grounded values', () => {
     for (const previous of [null, articleAttempt]) {
       const { unmount } = render(
         <ResultsTab
-          {...defaultRunProps}
           controller={controller({ status: 'running', step: 'extraction' }, previous)}
           schemaReady
           documentMarkdown="# Source"
@@ -343,7 +336,6 @@ describe('ResultsTab grounded values', () => {
     for (const previous of [null, articleAttempt]) {
       const { unmount } = render(
         <ResultsTab
-          {...defaultRunProps}
           controller={{ ...controller({ status: 'running', step: 'extraction' }, previous), requestCancellation }}
           schemaReady
           documentMarkdown="# Source"
@@ -361,7 +353,6 @@ describe('ResultsTab grounded values', () => {
   it('labels queued work before the worker starts it', () => {
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller(
           { status: 'running', step: 'extraction' },
           {
@@ -387,7 +378,6 @@ describe('ResultsTab grounded values', () => {
     const onSelectEvidence = vi.fn()
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { title: 'Report', ungrounded: 'Visible without Evidence' },
@@ -416,7 +406,6 @@ describe('ResultsTab grounded values', () => {
   it('marks links whose value is absent from, or not unique to, the passage', () => {
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { title: 'Report', place: 'Ravenna', year: 1901, legacy: 'Old' },
@@ -451,7 +440,7 @@ describe('ResultsTab grounded values', () => {
       reviewedOccurrenceIds: ['occurrence-material'], action: 'APPROVED', reviewedValue: null,
     }
     const props = {
-      ...defaultRunProps, schemaReady: true,
+      schemaReady: true,
       documentMarkdown: 'bronze', sourceDocumentName: 'source.pdf',
     }
     const withDecision = (decision: ReviewDecisionInput) => controller(
@@ -479,7 +468,6 @@ describe('ResultsTab grounded values', () => {
   it('reports the persisted ungrounded value count', () => {
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { title: 'Report', place: 'Unknown' },
@@ -509,7 +497,6 @@ describe('ResultsTab grounded values', () => {
     const onResultPathChange = vi.fn()
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { records: [{ title: 'Report' }] },
@@ -545,7 +532,6 @@ describe('ResultsTab grounded values', () => {
   it('hides the Article envelope for multiple returned records', () => {
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { records: [{ title: 'First' }, { title: 'Second' }] },
@@ -562,10 +548,9 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByText('Item 2')).toBeInTheDocument()
   })
 
-  it('offers a new run after cancellation', () => {
+  it('offers no run of its own after cancellation', () => {
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({ status: 'cancelled' })}
         schemaReady
         documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
@@ -573,7 +558,7 @@ describe('ResultsTab grounded values', () => {
     )
 
     expect(screen.getByText('Extraction cancelled')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
   })
 
   it('says an incomplete Extraction omitted source text for a text budget, without claiming what was missed', () => {
@@ -587,7 +572,6 @@ describe('ResultsTab grounded values', () => {
     })
     const renderWith = (attempt: ExtractionAttempt) => render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0 }, attempt)}
         schemaReady
         documentMarkdown="# Source" sourceDocumentName="Catalog.pdf"
@@ -630,7 +614,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: catalogAttempt.resultPayload!,
@@ -644,7 +627,7 @@ describe('ResultsTab grounded values', () => {
 
     // Incomplete banner is visible without opening diagnostics.
     expect(screen.getByText('Incomplete Extraction')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
     fireEvent.click(screen.getByRole('button', { name: 'Run details' }))
     // Stage and record diagnostics render inside the bounded disclosure.
     expect(screen.getByTestId('catalog-record-diagnostics')).toBeInTheDocument()
@@ -657,7 +640,6 @@ describe('ResultsTab grounded values', () => {
   it('names the model each role ran on in the run\'s technical details, when kei-exp reported them', () => {
     const renderWith = (attempt: ExtractionAttempt) => render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({
           status: 'ready', result: attempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0,
         }, attempt)}
@@ -682,7 +664,7 @@ describe('ResultsTab grounded values', () => {
     expect(screen.queryByText('Field model')).not.toBeInTheDocument()
   })
 
-  it('offers a run of the toolbar strategy for a failed Catalog attempt', () => {
+  it('offers no run of its own for a failed Catalog attempt', () => {
     const failed: ExtractionAttempt = {
       ...articleAttempt,
       strategy: 'CATALOG',
@@ -696,19 +678,16 @@ describe('ResultsTab grounded values', () => {
       evidenceLinks: null,
       reviewable: false,
     }
-    const onRunExtraction = vi.fn()
     render(
       <ResultsTab
-        {...defaultRunProps}
-        onRunExtraction={onRunExtraction}
         controller={controller({ status: 'error', message: 'Catalog discovery returned no records.' }, failed)}
         schemaReady
         documentMarkdown="# Source"
         sourceDocumentName="Catalog.pdf"
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction' }))
-    expect(onRunExtraction).toHaveBeenCalledOnce()
+    expect(screen.getByText('Extraction failed')).toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
   })
 
   it('renders executed and reused provenance for an inspected Catalog child', () => {
@@ -738,7 +717,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({ status: 'idle' })}
         inspectedAttempt={child}
         readOnly
@@ -759,7 +737,6 @@ describe('ResultsTab grounded values', () => {
     const currentResult = { records: [{ context: { title: 'Current', tags: ['a'] } }] }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: currentResult,
@@ -796,7 +773,6 @@ describe('ResultsTab grounded values', () => {
       decisions: ReviewDecisionInput[] = []) =>
       render(
         <ResultsTab
-          {...defaultRunProps}
           controller={controller({ status: 'ready', result, evidenceLinks: [], ungroundedCount: 0 },
             contestedAttempt(result, contested), { decisions })}
           schemaReady
@@ -855,7 +831,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { records: [{ context: { title: 'Current' } }] },
@@ -907,7 +882,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller(
           {
             status: 'ready', result: attempt.resultPayload!,
@@ -968,7 +942,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller(
           { status: 'ready', result: attempt.resultPayload, evidenceLinks: attempt.evidenceLinks, ungroundedCount: 0 },
           attempt,
@@ -1016,7 +989,6 @@ describe('ResultsTab grounded values', () => {
       const [decisions, setDecisions] = useState<ReviewDecisionInput[]>([initialDecision])
       return (
         <ResultsTab
-          {...defaultRunProps}
           controller={controller(
             {
               status: 'ready', result: attempt.resultPayload!,
@@ -1070,7 +1042,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller(
           {
             status: 'ready', result: attempt.resultPayload!,
@@ -1119,7 +1090,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller(
           {
             status: 'ready', result: attempt.resultPayload!,
@@ -1177,7 +1147,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({ status: 'idle' })}
         inspectedAttempt={historicalAttempt}
         readOnly
@@ -1226,7 +1195,6 @@ describe('ResultsTab grounded values', () => {
       }, [])
       return (
         <ResultsTab
-          {...defaultRunProps}
           controller={inspectionController}
           inspectedAttempt={inspectedAttempt}
           readOnly
@@ -1269,7 +1237,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller(
           {
             status: 'ready', result: savedAttempt.resultPayload!,
@@ -1327,7 +1294,6 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller(
           {
             status: 'ready', result: attempt.resultPayload!,
@@ -1399,7 +1365,6 @@ describe('ResultsTab extraction status', () => {
     const requestCancellation = vi.fn(async () => {})
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={{ ...controller({ status: 'running', step: 'extraction' }, queuedAttempt), requestCancellation }}
         schemaReady
         pinnedSchema={usedSchema}
@@ -1423,7 +1388,6 @@ describe('ResultsTab extraction status', () => {
   it('disables both cancellation controls once requested and shows a cancellation failure apart', () => {
     const { rerender } = render(
       <ResultsTab
-        {...defaultRunProps}
         controller={{ ...controller({ status: 'running', step: 'extraction' }, { ...queuedAttempt, executionStatus: 'RUNNING' }), cancellationRequested: true }}
         schemaReady
         documentMarkdown="# Source"
@@ -1435,7 +1399,6 @@ describe('ResultsTab extraction status', () => {
 
     rerender(
       <ResultsTab
-        {...defaultRunProps}
         controller={{ ...controller({ status: 'running', step: 'extraction' }, { ...queuedAttempt, executionStatus: 'RUNNING' }), cancellationError: 'Cancellation failed (HTTP 500)' }}
         schemaReady
         documentMarkdown="# Source"
@@ -1449,7 +1412,6 @@ describe('ResultsTab extraction status', () => {
   it('avoids inventing a revision while the used schema is still loading', () => {
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({ status: 'running', step: 'extraction' }, { ...queuedAttempt, executionStatus: 'RUNNING' })}
         schemaReady
         currentSchemaRevision={{ ...currentRevision, schemaRevisionId: articleAttempt.schemaRevisionId }}
@@ -1466,7 +1428,6 @@ describe('ResultsTab extraction status', () => {
     const reconnect = vi.fn()
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={{
           ...controller({ status: 'running', step: 'extraction' }, {
             ...articleAttempt, executionStatus: 'RUNNING', outcome: null, complete: null,
@@ -1487,8 +1448,7 @@ describe('ResultsTab extraction status', () => {
     expect(reconnect).toHaveBeenCalledOnce()
   })
 
-  it('offers one with-current-schema run action for a completed previous-schema result and keeps review open', () => {
-    const onRunExtraction = vi.fn()
+  it('offers no run of its own for a completed previous-schema result and keeps review open', () => {
     const setDecision = vi.fn()
     const attempt: ExtractionAttempt = {
       ...articleAttempt,
@@ -1498,9 +1458,6 @@ describe('ResultsTab extraction status', () => {
     }
     render(
       <ResultsTab
-        onRunExtraction={onRunExtraction}
-        runExtractionDisabled={false}
-        runExtractionStrategy={articleRun}
         controller={controller(
           { status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0 },
           attempt,
@@ -1524,9 +1481,7 @@ describe('ResultsTab extraction status', () => {
     expect(screen.getByText('Completed')).toBeInTheDocument()
     expect(screen.getByText('Previous schema')).toBeInTheDocument()
     expect(screen.getByText('Review applies to Schema Revision 3')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /^Run (Article|Catalog) extraction/ })).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction with current schema' }))
-    expect(onRunExtraction).toHaveBeenCalledOnce()
+    expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
     expect(screen.queryByText('Extraction Schema updated')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reject place' }))
     expect(setDecision).toHaveBeenCalledWith(['records', 0, 'place'], 'REJECTED', null)
@@ -1543,7 +1498,6 @@ describe('ResultsTab extraction status', () => {
     }
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({ status: 'ready', result: reviewed.resultPayload!, evidenceLinks: reviewed.evidenceLinks!, ungroundedCount: 0 }, reviewed)}
         inspectedAttempt={reviewed}
         readOnly
@@ -1561,10 +1515,9 @@ describe('ResultsTab extraction status', () => {
     expect(screen.queryByRole('button', { name: /^Reject / })).not.toBeInTheDocument()
   })
 
-  it('marks a same-revision result as current and keeps the plain run action', () => {
+  it('marks a same-revision result as current, with no run action of its own', () => {
     render(
       <ResultsTab
-        {...defaultRunProps}
         controller={controller({ status: 'ready', result: { records: [{ place: 'Rome' }] }, evidenceLinks: [], ungroundedCount: 0 }, { ...articleAttempt, complete: true })}
         schemaReady
         pinnedSchema={usedSchema}
@@ -1575,14 +1528,14 @@ describe('ResultsTab extraction status', () => {
     )
     expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
     expect(screen.getByText('Using Schema Revision 3 · Current revision: 3')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeEnabled()
-    expect(screen.queryByRole('button', { name: /with current schema$/ })).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
+    expect(screen.queryByText(/Press ▶ Run extraction/)).not.toBeInTheDocument()
   })
 })
 
-describe('ResultsTab run actions', () => {
-  // Every run action starts the toolbar's current selection afresh, whatever
-  // the displayed attempt ran with, so each one names that selection.
+describe('ResultsTab and the one way to run', () => {
+  // Decision 03: the tab strip's "▶ Run extraction" is the only run. The Results tab offers none of its own and names
+  // no strategy or boundaries (the schema header shows them); its empty state points at that button.
   const catalogAttempt: ExtractionAttempt = { ...articleAttempt, strategy: 'CATALOG', complete: true }
   const failedCatalogAttempt: ExtractionAttempt = {
     ...catalogAttempt,
@@ -1600,10 +1553,10 @@ describe('ResultsTab run actions', () => {
     status: 'ready', result: catalogAttempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0,
   }
   const surfaces = [
-    { surface: 'completed result', suffix: '', props: { controller: controller(completed, catalogAttempt) } },
+    { surface: 'completed result', pointer: null, props: { controller: controller(completed, catalogAttempt) } },
     {
       surface: 'previous-schema result',
-      suffix: ' with current schema',
+      pointer: null,
       props: {
         controller: controller(completed, catalogAttempt),
         currentSchemaRevision: { schemaRevisionId: '99999999-9999-4999-8999-999999999999', revisionNumber: 4 },
@@ -1611,79 +1564,33 @@ describe('ResultsTab run actions', () => {
     },
     {
       surface: 'failed attempt',
-      suffix: '',
+      pointer: null,
       props: { controller: controller({ status: 'error', message: 'Catalog discovery returned no records.' }, failedCatalogAttempt) },
     },
-    { surface: 'cancelled attempt', suffix: '', props: { controller: controller({ status: 'cancelled' }) } },
-    { surface: 'document without results', suffix: '', props: { controller: controller({ status: 'idle' }) } },
-  ]
-  const selections: Array<{ selection: string; run: RunExtractionStrategy; name: string; boundaries: string | null }> = [
-    { selection: 'Article', run: articleRun, name: 'Run Article extraction', boundaries: null },
-    {
-      selection: 'Catalog with Model discovery',
-      run: { strategy: 'CATALOG', boundaries: 'Model discovery' },
-      name: 'Run Catalog extraction',
-      boundaries: 'Boundaries: Model discovery',
-    },
-    {
-      selection: 'Catalog with a recipe',
-      run: { strategy: 'CATALOG', boundaries: 'Numbered catalogue (German)' },
-      name: 'Run Catalog extraction',
-      boundaries: 'Boundaries: Numbered catalogue (German)',
-    },
+    { surface: 'cancelled attempt', pointer: null, props: { controller: controller({ status: 'cancelled' }) } },
+    { surface: 'document without results', pointer: /^Press ▶ Run extraction above\.$/, props: { controller: controller({ status: 'idle' }) } },
   ]
 
-  it.each(surfaces.flatMap((surface) => selections.map((selection) => ({ ...surface, ...selection }))))(
-    'names the $selection selection on the run action for a $surface',
-    ({ props, suffix, run, name, boundaries }) => {
-      const onRunExtraction = vi.fn()
-      render(
-        <ResultsTab
-          {...defaultRunProps}
-          {...props}
-          onRunExtraction={onRunExtraction}
-          runExtractionStrategy={run}
-          schemaReady
-          documentMarkdown="# Source"
-          sourceDocumentName="Catalog.pdf"
-        />,
-      )
+  it.each(surfaces)('a $surface offers no run action of its own; only the empty state points at ▶ Run extraction', ({ props, pointer }) => {
+    render(<ResultsTab {...props} schemaReady documentMarkdown="# Source" sourceDocumentName="Catalog.pdf" />)
 
-      const action = screen.getByRole('button', { name: name + suffix })
-      if (boundaries === null) {
-        expect(action).not.toHaveAccessibleDescription()
-        expect(screen.queryByText(/^Boundaries:/)).not.toBeInTheDocument()
-      } else {
-        expect(action).toHaveAccessibleDescription(boundaries)
-        expect(screen.getByText(boundaries)).toBeVisible()
-      }
-      fireEvent.click(action)
-      expect(onRunExtraction).toHaveBeenCalledOnce()
-    },
-  )
-
-  // Without a run handler the view starts no Extraction (its Source
-  // Representation is an earlier one), so no surface offers a run.
-  it.each(surfaces)('offers no run action for a $surface without a run handler', ({ props }) => {
-    render(
-      <ResultsTab
-        {...defaultRunProps}
-        {...props}
-        onRunExtraction={undefined}
-        schemaReady
-        documentMarkdown="# Source"
-        sourceDocumentName="Catalog.pdf"
-      />,
-    )
-
-    expect(screen.queryAllByRole('button', { name: /^Run (Article|Catalog) extraction/ })).toEqual([])
+    expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
+    expect(screen.queryByText(/^Boundaries:/)).not.toBeInTheDocument()
+    if (pointer === null) expect(screen.queryByText(/Press ▶ Run extraction/)).not.toBeInTheDocument()
+    else expect(screen.getByText(pointer)).toBeInTheDocument()
   })
 
-  it('offers no Generate a schema first without a run handler', () => {
+  // A read-only view (an earlier attempt) starts no Extraction, so it points at none.
+  it.each(surfaces)('a read-only $surface points at no run', ({ props }) => {
+    render(<ResultsTab {...props} readOnly schemaReady documentMarkdown="# Source" sourceDocumentName="Catalog.pdf" />)
+
+    expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
+    expect(screen.queryByText(/Press ▶ Run extraction/)).not.toBeInTheDocument()
+  })
+
+  it('before a schema is ready the empty state asks for one and points at no run', () => {
     render(
       <ResultsTab
-        {...defaultRunProps}
-        onRunExtraction={undefined}
         controller={controller({ status: 'idle' })}
         schemaReady={false}
         documentMarkdown="# Source"
@@ -1692,23 +1599,9 @@ describe('ResultsTab run actions', () => {
     )
 
     expect(screen.getByText('No results yet')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Generate a schema first' })).not.toBeInTheDocument()
-  })
-
-  it('keeps Generate a schema first, without boundaries, until a schema is ready', () => {
-    render(
-      <ResultsTab
-        {...defaultRunProps}
-        runExtractionStrategy={{ strategy: 'CATALOG', boundaries: 'Model discovery' }}
-        controller={controller({ status: 'idle' })}
-        schemaReady={false}
-        documentMarkdown="# Source"
-        sourceDocumentName="Catalog.pdf"
-      />,
-    )
-
-    expect(screen.getByRole('button', { name: 'Generate a schema first' })).toBeInTheDocument()
-    expect(screen.queryByText(/^Boundaries:/)).not.toBeInTheDocument()
+    expect(screen.getByText('Generate a schema in the Schema tab first, then run extraction.')).toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
+    expect(screen.queryByText(/Press ▶ Run extraction/)).not.toBeInTheDocument()
   })
 })
 
@@ -1739,7 +1632,7 @@ describe('ResultsTab recipe review material', () => {
   }
 
   it('shows coverage, proposals and rejections apart from the accepted values, with recall unmeasured', () => {
-    render(<ResultsTab {...defaultRunProps} controller={controller({ status: 'idle' })} schemaReady
+    render(<ResultsTab controller={controller({ status: 'idle' })} schemaReady
       documentMarkdown="" sourceDocumentName="Catalogue" inspectedAttempt={groundedAttempt} />)
     const panel = screen.getByRole('region', { name: 'Recipe review' })
     expect(panel).toHaveTextContent('numbered-catalogue-de@1')
@@ -1766,7 +1659,7 @@ describe('ResultsTab recipe review material', () => {
     const result = { records: [{ entry_no: 31, kreis: 'Heide', fundart: 'G' }] }
     const decision: ReviewDecisionInput = { resultPath: ['records', 0, 'fundart'], evidenceAnchorId: 'a_fundart',
                                             reviewedOccurrenceIds: ['o'], action: 'APPROVED', reviewedValue: null }
-    const props = { ...defaultRunProps, schemaReady: true, documentMarkdown: '', sourceDocumentName: 'Catalogue' }
+    const props = { schemaReady: true, documentMarkdown: '', sourceDocumentName: 'Catalogue' }
     const withDecision = (reviewed: ReviewDecisionInput) =>
       controller({ status: 'ready', result, evidenceLinks, ungroundedCount: 0 }, null, { decisions: [reviewed] })
     const { rerender } = render(<ResultsTab {...props} controller={withDecision(decision)} />)
@@ -1792,7 +1685,7 @@ describe('ResultsTab recipe review material', () => {
     const decision: ReviewDecisionInput = { resultPath: ['records', 0, 'site_name'], evidenceAnchorId: 'a_site',
                                             reviewedOccurrenceIds: ['o'], action: 'APPROVED', reviewedValue: null }
     const onSelectEvidence = vi.fn()
-    const props = { ...defaultRunProps, schemaReady: true, documentMarkdown: '', sourceDocumentName: 'Catalogue', onSelectEvidence }
+    const props = { schemaReady: true, documentMarkdown: '', sourceDocumentName: 'Catalogue', onSelectEvidence }
     const withDecision = (reviewed: ReviewDecisionInput) =>
       controller({ status: 'ready', result, evidenceLinks, ungroundedCount: 0 }, null, { decisions: [reviewed] })
     const { rerender } = render(<ResultsTab {...props} controller={withDecision(decision)} />)
@@ -1822,7 +1715,7 @@ describe('ResultsTab recipe review material', () => {
       segmentationDiagnostics: [{ code: 'reading_order', detail: 'p1_s2 follows p1_s1 against the column order',
                                   block: null, spans: [] }],
     } } }
-    render(<ResultsTab {...defaultRunProps} controller={controller({ status: 'idle' })} schemaReady
+    render(<ResultsTab controller={controller({ status: 'idle' })} schemaReady
       documentMarkdown="" sourceDocumentName="Catalogue" inspectedAttempt={disordered} />)
     const panel = screen.getByRole('region', { name: 'Recipe review' })
     expect(panel).toHaveTextContent('reading order disagrees with the page layout in 1 place.')
@@ -1832,7 +1725,7 @@ describe('ResultsTab recipe review material', () => {
   })
 
   it('shows nothing of the kind for a version 1 result', () => {
-    render(<ResultsTab {...defaultRunProps} controller={controller({ status: 'idle' })} schemaReady
+    render(<ResultsTab controller={controller({ status: 'idle' })} schemaReady
       documentMarkdown="" sourceDocumentName="Catalogue" inspectedAttempt={articleAttempt} />)
     expect(screen.queryByRole('region', { name: 'Recipe review' })).not.toBeInTheDocument()
   })
@@ -1842,7 +1735,7 @@ describe('Method used', () => {
   const SPANS: ArticleSettings = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
     prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
   const renderWith = (attempt: ExtractionAttempt) => render(
-    <ResultsTab {...defaultRunProps}
+    <ResultsTab
       controller={controller(attempt.executionStatus === 'FAILED'
         ? { status: 'error', message: attempt.failure!.message }
         : { status: 'ready', result: attempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0 }, attempt)}
@@ -1893,7 +1786,7 @@ describe('ResultsTab review progress', () => {
     status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 1,
   }
   function scene(overrides: Partial<ExtractionController['review']> = {}, readOnly = false, displayed = attempt) {
-    return <ResultsTab {...defaultRunProps} controller={controller(state, displayed, {
+    return <ResultsTab controller={controller(state, displayed, {
       available: true, decisions, requiredCount: 2, untouchedCount: 2, isTouched: () => false, ...overrides,
     })} readOnly={readOnly} schemaReady pinnedSchema={schema} exportSchema={schema}
       documentMarkdown="# Source" sourceDocumentName="progress.pdf" />
@@ -1987,7 +1880,7 @@ describe('ResultsTab verification completeness', () => {
     } },
   }
   const renderReady = (reviewed = false) => render(
-    <ResultsTab {...defaultRunProps}
+    <ResultsTab
       controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 4 },
         reviewed ? { ...attempt, reviewedAt: '2026-10-02T07:27:36.243Z' } : attempt, { available: true, reviewedExtractionId: reviewed ? attempt.extractionId : null })}
       schemaReady documentMarkdown="# Source" sourceDocumentName="viega.pdf" onSelectEvidence={() => {}} />,
@@ -2036,7 +1929,7 @@ describe('ResultsTab verification completeness', () => {
       } },
     }
     render(
-      <ResultsTab {...defaultRunProps}
+      <ResultsTab
         controller={controller({ status: 'ready', result: genericCatalog.resultPayload!, evidenceLinks: [], ungroundedCount: 2 }, genericCatalog, { available: true })}
         schemaReady documentMarkdown="# Source" sourceDocumentName="catalog.pdf" onSelectEvidence={() => {}} />,
     )
@@ -2064,7 +1957,7 @@ describe('ResultsTab verification completeness', () => {
       ] },
     ] }
     render(
-      <ResultsTab {...defaultRunProps}
+      <ResultsTab
         controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 4 }, attempt, {
           available: true,
           decisions: [{ resultPath: ['records', 0, 'items', 0, 'sku'], evidenceAnchorId: 'a_p1_s3_r3_c2', reviewedOccurrenceIds: [], action: 'EDITED', reviewedValue: '77317-B' }],
@@ -2100,7 +1993,7 @@ describe('ResultsTab verification completeness', () => {
 
   it('before the review is saved, reports only the decisions the researcher made, never a seeded approval', () => {
     render(
-      <ResultsTab {...defaultRunProps}
+      <ResultsTab
         controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 4 }, attempt, {
           available: true, isTouched: () => false,
           decisions: [{ resultPath: ['records', 0, 'items', 0, 'sku'], evidenceAnchorId: 'a_p1_s3_r3_c2', reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null }],
@@ -2129,7 +2022,7 @@ describe('ResultsTab verification completeness', () => {
       } },
     }
     render(
-      <ResultsTab {...defaultRunProps}
+      <ResultsTab
         controller={controller({ status: 'ready', result: records.resultPayload!, evidenceLinks: records.evidenceLinks!, ungroundedCount: 1 }, records)}
         schemaReady documentMarkdown="# Source" sourceDocumentName="places.pdf"
         exportSchema={{ recordDescription: 'A place.', schemaNodes: [{ id: 'place', name: 'place', type: 'string' }] }} />,
@@ -2162,7 +2055,7 @@ describe('ResultsTab verification completeness', () => {
     const summary = (label: string) =>
       [...document.querySelectorAll('span')].find((element) => element.textContent?.startsWith(`${label}:`))?.textContent
     const renderRuled = (shown: ExtractionAttempt) => render(
-      <ResultsTab {...defaultRunProps}
+      <ResultsTab
         controller={controller({ status: 'ready', result: shown.resultPayload!, evidenceLinks: shown.evidenceLinks!, ungroundedCount: 0 }, shown)}
         schemaReady documentMarkdown="# Source" sourceDocumentName="ruled.pdf" onSelectEvidence={() => {}}
         exportSchema={{ recordDescription: 'A list.', schemaNodes: [{ id: 'title', name: 'title', type: 'string' }, { id: 'publisher', name: 'publisher', type: 'string' }] }} />,
@@ -2203,7 +2096,7 @@ describe('ResultsTab verification completeness', () => {
   it('a complete Extraction still names record recall unmeasured in the Extraction sheet', () => {
     const complete: ExtractionAttempt = { ...attempt, complete: true }
     render(
-      <ResultsTab {...defaultRunProps}
+      <ResultsTab
         controller={controller({ status: 'ready', result: complete.resultPayload!, evidenceLinks: complete.evidenceLinks!, ungroundedCount: 4 }, complete)}
         schemaReady documentMarkdown="# Source" sourceDocumentName="viega.pdf"
         exportSchema={{ recordDescription: 'A list.', schemaNodes: [{ id: 'publisher', name: 'publisher', type: 'string' }] }} onSelectEvidence={() => {}} />,
