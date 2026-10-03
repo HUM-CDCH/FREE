@@ -43,6 +43,16 @@ def test_the_extract_fixture_carries_a_request_kei_accepts():
     assert request.options.catalog is not None and request.options.catalog.recipe == "numbered-catalogue-de@1"
 
 
+def test_the_progress_fixture_is_a_valid_progress_document_with_one_entry_per_stage():
+    from kei_exp.kie.extract.progress import ProgressDocument
+    data = fixture("extract.progress")
+    document = ProgressDocument.model_validate(data)
+    assert document.model_dump(mode="json") == data
+    assert [entry.stage for entry in document.entries] == ["finished", "finished", "candidates", "reading", "queued"]
+    assert document.finished == 2 and document.discovered == len(document.entries)
+    assert document.entries[1].contested == [{"path": ["site"], "candidates": ["Bdorf", "Bdorf-Nord"]}]
+
+
 @pytest.mark.parametrize("name", OUTPUTS)
 def test_each_output_fixture_validates(name):
     data = fixture(name)

@@ -91,6 +91,18 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   `extractions/<extraction id>/result.json`, the extraction ID being its
   workflow ID's suffix; `GET /api/runs/{id}/extractions/{extraction_id}` serves
   it, and answers 404 until it is published (its status is the workflow's).
+  While it runs, `GET /api/runs/{id}/extractions/{extraction_id}/progress`
+  serves what the stage files beside the result say so far
+  (`kie/extract/progress.py`): each discovered record's stage (queued, reading,
+  candidates under verification, finished with its record, links and unresolved
+  contests), and for Article the root assembled over the contexts answered so
+  far and the links grounded so far; 404 until record work has started. Stage
+  files are written by rename, marked with their execution's token (a retried
+  step's files never mix with the previous attempt's) and skipped when
+  unreadable; a write that fails never fails the extraction. A request may name
+  `start_page`, the page the researcher is reading: the unified Catalog reads
+  the records nearest it first and Article its bounded value contexts, the
+  artifact unchanged.
   Changing the schema reruns Extraction without rerunning OCR.
 - Extraction calls take one of two roles. `fields` reads values off the source
   (document, record and grounded entry calls); `reasoning` decides over labelled
@@ -183,16 +195,18 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   `extractions/<id>/catalog-execution.json` (pins and resolved budgets), then
   `catalog-discovery.json`, then one `catalog-entry-<n>.v<version>.json` per
   entry that finished without a failed call or undecided verdict, all
-  write-once and reused when the step runs again, so a retry after a transient
-  backend error asks only for unfinished entries; budgets the served context no
-  longer fits fail as `budget_refused`. A request the server refuses for itself
-  (a non-transient HTTP error) fails only its window, which is halved or left
-  failed and visible. A record the supplied source ends inside, with no unread
-  text after it, ends `source_end` and does not make boundaries incomplete. A
-  value printed in another cell of the table row whose cell the quote names is
-  located in its own cell. The artifact embeds the execution and discovery
-  records with their canonical digests, which Studio verifies. `deleteRuns` removes them with the run. New admissions use it only
-  where Studio's `FREE_CATALOG_METHOD=unified` gate is on.
+  write-once and reused when the step runs again, beside a reading marker and a
+  candidates file per entry that only the progress route reads, so a retry after
+  a transient backend error asks only for unfinished entries; budgets the served
+  context no longer fits fail as `budget_refused`. A request the server refuses
+  for itself (a non-transient HTTP error) fails only its window, which is halved
+  or left failed and visible. A record the supplied source ends inside, with no
+  unread text after it, ends `source_end` and does not make boundaries
+  incomplete. A value printed in another cell of the table row whose cell the
+  quote names is located in its own cell. The artifact embeds the execution and
+  discovery records with their canonical digests, which Studio verifies.
+  `deleteRuns` removes them with the run. New admissions use it only where
+  Studio's `FREE_CATALOG_METHOD=unified` gate is on.
 
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership.
