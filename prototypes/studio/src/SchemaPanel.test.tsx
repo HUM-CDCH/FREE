@@ -2138,6 +2138,13 @@ describe('field rows (redesign §6)', () => {
     }
     expect(within(row).getByRole('button', { name: 'Delete sex' }).className).toMatch(/(^|\s)text-danger(\s|$)/)
     expect(actions.className).toMatch(/(^|\s)gap-1(\s|$)/)
+    // On a row line under 240px (the 264px rail) the actions are no overlay: they take their own line in the pills'
+    // flow, below the pills, shown on hover or focus within, so the name and the disclosure stay in view. The line keeps
+    // its place at rest (no collapse, so no row moves under a click).
+    expect(name.parentElement!).toContainElement(actions)
+    for (const narrow of ['@max-[240px]:static', '@max-[240px]:basis-full', '@max-[240px]:justify-start', '@max-[240px]:w-auto'])
+      expect(actions.className.split(/\s+/)).toContain(narrow)
+    expect(actions.className).not.toMatch(/h-0\b/)
   })
 
   it('a read-only row has no actions, so its pills keep no room for them', () => {

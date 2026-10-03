@@ -54,13 +54,24 @@ type RightRailProps = {
   onResultPathChange: (path: string[] | null) => void
 }
 
+/** A tab's count. Under a 300px tab strip (the 264px rail) a worded one ("7 to check") shows its number only, so the
+ *  tab's label stays whole; its full words stay its name and title. */
 function TabBadge({ label, active }: { label: string; active: boolean }) {
   const tone = `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
+  const count = /^\d+(?=\D)/.exec(label)?.[0]
   return (
     <span
+      role="img"
+      aria-label={label}
+      title={label}
       className={`inline-grid h-4 min-w-4.5 shrink-0 place-items-center whitespace-nowrap rounded-full px-1.5 font-mono text-overline leading-none tabular-nums ${tone}`}
     >
-      {label}
+      {count ? (
+        <>
+          <span className="@max-[300px]:hidden">{label}</span>
+          <span className="hidden @max-[300px]:inline">{count}</span>
+        </>
+      ) : label}
     </span>
   )
 }
@@ -162,7 +173,7 @@ function RightRail({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-stretch border-b border-line" role="tablist">
+      <div className="@container flex shrink-0 items-stretch border-b border-line" role="tablist">
         {tabs.map(({ key, label, badge }) => {
           const active = activeTab === key
           return (
@@ -178,7 +189,8 @@ function RightRail({
               id={`rail-tab-${key}`}
               onClick={() => onTabChange(key)}
             >
-              {/* At the 264px rail the label gives way (truncates); the badge keeps one line ("6 to check"). */}
+              {/* At the 264px rail a worded badge shows its number only, so the label stays whole; truncating it is the
+                  last resort. The badge keeps one line. */}
               <span className="min-w-0 truncate">{label}</span>
               {badge && <TabBadge label={badge.label} active={active} />}
             </button>

@@ -174,7 +174,11 @@ describe('results rows without pills (decision 14)', () => {
     render(<ResultValue name="title" value="Report" path={['title']} expandText={expandText} {...grounded} onSelectEvidence={vi.fn()} review={review(false)} />)
     const marker = screen.getByRole('img', { name: 'to check' })
     expect(marker).toHaveAttribute('title', 'To check')
-    expect(marker.className).toMatch(/(^|\s)border-accent(\s|$)/)
+    // A small filled accent dot, unlike the hollow §8 "checking" marker.
+    expect(marker.className).toMatch(/(^|\s)size-2(\s|$)/)
+    expect(marker.className).toMatch(/(^|\s)rounded-full(\s|$)/)
+    expect(marker.className).toMatch(/(^|\s)bg-accent(\s|$)/)
+    expect(marker.className).not.toMatch(/(^|\s)border(-|\s|$)/)
     // Before the value: the marker precedes the value's button in the document.
     expect(marker.compareDocumentPosition(screen.getByRole('button', { name: 'View Evidence for title' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // One marker, not a second hollow "Pending review" ring as well.

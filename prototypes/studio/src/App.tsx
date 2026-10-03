@@ -940,17 +940,18 @@ export function DocumentWorkspace({
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
               </div>
+              {/* Under the 34px toolbar, over the page: the toast never covers the toolbar's controls. */}
+              {toast && (
+                <div className="pointer-events-none absolute inset-x-4 top-3 z-20 flex justify-center">
+                  <Toast message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
+                </div>
+              )}
             </div>
             {loadState.status === 'loading' && (
               <Spinner
                 className="absolute inset-0 z-20 justify-center bg-canvas/85 backdrop-blur-[1px]"
                 ariaLabel="Loading Source Document"
               />
-            )}
-            {toast && (
-              <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
-                <Toast message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
-              </div>
             )}
           </section>
           {effectiveRailOpen && (

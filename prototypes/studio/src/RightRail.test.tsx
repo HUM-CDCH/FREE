@@ -154,12 +154,19 @@ describe('RightRail developer UI visibility', () => {
 
   it('a tab badge stays on one line at the 264px rail; the tab\'s label gives way first', () => {
     renderRail({ extraction: { ...defaultController, hasResults: true, review: { ...defaultController.review, untouchedCount: 6 } } })
-    const results = screen.getByRole('tab', { name: /Results/ })
-    const badge = within(results).getByText('6 to check')
+    // (jsdom computes the name without the flex layout's space between the label and the badge.)
+    const results = screen.getByRole('tab', { name: /^Results\s*6 to check$/ })
+    // Under a 300px tab strip (the 264px rail) the badge shows its number only; its full words are its name and title,
+    // and "Results" stays whole.
+    const badge = within(results).getByRole('img', { name: '6 to check' })
+    expect(badge).toHaveAttribute('title', '6 to check')
     expect(badge.className).toMatch(/(^|\s)whitespace-nowrap(\s|$)/)
     expect(badge.className).toMatch(/(^|\s)shrink-0(\s|$)/)
+    expect(within(badge).getByText('6 to check').className).toMatch(/(^|\s)@max-\[300px\]:hidden(\s|$)/)
+    expect(within(badge).getByText('6').className).toMatch(/(^|\s)hidden(\s|$)/)
+    expect(within(badge).getByText('6').className).toMatch(/(^|\s)@max-\[300px\]:inline(\s|$)/)
+    expect(screen.getByRole('tablist').className).toMatch(/(^|\s)@container(\s|$)/)
     const label = within(results).getByText('Results')
-    expect(label.className).toMatch(/(^|\s)truncate(\s|$)/)
     expect(label.className).toMatch(/(^|\s)min-w-0(\s|$)/)
     expect(results.className).toMatch(/(^|\s)min-w-0(\s|$)/)
   })

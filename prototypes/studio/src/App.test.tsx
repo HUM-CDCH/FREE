@@ -2885,6 +2885,10 @@ describe('reopened Source Document workspace', () => {
     const reviewNow = await screen.findByRole('button', { name: 'Review now' })
     watcher.disconnect()
     expect(completions).toEqual(['✓ Extraction complete — review it in the Results tabReview now'])
+    // The toast floats over the page under the PDF toolbar, never over its controls: its host sits in the viewer area.
+    const toastHost = screen.getByText('✓ Extraction complete — review it in the Results tab').closest('[role="status"]')!.parentElement!
+    expect(toastHost.parentElement!).not.toContainElement(screen.getByRole('button', { name: 'Pages' }))
+    expect(toastHost.parentElement!).toContainElement(document.querySelector('.pdf-viewer') as HTMLElement)
     expect(shownToasts.filter((message) => message.includes('Extraction complete'))).toHaveLength(1)
     expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')

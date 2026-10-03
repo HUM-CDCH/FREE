@@ -279,6 +279,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // Completion is one toast with Review now, no dialog (decision 04).
   await expect(page.getByRole('button', { name: 'Review now', exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
+  // It floats over the page under the PDF toolbar, never over the toolbar's controls.
+  const pdfToolbar = (await page.getByRole('region', { name: 'PDF document' }).locator('> div').first().boundingBox())!
+  const completionToast = (await page.getByRole('status').filter({ hasText: 'Extraction complete' }).boundingBox())!
+  expect(completionToast.y, 'the completion toast below the PDF toolbar').toBeGreaterThanOrEqual(pdfToolbar.y + pdfToolbar.height)
   expect(interactivePosts).toBe(1)
   const chosen = await db.orm.public.Extraction.where({ sourceDocumentId })
     .select('requestedModels', 'diagnostics').first()

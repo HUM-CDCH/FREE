@@ -168,6 +168,31 @@ async function checkRows(page: Page, width: number) {
   const longName = page.getByRole('listitem', { name: 'archaeological_context' }).getByText('archaeological_context', { exact: true })
   const truncated = await longName.evaluate((element) => element.scrollWidth > element.clientWidth)
   expect(truncated, `${width}px: archaeological_context shown in full`).toBe(false)
+  if (width < 344) {
+    // A row line under 240px puts its actions on their own line below the pills: hovered, a nested row's name and a long
+    // name stay fully in view, none of the actions over them, and the disclosure is clear (decision 11 follow-up).
+    for (const name of ['kind', 'archaeological_context', 'deposit']) {
+      const row = page.getByRole('listitem', { name, exact: true })
+      await row.scrollIntoViewIfNeeded()
+      await row.hover()
+      const actions = actionsOf(row, name)
+      await expect.poll(() => opacity(actions[0]!.locator('..')), `${width}px, ${name}: actions shown on hover`).toBe('1')
+      const nameBox = (await row.getByText(name, { exact: true }).boundingBox())!
+      expectInside(nameBox, (await row.boundingBox())!, `${width}px, ${name}: the hovered name in its row`)
+      const nameText = await row.getByText(name, { exact: true }).evaluate((element) => element.scrollWidth <= element.clientWidth)
+      expect(nameText, `${width}px, ${name}: the hovered name in full`).toBe(true)
+      const pills = await Promise.all((await row.locator('[data-row-pill]').all()).map((pill) => pill.boundingBox()))
+      const controls = [nameBox, ...pills.filter((box): box is Box => box !== null)]
+      const disclosure = row.getByRole('button', { name: /^(Collapse|Expand) / })
+      if (await disclosure.count()) controls.push((await disclosure.boundingBox())!)
+      for (const action of actions) {
+        const box = (await action.boundingBox())!
+        for (const control of controls)
+          expect(overlaps(box, control), `${width}px, ${name}: ${await action.getAttribute('aria-label')} clear of the name, pills and disclosure`).toBe(false)
+        expect(box.y, `${width}px, ${name}: actions below the pills`).toBeGreaterThanOrEqual(Math.max(...controls.map((control) => control.y + control.height)) - 0.5)
+      }
+    }
+  }
   if (width >= 344) {
     // Rows are 30px at rest when their pills fit beside the name, clear of the actions' 140px: at 344px the top level
     // keeps 123px for them, so `title · string` does (`sex · string · 6 values`, 137px, wraps its values pill).
@@ -334,6 +359,7 @@ test.describe('on a touch screen', () => {
       await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
       const remove = actionsOf(row, 'sex')[2]!
       await expect.poll(() => opacity(remove.locator('..')), `${width}px: actions hidden at rest`).toBe('0')
+      // Where Delete sits: in the overlay (344px), or on the actions' own line below the pills (264px).
       const box = (await remove.boundingBox())!
       await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
       // The tap lands on the row, which takes focus and so reveals its actions for a second tap; nothing is deleted.

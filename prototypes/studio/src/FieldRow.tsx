@@ -46,6 +46,11 @@ const PILL_FIT = 'min-w-0 max-w-full'
  *  a pointer, on hover and focus within the row; at rest a tap there reaches the row, never an unseen action. While a
  *  pill has keyboard focus the overlay steps aside as well. */
 const ACTIONS = 'pointer-events-none absolute right-0 top-px flex w-max min-w-[140px] items-center justify-end gap-1 rounded-[3px] bg-surface pl-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
+/** On a row line under 240px (the 264px rail, where a 140px overlay would cover the name and reach the disclosure) the
+ *  actions are no overlay: they take their own line in the pills' flow, below the pills, shown (and hit) on hover and
+ *  focus within like the overlay. The line keeps its place at rest: collapsing it would move every row below whenever a
+ *  row lost hover or focus, and a click there could land on another control than the one pressed. */
+const ACTIONS_IN_FLOW = '@max-[240px]:static @max-[240px]:basis-full @max-[240px]:w-auto @max-[240px]:min-w-0 @max-[240px]:justify-start @max-[240px]:pl-0'
 /** The pills keep clear of the actions, so a pointer on any part of a pill reaches the pill. On a row line of 296px and
  *  more their line keeps the overlay's 140px clear (they wrap before it), which leaves them at least 110px. A narrower
  *  row (the 264px rail, nested rows) would squeeze them under a pill's width: there they start on the line below the
@@ -231,17 +236,19 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
           {intoGroup && !isDiff && (
             <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white">into {node.name}</span>
           )}
+          {/* In the pills' flow: an overlay on the row line (absolute, the row line positions it), or below the pills on
+              a narrow row line. */}
+          {hasActions && !dragActive && (
+            <span data-row-actions className={`${ACTIONS} ${ACTIONS_IN_FLOW}`}>
+              <button type="button" className={ACTION_PLAIN} aria-label={`Edit ${node.name}`} disabled={editDisabled} onClick={onEdit}>Edit</button>
+              <button type="button" className={ACTION_PLAIN} aria-label={`Add note to ${node.name}`} disabled={editDisabled} onClick={onAddNote}>Note</button>
+              <button type="button" className={ACTION_DANGER} aria-label={`Delete ${node.name}`} disabled={editDisabled} onClick={onDelete}>Delete</button>
+            </span>
+          )}
         </div>
         {change && acceptance && (
           <span className="flex h-[30px] shrink-0 items-center">
             <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptance.accepted} onChange={acceptance.onToggle} />
-          </span>
-        )}
-        {hasActions && !dragActive && (
-          <span data-row-actions className={ACTIONS}>
-            <button type="button" className={ACTION_PLAIN} aria-label={`Edit ${node.name}`} disabled={editDisabled} onClick={onEdit}>Edit</button>
-            <button type="button" className={ACTION_PLAIN} aria-label={`Add note to ${node.name}`} disabled={editDisabled} onClick={onAddNote}>Note</button>
-            <button type="button" className={ACTION_DANGER} aria-label={`Delete ${node.name}`} disabled={editDisabled} onClick={onDelete}>Delete</button>
           </span>
         )}
       </div>

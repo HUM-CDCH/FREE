@@ -111,10 +111,10 @@ function CandidateMarker({ className = '' }: { className?: string }) {
   return <span aria-hidden="true" className={`size-2 shrink-0 rounded-full border border-ink-muted ${className}`} />
 }
 
-/** A grounded value with no decision yet (decision 14): the same hollow marker, in accent, before the value. The Results
- *  badge counts these ("n to check"). */
+/** A grounded value with no decision yet (decision 14): a small filled accent dot before the value, unlike the hollow
+ *  §8 "checking" marker. The Results badge counts these ("n to check"). */
 function ToCheckMarker({ className = '' }: { className?: string }) {
-  return <span role="img" aria-label="to check" title="To check" className={`size-2 shrink-0 rounded-full border border-accent ${className}`} />
+  return <span role="img" aria-label="to check" title="To check" className={`size-2 shrink-0 rounded-full bg-accent ${className}`} />
 }
 
 /** A value with Evidence is itself the way to it (decision 14): a link-styled button named for the field, described by
