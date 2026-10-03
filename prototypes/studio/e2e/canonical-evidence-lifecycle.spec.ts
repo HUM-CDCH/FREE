@@ -7,6 +7,7 @@ import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionAttemptSchema, type ExtractionAttempt } from '../shared/extraction.contract.js'
 import { keiExpArtifact, keiExpEvidence } from 'extraction/kei-exp-fixture'
+import type { ProgressDocument } from 'extraction'
 import type { KeiExtractInput } from 'extraction/kei-handoff'
 import { launchKeiStandIn, type KeiStandIn, type StandInDecision } from 'extraction/kei-stand-in'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
@@ -38,6 +39,8 @@ const kei = {
   failNextValues: false,
   incompleteNextResult: false,
   groundedLimit: null as number | null,
+  progress: null as ProgressDocument | null,
+  lastStartPage: null as number | null,
 }
 const resultGate: { release: (() => void) | null } = { release: null }
 const valuesGate: { release: (() => void) | null } = { release: null }
@@ -45,6 +48,8 @@ const valuesGate: { release: (() => void) | null } = { release: null }
 /** kei's `extract` as this spec scripts it: kei-exp's artifact for the request, grounded unless a switch says
  *  otherwise, answered at once unless a gate holds it. */
 async function extractFor(request: KeiExtractInput): Promise<StandInDecision<{ artifact: unknown }>> {
+  const startPage = request.request.options.start_page
+  kei.lastStartPage = typeof startPage === 'number' ? startPage : null
   if (kei.failNextValues) {
     kei.failNextValues = false
     return { failure: { code: 'extraction_failed', reason: 'Deterministic extraction failure.', retryable: false } }
@@ -92,6 +97,34 @@ async function extractFor(request: KeiExtractInput): Promise<StandInDecision<{ a
   return { output: { artifact } }
 }
 
+/** A page-2 answer before a page-1 record in source order; the stand-in holds
+ * settlement so the browser must observe progress through Studio's real poll. */
+function progressFor(strategy: 'ARTICLE' | 'CATALOG'): ProgressDocument {
+  if (strategy === 'ARTICLE')
+    return {
+      version: 1, strategy: 'article', started_at_page: 2, discovered: 1, finished: 0,
+      entries: [{ index: 0, label: null, page: null, stage: 'candidates',
+        candidates: [{ path: ['title'], value: 'First context', quote: null, window: 0 }],
+        record: { title: 'First context' }, evidence: [], contested: [], failed: 0 }],
+      document: { contexts: [{ primary: ['p2_s0'], overlap: [] }], answered: 1, of: 2,
+        failed_contexts: 0, links: [], grounding_batches: 0 },
+    }
+  return {
+    version: 1, strategy: 'catalog', started_at_page: 2, discovered: 3, finished: 1,
+    entries: [
+      { index: 0, label: 'Waiting', page: 1, stage: 'queued', candidates: null,
+        record: null, evidence: null, contested: null, failed: null },
+      { index: 1, label: 'First', page: 2, stage: 'finished', candidates: null,
+        record: { title: 'First record' },
+        evidence: [keiExpEvidence({ path: ['records', 1, 'title'] })], contested: [], failed: null },
+      { index: 2, label: 'Second', page: 2, stage: 'candidates',
+        candidates: [{ path: ['title'], value: 'Second record', quote: null, window: 0 }],
+        record: { title: 'Second record' }, evidence: null, contested: null, failed: 0 },
+    ],
+    document: null,
+  }
+}
+
 let standIn: KeiStandIn | undefined
 
 // kei on DBOS, played by the stand-in (plan Ruling 12): an application named `kei` on the Playwright database's
@@ -105,7 +138,7 @@ test.beforeAll(async () => {
     schema: 'kei_dbos',
     port: Number(keiUrl.port),
     executorId: `kei-e2e-${keiUrl.port}`,
-    script: { extract: (request) => extractFor(request) },
+    script: { extract: (request) => extractFor(request), progress: () => kei.progress },
   })
 })
 
@@ -163,6 +196,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
 
   Object.assign(kei, {
     omitGrounding: false, blockNextValues: false, blockNextResult: false, failNextValues: false, incompleteNextResult: false, groundedLimit: null,
+    progress: null, lastStartPage: null,
   })
   // Each Playwright config gives the stand-in its own port and points Studio's KEI_EXP_URL at it.
   const keiUrl = new URL(process.env.FREE_PLAYWRIGHT_KEI_EXP_URL!)
@@ -278,7 +312,36 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // This first run completes in the narrow layout (under 860px), where the open rail overlays the page's right side.
   const journeyViewport = page.viewportSize()!
   await page.setViewportSize({ width: 820, height: 900 })
+  await page.getByLabel('Current page').fill('2')
+  await page.getByLabel('Current page').press('Enter')
+  kei.blockNextResult = true
+  kei.progress = progressFor(strategy)
   await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
+  const stopExtraction = page.getByRole('button', { name: /■ Stop extraction/ })
+  await expect(stopExtraction).toBeVisible({ timeout: 20_000 })
+  await expect.poll(() => kei.lastStartPage).toBe(2)
+  await expect(stopExtraction).toContainText(strategy === 'CATALOG' ? '1 of 3' : '0 of 1', { timeout: 10_000 })
+  await page.getByRole('tab', { name: /Results/ }).click()
+  const progressStatus = page.getByRole('status').filter({ hasText: /^Reading/ })
+  await expect(progressStatus).toHaveText(strategy === 'CATALOG'
+    ? 'Reading records · 1 of 3 · started at page 2' : 'Reading the document · 1 of 2 contexts')
+  await expect(page.getByRole('tab', { name: /Results/ })).toContainText(strategy === 'CATALOG' ? '1 of 3' : '0 of 1')
+  const partialView = page.getByRole('region', { name: 'Extraction in progress' })
+  await expect(partialView.getByRole('group', { name: /^Review / })).toHaveCount(0)
+  if (strategy === 'CATALOG') {
+    const listed = page.getByRole('list', { name: 'Records being read' }).getByRole('listitem')
+    await expect(listed).toHaveText([/First/, /Second/, /Waiting/])
+    await expect(listed.nth(0)).toContainText('· page 2')
+    await expect(listed.nth(0)).toContainText('First record')
+    await expect(listed.nth(0).getByRole('button', { name: 'View Evidence for title' })).toBeVisible()
+    await expect(listed.nth(1).getByTitle('Candidate · being verified')).toHaveText('Second record')
+    await expect(listed.nth(1).getByRole('button', { name: /View Evidence/ })).toHaveCount(0)
+  } else {
+    await expect(partialView.getByTitle('Candidate · being verified')).toHaveText('First context')
+  }
+  await expect.poll(() => resultGate.release !== null).toBe(true)
+  kei.progress = null
+  resultGate.release!()
   // Completion is one toast with Review now, no dialog (decision 04).
   const firstReviewNow = page.getByRole('button', { name: 'Review now', exact: true })
   await expect(firstReviewNow).toBeVisible({ timeout: 20_000 })
@@ -297,6 +360,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     [reviewNowBox.x + reviewNowBox.width / 2, reviewNowBox.y + reviewNowBox.height / 2]), '820px: Review now is the hit target').toBe(true)
   await page.screenshot({ path: testInfo.outputPath('completion-toast-820px.png') })
   await firstReviewNow.click({ timeout: 3_000 })
+  await expect(progressStatus).toHaveCount(0)
   await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
   await expect(firstReviewNow).toHaveCount(0)
   await page.setViewportSize(journeyViewport)

@@ -726,6 +726,13 @@ export function DocumentWorkspace({
       inspectedAttemptSchema?.schemaNodes.map((node) => node.name) ?? [],
     [inspectedAttemptSchema],
   )
+  // Partial Evidence links paint as they arrive without moving the page being read.
+  const partialEvidenceLinks = useMemo(
+    () => extraction.state.status === 'running' && extraction.state.partial
+      ? extraction.state.partial.records.flatMap((record) => record.evidenceLinks)
+      : null,
+    [extraction.state],
+  )
   const selectEvidenceAnchor = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,
@@ -734,6 +741,7 @@ export function DocumentWorkspace({
     fieldNames: evidenceFieldNames,
     resultPath,
     active: effectiveRailOpen && railTab === 'results',
+    partialEvidenceLinks,
   })
 
   /** Saves pending schema edits as the Current Schema Revision, reads the account's saved method again, then admits the
@@ -780,7 +788,13 @@ export function DocumentWorkspace({
         admittingRef.current = true
         let acknowledged: Awaited<ReturnType<typeof extraction.runExtraction>>
         try {
-          acknowledged = await extraction.runExtraction(savedMethodFor(savedState, strategy, catalogRecipe), target, strategy, catalogRecipe)
+          acknowledged = await extraction.runExtraction(
+            savedMethodFor(savedState, strategy, catalogRecipe),
+            target,
+            strategy,
+            catalogRecipe,
+            loadState.status === 'ready' ? currentPage : null,
+          )
         } finally {
           admittingRef.current = false
         }

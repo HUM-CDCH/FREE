@@ -6,6 +6,9 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportExtractionResult } from 'extraction-result-export'
 import ResultsTab from './ResultsTab'
+import { partialFromProgress } from 'extraction'
+import { partialResultSchema } from '../shared/extraction.contract'
+import progressFixture from '../../parsing_service/tests/fixtures/contracts/extract.progress.json'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
@@ -293,7 +296,7 @@ describe('ResultsTab grounded values', () => {
     render(
       <ResultsTab
         controller={controller(
-          { status: 'running', step: 'extraction' },
+          { status: 'running', step: 'extraction', partial: null },
           {
             ...articleAttempt,
             executionStatus: 'RUNNING',
@@ -317,7 +320,7 @@ describe('ResultsTab grounded values', () => {
     for (const previous of [null, articleAttempt]) {
       const { unmount } = render(
         <ResultsTab
-          controller={controller({ status: 'running', step: 'extraction' }, previous)}
+          controller={controller({ status: 'running', step: 'extraction', partial: null }, previous)}
           schemaReady
           documentMarkdown="# Source"
           sourceDocumentName="Ravenna letters.pdf"
@@ -336,7 +339,7 @@ describe('ResultsTab grounded values', () => {
     for (const previous of [null, articleAttempt]) {
       const { unmount } = render(
         <ResultsTab
-          controller={{ ...controller({ status: 'running', step: 'extraction' }, previous), requestCancellation }}
+          controller={{ ...controller({ status: 'running', step: 'extraction', partial: null }, previous), requestCancellation }}
           schemaReady
           documentMarkdown="# Source"
           sourceDocumentName="Ravenna letters.pdf"
@@ -354,7 +357,7 @@ describe('ResultsTab grounded values', () => {
     render(
       <ResultsTab
         controller={controller(
-          { status: 'running', step: 'extraction' },
+          { status: 'running', step: 'extraction', partial: null },
           {
             ...articleAttempt,
             executionStatus: 'QUEUED',
@@ -1369,11 +1372,51 @@ describe('ResultsTab extraction status', () => {
     reviewable: false,
   }
 
+  it('shows records while reading, reports the records path and swaps in the settled result', () => {
+    const partial = partialResultSchema.parse(partialFromProgress(progressFixture))
+    const onResultPathChange = vi.fn()
+    const { rerender } = render(
+      <ResultsTab controller={controller({ status: 'running', step: 'extraction', partial }, { ...queuedAttempt, executionStatus: 'RUNNING' })}
+        schemaReady pinnedSchema={usedSchema} documentMarkdown="# Source" sourceDocumentName="running.pdf" onResultPathChange={onResultPathChange} />,
+    )
+    expect(screen.getByText('Running')).toBeInTheDocument()
+    expect(screen.getByText('Reading records · 2 of 5 · started at page 1')).toBeInTheDocument()
+    expect(screen.queryByText('Running extraction…')).not.toBeInTheDocument()
+    expect(onResultPathChange).toHaveBeenLastCalledWith(['records'])
+    rerender(
+      <ResultsTab controller={controller({ status: 'ready', result: { records: [{ place: 'Hill' }] }, evidenceLinks: [], ungroundedCount: 0 }, articleAttempt)}
+        schemaReady pinnedSchema={usedSchema} documentMarkdown="# Source" sourceDocumentName="running.pdf" onResultPathChange={onResultPathChange} />,
+    )
+    expect(screen.queryByText(/Reading records/)).not.toBeInTheDocument()
+    expect(screen.getByText('Hill')).toBeInTheDocument()
+    expect(onResultPathChange).toHaveBeenLastCalledWith(['records', '0'])
+  })
+
+  it.each(['Values as code', 'Markdown'])('reports the partial records path when rerunning from the settled %s view', (tab) => {
+    const onResultPathChange = vi.fn()
+    const props = { schemaReady: true, pinnedSchema: usedSchema, documentMarkdown: '# Source', sourceDocumentName: 'running.pdf', onResultPathChange }
+    const { rerender } = render(
+      <ResultsTab {...props} controller={controller({ status: 'ready', result: { records: [{ place: 'Hill' }] }, evidenceLinks: [], ungroundedCount: 0 }, articleAttempt)} />,
+    )
+    fireEvent.click(screen.getByRole('tab', { name: tab }))
+    expect(onResultPathChange).toHaveBeenLastCalledWith(null)
+    rerender(
+      <ResultsTab {...props} controller={controller({ status: 'running', step: 'extraction', partial: null }, queuedAttempt)} />,
+    )
+    expect(onResultPathChange).toHaveBeenLastCalledWith(null)
+    const partial = partialResultSchema.parse(partialFromProgress(progressFixture))
+    rerender(
+      <ResultsTab {...props} controller={controller({ status: 'running', step: 'extraction', partial }, { ...queuedAttempt, executionStatus: 'RUNNING' })} />,
+    )
+    expect(screen.getByRole('list', { name: 'Records being read' })).toBeInTheDocument()
+    expect(onResultPathChange).toHaveBeenLastCalledWith(['records'])
+  })
+
   it('keeps status, revision comparison and used schema readable while queued', () => {
     const requestCancellation = vi.fn(async () => {})
     render(
       <ResultsTab
-        controller={{ ...controller({ status: 'running', step: 'extraction' }, queuedAttempt), requestCancellation }}
+        controller={{ ...controller({ status: 'running', step: 'extraction', partial: null }, queuedAttempt), requestCancellation }}
         schemaReady
         pinnedSchema={usedSchema}
         currentSchemaRevision={currentRevision}
@@ -1396,7 +1439,7 @@ describe('ResultsTab extraction status', () => {
   it('disables both cancellation controls once requested and shows a cancellation failure apart', () => {
     const { rerender } = render(
       <ResultsTab
-        controller={{ ...controller({ status: 'running', step: 'extraction' }, { ...queuedAttempt, executionStatus: 'RUNNING' }), cancellationRequested: true }}
+        controller={{ ...controller({ status: 'running', step: 'extraction', partial: null }, { ...queuedAttempt, executionStatus: 'RUNNING' }), cancellationRequested: true }}
         schemaReady
         documentMarkdown="# Source"
         sourceDocumentName="running.pdf"
@@ -1407,7 +1450,7 @@ describe('ResultsTab extraction status', () => {
 
     rerender(
       <ResultsTab
-        controller={{ ...controller({ status: 'running', step: 'extraction' }, { ...queuedAttempt, executionStatus: 'RUNNING' }), cancellationError: 'Cancellation failed (HTTP 500)' }}
+        controller={{ ...controller({ status: 'running', step: 'extraction', partial: null }, { ...queuedAttempt, executionStatus: 'RUNNING' }), cancellationError: 'Cancellation failed (HTTP 500)' }}
         schemaReady
         documentMarkdown="# Source"
         sourceDocumentName="running.pdf"
@@ -1420,7 +1463,7 @@ describe('ResultsTab extraction status', () => {
   it('avoids inventing a revision while the used schema is still loading', () => {
     render(
       <ResultsTab
-        controller={controller({ status: 'running', step: 'extraction' }, { ...queuedAttempt, executionStatus: 'RUNNING' })}
+        controller={controller({ status: 'running', step: 'extraction', partial: null }, { ...queuedAttempt, executionStatus: 'RUNNING' })}
         schemaReady
         currentSchemaRevision={{ ...currentRevision, schemaRevisionId: articleAttempt.schemaRevisionId }}
         documentMarkdown="# Source"
@@ -1437,7 +1480,7 @@ describe('ResultsTab extraction status', () => {
     render(
       <ResultsTab
         controller={{
-          ...controller({ status: 'running', step: 'extraction' }, {
+          ...controller({ status: 'running', step: 'extraction', partial: null }, {
             ...articleAttempt, executionStatus: 'RUNNING', outcome: null, complete: null,
             modelAttribution: null, diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false,
           }),

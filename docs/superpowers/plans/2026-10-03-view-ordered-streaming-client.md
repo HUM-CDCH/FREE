@@ -1,5 +1,12 @@
 # View-Ordered Streaming Extraction — Studio Client Implementation Plan (Part B)
 
+Execution status, 2026-10-03: implemented and reviewed locally; delivery awaits
+a separate researcher decision. The [SDD execution ledger](2026-10-03-view-ordered-streaming-client-sdd-ledger.md)
+records verification, infrastructure limits, and rulings that supersede the
+planning examples below (especially state mapping and progress retention).
+The checklists below preserve the original plan; commits and infrastructure
+execution were deferred at the local delivery boundary.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Show the researcher each record as it is read: the Results tab lists a running Extraction's records in the order kei reads them, every value in one of the six states, with a progress line and a "k of n" badge; Run sends the page being read so those records come first; Evidence highlights draw as links arrive; the settled result takes the view's place when the attempt settles.

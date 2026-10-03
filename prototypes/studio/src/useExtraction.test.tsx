@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXTRACTION_UNAVAILABLE, MONITOR_DISCONNECTED, useExtraction, type ReviewTarget } from './useExtraction'
 import * as api from './api'
 import { ApiRequestError } from './api'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { ExtractionAttempt, PartialRecord, PartialResult } from '../shared/extraction.contract'
 import {
   clearSessionRecovery,
   setSessionRecoveryAccount,
@@ -69,6 +69,22 @@ function jobAttempt(overrides: Partial<ExtractionAttempt> = {}): ExtractionAttem
     executionStatus: 'RUNNING', outcome: null, complete: null, modelAttribution: null,
     diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false, ...overrides,
   })
+}
+
+function partialFor(records: Array<{ index: number; state: PartialRecord['state'] }>): PartialResult {
+  return {
+    strategy: 'CATALOG', startedAtPage: 1, discovered: records.length,
+    finished: records.filter((each) => each.state === 'finished').length,
+    records: records.map(({ index, state }): PartialRecord => ({
+      index, label: String(index + 1), page: 1, state,
+      record: state === 'queued' || state === 'reading' ? null : { title: `Record ${index + 1}` },
+      values: state === 'queued' || state === 'reading' ? {} : {
+        '["title"]': { value: `Record ${index + 1}`, state: state === 'finished' ? 'grounded' : 'checking' },
+      },
+      evidenceLinks: [],
+    })),
+    document: null,
+  }
 }
 
 function options(initialAttempt: ExtractionAttempt | null = null) {
@@ -230,7 +246,7 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.review.saving).toBe(false)
   })
 
-  it('polls a queued job to completion', async () => {
+  it('polls a queued job through retained partials to completion, where the settled result wins', async () => {
     vi.useFakeTimers()
     const queued = attempt({
       executionStatus: 'QUEUED',
@@ -243,10 +259,14 @@ describe('useExtraction server-owned lifecycle', () => {
       reviewable: false,
     })
     const provisional = jobAttempt()
+    const reading = partialFor([{ index: 0, state: 'finished' }, { index: 1, state: 'reading' }])
+    const regressed = partialFor([{ index: 0, state: 'checking' }, { index: 1, state: 'finished' }])
     vi.mocked(api.requestExtraction).mockResolvedValue(queued)
     vi.mocked(api.readExtraction)
+      .mockResolvedValueOnce({ extraction: provisional, pendingReviewDecisions: null, partial: reading })
       .mockResolvedValueOnce({ extraction: provisional, pendingReviewDecisions: null })
-      .mockResolvedValueOnce({ extraction: attempt(), pendingReviewDecisions: [] })
+      .mockResolvedValueOnce({ extraction: provisional, pendingReviewDecisions: null, partial: regressed })
+      .mockResolvedValueOnce({ extraction: attempt({ resultPayload: { records: [] } }), pendingReviewDecisions: [], partial: reading })
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 
@@ -255,16 +275,71 @@ describe('useExtraction server-owned lifecycle', () => {
     await act(() => vi.advanceTimersByTimeAsync(2_000))
     // The state alone also fits the initial QUEUED attempt; the status proves the first read was applied.
     expect(result.current.attempt?.executionStatus).toBe('RUNNING')
-    expect(result.current.state).toEqual({ status: 'running', step: 'extraction' })
+    expect(result.current.state).toEqual({ status: 'running', step: 'extraction', partial: reading })
     expect(result.current.review.available).toBe(false)
+
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.state).toEqual({ status: 'running', step: 'extraction', partial: reading })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.state.status === 'running' && result.current.state.partial?.records.map((each) => each.state))
+      .toEqual(['finished', 'finished'])
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_000)
       await run
     })
     expect(result.current.attempt?.executionStatus).toBe('COMPLETED')
+    expect(result.current.state.status).toBe('ready')
+    expect(result.current.state).not.toHaveProperty('partial')
+    expect(result.current.state.status === 'ready' && result.current.state.result).toEqual({ records: [] })
     expect(input.onTerminal).toHaveBeenCalledOnce()
     vi.useRealTimers()
+  })
+
+  it('a restored running Extraction shows its partial from the first read', async () => {
+    vi.useFakeTimers()
+    const restored = jobAttempt()
+    const reading = partialFor([{ index: 0, state: 'reading' }])
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: restored, pendingReviewDecisions: null, partial: reading })
+    const { result, unmount } = renderHook(() => useExtraction(options(restored)))
+    expect(result.current.state).toEqual({ status: 'running', step: 'extraction', partial: null })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.state).toEqual({ status: 'running', step: 'extraction', partial: reading })
+    unmount()
+    vi.useRealTimers()
+  })
+
+  it('a reconnect keeps the last partial when its first read brings no progress', async () => {
+    vi.useFakeTimers()
+    const restored = jobAttempt()
+    const shown = partialFor([{ index: 5, state: 'finished' }])
+    vi.mocked(api.readExtraction)
+      .mockResolvedValueOnce({ extraction: restored, pendingReviewDecisions: null, partial: shown })
+      .mockRejectedValueOnce(new ApiRequestError('Service Unavailable', 503))
+      .mockResolvedValueOnce({ extraction: restored, pendingReviewDecisions: null })
+    const { result, unmount } = renderHook(() => useExtraction(options(restored)))
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.monitorError).toBe(MONITOR_DISCONNECTED)
+    expect(result.current.state).toEqual({ status: 'running', step: 'extraction', partial: shown })
+    act(() => result.current.reconnect())
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(result.current.monitorError).toBeNull()
+    expect(result.current.state).toEqual({ status: 'running', step: 'extraction', partial: shown })
+    unmount()
+    vi.useRealTimers()
+  })
+
+  it('a run names the page being read, and omits the page when none is known', async () => {
+    vi.mocked(api.requestExtraction).mockResolvedValue(jobAttempt({ executionStatus: 'QUEUED' }))
+    const first = renderHook(() => useExtraction(options()))
+    await act(() => first.result.current.runExtraction(SERVICE_DEFAULTS, undefined, 'ARTICLE', null, 6))
+    expect(vi.mocked(api.requestExtraction).mock.calls[0]![0]).toEqual(expect.objectContaining({ startPage: 6 }))
+    first.unmount()
+    const second = renderHook(() => useExtraction(options()))
+    await act(() => second.result.current.runExtraction(SERVICE_DEFAULTS))
+    expect(vi.mocked(api.requestExtraction).mock.calls[1]![0]).not.toHaveProperty('startPage')
+    second.unmount()
   })
 
   it('keeps a restored running job cancellable', async () => {
@@ -333,6 +408,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const response = Promise.withResolvers<{
       extraction: ExtractionAttempt
       pendingReviewDecisions: []
+      partial: PartialResult
     }>()
     const onTerminal = vi.fn()
     vi.mocked(api.readExtraction).mockReturnValueOnce(response.promise)
@@ -357,11 +433,12 @@ describe('useExtraction server-owned lifecycle', () => {
       documentKey: nextRepresentationId,
     })
     await act(async () => {
-      response.resolve({ extraction: attempt(), pendingReviewDecisions: [] })
+      response.resolve({ extraction: restored, pendingReviewDecisions: [], partial: partialFor([{ index: 5, state: 'finished' }]) })
       await Promise.resolve()
     })
 
     expect(hook.result.current.attempt?.extractionId).toBe(replacement.extractionId)
+    expect(hook.result.current.state).not.toHaveProperty('partial')
     expect(onTerminal).not.toHaveBeenCalled()
     hook.unmount()
     vi.useRealTimers()

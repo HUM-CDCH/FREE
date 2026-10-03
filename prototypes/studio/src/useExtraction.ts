@@ -10,9 +10,11 @@ import {
   requestExtraction,
 } from './api'
 import type { ExtractionState } from './extraction'
+import { retainFinished } from './partialResult'
 import {
   type ExtractionAttempt,
   type ExtractionStrategy,
+  type PartialResult,
   type ReviewDecisionAction,
   type ReviewDecisionInput,
 } from '../shared/extraction.contract'
@@ -31,6 +33,8 @@ type ExtractionRunRequest = Readonly<{
   schemaRevisionId: string
   strategy: ExtractionStrategy
   catalogRecipe?: string
+  /** One-based page the researcher was reading when Run was clicked. */
+  startPage?: number
   /** The saved method read at the click; admission refuses it if the account's changed since. */
   method: ExtractionMethodIntent
 }>
@@ -85,6 +89,8 @@ type Monitor = {
   controller: AbortController
   /** The request this monitor posted, when the server has not acknowledged it (JSON). */
   unacknowledged?: string
+  /** Last server partial for this Extraction; survives a paused monitor and reconnect. */
+  partial?: PartialResult | null
 }
 
 function isActive(attempt: ExtractionAttempt | null): boolean {
@@ -111,11 +117,11 @@ function serverMessage(error: ApiRequestError): string {
 
 export type ExtractionController = ReturnType<typeof useExtraction>
 
-export function extractionStateFromAttempt(attempt: ExtractionAttempt | null): ExtractionState {
+export function extractionStateFromAttempt(attempt: ExtractionAttempt | null, partial: PartialResult | null = null): ExtractionState {
   if (!attempt) return { status: 'idle' }
   const active = isActive(attempt)
   if (!attempt.resultPayload) {
-    if (active) return { status: 'running', step: 'extraction' }
+    if (active) return { status: 'running', step: 'extraction', partial }
     if (attempt.failure?.code === 'cancelled') return { status: 'cancelled' }
     return {
       status: 'error',
@@ -253,11 +259,13 @@ export function useExtraction({
         if (!immediate) await pollingDelay(signal)
         immediate = false
         if (!live()) return
-        latest = (await readExtraction(monitor.extractionId, signal)).extraction
+        const response = await readExtraction(monitor.extractionId, signal)
         if (!live()) return
+        latest = response.extraction
+        monitor.partial = retainFinished(monitor.partial ?? null, response.partial ?? null)
         monitor.unacknowledged = undefined
         setAttempt(latest)
-        setState(extractionStateFromAttempt(latest))
+        setState(extractionStateFromAttempt(latest, monitor.partial))
       }
       monitorRef.current = null
       onTerminal(latest, monitor.isRerun)
@@ -451,7 +459,7 @@ export function useExtraction({
     setCancellationRequested(false)
     setCancellationError(null)
     setMonitorError(null)
-    setState({ status: 'running', step: 'extraction' })
+    setState({ status: 'running', step: 'extraction', partial: null })
     let seed: ExtractionAttempt | null = null
     try {
       seed = await requestExtraction(
@@ -498,6 +506,7 @@ export function useExtraction({
     target: ReviewTarget | null = reviewTarget,
     strategy: ExtractionStrategy = 'ARTICLE',
     catalogRecipe: string | null = null,
+    startPage: number | null = null,
   ) {
     if (!target?.schemaRevisionId) return null
     return runRequest(attempt !== null, {
@@ -505,6 +514,7 @@ export function useExtraction({
       schemaRevisionId: target.schemaRevisionId,
       strategy,
       ...(strategy === 'CATALOG' && catalogRecipe ? { catalogRecipe } : {}),
+      ...(startPage === null ? {} : { startPage }),
       method,
     })
   }

@@ -8,7 +8,9 @@ import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
 import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
 import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from 'extraction/schema'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
+import { partialResultSchema, type ExtractionAttempt } from '../shared/extraction.contract'
+import { partialFromProgress } from 'extraction'
+import progressFixture from '../../parsing_service/tests/fixtures/contracts/extract.progress.json'
 
 HTMLElement.prototype.scrollIntoView = vi.fn()
 
@@ -332,6 +334,62 @@ async function renderReopened(overrides: Partial<DocumentWorkspaceProps> = {}) {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('restores partial Results and their progress count for a running Extraction', async () => {
+    const attempt = {
+      ...runningAttempt('51000000-0000-4000-8006-000000000032'),
+      strategy: 'CATALOG' as const,
+      executionStatus: 'RUNNING' as const,
+    }
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith(`/api/extractions/${attempt.extractionId}`)) return Promise.resolve(Response.json({
+        extraction: attempt,
+        pendingReviewDecisions: null,
+        partial: partialResultSchema.parse(partialFromProgress(progressFixture)),
+      }))
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={{ ...reopened.persistedExtraction!, ...attempt }} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(await screen.findByText('Reading records · 2 of 5 · started at page 1', undefined, { timeout: 4_000 })).toBeVisible()
+    expect(screen.getByRole('button', { name: /■ Stop extraction/ })).toHaveTextContent('2 of 5')
+  })
+
+  it.each(['ready', 'loading'] as const)('sends the current page only while the PDF is %s', async (pdfStatus) => {
+    const posts: Array<Record<string, unknown>> = []
+    if (pdfStatus === 'loading') getDocument.mockReturnValueOnce({ promise: new Promise<{ numPages: number }>(() => {}), destroy: destroyLoadingTask })
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>
+        posts.push(body)
+        return Promise.resolve(Response.json({
+          ...runningAttempt(String(body.id)),
+          executionStatus: 'FAILED',
+          failure: { code: 'extraction_failed', message: 'Stopped after admission.' },
+        }, { status: 201 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    if (pdfStatus === 'ready') {
+      fireEvent.click(await screen.findByRole('button', { name: 'Next page' }))
+      expect(screen.getByRole('textbox', { name: 'Current page' })).toHaveValue('2')
+    }
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    await waitFor(() => expect(posts).toHaveLength(1))
+    if (pdfStatus === 'ready') expect(posts[0]).toMatchObject({ startPage: 2 })
+    else expect(posts[0]).not.toHaveProperty('startPage')
+  })
+
   it('a run re-reads the saved method before posting and labels itself Stop while running', async () => {
     const extractionResponse = Promise.withResolvers<Response>()
     const order: string[] = []
@@ -1657,6 +1715,7 @@ describe('reopened Source Document workspace', () => {
     expect(extractionRequests[0]).toEqual(expect.objectContaining({
       strategy: 'ARTICLE',
       schemaRevisionId: savedSchemaRevisionId,
+      startPage: 1,
     }))
 
     resolveExtraction(Response.json({
@@ -1945,6 +2004,7 @@ describe('reopened Source Document workspace', () => {
     const posted = (strategy: 'ARTICLE' | 'CATALOG', catalogRecipe?: string) => ({
       id: expect.any(String),
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      startPage: 1,
       schemaRevisionId: strategy === 'CATALOG' ? appendedRevisionId(2) : reopened.extractionSchema!.schemaRevisionId,
       strategy,
       ...(catalogRecipe ? { catalogRecipe } : {}),
@@ -2458,6 +2518,7 @@ describe('reopened Source Document workspace', () => {
       expect(bodies[1]).toEqual({
         id: expect.any(String),
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+        startPage: 1,
         schemaRevisionId: appendedRevisionId(2),
         strategy: 'CATALOG',
         catalogRecipe: recipe,
@@ -2846,7 +2907,7 @@ describe('reopened Source Document workspace', () => {
     }
     vi.stubGlobal(
       'fetch',
-      vi.fn((input: string | URL | Request) => {
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
         const url = String(input)
         if (url.endsWith('/source'))
           return Promise.resolve(Response.json(parsedDocument))
@@ -2854,12 +2915,15 @@ describe('reopened Source Document workspace', () => {
           return Promise.resolve(new Response('# Beretning'))
         if (url.startsWith('/api/schema-revisions?'))
           return Promise.resolve(Response.json({ revisions: [] }))
-        if (url.endsWith('/api/extractions'))
+        if (url.endsWith('/api/extractions')) {
+          runningAttempt.extractionId = (JSON.parse(String(init?.body)) as { id: string }).id
           return Promise.resolve(Response.json(runningAttempt, { status: 201 }))
+        }
         if (url.includes(`/api/extractions/${runningAttempt.extractionId}`))
           return Promise.resolve(Response.json({
             extraction: runningAttempt,
             pendingReviewDecisions: null,
+            partial: partialResultSchema.parse(partialFromProgress(progressFixture)),
           }))
         return Promise.resolve(new Response('pdf'))
       }),
@@ -2905,6 +2969,9 @@ describe('reopened Source Document workspace', () => {
     ).toBeInTheDocument()
     // The record scope is the schema's own, and is locked while the run is active.
     expect(screen.getByLabelText('Record scope')).toBeDisabled()
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(await screen.findByText('Reading records · 2 of 5 · started at page 1', undefined, { timeout: 4_000 })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^■ Stop extraction/ })).toHaveTextContent('2 of 5')
 
     mounted.rerender(
       <StrictMode>
@@ -2924,7 +2991,7 @@ describe('reopened Source Document workspace', () => {
     expect(
       screen.queryByRole('button', { name: /^■ Stop extraction/ }),
     ).not.toBeInTheDocument()
-  })
+  }, 8_000)
 
   it('posts the accepted result with its pinned Schema Revision and canonical Review Decisions', async () => {
     const calls: Array<{ url: string; body: unknown }> = []
