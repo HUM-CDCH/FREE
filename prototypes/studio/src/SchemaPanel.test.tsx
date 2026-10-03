@@ -2152,6 +2152,34 @@ describe('field rows (redesign §6)', () => {
     expect(actions.className).not.toMatch(/h-0\b/)
   })
 
+  it('while a field is dragged every row keeps its actions line in place, hidden and out of reach', () => {
+    renderPanel()
+    const titleRow = screen.getByRole('listitem', { name: 'title' })
+    const genderRow = screen.getByRole('listitem', { name: 'gender' })
+    const restingActions = within(titleRow).getByRole('button', { name: 'Delete title' }).parentElement!
+    expect(restingActions.className.split(/\s+/)).not.toContain('invisible')
+    expect(restingActions).not.toHaveAttribute('inert')
+    // A grip pressed and not yet moved: on a narrow row line the actions span is the row's reserved line, so it keeps
+    // its layout box (mounted, `invisible`, not removed), and `inert` keeps its buttons from focus and the accessibility tree.
+    fireEvent.mouseDown(genderRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    for (const [row, name] of [[titleRow, 'title'], [genderRow, 'gender']] as const) {
+      const actions = row.querySelector<HTMLElement>('[data-row-actions]')
+      expect(actions).not.toBeNull()
+      expect(actions!.className.split(/\s+/)).toContain('invisible')
+      expect(actions).toHaveAttribute('inert')
+      expect(within(actions!).getByText('Edit')).toBeInTheDocument()
+      expect(within(actions!).getByText('Note')).toBeInTheDocument()
+      expect(within(actions!).getByText('Delete')).toBeInTheDocument()
+      // jsdom implements neither `inert` (focus, accessibility tree) nor the stylesheet behind `invisible`, so the attribute
+      // and the class are the contract here; e2e/field-row-widths.spec.ts measures the real browser.
+      expect(within(actions!).getByText('Delete')).toHaveAttribute('aria-label', `Delete ${name}`)
+    }
+    fireEvent.mouseUp(window)
+    const after = within(screen.getByRole('listitem', { name: 'title' })).getByRole('button', { name: 'Delete title' }).parentElement!
+    expect(after.className.split(/\s+/)).not.toContain('invisible')
+    expect(after).not.toHaveAttribute('inert')
+  })
+
   it('a read-only row has no actions, so its pills keep no room for them', () => {
     renderPanel({ panelNodes: [{ id: 'sex', name: 'sex', type: 'string', allowedValues: ['f', 'm'] }] }, { readOnly: true })
     const row = screen.getByRole('listitem', { name: 'sex' })

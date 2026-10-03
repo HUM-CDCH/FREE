@@ -574,3 +574,117 @@ test('the Undo toast sits clear of the composer and the footer at 344px and 264p
     await expect(page.getByRole('listitem', { name: 'sex', exact: true })).toBeVisible()
   }
 })
+
+/** Every row's box and its actions span's box and visibility, by field name, in document order. */
+async function rowGeometry(page: Page) {
+  return page.getByRole('list', { name: 'Schema fields' }).evaluate((list) =>
+    Array.from(list.querySelectorAll<HTMLElement>('[role="listitem"]')).map((row) => {
+      const box = row.getBoundingClientRect()
+      const actions = row.querySelector<HTMLElement>('[data-row-actions]')
+      const actionsBox = actions?.getBoundingClientRect()
+      return {
+        name: row.getAttribute('aria-label')!, y: box.y, height: box.height,
+        actions: actions && actionsBox
+          ? { y: actionsBox.y, height: actionsBox.height, visibility: getComputedStyle(actions).visibility, inert: actions.inert }
+          : null,
+      }
+    }))
+}
+type RowGeometry = Awaited<ReturnType<typeof rowGeometry>>
+
+function expectRowsInPlace(now: RowGeometry, rest: RowGeometry, what: string, only?: readonly string[]) {
+  for (const before of rest) {
+    if (only && !only.includes(before.name)) continue
+    const after = now.find((row) => row.name === before.name)!
+    expect(after, `${what}, ${before.name}: still rendered`).toBeDefined()
+    expect(Math.abs(after.y - before.y), `${what}, ${before.name}: top unchanged (${before.y} → ${after.y})`).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(after.height - before.height), `${what}, ${before.name}: height unchanged (${before.height} → ${after.height})`).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(after.actions!.y - before.actions!.y), `${what}, ${before.name}: actions line unchanged`).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(after.actions!.height - before.actions!.height), `${what}, ${before.name}: actions line height unchanged`).toBeLessThanOrEqual(0.5)
+  }
+}
+
+/** Presses `name`'s grip, moves straight up onto the slot above `above` (no sideways move: no indent or outdent) and
+ *  releases there, checking on the way that the rows above `name` never move and that, on the slot, every row is where
+ *  it was at rest. */
+async function dragAbove(page: Page, name: string, above: string, rest: RowGeometry) {
+  const order = rest.map((row) => row.name)
+  const before = order.slice(0, order.indexOf(name))
+  const grip = (await page.getByRole('listitem', { name, exact: true }).locator('span', { hasText: '⠿' }).boundingBox())!
+  // The slot above a row is the first child of the row's wrapper.
+  const slot = (await page.locator(`[data-schema-node-id="${idOf(above)}"] > div`).first().boundingBox())!
+  const x = grip.x + grip.width / 2
+  await page.mouse.move(x, grip.y + grip.height / 2)
+  await page.mouse.down()
+  // Pressed, not yet moved: every row and every actions line exactly where it was, the actions hidden and inert.
+  const pressed = await rowGeometry(page)
+  expectRowsInPlace(pressed, rest, `264px, ${name}'s grip pressed`)
+  for (const row of pressed) {
+    expect(row.actions!.visibility, `264px, ${name}'s grip pressed: ${row.name}'s actions hidden`).toBe('hidden')
+    expect(row.actions!.inert, `264px, ${name}'s grip pressed: ${row.name}'s actions inert`).toBe(true)
+  }
+  await expect(page.getByRole('button', { name: /^(Edit|Add note to|Delete) / }), 'no row action is in the accessibility tree during a drag')
+    .toHaveCount(0)
+  const targetY = slot.y + slot.height / 2
+  const startY = grip.y + grip.height / 2
+  const steps = 8
+  for (let step = 1; step <= steps; step += 1) {
+    await page.mouse.move(x, startY + ((targetY - startY) * step) / steps)
+    // The rows above the pressed one never move at any point of the gesture.
+    expectRowsInPlace(await rowGeometry(page), rest, `264px, ${name} dragged, step ${step}`, before.filter((row) => row !== above))
+  }
+  // On the destination slot: every row where it was at rest, so the slot chosen is the slot under the pointer.
+  await expect.poll(async () => {
+    try { expectRowsInPlace(await rowGeometry(page), rest, `264px, ${name} over the slot above ${above}`); return true } catch { return false }
+  }, `264px, ${name} over the slot above ${above}: every row in place`).toBe(true)
+  await page.mouse.up()
+}
+const idOf = (name: string) => {
+  const find = (nodes: readonly { id: string; name: string; children?: readonly unknown[] }[]): string | undefined => {
+    for (const node of nodes) {
+      if (node.name === name) return node.id
+      const nested = node.children && find(node.children as never)
+      if (nested) return nested
+    }
+    return undefined
+  }
+  return find(schemaNodes as never)!
+}
+
+test('pressing and dragging a grip at 264px moves no row, and the drop lands where the pointer was @deterministic', async ({ page }) => {
+  test.setTimeout(90_000)
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await resizeRail(page, 264)
+  await page.mouse.move(0, 0)
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  const rest = await rowGeometry(page)
+  expect(rest.map((row) => row.name)).toEqual(rows)
+  for (const row of rest) {
+    expect(row.actions, `264px, ${row.name}: an actions line`).not.toBeNull()
+    expect(row.actions!.visibility, `264px, ${row.name}: actions laid out at rest`).toBe('visible')
+    expect(row.actions!.inert, `264px, ${row.name}: actions not inert at rest`).toBe(false)
+  }
+
+  await dragAbove(page, 'sex', 'archaeological_context', rest)
+  const moved = ['title', 'sex', 'archaeological_context', 'findings', 'kind', 'deposit', 'layer']
+  await expect.poll(async () => (await rowGeometry(page)).map((row) => row.name), 'sex dropped above archaeological_context').toEqual(moved)
+  const after = await rowGeometry(page)
+  const at = (geometry: RowGeometry, name: string) => geometry.find((row) => row.name === name)!
+  // Every row keeps its height; the two rows swap places within the space the pair took, and every other row stays put.
+  for (const row of rest) {
+    expect(Math.abs(at(after, row.name).height - row.height), `after the drop, ${row.name}: height unchanged`).toBeLessThanOrEqual(0.5)
+    expect(at(after, row.name).actions!.visibility, `after the drop, ${row.name}: actions laid out`).toBe('visible')
+    expect(at(after, row.name).actions!.inert, `after the drop, ${row.name}: actions not inert`).toBe(false)
+  }
+  const gap = at(rest, 'sex').y - (at(rest, 'archaeological_context').y + at(rest, 'archaeological_context').height)
+  expect(Math.abs(at(after, 'sex').y - at(rest, 'archaeological_context').y), 'sex takes archaeological_context\'s place').toBeLessThanOrEqual(0.5)
+  expect(Math.abs(at(after, 'archaeological_context').y - (at(after, 'sex').y + at(after, 'sex').height + gap)),
+    'archaeological_context follows sex').toBeLessThanOrEqual(0.5)
+  expectRowsInPlace(after, rest, 'after the drop', ['title', 'findings', 'kind', 'deposit', 'layer'])
+
+  // The seed is shared with the other tests: put the field back, by the same gesture.
+  await page.mouse.move(0, 0)
+  await dragAbove(page, 'archaeological_context', 'sex', after)
+  await expect.poll(async () => (await rowGeometry(page)).map((row) => row.name), 'the original order restored').toEqual(rows)
+})

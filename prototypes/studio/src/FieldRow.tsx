@@ -16,7 +16,7 @@ export type FieldRowProps = {
   readOnly: boolean
   editDisabled: boolean
   dragging: boolean
-  /** Any field is being dragged: the actions stay hidden, so they never cover the "into" cue. */
+  /** Any field is being dragged: the actions are hidden and inert, so they never cover the "into" cue, yet keep their box. */
   dragActive?: boolean
   intoGroup: boolean
   onStartDrag: (event: React.MouseEvent) => void
@@ -49,7 +49,10 @@ const ACTIONS = 'pointer-events-none absolute right-0 top-px flex w-max min-w-[1
 /** On a row line under 240px (the 264px rail, where a 140px overlay would cover the name and reach the disclosure) the
  *  actions are no overlay: they take their own line in the pills' flow, below the pills, shown (and hit) on hover and
  *  focus within like the overlay. The line keeps its place at rest: collapsing it would move every row below whenever a
- *  row lost hover or focus, and a click there could land on another control than the one pressed. */
+ *  row lost hover or focus, and a click there could land on another control than the one pressed. It keeps its place
+ *  during a drag too: from the grip's press every row's actions are hidden (`invisible`, which keeps the box and takes no
+ *  pointer hits) and `inert` (no focus, out of the accessibility tree), never unmounted, so no row or drop slot moves
+ *  under the pointer while a field is dragged. */
 const ACTIONS_IN_FLOW = '@max-[240px]:static @max-[240px]:basis-full @max-[240px]:w-auto @max-[240px]:min-w-0 @max-[240px]:justify-start @max-[240px]:pl-0'
 /** The pills keep clear of the actions, so a pointer on any part of a pill reaches the pill. On a row line of 296px and
  *  more their line keeps the overlay's 140px clear (they wrap before it), which leaves them at least 110px. A narrower
@@ -241,8 +244,9 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
           )}
           {/* In the pills' flow: an overlay on the row line (absolute, the row line positions it), or below the pills on
               a narrow row line. */}
-          {hasActions && !dragActive && (
-            <span data-row-actions className={`${ACTIONS} ${ACTIONS_IN_FLOW}`}>
+          {hasActions && (
+            <span data-row-actions className={`${ACTIONS} ${ACTIONS_IN_FLOW}${dragActive ? ' invisible' : ''}`}
+              inert={dragActive || undefined}>
               <button type="button" className={ACTION_PLAIN} aria-label={`Edit ${node.name}`} disabled={editDisabled} onClick={onEdit}>Edit</button>
               <button type="button" className={ACTION_PLAIN} aria-label={`Add note to ${node.name}`} disabled={editDisabled} onClick={onAddNote}>Note</button>
               <button type="button" className={ACTION_DANGER} aria-label={`Delete ${node.name}`} disabled={editDisabled} onClick={onDelete}>Delete</button>
