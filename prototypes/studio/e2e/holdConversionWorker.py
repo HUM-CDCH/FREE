@@ -16,7 +16,7 @@ barrier = Path(os.environ["FREE_REAL_SERVICE_CONVERSION_HOLD"])
 convert = runner.convert
 
 
-def held_convert(execution, emit):
+def held_convert(execution, emit, **hooks):  # the worker's reuse hooks pass through
     entered = barrier / "entered"
 
     def at_native_export(event):
@@ -26,7 +26,7 @@ def held_convert(execution, emit):
             while not (barrier / "release").exists():
                 time.sleep(0.05)
 
-    return convert(execution, at_native_export)
+    return convert(execution, at_native_export, **hooks)
 
 
 runner.convert = held_convert
