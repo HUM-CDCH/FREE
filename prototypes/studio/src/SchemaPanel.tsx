@@ -27,6 +27,7 @@ import {
 import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import { Button, EmptyState, ModalDialog, SegmentedControl, Toast } from './ui'
 import FieldRow from './FieldRow'
+import ChatDrawer from './ChatDrawer'
 import { useToast } from './useToast'
 import ActionsMenu, { type ActionItem } from './ActionsMenu'
 import SchemaNameEditor from './SchemaNameEditor'
@@ -70,7 +71,7 @@ export type FieldContext = {
   resultPaths: (string | number)[][]
 }
 
-const CHAT_GREETING = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
+const CONVERSATION_EMPTY = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
 
 export type SchemaPanelProps = {
   schema: SchemaEditorController
@@ -182,9 +183,9 @@ function WorkingIndicator({ onStop }: { onStop: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-md border border-line bg-canvas px-4 py-8 text-center" aria-live="polite">
       <span aria-hidden="true" className="animate-spin-slow size-7 rounded-full border-[3px] border-line border-t-accent" />
-      <p className="text-[13px] font-semibold text-ink">Producing schema…</p>
-      <p className="max-w-[34ch] text-xs leading-snug text-ink-muted">This can take a while on large documents.</p>
-      <button className={`${genBtnCls} mt-1`} type="button" onClick={onStop}>Stop</button>
+      <p className="text-content font-semibold text-ink">Producing schema…</p>
+      <p className="max-w-[34ch] text-secondary leading-snug text-ink-muted">This can take a while on large documents.</p>
+      <Button variant="danger" size="sm" className="mt-1" onClick={onStop}>Stop</Button>
     </div>
   )
 }
@@ -388,9 +389,9 @@ function SchemaPanel({
   const [editingError, setEditingError] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
   const { toast: panelToast, showToast: showPanelToast, dismissToast: dismissPanelToast } = useToast()
-  const [chat, setChat] = useState<ChatMsg[]>([
-    { role: 'assistant', text: CHAT_GREETING },
-  ])
+  const [chat, setChat] = useState<ChatMsg[]>([])
+  /** The researcher's open or collapse; null keeps the default: open before a schema exists, collapsed after. */
+  const [drawerOpen, setDrawerOpen] = useState<boolean | null>(null)
   const appendChatMessage = useCallback(
     (message: string) =>
       setChat((current) => [...current, { role: 'assistant', text: message }]),
@@ -456,6 +457,8 @@ function SchemaPanel({
     busy: chatLoading || pending !== null,
     appendMessage: appendChatMessage,
     onReopened: (proposal) => {
+      // A reopened proposal is reviewed in the conversation, as one that has just arrived.
+      setDrawerOpen(true)
       const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
       setCollapsedIds((current) => withoutIds(current, ancestors))
     },
@@ -481,6 +484,7 @@ function SchemaPanel({
   const creatingFromHistoryRef = useRef(false)
 
   const ready = snap.view === 'editing'
+  const drawerShown = drawerOpen ?? !ready
   const dx = dragging ? dragX - dragStartXRef.current : 0
   const dy = dragging ? dragY - dragStartYRef.current : 0
   const dragMode = schemaDragMode(dx, dy)
@@ -540,7 +544,8 @@ function SchemaPanel({
       if (clearConversation) {
         setHistoryOpen(false)
         resetInstructions()
-        setChat([{ role: 'assistant', text: CHAT_GREETING }])
+        setChat([])
+        setDrawerOpen(null)
       }
     },
     [dismissPanelToast, resetInstructions, resetProposal, schema],
@@ -556,7 +561,7 @@ function SchemaPanel({
   useEffect(() => {
     const el = chatRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [chat.length, pending])
+  }, [chat.length, pending, instructions.items.length, drawerShown])
 
 
   // ── Auto-scroll helpers ──
@@ -908,6 +913,7 @@ function SchemaPanel({
   // ── Chat ──
   async function sendChatMessage(text: string) {
     if (!text.trim() || chatLoading || pending) return
+    setDrawerOpen(true)
     const userMsg = text.trim()
     setChat(c => [...c, { role: 'user', text: userMsg }])
     setChatInput('')
@@ -1016,12 +1022,16 @@ function SchemaPanel({
 
   const msgCls = (role: 'user' | 'assistant') =>
     role === 'user'
-      ? 'self-end max-w-[88%] rounded-[11px_11px_3px_11px] bg-accent px-3 py-1.5 text-xs leading-relaxed text-white'
-      : 'self-start max-w-[92%] rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-1.5 text-xs leading-relaxed text-ink'
+      ? 'self-end max-w-[88%] rounded-[11px_11px_3px_11px] bg-accent px-3 py-1.5 text-secondary leading-relaxed text-white'
+      : 'self-start max-w-[92%] rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-1.5 text-secondary leading-relaxed text-ink'
 
   const editDisabled = editorReadOnly || !!dragging
 
   const chatBlocked = !!pending || chatLoading
+  // A refused or stale Apply keeps the drawer open: its explanation, and a refused proposal's review, stay in view.
+  const applyProposal = () => { if (proposalReview.apply()) setDrawerOpen(false) }
+  const discardProposal = () => { proposalReview.discard(); setDrawerOpen(false) }
+  const dot = drawerShown ? null : runningRows.length > 0 ? { title: 'An earlier request is still running' } : chat.length > 0 || pending ? { title: 'Show conversation' } : null
 
   // Render helpers for field rows
   // ────────────────────────────────────────────────────────────────────────
@@ -1373,98 +1383,63 @@ function SchemaPanel({
         )}
       </div>
 
-      {/* Pre-generation instructions: recorded locally as the instruction
-          source for "Generate schema". Hidden once ready, where the bottom slot
-          switches to the schema edit-chat below — a different mechanism (it
-          walks proposed changes node by node) that this doesn't replace. */}
-      {!ready && (
-        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: '60%' }}>
-          <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1.5">
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
-            {snap.view === 'empty' && onGenerateInstructions && (
-              <button className={genBtnCls} type="button" onClick={() => onGenerateInstructions(instructions.text)}>
-                Generate schema{instructions.countLabel}
-              </button>
-            )}
-          </div>
-          {runningRows.length > 0 && <div className="flex flex-col gap-2 px-3.5 pt-2.5">{runningRows}</div>}
-          <SchemaInstructionsChat
-            instructions={instructions}
-            messageClass={msgCls}
-          />
-        </div>
-      )}
-
-      {/* Chat panel. Growing with conversation length is only wanted before a
-          schema exists (see the !ready panel above) — once a schema has been
-          generated, and especially while a diff is pending review, the chat
-          must stay capped low so it doesn't cover the schema/diff above it. */}
-      {ready && !editorReadOnly && (
-        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: pending ? '32%' : '45%' }}>
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3.5 py-1">
-            <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
-          </div>
-          <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
+      {/* The conversation: before a schema exists, the instructions recorded for "Generate schema"; after, the schema
+          edit chat, which proposes changes for review. One composer line at rest; sending opens the drawer. */}
+      {(!ready || !editorReadOnly) && (
+        <ChatDrawer open={drawerShown} onCollapse={() => setDrawerOpen(false)} onExpand={() => setDrawerOpen(true)}
+          title={ready ? 'Conversation' : 'Instructions for generation'} dot={dot} bodyRef={chatRef}
+          headerAction={!ready && snap.view === 'empty' && onGenerateInstructions ? (
+            <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate schema{instructions.countLabel}</Button>
+          ) : undefined}
+          bar={ready && pending ? <ProposalReviewBar proposal={pending} canApply={canApply} onApply={applyProposal} onDiscard={discardProposal} /> : undefined}
+          composer={ready ? (
+            <>
+              <input className="min-w-0 flex-1 bg-transparent font-sans text-secondary text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
+                placeholder="Describe a change to the schema…" value={chatInput} disabled={chatBlocked}
+                onChange={(event) => setChatInput(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') void sendChatMessage(chatInput) }} />
+              {chatLoading ? (
+                <button type="button" className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
+                  onClick={cancelChat} title="Stop schema edit request" aria-label="Stop schema edit request">■</button>
+              ) : (
+                <button type="button" className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
+                  aria-label="Send" disabled={!chatInput.trim() || chatBlocked} onClick={() => void sendChatMessage(chatInput)}>↑</button>
+              )}
+            </>
+          ) : (
+            <>
+              <textarea className="min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary text-ink outline-none placeholder:text-ink-faint" rows={1}
+                placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations")…'} value={instructions.draft}
+                onChange={(event) => instructions.setDraft(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); setDrawerOpen(true); instructions.send() } }} />
+              <button type="button" aria-label="Add instruction" className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
+                disabled={!instructions.draft.trim()} onClick={() => { setDrawerOpen(true); instructions.send() }}>↑</button>
+            </>
+          )}>
+          {ready ? (
             <div className="flex flex-col gap-2">
               {runningRows}
-              {chat.map((m, i) => (
-                <div key={i} className={msgCls(m.role)}>{m.text}</div>
-              ))}
+              {chat.length === 0 && runningRows.length === 0 && !chatLoading && (
+                <p className="text-secondary leading-relaxed text-ink-faint">{CONVERSATION_EMPTY}</p>
+              )}
+              {chat.map((message, index) => <div key={index} className={msgCls(message.role)}>{message.text}</div>)}
               {chatLoading && (
                 <div className="self-start rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2">
                   <span className="flex gap-1">
-                    <span className="animate-pulse text-ink-faint text-sm">•</span>
-                    <span className="animate-pulse text-ink-faint text-sm" style={{ animationDelay: '0.15s' }}>•</span>
-                    <span className="animate-pulse text-ink-faint text-sm" style={{ animationDelay: '0.3s' }}>•</span>
+                    <span className="animate-pulse text-content text-ink-faint">•</span>
+                    <span className="animate-pulse text-content text-ink-faint" style={{ animationDelay: '0.15s' }}>•</span>
+                    <span className="animate-pulse text-content text-ink-faint" style={{ animationDelay: '0.3s' }}>•</span>
                   </span>
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Apply / Discard action bar — sticky, outside scroll area */}
-          {pending && (
-            <ProposalReviewBar
-              proposal={pending}
-              canApply={canApply}
-              onApply={proposalReview.apply}
-              onDiscard={proposalReview.discard}
-            />
+          ) : (
+            <>
+              {runningRows.length > 0 && <div className="mb-2 flex flex-col gap-2">{runningRows}</div>}
+              <SchemaInstructionsChat instructions={instructions} messageClass={msgCls} />
+            </>
           )}
-
-          <div className="shrink-0 px-3.5 pb-3 pt-1.5">
-            <div className="flex items-center gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">
-              <input
-                className="min-w-0 flex-1 bg-transparent font-sans text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
-                placeholder="Describe a change to the schema…"
-                value={chatInput}
-                disabled={chatBlocked}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') void sendChatMessage(chatInput) }}
-              />
-              {chatLoading ? (
-                <button
-                  type="button"
-                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108"
-                  onClick={cancelChat}
-                  title="Stop schema edit request"
-                  aria-label="Stop schema edit request"
-                >
-                  ■
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
-                  disabled={!chatInput.trim() || chatBlocked}
-                  onClick={() => void sendChatMessage(chatInput)}
-                >
-                  ↑
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        </ChatDrawer>
       )}
 
       {panelToast && (

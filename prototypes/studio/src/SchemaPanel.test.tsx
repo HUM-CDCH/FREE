@@ -1229,6 +1229,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     listModelOperations.mockResolvedValueOnce([running])
     renderPanel({ durableScope: true })
 
+    // The running row lives in the conversation, collapsed at rest once a schema exists; the composer's mark opens it.
+    fireEvent.click(await screen.findByRole('button', { name: 'An earlier request is still running' }))
     expect(await screen.findByText('Still working on an earlier request: “Catalog entries”')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Stop earlier request “Catalog entries”' }))
 
@@ -1250,6 +1252,22 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(await screen.findByText('Still working on an earlier request: “First catalog”')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Stop earlier request “First catalog”' }))
     await waitFor(() => expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(running.workflowId))
+  })
+
+  it('a reloaded panel with a running edit marks the collapsed composer, and the mark opens the conversation', async () => {
+    const running: ModelOperation = {
+      kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f4', operationId: '51000000-0000-4000-8009-0000000000f4',
+      status: 'RUNNING', instruction: 'Rename title to heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
+      baseSchemaRevisionId: modelContext.schemaRevisionId, response: null,
+    }
+    listModelOperations.mockResolvedValueOnce([running])
+    renderPanel({ durableScope: true })
+
+    const mark = await screen.findByRole('button', { name: 'An earlier request is still running' })
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+    fireEvent.click(mark)
+    const drawer = screen.getByRole('region', { name: 'Conversation' })
+    expect(within(drawer).getByText('Still working on an earlier request: “Rename title to heading”')).toBeInTheDocument()
   })
 
   it("a restored proposal reopens the review bar and replays onto the base revision's nodes", async () => {
@@ -1879,5 +1897,58 @@ describe('field rows (redesign §6)', () => {
     const values = within(row).getByText('3 values')
     expect(values).toHaveAttribute('title', 'Allowed values: woman, man, other')
     expect(values.closest('button')).toBeNull()
+  })
+})
+
+describe('chat composer and drawer (redesign §7)', () => {
+  const proposalResponse: SchemaEditResponse = {
+    status: 'proposed',
+    fields: {
+      title: { name: 'heading', type: 'string', removed: false },
+      gender: { name: 'gender', type: 'string', removed: false },
+    },
+    additions: [],
+    issues: [],
+  }
+
+  it('is one composer line at rest, with no greeting, and expands on send', async () => {
+    renderPanel({ durableScope: true })
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Edit through drag and drop/)).not.toBeInTheDocument()
+    requestSchemaEdit.mockResolvedValueOnce(proposalResponse)
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Rename title to heading' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByRole('region', { name: 'Conversation' })).toBeInTheDocument()
+    expect(screen.getByText('Rename title to heading')).toBeInTheDocument()
+    await screen.findByRole('button', { name: 'Apply changes' })
+  })
+
+  it('a pending proposal keeps the drawer open; the chevron hides it without discarding and the dot brings it back', async () => {
+    renderPanel({ durableScope: true })
+    requestSchemaEdit.mockResolvedValueOnce(proposalResponse)
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Rename title to heading' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByRole('button', { name: 'Apply changes' })
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show conversation' }))
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+  })
+
+  it('before a schema exists the instructions conversation is open with Generate schema in its header', () => {
+    const onGenerateInstructions = vi.fn()
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions })
+    const drawer = screen.getByRole('region', { name: 'Conversation' })
+    expect(within(drawer).getByRole('button', { name: /^Generate schema/ })).toBeInTheDocument()
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(within(drawer).getByText('Focus on dates')).toBeInTheDocument()
+    fireEvent.click(within(drawer).getByRole('button', { name: /^Generate schema/ }))
+    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
   })
 })
