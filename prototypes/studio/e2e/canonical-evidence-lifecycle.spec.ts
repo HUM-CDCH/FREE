@@ -968,11 +968,26 @@ test('import → whole source → review → collection review @deterministic', 
   expect((imported.schemaTree as { schemaNodes: Array<{ id: string }> }).schemaNodes.map((node) => node.id)).toEqual(preview.columns.map((column) => column.id))
   await page.getByRole('button', { name: '▶ Run extraction', exact: true }).click()
   await page.getByRole('button', { name: 'Review now', exact: true }).click()
+  // The Results badge counts what is left to check and empties once the review is saved (§4).
+  await expect(page.getByRole('tab', { name: /^Results \d+ to check$/ })).toBeVisible({ timeout: 20_000 })
   // The whole-document run waits on its required decisions; the review saves itself once they are all made.
   const approveRemaining = page.getByRole('button', { name: /^Approve remaining \(\d+\)$/ })
   await expect(approveRemaining).toBeEnabled({ timeout: 20_000 })
   await approveRemaining.click()
   await expect(page.getByText('Review saved', { exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('tab', { name: 'Results', exact: true })).toBeVisible()
+  // One click deletes a field; Undo puts it back (§6).
+  await page.getByRole('tab', { name: /^Schema/ }).click()
+  const titleRow = page.getByRole('listitem', { name: 'title' })
+  await titleRow.hover()
+  await titleRow.getByRole('button', { name: 'Delete title' }).click()
+  await expect(page.getByRole('listitem', { name: 'title' })).toHaveCount(0)
+  await expect(page.getByRole('status').filter({ hasText: 'Field removed' })).toBeVisible()
+  // The delete saves after the debounce; an Undo inside it would leave the saved tree unchanged and save nothing.
+  await expect.poll(async () => (await db.orm.public.SchemaRevision.where({ extractionSchemaId }).select('id').all()).length).toBe(3)
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByRole('listitem', { name: 'title' })).toBeVisible()
+  await expect.poll(async () => (await db.orm.public.SchemaRevision.where({ extractionSchemaId }).select('id').all()).length).toBe(4)
   await page.goto(e2eStudioPath(`/projects/${projectContextId}/extractions`))
   await page.getByRole('button', { name: 'New Batch Extraction' }).click()
   await page.getByRole('button', { name: 'Run 1 Source Document', exact: true }).click()
