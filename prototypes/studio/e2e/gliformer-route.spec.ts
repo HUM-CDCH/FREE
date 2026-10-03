@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -37,7 +37,7 @@ test('native GLiFormer survives the authenticated durable Catalog route without 
     const pdf = suppliedPdf ? await readFile(suppliedPdf) : textPdf([
       ['Numbered grave catalogue', '200. Male with goatskin.'],
       ['204. Adult male without objects. Covered with twigs and matting.', '10031. Adult male with skins.'],
-      ['Summary: grave 204 had matting. This is a narrative summary, not a catalogue entry.'],
+      ['57. Multiple burials. This section summarizes graves 200, 204 and 10031.'],
     ])
     const ingestion = await settle(page, project, await admit(page, project, pdf, 'gliformer-verification.pdf'), 90 * 60_000)
     expect(ingestion, JSON.stringify(ingestion)).toMatchObject({ status: 'succeeded' })
@@ -47,7 +47,7 @@ test('native GLiFormer survives the authenticated durable Catalog route without 
     const canonical = await (await page.request.get(reopened.sourceRepresentation.resources.parsedDocumentUrl)).json()
     await save('canonical.json', canonical)
     const schema = {
-      recordDescription: 'One numbered grave catalogue entry. Only extract the numbered catalogue entries; exclude narrative summaries and later references to graves. Leather includes skins, hides and fur.',
+      recordDescription: 'One catalogue entry for one grave, headed by that grave identifier and describing its contents or burials. The number identifies the grave, not a chapter or numbered section. Exclude narrative discussion, summaries, tables, section headings and numbered paragraphs about groups of graves, even when they contain grave numbers. These are non-record text. Leather includes skins, hides and fur.',
       recordScope: 'records',
       schemaNodes: [
         { id: 'grave', name: 'grave_id', type: 'string' },
@@ -90,7 +90,16 @@ test('native GLiFormer survives the authenticated durable Catalog route without 
     expect(artifact.calls.filter((call: { stage: string }) => call.stage === 'entry').length).toBe(windows.length)
     if (!suppliedPdf) {
       expect(windows).toHaveLength(3)
-      expect(windows.map((window: { input_text: string }) => window.input_text).join('\n')).not.toContain('Summary:')
+      expect(windows.map((window: { input_text: string }) => window.input_text).join('\n')).not.toContain('Multiple burials')
+    }
+    // This known development PDF has catalogue entries through physical page six; page seven is discussion.
+    // Assertions check the model's boundaries, never filter or repair them.
+    if (createHash('sha256').update(pdf).digest('hex') === '37321a719f736c7ecc5f6d52a1f1dbfbcb5296361c9a191906a513276caead78') {
+      const inputs = windows.map((window: { input_text: string }) => window.input_text)
+      expect(inputs.some((input: string) => /^10,031\./.test(input))).toBe(true)
+      expect(windows.some((window: { ranges: { segment: string }[] }) =>
+        window.ranges.some(range => range.segment.startsWith('p7_')))).toBe(false)
+      expect(inputs.some((input: string) => /^5[678]\./.test(input))).toBe(false)
     }
     await page.goto(`/projects/${project}/documents/${ingestion.sourceDocumentId}`)
     await page.getByRole('tab', { name: /Results/ }).click()
