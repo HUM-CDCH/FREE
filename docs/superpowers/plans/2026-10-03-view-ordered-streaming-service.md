@@ -4,7 +4,7 @@
 
 **Goal:** Make kei read the records nearest the page the researcher is looking at first, publish each entry's candidates and finished work as it happens, serve that progress over a read route, and have Studio's API return it as a `partial` view of a running Extraction — so the client plan (Part B) can show values as they exist.
 
-**Architecture:** Everything stays inside existing step bodies and read paths (no workflow step changes, nothing behind `DBOS.patch()`). kei gains `Options.start_page`, excluded from `dumped()` so the artifact and its fingerprint are unchanged; the unified Catalog submits entries to its pool in distance order and assembles in source order; Article calls bounded value contexts in the same order. kei writes stage files beside the write-once records it already publishes (a reading marker and a candidates file per entry, a context file and a grounding file for Article, one header naming the strategy and start page), and `GET /api/runs/{run}/extractions/{id}/progress` reads them, with the artifact's own link code for finished entries. Studio stores `startPage` on the Extraction row (one migration, not part of the admission identity), hands it to kei inside the existing `submitToKei` request, and `read()` of a RUNNING attempt asks kei for progress under a two-second timeout, converting it with `partialFromProgress`; anything slow, missing or malformed is `partial: null`.
+**Architecture:** Everything stays inside existing step bodies and read paths (no workflow step changes, nothing behind `DBOS.patch()`). kei gains `Options.start_page`, excluded from `dumped()` so the artifact and its fingerprint are unchanged; the unified Catalog submits entries to its pool in distance order and assembles in source order; Article calls bounded value contexts in the same order. kei writes stage files beside the write-once records it already publishes (a header naming the strategy, start page and this execution's token; a reading marker and a candidates file per entry; for Article a context file carrying the root assembled so far and a grounding file per batch), and `GET /api/runs/{run}/extractions/{id}/progress` reads them, validating each file and skipping what is unreadable, stale or malformed, with the artifact's own link code for finished entries. Studio stores `startPage` on the Extraction row (one migration, not part of the admission identity), hands it to kei inside the existing `submitToKei` request, and `read()` of a RUNNING attempt asks kei for progress under a two-second timeout, converting and validating it inside one best-effort boundary; anything slow, missing or malformed is `partial: null`.
 
 **Tech Stack:** Python 3.13 (pydantic 2, FastAPI, pytest), TypeScript (zod 4, node:test, Vitest), prisma-next migrations, DBOS 5 (unchanged), kei stand-in (`packages/extraction/src/testing`).
 
@@ -17,7 +17,7 @@
 - Python tests run against the main checkout's venv with this worktree's sources first on the path. **"pytest" in this plan means**, run from `prototypes/parsing_service`: `/home/gennaro/projects/FREE/prototypes/parsing_service/.venv/bin/python -m pytest -q` (that venv holds an editable install of the main checkout; Task 1 adds `pythonpath = ["src"]` to the pytest options, so the worktree's `src` wins; until that lands, add `-o pythonpath=src`). Never `uv sync`, never a second venv, no environment-variable prefixes (a harness may refuse them). The fast tier is `-m "not postgres and not live_model"`; every test this plan adds is in the fast tier (file reads, scripted chats, no database).
 - No change to a workflow's step sequence: `runExtraction` keeps `loadAdmitted, submitToKei, pollKei…, publishResult|publishFailure`; kei's `extract` keeps its one `extract_run` step. Nothing goes behind `DBOS.patch()` (`prototypes/studio/CLAUDE.md`, `prototypes/parsing_service/CLAUDE.md`).
 - The artifact identity and fingerprint do not change: `start_page` is excluded from `Options.dumped()` exactly as `pages` was; the execution, discovery and entry records keep their identities, so a retry from another page reuses them.
-- Stage files are a view: write-by-rename, never read by `unified.read` or `_entry_reusable`, never an input to the artifact; a missing or unreadable one is skipped by the reader.
+- Stage files are a view: written by rename, marked with their execution's token, never read by `unified.read` or `_entry_reusable`, never an input to the artifact; a write that fails is logged and dropped, never an extraction failure; a file that is missing, unreadable, malformed or from another execution is skipped by the reader.
 - kei accepts `start_page` before Studio sends it: `Options` has `extra="forbid"`, so this plan is one pull request deployed as one unit, and its kei tasks come first in the branch.
 - Contract fixtures under `prototypes/parsing_service/tests/fixtures/contracts/` pin both sides: a change is made once and both test suites read it (`extract.input.json` gains `start_page`; `extract.progress.json` is new).
 - Every commit: the touched Python tests pass under the pytest command above; `pnpm -r typecheck`, `pnpm --filter studio lint`, and the touched Node test files pass. Commit messages end with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`; `git add` scoped paths only.
@@ -28,34 +28,37 @@
 
 1. **kei's extraction id is the Studio extraction id.** §5 says "the extraction id from `keiExtractWorkflowId(extractionId)`"; kei's `extraction_id_of` strips the `kei-extract:` prefix, and `publishResult` already reads the artifact with the plain id. The progress route takes the same plain id.
 2. **A `reading` stage and a reading marker file.** §1's table needs `reading` ("the values call for this record is in flight"); §3's enum has no stage for it, and no file in §2 lets the reader tell an entry in flight from one waiting (with `KEI_CATALOG_CHUNKS` entries in flight at once, the next unfinished entry is not the one being read). kei writes `catalog-entry-<n>.reading.v1.json` before an entry's first values window; the route's `stage` gains `"reading"`.
-3. **One header stage file, `extraction-progress.json`,** carries the strategy and `start_page`. §3 returns `started_at_page`, but the execution and discovery records are identity-bound (a retry from another page must reuse them), so neither may hold the page.
-4. **A finished entry's `record` is the entry's own conformed fields** (`work.record`), without the document-level and filename fields `merge` adds. §3 says "what `_artifact` would assemble for that entry alone (`merge` and `_link`)": the route has no schema to merge with, and the document fields are read only after every entry, so they cannot appear earlier. The evidence links are `_link`'s, through `unified.entry_links`.
-5. **`preprocessId` joins the attempt snapshots** (`pinsOf`), so `read()` can name the kei run; it never reaches the DTO or the wire.
-6. **`partialFromProgress` lives in `packages/extraction/src/partial-result.ts`** (the spec's Files section) rather than in `kei-artifact.ts` (§5), importing the link code `kei-artifact.ts` now exports.
-7. **The route loads the run's passages with a per-process cache** keyed by the result manifest's mtime, so a two-second poll does not re-verify every page file; the route stays a plain `def` like its siblings, so FastAPI's threadpool waits, not the event loop. A result that cannot be loaded gives finished entries an empty `evidence` list.
-8. **The Article grounding hook is a keyword on `grounding.verify` and its four wrappers** (`semantic`, `quoted`, `spans`, `off`), threaded from `ground_records` through `verify_routed`'s `**verification`: `on_batch(links)` after each batch's reply. §2 says "after each grounding batch (the links it made)"; the batches live inside `verify`.
-9. **`partial` is optional-nullable on the read response** (`partialResultSchema.nullable().optional()`), as `reviewDraft` already is: the server always sets it (null unless RUNNING), and the dozens of mocked read responses in the client tests stay valid. Part B reads `response.partial ?? null`.
-10. **A candidates-stage entry's unanswered fields are `empty`, not `reading`:** its values call has returned. `reading` is for the whole entry (Ruling 2) and, in Article, for fields no answered context named while contexts remain.
+3. **One header stage file, `extraction-progress.json`,** carries the strategy, `start_page` and an execution token. §3 returns `started_at_page`, but the execution and discovery records are identity-bound (a retry from another page must reuse them), so neither may hold the page.
+4. **Stage files belong to one execution.** A retried `extract_run` (a transient failure after some stages) runs the implementation again in the same directory; its stage files would otherwise mix with the previous attempt's (an Article grounding file from yesterday's values beside today's root). Every stage file carries the header's execution token, the header is rewritten first, and the reader skips files of another execution. §2's "write-once" for the Article files is read as "never read by a resume path": they are rewritten per execution.
+5. **A finished entry's `record` is the entry's own conformed fields** (`work.record`), without the document-level and filename fields `merge` adds. §3 says "what `_artifact` would assemble for that entry alone (`merge` and `_link`)": the route has no schema to merge with, and the document fields are read only after every entry, so they cannot appear earlier. The evidence links are `_link`'s, through `unified.entry_links`; an unresolved arbitration (`work.contest`) travels as `contested`, so the view shows Contested where the settled result will.
+6. **Article's progress root is assembled by kei, not by the reader.** §3's `document: { contexts, links }` says nothing about how the contexts' answers combine; the artifact combines them with `assemble_document` (lists kept, objects merged, disagreeing scalars null with a conflict) and `conform`, both of which need the schema and the contexts' passages the reader does not have. After each value context kei writes the root assembled so far from the contexts answered so far, with its conflicts; the reader takes the latest.
+7. **Nulls are `empty` only when the call that could have answered them succeeded.** A values window that failed (`work.failed`) or a context whose call failed leaves its fields unknown, not empty: the candidates file carries `failed`, the context file `ok`, and such nulls stay `reading` until the attempt settles. §1: "`empty`: nothing found" requires a call that found nothing.
+8. **`preprocessId` joins the attempt snapshots** (`pinsOf`), so `read()` can name the kei run; it never reaches the DTO or the wire.
+9. **`partialFromProgress` lives in `packages/extraction/src/partial-result.ts`** (the spec's Files section) rather than in `kei-artifact.ts` (§5), importing the link code `kei-artifact.ts` now exports; the API validates its output against the wire schema inside the same best-effort boundary that catches kei's failures (§5: "a 404, a timeout or an error yields `null` and never fails the read").
+10. **The route loads the run's passages with a per-process cache** keyed by the result manifest's mtime, so a two-second poll does not re-verify every page file; the route stays a plain `def` like its siblings, so FastAPI's threadpool waits, not the event loop. A result that cannot be loaded gives finished entries an empty `evidence` list.
+11. **The Article grounding hook is a keyword on `grounding.verify` and its four wrappers** (`semantic`, `quoted`, `spans`, `off`), threaded from `ground_records` through `verify_routed`'s `**verification`: `on_batch(links)` after each batch's reply. §2 says "after each grounding batch (the links it made)"; the batches live inside `verify`.
+12. **`partial` is optional-nullable on the read response** (`partialResultSchema.nullable().optional()`), as `reviewDraft` already is: the server always sets it (null unless RUNNING), and the dozens of mocked read responses in the client tests stay valid. Part B reads `response.partial ?? null`.
+13. **Records are read by distance from the start page** (§4: "sorted by distance of their page from `start_page` (ties in source order)"); §1's shorter wording ("those on the start page first, then the rest in source order") is read as that rule. A start page beyond the document orders the work from the document's end.
 
 ## Review Focus
 
 1. **kei's progress route answers slowly or not at all** (a model call holds the API's threadpool, kei restarting): `read()` returns `partial: null` within the two-second timeout and the attempt as before — Task 6 (the client's timeout) and Task 7 (the read's catch).
 2. **A `loadAdmitted` checkpoint written before the column existed** replays `submitToKei` with the request it checkpointed: no `start_page` in the options, the step sequence unchanged — Task 5.
-3. **`startPage` of `0`, `1.5`, `"6"` or beyond the document:** the first three are refused with 422 before admission; a page beyond the document is admitted and only orders kei's work — Task 7 (422) and Task 1 (kei accepts any one-based page).
-4. **A progress document outside the contract** (a kei newer or older than Studio): `partialFromProgress` returns null and the read still answers 200 — Tasks 6 and 7.
-5. **An entry whose candidates file and finished file both exist** (the finished file landed between two reads, or a retry rewrote the candidates): the reader looks for the finished file first, so a stage never regresses — Task 4.
+3. **`startPage` of `0`, `1.5`, `"6"` or beyond the document:** the first three are refused with 422 before admission (and by kei, strictly); a page beyond the document is admitted and only orders kei's work — Task 7 (422) and Task 1.
+4. **A progress document or stage file outside the contract** (a kei newer or older than Studio, a half-written or empty file): the reader skips the file, `partialFromProgress` returns null, the read still answers 200 — Tasks 4, 6 and 7.
+5. **A retried step leaves the previous attempt's stage files behind:** the reader shows only this execution's, so an old grounding link never vouches for a new value — Tasks 3 and 4.
 
 ---
 
 ## File structure
 
-New, Parsing Service: `src/kei_exp/kie/extract/progress.py` (stage file names, the writer, the header, the reader and `ProgressDocument`), `tests/test_extract_progress.py`, `tests/fixtures/contracts/extract.progress.json`.
+New, Parsing Service: `src/kei_exp/kie/extract/progress.py` (stage file names, the writer, the header, the stage models, the reader and `ProgressDocument`), `tests/test_extract_progress.py`, `tests/fixtures/contracts/extract.progress.json`.
 
-Edited, Parsing Service: `src/kei_exp/kie/extract/run.py` (`Options.start_page`, `dumped()`, `dispatch` hands `extraction_id` to Article), `kie/extract/unified.py` (work order, stage files, `entry_links`), `kie/extract/article.py` (`extraction_id`, `context_order`, `on_context`, stage files), `kie/extract/assembly.py` (`ground_records` `on_batch`), `kie/extract/grounding.py` (`verify` and wrappers `on_batch`), `api.py` (the route), `README.md`; tests `test_unified_catalog.py`, `test_contracts.py`, `test_api_reads.py`; fixture `extract.input.json`.
+Edited, Parsing Service: `pyproject.toml` (pytest `pythonpath`), `src/kei_exp/kie/extract/run.py` (`Options.start_page`, `dumped()`, `dispatch` hands `extraction_id` to Article), `kie/extract/unified.py` (work order, stage files, `entry_links`), `kie/extract/article.py` (`extraction_id`, `context_order`, `on_context` with the running assembly, stage files), `kie/extract/assembly.py` (`ground_records` `on_batch`), `kie/extract/grounding.py` (`verify` and wrappers `on_batch`), `api.py` (the route), `README.md`; tests `test_unified_catalog.py`, `test_contracts.py`, `test_api_reads.py`; fixture `extract.input.json`.
 
 New, Node: `packages/extraction/src/partial-result.ts`, `packages/extraction/src/partial-result.test.ts`, `packages/db/migrations/app/<timestamp>_start_page/` (generated), `packages/db/src/start-page-migration.test.ts`.
 
-Edited, Node: `packages/db/src/prisma/contract.prisma`, `packages/db/migrations/app/refs/db.json`; `packages/extraction/src/types.ts`, `workflows.ts`, `kei-handoff.ts` (nothing: `keiExtractInputSchema.options` is already a record), `kei-artifact.ts`, `kei-exp.ts`, `postgres-admission.ts`, `postgres-attempts.ts`, `postgres-workflow-store.ts`, `index.ts`, `package.json`, `testing/kei-stand-in.ts`, `testing/extraction-fixture.ts`; tests `workflows.test.ts`, `kei-artifact.test.ts`, `module.test.ts`, `postgres-admission.integration.test.ts`, `kei-contract.integration.test.ts`; Studio `api/extractions.ts`, `shared/extraction.contract.ts`; tests `api/extractions.test.ts`, `api/_extractions.test.ts`, `api/document_reopen.test.ts`.
+Edited, Node: `packages/db/src/prisma/contract.prisma`, `packages/db/migrations/app/refs/db.json`, `packages/db/src/schema-revision-record-scope-migration.test.ts`; `packages/extraction/src/types.ts`, `workflows.ts`, `kei-artifact.ts`, `kei-exp.ts`, `postgres-admission.ts`, `postgres-attempts.ts`, `postgres-workflow-store.ts`, `index.ts`, `package.json`, `testing/kei-stand-in.ts`, `testing/extraction-fixture.ts`; tests `workflows.test.ts`, `kei-artifact.test.ts`, `module.test.ts`, `postgres-admission.integration.test.ts`, `kei-contract.integration.test.ts`; Studio `api/extractions.ts`, `shared/extraction.contract.ts`; tests `api/extractions.test.ts`, `api/_extractions.test.ts`, `api/document_reopen.test.ts`. (`kei-handoff.ts` is untouched: `keiExtractInputSchema.options` is already a record.)
 
 ---
 
@@ -67,22 +70,21 @@ Edited, Node: `packages/db/src/prisma/contract.prisma`, `packages/db/migrations/
 - Test: `prototypes/parsing_service/tests/test_unified_catalog.py` (beside `test_unified_options_refuse_legacy_limits_and_record_no_character_limits`, 838), `prototypes/parsing_service/tests/test_contracts.py:34-41`
 
 **Interfaces:**
-- Produces: `Options.start_page: int | None` (one-based, `ge=1`), absent from `Options.dumped()`; `article.extract(..., extraction_id=...)` is called by `dispatch` with the extraction id (the keyword exists after Task 3; this task adds the call site together with a no-op keyword so the tree stays green).
+- Produces: `Options.start_page: int | None` (one-based, strict integer, `ge=1`), absent from `Options.dumped()`; `article.extract(..., extraction_id=...)` is called by `dispatch` with the extraction id (the keyword exists after Task 3; this task adds the call site together with a no-op keyword so the tree stays green).
 
 - [ ] **Step 1: Write the failing tests.** In `tests/test_unified_catalog.py`, after `test_unified_options_refuse_legacy_limits_and_record_no_character_limits`:
 
 ```python
-def test_a_start_page_is_a_one_based_page_that_the_artifact_never_records():
+def test_a_start_page_is_a_strict_one_based_integer_that_the_artifact_never_records():
     """The start page orders the work (design §4); the artifact and its fingerprint are those of the request without it."""
     with_page = run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 1}, "start_page": 6})
     assert with_page.start_page == 6
     assert "start_page" not in with_page.dumped()
     assert with_page.dumped() == run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 1}}).dumped()
-    assert run.Options.model_validate({"strategy": "article", "start_page": 400}).start_page == 400  # beyond the document: an order, never a scope
-    with pytest.raises(ValidationError):
-        run.Options.model_validate({"strategy": "article", "start_page": 0})
-    with pytest.raises(ValidationError):
-        run.Options.model_validate({"strategy": "article", "start_page": "6"})
+    assert run.Options.model_validate({"strategy": "article", "start_page": 400}).start_page == 400  # beyond the document: an order from its end
+    for refused in (0, -1, "6", 6.0, True):  # strict, as UnifiedOptions is: a page is an integer, never coerced
+        with pytest.raises(ValidationError):
+            run.Options.model_validate({"strategy": "article", "start_page": refused})
 ```
 
 Add `from pydantic import ValidationError` to the module's imports. In `tests/test_contracts.py`, extend `test_the_extract_fixture_carries_a_request_kei_accepts` with two lines before its last assertion:
@@ -109,9 +111,9 @@ Confirm from `prototypes/parsing_service`: `/home/gennaro/projects/FREE/prototyp
 ```python
     # The page the researcher was reading when the run started, one-based: the order the unified Catalog reads its
     # entries and Article its bounded value contexts in (nearest first), never which of them are read. Excluded from
-    # `dumped()`, so the artifact and its fingerprint are those of the same request without it (design §4); a page
-    # beyond the document is accepted and orders nothing differently.
-    start_page: int | None = Field(default=None, ge=1)
+    # `dumped()`, so the artifact and its fingerprint are those of the same request without it (design §4). Strict,
+    # as UnifiedOptions is: "6" is no page. A page beyond the document orders the work from the document's end.
+    start_page: int | None = Field(default=None, ge=1, strict=True)
 ```
 
 In `dumped()` (70-78), the first statement becomes:
@@ -150,7 +152,8 @@ and in `article.py:55-57` the signature gains `extraction_id: str | None = None`
 - Test: `prototypes/parsing_service/tests/test_unified_catalog.py` (`request`/`extract` helpers 130-142; the globs at 966, 1042, 1048; new tests after `test_an_entry_with_a_failed_call_or_undecided_verdict_is_never_published_so_a_retry_asks_again`)
 
 **Interfaces:**
-- Produces: `progress.PROGRESS_NAME = "extraction-progress.json"`, `progress.reading_name(n)`, `progress.candidates_name(n)`, `progress.context_name(k)`, `progress.grounding_name(b)`, `progress.write_stage(path, record)`, `progress.started(directory, strategy, start_page)`, `progress.CANDIDATES_VERSION = 1`, `progress.ARTICLE_STAGE_VERSION = 1`, `progress.PROGRESS_VERSION = 1`; `unified.work_order(entries, pages, start_page) -> list[int]`; `unified.entry_links(record, passages) -> list[dict]`; `_Run.entry(number, entry, on_candidates=None)`.
+- Produces: `progress.PROGRESS_NAME = "extraction-progress.json"`, `progress.reading_name(n)`, `progress.candidates_name(n)`, `progress.context_name(k)`, `progress.grounding_name(b)`, `progress.write_stage(path, record) -> None` (never raises for a write failure), `progress.started(directory, strategy, start_page) -> str` (the execution token), `progress.CANDIDATES_VERSION = 1`, `progress.ARTICLE_STAGE_VERSION = 1`, `progress.PROGRESS_VERSION = 1`; `unified.work_order(entries, pages, start_page) -> list[int]`; `unified.entry_links(record, passages) -> list[dict]`; `_Run.entry(number, entry, on_candidates: Callable[[_Work], None] | None = None)`.
+- The reading marker: `{"version": 1, "execution", "index"}`. The candidates file: `{"version": 1, "execution", "index", "discovery_sha256", "ranges", "candidates": [{"path", "value", "quote", "window"}], "record", "failed"}` where `record` is `conform(_placed(found, "candidate"), nodes)` and `failed` the entry's failed values windows so far.
 - Consumes: `Options.start_page` (Task 1).
 
 - [ ] **Step 1: Write the failing tests.** In `tests/test_unified_catalog.py`, the helpers at 130-142 become:
@@ -215,18 +218,48 @@ def test_each_entry_publishes_a_reading_marker_and_its_candidates_before_verific
         extract(source, failing_verification, run_dir=tmp_path, extraction_id="x1", start_page=1)
     assert seen == {"reading": True, "candidates": True}
     header = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
-    assert header == {"version": 1, "strategy": "catalog", "start_page": 1}
+    assert {key: header[key] for key in ("version", "strategy", "start_page")} == {"version": 1, "strategy": "catalog", "start_page": 1}
     written = json.loads((directory / progress.candidates_name(1)).read_bytes())
-    assert (written["version"], written["index"], written["ranges"]) == (1, 1, json.loads(
-        (directory / "catalog-discovery.json").read_bytes())["entries"][1]["ranges"])
+    assert (written["version"], written["execution"], written["index"], written["failed"]) == (1, header["execution"], 1, 0)
+    assert written["ranges"] == json.loads((directory / "catalog-discovery.json").read_bytes())["entries"][1]["ranges"]
     assert {tuple(row["path"]) for row in written["candidates"]} == {("label",), ("site",), ("material",)}
-    assert written["record"]["material"] == "Stein" and written["record"].get("gilded") is None
+    assert written["record"]["material"] == "Stein" and written["record"]["gilded"] is None  # conform fills every field
+    assert json.loads((directory / progress.reading_name(1)).read_bytes()) == {"version": 1, "execution": header["execution"], "index": 1}
     assert entry_records(directory) == [entry_file(0)]  # entry 1 is not a record
     again, chat = extract(source, run_dir=tmp_path, extraction_id="x1")
     assert any("Bdorf" in section(call["user"], "RECORD") for call in chat.calls)  # asked again, the stage files ignored
     assert not any("Adorf" in section(call["user"], "RECORD") for call in chat.calls)
     assert again["records"][1]["material"] == "Stein" and entry_records(directory) == [entry_file(0), entry_file(1)]
-    assert json.loads((directory / progress.PROGRESS_NAME).read_bytes())["start_page"] is None  # the retry's own header
+    retried = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
+    assert retried["start_page"] is None and retried["execution"] != header["execution"]  # the retry's own header
+
+
+def test_a_failed_values_window_is_counted_in_the_candidates_file(tmp_path):
+    source = evidence("1. Adorf. Material: Holz.")
+    model = Model(source)
+
+    def refusing(system, user, schema):
+        if system.startswith("You extract structured data"):
+            raise server_error(500)  # the window fails and is halved; a one-unit window fails alone
+        return model(system, user, schema)
+    extract(source, refusing, run_dir=tmp_path, extraction_id="x1")
+    written = json.loads((tmp_path / "extractions" / "x1" / progress.candidates_name(0)).read_bytes())
+    assert written["failed"] >= 1 and written["candidates"] == [] and written["record"]["material"] is None
+
+
+def test_a_stage_file_that_cannot_be_written_never_fails_the_extraction(tmp_path, monkeypatch):
+    source = evidence("1. Adorf. Material: Holz.")
+
+    @contextmanager
+    def full_disk(target):
+        raise OSError(28, "No space left on device", str(target))
+        yield  # pragma: no cover
+    monkeypatch.setattr(progress, "publish", full_disk)
+    result, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
+    assert result["records"][0]["material"] == "Holz" and result["complete"] is True
+    directory = tmp_path / "extractions" / "x1"
+    assert not (directory / progress.PROGRESS_NAME).exists() and not (directory / progress.candidates_name(0)).exists()
+    assert entry_records(directory) == [entry_file(0)]  # the write-once records are not stage files
 
 
 def test_entry_links_are_the_artifacts_links_for_that_entry(tmp_path):
@@ -237,9 +270,9 @@ def test_entry_links_are_the_artifacts_links_for_that_entry(tmp_path):
     assert unified.entry_links(published, passages) == [link for link in result["evidence"] if link["path"][1] == 1]
 ```
 
-Add `from kei_exp.kie.extract import discovery, progress, run, unified` to the imports (replacing the existing `discovery, run, unified` line).
+Add `from contextlib import contextmanager` and `from kei_exp.kie.extract import discovery, progress, run, unified` (replacing the existing `discovery, run, unified` line) to the imports; `server_error` exists in the module (791).
 
-- [ ] **Step 2: Run them to verify they fail** — `pytest tests/test_unified_catalog.py -k "start_page or reading_marker or entry_links or published_once or never_published or persistent_server"` → FAIL (`progress` has no attribute; `work_order` missing).
+- [ ] **Step 2: Run them to verify they fail** — `pytest tests/test_unified_catalog.py -k "start_page or reading_marker or failed_values_window or cannot_be_written or entry_links or published_once or never_published or persistent_server"` → FAIL (`progress` has no attribute; `work_order` missing).
 
 - [ ] **Step 3: `kie/extract/progress.py`** (the leaf module: nothing here imports `unified` or `article` at load, since both import these names):
 
@@ -247,18 +280,22 @@ Add `from kei_exp.kie.extract import discovery, progress, run, unified` to the i
 """What a running extraction publishes for Studio's partial view, and (Task 4) the reader behind
 `GET /api/runs/{run}/extractions/{id}/progress` (design, *What kei publishes during a run*, *kei's progress route*).
 
-Stage files are best effort for the view only: written by atomic rename (a retried stage rewrites its file), never read
-by a resume path (`unified.read` and `_entry_reusable` know only `entry_name`), and removed with the extraction
-directory by garbage collection. Under `runs/<run>/extractions/<extraction>/`:
+Stage files are best effort for the view only: written by atomic rename, a write that fails logged and dropped, never
+read by a resume path (`unified.read` and `_entry_reusable` know only `entry_name`), and removed with the extraction
+directory by garbage collection. Every file carries the token of the execution that wrote it: the header is written
+first by each execution of the step, and the reader skips files of another execution, so a retry's view never mixes
+with the previous attempt's. Under `runs/<run>/extractions/<extraction>/`:
 
-  extraction-progress.json                the strategy and the start page, written before the first model call
+  extraction-progress.json                the strategy, the start page and this execution's token, written first
   catalog-entry-<n>.reading.v1.json       the entry's values windows are in flight
   catalog-entry-<n>.candidates.v1.json    the values call returned these candidates; verification runs
-  article-context-<k>.v1.json             one value context's answered fields (`of` contexts in all)
+  article-context-<k>.v1.json             one value context's answered fields and the root assembled so far
   article-grounding-<b>.v1.json           the links one grounding batch made
 """
 from __future__ import annotations
 
+import logging
+import secrets
 from pathlib import Path
 
 from kei_exp.canonical import canonical_json
@@ -268,6 +305,7 @@ PROGRESS_VERSION = 1       # the header's layout
 CANDIDATES_VERSION = 1     # the reading marker's and the candidates file's layout
 ARTICLE_STAGE_VERSION = 1  # the context and grounding files' layout
 PROGRESS_NAME = "extraction-progress.json"
+_LOG = logging.getLogger(__name__)
 
 
 def reading_name(number: int) -> str:
@@ -288,15 +326,23 @@ def grounding_name(batch: int) -> str:
 
 
 def write_stage(path: Path, record: dict) -> None:
-    """`record` at `path`, renamed into place: a reader finds the previous file or the whole new one, never a part."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with publish(path) as part:
-        part.write_bytes(canonical_json(record))
+    """`record` at `path`, renamed into place: a reader finds the previous file or the whole new one, never a part.
+    Best effort: a write that fails (a full disk, a permission) is logged and dropped; the extraction never fails for
+    its view (design, Error handling)."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with publish(path) as part:
+            part.write_bytes(canonical_json(record))
+    except OSError as error:
+        _LOG.warning("progress stage %s not written: %s", path.name, error)
 
 
-def started(directory: Path, strategy: str, start_page: int | None) -> None:
-    """The header every reader starts from: which strategy publishes here, and the page the work is ordered from."""
-    write_stage(directory / PROGRESS_NAME, {"version": PROGRESS_VERSION, "strategy": strategy, "start_page": start_page})
+def started(directory: Path, strategy: str, start_page: int | None) -> str:
+    """The header every reader starts from, and the token this execution marks its stage files with."""
+    execution = secrets.token_hex(8)
+    write_stage(directory / PROGRESS_NAME, {"version": PROGRESS_VERSION, "execution": execution, "strategy": strategy,
+                                            "start_page": start_page})
+    return execution
 ```
 
 - [ ] **Step 4: `unified.py`.** Imports: add `from kei_exp.kie.extract import discovery, progress` (replacing `from kei_exp.kie.extract import discovery`). In `extract` (275-345):
@@ -304,8 +350,7 @@ def started(directory: Path, strategy: str, start_page: int | None) -> None:
 1. After `directory = run_dir / "extractions" / extraction_id if run_dir is not None and extraction_id else None` (287) add:
 
 ```python
-    if directory is not None:
-        progress.started(directory, "catalog", request.options.start_page)
+    execution = progress.started(directory, "catalog", request.options.start_page) if directory is not None else None
 ```
 
 2. `read` (312-324) becomes:
@@ -321,8 +366,8 @@ def started(directory: Path, strategy: str, start_page: int | None) -> None:
         if path.exists():
             return _work_of(_published(path, dict, _entry_reusable(number, entry, discovery_sha256)), run.nodes)
         progress.write_stage(directory / progress.reading_name(number),
-                             {"version": progress.CANDIDATES_VERSION, "index": number})
-        work = run.entry(number, entry, on_candidates=partial(_candidates_stage, directory, number, entry,
+                             {"version": progress.CANDIDATES_VERSION, "execution": execution, "index": number})
+        work = run.entry(number, entry, on_candidates=partial(_candidates_stage, directory, execution, number, entry,
                                                               discovery_sha256, run.nodes))
         record = _entry_json(number, entry, discovery_sha256, work)
         if work.failed or work.undecided or any(not call.ok for call in work.calls):
@@ -356,16 +401,17 @@ def work_order(entries: list[dict], pages: dict[str, int], start_page: int | Non
     return sorted(range(len(entries)), key=distance)
 
 
-def _candidates_stage(directory: Path, number: int, entry: dict, discovery_sha256: str, nodes: list[Node],
-                      found: list[_Found]) -> None:
+def _candidates_stage(directory: Path, execution: str, number: int, entry: dict, discovery_sha256: str,
+                      nodes: list[Node], work: _Work) -> None:
     """The entry's candidates after its values windows and before verification (design §2): the partial view shows
-    them as candidates, visibly so; `read` never looks at this file, and a retried values call rewrites it."""
+    them as candidates, visibly so, and knows from `failed` whether a window left fields unknown. `read` never looks
+    at this file; a retried values call rewrites it."""
     progress.write_stage(directory / progress.candidates_name(number), {
-        "version": progress.CANDIDATES_VERSION, "index": number, "discovery_sha256": discovery_sha256,
-        "ranges": entry["ranges"],
+        "version": progress.CANDIDATES_VERSION, "execution": execution, "index": number,
+        "discovery_sha256": discovery_sha256, "ranges": entry["ranges"],
         "candidates": [{"path": list(each.path), "value": each.value, "quote": each.quote, "window": each.window}
-                       for each in found if each.kind == "candidate"],
-        "record": conform(_placed(found, "candidate"), nodes)})
+                       for each in work.found if each.kind == "candidate"],
+        "record": conform(_placed(work.found, "candidate"), nodes), "failed": work.failed})
 ```
 
 (`Path` is already imported; `Node`, `conform` and `_placed` exist in the module.)
@@ -395,11 +441,11 @@ def entry_links(record: dict, passages: dict) -> list[dict]:
             if each.kind == "accepted"]
 ```
 
-6. `_Run.entry` (657-676) gains the hook: signature `def entry(self, number: int, entry: dict, on_candidates: Callable[[list[_Found]], None] | None = None) -> _Work:` and, right after `out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)`:
+6. `_Run.entry` (657-676) gains the hook: signature `def entry(self, number: int, entry: dict, on_candidates: Callable[[_Work], None] | None = None) -> _Work:` and, right after `out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)`:
 
 ```python
         if on_candidates is not None:
-            on_candidates(out.found)
+            on_candidates(out)
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass** — `pytest tests/test_unified_catalog.py tests/test_extract_workflow.py` → PASS (every existing test too: the globs now ignore the stage files).
@@ -408,7 +454,7 @@ def entry_links(record: dict, passages: dict) -> list[dict]:
 
 ---
 
-### Task 3: Article publishes its contexts and grounding batches, nearest the start page first (§2, §4)
+### Task 3: Article publishes its contexts, the root assembled so far, and its grounding batches, nearest the start page first (§2, §4)
 
 **Files:**
 - Modify: `prototypes/parsing_service/src/kei_exp/kie/extract/article.py:14-37` (imports), `:55-150` (`extract`), `:155-208` (`document_root`)
@@ -418,7 +464,8 @@ def entry_links(record: dict, passages: dict) -> list[dict]:
 
 **Interfaces:**
 - Consumes: `progress.started`, `progress.write_stage`, `progress.context_name`, `progress.grounding_name`, `progress.ARTICLE_STAGE_VERSION` (Task 2); `article.extract(..., extraction_id=None)` (Task 1).
-- Produces: `article.context_order(groups, start_page) -> list[int]`; `document_root(..., start_page=None, on_context=None)` where `on_context(index, total, group, fields, calls)` runs after each value context's call; `ground_records(..., on_batch=None)`; `grounding.verify(..., on_batch=None)` and the same keyword on `semantic`, `quoted`, `spans`, `off`, where `on_batch(links)` runs after each batch's reply with the links that batch made.
+- Produces: `article.context_order(groups, start_page) -> list[int]`; `document_root(..., start_page=None, on_context=None)` where `on_context(index, total, answered, group, fields, root, contested, ok, calls)` runs after each value context's call with the root assembled and conformed over the contexts answered so far and its scalar conflicts; `ground_records(..., on_batch=None)`; `grounding.verify(..., on_batch=None)` and the same keyword on `semantic`, `quoted`, `spans`, `off`, where `on_batch(links)` runs after each batch's reply with the links that batch made.
+- The context file: `{"version": 1, "execution", "context", "of", "answered", "passages", "fields", "root", "contested": [{"path", "candidates"}], "ok", "calls"}`. The grounding file: `{"version": 1, "execution", "links": [artifact link dicts]}`.
 
 - [ ] **Step 1: Write the failing tests.** `tests/test_extract_progress.py`:
 
@@ -436,8 +483,8 @@ from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
-def page(number: int) -> Passage:
-    return Passage(id=f"p{number}_s0", page=number, index=0, text=f"Page {number}.", label="Text",
+def page(number: int, text: str | None = None) -> Passage:
+    return Passage(id=f"p{number}_s0", page=number, index=0, text=text or f"Page {number}.", label="Text",
                    bbox_pt=(0, 0, 100, 100), extent="block")
 
 
@@ -447,6 +494,32 @@ def test_value_contexts_are_called_nearest_the_start_page_first_and_assembled_in
     assert article.context_order(groups, 5) == [2, 1, 0]
     assert article.context_order(groups, None) == [0, 1, 2]   # no start page: source order
     assert article.context_order([Context(())], 2) == [0]     # an empty context has no page: it is last, and alone
+
+
+def test_each_context_publishes_the_root_assembled_so_far_in_the_order_contexts_are_called():
+    first, second = page(1, "31. Hill. Finds: spear."), page(2, "Results: Hill 1828.")
+    told: list[tuple] = []
+
+    def fields(system, user, schema):
+        if "Results" in user:
+            return {"entry_no": None, "site": "Hill", "year": 1828, "finds": []}
+        return {"entry_no": "31", "site": "Hill", "year": None, "finds": ["spear"]}
+    article.document_root([first, second], SCHEMA, CountingChat(fields), counters={role: WordCounter() for role in ("fields", "reasoning")},
+                          record_chars=24_000, check=lambda: None, contexts=[Context((first,)), Context((second,))],
+                          start_page=2, on_context=lambda *call: told.append(call))
+    assert [(index, total, answered) for index, total, answered, *_ in told] == [(1, 2, 1), (0, 2, 2)]  # page 2 first
+    (_, _, _, group, fields_1, root_1, contested_1, ok_1, calls_1), (_, _, _, _, _, root_2, contested_2, ok_2, _) = told
+    assert group.passages == (second,) and fields_1["year"] == 1828 and ok_1 and [call.stage for call in calls_1] == ["record"]
+    assert root_1 == {"entry_no": None, "site": "Hill", "year": 1828, "finds": []} and contested_1 == []
+    assert root_2 == {"entry_no": "31", "site": "Hill", "year": 1828, "finds": ["spear"]} and contested_2 == [] and ok_2
+
+    def disagreeing(system, user, schema):
+        return {"entry_no": None, "site": "Brook" if "Results" in user else "Hill", "year": None, "finds": []}
+    told.clear()
+    article.document_root([first, second], SCHEMA, CountingChat(disagreeing), counters={role: WordCounter() for role in ("fields", "reasoning")},
+                          record_chars=24_000, check=lambda: None, contexts=[Context((first,)), Context((second,))],
+                          start_page=None, on_context=lambda *call: told.append(call))
+    assert told[-1][5]["site"] is None and told[-1][6] == [{"path": ["site"], "candidates": ["Hill", "Brook"]}]
 
 
 def test_article_publishes_the_header_each_context_and_each_grounding_batch_for_the_partial_view(tmp_path):
@@ -464,14 +537,15 @@ def test_article_publishes_the_header_each_context_and_each_grounding_batch_for_
     request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "start_page": 2})
     result = article.extract(tmp_path, evidence(source), request, Router(CountingChat(fields), CountingChat(reason)),
                              counter={role: WordCounter() for role in ("fields", "reasoning")}, extraction_id="x2")
-    assert json.loads((directory / progress.PROGRESS_NAME).read_bytes()) == {
-        "version": 1, "strategy": "article", "start_page": 2}
+    header = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
+    assert {key: header[key] for key in ("version", "strategy", "start_page")} == {"version": 1, "strategy": "article", "start_page": 2}
     context = json.loads((directory / progress.context_name(0)).read_bytes())
-    assert (context["version"], context["context"], context["of"]) == (1, 0, 1)
-    assert context["fields"]["site"] == "Hill" and context["passages"]["primary"] == ["p1_s0", "p1_s1"]
-    assert [call["stage"] for call in context["calls"]] == ["record"]
+    assert (context["version"], context["execution"], context["context"], context["of"], context["answered"], context["ok"]) == \
+        (1, header["execution"], 0, 1, 1, True)
+    assert context["fields"]["site"] == "Hill" and context["root"]["finds"] == ["spear"] and context["contested"] == []
+    assert context["passages"]["primary"] == ["p1_s0", "p1_s1"] and [call["stage"] for call in context["calls"]] == ["record"]
     batches = sorted(directory.glob("article-grounding-*.v1.json"))
-    assert batches
+    assert batches and all(json.loads(batch.read_bytes())["execution"] == header["execution"] for batch in batches)
     published = [link for batch in batches for link in json.loads(batch.read_bytes())["links"]]
     assert published == result["evidence"]  # the links a batch made, as the artifact writes them
     assert all(link["linked_by"] == "model" and link["segment"] == "p1_s0" for link in published)
@@ -488,7 +562,7 @@ def test_without_an_extraction_id_article_publishes_nothing(tmp_path):
     assert not (tmp_path / "extractions").exists()
 ```
 
-- [ ] **Step 2: Run them to verify they fail** — `pytest tests/test_extract_progress.py` → FAIL (`context_order` missing; no stage files).
+- [ ] **Step 2: Run them to verify they fail** — `pytest tests/test_extract_progress.py` → FAIL (`context_order` missing; `document_root` takes no `start_page`).
 
 - [ ] **Step 3: `grounding.py`.** `verify` (161-166) gains the keyword `on_batch: Callable[[Sequence[Link]], None] | None = None` after `projected: bool = False`; the docstring gains `\`on_batch\`, when given, runs after each batch's reply with the links that batch made (the partial view's grounding stage, design §2).` In the `while batches:` loop, record `made_before = len(links)` right after `batch = batches.pop(0)`, and at the very end of the loop body (after the `for claim in batch:` loop, inside `while`) add:
 
@@ -503,31 +577,33 @@ def test_without_an_extraction_id_article_publishes_nothing(tmp_path):
 
 - [ ] **Step 5: `article.py`.** Imports: add `from dataclasses import asdict, dataclass`, `from functools import partial`, `from itertools import count`, `from kei_exp.kie.extract import progress`, and `Link` to the names imported from `stages`. `extract` (55-150):
 
-1. The docstring's last sentence becomes: `\`chunks\` is not used: Article runs unsplit. With \`run_dir\` and \`extraction_id\`, the header, each value context's answered fields and each grounding batch's links are published under the extraction directory for the partial view (design §2); \`options.start_page\` orders bounded value contexts, nearest first.`
+1. The docstring's last sentence becomes: `\`chunks\` is not used: Article runs unsplit. With \`run_dir\` and \`extraction_id\`, the header, each value context's answered fields with the root assembled so far, and each grounding batch's links are published under the extraction directory for the partial view (design §2); \`options.start_page\` orders bounded value contexts, nearest first.`
 2. After `method = options.article or REFERENCE` (66) add:
 
 ```python
     directory = run_dir / "extractions" / extraction_id if run_dir is not None and extraction_id else None
-    if directory is not None:
-        progress.started(directory, "article", options.start_page)
+    execution = progress.started(directory, "article", options.start_page) if directory is not None else None
 ```
 
-3. The `document_root(...)` call (92-93) gains `start_page=options.start_page, on_context=partial(_context_stage, directory) if directory is not None else None`.
-4. The `ground_records(...)` call (100-102) gains `on_batch=partial(_grounding_stage, directory, count()) if directory is not None else None`.
+3. The `document_root(...)` call (92-93) gains `start_page=options.start_page, on_context=partial(_context_stage, directory, execution) if directory is not None else None`.
+4. The `ground_records(...)` call (100-102) gains `on_batch=partial(_grounding_stage, directory, execution, count()) if directory is not None else None`.
 5. Add after `extract` (before `document_root`):
 
 ```python
-def _context_stage(directory: Path, index: int, total: int, group: Context, fields: dict, calls: list[Call]) -> None:
-    """One value context's answered fields, for the partial view (design §2); read by no path of this module."""
+def _context_stage(directory: Path, execution: str, index: int, total: int, answered: int, group: Context, fields: dict,
+                   root: dict, contested: list[dict], ok: bool, calls: list[Call]) -> None:
+    """One value context's answered fields and the root assembled so far, for the partial view (design §2); read by
+    no path of this module. `ok` is false when the context's call failed: its fields are unknown, not empty."""
     progress.write_stage(directory / progress.context_name(index), {
-        "version": progress.ARTICLE_STAGE_VERSION, "context": index, "of": total, "passages": group.dumped(),
-        "fields": fields, "calls": [asdict(call) for call in calls]})
+        "version": progress.ARTICLE_STAGE_VERSION, "execution": execution, "context": index, "of": total,
+        "answered": answered, "passages": group.dumped(), "fields": fields, "root": root, "contested": contested,
+        "ok": ok, "calls": [asdict(call) for call in calls]})
 
 
-def _grounding_stage(directory: Path, batches: count, links: Sequence[Link]) -> None:
+def _grounding_stage(directory: Path, execution: str, batches: count, links: Sequence[Link]) -> None:
     """The links one grounding batch made, as the artifact writes a link (`assembly.artifact`)."""
     progress.write_stage(directory / progress.grounding_name(next(batches)), {
-        "version": progress.ARTICLE_STAGE_VERSION,
+        "version": progress.ARTICLE_STAGE_VERSION, "execution": execution,
         "links": [{**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)} for link in links]})
 
 
@@ -542,11 +618,11 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
     return sorted(range(len(groups)), key=distance)
 ```
 
-6. `document_root` (155-158) gains `start_page: int | None = None, on_context: Callable[[int, int, Context, dict, list[Call]], None] | None = None` after `contexts: list[Context] | None = None`; its loop (186-193) becomes:
+6. `document_root` (155-158) gains `start_page: int | None = None, on_context: Callable[..., None] | None = None` after `contexts: list[Context] | None = None`; its docstring gains `With \`on_context\`, after each value context's call, the root assembled by \`assemble_document\` and conformed over the contexts answered so far is reported with its scalar conflicts: the partial view's reading of the document before the last context answers.` Its loop (186-193) becomes:
 
 ```python
     candidates: list[dict] = [{} for _ in groups]
-    answered: list[tuple[list[Call], list[Issue]]] = [([], []) for _ in groups]
+    answered: list[tuple[list[Call], list[Issue]] | None] = [None] * len(groups)
     for index in context_order(groups, start_page):
         group = groups[index]
         check()
@@ -554,32 +630,38 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
             counter=counters["fields"], structured=structured, document=True)
         candidates[index], answered[index] = fields, (attempts, problems)
         if on_context is not None:
-            on_context(index, len(groups), group, fields, attempts)
-    for attempts, problems in answered:  # calls and issues in source order: the artifact is the same whatever the order
-        calls += attempts
-        issues += problems
+            done = [number for number, each in enumerate(answered) if each is not None]  # source order
+            so_far, conflicts, _, _ = (assemble_document([candidates[number] for number in done], sharing([groups[number] for number in done]))
+                                       if len(done) != 1 else (candidates[done[0]], [], [], []))
+            on_context(index, len(groups), len(done), group, fields, conform(so_far, schema.record_nodes), conflicts,
+                       all(call.ok for call in attempts), attempts)
+    for each in answered:  # calls and issues in source order: the artifact is the same whatever the order of work
+        if each is not None:
+            calls += each[0]
+            issues += each[1]
 ```
 
-(the names `calls`, `issues`, `candidates` already exist above the loop; delete their earlier `candidates = []` initialisation).
+(the names `calls`, `issues` already exist above the loop; delete the earlier `candidates = []` initialisation; the `root, contested, repeats, joined = …` assembly after the loop is unchanged).
 
 - [ ] **Step 6: Run the tests to verify they pass** — `pytest tests/test_extract_progress.py tests/test_article.py tests/test_extract_workflow.py tests/test_extraction_grounding.py tests/test_article_grounding_negative.py` → PASS.
 
-- [ ] **Step 7: Commit** — `feat(kei): Article calls bounded contexts nearest the start page first and publishes its context and grounding stages`.
+- [ ] **Step 7: Commit** — `feat(kei): Article calls bounded contexts nearest the start page first and publishes its contexts, the root so far and its grounding batches`.
 
 ---
 
 ### Task 4: The progress reader, the progress route and the shared progress fixture (§3)
 
 **Files:**
-- Modify: `prototypes/parsing_service/src/kei_exp/kie/extract/progress.py` (the reader and `ProgressDocument`), `prototypes/parsing_service/src/kei_exp/api.py:104-113` (after `run_extraction`), `prototypes/parsing_service/README.md:89-93, 183-188`
+- Modify: `prototypes/parsing_service/src/kei_exp/kie/extract/progress.py` (the stage models, the reader and `ProgressDocument`), `prototypes/parsing_service/src/kei_exp/api.py:104-113` (after `run_extraction`), `prototypes/parsing_service/README.md:89-93, 183-188`
 - Create: `prototypes/parsing_service/tests/fixtures/contracts/extract.progress.json`
 - Test: `prototypes/parsing_service/tests/test_extract_progress.py`, `prototypes/parsing_service/tests/test_api_reads.py`, `prototypes/parsing_service/tests/test_contracts.py`
 
 **Interfaces:**
 - Produces: `progress.read_progress(run_dir: Path, extraction_id: str) -> dict | None` and `progress.ProgressDocument` (pydantic); `GET /api/runs/{run_id}/extractions/{extraction_id}/progress` → 404 `no progress yet` / 404 `no such run` / 404 `no such extraction` / 200 the document; the fixture `extract.progress.json` both sides read (Task 6).
+- The document: `{"version": 1, "strategy", "started_at_page", "discovered", "finished", "entries": [{"index", "label", "page", "stage": "queued"|"reading"|"candidates"|"finished", "candidates", "record", "evidence", "contested": [{"path", "candidates"}] | null, "failed": int | null}], "document": {"contexts", "answered", "of", "failed_contexts", "links", "grounding_batches"} | null}`. `contested` paths are record-relative; `failed` is the entry's failed values windows (Catalog, candidates stage) or failed contexts (Article).
 - Consumes: `unified.entry_name`, `unified.entry_links` (Task 2), the stage files of Tasks 2 and 3.
 
-- [ ] **Step 1: The fixture.** `tests/fixtures/contracts/extract.progress.json`, one entry per stage, as the reader writes it for the `test_unified_catalog` schema (`label`, `site`, `material`, `gilded`, `finds[].name`, `finds[].count`, document `title`) with the work started from page 1:
+- [ ] **Step 1: The fixture.** `tests/fixtures/contracts/extract.progress.json`, one entry per stage, as the reader writes it for the `test_unified_catalog` schema (`label`, `site`, `material`, `gilded`, `finds[].name`, `finds[].count`, document `title`) with the work started from page 1; the second entry's site is a contest arbitration left unresolved:
 
 ```json
 {
@@ -610,19 +692,24 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
          "precision": "segment", "hits": 1, "spans": [{"segment": "p1_s0", "start": 39, "end": 40}], "alternatives": [],
          "raw": "2", "verbatim": true, "support": "literal", "linked_by": "verification",
          "item": [{"segment": "p1_s0", "start": 26, "end": 42}]}
-      ]
+      ],
+      "contested": [], "failed": null
     },
     {
       "index": 1, "label": "2", "page": 1, "stage": "finished", "candidates": null,
-      "record": {"label": "2", "site": "Bdorf", "material": "Stein", "gilded": true, "finds": []},
+      "record": {"label": "2", "site": null, "material": "Stein", "gilded": true, "finds": []},
       "evidence": [
         {"path": ["records", 1, "label"], "segment": "p1_s1", "page": 1, "bbox_pt": [0.0, 1.0, 1.0, 2.0], "cell": null,
          "precision": "segment", "hits": 1, "spans": [{"segment": "p1_s1", "start": 0, "end": 1}], "alternatives": [],
          "raw": "2", "verbatim": true, "support": "literal", "linked_by": "verification", "item": null},
+        {"path": ["records", 1, "material"], "segment": "p1_s1", "page": 1, "bbox_pt": [0.0, 1.0, 1.0, 2.0], "cell": null,
+         "precision": "segment", "hits": 1, "spans": [{"segment": "p1_s1", "start": 20, "end": 25}], "alternatives": [],
+         "raw": "Stein", "verbatim": true, "support": "literal", "linked_by": "verification", "item": null},
         {"path": ["records", 1, "gilded"], "segment": "p1_s1", "page": 1, "bbox_pt": [0.0, 1.0, 1.0, 2.0], "cell": null,
          "precision": "segment", "hits": 1, "spans": [{"segment": "p1_s1", "start": 27, "end": 33}], "alternatives": [],
          "raw": "Gilded", "verbatim": false, "support": "supporting", "linked_by": "verification", "item": null}
-      ]
+      ],
+      "contested": [{"path": ["site"], "candidates": ["Bdorf", "Bdorf-Nord"]}], "failed": null
     },
     {
       "index": 2, "label": "3", "page": 2, "stage": "candidates",
@@ -631,10 +718,10 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
         {"path": ["material"], "value": "Gold", "quote": "Material: Gold", "window": 0}
       ],
       "record": {"label": "3", "site": null, "material": "Gold", "gilded": null, "finds": []},
-      "evidence": null
+      "evidence": null, "contested": null, "failed": 0
     },
-    {"index": 3, "label": "4", "page": 3, "stage": "reading", "candidates": null, "record": null, "evidence": null},
-    {"index": 4, "label": null, "page": 4, "stage": "queued", "candidates": null, "record": null, "evidence": null}
+    {"index": 3, "label": "4", "page": 3, "stage": "reading", "candidates": null, "record": null, "evidence": null, "contested": null, "failed": null},
+    {"index": 4, "label": null, "page": 4, "stage": "queued", "candidates": null, "record": null, "evidence": null, "contested": null, "failed": null}
   ],
   "document": null
 }
@@ -650,9 +737,10 @@ def test_the_progress_fixture_is_a_valid_progress_document_with_one_entry_per_st
     assert document.model_dump(mode="json") == data
     assert [entry.stage for entry in document.entries] == ["finished", "finished", "candidates", "reading", "queued"]
     assert document.finished == 2 and document.discovered == len(document.entries)
+    assert document.entries[1].contested == [{"path": ["site"], "candidates": ["Bdorf", "Bdorf-Nord"]}]
 ```
 
-In `tests/test_extract_progress.py` add (imports: `requests`, `from kei_exp import runs`, `from kei_exp.kie.extract import unified`, `from kei_exp.kie.extract.models import as_router`, `from kei_exp.kie.passages import load`, `from tests.helpers import kei as kei_helper`, `from tests.test_unified_catalog import Model, request as unified_request, section`):
+In `tests/test_extract_progress.py` add (imports: `requests`, `from kei_exp import runs`, `from kei_exp.kie.extract import unified`, `from kei_exp.kie.extract.models import as_router`, `from kei_exp.kie.passages import load`, `from tests.helpers import kei as kei_helper`, `from tests.test_unified_catalog import Model, evidence as unified_evidence, extract as unified_extract, request as unified_request, section`):
 
 ```python
 def test_the_catalog_progress_names_each_entry_stage_and_the_finished_entries_links(tmp_path, monkeypatch):
@@ -682,11 +770,12 @@ def test_the_catalog_progress_names_each_entry_stage_and_the_finished_entries_li
     discovered = json.loads((run_dir / "extractions" / "x-1" / "catalog-discovery.json").read_bytes())
     first_segment = discovered["entries"][0]["ranges"][0]["segment"]  # an entry's page is its first range's passage's
     assert first["index"] == 0 and first["page"] == int(first_segment[1:].split("_s")[0])
-    assert set(first["record"]) >= {"label", "site", "material", "gilded", "finds"}
+    assert set(first["record"]) >= {"label", "site", "material", "gilded", "finds"} and first["contested"] == [] and first["failed"] is None
     assert first["evidence"] and all(link["linked_by"] == "verification" and link["path"][:2] == ["records", 0]
                                      and link["segment"].startswith(f"p{link['page']}_s") for link in first["evidence"])
-    assert third["candidates"] and {"path", "value", "quote", "window"} <= set(third["candidates"][0]) and third["record"] is not None
-    assert third["evidence"] is None and last["record"] is None and last["candidates"] is None
+    assert third["candidates"] and {"path", "value", "quote", "window"} <= set(third["candidates"][0])
+    assert third["record"] is not None and third["failed"] == 0 and third["evidence"] is None and third["contested"] is None
+    assert last["record"] is None and last["candidates"] is None and last["failed"] is None
     # The links are the ones the settled artifact publishes for that entry: the same code made them.
     settled = unified.extract(run_dir, source, unified_request(), as_router(CountingChat(model)), counter=WordCounter(),
                               extraction_id="x-2")
@@ -694,44 +783,85 @@ def test_the_catalog_progress_names_each_entry_stage_and_the_finished_entries_li
     assert progress.read_progress(run_dir, "x-2")["finished"] == 5
 
 
+def test_an_unresolved_arbitration_is_contested_in_the_progress_of_a_finished_entry(tmp_path):
+    source = unified_evidence("1. Adorf. Material: Holz. Material: Stein.")
+    unified_extract(source, Model(source, choice="NONE"), run_dir=tmp_path, extraction_id="x1")
+    document = progress.read_progress(tmp_path, "x1")
+    [entry] = document["entries"]
+    assert entry["stage"] == "finished" and entry["record"]["material"] is None
+    assert entry["contested"] == [{"path": ["material"], "candidates": ["Holz", "Stein"]}]
+
+
 def test_a_finished_entry_beside_a_stale_candidates_or_reading_file_is_finished(tmp_path):
-    from tests.test_unified_catalog import evidence as unified_evidence, extract as unified_extract
     source = unified_evidence("1. Adorf. Material: Holz.")
     unified_extract(source, run_dir=tmp_path, extraction_id="x1")
     directory = tmp_path / "extractions" / "x1"
-    for name in (progress.reading_name(0), progress.candidates_name(0)):
-        progress.write_stage(directory / name, {"version": 1, "index": 0, "candidates": [], "record": {}, "ranges": []})
+    execution = json.loads((directory / progress.PROGRESS_NAME).read_bytes())["execution"]
+    progress.write_stage(directory / progress.reading_name(0), {"version": 1, "execution": execution, "index": 0})
+    progress.write_stage(directory / progress.candidates_name(0), {"version": 1, "execution": execution, "index": 0,
+                         "discovery_sha256": "0" * 64, "ranges": [], "candidates": [], "record": {}, "failed": 0})
     document = progress.read_progress(tmp_path, "x1")
     assert document["entries"][0]["stage"] == "finished" and document["finished"] == 1
     assert document["entries"][0]["evidence"] == []  # no result under this run directory: links are left out, not invented
 
 
-def test_the_article_progress_is_one_record_whose_answered_fields_are_candidates_and_whose_links_arrive_by_batch(tmp_path):
+def test_malformed_or_stale_stage_files_are_skipped_never_served(tmp_path):
+    source = unified_evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
+    directory = tmp_path / "extractions" / "x1"
+    model = Model(source)
+
+    def before_entry_1(system, user, schema):
+        if system.startswith("You extract structured data") and "Bdorf" in section(user, "RECORD"):
+            raise requests.ConnectionError("connection reset")  # entry 0 finished, entry 1 only marked reading
+        return model(system, user, schema)
+    with pytest.raises(requests.ConnectionError):
+        unified_extract(source, before_entry_1, run_dir=tmp_path, extraction_id="x1")
+    assert [entry["stage"] for entry in progress.read_progress(tmp_path, "x1")["entries"]] == ["finished", "reading"]
+    (directory / progress.candidates_name(1)).write_bytes(b"{}")                     # a stage file outside its layout
+    assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "reading"  # skipped: the marker still counts
+    (directory / progress.reading_name(1)).write_bytes(b"{not json")                   # half-written
+    assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "queued"
+    header = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
+    progress.write_stage(directory / progress.reading_name(1), {"version": 1, "execution": "other", "index": 1})  # another execution's
+    assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "queued"
+    (directory / progress.PROGRESS_NAME).write_bytes(b"[]")                            # a header that is no header
+    assert progress.read_progress(tmp_path, "x1") is None
+    progress.write_stage(directory / progress.PROGRESS_NAME, header)
+    assert progress.read_progress(tmp_path, "x1")["finished"] == 1
+
+
+def test_the_article_progress_is_one_record_from_the_latest_assembled_root_whose_links_arrive_by_batch(tmp_path):
     directory = tmp_path / "extractions" / "x3"
-    progress.started(directory, "article", 2)
+    execution = progress.started(directory, "article", 2)
     assert progress.read_progress(tmp_path, "x3") is None  # no context answered yet
     progress.write_stage(directory / progress.context_name(1), {
-        "version": 1, "context": 1, "of": 2, "passages": {"primary": ["p2_s0"], "overlap": []},
-        "fields": {"entry_no": None, "site": "Brook", "year": 1828, "finds": []}, "calls": []})
+        "version": 1, "execution": execution, "context": 1, "of": 2, "answered": 1, "passages": {"primary": ["p2_s0"], "overlap": []},
+        "fields": {"entry_no": None, "site": "Brook", "year": 1828, "finds": []},
+        "root": {"entry_no": None, "site": "Brook", "year": 1828, "finds": []}, "contested": [], "ok": True, "calls": []})
     document = progress.read_progress(tmp_path, "x3")
     progress.ProgressDocument.model_validate(document)
     [entry] = document["entries"]
     assert (document["strategy"], document["started_at_page"], document["discovered"], document["finished"]) == ("article", 2, 1, 0)
     assert entry["stage"] == "candidates" and entry["record"] == {"entry_no": None, "site": "Brook", "year": 1828, "finds": []}
-    assert {tuple(row["path"]) for row in entry["candidates"]} == {("site",), ("year",)}
+    assert {tuple(row["path"]) for row in entry["candidates"]} == {("site",), ("year",)} and entry["failed"] == 0
     assert document["document"] == {"contexts": [{"primary": ["p2_s0"], "overlap": []}], "answered": 1, "of": 2,
-                                    "links": [], "grounding_batches": 0}
+                                    "failed_contexts": 0, "links": [], "grounding_batches": 0}
     progress.write_stage(directory / progress.context_name(0), {
-        "version": 1, "context": 0, "of": 2, "passages": {"primary": ["p1_s0"], "overlap": []},
-        "fields": {"entry_no": "31", "site": "Hill", "year": None, "finds": ["spear"]}, "calls": []})
-    link = {"path": ["records", 0, "site"], "segment": "p1_s0", "page": 1, "bbox_pt": [0.0, 0.0, 1.0, 1.0],
+        "version": 1, "execution": execution, "context": 0, "of": 2, "answered": 2, "passages": {"primary": ["p1_s0"], "overlap": []},
+        "fields": {"entry_no": "31", "site": "Hill", "year": None, "finds": ["spear"]},
+        "root": {"entry_no": "31", "site": None, "year": 1828, "finds": ["spear"]},
+        "contested": [{"path": ["site"], "candidates": ["Hill", "Brook"]}], "ok": False, "calls": []})
+    link = {"path": ["records", 0, "year"], "segment": "p2_s0", "page": 2, "bbox_pt": [0.0, 0.0, 1.0, 1.0],
             "verbatim": True, "hits": 1, "linked_by": "model", "cell": None, "precision": "segment"}
-    progress.write_stage(directory / progress.grounding_name(0), {"version": 1, "links": [link]})
+    progress.write_stage(directory / progress.grounding_name(0), {"version": 1, "execution": execution, "links": [link]})
+    progress.write_stage(directory / progress.grounding_name(1), {"version": 1, "execution": "other", "links": [link, link]})  # a previous execution's
     document = progress.read_progress(tmp_path, "x3")
     [entry] = document["entries"]
-    # Fields are taken in context order; a context's null never overrides an earlier context's value.
-    assert entry["record"] == {"entry_no": "31", "site": "Hill", "year": 1828, "finds": ["spear"]}
+    assert entry["record"] == {"entry_no": "31", "site": None, "year": 1828, "finds": ["spear"]}  # the latest assembled root
+    assert entry["contested"] == [{"path": ["site"], "candidates": ["Hill", "Brook"]}] and entry["failed"] == 1
     assert entry["evidence"] == [link] and document["document"]["answered"] == 2 and document["document"]["grounding_batches"] == 1
+    assert document["document"]["failed_contexts"] == 1 and document["document"]["contexts"] == [
+        {"primary": ["p1_s0"], "overlap": []}, {"primary": ["p2_s0"], "overlap": []}]
 ```
 
 In `tests/test_api_reads.py` add:
@@ -745,11 +875,11 @@ def test_the_progress_route_serves_the_stage_files_and_is_404_until_the_first_on
     assert client.get("/api/runs/run-unknown/extractions/x-1/progress").status_code == 404
     assert client.get(f"/api/runs/{run_id}/extractions/..%2Fx/progress").status_code == 404
     directory = tmp_path / run_id / "extractions" / "x-1"
-    progress.started(directory, "article", None)
+    execution = progress.started(directory, "article", None)
     assert client.get(f"/api/runs/{run_id}/extractions/x-1/progress").status_code == 404  # the header alone is no progress
     progress.write_stage(directory / progress.context_name(0), {
-        "version": 1, "context": 0, "of": 1, "passages": {"primary": ["p1_s0"], "overlap": []},
-        "fields": {"site_name": "Hill"}, "calls": []})
+        "version": 1, "execution": execution, "context": 0, "of": 1, "answered": 1, "passages": {"primary": ["p1_s0"], "overlap": []},
+        "fields": {"site_name": "Hill"}, "root": {"site_name": "Hill"}, "contested": [], "ok": True, "calls": []})
     response = client.get(f"/api/runs/{run_id}/extractions/x-1/progress")
     assert response.status_code == 200
     body = response.json()
@@ -760,10 +890,54 @@ def test_the_progress_route_serves_the_stage_files_and_is_404_until_the_first_on
 
 - [ ] **Step 3: Run them to verify they fail** — `pytest tests/test_extract_progress.py tests/test_api_reads.py tests/test_contracts.py -k "progress"` → FAIL (`read_progress`, `ProgressDocument` missing; route 404 `Not Found`).
 
-- [ ] **Step 4: `progress.py`, the reader.** Add to the imports `import json`, `import re`, `from functools import lru_cache`, `from typing import Any, Literal`, `from pydantic import BaseModel, ConfigDict`, `from kei_exp.kie.extract.stages import leaves`, `from kei_exp.kie.passages import EvidenceUnavailable, Passage, load`, and append:
+- [ ] **Step 4: `progress.py`, the stage models and the reader.** Add to the imports `import json`, `import re`, `from functools import lru_cache`, `from typing import Any, Literal, TypeVar`, `from pydantic import BaseModel, ConfigDict, ValidationError`, `from kei_exp.kie.extract.stages import leaves`, `from kei_exp.kie.passages import EvidenceUnavailable, Passage, load`, and append:
 
 ```python
 _PAGE = re.compile(r"^p(\d+)_s\d+$")  # a passage id names its page
+
+
+class _Stage(BaseModel):
+    """A stage file's layout; one outside it is skipped by the reader, never served."""
+    model_config = ConfigDict(extra="forbid")
+    version: Literal[1]
+    execution: str
+
+
+class _Header(_Stage):
+    strategy: Literal["catalog", "article"]
+    start_page: int | None
+
+
+class _Marker(_Stage):
+    index: int
+
+
+class _Candidates(_Stage):
+    index: int
+    discovery_sha256: str
+    ranges: list[dict[str, Any]]
+    candidates: list[dict[str, Any]]
+    record: dict[str, Any]
+    failed: int
+
+
+class _ContextFile(_Stage):
+    context: int
+    of: int
+    answered: int
+    passages: dict[str, Any]
+    fields: dict[str, Any]
+    root: dict[str, Any]
+    contested: list[dict[str, Any]]
+    ok: bool
+    calls: list[dict[str, Any]]
+
+
+class _GroundingFile(_Stage):
+    links: list[dict[str, Any]]
+
+
+_M = TypeVar("_M", bound=BaseModel)
 
 
 class ProgressEntry(BaseModel):
@@ -776,6 +950,8 @@ class ProgressEntry(BaseModel):
     candidates: list[dict[str, Any]] | None  # {path, value, quote, window} rows, in the candidates stage
     record: dict[str, Any] | None            # the values so far (candidates placed, or the finished entry's record)
     evidence: list[dict[str, Any]] | None    # the artifact's own link dicts: a finished entry's, or Article's so far
+    contested: list[dict[str, Any]] | None   # {path (record-relative), candidates}: scalars whose verified values disagree
+    failed: int | None                       # values windows (Catalog) or contexts (Article) that failed: their nulls are unknown
 
 
 class ProgressDocument(BaseModel):
@@ -788,79 +964,95 @@ class ProgressDocument(BaseModel):
     discovered: int
     finished: int
     entries: list[ProgressEntry]
-    document: dict[str, Any] | None  # Article: {contexts, answered, of, links, grounding_batches}; Catalog: None
+    document: dict[str, Any] | None  # Article: {contexts, answered, of, failed_contexts, links, grounding_batches}; Catalog: None
 
 
 def read_progress(run_dir: Path, extraction_id: str) -> dict | None:
     """The progress document for `extraction_id` under `run_dir`, or None before the first stage of record work
-    (`catalog-discovery.json`, or the first context file) exists. Files only: a missing or unreadable stage file is
-    skipped, and a finished entry is read before any stale marker beside it, so a stage never regresses."""
+    (`catalog-discovery.json`, or the first context file of this execution) exists. Files only: a missing, unreadable,
+    malformed or other execution's stage file is skipped, and a finished entry is read before any marker beside it, so a
+    stage never regresses."""
     directory = run_dir / "extractions" / extraction_id
-    header = _json(directory / PROGRESS_NAME)
+    header = _stage(directory / PROGRESS_NAME, _Header)
     if header is None:
         return None
-    start_page = header.get("start_page")
-    if header.get("strategy") == "article":
-        return _article(directory, start_page)
-    return _catalog(directory, run_dir, start_page)
+    if header.strategy == "article":
+        return _article(directory, header)
+    return _catalog(directory, run_dir, header)
 
 
-def _catalog(directory: Path, run_dir: Path, start_page: int | None) -> dict | None:
+def _stage(path: Path, model: type[_M], execution: str | None = None) -> _M | None:
+    """A stage file as `model`, or None when absent, unreadable, outside its layout or (when `execution` is given)
+    written by another execution of the step."""
+    try:
+        record = model.model_validate_json(path.read_bytes())
+    except (OSError, ValueError, ValidationError):  # absent, half-written, or not this layout
+        return None
+    return None if execution is not None and getattr(record, "execution") != execution else record
+
+
+def _catalog(directory: Path, run_dir: Path, header: _Header) -> dict | None:
     from kei_exp.kie.extract import unified  # unified imports this module's names: imported here, not at load
     found = _json(directory / "catalog-discovery.json")
-    if found is None:
+    if not isinstance(found, dict) or not isinstance(found.get("entries"), list):
         return None
     passages = _passages(run_dir)
     entries, finished = [], 0
     for number, entry in enumerate(found["entries"]):
         row = {"index": number, "label": entry.get("label"), "page": _page_of(entry), "stage": "queued",
-               "candidates": None, "record": None, "evidence": None}
-        if (published := _json(directory / unified.entry_name(number))) is not None:
-            finished += 1
-            row.update(stage="finished", record=published["work"]["record"],
-                       evidence=unified.entry_links(published, passages) if passages is not None else [])
-        elif (candidates := _json(directory / candidates_name(number))) is not None:
-            row.update(stage="candidates", candidates=candidates["candidates"], record=candidates["record"])
-        elif (directory / reading_name(number)).exists():
+               "candidates": None, "record": None, "evidence": None, "contested": None, "failed": None}
+        published = _json(directory / unified.entry_name(number))
+        if isinstance(published, dict):
+            try:
+                row.update(stage="finished", record=published["work"]["record"],
+                           evidence=unified.entry_links(published, passages) if passages is not None else [],
+                           contested=[{"path": contest["path"][2:], "candidates": [each["value"] for each in contest["candidates"]]}
+                                      for contest in published["work"]["contest"] if contest.get("outcome") == "unresolved"])
+                finished += 1
+                entries.append(row)
+                continue
+            except (KeyError, TypeError):  # a record outside its own layout: this view does not guess
+                row = {**row, "stage": "queued", "record": None, "evidence": None, "contested": None}
+        if (candidates := _stage(directory / candidates_name(number), _Candidates, header.execution)) is not None:
+            row.update(stage="candidates", candidates=candidates.candidates, record=candidates.record, failed=candidates.failed)
+        elif _stage(directory / reading_name(number), _Marker, header.execution) is not None:
             row["stage"] = "reading"
         entries.append(row)
-    return {"version": PROGRESS_VERSION, "strategy": "catalog", "started_at_page": start_page,
+    return {"version": PROGRESS_VERSION, "strategy": "catalog", "started_at_page": header.start_page,
             "discovered": len(entries), "finished": finished, "entries": entries, "document": None}
 
 
-def _article(directory: Path, start_page: int | None) -> dict | None:
+def _article(directory: Path, header: _Header) -> dict | None:
     contexts = sorted((row for path in directory.glob(f"article-context-*.v{ARTICLE_STAGE_VERSION}.json")
-                       if (row := _json(path)) is not None), key=lambda row: row["context"])
+                       if (row := _stage(path, _ContextFile, header.execution)) is not None), key=lambda row: row.context)
     if not contexts:
         return None
     batches = [row for path in sorted(directory.glob(f"article-grounding-*.v{ARTICLE_STAGE_VERSION}.json"))
-               if (row := _json(path)) is not None]
-    links = [link for batch in batches for link in batch["links"]]
-    fields: dict[str, Any] = {}
-    for row in contexts:  # a later context fills what earlier ones left null, never the other way round
-        for name, value in row["fields"].items():
-            if fields.get(name) is None:
-                fields[name] = value
-    return {"version": PROGRESS_VERSION, "strategy": "article", "started_at_page": start_page,
+               if (row := _stage(path, _GroundingFile, header.execution)) is not None]
+    links = [link for batch in batches for link in batch.links]
+    latest = max(contexts, key=lambda row: row.answered)  # the root assembled over every context answered so far
+    failed = sum(not row.ok for row in contexts)
+    return {"version": PROGRESS_VERSION, "strategy": "article", "started_at_page": header.start_page,
             "discovered": 1, "finished": 0,
             "entries": [{"index": 0, "label": None, "page": None, "stage": "candidates",
                          "candidates": [{"path": list(path), "value": value, "quote": None, "window": 0}
-                                        for path, value in leaves(fields)],
-                         "record": fields, "evidence": links}],
-            "document": {"contexts": [row["passages"] for row in contexts], "answered": len(contexts),
-                         "of": max(row["of"] for row in contexts), "links": links, "grounding_batches": len(batches)}}
+                                        for path, value in leaves(latest.root)],
+                         "record": latest.root, "evidence": links, "contested": latest.contested, "failed": failed}],
+            "document": {"contexts": [row.passages for row in contexts], "answered": latest.answered, "of": latest.of,
+                         "failed_contexts": failed, "links": links, "grounding_batches": len(batches)}}
 
 
 def _page_of(entry: dict) -> int | None:
     ranges = entry.get("ranges") or []
-    match = _PAGE.match(ranges[0]["segment"]) if ranges else None
+    match = _PAGE.match(ranges[0]["segment"]) if ranges and isinstance(ranges[0], dict) else None
     return int(match[1]) if match else None
 
 
-def _json(path: Path) -> dict | None:
+def _json(path: Path) -> Any:
+    """A write-once record kei's own code wrote (`unified.py`), or None when absent or half-written."""
     try:
         return json.loads(path.read_bytes())
-    except (OSError, ValueError):  # absent, or a part file on a filesystem without atomic replace
+    except (OSError, ValueError):
         return None
 
 
@@ -893,7 +1085,7 @@ def run_extraction_progress(run_id: str, extraction_id: str) -> dict:
     return document
 ```
 
-- [ ] **Step 6: README.** In `prototypes/parsing_service/README.md`, after the `extract` bullet's sentence ending `(its status is the workflow's).` (93) add: `While it runs, \`GET /api/runs/{id}/extractions/{extraction_id}/progress\` serves what the stage files beside the result say so far (\`kie/extract/progress.py\`): each discovered record's stage (queued, reading, candidates under verification, finished with its record and links), and for Article the contexts answered and the links grounded so far; 404 until record work has started. A request may name \`start_page\`, the page the researcher is reading: the unified Catalog reads the records nearest it first and Article its bounded value contexts, the artifact unchanged.` In the unified paragraph (183-188), after `all write-once and reused when the step runs again,` insert ` beside a reading marker and a candidates file per entry that only the progress route reads,`.
+- [ ] **Step 6: README.** In `prototypes/parsing_service/README.md`, after the `extract` bullet's sentence ending `(its status is the workflow's).` (93) add: `While it runs, \`GET /api/runs/{id}/extractions/{extraction_id}/progress\` serves what the stage files beside the result say so far (\`kie/extract/progress.py\`): each discovered record's stage (queued, reading, candidates under verification, finished with its record, links and unresolved contests), and for Article the root assembled over the contexts answered so far and the links grounded so far; 404 until record work has started. Stage files are written by rename, marked with their execution's token (a retried step's files never mix with the previous attempt's) and skipped when unreadable; a write that fails never fails the extraction. A request may name \`start_page\`, the page the researcher is reading: the unified Catalog reads the records nearest it first and Article its bounded value contexts, the artifact unchanged.` In the unified paragraph (183-188), after `all write-once and reused when the step runs again,` insert ` beside a reading marker and a candidates file per entry that only the progress route reads,`.
 
 - [ ] **Step 7: Run the tests to verify they pass** — `pytest tests/test_extract_progress.py tests/test_api_reads.py tests/test_contracts.py tests/test_unified_catalog.py tests/test_extract_workflow.py` → PASS; then the whole fast tier `/home/gennaro/projects/FREE/prototypes/parsing_service/.venv/bin/python -m pytest -q -m "not postgres and not live_model"` → PASS (`test_api_and_model_records_load_no_database_or_model_stack` included: the progress module loads no model stack).
 
@@ -904,7 +1096,7 @@ def run_extraction_progress(run_id: str, extraction_id: str) -> dict:
 ### Task 5: `startPage` through admission, the row, the workflow request and the artifact check (§4)
 
 **Files:**
-- Modify: `packages/db/src/prisma/contract.prisma:222` (after `requestedSettings`), `packages/db/migrations/app/refs/db.json` (by `ref set`)
+- Modify: `packages/db/src/prisma/contract.prisma:222` (after `requestedSettings`), `packages/db/migrations/app/refs/db.json` (by `ref set`), `packages/db/src/schema-revision-record-scope-migration.test.ts:44-50`
 - Create: `packages/db/migrations/app/<timestamp>_start_page/` (by `migration plan`), `packages/db/src/start-page-migration.test.ts`
 - Modify: `packages/extraction/src/types.ts:286-296` (`FreshExtractionInput`), `packages/extraction/src/workflows.ts:22-44` (`AdmittedExtraction`), `:76-100` (`keiExtractRequest`), `packages/extraction/src/postgres-admission.ts:136-152` (`AdmissionPins`), `:177-192` (`resolveAdmission`'s return), `:268-278` (`Extraction.create`), `packages/extraction/src/postgres-workflow-store.ts:67-100` (`loadAdmitted`), `packages/extraction/src/kei-artifact.ts:221-229` (`honorsRequestedOptions`), `packages/extraction/src/testing/extraction-fixture.ts:704-709` (`extractionRow`)
 - Test: `packages/extraction/src/workflows.test.ts` (after the "sample workbench" case, 535-541), `packages/extraction/src/kei-artifact.test.ts`, `packages/extraction/src/postgres-admission.integration.test.ts`
@@ -943,6 +1135,8 @@ it('follows the record-scope migration directly and is the ref the database is c
 })
 ```
 
+In `packages/db/src/schema-revision-record-scope-migration.test.ts`, the case `follows the optional-review-evidence migration directly` keeps its `migration.from === previous.to` assertion and loses its two `ref` lines (the ref is the tip, asserted by the latest migration's own test from now on).
+
 `packages/extraction/src/workflows.test.ts`, after the sample-workbench case:
 
 ```ts
@@ -969,7 +1163,7 @@ it('follows the record-scope migration directly and is the ref the database is c
 
 ```ts
   it('a start page on the request is an order of work, not an option the artifact must record', () => {
-    assert.equal(accept(artifact(), { settings: { start_page: 6 } }).outcome, 'SUCCEEDED')
+    assert.equal(accept(artifact(), { settings: { start_page: 6 } }).extraction.outcome, 'SUCCEEDED')
   })
 ```
 
@@ -1023,7 +1217,7 @@ DATABASE_URL=$CONTRACT_URL pnpm exec prisma-next migration plan --name start_pag
 ls migrations/app                                                                 # a new *_start_page directory
 DATABASE_URL=$CONTRACT_URL node migrations/app/*_start_page/migration.ts --dry-run   # one ADD COLUMN, no data op
 DATABASE_URL=$CONTRACT_URL node migrations/app/*_start_page/migration.ts             # writes ops.json + migration.json
-cat migrations/app/*_start_page/migration.json                                       # "from" = the record-scope "to"
+cat migrations/app/*_start_page/migration.json                                       # "from" = the record-scope "to" (sha256:d88cb685…)
 DATABASE_URL=$CONTRACT_URL pnpm exec prisma-next ref set db <the "to" hash> --no-interactive
 DATABASE_URL=$CONTRACT_URL pnpm exec prisma-next migration check --no-interactive    # "All checks passed"
 ```
@@ -1088,8 +1282,8 @@ Do not edit `ops.json` by hand; the generated `migration.ts` needs no edit (one 
 - Test: `packages/extraction/src/module.test.ts` (the `kei-exp read client` describe), `packages/extraction/src/kei-contract.integration.test.ts:57-60`
 
 **Interfaces:**
-- Produces: `KeiExpClient.readExtractionProgress(runId, extractionId, signal?): Promise<unknown | null>` and `PROGRESS_TIMEOUT_MS = 2_000`; `partialFromProgress(raw: unknown): PartialResult | null`; types `PartialResult`, `PartialRecord`, `PartialRecordState = 'queued' | 'reading' | 'checking' | 'finished'`, `PartialValueState = 'grounded' | 'checking' | 'reading' | 'empty'`, `ProgressDocument`; `progressDocumentSchema`; from `kei-artifact.ts`: `evidenceSchema`, `unifiedEvidenceSchema`, `evidenceAnchorIdOf(link)`, `unifiedEvidenceLink(link, anchorId)`, `plainEvidenceLink(link, anchorId)`; `KeiStandInScript.progress?(runId, extractionId): unknown`.
-- `PartialRecord.values` is keyed by the leaf's record-relative path with every step a string, JSON-encoded (`JSON.stringify(['finds', '0', 'name'])`), as `ResultValue` spells its paths; `evidenceLinks[].resultPath` is absolute (`['records', index, …]`), as the artifact's.
+- Produces: `KeiExpClient.readExtractionProgress(runId, extractionId, signal?): Promise<unknown | null>` and `PROGRESS_TIMEOUT_MS = 2_000`; `partialFromProgress(raw: unknown): PartialResult | null` (the package's type: readonly, `value: unknown`; the API converts it to the wire type by parsing, Task 7); types `PartialResult`, `PartialRecord`, `PartialRecordState = 'queued' | 'reading' | 'checking' | 'finished'`, `PartialValueState = 'grounded' | 'checking' | 'reading' | 'empty' | 'contested'`, `ProgressDocument`; `progressDocumentSchema`; `orderedByDistance`; from `kei-artifact.ts`: `evidenceSchema`, `unifiedEvidenceSchema`, `evidenceAnchorIdOf(link)`, `unifiedEvidenceLink(link, anchorId)`, `plainEvidenceLink(link, anchorId)`; `KeiStandInScript.progress?(runId, extractionId): unknown`.
+- `PartialRecord.values` is keyed by the leaf's record-relative path with every step a string, JSON-encoded (`JSON.stringify(['finds', '0', 'name'])`), as `ResultValue` spells its paths; a `contested` value carries its `candidates`; `evidenceLinks[].resultPath` is absolute (`['records', index, …]`), as the artifact's.
 
 - [ ] **Step 1: Write the failing tests.** `packages/extraction/src/partial-result.test.ts`:
 
@@ -1097,10 +1291,12 @@ Do not edit `ops.json` by hand; the generated `migration.ts` needs no edit (one 
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import progressFixture from '../../../prototypes/parsing_service/tests/fixtures/contracts/extract.progress.json' with { type: 'json' }
-import { partialFromProgress } from './partial-result.js'
+import { partialFromProgress, progressDocumentSchema, type ProgressDocument } from './partial-result.js'
 import type { VerifiedGrounding } from './types.js'
 
-const fixture = () => structuredClone(progressFixture) as Record<string, unknown> & typeof progressFixture
+/** The shared fixture as a typed, mutable document: its nullable fields may be set to null in a case. */
+const fixture = (): ProgressDocument => progressDocumentSchema.parse(structuredClone(progressFixture))
+const key = (...path: string[]) => JSON.stringify(path)
 
 describe('partialFromProgress', () => {
   it('maps the shared fixture: one record per entry, in the order they were read, each value in its state', () => {
@@ -1109,28 +1305,37 @@ describe('partialFromProgress', () => {
     assert.deepEqual([partial.startedAtPage, partial.discovered, partial.finished], [1, 5, 2])
     assert.deepEqual(partial.records.map((record) => [record.index, record.state]),
       [[0, 'finished'], [1, 'finished'], [2, 'checking'], [3, 'reading'], [4, 'queued']])
-    const [first, , third, reading, queued] = partial.records
-    assert.deepEqual(first!.values[JSON.stringify(['material'])], { value: 'Holz', state: 'grounded' })
-    assert.deepEqual(first!.values[JSON.stringify(['gilded'])], { value: null, state: 'empty' })
-    assert.deepEqual(first!.values[JSON.stringify(['finds', '0', 'count'])], { value: 2, state: 'grounded' })
+    const [first, second, third, reading, queued] = partial.records
+    assert.deepEqual(first!.values[key('material')], { value: 'Holz', state: 'grounded' })
+    assert.deepEqual(first!.values[key('gilded')], { value: null, state: 'empty' })
+    assert.deepEqual(first!.values[key('finds', '0', 'count')], { value: 2, state: 'grounded' })
     assert.deepEqual(first!.evidenceLinks[0], {
       resultPath: ['records', 0, 'label'], evidenceAnchorId: 'a_p1_s0', precision: 'segment', verbatim: true, lexicalHits: 1,
       grounding: { linkedBy: 'verification', support: 'literal', textSpans: [{ segment: 'p1_s0', start: 0, end: 1 }],
         alternatives: [], precision: 'segment', raw: '1', itemSpans: null },
     })
     assert.equal((first!.evidenceLinks[3]!.grounding as VerifiedGrounding).itemSpans?.length, 1)  // the list item's occurrence
-    // A candidates-stage entry: candidates are checking, what the values call left null is empty (Ruling 10).
-    assert.deepEqual(third!.values[JSON.stringify(['material'])], { value: 'Gold', state: 'checking' })
-    assert.deepEqual(third!.values[JSON.stringify(['site'])], { value: null, state: 'empty' })
+    // An arbitration left unresolved: the field is contested, with the values that disagreed (design §1).
+    assert.deepEqual(second!.values[key('site')], { value: null, state: 'contested', candidates: ['Bdorf', 'Bdorf-Nord'] })
+    // A candidates-stage entry: candidates are checking, what the values call left null is empty (Ruling 7).
+    assert.deepEqual(third!.values[key('material')], { value: 'Gold', state: 'checking' })
+    assert.deepEqual(third!.values[key('site')], { value: null, state: 'empty' })
     assert.deepEqual(third!.evidenceLinks, [])
     assert.deepEqual([reading!.record, reading!.values, queued!.record, queued!.label], [null, {}, null, null])
     assert.equal(partial.document, null)
   })
 
+  it('a candidates-stage entry whose values window failed keeps its nulls unknown: reading, not empty', () => {
+    const document = fixture()
+    document.entries[2]!.failed = 1
+    assert.deepEqual(partialFromProgress(document)!.records[2]!.values[key('site')], { value: null, state: 'reading' })
+    assert.deepEqual(partialFromProgress(document)!.records[2]!.values[key('material')], { value: 'Gold', state: 'checking' })
+  })
+
   it('orders records by distance from the start page, ties and unknown pages last in source order', () => {
     const document = fixture()
     document.started_at_page = 3
-    document.entries[4]!.page = null as never
+    document.entries[4]!.page = null
     assert.deepEqual(partialFromProgress(document)!.records.map((record) => record.index), [3, 2, 0, 1, 4])
     document.started_at_page = null
     assert.deepEqual(partialFromProgress(document)!.records.map((record) => record.index), [0, 1, 2, 3, 4])
@@ -1140,30 +1345,35 @@ describe('partialFromProgress', () => {
     const document = fixture()
     document.entries[1]!.evidence = []
     const [, second] = partialFromProgress(document)!.records
-    assert.deepEqual(second!.values[JSON.stringify(['site'])], { value: 'Bdorf', state: 'checking' })
+    assert.deepEqual(second!.values[key('material')], { value: 'Stein', state: 'checking' })
   })
 
-  it('maps an Article document: one record, candidates checking, linked grounded, unanswered reading while contexts remain', () => {
+  it('maps an Article document: one record, candidates checking, linked grounded, unanswered reading while contexts remain or failed', () => {
     const link = { path: ['records', 0, 'site'], segment: 'p1_s0', page: 1, bbox_pt: [0, 0, 1, 1], verbatim: true, hits: 1,
       linked_by: 'model', cell: null, precision: 'segment' }
     const article = {
       version: 1, strategy: 'article', started_at_page: 2, discovered: 1, finished: 0,
       entries: [{ index: 0, label: null, page: null, stage: 'candidates', evidence: [link],
         candidates: [{ path: ['site'], value: 'Hill', quote: null, window: 0 }, { path: ['year'], value: 1828, quote: null, window: 0 }],
-        record: { entry_no: null, site: 'Hill', year: 1828, finds: [] } }],
-      document: { contexts: [{ primary: ['p1_s0'], overlap: [] }], answered: 1, of: 2, links: [link], grounding_batches: 1 },
+        record: { entry_no: null, site: 'Hill', year: 1828, finds: [] }, contested: [], failed: 0 }],
+      document: { contexts: [{ primary: ['p1_s0'], overlap: [] }], answered: 1, of: 2, failed_contexts: 0, links: [link], grounding_batches: 1 },
     }
     const partial = partialFromProgress(article)!
     assert.equal(partial.strategy, 'ARTICLE')
     assert.deepEqual(partial.document, { contextsAnswered: 1, contexts: 2, groundingBatches: 1 })
     const [record] = partial.records
     assert.equal(record!.state, 'checking')
-    assert.deepEqual(record!.values[JSON.stringify(['site'])], { value: 'Hill', state: 'grounded' })
-    assert.deepEqual(record!.values[JSON.stringify(['year'])], { value: 1828, state: 'checking' })
-    assert.deepEqual(record!.values[JSON.stringify(['entry_no'])], { value: null, state: 'reading' })
+    assert.deepEqual(record!.values[key('site')], { value: 'Hill', state: 'grounded' })
+    assert.deepEqual(record!.values[key('year')], { value: 1828, state: 'checking' })
+    assert.deepEqual(record!.values[key('entry_no')], { value: null, state: 'reading' })
     assert.deepEqual(record!.evidenceLinks, [{ resultPath: ['records', 0, 'site'], evidenceAnchorId: 'a_p1_s0', precision: 'segment', verbatim: true, lexicalHits: 1 }])
     article.document.answered = 2
-    assert.deepEqual(partialFromProgress(article)!.records[0]!.values[JSON.stringify(['entry_no'])], { value: null, state: 'empty' })
+    assert.deepEqual(partialFromProgress(article)!.records[0]!.values[key('entry_no')], { value: null, state: 'empty' })
+    article.entries[0]!.failed = 1
+    assert.deepEqual(partialFromProgress(article)!.records[0]!.values[key('entry_no')], { value: null, state: 'reading' })
+    article.entries[0]!.failed = 0
+    article.entries[0]!.contested = [{ path: ['entry_no'], candidates: ['31', '32'] }]
+    assert.deepEqual(partialFromProgress(article)!.records[0]!.values[key('entry_no')], { value: null, state: 'contested', candidates: ['31', '32'] })
   })
 
   it('a document outside the contract is null, never a throw', () => {
@@ -1315,6 +1525,7 @@ import type { EvidenceLink, ExtractionStrategy } from './types.js'
 const count = z.number().int().nonnegative()
 const relativePath = z.array(z.union([z.string(), z.number().int().nonnegative()]))
 const progressLinkSchema = z.union([unifiedEvidenceSchema, evidenceSchema])
+const contestSchema = z.object({ path: relativePath, candidates: z.array(z.unknown()) })
 const progressEntrySchema = z.object({
   index: count,
   label: z.string().nullable(),
@@ -1323,6 +1534,8 @@ const progressEntrySchema = z.object({
   candidates: z.array(z.object({ path: relativePath, value: z.unknown(), quote: z.string().nullable(), window: count.optional() })).nullable(),
   record: z.record(z.string(), z.unknown()).nullable(),
   evidence: z.array(progressLinkSchema).nullable(),
+  contested: z.array(contestSchema).nullable(),
+  failed: count.nullable(),
 })
 export const progressDocumentSchema = z.object({
   version: z.literal(1),
@@ -1332,17 +1545,20 @@ export const progressDocumentSchema = z.object({
   finished: count,
   entries: z.array(progressEntrySchema),
   document: z.object({
-    contexts: z.array(z.unknown()), answered: count, of: count, links: z.array(progressLinkSchema), grounding_batches: count,
+    contexts: z.array(z.unknown()), answered: count, of: count, failed_contexts: count,
+    links: z.array(progressLinkSchema), grounding_batches: count,
   }).nullable(),
 })
 export type ProgressDocument = z.infer<typeof progressDocumentSchema>
 
 /** A value of a record still being read (design §1): grounded once its link exists, checking while it is a candidate,
- *  reading while the call that would answer it is in flight, empty when the call that could have answered it did not. */
-export type PartialValueState = 'grounded' | 'checking' | 'reading' | 'empty'
+ *  reading while the call that would answer it is in flight or failed, empty when the call that could have answered it
+ *  succeeded without it, contested when verified values disagreed and arbitration chose none. */
+export type PartialValueState = 'grounded' | 'checking' | 'reading' | 'empty' | 'contested'
 /** queued: discovered, not yet read; reading: its values call is in flight; checking: its candidates are being verified
  *  (kei's `candidates` stage); finished: kei published the entry. */
 export type PartialRecordState = 'queued' | 'reading' | 'checking' | 'finished'
+export type PartialValue = Readonly<{ value: unknown; state: PartialValueState; candidates?: readonly unknown[] }>
 export type PartialRecord = Readonly<{
   index: number
   label: string | null
@@ -1351,7 +1567,7 @@ export type PartialRecord = Readonly<{
   /** The values so far in the artifact's shape; null before the values call returned. */
   record: Readonly<Record<string, unknown>> | null
   /** Each leaf of `record` by its record-relative path (every step a string, JSON-encoded, as `ResultValue` paths are). */
-  values: Readonly<Record<string, Readonly<{ value: unknown; state: PartialValueState }>>>
+  values: Readonly<Record<string, PartialValue>>
   evidenceLinks: readonly EvidenceLink[]
 }>
 /** A running Extraction's partial view (design §5): a view of files kei already wrote, never the record of truth. */
@@ -1390,8 +1606,9 @@ export function orderedByDistance<T extends { index: number; page: number | null
  * for a document outside the contract (a kei newer or older than this Studio), never a throw: the view is best effort.
  *
  * Per value: a leaf with a link is `grounded`; a populated leaf without one is `checking` (a candidate under
- * verification, or a finished value kei kept without a link); a null leaf is `reading` only in Article while contexts
- * remain unanswered, and `empty` otherwise (its values call returned without it, Ruling 10).
+ * verification, or a finished value kei kept without a link); a null leaf is `contested` when the entry reports its
+ * path as an unresolved contest, `reading` while a call that could still answer it is in flight or failed (an Article
+ * context unanswered or failed, a Catalog values window failed), and `empty` otherwise (Ruling 7).
  */
 export function partialFromProgress(raw: unknown): PartialResult | null {
   const parsed = progressDocumentSchema.safeParse(raw)
@@ -1401,14 +1618,17 @@ export function partialFromProgress(raw: unknown): PartialResult | null {
   const records = progress.entries.map((entry): PartialRecord => {
     const evidenceLinks = (entry.evidence ?? []).map(progressEvidenceLink)
     const linked = new Set(evidenceLinks.map((link) => JSON.stringify(link.resultPath.slice(2).map(String))))
-    const values: Record<string, { value: unknown; state: PartialValueState }> = {}
+    const contested = new Map((entry.contested ?? []).map((contest) => [JSON.stringify(contest.path.map(String)), contest.candidates]))
+    const unknown = unanswered || (entry.failed ?? 0) > 0
+    const values: Record<string, PartialValue> = {}
     if (entry.record !== null)
       for (const leaf of leavesOf(entry.record)) {
         const key = JSON.stringify(leaf.path)
-        values[key] = {
-          value: leaf.value,
-          state: linked.has(key) ? 'grounded' : populated(leaf.value) ? 'checking' : unanswered ? 'reading' : 'empty',
-        }
+        const candidates = contested.get(key)
+        values[key] = linked.has(key) ? { value: leaf.value, state: 'grounded' }
+          : populated(leaf.value) ? { value: leaf.value, state: 'checking' }
+          : candidates ? { value: leaf.value, state: 'contested', candidates }
+          : { value: leaf.value, state: unknown ? 'reading' : 'empty' }
       }
     return {
       index: entry.index, label: entry.label, page: entry.page,
@@ -1429,7 +1649,7 @@ export function partialFromProgress(raw: unknown): PartialResult | null {
 }
 ```
 
-`index.ts`: add `export { createKeiExpClient, PROGRESS_TIMEOUT_MS } from './kei-exp.js'` (extending the existing line), `export { orderedByDistance, partialFromProgress, progressDocumentSchema } from './partial-result.js'` and `export type { PartialRecord, PartialRecordState, PartialResult, PartialValueState, ProgressDocument } from './partial-result.js'`.
+`index.ts`: add `export { createKeiExpClient, PROGRESS_TIMEOUT_MS } from './kei-exp.js'` (extending the existing line), `export { orderedByDistance, partialFromProgress, progressDocumentSchema } from './partial-result.js'` and `export type { PartialRecord, PartialRecordState, PartialResult, PartialValue, PartialValueState, ProgressDocument } from './partial-result.js'`.
 
 - [ ] **Step 6: The stand-in.** `KeiStandInScript` gains:
 
@@ -1459,13 +1679,13 @@ The module comment's route list gains `, a running extraction's progress`.
 
 **Files:**
 - Modify: `packages/extraction/src/postgres-attempts.ts:125-150` (`pinsOf`), `packages/extraction/src/types.ts:225-253, 255-284` (the snapshots), `prototypes/studio/shared/extraction.contract.ts:62-80` (`extractionRequestSchema`), `:496-511` (`extractionReadResponseSchema`, and the new partial schemas above it), `prototypes/studio/api/extractions.ts:1-26` (imports), `:82-105` (`create`), `:107-121` (`read`)
-- Test: `prototypes/studio/api/extractions.test.ts` (the mock at 12-22, `snapshot` at 30, `catalogSnapshot` at 359, the running read at 459, `fresh` at 150), `prototypes/studio/api/_extractions.test.ts:134`, `prototypes/studio/api/document_reopen.test.ts:20`, `packages/extraction/src/kei-artifact.test.ts:434`, `packages/extraction/src/module.test.ts:143`
+- Test: `prototypes/studio/api/extractions.test.ts` (the imports at 1, the mock at 12-22, `snapshot` at 30, the exact `runSingle` expectation at 207-216, `catalogSnapshot` at 359, the running read at 459, `fresh` at 150), `prototypes/studio/api/_extractions.test.ts:134`, `prototypes/studio/api/document_reopen.test.ts:20`, `packages/extraction/src/kei-artifact.test.ts:434`, `packages/extraction/src/module.test.ts:143`
 
 **Interfaces:**
-- Produces: `ExtractionSnapshot.preprocessId: string` and `ExtractionAttemptSnapshot.preprocessId: string` (never on the wire); `extractionRequestSchema.startPage?: number` (positive integer); `partialValueStateSchema`, `partialRecordSchema`, `partialResultSchema`, type `PartialResult` in `shared/extraction.contract.ts`; `extractionReadResponseSchema.partial?: PartialResult | null`; `POST /api/extractions` passes `startPage` (null when absent) to `runSingle`; `GET /api/extractions/:id` answers `partial` for a RUNNING attempt.
+- Produces: `ExtractionSnapshot.preprocessId: string` and `ExtractionAttemptSnapshot.preprocessId: string` (never on the wire); `extractionRequestSchema.startPage?: number` (positive integer); `partialValueStateSchema`, `partialValueSchema`, `partialRecordSchema`, `partialResultSchema`, type `PartialResult` in `shared/extraction.contract.ts` (the wire type: what Part B imports); `extractionReadResponseSchema.partial?: PartialResult | null`; `POST /api/extractions` passes `startPage` (null when absent) to `runSingle`; `GET /api/extractions/:id` answers `partial` for a RUNNING attempt, validated against the wire schema inside the best-effort boundary.
 - Consumes: `keiExpClient.readExtractionProgress`, `partialFromProgress` (Task 6); `FreshExtractionInput.startPage` (Task 5).
 
-- [ ] **Step 1: Write the failing tests.** In `prototypes/studio/api/extractions.test.ts`: the hoisted `runtime` gains `readExtractionProgress: vi.fn<(runId: string, extractionId: string) => Promise<unknown | null>>()`, and the `vi.mock('./_extractions.js', …)` factory returns `keiExpClient: { ...actual.keiExpClient, readExtractionProgress: runtime.readExtractionProgress }` beside `createResearcherExtractions`. `snapshot` (30) and `catalogSnapshot` (359) gain `preprocessId: 'kei-exp:run-1:g1',` after `sourceRepresentationRevisionNumber`. Import the fixture: `import progressFixture from '../../parsing_service/tests/fixtures/contracts/extract.progress.json'`. Add a `beforeEach(() => runtime.readExtractionProgress.mockReset())` in the transport describe. New cases:
+- [ ] **Step 1: Write the failing tests.** In `prototypes/studio/api/extractions.test.ts`: the first import becomes `import { beforeEach, describe, expect, it, vi } from 'vitest'`; the hoisted `runtime` gains `readExtractionProgress: vi.fn<(runId: string, extractionId: string) => Promise<unknown | null>>()`, and the `vi.mock('./_extractions.js', …)` factory returns `keiExpClient: { ...actual.keiExpClient, readExtractionProgress: runtime.readExtractionProgress }` beside `createResearcherExtractions`. `snapshot` (30) and `catalogSnapshot` (359) gain `preprocessId: 'kei-exp:run-1:g1',` after `sourceRepresentationRevisionNumber`. The exact `expect(module.runSingle).toHaveBeenCalledWith({ kind: 'fresh', … })` of the fresh-request case (207-216) gains `startPage: null,` after `method`. Import the fixture: `import progressFixture from '../../parsing_service/tests/fixtures/contracts/extract.progress.json'`. Add `beforeEach(() => runtime.readExtractionProgress.mockReset())` at the top of the transport describe. New cases:
 
 ```ts
   it('passes the page the researcher was reading to admission, null when the request names none, and refuses a bad one', async () => {
@@ -1480,7 +1700,7 @@ The module comment's route list gains `, a running extraction's progress`.
     expect(module.runSingle).toHaveBeenCalledTimes(2)
   })
 
-  it('reads a running job with kei\'s progress as a partial view, and without one when kei has none, is slow or answers outside the contract', async () => {
+  it('reads a running job with kei\'s progress as a partial view, and without one when kei has none, is slow, or answers outside the contract', async () => {
     const running = { ...attemptSnapshot, executionStatus: 'RUNNING' as const, outcome: null, complete: null, modelAttribution: null,
       diagnostics: null, result: null, evidence: null, failure: null, reviewable: false, reviewedAt: null, reviewDecisions: [] }
     const handler = handlerFor(extractionModule({ readExtractionAttempt: vi.fn(async () => running) }))
@@ -1495,11 +1715,17 @@ The module comment's route list gains `, a running extraction's progress`.
     expect(shown.partial).toMatchObject({ strategy: 'CATALOG', startedAtPage: 1, discovered: 5, finished: 2 })
     expect(shown.partial!.records.map((record) => record.state)).toEqual(['finished', 'finished', 'checking', 'reading', 'queued'])
     expect(shown.partial!.records[0]!.values[JSON.stringify(['material'])]).toEqual({ value: 'Holz', state: 'grounded' })
+    expect(shown.partial!.records[1]!.values[JSON.stringify(['site'])]).toEqual({ value: null, state: 'contested', candidates: ['Bdorf', 'Bdorf-Nord'] })
     runtime.readExtractionProgress.mockResolvedValueOnce(null)
     expect((await read()).partial).toBeNull()
     runtime.readExtractionProgress.mockRejectedValueOnce(Object.assign(new Error('timed out'), { transient: true }))
     expect((await read()).partial).toBeNull()
     runtime.readExtractionProgress.mockResolvedValueOnce({ version: 2 })
+    expect((await read()).partial).toBeNull()
+    // Inside kei's contract but outside Studio's wire contract (an empty link path): still null, still 200.
+    const emptyPath = structuredClone(progressFixture) as typeof progressFixture
+    ;(emptyPath.entries[0]!.evidence![0] as { path: unknown[] }).path = []
+    runtime.readExtractionProgress.mockResolvedValueOnce(emptyPath)
     expect((await read()).partial).toBeNull()
   })
 
@@ -1516,7 +1742,7 @@ The module comment's route list gains `, a running extraction's progress`.
   })
 ```
 
-(`attemptSnapshot` is the existing completed attempt literal the file builds from `snapshot`; if it has another name, use that.) Add `preprocessId: 'kei-exp:run-1:g1'` to the snapshot literals in `_extractions.test.ts:134`, `document_reopen.test.ts:20`, `kei-artifact.test.ts:434` and `module.test.ts:143`.
+(`attemptSnapshot` is the completed attempt literal the file builds from `snapshot`; if it has another name, use that.) Add `preprocessId: 'kei-exp:run-1:g1'` to the snapshot literals in `_extractions.test.ts:134`, `document_reopen.test.ts:20`, `kei-artifact.test.ts:434` and `module.test.ts:143`.
 
 - [ ] **Step 2: Run them to verify they fail** — `pnpm -C prototypes/studio exec vitest run api/extractions.test.ts` → FAIL (422 for a valid `startPage`: strict schema; no `partial`).
 
@@ -1540,9 +1766,14 @@ Before `extractionReadResponseSchema`:
 
 ```ts
 /** One value of a record still being read (design §1): grounded once its link exists, checking while it is a
- *  candidate, reading while the call that would answer it is in flight, empty when that call returned without it. */
-export const partialValueStateSchema = z.enum(['grounded', 'checking', 'reading', 'empty'])
+ *  candidate, reading while the call that would answer it is in flight or failed, empty when that call succeeded
+ *  without it, contested when verified values disagreed and arbitration chose none (its candidates beside it). */
+export const partialValueStateSchema = z.enum(['grounded', 'checking', 'reading', 'empty', 'contested'])
 export type PartialValueState = z.infer<typeof partialValueStateSchema>
+export const partialValueSchema = z
+  .object({ value: z.json(), state: partialValueStateSchema, candidates: z.array(z.json()).optional() })
+  .strict()
+export type PartialValue = z.infer<typeof partialValueSchema>
 
 export const partialRecordSchema = z
   .object({
@@ -1555,7 +1786,7 @@ export const partialRecordSchema = z
     /** The values so far, in the artifact's shape; null before the values call returned. */
     record: z.record(z.string(), z.json()).nullable(),
     /** Each leaf of `record` by its record-relative path (every step a string, JSON-encoded), with its state. */
-    values: z.record(z.string(), z.object({ value: z.json(), state: partialValueStateSchema }).strict()),
+    values: z.record(z.string(), partialValueSchema),
     evidenceLinks: z.array(evidenceLinkSchema),
   })
   .strict()
@@ -1590,7 +1821,7 @@ and in `extractionReadResponseSchema`, after `pendingReviewDecisions`:
     partial: partialResultSchema.nullable().optional(),
 ```
 
-- [ ] **Step 5: `api/extractions.ts`.** Imports: `import { ExtractionError, partialFromProgress, type ExtractionAttemptSnapshot } from 'extraction'`, `import { keiRunOf } from 'extraction/kei-handoff'`, add `type PartialResult` to the contract import and `keiExpClient` to the `./_extractions.js` import. In `create`, the `input` literal gains `startPage: parsed.data.startPage ?? null,` after `method: parsed.data.method,`. `read` becomes:
+- [ ] **Step 5: `api/extractions.ts`.** Imports: `import { ExtractionError, partialFromProgress, type ExtractionAttemptSnapshot } from 'extraction'`, `import { keiRunOf } from 'extraction/kei-handoff'`, add `partialResultSchema, type PartialResult` to the contract import and `keiExpClient` to the `./_extractions.js` import. In `create`, the `input` literal gains `startPage: parsed.data.startPage ?? null,` after `method: parsed.data.method,`. `read` becomes:
 
 ```ts
   async function read(extractionId: string): Promise<Response> {
@@ -1616,22 +1847,27 @@ and in `extractionReadResponseSchema`, after `pendingReviewDecisions`:
 and, above `createResearcherApiHandlers`:
 
 ```ts
-/** The partial view of a running Extraction (design §5): kei's progress document, read under PROGRESS_TIMEOUT_MS and
- *  converted with the artifact reader's own code. Best effort: no stage file yet, a slow or unreachable kei, or a
- *  document outside the contract is null, and the read answers as it did before. */
+/** The partial view of a running Extraction (design §5): kei's progress document, read under PROGRESS_TIMEOUT_MS,
+ *  converted with the artifact reader's own code and validated against the wire contract, all inside one best-effort
+ *  boundary: no stage file yet, a slow or unreachable kei, or a document outside either contract is null, and the read
+ *  answers as it did before. */
 async function readPartial(extraction: ExtractionAttemptSnapshot): Promise<PartialResult | null> {
   const run = keiRunOf(extraction.preprocessId)
   if (run === null) return null
   try {
     const progress = await keiExpClient.readExtractionProgress(run.runId, extraction.extractionId)
-    return progress === null ? null : partialFromProgress(progress)
+    if (progress === null) return null
+    const partial = partialResultSchema.safeParse(partialFromProgress(progress))
+    return partial.success ? partial.data : null
   } catch {
     return null
   }
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass** — `pnpm -r typecheck && pnpm --filter studio lint && pnpm -C prototypes/studio exec vitest run api/extractions.test.ts api/_extractions.test.ts api/document_reopen.test.ts src/useExtraction.test.tsx src/App.test.tsx && pnpm --filter extraction test` → PASS (the client's mocked reads parse without `partial`: Ruling 9). `preprocessId` is required on both snapshot types: typecheck names any further snapshot literal (an untyped object a typed mock returns, for instance), and each gets `preprocessId: 'kei-exp:run-1:g1'`; the field is never made optional to get green.
+(`partialFromProgress` returns the package's readonly type or null; the wire schema's `safeParse` takes `unknown`, so the two types meet only there, and a null converter result fails the parse and is null.)
+
+- [ ] **Step 6: Run the tests to verify they pass** — `pnpm -r typecheck && pnpm --filter studio lint && pnpm -C prototypes/studio exec vitest run api/extractions.test.ts api/_extractions.test.ts api/document_reopen.test.ts src/useExtraction.test.tsx src/App.test.tsx && pnpm --filter extraction test` → PASS (the client's mocked reads parse without `partial`: Ruling 12). `preprocessId` is required on both snapshot types: typecheck names any further snapshot literal (an untyped object a typed mock returns, for instance), and each gets `preprocessId: 'kei-exp:run-1:g1'`; the field is never made optional to get green.
 
 - [ ] **Step 7: Commit** — `feat(studio): the run request names the page being read; a running attempt reads back with its partial view`.
 
@@ -1644,7 +1880,7 @@ async function readPartial(extraction: ExtractionAttemptSnapshot): Promise<Parti
 
 - [ ] **Step 1: Full gates.** From the worktree root: `pnpm -r typecheck && pnpm --filter studio lint && pnpm --filter db test && pnpm --filter extraction test && pnpm --filter studio test` → PASS. From `prototypes/parsing_service`: the fast tier `/home/gennaro/projects/FREE/prototypes/parsing_service/.venv/bin/python -m pytest -q -m "not postgres and not live_model"` → PASS. Where a disposable database is available (`EXTRACTION_TEST_DATABASE_URL`, `PARSING_TEST_DATABASE_URL`): `pnpm --filter db test:postgres`, `pnpm --filter extraction test:postgres`, `pnpm --filter studio test:postgres`, and the Parsing Service `test:postgres` tier; otherwise record in the ledger which tiers wait for the Baratheon verification (`~/pr-validation/run-tiers.sh` runs them there).
 
-- [ ] **Step 2: The spec's status.** Line 3 of the spec becomes `Date: 2026-10-02 · Status: Part A (service, package, API) implemented by `docs/superpowers/plans/2026-10-03-view-ordered-streaming-service.md`; Part B (client) by `…-client.md` · Scope:` (keep the rest of the line).
+- [ ] **Step 2: The spec's status.** Line 3 of the spec becomes `Date: 2026-10-02 · Status: Part A (service, package, API) implemented by `docs/superpowers/plans/2026-10-03-view-ordered-streaming-service.md`; Part B (client, `…-client.md`) pending · Scope:` (keep the rest of the line). Part B's last task sets it to implemented.
 
 - [ ] **Step 3: A last read of the README paragraphs** Task 4 edited: the route sentence and the stage-file clause are in the `extract` bullet and the unified paragraph, each one sentence, no duplicated clause.
 
@@ -1654,10 +1890,16 @@ async function readPartial(extraction: ExtractionAttemptSnapshot): Promise<Parti
 
 ## Self-review
 
-**Spec coverage.** §1 (states, order, header, badge) → Part B, on this plan's `PartialResult` (Task 6) and `partial` (Task 7). §2 candidates file → Task 2; finished entry unchanged → Task 2 (`read` publishes as before); Article context and grounding files → Task 3. §3 route, 404 rule, shape, `page` from the first range, `record`/`evidence` by the artifact's code, same process and `run_dir` lookup → Task 4. §4 `Options.start_page` and `dumped()` → Task 1; unified distance order with source-order assembly → Task 2; Article bounded contexts → Task 3; Studio `startPage` on the request, the row, one migration, `keiExtractRequest` inside the `submitToKei` body, the legacy checkpoint → Tasks 5 and 7; batches send none → Task 5 (`admitBatchMember` unchanged). §5 `read()` under two seconds, `partial` nullable, `partialFromProgress` with the artifact's link code → Tasks 6 and 7; `useExtraction`, `ResultsTab`, overlays, badge → Part B. Error handling: stage files skipped when unreadable → Task 4 (`_json`); GC removes them with the directory (no change: `deleteRuns` removes the run); the read degrades to today's behaviour → Task 7; the settled result wins → Part B. Testing: every bullet of the spec's Parsing Service, `packages/extraction` and Studio API lists has a test above; the client and browser bullets are Part B's. Files: `progress.py`, the route, the migration, `partial-result.ts` and the tests beside each; every edited file named in the spec is edited here except `kei-handoff.ts` (its options record already admits `start_page`), `src/*` (Part B) and `workflows/extract.py` (the id reaches Article through `run.dispatch`, which `extract_run` already calls with `extraction_id`).
+**Spec coverage.** §1 (states, order, header, badge) → Part B, on this plan's `PartialResult` (Task 6) and `partial` (Task 7); `contested` travels from a finished entry's unresolved contest (Task 4) through the converter (Task 6) and the wire (Task 7). §2 candidates file → Task 2; finished entry unchanged → Task 2 (`read` publishes as before); Article context and grounding files → Task 3 (per execution, Ruling 4; the context file carries the root assembled so far, Ruling 6). §3 route, 404 rule, shape, `page` from the first range, `record`/`evidence` by the artifact's code, same process and `run_dir` lookup → Task 4. §4 `Options.start_page` and `dumped()` → Task 1; unified distance order with source-order assembly → Task 2; Article bounded contexts → Task 3; Studio `startPage` on the request, the row, one migration, `keiExtractRequest` inside the `submitToKei` body, the legacy checkpoint → Tasks 5 and 7; batches send none → Task 5 (`admitBatchMember` unchanged). §5 `read()` under two seconds, `partial` nullable, `partialFromProgress` with the artifact's link code → Tasks 6 and 7; `useExtraction`, `ResultsTab`, overlays, badge → Part B. Error handling: stage files skipped when unreadable → Task 4 (`_stage`); a stage write that fails never fails the extraction → Task 2 (`write_stage`); GC removes them with the directory (no change: `deleteRuns` removes the run); the read degrades to today's behaviour → Task 7; the settled result wins → Part B. Testing: every bullet of the spec's Parsing Service, `packages/extraction` and Studio API lists has a test above; the client and browser bullets are Part B's. Files: `progress.py`, the route, the migration, `partial-result.ts` and the tests beside each; every edited file named in the spec is edited here except `kei-handoff.ts` (its options record already admits `start_page`), `src/*` (Part B) and `workflows/extract.py` (the id reaches Article through `run.dispatch`, which `extract_run` already calls with `extraction_id`).
 
 **Placeholder scan.** No TBD/TODO; every code step has its code; every test has its assertions. The migration directory's timestamp is generated by the tool and matched by suffix in its test.
 
-**Type consistency.** `start_page` (kei, request options) ↔ `startPage` (Studio, rows, request body) at the `keiExtractRequest` boundary only. `progress.ProgressDocument` ↔ `progressDocumentSchema` ↔ `extract.progress.json`: `version`, `strategy`, `started_at_page`, `discovered`, `finished`, `entries[].{index,label,page,stage,candidates,record,evidence}`, `document.{contexts,answered,of,links,grounding_batches}`. `PartialResult` (package) ↔ `partialResultSchema` (wire): `strategy`, `startedAtPage`, `discovered`, `finished`, `records[].{index,label,page,state,record,values,evidenceLinks}`, `document.{contextsAnswered,contexts,groundingBatches}`. `KeiStandInScript.progress` returns the raw document the route serves. `entry_links(record, passages)` takes the published entry file and a `{id: Passage}` map, as `_link` does.
+**Type consistency.** `start_page` (kei, request options) ↔ `startPage` (Studio, rows, request body) at the `keiExtractRequest` boundary only. `progress.ProgressDocument` ↔ `progressDocumentSchema` ↔ `extract.progress.json`: `version`, `strategy`, `started_at_page`, `discovered`, `finished`, `entries[].{index,label,page,stage,candidates,record,evidence,contested,failed}`, `document.{contexts,answered,of,failed_contexts,links,grounding_batches}`. The package's `PartialResult` (readonly, `value: unknown`) meets the wire's `partialResultSchema` only through `safeParse` in `readPartial` (Task 7) and in Part B's test fixtures; `records[].{index,label,page,state,record,values,evidenceLinks}`, `values[].{value,state,candidates?}`, `document.{contextsAnswered,contexts,groundingBatches}` match field for field. `KeiStandInScript.progress` returns the raw document the route serves. `entry_links(record, passages)` takes the published entry file and a `{id: Passage}` map, as `_link` does. `on_context`'s nine arguments are the same in `document_root`, `_context_stage` and the Task 3 test.
 
-**Review Focus.** Each line names its task; Task 7's tests cover 1 (throw → null), 3 (422) and 4 (null → 200); Task 5's test covers 2; Task 4's covers 5; Task 6 covers the client side of 1 and 4.
+**Review Focus.** Each line names its task; Task 7's tests cover 1 (throw → null), 3 (422) and 4 (null → 200, including a document inside kei's contract but outside the wire's); Task 5's test covers 2; Task 4's tests cover 4 (malformed and half-written stage files) and 5 (another execution's files); Task 2 covers the failed stage write.
+
+## Review log — Codex gpt-6-astra (reasoning max), round 1, 2026-10-03
+
+Accepted and applied: P0-1 (`strict=True` on `start_page`; strings, booleans and fractions refused in the test) · P0-2 (package and wire `PartialResult` meet only through `partialResultSchema.safeParse`, in `readPartial` and in Part B's fixtures) · P0-3 (the record-scope migration test loses its ref assertion; the latest migration's test owns it) · P0-4 (`accept(...).extraction.outcome`) · P0-5 (fixtures typed through `progressDocumentSchema.parse`; Part B's badge fixture typed as the wire `PartialResult`) · P0-6 (the exact `runSingle` expectation gains `startPage: null`; `beforeEach` imported) · P0-7 and P0-8 (Part B: scoped candidate assertions; helpers moved out of the component file) · P1-1 (kei assembles the running root with `assemble_document` and `conform` after each context; the reader takes the latest, Ruling 6) · P1-2 (an execution token on the header and every stage file; the reader skips other executions', Ruling 4) · P1-3 (`write_stage` contains `OSError`) · P1-4 (pydantic stage models validate every file; `readPartial` validates the wire DTO inside its catch) · P1-5 and P2-1 (Part B: the partial lives on the monitor across reconnects; a finished record is replaced only by one with at least as many links; the focus overlay survives a poll) · P1-6 (`contested` from `work.contest` and from Article's conflicts, through the contract, the converter and the renderer) · P1-7 (Ruling 7: nulls of a failed window or context stay `reading`) · P1-9 (Part B's browser test puts the current-page record later in source order and asserts the stand-in received `start_page`) · P2-2 (the comment on a page beyond the document) · P2-3 (Part A marks Part B pending; Ruling 13 reads §1's order as §4's).
+
+Rejected or narrowed: P1-8 — a shared keyed presentation preserving DOM rows across settlement would put the settled view's navigation and review controls over partial records; out of this plan's scope. Part B's Ruling 7 now states the swap honestly (two components, one render, the order changing once from reading order to source order) and its test asserts that, not continuity; the human may overrule.
