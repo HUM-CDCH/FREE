@@ -189,6 +189,14 @@ function renderPanel(
   return { ...setup, rerender: (_setupOptions, props) => rerender(panel(props)) }
 }
 
+/** The pointer leaving `from` for `to`, as a browser reports it: React derives every mouseleave and mouseenter from
+ *  the `mouseout`'s relatedTarget, so only elements between the two change. (`fireEvent.mouseEnter` alone enters from
+ *  outside the window, which re-enters every ancestor.) */
+function pointerMove(from: Element, to: Element) {
+  fireEvent.mouseOut(from, { relatedTarget: to })
+  fireEvent.mouseOver(to, { relatedTarget: from })
+}
+
 /** Opens the header's "Schema actions" menu and chooses `name`. */
 function chooseSchemaAction(name: string) {
   fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
@@ -690,6 +698,24 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('man')).toBeInTheDocument()
   })
 
+  it('the values pill opens the edit form focused on its allowed values; the type pill and Edit on the name', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTitle('Allowed values — click to edit: woman, man'))
+    expect(screen.getByRole('textbox', { name: 'Add allowed value' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel field edit' }))
+
+    fireEvent.click(within(screen.getByRole('listitem', { name: 'title' })).getByTitle('Type: string — click to edit'))
+    expect(screen.getByDisplayValue('title')).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel field edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit gender' }))
+    expect(screen.getByDisplayValue('gender')).toHaveFocus()
+  })
+
+  it('counts one allowed value as "1 value"', () => {
+    renderPanel({ panelNodes: [{ id: 'kind', name: 'kind', type: 'string', allowedValues: ['grave'] }] })
+    expect(screen.getByTitle('Allowed values — click to edit: grave')).toHaveTextContent(/^1 value$/)
+  })
+
   it('adds and removes allowed values from the badge editor', () => {
     const setup = renderPanel()
 
@@ -789,6 +815,62 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('grave')).toBeInTheDocument()
     expect(screen.getByText('year')).toBeInTheDocument()
     expect(screen.getByText('new_field')).toBeInTheDocument()
+  })
+
+  it('a drag from the slot above an open group into its header drops the field into the group', async () => {
+    const setup = renderPanel({ panelNodes: [
+      { id: 'title', name: 'title', type: 'string' },
+      { id: 'grave', name: 'grave', type: 'object', children: [{ id: 'depth', name: 'depth', type: 'number' }] },
+    ] })
+    const titleRow = screen.getByRole('listitem', { name: 'title' })
+    const graveRow = screen.getByRole('listitem', { name: 'grave' })
+    const slot = graveRow.previousElementSibling!
+
+    fireEvent.mouseDown(titleRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseMove(window, { clientX: 0, clientY: 26 })
+    pointerMove(titleRow, slot)
+    fireEvent.mouseMove(window, { clientX: 0, clientY: 36 })
+    pointerMove(slot, graveRow)
+    expect(within(graveRow).getByText('into grave')).toBeInTheDocument()
+    fireEvent.mouseUp(window)
+
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(setup.edits[0].schemaNodes).toStrictEqual([
+      { id: 'grave', name: 'grave', type: 'object', children: [
+        { id: 'depth', name: 'depth', type: 'number' }, { id: 'title', name: 'title', type: 'string' },
+      ] },
+    ])
+  })
+
+  it('a drag from a child row up into its parent header drops the field into the parent', async () => {
+    const setup = renderPanel({ panelNodes: [
+      { id: 'grave', name: 'grave', type: 'object', children: [
+        { id: 'depth', name: 'depth', type: 'number' }, { id: 'width', name: 'width', type: 'number' },
+      ] },
+      { id: 'title', name: 'title', type: 'string' },
+    ] })
+    const titleRow = screen.getByRole('listitem', { name: 'title' })
+    const widthRow = screen.getByRole('listitem', { name: 'width' })
+    const graveRow = screen.getByRole('listitem', { name: 'grave' })
+
+    fireEvent.mouseDown(titleRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 0, clientY: 70 })
+    pointerMove(titleRow, widthRow)
+    // A scalar under the pointer is still a target that would become a group (unchanged).
+    expect(within(widthRow).getByText('into width')).toBeInTheDocument()
+    fireEvent.mouseMove(window, { clientX: 0, clientY: 10 })
+    pointerMove(widthRow, graveRow)
+    expect(within(graveRow).getByText('into grave')).toBeInTheDocument()
+    expect(within(widthRow).queryByText('into width')).not.toBeInTheDocument()
+    fireEvent.mouseUp(window)
+
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(setup.edits[0].schemaNodes).toStrictEqual([
+      { id: 'grave', name: 'grave', type: 'object', children: [
+        { id: 'depth', name: 'depth', type: 'number' }, { id: 'width', name: 'width', type: 'number' },
+        { id: 'title', name: 'title', type: 'string' },
+      ] },
+    ])
   })
 
   it('shows the item shape when reviewing an array type change', async () => {
@@ -1771,20 +1853,47 @@ describe('schema header (redesign §5)', () => {
 })
 
 describe('field rows (redesign §6)', () => {
-  it('shows the name in full beside word pills, keeps actions until hover or focus, and has no selection checkboxes', () => {
+  // Geometry (264px and 344px rails, nested rows, a long name with six values, Tab) is measured in a real browser:
+  // e2e/field-row-widths.spec.ts. These are the class contract and the DOM interactions jsdom can check.
+  it('shows the name in full beside word pills that wrap under it, overlays the actions on hover or focus, and has no selection checkboxes', () => {
     renderPanel({ panelNodes: [...nodes, { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },
       { id: 'sex', name: 'sex', type: 'string', allowedValues: ['f', 'm', 'unknown', 'child', 'adult', 'elder'] }] })
     const row = screen.getByRole('listitem', { name: 'sex' })
-    expect(within(row).getByText('sex').className).toMatch(/shrink-0/)
-    expect(within(row).getByText('sex').className).toMatch(/max-w-\[60%\]/)
+    const name = within(row).getByText('sex')
+    expect(name.className).toMatch(/\bshrink-0\b/)
+    expect(name.className).toMatch(/\bmax-w-full\b/)
+    expect(name.parentElement!.className).toMatch(/\bflex-wrap\b/)
     expect(within(row).getByText('6 values')).toBeInTheDocument()
     expect(within(row).getByTitle('Type: string — click to edit')).toBeInTheDocument()
     expect(within(screen.getByRole('listitem', { name: 'dates' })).getByTitle('Type: list of dates — click to edit')).toBeInTheDocument()
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
     const actions = within(row).getByRole('button', { name: 'Delete sex' }).parentElement!
+    // An overlay on the row's right edge reserves no width at rest.
+    expect(actions.className).toMatch(/\babsolute\b/)
+    expect(actions.className).toMatch(/\bright-0\b/)
+    expect(actions.className).toMatch(/\bbg-surface\b/)
+    expect(actions.className).toMatch(/(^|\s)opacity-0\b/)
     expect(actions.className).toMatch(/group-hover:opacity-100/)
     expect(actions.className).toMatch(/group-focus-within:opacity-100/)
     expect(within(row).getByRole('button', { name: 'Delete sex' }).className).toMatch(/size-7/)
+  })
+
+  it('Tab reaches the row actions after its pills, and their focus is focus within the row', () => {
+    renderPanel()
+    const row = screen.getByRole('listitem', { name: 'title' })
+    const tabOrder = Array.from(row.querySelectorAll<HTMLElement>('button, [tabindex]'))
+      .filter((element) => element !== row && !element.hasAttribute('disabled') && element.tabIndex >= 0)
+      .map((element) => element.getAttribute('aria-label') ?? element.getAttribute('title') ?? element.textContent)
+    expect(tabOrder).toEqual(['Type: string — click to edit', 'Edit title', 'Add note to title', 'Delete title', 'Research rule'])
+    const edit = within(row).getByRole('button', { name: 'Edit title' })
+    edit.focus()
+    expect(edit).toHaveFocus()
+    // What `group-focus-within:` and `focus-within:` match: the overlay shows while one of its actions has focus.
+    expect(row.matches(':focus-within')).toBe(true)
+    expect(edit.parentElement!.matches(':focus-within')).toBe(true)
+    // While a pill has keyboard focus the overlay steps aside instead of covering it.
+    expect(within(row).getByTitle('Type: string — click to edit')).toHaveAttribute('data-row-pill')
+    expect(edit.parentElement!.className).toMatch(/group-has-\[\[data-row-pill\]:focus-visible\]:opacity-0/)
   })
 
   it('deletes a field in one click and Undo restores it in place', () => {
@@ -1796,6 +1905,22 @@ describe('field rows (redesign §6)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['title', 'gender'])
     expect(screen.getByRole('listitem', { name: 'title' })).toBeInTheDocument()
+  })
+
+  it('Undo saves the complete original tree, a surviving group\'s extraction metadata included', () => {
+    const original: SchemaNode[] = [
+      { id: 'grave', name: 'grave', type: 'object', valueSource: 'document', evidencePolicy: 'derived', children: [
+        { id: 'depth', name: 'depth', type: 'number' }, { id: 'width', name: 'width', type: 'number' },
+      ] },
+      { id: 'title', name: 'title', type: 'string' },
+    ]
+    const setup = renderPanel({ panelNodes: original })
+    fireEvent.click(within(screen.getByRole('listitem', { name: 'depth' })).getByRole('button', { name: 'Delete depth' }))
+    expect(setup.edits.at(-1)!.schemaNodes).toStrictEqual([
+      { ...original[0], children: [{ id: 'width', name: 'width', type: 'number' }] }, original[1],
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(setup.edits.at(-1)!.schemaNodes).toStrictEqual(original)
   })
 
   it('Undo after the parent group was deleted says it could not restore', () => {

@@ -197,9 +197,11 @@ const genBtnCls =
   'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-accent bg-accent px-3 py-1.5 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-50 disabled:hover:brightness-100'
 
 // Field editing uses stable ids, not paths.
-function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
+function FieldEditForm({ editing, error, focus = 'name', onChange, onSave, onCancel }: {
   editing: FieldEditing
   error: string | null
+  /** The input focused on opening: the name, or the allowed values when the row's values pill opened the form. */
+  focus?: 'name' | 'values'
   onChange: (e: FieldEditing) => void
   onSave: () => void
   onCancel: () => void
@@ -227,7 +229,7 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
           className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-xs font-semibold text-ink outline-none focus-visible:border-accent"
           value={editing.name}
           placeholder="field_name"
-          autoFocus
+          autoFocus={focus === 'name' || editing.type !== 'string'}
           onChange={e => onChange({ ...editing, name: e.target.value })}
           onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
         />
@@ -285,6 +287,8 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
           <div className="flex items-center gap-1.5">
             <input
               className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-compact text-ink outline-none focus-visible:border-accent"
+              aria-label="Add allowed value"
+              autoFocus={focus === 'values'}
               value={newValue}
               placeholder="add value…"
               onChange={e => setNewValue(e.target.value)}
@@ -384,6 +388,7 @@ function SchemaPanel({
   const [dragY, setDragY] = useState(0)
   const [overTarget, setOverTarget] = useState<DropTarget | null>(null)
   const [editing, setEditing] = useState<FieldEditing | null>(null)
+  const [editFocus, setEditFocus] = useState<'name' | 'values'>('name')
   const [provisionalField, setProvisionalField] =
     useState<FieldEditing | null>(null)
   const [editingError, setEditingError] = useState<string | null>(null)
@@ -1064,21 +1069,24 @@ function SchemaPanel({
     const diffStatus = change?.kind ?? (ancestorRemoved ? 'removed' : null)
     const isDiff = diffStatus !== null
     const isEditing = editing?.id === node.id
+    // The row itself is the group target, at every level: the slot above it and its children below are targets of their
+    // own, and the pointer moving from either onto the row must replace their target.
     return (
-      <div key={node.id} data-schema-node-id={node.id}
-        onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name)}
-        onMouseLeave={() => !isDiff && clearGroupTarget(node.id)}>
-        <div className={slotCls(parentId, index)} onMouseEnter={(event) => { event.stopPropagation(); setSlotTarget(parentId, index) }} />
+      <div key={node.id} data-schema-node-id={node.id}>
+        <div className={slotCls(parentId, index)} onMouseEnter={() => setSlotTarget(parentId, index)} />
         {isEditing && editing && !isDiff ? (
-          <FieldEditForm editing={editing} error={editingError} onChange={(next) => { setEditing(next); setEditingError(null) }} onSave={saveEdit} onCancel={cancelEdit} />
+          <FieldEditForm editing={editing} error={editingError} focus={editFocus} onChange={(next) => { setEditing(next); setEditingError(null) }} onSave={saveEdit} onCancel={cancelEdit} />
         ) : (
           <FieldRow node={node} isGroup={isGroup} expanded={isExpanded}
             onToggleExpanded={() => setCollapsedIds((current) => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next })}
             change={change} outcome={change && replay?.outcomes.get(change.id)} impliedRemoved={ancestorRemoved}
             acceptance={change ? { accepted: acceptedChangeIds.has(change.id), onToggle: proposalReview.toggle } : undefined}
-            readOnly={editorReadOnly} editDisabled={editDisabled} dragging={isDragging} intoGroup={intoGroup}
+            readOnly={editorReadOnly} editDisabled={editDisabled} dragging={isDragging} dragActive={!!dragging} intoGroup={intoGroup}
+            onMouseEnter={isDiff ? undefined : () => setGroupTarget(node.id, node.name)}
+            onMouseLeave={isDiff ? undefined : () => clearGroupTarget(node.id)}
             onStartDrag={(event) => startDrag(event, node.id, parentId, node.name, isGroup)}
-            onEdit={() => { setEditing(editingOf(node)); setEditingError(null) }}
+            onEdit={() => { setEditing(editingOf(node)); setEditFocus('name'); setEditingError(null) }}
+            onEditValues={() => { setEditing(editingOf(node)); setEditFocus('values'); setEditingError(null) }}
             onAddNote={() => { const next = openDescId === node.id ? null : node.id; if (next) setDescDraft(''); setOpenDescId(next) }}
             onDelete={() => deleteField(node, parentId, index)}
             nodeRef={fieldContext?.nodeId === node.id ? focusField : undefined} />
@@ -1089,7 +1097,7 @@ function SchemaPanel({
             onDelete={() => { updateNodeDescription(node.id, undefined); setOpenDescId(null) }} onCancel={() => setOpenDescId(null)} />
         )}
         {isGroup && isExpanded && ((node.children ?? []).length > 0 || !!dragging) && (
-          <div role="list" aria-label={`Fields of ${node.name}`} className="ml-4 mt-0.5 border-l border-line pl-3">
+          <div role="list" aria-label={`Fields of ${node.name}`} className="-mr-2 ml-4 mt-0.5 border-l border-line pl-3 pr-2">
             {(node.children ?? []).map((child, childIndex) => renderField(child, node.id, childIndex, ancestorRemoved || diffStatus === 'removed'))}
             <div className={slotCls(node.id, (node.children ?? []).length)} onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)} />
           </div>
@@ -1359,7 +1367,8 @@ function SchemaPanel({
               )}
             </label>
             {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
-            <div ref={fieldListRef} role="list" aria-label="Schema fields" className="flex flex-col">
+            {/* The list carries its rows' 8px bleed, so no row's box overflows it (§6, the 264px rail). */}
+            <div ref={fieldListRef} role="list" aria-label="Schema fields" className="-mx-2 flex flex-col px-2">
               {fieldContext && <div role="status" className="p-2 text-xs bg-accent-ghost">
                 From Extraction {fieldContext.extractionId} · revision {fieldContext.revisionNumber ?? fieldContext.schemaRevisionId} · {fieldContext.nodeType}
                 {contextNode ? ` → ${contextNode.name} (${contextNode.type}) in the current editor. Unsaved edits are retained.` : ' · This field was removed. No replacement was selected.'}

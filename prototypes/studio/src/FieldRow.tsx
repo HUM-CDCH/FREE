@@ -1,3 +1,4 @@
+import pluralize from 'pluralize'
 import type { SchemaNode } from 'extraction/schema'
 import type { Change, ReplayOutcome } from '../shared/schemaChanges'
 import { Pill } from './ui'
@@ -16,11 +17,19 @@ export type FieldRowProps = {
   readOnly: boolean
   editDisabled: boolean
   dragging: boolean
+  /** Any field is being dragged: the actions stay hidden, so they never cover the "into" cue. */
+  dragActive?: boolean
   intoGroup: boolean
   onStartDrag: (event: React.MouseEvent) => void
   onEdit: () => void
+  /** The values pill: the edit form, focused on its allowed values. */
+  onEditValues?: () => void
   onAddNote: () => void
   onDelete: () => void
+  /** The row as a drop target. On the row itself, not around it: the slot above and the children below are their own
+   *  targets, and the pointer moving from them onto this row must re-enter it. */
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
   nodeRef?: (element: HTMLDivElement | null) => void
 }
 
@@ -28,8 +37,12 @@ export type FieldRowProps = {
 const ACTION = 'grid size-7 cursor-pointer place-items-center rounded-[3px] outline-none transition-colors disabled:cursor-default disabled:opacity-40'
 const ACTION_PLAIN = `${ACTION} text-ink-muted hover:bg-surface-muted hover:text-accent`
 const ACTION_DANGER = `${ACTION} text-danger hover:bg-danger-soft`
-/** The type and values pills' buttons: at least 24px tall around the pill. */
-const PILL_BUTTON = 'inline-flex min-h-6 shrink-0 cursor-pointer items-center rounded-full outline-none disabled:cursor-default disabled:opacity-60'
+/** The type and values pills' buttons: at least 24px tall around the pill. A type longer than its line ellipsizes. */
+const PILL_BUTTON = 'inline-flex min-h-6 min-w-0 max-w-full cursor-pointer items-center rounded-full outline-none disabled:cursor-default disabled:opacity-60'
+const PILL_FIT = 'min-w-0 max-w-full'
+/** The actions overlay the row's right edge rather than reserving width at rest, so a row fits the 264px rail. Shown on
+ *  hover and focus within the row, except while a pill has keyboard focus: the overlay would cover that pill. */
+const ACTIONS = 'absolute right-0 top-px flex items-center gap-1 rounded-[3px] bg-surface pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
 
 function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
   if (outcome === 'rejected') return (
@@ -88,7 +101,8 @@ function AcceptanceControl({ id, name, accepted, onChange }: {
   )
 }
 
-const NAME = 'font-mono text-content font-semibold shrink-0 max-w-[60%] truncate'
+/** Never shrunk for its pills, which wrap under it instead; only a name longer than the whole line ellipsizes. */
+const NAME = 'font-mono text-content font-semibold shrink-0 max-w-full truncate'
 
 function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; change?: Change; impliedRemoved?: boolean }) {
   if (change?.kind === 'modified' && change.before && change.after) {
@@ -104,7 +118,7 @@ function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; 
             <span className="min-w-0 truncate font-mono text-content font-semibold text-green">{change.after.name}</span>
           </>
         ) : (
-          <span className={`${NAME} text-ink`}>{change.after.name}</span>
+          <span className={`${NAME} text-ink`} title={change.after.name}>{change.after.name}</span>
         )}
         {beforeType !== afterType && (
           <>
@@ -121,7 +135,7 @@ function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; 
     : change?.kind === 'removed' || impliedRemoved
       ? 'text-danger line-through'
       : 'text-ink'
-  return <span className={`${NAME} ${tone}`}>{node.name}</span>
+  return <span className={`${NAME} ${tone}`} title={node.name}>{node.name}</span>
 }
 
 function CollapseArrow({ expanded }: { expanded: boolean }) {
@@ -148,15 +162,18 @@ function TrashIcon() {
   )
 }
 
-/** One schema field's row (§6): grip, disclosure, name, type and values pills, proposal badges, then the actions revealed
- *  on hover and focus-within. A note renders below in full. The panel owns recursion, drag targets and edit forms. */
-export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, intoGroup, onStartDrag, onEdit, onAddNote, onDelete, nodeRef }: FieldRowProps) {
+/** One schema field's row (§6): grip, disclosure, then the name with its type and values pills (wrapping under the name
+ *  when the line is too narrow) and proposal badges; the actions overlay the right edge on hover and focus-within. A
+ *  note renders below in full. The panel owns recursion, drag targets and edit forms. */
+export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, dragActive = false, intoGroup, onStartDrag, onEdit, onEditValues, onAddNote, onDelete, onMouseEnter, onMouseLeave, nodeRef }: FieldRowProps) {
   const diffStatus = change?.kind ?? (impliedRemoved ? 'removed' : null)
   const isDiff = diffStatus !== null
   const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-stale-soft' : ''
   const count = node.children?.length ?? 0
   const typeWords = `${fieldTypeWords(node)}${isGroup && !expanded ? ` · ${count} field${count === 1 ? '' : 's'}` : ''}`
-  // The note line sits inside the listitem, so the row's name, hover and focus reveal cover it too.
+  const valuesWords = node.allowedValues ? pluralize('value', node.allowedValues.length, true) : ''
+  // The note line sits inside the listitem, so the row's name, hover and focus reveal cover it too. The listitem bleeds
+  // 8px each side (`-mx-2 px-2`); the panel's list carries the same bleed, so the row never overflows it.
   return (
     <div
       role="listitem"
@@ -166,6 +183,8 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
       className={`group -mx-2 rounded-[3px] border px-2 outline-none transition-[background,border,opacity] duration-150 ${
         intoGroup || dragging ? 'border-accent' : 'border-transparent'
       } ${intoGroup ? 'bg-accent-ghost' : ''} ${dragging ? 'opacity-40' : ''} ${diffBg}`}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return
         // Opening and closing a group is reading, not editing: Space works in read-only and proposal views too.
@@ -175,42 +194,47 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         else if (event.key === 'Delete') { event.preventDefault(); onDelete() }
       }}
     >
-      <div className="flex min-h-[30px] items-center gap-1">
+      <div className="relative flex min-h-[30px] items-start gap-1">
         {!isDiff && !readOnly ? (
-          <span aria-hidden="true" className="shrink-0 cursor-grab select-none px-0.5 text-sm leading-none text-ink-faint opacity-60" onMouseDown={onStartDrag}>⠿</span>
+          <span aria-hidden="true" className="flex h-[30px] shrink-0 cursor-grab select-none items-center px-0.5 text-sm leading-none text-ink-faint opacity-60" onMouseDown={onStartDrag}>⠿</span>
         ) : <span className="w-3.5 shrink-0" />}
         {isGroup ? (
           <button type="button" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.name}`} aria-expanded={expanded}
-            className="grid size-6 shrink-0 cursor-pointer place-items-center text-ink-faint outline-none hover:text-accent" onClick={onToggleExpanded}>
+            className="mt-[3px] grid size-6 shrink-0 cursor-pointer place-items-center text-ink-faint outline-none hover:text-accent" onClick={onToggleExpanded}>
             <CollapseArrow expanded={expanded} />
           </button>
         ) : <span className="w-6 shrink-0" />}
-        <FieldChangeLabel node={node} change={change} impliedRemoved={impliedRemoved} />
-        {!isDiff && (
-          <button type="button" className={PILL_BUTTON}
-            title={`Type: ${typeWords} — click to edit`} disabled={editDisabled || readOnly} onClick={onEdit}>
-            <Pill tone="neutral" size="compact">{typeWords}</Pill>
-          </button>
+        <div data-row-content className="flex min-h-[30px] min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-0.5 py-[3px]">
+          <FieldChangeLabel node={node} change={change} impliedRemoved={impliedRemoved} />
+          {!isDiff && (
+            <button type="button" data-row-pill className={PILL_BUTTON}
+              title={`Type: ${typeWords} — click to edit`} disabled={editDisabled || readOnly} onClick={onEdit}>
+              <Pill tone="neutral" size="compact" className={PILL_FIT}><span className="truncate">{typeWords}</span></Pill>
+            </button>
+          )}
+          {node.allowedValues && (isDiff ? (
+            // A proposal row still shows the closed set it carries; it is reviewed, not edited, here.
+            <Pill outline size="compact" className="shrink-0" title={`Allowed values: ${node.allowedValues.join(', ')}`}>
+              {valuesWords}
+            </Pill>
+          ) : (
+            <button type="button" data-row-pill className={PILL_BUTTON}
+              title={`Allowed values — click to edit: ${node.allowedValues.join(', ')}`} disabled={editDisabled || readOnly} onClick={onEditValues ?? onEdit}>
+              <Pill outline size="compact">{valuesWords}</Pill>
+            </button>
+          ))}
+          <ChangeBadge change={change} outcome={outcome} />
+          {intoGroup && !isDiff && (
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white">into {node.name}</span>
+          )}
+        </div>
+        {change && acceptance && (
+          <span className="flex h-[30px] shrink-0 items-center">
+            <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptance.accepted} onChange={acceptance.onToggle} />
+          </span>
         )}
-        {node.allowedValues && (isDiff ? (
-          // A proposal row still shows the closed set it carries; it is reviewed, not edited, here.
-          <Pill outline size="compact" className="shrink-0" title={`Allowed values: ${node.allowedValues.join(', ')}`}>
-            {node.allowedValues.length} values
-          </Pill>
-        ) : (
-          <button type="button" className={PILL_BUTTON}
-            title={`Allowed values — click to edit: ${node.allowedValues.join(', ')}`} disabled={editDisabled || readOnly} onClick={onEdit}>
-            <Pill outline size="compact">{node.allowedValues.length} values</Pill>
-          </button>
-        ))}
-        <ChangeBadge change={change} outcome={outcome} />
-        {intoGroup && !isDiff && (
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white">into {node.name}</span>
-        )}
-        <span className="min-w-0 flex-1" />
-        {change && acceptance && <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptance.accepted} onChange={acceptance.onToggle} />}
-        {!isDiff && !readOnly && (
-          <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {!isDiff && !readOnly && !dragActive && (
+          <span data-row-actions className={ACTIONS}>
             <button type="button" className={ACTION_PLAIN} title={`Edit ${node.name}`} aria-label={`Edit ${node.name}`} disabled={editDisabled} onClick={onEdit}><PencilIcon /></button>
             <button type="button" className={ACTION_PLAIN} title="Add note" aria-label={`Add note to ${node.name}`} disabled={editDisabled} onClick={onAddNote}><NotePlusIcon /></button>
             <button type="button" className={ACTION_DANGER} title={`Delete ${node.name}`} aria-label={`Delete ${node.name}`} disabled={editDisabled} onClick={onDelete}><TrashIcon /></button>
