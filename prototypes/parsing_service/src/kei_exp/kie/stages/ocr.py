@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from kei_exp.cut import CutError, artwork_crops, cut_pages, whole_pages
 from kei_exp.kie.ingest_model import IngestConfig
 from kei_exp.models import MODELS
-from kei_exp.pagefile import load_result
+from kei_exp.pagefile import LoadedResult
 from kei_exp.pages import BookPages, PdfPages
 from kei_exp.progress import Emit, Event, print_event
 from kei_exp.regions import Crop, anchor
@@ -190,14 +190,16 @@ def supplement(execution: Execution, inputs: Inventory, emit: Emit) -> Transcrip
 
 
 def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | None = None,
-        adopt: Callable[[str], bool] | None = None, before_ocr: Callable[[], None] | None = None) -> str:
+        adopt: Callable[[str, list[int]], LoadedResult | None] | None = None,
+        before_ocr: Callable[[], None] | None = None) -> str:
     """Cut the supplied pages, transcribe them, write the result, and return its Markdown.
 
     The source is hashed before cutting and transcription. The API uses its private input.pdf; the CLI
     reads the file it was given. Ingest, when needed, has already run.
-    The worker's hooks (`kei_exp.reuse`): `adopt` is asked first with the recipe's fingerprint, and true means it
-    published an earlier run's result of that recipe in `result_dir`, whose Markdown is returned with nothing cut or
-    transcribed; otherwise `before_ocr` runs (the model server's probe) and then the work.
+    The worker's hooks (`kei_exp.reuse`): `adopt` is asked first with the recipe's fingerprint and the PDF pages the
+    result must list, and a result means it published an earlier run's result of that recipe in `result_dir`, whose
+    Markdown is returned with nothing cut or transcribed; otherwise `before_ocr` runs (the model server's probe) and
+    then the work.
     ConversionError: the run produced no trustworthy output; the debug report, when asked for, is written before
     that is decided. The debug report is diagnostic only: a failure writing it (or its images) is logged and
     reported as a `log` event, never raised, and never stops an accepted result or its Markdown from returning.
@@ -209,11 +211,13 @@ def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | Non
     crops = None
     assert (book is not None) == (execution.page_source == "ingest"), "ingest execution needs book pages"
     ingest_digest = book.digest if book is not None else None
-    if adopt is not None and adopt(fingerprint(recipe(execution, source.sha256, ingest_digest))):
-        assert execution.result_dir is not None
-        emit({"type": "log", "text": "OCR skipped: adopted an earlier run's result of this source and recipe"})
-        loaded = load_result(execution.result_dir)
-        return page_markdown(page.markdown for page in loaded.pages.values())
+    if adopt is not None:
+        pages = (sorted({book.page(n).ingest.spread for n in book.numbers_in(execution.pages)}) if book is not None
+                 else list(range(first, last + 1)))  # as `inventory` lists them
+        adopted = adopt(fingerprint(recipe(execution, source.sha256, ingest_digest)), pages)
+        if adopted is not None:
+            emit({"type": "log", "text": "OCR skipped: adopted an earlier run's result of this source and recipe"})
+            return page_markdown(page.markdown for page in adopted.pages.values())
     if before_ocr is not None:
         before_ocr()
     if execution.cut == "auto" or book is not None:

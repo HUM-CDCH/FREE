@@ -147,16 +147,16 @@ def convert_run(workflow_id: str, params: dict) -> dict:
     check(force=True)  # before anything reads the PDF
     directory = runs.RUNS / params["id"]
     execution = runs.execution_for(directory, params)
+    check(force=True)  # resolution read the text layer; what follows publishes a result
 
     def before_ocr() -> None:  # an adopted result needs no model server
         serving(execution)
-        check(force=True)  # resolution read the text layer; the conversion is the model work
     reusing = {} if execution.debug_dir is not None else {  # a debug report describes work done: it reuses none
         "seed": lambda doc_dir: reuse.seed_ingest(doc_dir, params["source_sha256"],
                                                   IngestConfig.model_validate(execution.ingest or {}), own=directory),
-        "adopt": lambda fingerprint: reuse.adopt_result(
-            fingerprint, directory / "result", source_sha256=params["source_sha256"],
-            source_name=params["source_name"], own=directory) is not None}
+        "adopt": lambda fingerprint, pages: reuse.adopt_result(
+            fingerprint, directory / "result", source_sha256=params["source_sha256"], source_name=params["source_name"],
+            page_count=params["page_count"], pages=pages, own=directory)}
     runner.convert(execution, emit=check.sink(_log), before_ocr=before_ocr, **reusing)
     manifest = read_manifest(directory / "result")
     return ConvertOk(ok=True, run_id=params["id"], generation=manifest.generation, page_count=manifest.page_count,

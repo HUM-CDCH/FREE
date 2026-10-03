@@ -129,7 +129,6 @@ def test_convert_run_publishes_the_manifest_and_writes_no_worker_markdown(roots,
     assert not (directory / "output.md").exists() and not (directory / "tokens.jsonl").exists()
 
 
-
 @pytest.mark.parametrize("page_source, ingest", [("pdf", None), ("ingest", {"split": "single"})])
 def test_a_second_run_of_the_same_source_and_settings_adopts_without_the_model_server(roots, fake, monkeypatch,
                                                                                     page_source, ingest):
@@ -159,6 +158,27 @@ def test_a_run_asking_for_a_debug_report_reuses_nothing(roots, fake):
     workflow.convert_run("kei-convert:debug", debug)
     assert len(fake.calls) == 2 and "reused_from" not in json.loads(
         (runs.RUNS / debug["id"] / "result" / "result.json").read_text())
+
+
+def test_a_cancel_during_resolution_adopts_nothing(roots, fake, monkeypatch):
+    """The check after resolution does not wait for the model server's probe: a hit needs none."""
+    models = {"model": "fake", "layout_model": DEFAULT_LAYOUT_MODEL}
+    workflow.convert_run(WID, workflow.prepare_run(WID, staged(roots, model="fake", cut="none"), models))
+    cancelled = {"now": False}
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(
+        workflow_id=WID, get_workflow_status=lambda wid: SimpleNamespace(
+            status="CANCELLED" if cancelled["now"] else "PENDING")))
+    resolving = runs.execution_for
+
+    def resolved(directory, params):
+        cancelled["now"] = True
+        return resolving(directory, params)
+    monkeypatch.setattr(runs, "execution_for", resolved)
+    second = workflow.prepare_run("kei-convert:second", staged(roots, model="fake", cut="none"), models)
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.convert_run("kei-convert:second", second)
+    assert stopped.value.code == "cancelled" and not (runs.RUNS / second["id"] / "result").exists()
+
 
 def test_a_cancel_stops_the_conversion_at_its_next_page_event(roots, fake, monkeypatch):
     cancelled = {"now": False}

@@ -12,6 +12,7 @@ from typing import Final
 from kei_exp.kie import ingest_cache
 from kei_exp.kie.ingest_model import IngestConfig
 from kei_exp.kie.stages import ocr
+from kei_exp.pagefile import LoadedResult
 from kei_exp.pages import BookPages
 from kei_exp.progress import Emit, print_event
 from kei_exp.transcription.types import ConversionError, Execution
@@ -20,7 +21,7 @@ RUNS_ROOT: Final = Path("runs/kie")
 
 
 def convert(execution: Execution, emit: Emit = print_event, *, seed: Callable[[Path], None] | None = None,
-            adopt: Callable[[str], bool] | None = None, before_ocr: Callable[[], None] | None = None) -> str:
+            adopt: Callable[[str, list[int]], LoadedResult | None] | None = None, before_ocr: Callable[[], None] | None = None) -> str:
     """Run the same stages for the Markdown CLI and the worker, using PDF pages or cached book pages.
 
     The worker's hooks (`kei_exp.reuse`): `seed` may give the document directory an ingest before the ingest

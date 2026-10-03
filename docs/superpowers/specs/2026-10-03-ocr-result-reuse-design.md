@@ -30,7 +30,8 @@ second project, a reprocess back to earlier settings, or a re-upload after delet
 ```python
 def candidates(source_sha256: str, *, own: Path) -> Iterator[Path]
 def seed_ingest(doc_dir: Path, pdf_sha256: str, cfg: IngestConfig, *, own: Path) -> None
-def adopt_result(fingerprint: str, directory: Path, *, source_name: str, own: Path) -> pagefile.Result | None
+def adopt_result(fingerprint: str, directory: Path, *, source_sha256: str, source_name: str, page_count: int,
+                 pages: Collection[int], own: Path) -> pagefile.LoadedResult | None
 ```
 
 - `candidates`: run directories under `runs.RUNS` whose name matches `runs.COMPONENT` (so `.prepare-*` and
@@ -96,3 +97,17 @@ Fast tests (no Postgres, no model), against a temporary `runs.RUNS`:
 - `ocr.run`: with an adopting hook, neither the cut nor the transcriber nor `before_ocr` is called and the Markdown
   matches; on a miss `before_ocr` is called once before transcription.
 - `convert_run`: a second run of the same staged PDF and settings adopts without the model server being reachable.
+
+## Review log
+
+- Implementation deviations (implementer): `adopt_result` takes `source_sha256` to find candidates; the seed links
+  through `ingest.staging` (removed by ingest recovery if interrupted) instead of a hidden sibling; `reused_from` is
+  omitted when unset so existing manifests stay byte-identical; reuse failures go to the `kei_exp.reuse` logger;
+  `before_ocr` runs before the cut. DBOS-tier tests `test_delete_runs.py` and `test_lanes.py` now stage distinct
+  bytes / ask for debug so they still exercise transcription.
+- Codex gpt-6-astra review, accepted: (P2) the cancel check after resolution now runs before adoption, not inside
+  `before_ocr`; (P2) adoption binds the donor to this run's PDF page count and the PDF pages the selection lists
+  (`load_result(pages=...)`); (P3) the `adopt` hook returns the published `LoadedResult`, so `ocr.run` builds the
+  Markdown from memory instead of reading every page back.
+- Deferred: fault-injection tests for GC during copy and crash between page and manifest publication; the `EXDEV`
+  copy fallback (one volume in every deployment).

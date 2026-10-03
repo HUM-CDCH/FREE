@@ -16,7 +16,7 @@ import json
 import logging
 import os
 import shutil
-from collections.abc import Iterator
+from collections.abc import Collection, Iterator
 from pathlib import Path
 
 from kei_exp import pagefile, result, runs
@@ -80,13 +80,13 @@ def _link(source: str, target: str) -> None:
         shutil.copy2(source, target)
 
 
-def adopt_result(fingerprint: str, directory: Path, *, source_sha256: str, source_name: str,
-                 own: Path) -> pagefile.Result | None:
+def adopt_result(fingerprint: str, directory: Path, *, source_sha256: str, source_name: str, page_count: int,
+                 pages: Collection[int], own: Path) -> pagefile.LoadedResult | None:
     """Publish in `directory` another run's complete result of the recipe `fingerprint` names, as a new generation;
-    return its manifest, or None when no candidate's verifies.
+    return it as published, or None when no candidate's verifies.
 
-    The loader proves the files against their manifest, not the manifest's fingerprint against its recipe, so that
-    is checked here. Every page file is rewritten under the new generation, so a reference into this run's result
+    The loader proves the files against their manifest, not the manifest's fingerprint against its recipe, nor its
+    page count and the pages it lists against this run's PDF and selection, so those are checked here. Every page file is rewritten under the new generation, so a reference into this run's result
     resolves here alone. The manifest keeps what describes how the content was produced (recipe, fingerprint, time,
     tokens, effective settings), names this run's source, and says which run and generation it was copied from.
     """
@@ -94,12 +94,16 @@ def adopt_result(fingerprint: str, directory: Path, *, source_sha256: str, sourc
         try:
             if pagefile.read_manifest(run / "result").fingerprint != fingerprint:
                 continue
-            loaded = pagefile.load_result(run / "result", require_complete=True)
+            loaded = pagefile.load_result(run / "result", source_sha256=source_sha256, pages=pages,
+                                          require_complete=True)
             if not result.fingerprint(loaded.manifest.recipe) == loaded.manifest.fingerprint == fingerprint:
                 raise pagefile.ResultError(f"its recipe does not hash to the fingerprint {fingerprint}")
+            if loaded.manifest.page_count != page_count:
+                raise pagefile.ResultError(f"it counts {loaded.manifest.page_count} pages, not this PDF's {page_count}")
             generation = result.new_generation()
-            entries = result.publish_pages(
-                directory, (page.model_copy(update={"generation": generation}) for page in loaded.pages.values()))
+            rewritten = {number: page.model_copy(update={"generation": generation})
+                         for number, page in loaded.pages.items()}
+            entries = result.publish_pages(directory, rewritten.values())
             adopted = loaded.manifest.model_copy(update={
                 "generation": generation, "pages": entries, "source_name": source_name,
                 "digest": pagefile.result_digest({number: entry.sha256 for number, entry in entries.items()}),
@@ -110,5 +114,5 @@ def adopt_result(fingerprint: str, directory: Path, *, source_sha256: str, sourc
             logger.info("the result of run %s is not reused: %s", run.name, error)
             continue
         logger.info("adopted generation %s of run %s as %s", loaded.manifest.generation, run.name, generation)
-        return adopted
+        return pagefile.LoadedResult(adopted, rewritten)
     return None

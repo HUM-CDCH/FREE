@@ -38,7 +38,7 @@ from kei_exp.kie.runner import convert
 from kei_exp.kie.stages import ocr
 from kei_exp.kie.stages.ocr import TRANSCRIBERS, resolve
 from kei_exp.models import MODELS
-from kei_exp.pagefile import read_manifest
+from kei_exp.pagefile import load_result, read_manifest
 from kei_exp.progress import print_event
 from kei_exp.regions import LAYOUT_MODELS, Region
 from kei_exp.transcription.specs import VLM_SPECS
@@ -227,9 +227,11 @@ def test_an_adopted_result_skips_the_cut_the_transcriber_and_before_ocr(workspac
         first = ocr.run(execution, lambda event: None)
     asked, before, events = [], [], []
     with patch("kei_exp.kie.stages.ocr.cut_pages", side_effect=AssertionError("cut")) as cutter:
-        markdown = ocr.run(execution, events.append, adopt=lambda fingerprint: asked.append(fingerprint) or True,
-                           before_ocr=lambda: before.append("called"))
-    assert markdown == first == "complete output" and asked == [read_manifest(Path("result")).fingerprint]
+        markdown = ocr.run(execution, events.append,
+                           adopt=lambda fingerprint, pages: asked.append((fingerprint, pages)) or load_result(
+                               Path("result")), before_ocr=lambda: before.append("called"))
+    manifest = read_manifest(Path("result"))
+    assert markdown == first == "complete output" and asked == [(manifest.fingerprint, sorted(manifest.pages))]
     assert not cutter.called and len(fake.calls) == 1 and before == []
     assert [event["type"] for event in events] == ["log"]
 
@@ -241,7 +243,7 @@ def test_on_a_miss_before_ocr_runs_once_before_the_cut_and_the_transcriber(works
         order.append("cut")
         return PAGE_CROP
     with patch("kei_exp.kie.stages.ocr.cut_pages", side_effect=cut):
-        ocr.run(execution, lambda event: None, adopt=lambda fingerprint: False,
+        ocr.run(execution, lambda event: None, adopt=lambda fingerprint, pages: None,
                 before_ocr=lambda: order.append(f"before, {len(fake.calls)} transcribed"))
     assert order == ["before, 0 transcribed", "cut"] and len(fake.calls) == 1
 

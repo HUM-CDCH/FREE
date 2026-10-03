@@ -12,7 +12,7 @@ from kei_exp import reuse, runs
 from kei_exp.canonical import sha256_file
 from kei_exp.kie.ingest_cache import IngestPaths, ingest_step
 from kei_exp.kie.ingest_model import IngestConfig
-from kei_exp.pagefile import Result, load_result
+from kei_exp.pagefile import LoadedResult, Result, load_result
 from kei_exp.result import write_result
 from tests.helpers.pdfs import binary_pdf, mask
 from tests.helpers.synthetic import cases as synthetic_cases
@@ -36,10 +36,16 @@ def donor(name: str, pdf: Path, root: Path) -> Result:
     return written
 
 
-def adopt(donated: Result, root: Path, own: str = "run-own") -> Result | None:
+def adopt(donated: Result, root: Path, own: str = "run-own", *, page_count: int | None = None,
+          pages: list[int] | None = None) -> Result | None:
+    """The manifest `adopt_result` published for this run, asked for as the donor's own count and pages unless told."""
     (root / own).mkdir(exist_ok=True)
-    return reuse.adopt_result(donated.fingerprint, root / own / "result", source_sha256=donated.recipe["source_sha256"],
-                              source_name="another name.pdf", own=root / own)
+    adopted = reuse.adopt_result(
+        donated.fingerprint, root / own / "result", source_sha256=donated.recipe["source_sha256"],
+        source_name="another name.pdf", page_count=donated.page_count if page_count is None else page_count,
+        pages=sorted(donated.pages) if pages is None else pages, own=root / own)
+    assert adopted is None or isinstance(adopted, LoadedResult)
+    return None if adopted is None else adopted.manifest
 
 
 def edit_json(path: Path, change) -> None:
@@ -62,6 +68,23 @@ def test_a_result_of_the_same_recipe_is_adopted_as_a_new_generation(digital_pdf,
     assert {n: page.model_dump(exclude={"generation"}) for n, page in loaded.pages.items()} == \
         {n: page.model_dump(exclude={"generation"}) for n, page in original.pages.items()}
     assert json.loads((root / "run-own" / "result" / "result.json").read_text())["reused_from"]["run_id"] == "run-a"
+
+
+def test_the_adopted_pages_are_returned_as_published(digital_pdf, root):
+    donated = donor("run-a", digital_pdf, root)
+    (root / "run-own").mkdir()
+    adopted = reuse.adopt_result(donated.fingerprint, root / "run-own" / "result",
+                                 source_sha256=donated.recipe["source_sha256"], source_name="x.pdf",
+                                 page_count=donated.page_count, pages=sorted(donated.pages), own=root / "run-own")
+    assert adopted is not None
+    assert adopted.pages == load_result(root / "run-own" / "result").pages
+
+
+@pytest.mark.parametrize("asked", [{"page_count": 99}, {"pages": [3]}, {"pages": [3, 4, 5]}])
+def test_a_result_that_does_not_cover_this_pdf_and_selection_is_passed_over(digital_pdf, root, asked):
+    """The loader proves the pages against the donor's manifest; this run's PDF and selection are checked here."""
+    assert adopt(donor("run-a", digital_pdf, root), root, **asked) is None
+    assert not (root / "run-own" / "result").exists()
 
 
 def test_another_fingerprint_adopts_nothing_and_writes_nothing(digital_pdf, root):
