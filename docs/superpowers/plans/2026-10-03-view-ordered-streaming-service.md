@@ -460,7 +460,7 @@ def entry_links(record: dict, passages: dict) -> list[dict]:
 **Files:**
 - Modify: `prototypes/parsing_service/src/kei_exp/kie/extract/article.py:14-37` (imports), `:55-150` (`extract`), `:155-208` (`document_root`)
 - Modify: `prototypes/parsing_service/src/kei_exp/kie/extract/assembly.py:126-178` (`ground_records`)
-- Modify: `prototypes/parsing_service/src/kei_exp/kie/extract/grounding.py:161-338` (`verify`), `:351-390` (the four wrappers)
+- Modify: `prototypes/parsing_service/src/kei_exp/kie/extract/grounding.py:161-338` (`verify`), `:351-390` (the four wrappers), `prototypes/parsing_service/tests/test_extraction_grounding.py:24` (the substitute technique's signature)
 - Test: `prototypes/parsing_service/tests/test_extract_progress.py` (new)
 
 **Interfaces:**
@@ -584,7 +584,7 @@ def test_without_an_extraction_id_article_publishes_nothing(tmp_path):
             on_batch(links[made_before:])
 ```
 
-(The two `continue` statements before the model call skip it: a batch that was split or refused made no links.) Each of `semantic`, `quoted`, `spans` and `off` (351-390) gains the same keyword `on_batch: Callable[[Sequence[Link]], None] | None = None` after `projected: bool = False` and passes `on_batch=on_batch` into its `verify(...)` call; `off` accepts and ignores it.
+(The two `continue` statements before the model call skip it: a batch that was split or refused made no links.) Each of `semantic`, `quoted`, `spans` and `off` (351-390) gains the same keyword `on_batch: Callable[[Sequence[Link]], None] | None = None` after `projected: bool = False` and passes `on_batch=on_batch` into its `verify(...)` call; `off` accepts and ignores it. In `tests/test_extraction_grounding.py:24`, the substitute technique `recording(received)`'s inner `ground(passages, fields, schema, chat, *, record, budget, counter, record_context, before_call, proofs, skip_paths, projected=False)` gains `on_batch=None` after `projected=False`: a technique accepts every keyword `ground_records` passes, and `ground_records` passes this one always (as `None` without a directory); the test's assertions are unchanged.
 
 - [ ] **Step 4: `assembly.py`.** `ground_records` (126-130) gains `on_batch: Callable[[Sequence[Link]], None] | None = None` after `resume: frozenset = frozenset()`; the docstring gains `\`on_batch\` runs after each grounding batch with the links it made.`; `verification = dict(...)` (153-155) gains `on_batch=on_batch`.
 
@@ -850,7 +850,16 @@ def test_malformed_or_stale_stage_files_are_skipped_never_served(tmp_path):
     kept = discovery.read_bytes()
     discovery.write_bytes(b'{"entries": [null]}')                                       # kei's own record, outside its layout
     assert progress.read_progress(tmp_path, "x1") is None                             # no guess: no progress
+    discovery.write_bytes(b'{"entries": [{"ranges": [{}]}, {"ranges": []}]}')           # entries whose ranges name no segment
+    assert [(entry["stage"], entry["page"]) for entry in progress.read_progress(tmp_path, "x1")["entries"]] == \
+        [("finished", None), ("queued", None)]                                           # read, with no page to show
     discovery.write_bytes(kept)
+    published = directory / unified.entry_name(0)
+    record = json.loads(published.read_bytes())
+    published.write_bytes(json.dumps({**record, "work": {**record["work"], "contest": [None]}}).encode())  # a contest row that is no row
+    assert progress.read_progress(tmp_path, "x1")["entries"][0]["stage"] == "finished"   # the row is skipped, the entry stays finished
+    assert progress.read_progress(tmp_path, "x1")["entries"][0]["contested"] == []
+    published.write_bytes(json.dumps(record).encode())
     assert progress.read_progress(tmp_path, "x1")["finished"] == 1
 
 
@@ -1063,14 +1072,15 @@ def _catalog(directory: Path, run_dir: Path, header: _Header) -> dict | None:
         if isinstance(published, dict):
             try:
                 contests = [_ContestRow(path=contest["path"][2:], candidates=[each["value"] for each in contest["candidates"]])
-                            for contest in published["work"]["contest"] if contest.get("outcome") == "unresolved"]
+                            for contest in published["work"]["contest"]
+                            if isinstance(contest, dict) and contest.get("outcome") == "unresolved"]
                 row.update(stage="finished", record=published["work"]["record"],
                            evidence=unified.entry_links(published, passages) if passages is not None else [],
                            contested=[contest.model_dump() for contest in contests])
                 finished += 1
                 entries.append(row)
                 continue
-            except (KeyError, TypeError, ValidationError):  # a record outside its own layout: this view does not guess
+            except (KeyError, TypeError, AttributeError, ValidationError):  # a record outside its own layout: this view does not guess
                 row = {**row, "stage": "queued", "record": None, "evidence": None, "contested": None}
         if (candidates := _stage(directory / candidates_name(number), _Candidates, header.execution)) is not None:
             row.update(stage="candidates", candidates=[each.model_dump() for each in candidates.candidates],
@@ -1107,8 +1117,10 @@ def _article(directory: Path, header: _Header) -> dict | None:
 
 
 def _page_of(entry: dict) -> int | None:
+    """The page of the passage an entry's first range names; None when the entry names none the reader can read."""
     ranges = entry.get("ranges") or []
-    match = _PAGE.match(ranges[0]["segment"]) if ranges and isinstance(ranges[0], dict) else None
+    segment = ranges[0].get("segment") if ranges and isinstance(ranges[0], dict) else None
+    match = _PAGE.match(segment) if isinstance(segment, str) else None
     return int(match[1]) if match else None
 
 
@@ -1412,33 +1424,42 @@ describe('partialFromProgress', () => {
     assert.deepEqual(second!.values[key('material')], { value: 'Stein', state: 'checking' })
   })
 
-  it('maps an Article document: one record, candidates checking, linked grounded, unanswered reading while contexts remain or failed', () => {
+  it('maps an Article document: candidates checking and the rest reading while contexts remain; links grounded once complete', () => {
     const link = { path: ['records', 0, 'site'], segment: 'p1_s0', page: 1, bbox_pt: [0, 0, 1, 1], verbatim: true, hits: 1,
       linked_by: 'model', cell: null, precision: 'segment' }
-    // Through the schema, so the document is typed (and its nullable fields assignable) rather than inferred from the literal.
-    const article: ProgressDocument = progressDocumentSchema.parse({
+    // The complete document, through the schema (typed, its nullable fields assignable); the incomplete one is derived from
+    // it, as the reader produces it: no links before every context has answered.
+    const complete: ProgressDocument = progressDocumentSchema.parse({
       version: 1, strategy: 'article', started_at_page: 2, discovered: 1, finished: 0,
       entries: [{ index: 0, label: null, page: null, stage: 'candidates', evidence: [link],
         candidates: [{ path: ['site'], value: 'Hill', quote: null, window: 0 }, { path: ['year'], value: 1828, quote: null, window: 0 }],
         record: { entry_no: null, site: 'Hill', year: 1828, finds: null }, contested: [], failed: 0 }],
-      document: { contexts: [{ primary: ['p1_s0'], overlap: [] }], answered: 1, of: 2, failed_contexts: 0, links: [link], grounding_batches: 1 },
+      document: { contexts: [{ primary: ['p1_s0'], overlap: [] }, { primary: ['p2_s0'], overlap: [] }], answered: 2, of: 2, failed_contexts: 0, links: [link], grounding_batches: 1 },
     })
-    const partial = partialFromProgress(article)!
-    assert.equal(partial.strategy, 'ARTICLE')
-    assert.deepEqual(partial.document, { contextsAnswered: 1, contexts: 2, groundingBatches: 1 })
-    const [record] = partial.records
-    assert.equal(record!.state, 'checking')
-    assert.deepEqual(record!.values[key('site')], { value: 'Hill', state: 'grounded' })
-    assert.deepEqual(record!.values[key('year')], { value: 1828, state: 'checking' })
-    assert.deepEqual(record!.values[key('entry_no')], { value: null, state: 'reading' })
-    assert.deepEqual(record!.evidenceLinks, [{ resultPath: ['records', 0, 'site'], evidenceAnchorId: 'a_p1_s0', precision: 'segment', verbatim: true, lexicalHits: 1 }])
-    article.document!.answered = 2
-    assert.deepEqual(partialFromProgress(article)!.records[0]!.values[key('entry_no')], { value: null, state: 'empty' })
-    article.entries[0]!.failed = 1
-    assert.deepEqual(partialFromProgress(article)!.records[0]!.values[key('entry_no')], { value: null, state: 'reading' })
-    article.entries[0]!.failed = 0
-    article.entries[0]!.contested = [{ path: ['entry_no'], candidates: ['31', '32'] }]
-    assert.deepEqual(partialFromProgress(article)!.records[0]!.values[key('entry_no')], { value: null, state: 'contested', candidates: ['31', '32'] })
+    const incomplete: ProgressDocument = structuredClone(complete)
+    incomplete.document!.answered = 1
+    incomplete.document!.links = []
+    incomplete.document!.grounding_batches = 0
+    incomplete.entries[0]!.evidence = []
+    const reading = partialFromProgress(incomplete)!
+    assert.equal(reading.strategy, 'ARTICLE')
+    assert.deepEqual(reading.document, { contextsAnswered: 1, contexts: 2, groundingBatches: 0 })
+    assert.equal(reading.records[0]!.state, 'checking')
+    assert.deepEqual(reading.records[0]!.values[key('site')], { value: 'Hill', state: 'checking' })
+    assert.deepEqual(reading.records[0]!.values[key('entry_no')], { value: null, state: 'reading' })
+    assert.deepEqual(reading.records[0]!.evidenceLinks, [])
+    const grounded = partialFromProgress(complete)!
+    assert.deepEqual(grounded.document, { contextsAnswered: 2, contexts: 2, groundingBatches: 1 })
+    assert.deepEqual(grounded.records[0]!.values[key('site')], { value: 'Hill', state: 'grounded' })
+    assert.deepEqual(grounded.records[0]!.values[key('year')], { value: 1828, state: 'checking' })
+    assert.deepEqual(grounded.records[0]!.values[key('entry_no')], { value: null, state: 'empty' })
+    assert.deepEqual(grounded.records[0]!.evidenceLinks, [{ resultPath: ['records', 0, 'site'], evidenceAnchorId: 'a_p1_s0', precision: 'segment', verbatim: true, lexicalHits: 1 }])
+    // A context whose call failed leaves its unanswered fields unknown; a conflict leaves its field contested.
+    complete.entries[0]!.failed = 1
+    assert.deepEqual(partialFromProgress(complete)!.records[0]!.values[key('entry_no')], { value: null, state: 'reading' })
+    complete.entries[0]!.failed = 0
+    complete.entries[0]!.contested = [{ path: ['entry_no'], candidates: ['31', '32'] }]
+    assert.deepEqual(partialFromProgress(complete)!.records[0]!.values[key('entry_no')], { value: null, state: 'contested', candidates: ['31', '32'] })
   })
 
   it('a document outside the contract is null, never a throw', () => {
@@ -1959,7 +1980,7 @@ async function readPartial(extraction: ExtractionAttemptSnapshot): Promise<Parti
 
 **Placeholder scan.** No TBD/TODO; every code step has its code; every test has its assertions. The migration directory's timestamp is generated by the tool and matched by suffix in its test.
 
-**Type consistency.** `start_page` (kei, request options) ↔ `startPage` (Studio, rows, request body) at the `keiExtractRequest` boundary only. `progress.ProgressDocument` ↔ `progressDocumentSchema` ↔ `extract.progress.json`: `version`, `strategy`, `started_at_page`, `discovered`, `finished`, `entries[].{index,label,page,stage,candidates,record,evidence,contested,failed}`, `document.{contexts,answered,of,failed_contexts,links,grounding_batches}`. The package's `PartialResult` (readonly, `value: unknown`) meets the wire's `partialResultSchema` only through `safeParse` in `readPartial` (Task 7) and in Part B's test fixtures; `records[].{index,label,page,state,record,values,evidenceLinks}`, `values[].{value,state,candidates?}`, `document.{contextsAnswered,contexts,groundingBatches}` match field for field. `KeiStandInScript.progress` returns the raw document the route serves. `entry_links(record, passages)` takes the published entry file and a `{id: Passage}` map, as `_link` does. `on_context`'s nine arguments are the same in `document_root`, `_context_stage` and the Task 3 test.
+**Type consistency.** `start_page` (kei, request options) ↔ `startPage` (Studio, rows, request body) at the `keiExtractRequest` boundary only. `progress.ProgressDocument` ↔ `progressDocumentSchema` ↔ `extract.progress.json`: `version`, `strategy`, `started_at_page`, `discovered`, `finished`, `entries[].{index,label,page,stage,candidates,record,evidence,contested,failed}`, `document.{contexts,answered,of,failed_contexts,links,grounding_batches}`. The package's `PartialResult` (readonly, `value: unknown`) meets the wire's `partialResultSchema` only through `safeParse` in `readPartial` (Task 7) and in Part B's test fixtures; `records[].{index,label,page,state,record,values,evidenceLinks}`, `values[].{value,state,candidates?}`, `document.{contextsAnswered,contexts,groundingBatches}` match field for field. `KeiStandInScript.progress` returns the raw document the route serves. `entry_links(record, passages)` takes the published entry file and a `{id: Passage}` map, as `_link` does. `on_context`'s ten arguments are the same in `document_root`, `_context_stage` and the Task 3 test.
 
 **Review Focus.** Each line names its task; Task 7's tests cover 1 (throw → null), 3 (422) and 4 (null → 200, including a document inside kei's contract but outside the wire's); Task 5's test covers 2; Task 4's tests cover 4 (malformed and half-written stage files) and 5 (another execution's files); Task 2 covers the failed stage write.
 
@@ -1971,4 +1992,10 @@ Rejected or narrowed: P1-8 — a shared keyed presentation preserving DOM rows a
 
 ## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
 
+## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
+
 Accepted and applied: P0-1 (the stage token is `stage_execution`: `execution` is the execution record assigned a few lines below in `unified.extract`) · P0-2 (`conform` turns an empty list into `None`; the running-root test expects `"finds": None`) · P0-3 (the Article fixture in `partial-result.test.ts` goes through `progressDocumentSchema.parse`, so its nullable members are assignable) · P1-1 (Article links are attached only once the latest context file shows every context answered: grounding verifies the final root; tested with a grounding file beside an incomplete root) · P1-2 (the context file carries the cumulative `failed`, read from the latest file alone; `on_context` gains it; tested with a failed first context) · P1-3 (`_ContestRow`, `_CandidateRow`, `_LinkRow` validate the rows the reader consumes, a file with a row outside its shape is skipped whole, a discovery record with a non-object entry is no progress; tested) · P2 (Part B records the settlement ruling in the spec's §1 sentence; Part B's Ruling 8 narrowed to leaf paths). Part B's P0-4 and P0-5 (a multi-match `Missing` query; test refs recreated per render) are applied in Part B.
+
+## Review log — Codex gpt-6-astra (reasoning max), round 3, 2026-10-03
+
+Accepted and applied: P0-1 (`tests/test_extraction_grounding.py`'s substitute technique gains `on_batch=None`, listed in Task 3) · P1-1 (`_page_of` reads the segment with `.get` and type checks; a contest row that is no object is skipped and `AttributeError` is caught; both tested) · P2 ("ten arguments"; the Article converter test is split into an incomplete phase without links and a complete phase with them, derived from one parsed document). Part B's P0-2 (the `!attempt` guard) is applied in Part B. Codex confirmed the round-2 fixes (`_LinkRow` against both producers, the contest paths, the completion rule, the garbage-reply path).

@@ -616,10 +616,10 @@ describe('partial links (design §1)', () => {
     const running = attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
     // A settled attempt paints its links; a running one the partial view's, as they arrive (design §1).
     const evidenceLinks = attempt?.outcome === 'SUCCEEDED' ? attempt.evidenceLinks ?? [] : running ? partialEvidenceLinks ?? null : null
-    if (!container || !parsedDocument || evidenceLinks === null || !active || !resultPath) return
+    if (!container || !parsedDocument || !attempt || evidenceLinks === null || !active || !resultPath) return
 ```
 
-(delete the old `const evidenceLinks = attempt.evidenceLinks ?? []`). The scroll after the first paint becomes `if (firstOccurrence && !running && !container.querySelector('.parsed-evidence-focus'))` (Ruling 3: links arriving every two seconds never move the page). The paint effect's dependency list gains `partialEvidenceLinks`. The focus cleanup effect (`stopFocusedPaint.current?.() … removeOverlays(containerRef.current, 'parsed-evidence-focus')`) keys on the Extraction, not on the attempt object a poll renews: its dependency list becomes `[attempt?.extractionId, containerRef, parsedDocument]` (with the eslint `react-hooks/exhaustive-deps` disable comment the file's style uses, if the rule objects to the member access).
+(delete the old `const evidenceLinks = attempt.evidenceLinks ?? []`; `!attempt` keeps TypeScript's narrowing for the `attempt.reviewDecisions` read that follows, which the old `attempt?.outcome !== 'SUCCEEDED'` guard provided). The scroll after the first paint becomes `if (firstOccurrence && !running && !container.querySelector('.parsed-evidence-focus'))` (Ruling 3: links arriving every two seconds never move the page). The paint effect's dependency list gains `partialEvidenceLinks`. The focus cleanup effect (`stopFocusedPaint.current?.() … removeOverlays(containerRef.current, 'parsed-evidence-focus')`) keys on the Extraction, not on the attempt object a poll renews: its dependency list becomes `[attempt?.extractionId, containerRef, parsedDocument]` (with the eslint `react-hooks/exhaustive-deps` disable comment the file's style uses, if the rule objects to the member access).
 
 - [ ] **Step 4: `src/App.tsx`.** Before the `useEvidenceOverlays` call:
 
@@ -742,4 +742,10 @@ Rejected or narrowed: P1-8 — DOM continuity across settlement is out of scope 
 
 ## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
 
+## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
+
 Accepted and applied: P0-4 (the third record has two null fields: `getAllByText('Missing')` has length 2) · P0-5 (the overlay tests hold stable ref objects, as the existing tests do, so a rerender does not run the cleanup that removes the focus) · P2 (the spec's §1 settlement sentence records the chosen swap, Task 4; Ruling 8 narrowed to leaf paths). Codex closed round-1's P1-8 on Ruling 7 as a product decision.
+
+## Review log — Codex gpt-6-astra (reasoning max), round 3, 2026-10-03
+
+Accepted and applied: P0-2 (the overlay guard includes `!attempt`, keeping the narrowing the removed `outcome` check gave the `reviewDecisions` read). No other Part B finding.
