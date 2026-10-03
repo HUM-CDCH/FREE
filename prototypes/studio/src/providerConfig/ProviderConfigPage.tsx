@@ -274,7 +274,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="md" disabled={!dirty} onClick={discard}>Discard</Button>
-          <Button variant="primary" size="md" disabled={applying || !dirty || blocked} onClick={() => void apply()}>
+          <Button variant="positive" size="md" disabled={applying || !dirty || blocked} onClick={() => void apply()}>
             {applying ? 'Applying…' : 'Apply'}
           </Button>
         </div>

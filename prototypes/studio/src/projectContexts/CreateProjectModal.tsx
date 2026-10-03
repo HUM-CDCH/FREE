@@ -117,7 +117,7 @@ export function CreateProjectModal({
           <Button
             type="submit"
             size="md"
-            variant="primary"
+            variant="positive"
             disabled={saving}
           >
             Create

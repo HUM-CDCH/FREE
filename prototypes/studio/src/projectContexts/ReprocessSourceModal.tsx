@@ -83,7 +83,7 @@ export function ReprocessSourceModal({
           <Button type="button" disabled={loading} onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={loading}>
+          <Button type="submit" variant="positive" disabled={loading}>
             Reprocess
           </Button>
         </div>

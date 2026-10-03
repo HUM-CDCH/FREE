@@ -66,7 +66,7 @@ export function SchemaImport({ schema, disabled }: { schema: SchemaEditorControl
         })}
         {validation && <p role="alert">{validation}</p>}
         {definition && <pre className="max-h-48 overflow-auto">{JSON.stringify(schemaDefinitionToTemplate(definition), null, 2)}</pre>}
-        <Button disabled={!definition || busy || disabled} variant="primary" onClick={async () => {
+        <Button disabled={!definition || busy || disabled} variant="positive" onClick={async () => {
           if (!definition) return
           if (schema.snapshot().draftVersion !== base.current) { setError('The editor changed during preview. Close and re-upload to keep those edits.'); return }
           setBusy(true); setError(null)

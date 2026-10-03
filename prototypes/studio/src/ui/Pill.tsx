@@ -29,7 +29,7 @@ const outlines: Record<Tone, string> = {
 function Pill({ tone = 'neutral', outline = false, className = '', ...props }: PillProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold leading-none ${
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-overline font-semibold leading-none ${
         tones[tone]
       } ${outline ? outlines[tone] : ''} ${className}`}
       {...props}

@@ -7,7 +7,7 @@ state — they import only React and the shared Tailwind tokens (`src/index.css`
 
 | Component | Purpose |
 |-----------|---------|
-| `Button` | `primary` (terracotta) / `secondary` (outline) / `pill` actions |
+| `Button` | `positive` (green) / `danger` / `secondary` (outline) / `pill` actions |
 | `Pill` | Rounded chip with `neutral`/`accent`/`evidence`/`success`/`stale` tones |
 | `SegmentedControl` | Single-select segmented toggle |
 | `EmptyState` | Dashed placeholder card (`neutral`/`danger`) with optional action |

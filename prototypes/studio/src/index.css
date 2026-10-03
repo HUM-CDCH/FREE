@@ -31,6 +31,13 @@
   --color-danger: #b3402a;
   --color-danger-soft: #fce8e4;    /* danger tint fill */
 
+  /* Rail type scale (DESIGN.md §3): content, secondary, compact, overline. Tailwind derives the utilities
+     text-content, text-secondary, text-compact and text-overline from these. */
+  --text-content: 13px;
+  --text-secondary: 12px;
+  --text-compact: 11px;
+  --text-overline: 10.5px;
+
   --shadow-page:
     0 0 0 1px rgb(60 50 40 / 0.07),
     0 1px 4px rgb(60 50 40 / 0.06),

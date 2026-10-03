@@ -939,7 +939,7 @@ export function DocumentWorkspace({
               onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
           )}
           <Button
-            variant="primary"
+            variant="positive"
             size="md"
             disabled={
               running

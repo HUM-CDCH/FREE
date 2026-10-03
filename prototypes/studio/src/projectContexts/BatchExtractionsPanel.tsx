@@ -939,7 +939,7 @@ export default function BatchExtractionsPanel({
         {/* On `prepare` this button only reopens the screen already shown. */}
         {screen !== 'prepare' && (
           <Button
-            variant="primary"
+            variant="positive"
             size="md"
             disabled={openingAnyBatch}
             onClick={() => {
@@ -1276,7 +1276,7 @@ export default function BatchExtractionsPanel({
             )}
             <div className="mt-4 flex justify-end">
               <Button
-                variant="primary"
+                variant="positive"
                 size="md"
                 disabled={!canRun}
                 onClick={openNewBatch}

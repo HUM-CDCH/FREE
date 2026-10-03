@@ -28,7 +28,10 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 
 ### Rules
 
-- Use accent only for commands and active states; focus uses the dual-color global indicator.
+- Terracotta (accent) marks brand, the active tab, selection and drag states, and focus.
+- Green (`--color-green`) fills positive commands: run, apply, accept, save, finalize.
+- Red (`--color-danger`) fills destructive commands: delete a field, clear the schema, discard a proposal, cancel.
+- Every coloured action keeps an icon or a label; colour is never the only signal.
 - Preserve the warm paper palette; avoid decorative gradients.
 - Do not introduce raw colors outside this file and `index.css`.
 
@@ -44,6 +47,8 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 | Compact | 11px | 500-700 | 1.3 | 0 | Pills, buttons, dense controls |
 | Overline | 10.5px | 700 | 1.3 | 0.12em | Panel labels |
 | Code | 11-12.5px | 400-600 | 1.6 | 0 | JSON and field names |
+
+In the right rail only four sizes are used, as the tokens `--text-content` (13), `--text-secondary` (12), `--text-compact` (11) and `--text-overline` (10.5) in `index.css`.
 
 ### Font Stack
 
@@ -90,7 +95,7 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 
 ### Action Button
 - **Structure**: compact rounded button with border.
-- **Variants**: accent primary, surface secondary, disabled line fill.
+- **Variants**: green positive, danger, surface secondary, rounded pill; disabled is a line fill.
 - **States**: hover brightness or color shift, global dual-color focus indicator.
 
 ### Result Card

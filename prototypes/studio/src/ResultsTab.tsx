@@ -888,7 +888,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       <Button size="sm" variant="secondary" onClick={controller.review.reload}>Retry</Button>
                     )}
                     {(controller.review.error || !controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null)) && controller.review.canAccept && (
-                      <Button size="sm" variant={controller.review.error ? 'secondary' : 'primary'} disabled={editingPaths.size > 0}
+                      <Button size="sm" variant={controller.review.error ? 'secondary' : 'positive'} disabled={editingPaths.size > 0}
                         onClick={() => void controller.review.accept()}>{controller.review.error ? 'Retry' : 'Save review'}</Button>
                     )}
                   </>
@@ -1142,7 +1142,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
           <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
           {!readOnly && onRunExtraction && (
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
+              <RunExtractionButton run={runExtractionStrategy} variant="positive" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
             </div>
           )}
         </div>
@@ -1158,11 +1158,11 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
           </p>
           {!readOnly && onRunExtraction && (schemaReady ? (
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
+              <RunExtractionButton run={runExtractionStrategy} variant="positive" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
             </div>
           ) : (
             <Button
-              variant="primary"
+              variant="positive"
               size="md"
               className="mt-4"
               disabled={runExtractionDisabled}
@@ -1179,7 +1179,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
           <p className="text-[13px] font-semibold text-ink">Extraction cancelled</p>
           {!readOnly && onRunExtraction && (
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
+              <RunExtractionButton run={runExtractionStrategy} variant="positive" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
             </div>
           )}
         </div>

@@ -55,7 +55,7 @@ export default function ExtractionFinishedDialog({
         <Button size="md" onClick={onDismiss}>
           Dismiss
         </Button>
-        <Button ref={initialFocus} size="md" variant="primary" onClick={onReviewNow}>
+        <Button ref={initialFocus} size="md" variant="positive" onClick={onReviewNow}>
           Review now
         </Button>
       </div>

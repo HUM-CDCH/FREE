@@ -65,7 +65,7 @@ export default function DeleteDialog({
         </Button>
         <Button
           size="md"
-          variant="primary"
+          variant="danger"
           disabled={deleting}
           onClick={async () => {
             setDeleting(true)
