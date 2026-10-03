@@ -185,8 +185,7 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
     effective = outcome.header.get("ocr", outcome.header)  # a hybrid run's image cap and scale are its OCR's
     generation = new_generation()
     records = {record.page: record for record in outcome.pages}  # by ordinal; the converter asserted the shape
-    (directory / "pages").mkdir(parents=True, exist_ok=True)
-    entries: dict[int, pagefile.PageEntry] = {}
+    pages: list[pagefile.PageResult] = []
     for number, inputs, markdown in assemble_pages(
             inventory, ((item, records[item.ordinal]) for item in inventory.inputs)):
         size = source.sizes[number]
@@ -220,14 +219,10 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
             units.append(pagefile.Unit(index=index, kind="pdf_page" if index == 0 else "book_page", bbox_pt=bbox_pt, crops=crops))
         if not inputs:  # only the layout cut leaves a page without an input: it found nothing there
             warnings.append("no content found by the layout cut")
-        complete = all(record.incomplete is None for _, record in inputs)
-        page = pagefile.PageResult(generation=generation, page=number, size_pt=size, units=units, segments=segments,
-                          markdown=markdown, complete=complete,
-                          warnings=warnings)
-        data = (page.model_dump_json(indent=2) + "\n").encode("utf-8")
-        with publish(directory / "pages" / f"{number}.json") as part:
-            part.write_bytes(data)
-        entries[number] = pagefile.PageEntry(sha256=hashlib.sha256(data).hexdigest(), complete=complete)
+        pages.append(pagefile.PageResult(
+            generation=generation, page=number, size_pt=size, units=units, segments=segments, markdown=markdown,
+            complete=all(record.incomplete is None for _, record in inputs), warnings=warnings))
+    entries = publish_pages(directory, pages)
     result = pagefile.Result(
         result_version=pagefile.RESULT_VERSION, generation=generation,
         digest=pagefile.result_digest({number: entry.sha256 for number, entry in entries.items()}),
@@ -239,13 +234,27 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
         tokens={"input": _total(record.input_tokens for record in outcome.pages),
                 "output": _total(record.output_tokens for record in outcome.pages)},
     )
+    with publish(directory / "result.json") as part:
+        part.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    return result
+
+
+def publish_pages(directory: Path, pages: Iterable[pagefile.PageResult]) -> dict[int, pagefile.PageEntry]:
+    """Publish `result/pages/{page}.json` for each page, by rename, and remove any other page file; return the
+    manifest's entries. The manifest is the caller's to write last, so a reader never finds it naming files that
+    are not there yet."""
+    (directory / "pages").mkdir(parents=True, exist_ok=True)
+    entries: dict[int, pagefile.PageEntry] = {}
+    for page in pages:
+        data = (page.model_dump_json(indent=2) + "\n").encode("utf-8")
+        with publish(pagefile.page_path(directory, page.page)) as part:
+            part.write_bytes(data)
+        entries[page.page] = pagefile.PageEntry(sha256=hashlib.sha256(data).hexdigest(), complete=page.complete)
     # A resumed run can select fewer pages; the directory must contain exactly this generation's files.
     for path in (directory / "pages").glob("*.json"):
         if path.stem.isdigit() and int(path.stem) not in entries:
             path.unlink()
-    with publish(directory / "result.json") as part:
-        part.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    return result
+    return entries
 
 
 def _crop_result(ordinal: int, crop: Crop, record: PageRecord,

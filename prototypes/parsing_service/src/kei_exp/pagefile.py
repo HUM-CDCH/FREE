@@ -186,6 +186,9 @@ class Result(_Base):
     incomplete: str | None
     pages: dict[int, PageEntry]        # every page file written, by PDF page
     tokens: dict[str, int | None]
+    # An adopted result's source (`kei_exp.reuse`): the run and generation copied. Absent otherwise, so a result
+    # produced here is the file it always was.
+    reused_from: dict[str, str] | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class ResultError(Exception):
