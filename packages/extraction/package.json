@@ -15,6 +15,7 @@
     "./parsed-document": "./src/parsed-document.ts",
     "./review-attention": "./src/review-attention.ts",
     "./schema": "./src/schema.ts",
+    "./native-fields": "./src/native-fields.ts",
     "./workflow-steps": "./src/workflow-steps.ts",
     "./workflows": "./src/workflows.ts"
   },

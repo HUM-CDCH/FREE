@@ -13,6 +13,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -54,7 +55,14 @@ def list_extraction_models() -> dict:
     with it now, and the default per role: what a run may choose in `options.models`."""
     models = []
     for key, record in extraction_models.EXTRACT_MODELS.items():
-        reachable, repo = loaded_model(record.url)
+        if record.adapter == "gliformer":
+            try:
+                info = record.chat().info()
+                reachable, repo = True, info["model"]
+            except (requests.RequestException, ValueError, KeyError):
+                reachable, repo = False, None
+        else:
+            reachable, repo = loaded_model(record.url)
         models.append({"key": key, "repo": record.repo, "roles": [role for role in ROLES if role in record.roles],
                        "reachable": reachable, "serving": repo == record.repo})
     return {"defaults": extraction_models.DEFAULTS, "models": models}

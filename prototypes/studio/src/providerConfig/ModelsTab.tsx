@@ -185,6 +185,13 @@ export function ModelsTab({
               </Labeled>
             ))}
           </div>
+          {draft.extractionModels.fields === 'gliformer' && (
+            <p className="mt-2 text-sm text-ink-muted">
+              GLiFormer reads discovered Catalog entries as raw strings and nested record lists.
+              Article, enum mapping, booleans and numeric conversion are unsupported.
+              Predictions remain unverified; native scores are available with the result.
+            </p>
+          )}
         </Step>
     </div>
   )

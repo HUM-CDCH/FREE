@@ -81,5 +81,7 @@ def counter_for(chat: Countable, *, http: Http = requests) -> TokenCounter:
 
 def counters_for(chat: Router) -> dict[str, TokenCounter]:
     """The counter of the endpoint each role's calls go to; roles one chat serves share one counter."""
-    counters = {id(client): counter_for(client) for client in chat.chats().values()}
+    from kei_exp.kie.extract.gliformer import GLiFormerFields
+    counters = {id(client): client.counter() if isinstance(client, GLiFormerFields) else counter_for(client)
+                for client in chat.chats().values()}
     return {role: counters[id(client)] for role, client in chat.chats().items()}

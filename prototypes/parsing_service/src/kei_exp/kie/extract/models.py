@@ -5,17 +5,20 @@ grounded entry's candidates). `reasoning` decides over labelled text (where reco
 value, which competing candidate is right). A template extractor such as NuExtract fills fields well but cannot
 express the reasoning calls' replies (enums over thousands of passage labels), so it takes the fields role only.
 
-Each model is served by its own vLLM server; the registry is read from the environment the deployment sets.
+Generative models use vLLM; GLiFormer has a native encoder service. The deployment sets the registry.
 """
 from __future__ import annotations
 
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from kei_exp.kie.extract import llm
 from kei_exp.kie.extract.llm import Chat, NuExtractChat, OpenAIChat
+
+if TYPE_CHECKING:
+    from kei_exp.kie.extract.gliformer import GLiFormerFields
 
 Role = Literal["fields", "reasoning"]
 ROLES: tuple[Role, ...] = ("fields", "reasoning")
@@ -27,24 +30,30 @@ ROLE: dict[str, Role] = {"document": "fields", "record": "fields", "entry": "fie
 @dataclass(frozen=True)
 class ExtractModel:
     key: str
-    repo: str                          # the model id its vLLM server serves
-    url: str                           # that server's chat completions URL
-    adapter: Literal["instruct", "nuextract"]
+    repo: str                          # the served model id
+    url: str                           # chat completions URL, or the native service base URL
+    adapter: Literal["instruct", "nuextract", "gliformer"]
     roles: frozenset[Role]
 
-    def chat(self) -> Chat:
+    def chat(self) -> Chat | GLiFormerFields:
+        if self.adapter == "gliformer":
+            from kei_exp.kie.extract.gliformer import GLiFormerFields
+            return GLiFormerFields(url=self.url, model=self.repo)
         kind = OpenAIChat if self.adapter == "instruct" else NuExtractChat
         return kind(url=self.url, model=self.repo)
 
 
 def registry(environ: Mapping[str, str]) -> dict[str, ExtractModel]:
-    """The instruction model always (`KEI_EXTRACT_*`); NuExtract where the deployment names its server."""
+    """The instruction model always; optional fields backends only where the deployment names their server."""
     models = {"instruct": ExtractModel("instruct", environ.get("KEI_EXTRACT_MODEL", llm.EXTRACT_MODEL),
                                        environ.get("KEI_EXTRACT_URL", llm.EXTRACT_URL), "instruct",
                                        frozenset(ROLES))}
     if environ.get("KEI_NUEXTRACT_URL"):
         models["nuextract"] = ExtractModel("nuextract", environ.get("KEI_NUEXTRACT_MODEL", llm.NUEXTRACT_MODEL),
                                            environ["KEI_NUEXTRACT_URL"], "nuextract", frozenset({"fields"}))
+    if environ.get("KEI_GLIFORMER_URL"):
+        models["gliformer"] = ExtractModel("gliformer", "knowledgator/gliformer-large-v1",
+                                           environ["KEI_GLIFORMER_URL"], "gliformer", frozenset({"fields"}))
     return models
 
 
@@ -79,15 +88,18 @@ def routes(options: Choice) -> dict[Role, str]:
 
 @dataclass(frozen=True)
 class Router:
-    """The chat each stage talks to. `model` is the fields model's id: the model that read the values."""
-    fields: Chat
+    """The backend each role uses. `model` names the fields model that read the values."""
+    fields: Chat | GLiFormerFields
     reasoning: Chat
 
     def for_stage(self, stage: str) -> Chat:
         role = ROLE.get(stage)
         if role is None:
             raise ValueError(f"stage {stage!r} has no role")
-        return self.fields if role == "fields" else self.reasoning
+        client = self.fields if role == "fields" else self.reasoning
+        if not hasattr(client, "complete"):
+            raise ValueError("GLiFormer fields require the native unified Catalog path")
+        return client
 
     @property
     def model(self) -> str:
@@ -97,7 +109,7 @@ class Router:
     def models(self) -> dict[Role, str]:
         return {"fields": self.fields.model, "reasoning": self.reasoning.model}
 
-    def chats(self) -> dict[Role, Chat]:
+    def chats(self) -> dict[Role, Chat | GLiFormerFields]:
         return {"fields": self.fields, "reasoning": self.reasoning}
 
 

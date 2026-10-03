@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -114,6 +115,34 @@ def _trace(span: Span, parsed: Any, calls: list[Call]) -> None:
     if parsed is not None and "parsed" in CAPTURE:
         span.set_attributes({"output.value": json.dumps(parsed, ensure_ascii=False),
                              "output.mime_type": "application/json"})
+
+
+def structure(backend, *, record: int, text: str, schema: dict, identity: dict,
+              counted: int, context: int) -> tuple[dict, Call]:
+    """A native encoder call: no generated reply budget, JSON repair or value conversion."""
+    with _TRACER.start_as_current_span("entry", attributes={"openinference.span.kind": "LLM",
+                                                           "llm.model_name": backend.model},
+                                       record_exception=False, set_status_on_exception=False) as span:
+        try:
+            if counted > context:
+                raise ValueError("native fields request exceeds the served input context")
+            if "prompts" in CAPTURE:
+                span.set_attributes({"input.value": json.dumps({"text": text, "schema": schema}, ensure_ascii=False),
+                                     "input.mime_type": "application/json"})
+            started = time.monotonic()
+            reply = backend.structure(text, schema, identity)
+            if reply.get("input_tokens") != counted:
+                raise ValueError("native fields tokenizer and inference counts disagree")
+            call = Call("entry", record, counted, 0, time.monotonic() - started, None, True,
+                        counted_input_tokens=counted, context_tokens=context, max_output_tokens=0)
+            if "responses" in CAPTURE:
+                span.set_attribute("llm.output_messages.0.message.content", json.dumps(reply, ensure_ascii=False))
+            _trace(span, reply, [call])
+            return reply, call
+        except Exception as error:
+            span.add_event("exception", {"exception.type": type(error).__name__})
+            span.set_status(StatusCode.ERROR)
+            raise
 
 
 def _complete(chat: Chat, stage: str, record: int | None, system: str, user: str, schema: dict, max_tokens: int | None,

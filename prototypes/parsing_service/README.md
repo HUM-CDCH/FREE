@@ -85,6 +85,7 @@ run would lose its result.
 | `KEI_OCR_REVISION` | Optional label of the OCR server's image and weights, named in every served parse's recipe; change it when they change, so earlier output is not reused |
 | `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction's instruction model server and the model it serves |
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
+| `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
 | `KEI_CATALOG_CHUNKS` | Worker only: chunks a grounded Catalog's entries run in at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`) |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source |
