@@ -285,3 +285,31 @@ Deleted: `SavedMethodSummary.tsx` and its test; the toolbar `hintText`.
 - An "extract as I read" automatic mode.
 - The project page, the batch review grid and Model Configuration.
 - The next-step indicator (its own spec).
+
+## Decisions on the built UI (2026-10-03)
+
+The researcher reviewed the built UI on 2026-10-03 and took these decisions; where they
+conflict with the sections above, they win.
+
+- §10: one filled primary per screen. Sign in, Continue and "+ New Project" are filled
+  positive buttons; other actions on those screens are outline.
+- §2: "■ Stop extraction" is red (danger) while a run is active.
+- §2 and §8: one way to run, the tab strip's Run. The Results panel has no run button;
+  its empty state points to Run and, when Run is disabled, gives the reason.
+- §2 and §8: a completion is one toast with a "Review now" action (eight seconds, held
+  while hovered or focused), never a dialog, in the document workspace; the batch page
+  keeps its dialog. "Review now" opens the rail and its Results tab.
+- §11: the Run tooltip says what the run extracts for the chosen record scope.
+- §6: the row actions are the worded buttons Edit, Note and Delete (red), 28px tall, in a
+  140px overlay at the right of the row line, shown on hover and focus within. On a row line
+  under 296px the pills wrap under a 28px name line, clear of the overlay; on a row line of
+  240px or less (the 264px rail) the actions take their own line below the pills, kept at
+  rest and during a drag so rows never move under the pointer.
+- §8: result rows carry no Evidence or Check pills. A grounded value is itself the link to
+  its Evidence; "to check" (grounded and undecided) is a filled 8px accent dot with a text
+  equivalent; the summary chip "Doubtful links: N" counts grounding doubts.
+- §3 and §4: toasts paint above the rail overlay and the navigation drawer of windows under
+  860px, and below modal dialogs.
+- Deferred to its own spec: choosing Article or Catalog automatically right after parsing.
+- Open for the researcher: at the 264px minimum rail the actions line stays empty at rest; the
+  alternative is a per-row "⋯" menu at narrow widths.
