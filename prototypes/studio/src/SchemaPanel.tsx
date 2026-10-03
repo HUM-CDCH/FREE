@@ -704,19 +704,26 @@ function SchemaPanel({
   }, [recordDescriptionDraft, ready, view, editorReadOnly])
   // And whenever its width changes with no edit: a rail resize re-wraps the text, and so does the Schema tab shown again
   // after it was hidden (0px wide while hidden, so it is measured once it is shown). Height-only notifications are the
-  // rows just set; measuring on them would loop.
+  // rows just set; measuring on them would loop. The measurement waits for the next frame: resizing the observed
+  // element inside its own notification is the "ResizeObserver loop" error.
   useEffect(() => {
     const element = descriptionRef.current
     if (!element || typeof ResizeObserver === 'undefined') return
     let width: number | null = null
+    let frame = 0
     const observer = new ResizeObserver((entries) => {
       const next = entries[entries.length - 1]!.contentRect.width
       if (next === width) return
       width = next
-      if (next > 0) fitDescriptionRows(element)
+      if (next === 0) return
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => fitDescriptionRows(element))
     })
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
   }, [ready, view, editorReadOnly])
   const [focusDescriptionOnReady, setFocusDescriptionOnReady] = useState(false)
   useEffect(() => {
