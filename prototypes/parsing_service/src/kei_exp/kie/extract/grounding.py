@@ -179,7 +179,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     Article adds its record identity and a served counter, verifying within the context minus an output reserve.
     `before_call`, when given, runs before each grounding batch; its error ends verification (cancellation).
     `on_batch`, when given, runs after each batch's reply with the links that batch made (the partial view's grounding
-    stage, design §2).
+    stage, design §2): none after a failed reply; a batch split or refused before any call has no reply and no call.
     """
     prefix: tuple[str | int, ...] = ("records", record)
     if quoted and span_ids:
@@ -300,6 +300,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             issues += ([Issue("call_failed", attempts[-1].error or "grounding failed", record, claims[claim][0])
                         for claim in batch] if projected else
                        [Issue("call_failed", attempts[-1].error or "grounding failed", record)])
+            if on_batch is not None:  # a reply that failed is a reply that made no links
+                on_batch([])
             continue
         given = answer if isinstance(answer, dict) else {}
         for claim in batch:

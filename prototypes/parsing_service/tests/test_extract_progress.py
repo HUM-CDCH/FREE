@@ -100,3 +100,25 @@ def test_without_an_extraction_id_article_publishes_nothing(tmp_path):
     article.extract(tmp_path, evidence(source), request, Router(chat, chat),
                     counter={role: WordCounter() for role in ("fields", "reasoning")})
     assert not (tmp_path / "extractions").exists()
+
+
+def test_a_grounding_batch_whose_reply_failed_publishes_its_stage_with_no_links(tmp_path):
+    source = passages(["31. Hill; 32. Brook.", "Results: Hill 1827."])
+    directory = tmp_path / "extractions" / "x3"
+
+    def fields(system, user, schema):
+        if "title" in schema["properties"]:
+            return {"title": "Sites"}
+        return {"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "axe"]}
+
+    def reason(system, user, schema):  # quoted grounding asks four claims a batch: C1-C4, then C5
+        if "C1" in schema["properties"]:  # the first batch's reply is no JSON: a failed call (`calls.complete`)
+            return Reply(text="{not json", input_tokens=10, output_tokens=1, finish="stop", seconds=0.0)
+        return {claim: {"label": "E1", "quote": "31.", "attribution": True} for claim in schema["properties"]}
+    request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"grounding": "quoted"}})
+    result = article.extract(tmp_path, evidence(source), request, Router(CountingChat(fields), CountingChat(reason)),
+                             counter={role: WordCounter() for role in ("fields", "reasoning")}, extraction_id="x3")
+    first, second = (json.loads((directory / progress.grounding_name(batch)).read_bytes()) for batch in (0, 1))
+    assert first["links"] == [] and second["links"] == result["evidence"] and len(result["evidence"]) == 1
+    assert not (directory / progress.grounding_name(2)).exists()
+    assert any(issue["code"] == "call_failed" for issue in result["issues"])
