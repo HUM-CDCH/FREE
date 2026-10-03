@@ -82,13 +82,14 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
         {file && <>
           <p className="mt-2 text-compact text-ink-muted">The workbook and column data are transient. Closing or reloading an unconfirmed preview requires re-upload.</p>
           <div className="mt-2 flex flex-wrap items-end gap-3 text-secondary">
-            <label className="flex items-center gap-1">Worksheet <select aria-label="Import worksheet" className="rounded-[3px] border border-line px-1 py-0.5" value={worksheet} disabled={busy}
+            {/* Frozen while a confirmation saves: the preview shown is the definition being committed. */}
+            <label className="flex items-center gap-1">Worksheet <select aria-label="Import worksheet" className="rounded-[3px] border border-line px-1 py-0.5" value={worksheet} disabled={busy || confirming}
               onChange={(event) => { setWorksheet(event.target.value); setColumns([]) }}>
               <option value="">Choose a worksheet</option>{worksheets.map((sheet) => <option key={sheet}>{sheet}</option>)}
             </select></label>
             <label className="flex items-center gap-1">Header row <input aria-label="Header row" className="w-16 rounded-[3px] border border-line px-1 py-0.5" type="number" min="1" max="5000"
-              value={header} disabled={busy} onChange={(event) => { setHeader(Number(event.target.value)); setColumns([]) }} /></label>
-            <Button disabled={!worksheet || busy} onClick={() => void preview(file, worksheet)}>Preview worksheet</Button>
+              value={header} disabled={busy || confirming} onChange={(event) => { setHeader(Number(event.target.value)); setColumns([]) }} /></label>
+            <Button disabled={!worksheet || busy || confirming} onClick={() => void preview(file, worksheet)}>Preview worksheet</Button>
           </div>
           {columns.length > 0 && <fieldset disabled={busy || confirming} className="mt-3 flex flex-col gap-2 text-secondary">
             <label className="flex items-center gap-1">Record description <input aria-label="Imported record description" className="min-w-0 flex-1 rounded-[3px] border border-line px-1 py-0.5"

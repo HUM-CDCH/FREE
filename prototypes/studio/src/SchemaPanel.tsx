@@ -671,8 +671,9 @@ function SchemaPanel({
   const importDisabled = editorReadOnly || editing !== null || openDescId !== null || snap.generating || !schema.operationScope()?.projectContextId
   const menuItems: ActionItem[] = [
     { id: 'import', label: 'Import from Excel codebook…', onSelect: () => setImportOpen(true), disabled: importDisabled },
-    // "Edit as code" opens the code view ready to edit (§5); Fields | Code switches to it for reading.
-    { id: 'code', label: 'Edit as code', onSelect: () => { setView('code'); startCodeEdit() } },
+    // "Edit as code" opens the code view ready to edit (§5); Fields | Code switches to it for reading. A session already
+    // open keeps its unsaved code and its error: choosing the action again only shows it.
+    { id: 'code', label: 'Edit as code', onSelect: () => { setView('code'); if (!jsonEditMode) startCodeEdit() } },
     {
       id: 'history', label: 'History', onSelect: () => setHistoryOpen(true),
       disabled: snap.history.length === 0 || creatingFromHistory || snap.creatingFromRevisionId !== null || snap.previewingRevisionId !== null,

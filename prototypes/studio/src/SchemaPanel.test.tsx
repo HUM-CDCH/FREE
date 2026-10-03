@@ -1789,6 +1789,32 @@ describe('schema header (redesign §5)', () => {
     expect(code.className).toMatch(/\bwhitespace-pre\b/)
   })
 
+  it('Edit as code again keeps the unsaved code and its error, also after switching to Fields and back', () => {
+    renderPanel()
+    chooseSchemaAction('Edit as code')
+    const editor = () => screen.getByRole('textbox', { name: 'Schema code' })
+    const edited = (editor() as HTMLTextAreaElement).value.replace('"title"', '"report_title"')
+    fireEvent.change(editor(), { target: { value: edited } })
+    chooseSchemaAction('Edit as code')
+    expect(editor()).toHaveValue(edited)
+    fireEvent.click(screen.getByRole('button', { name: 'Fields' }))
+    expect(screen.queryByRole('textbox', { name: 'Schema code' })).not.toBeInTheDocument()
+    chooseSchemaAction('Edit as code')
+    expect(editor()).toHaveValue(edited)
+    // An error stays with the code it describes.
+    fireEvent.change(editor(), { target: { value: '{ "unfinished": ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByText(/Unexpected end of JSON input/)).toBeInTheDocument()
+    chooseSchemaAction('Edit as code')
+    expect(editor()).toHaveValue('{ "unfinished": ')
+    expect(screen.getByText(/Unexpected end of JSON input/)).toBeInTheDocument()
+    // Cancel ends the session: the next Edit as code starts from the saved definition.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    chooseSchemaAction('Edit as code')
+    expect((editor() as HTMLTextAreaElement).value).toContain('"title"')
+    expect((editor() as HTMLTextAreaElement).value).not.toContain('report_title')
+  })
+
   it('the workspace commands use the shared buttons: Stop danger, Retry and Edit secondary, Save and Create positive', async () => {
     const button = (name: string) => screen.getByRole('button', { name })
     // Regenerating: Stop is a destructive command.

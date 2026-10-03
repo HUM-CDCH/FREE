@@ -156,7 +156,7 @@ it('a preview still in flight can be dismissed with Cancel or Escape, and its la
   schema.dispose()
 })
 
-it('stays open while a confirmed import is being saved', async () => {
+it('stays open while a confirmed import is being saved, its preview settings and Preview worksheet disabled', async () => {
   let finish!: () => void
   const initialize = vi.fn((definition: SchemaDefinition) => new Promise<never>((resolve) => {
     finish = () => resolve({ ...definition, extractionSchemaId: 'schema', schemaRevisionId: 'revision', revisionNumber: 1,
@@ -172,6 +172,15 @@ it('stays open while a confirmed import is being saved', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Confirm schema' }))
   await waitFor(() => expect(initialize).toHaveBeenCalledOnce())
   expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+  // The preview shown is the definition being saved: nothing may change it or start another while it saves.
+  expect(screen.getByLabelText('Import worksheet')).toBeDisabled()
+  expect(screen.getByLabelText('Header row')).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Preview worksheet' })).toBeDisabled()
+  const previews = authenticatedFetch.mock.calls.length
+  fireEvent.click(screen.getByRole('button', { name: 'Preview worksheet' }))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(authenticatedFetch).toHaveBeenCalledTimes(previews)
+  expect(screen.getByLabelText('Column 1 name')).toBeInTheDocument()
   fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
   fireEvent.click(screen.getByRole('dialog'))
   expect(onClose).not.toHaveBeenCalled()
