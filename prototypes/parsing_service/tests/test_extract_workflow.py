@@ -575,3 +575,26 @@ def test_a_cancellation_during_a_unified_entry_call_writes_no_candidates_file(pa
     assert (directory / "catalog-entry-0.reading.v1.json").exists()
     assert not list(directory.glob("catalog-entry-*.candidates.v1.json"))
     assert not (directory / "result.json").exists()
+
+
+def test_a_cancellation_during_an_entry_s_verification_writes_no_next_reading_marker(parsed, scripted, cancellable):
+    """The next entry's reading marker follows the previous entry's last call: a cancel issued during that call leaves
+    no marker for the next entry (with chunks, or after an entry left unpublished, it alone would refresh the run's
+    garbage-collection age)."""
+    run_id, generation = parsed
+    asked: list[str] = []
+    model = unified_model(run_id, asked)
+
+    def script(system, user, schema):
+        if system.startswith("You check values"):  # the first entry's verification
+            cancellable.status = "CANCELLED"
+        return model(system, user, schema)
+    scripted["script"] = script
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.extract_run(WID, run_id, generation, unified_body())
+    assert stopped.value.code == "cancelled"
+    assert asked.count("extract") == 1  # the second entry's values were never asked
+    directory = runs.RUNS / run_id / "extractions" / "x-1"
+    assert [path.name for path in directory.glob("catalog-entry-*.reading.v1.json")] == [
+        "catalog-entry-0.reading.v1.json"]
+    assert not (directory / "result.json").exists()

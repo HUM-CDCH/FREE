@@ -61,7 +61,6 @@ from kei_exp.kie.extract.tokens import counters_for
 from kei_exp.kie.extract.windows import Unit
 from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
-from kei_exp.workflows.cancel import CancelCheck
 
 EXTRACTION_VERSION = 3
 PROMPT_VERSION = 3  # 3: discovery places are one-line [line, kind, label] lists, start text only mid-line
@@ -305,8 +304,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     `extraction_id` the execution, discovery and entry records are published under `run_dir` and reused on
     re-execution; without one (the CLI) they live only in the artifact. `before_entry` is called before every model
     call and before returning; what it raises ends the extraction. Entries run `chunks` at a time, nearest
-    `options.start_page` first (`work_order`), assembled in source order. An entry's candidates file is written only
-    after `before_entry` again, unthrottled, so a cancel issued during its windows' calls refreshes no run's age."""
+    `options.start_page` first (`work_order`), assembled in source order. An entry's reading marker and candidates
+    file are written only after `before_entry` again, unthrottled where it has a `strict` form, so a cancel issued
+    during a call refreshes no run's age."""
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     schema, options = request.schema_, request.options.unified
     if isinstance(chat.fields, gliformer.GLiFormerFields):
@@ -316,7 +316,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     counters = counter if isinstance(counter, dict) else (counters_for(chat) if counter is None
                                                            else dict.fromkeys(("fields", "reasoning"), counter))
     check = before_entry or (lambda: None)
-    strict = partial(check, force=True) if isinstance(check, CancelCheck) else check
+    strict = getattr(check, "strict", check)  # the worker's check unthrottled (`CancelCheck.strict`); else as is
     check()
     directory = run_dir / "extractions" / extraction_id if run_dir is not None and extraction_id else None
     # Not `execution`: that name is the execution record, assigned a few lines below.
@@ -349,12 +349,14 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     def read(number: int, entry: dict) -> _Work:
         """A published entry's work, or the entry read now: published only when nothing in it failed or stayed
         undecided, so a retry of the step asks again for an entry a failed call or window left short. The reading
-        marker and the candidates file are the partial view's (design §2): written here, read by no resume path."""
+        marker and the candidates file are the partial view's (design §2): written here, each after the unthrottled
+        check, read by no resume path."""
         if directory is None:
             return run.entry(number, entry)
         path = directory / entry_name(number)
         if path.exists():
             return _work_of(_published(path, dict, _entry_reusable(number, entry, discovery_sha256)), run.nodes)
+        strict()  # the marker may follow the previous entry's last call: never written once cancelled
         progress.write_stage(directory / progress.reading_name(number),
                              {"version": progress.CANDIDATES_VERSION, "execution": stage_execution, "index": number})
         work = run.entry(number, entry, on_candidates=partial(_candidates_stage, directory, stage_execution, strict,

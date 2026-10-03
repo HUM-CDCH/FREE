@@ -40,7 +40,6 @@ from kei_exp.kie.extract.stages import (REPLY_TOKENS, Issue, Link, _instruction,
                                         record_request, leaves)
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter, counters_for
 from kei_exp.kie.passages import Evidence, Passage, text_of
-from kei_exp.workflows.cancel import CancelCheck
 
 # The one document identity's label, shown where a record's identity would be (grounding); no identity attribute.
 DOCUMENT_LABEL = "the whole document"
@@ -77,11 +76,12 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     and, with bounded contexts, before each count that sizes a context and the selection; what it raises ends the
     extraction. `chunks` is not used: Article runs unsplit. With `run_dir` and `extraction_id`, the header, each value
     context's answered fields with the root assembled so far, and each grounding batch's links are published under the
-    extraction directory for the partial view (design §2), each after `before_entry` again, unthrottled, so a cancel
-    issued during the call just returned writes nothing that would refresh the run's garbage-collection age;
-    `options.start_page` orders bounded value contexts, nearest first."""
+    extraction directory for the partial view (design §2); each file after a call is written only after `before_entry`
+    again (unthrottled where it has a `strict` form, as the worker's `CancelCheck` does), so a cancel issued during the
+    call writes nothing that would refresh the run's garbage-collection age. `options.start_page` orders bounded value
+    contexts, nearest first."""
     check = before_entry or unchecked
-    strict = partial(check, force=True) if isinstance(check, CancelCheck) else check
+    strict = getattr(check, "strict", check)  # the worker's check unthrottled (`CancelCheck.strict`); else as is
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     schema = request.schema_
