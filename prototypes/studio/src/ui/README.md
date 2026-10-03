@@ -12,6 +12,7 @@ state — they import only React and the shared Tailwind tokens (`src/index.css`
 | `SegmentedControl` | Single-select segmented toggle |
 | `EmptyState` | Dashed placeholder card (`neutral`/`danger`) with optional action |
 | `Spinner` | Loading ring, optionally with label + hint |
+| `Toast` | Transient `role="status"` notice with one optional action (e.g. Undo) |
 | `Overline` | Uppercase, letter-spaced section label |
 | `PhaseProgress` | Five-segment workflow position bar with a small state line |
 | `Panel` | Full-height column with bordered header/footer + scrolling body |

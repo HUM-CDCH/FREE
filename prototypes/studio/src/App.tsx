@@ -20,11 +20,12 @@ import {
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 import { useExtraction } from './useExtraction'
+import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
 import { SavedMethodSummary } from './SavedMethodSummary'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
 import ExtractionFinishedDialog from './ExtractionFinishedDialog'
-import { Button, Spinner } from './ui'
+import { Button, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
@@ -158,7 +159,6 @@ export function DocumentWorkspace({
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
-  const toastTimerRef = useRef<number | undefined>(undefined)
   const pdfViewerRef = useRef<PDFViewer | null>(null)
   const activeSourceRepresentationIdRef = useRef(sourceRepresentationId)
   useEffect(() => {
@@ -167,6 +167,7 @@ export function DocumentWorkspace({
 
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [zoomPercent, setZoomPercent] = useState(100)
+  const { toast, showToast, dismissToast } = useToast()
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
     extractionSchema,
@@ -192,10 +193,6 @@ export function DocumentWorkspace({
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('schema')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-  // Whether the toast on screen explains the refresh that is about to replace
-  // this document's Source Representation, so that switch must not clear it.
-  const [toastOutlivesSwitch, setToastOutlivesSwitch] = useState(false)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   // Extraction Schemas keyed by Schema Revision id, so any attempt — active,
   // restored, or historical — resolves the exact revision it ran with.
@@ -240,8 +237,7 @@ export function DocumentWorkspace({
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setKnownSchemas(reopenedSchemas)
     setResultPath(null)
-    if (!toastOutlivesSwitch) setToast(null)
-    setToastOutlivesSwitch(false)
+    if (!toast?.outlivesSwitch) dismissToast()
     setDocIndex({ status: 'parsing' })
   }
 
@@ -433,23 +429,6 @@ export function DocumentWorkspace({
     return () => abortController.abort()
   }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl])
 
-
-  useEffect(
-    () => () => {
-      window.clearTimeout(toastTimerRef.current)
-    },
-    [],
-  )
-
-  function showToast(message: string, { outlivesSwitch = false, durationMs = 2600 } = {}) {
-    window.clearTimeout(toastTimerRef.current)
-    setToast(message)
-    setToastOutlivesSwitch(outlivesSwitch)
-    toastTimerRef.current = window.setTimeout(() => {
-      setToast(null)
-      setToastOutlivesSwitch(false)
-    }, durationMs)
-  }
 
   // Front-end reset only: the durable schema remains the save target, while
   // the editor returns to its ungenerated state.
@@ -1008,9 +987,7 @@ export function DocumentWorkspace({
             )}
             {toast && (
               <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
-                <p className="animate-fadeup min-w-0 truncate rounded-xl border border-line-strong bg-surface px-4.5 py-2 text-xs font-semibold text-ink shadow-float">
-                  {toast}
-                </p>
+                <Toast message={toast.message} action={toast.action} onDismiss={dismissToast} />
               </div>
             )}
             <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden justify-center sm:flex">
