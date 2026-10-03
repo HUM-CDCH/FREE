@@ -133,7 +133,10 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
 - Results preserve the parse generation/digest, schema, options, model (the
   fields model), `models` per role, prompt version, fingerprint, records,
   Evidence and diagnostics. Ungrounded values
-  remain explicit. Document-level fields are currently listed as `unverified`;
+  remain explicit. `calls` lists every model call; a generic Catalog record
+  call that looped on whitespace and was read on its one bounded-grammar retry
+  is kept, failed, with `recovered: true`, and does not by itself make the
+  result incomplete. Document-level fields are currently listed as `unverified`;
   `complete` applies to record values.
 - The task scope is the schema's `recordScope` (`document` for Article, `records`
   for a Catalog; `tests/fixtures/contracts/record-scope.json`). A declared scope

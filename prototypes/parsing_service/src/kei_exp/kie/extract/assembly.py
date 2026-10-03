@@ -5,7 +5,8 @@ document-level values read in each context and reconciled across them, each reco
 technique `grounding.technique` names, the records merged with the document and filename values, and the artifact's
 common fields with its fingerprint. Document-level fields (`valueSource: document`) are extracted but not verified in
 this slice, since grounding them would need the whole source's labels: the artifact names them under `unverified`,
-and `complete` speaks for record values only.
+and `complete` speaks for record values only. A failed call marked `recovered` does not keep it from being complete;
+its recovery call's values, issues and grounding do.
 
 `request` below is the validated `run.ExtractRequest`; this module reads its schema and options and does not import
 `run`.
@@ -225,7 +226,7 @@ def artifact(evidence: Evidence, request, chat: Router, *, started: str, clock: 
         "prompt_version": PROMPT_VERSION,
         "schema": schema.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
         "started": started, "seconds": round(time.monotonic() - clock, 3),
-        "complete": all(call.ok for call in calls) and not ungrounded and not issues,
+        "complete": all(call.ok or call.recovered for call in calls) and not ungrounded and not issues,
         "records": records,
         "evidence": [{**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)} for link in links],
         "ungrounded": ungrounded,

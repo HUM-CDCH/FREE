@@ -5,7 +5,10 @@ chat template. Only a refusal that positively says structured output is unsuppor
 (the prompt's own "return only the JSON object" then has to do); a malformed schema, an overlong input or any other
 refusal surfaces unchanged. The refused attempt is kept on the reply, so the artifact records every call. `finish`
 is the server's finish_reason: "length" means the reply was cut off, which the caller treats as a failed call
-rather than a short answer. `tokenize_body` is the same request as vLLM's `/tokenize` counts it.
+rather than a short answer. `tokenize_body` is the same request as vLLM's `/tokenize` counts it. A chat `bounded` to a
+whitespace limit sends the schema instead as xgrammar's grammar for it admitting at most that much whitespace between
+JSON tokens (`bounded_grammar`), never falling back to unconstrained generation; only the version 1 Catalog's
+recovery of a record call that looped on whitespace uses it.
 """
 from __future__ import annotations
 
@@ -13,7 +16,7 @@ import json
 import os
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
 import requests
@@ -77,6 +80,7 @@ class OpenAIChat:
     timeout: float = EXTRACT_TIMEOUT
     headers: dict[str, str] = field(default_factory=dict)
     max_tokens: int = 8192
+    max_whitespace: int | None = None   # set: the schema goes as a bounded grammar (`bounded_grammar`)
 
     def tokenize_body(self, *, system: str, user: str, schema: dict | None = None) -> dict:
         """The body vLLM's /tokenize renders into exactly the prompt `complete` sends (the schema does not enter it)."""
@@ -88,16 +92,36 @@ class OpenAIChat:
             "model": self.model, "temperature": 0, "max_tokens": max_tokens or self.max_tokens,
             "messages": _messages(system, user), "chat_template_kwargs": dict(THINKING_OFF),
         }
-        constrained = {**payload, "response_format": {"type": "json_schema", "json_schema": {
-            "name": "reply", "schema": _plain(schema), "strict": True}}} if schema is not None else payload
+        if schema is None:
+            constrained = payload
+        elif self.max_whitespace is not None:
+            constrained = {**payload, "structured_outputs": {
+                "grammar": bounded_grammar(_plain(schema), self.max_whitespace)}}
+        else:
+            constrained = {**payload, "response_format": {"type": "json_schema", "json_schema": {
+                "name": "reply", "schema": _plain(schema), "strict": True}}}
         started = time.monotonic()
         attempts: tuple[str, ...] = ()
         response = requests.post(self.url, json=constrained, headers=self.headers, timeout=self.timeout)
         refusal = getattr(response, "text", "") or ""
-        if response.status_code == 400 and schema is not None and UNSUPPORTED.search(refusal):
+        if "response_format" in constrained and response.status_code == 400 and UNSUPPORTED.search(refusal):
             attempts = (f"HTTP 400: {refusal[:300]}",)
             response = requests.post(self.url, json=payload, headers=self.headers, timeout=self.timeout)
         return _reply(response, started, attempts)
+
+
+def bounded(chat: Chat, max_whitespace: int) -> Chat | None:
+    """`chat` sending its schema as a grammar admitting at most `max_whitespace` whitespace characters between JSON
+    tokens, or None when it is not exactly an `OpenAIChat` (a subclass may override `complete` and ignore the limit)."""
+    return replace(chat, max_whitespace=max_whitespace) if type(chat) is OpenAIChat else None
+
+
+def bounded_grammar(schema: dict, max_whitespace: int) -> str:
+    """xgrammar's EBNF for `schema` admitting at most `max_whitespace` whitespace characters between JSON tokens.
+    Imported here: xgrammar imports torch, which the API process and ordinary calls must not load."""
+    import xgrammar
+    return str(xgrammar.Grammar.from_json_schema(json.dumps(schema), any_whitespace=True,
+                                                 max_whitespace_cnt=max_whitespace))
 
 
 @dataclass

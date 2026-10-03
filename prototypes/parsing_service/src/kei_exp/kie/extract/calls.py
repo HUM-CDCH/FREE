@@ -16,7 +16,9 @@ This module owns only what every call shares:
 - accounting: every attempt, in order, as a `Call`, the artifact's record of a model call. A failed call's `error`
   may quote the start of the server's refusal or of the unreadable reply; it never carries the request.
 
-It makes no retries of its own; the adapter's single output-format fallback is the only second attempt.
+It makes no retries of its own; the adapter's single output-format fallback is its only second attempt. The version 1
+Catalog's one recovery of a record call that looped on whitespace (`looped`) is its caller's (`catalog.py`), made as a
+second `complete`.
 
 Each call is also a trace span (Phoenix, docs/operations/local-development.md) under the extraction's DBOS step, with
 its model, tokens, outcome and refused attempts; each request it sends is a child span when the worker instruments
@@ -52,9 +54,11 @@ class Call:
     counted_input_tokens: int | None = None
     context_tokens: int | None = None
     max_output_tokens: int | None = None
+    recovered: bool = False             # a failed call whose one recovery call was read: it cost tokens, lost no value
 
 
 _TRACER = trace.get_tracer("kei")
+WHITESPACE_LOOP = "the reply ran into a whitespace loop"
 CAPTURE = set(os.environ.get("FREE_TRACE_CAPTURE", "").split(","))
 
 
@@ -63,9 +67,14 @@ def _cut_off(text: str) -> str:
     decoding admits unlimited whitespace between JSON tokens, and a looping model spends the whole allowance on it)."""
     trailing = len(text) - len(text.rstrip())
     if text and trailing * 2 >= len(text):
-        return (f"the reply ran into a whitespace loop ({trailing} of {len(text)} characters trailing whitespace; "
+        return (f"{WHITESPACE_LOOP} ({trailing} of {len(text)} characters trailing whitespace; "
                 "finish_reason length)")
     return "the reply was cut off (finish_reason length)"
+
+
+def looped(call: Call) -> bool:
+    """Whether `call` failed on a whitespace loop."""
+    return not call.ok and (call.error or "").startswith(WHITESPACE_LOOP)
 
 
 def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str, user: str, schema: dict,
