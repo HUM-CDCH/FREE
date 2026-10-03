@@ -50,6 +50,19 @@ generation. `KEI_SOURCE_INBOX` is where Studio stages source PDFs; kei only
 reads it. Model weights under `/models` are a separate cache. Debug files are
 never authoritative Evidence.
 
+A `convert` of PDF bytes another run already parsed with the same effective
+settings reuses that work (`reuse.py`): it adopts the other run's complete
+result whose recipe hashes to the same fingerprint, rewritten as a new
+generation of this run whose manifest names it in `reused_from`, and for
+`page_source=ingest` it hard-links the other run's proven ingest of the same
+recipe. Every candidate is verified first, anything less is passed over and
+the work is done; a run asking for a debug report reuses nothing. Reuse is as
+fresh as the recipe: a change to what the cut or a transcriber writes for the
+same inputs must bump `RESULT_VERSION` (`pagefile.py`) or the transcriber's
+`TEXT_RULES` entry (`transcription/types.py`), and a change to the ingest's
+output its `STAGE_VERSION` (`kie/stages/ingest.py`), or later runs keep the
+earlier output.
+
 | Setting | Purpose |
 | --- | --- |
 | `KEI_SYSTEM_DATABASE_URL` | Worker only: kei's DBOS system database (role `kei` on `free`); required |
@@ -212,7 +225,8 @@ step raised into a retry or a portable failure code. The OCR runner
 lives in `kie/stages/ocr.py`, with native/Surya/VLM adapters in `transcription/`.
 `models.py` holds lightweight OCR records for the API; `transcription/specs.py`
 owns their Docling specifications. `kie/runner.py` orchestrates ingest and OCR;
-`kie/ingest_cache.py` owns ingest generation reuse, recovery and publication.
+`kie/ingest_cache.py` owns ingest generation reuse, recovery and publication;
+`reuse.py` finds another run's result and ingest of the same recipe.
 `result.py` publishes canonical pages and manifests; `pagefile.py` validates
 their identities and hashes. `kie/passages.py` reads those artifacts as the
 `Evidence`/`Passage` view shared by the recipe stages and extraction; it imports
