@@ -115,10 +115,6 @@ services:
       - "${EXTRACT_KV_CACHE_BYTES:-8G}"
       - --max-num-seqs
       - "4"
-      # Structured output must not admit free whitespace between JSON tokens: with it, a record call can loop on
-      # carriage returns inside an array until max_tokens (observed in production, 8,192 tokens, three runs out of three).
-      - --structured-outputs-config
-      - '{"backend": "xgrammar", "disable_any_whitespace": true}'
     depends_on:
       nuextract_model:
         condition: service_healthy
