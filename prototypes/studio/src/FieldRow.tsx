@@ -40,9 +40,16 @@ const ACTION_DANGER = `${ACTION} text-danger hover:bg-danger-soft`
 /** The type and values pills' buttons: at least 24px tall around the pill. A type longer than its line ellipsizes. */
 const PILL_BUTTON = 'inline-flex min-h-6 min-w-0 max-w-full cursor-pointer items-center rounded-full outline-none disabled:cursor-default disabled:opacity-60'
 const PILL_FIT = 'min-w-0 max-w-full'
-/** The actions overlay the row's right edge rather than reserving width at rest, so a row fits the 264px rail. Shown on
- *  hover and focus within the row, except while a pill has keyboard focus: the overlay would cover that pill. */
-const ACTIONS = 'absolute right-0 top-px flex items-center gap-1 rounded-[3px] bg-surface pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
+/** The actions overlay the right end of the row's first line (three 28px targets 4px apart after a 4px lead: 96px).
+ *  Shown, and only then hit by a pointer, on hover and focus within the row; at rest a tap there reaches the row, never
+ *  an unseen action. While a pill has keyboard focus the overlay steps aside as well. */
+const ACTIONS = 'pointer-events-none absolute right-0 top-px flex items-center gap-1 rounded-[3px] bg-surface pl-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
+/** The pills' line keeps the overlay's 96px clear on the right at every width, so the pills wrap before the actions'
+ *  zone and a pointer on any part of a pill reaches the pill. The name, not a control, may still run under the actions:
+ *  its cap is the whole line, and its full text is its title. */
+const CLEAR_OF_ACTIONS = 'pr-[96px]'
+const NAME_UNDER_ACTIONS = 'max-w-[calc(100%_+_96px)]'
+const NOTE_INDENT = 'pl-[46px]'
 
 function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
   if (outcome === 'rejected') return (
@@ -102,9 +109,15 @@ function AcceptanceControl({ id, name, accepted, onChange }: {
 }
 
 /** Never shrunk for its pills, which wrap under it instead; only a name longer than the whole line ellipsizes. */
-const NAME = 'font-mono text-content font-semibold shrink-0 max-w-full truncate'
+const NAME = 'font-mono text-content font-semibold shrink-0 truncate'
 
-function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; change?: Change; impliedRemoved?: boolean }) {
+function FieldChangeLabel({ node, change, impliedRemoved, underActions }: {
+  node: SchemaNode
+  change?: Change
+  impliedRemoved?: boolean
+  /** The row has the actions overlay, whose zone its pills keep clear of; the name may extend into it. */
+  underActions: boolean
+}) {
   if (change?.kind === 'modified' && change.before && change.after) {
     const nameChanged = change.before.name !== change.after.name
     const beforeType = fieldTypeWords(change.before)
@@ -118,7 +131,7 @@ function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; 
             <span className="min-w-0 truncate font-mono text-content font-semibold text-green">{change.after.name}</span>
           </>
         ) : (
-          <span className={`${NAME} text-ink`} title={change.after.name}>{change.after.name}</span>
+          <span className={`${NAME} max-w-full text-ink`} title={change.after.name}>{change.after.name}</span>
         )}
         {beforeType !== afterType && (
           <>
@@ -135,7 +148,7 @@ function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; 
     : change?.kind === 'removed' || impliedRemoved
       ? 'text-danger line-through'
       : 'text-ink'
-  return <span className={`${NAME} ${tone}`} title={node.name}>{node.name}</span>
+  return <span className={`${NAME} ${underActions ? NAME_UNDER_ACTIONS : 'max-w-full'} ${tone}`} title={node.name}>{node.name}</span>
 }
 
 function CollapseArrow({ expanded }: { expanded: boolean }) {
@@ -172,8 +185,11 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
   const count = node.children?.length ?? 0
   const typeWords = `${fieldTypeWords(node)}${isGroup && !expanded ? ` · ${count} field${count === 1 ? '' : 's'}` : ''}`
   const valuesWords = node.allowedValues ? pluralize('value', node.allowedValues.length, true) : ''
+  // Not keyed on a drag: the pills would reflow under the pointer mid-drag. Only the overlay itself hides then.
+  const hasActions = !isDiff && !readOnly
   // The note line sits inside the listitem, so the row's name, hover and focus reveal cover it too. The listitem bleeds
-  // 8px each side (`-mx-2 px-2`); the panel's list carries the same bleed, so the row never overflows it.
+  // 8px each side (`-mx-2 px-2`); the panel's list carries the same bleed, so the row never overflows it. The note starts
+  // where the name does: the 14px grip (or its spacer), 4px, the 24px disclosure (or its spacer), 4px: `NOTE_INDENT`.
   return (
     <div
       role="listitem"
@@ -196,7 +212,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
     >
       <div className="relative flex min-h-[30px] items-start gap-1">
         {!isDiff && !readOnly ? (
-          <span aria-hidden="true" className="flex h-[30px] shrink-0 cursor-grab select-none items-center px-0.5 text-sm leading-none text-ink-faint opacity-60" onMouseDown={onStartDrag}>⠿</span>
+          <span aria-hidden="true" className="flex h-[30px] w-3.5 shrink-0 cursor-grab select-none items-center justify-center text-sm leading-none text-ink-faint opacity-60" onMouseDown={onStartDrag}>⠿</span>
         ) : <span className="w-3.5 shrink-0" />}
         {isGroup ? (
           <button type="button" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.name}`} aria-expanded={expanded}
@@ -204,8 +220,8 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
             <CollapseArrow expanded={expanded} />
           </button>
         ) : <span className="w-6 shrink-0" />}
-        <div data-row-content className="flex min-h-[30px] min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-0.5 py-[3px]">
-          <FieldChangeLabel node={node} change={change} impliedRemoved={impliedRemoved} />
+        <div data-row-content className={`flex min-h-[30px] min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-0.5 py-[3px] ${hasActions ? CLEAR_OF_ACTIONS : ''}`}>
+          <FieldChangeLabel node={node} change={change} impliedRemoved={impliedRemoved} underActions={hasActions} />
           {!isDiff && (
             <button type="button" data-row-pill className={PILL_BUTTON}
               title={`Type: ${typeWords} — click to edit`} disabled={editDisabled || readOnly} onClick={onEdit}>
@@ -233,7 +249,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
             <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptance.accepted} onChange={acceptance.onToggle} />
           </span>
         )}
-        {!isDiff && !readOnly && !dragActive && (
+        {hasActions && !dragActive && (
           <span data-row-actions className={ACTIONS}>
             <button type="button" className={ACTION_PLAIN} title={`Edit ${node.name}`} aria-label={`Edit ${node.name}`} disabled={editDisabled} onClick={onEdit}><PencilIcon /></button>
             <button type="button" className={ACTION_PLAIN} title="Add note" aria-label={`Add note to ${node.name}`} disabled={editDisabled} onClick={onAddNote}><NotePlusIcon /></button>
@@ -242,10 +258,10 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         )}
       </div>
       {node.description && !isDiff && (readOnly ? (
-        <p className="pb-1 pl-9 text-secondary leading-snug text-ink-muted whitespace-pre-line">{node.description}</p>
+        <p className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug text-ink-muted whitespace-pre-line`}>{node.description}</p>
       ) : (
         <button type="button" onClick={onAddNote} disabled={editDisabled}
-          className="inline-flex min-h-6 w-full cursor-text items-center pb-1 pl-9 text-left text-secondary leading-snug text-ink-muted whitespace-pre-line outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted">
+          className={`inline-flex min-h-6 w-full cursor-text items-center pb-1 ${NOTE_INDENT} text-left text-secondary leading-snug text-ink-muted whitespace-pre-line outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted`}>
           {node.description}
         </button>
       ))}

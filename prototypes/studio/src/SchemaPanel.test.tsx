@@ -1961,8 +1961,11 @@ describe('field rows (redesign §6)', () => {
     const row = screen.getByRole('listitem', { name: 'sex' })
     const name = within(row).getByText('sex')
     expect(name.className).toMatch(/\bshrink-0\b/)
-    expect(name.className).toMatch(/\bmax-w-full\b/)
     expect(name.parentElement!.className).toMatch(/\bflex-wrap\b/)
+    // The pills' line keeps the actions' 96px clear (three 28px targets, two 4px gaps, a 4px lead), so the pills wrap
+    // before the actions; the name alone may run under them, up to the whole line.
+    expect(name.parentElement!.className).toMatch(/(^|\s)pr-\[96px\](\s|$)/)
+    expect(name.className).toMatch(/(^|\s)max-w-\[calc\(100%_\+_96px\)\](\s|$)/)
     expect(within(row).getByText('6 values')).toBeInTheDocument()
     expect(within(row).getByTitle('Type: string — click to edit')).toBeInTheDocument()
     expect(within(screen.getByRole('listitem', { name: 'dates' })).getByTitle('Type: list of dates — click to edit')).toBeInTheDocument()
@@ -1975,7 +1978,20 @@ describe('field rows (redesign §6)', () => {
     expect(actions.className).toMatch(/(^|\s)opacity-0\b/)
     expect(actions.className).toMatch(/group-hover:opacity-100/)
     expect(actions.className).toMatch(/group-focus-within:opacity-100/)
+    // Hidden, it takes no hits: a tap at the row's right end at rest never reaches an unseen action.
+    expect(actions.className).toMatch(/(^|\s)pointer-events-none(\s|$)/)
+    expect(actions.className).toMatch(/(^|\s)group-hover:pointer-events-auto(\s|$)/)
+    expect(actions.className).toMatch(/(^|\s)group-focus-within:pointer-events-auto(\s|$)/)
     expect(within(row).getByRole('button', { name: 'Delete sex' }).className).toMatch(/size-7/)
+  })
+
+  it('a read-only row has no actions, so its pills keep no room for them', () => {
+    renderPanel({ panelNodes: [{ id: 'sex', name: 'sex', type: 'string', allowedValues: ['f', 'm'] }] }, { readOnly: true })
+    const row = screen.getByRole('listitem', { name: 'sex' })
+    expect(within(row).queryByRole('button', { name: 'Delete sex' })).not.toBeInTheDocument()
+    const name = within(row).getByText('sex')
+    expect(name.className).toMatch(/\bmax-w-full\b/)
+    expect(name.parentElement!.className).not.toMatch(/\bpr-\[/)
   })
 
   it('Tab reaches the row actions after its pills, and their focus is focus within the row', () => {
