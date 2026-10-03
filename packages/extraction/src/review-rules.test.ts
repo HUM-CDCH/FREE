@@ -258,3 +258,68 @@ describe('Review Decision revalidation against the locked row', () => {
     )
   })
 })
+
+describe('a version 1 boolean: outside the grounding coverage unless the service accounted for it', () => {
+  const signedTree = { ...schemaTree, schemaNodes: [...schemaTree.schemaNodes, { id: 'signed', name: 'signed', type: 'boolean' }] }
+  const signed: ResultPath = ['records', 0, 'signed']
+  const signedLink: EvidenceLink = { resultPath: signed, evidenceAnchorId: 'anchor-kind' }
+  const withSigned = (value: boolean | null, overrides: Partial<ExtractionSnapshot> = {}) =>
+    snapshot({ result: { records: [{ title: 'Alpha', year: 1900, scale: 2.5, kind: 'map', signed: value }] }, ...overrides })
+  const ungrounded = (...paths: ResultPath[]) => ({ ...snapshot().diagnostics, ungroundedPaths: [['records', 0, 'kind'], ...paths] as ResultPath[] })
+  const editSigned = (reviewedValue: unknown): ReviewDecisionInput => ({
+    resultPath: signed, evidenceAnchorId: null, reviewedOccurrenceIds: [], action: 'EDITED', reviewedValue,
+    reviewedEvidence: [{ evidenceAnchorId: 'anchor-kind', reviewedOccurrenceIds: ['o-5'] }],
+  } as ReviewDecisionInput)
+  const approveSigned = approve('signed', { evidenceAnchorId: 'anchor-kind', reviewedOccurrenceIds: ['o-5'] })
+
+  it('a populated boolean neither grounded nor marked is reviewed optionally, true or false', () => {
+    for (const value of [true, false]) {
+      const extraction = withSigned(value)
+      const authority = authorize(extraction, approvals(), signedTree)
+      assert.equal(authority.optionalResultPathKeys?.has(JSON.stringify(signed)), true)
+      assert.doesNotThrow(() => authorize(extraction, [...approvals(), editSigned(false)], signedTree))
+      assert.throws(() => authorize(extraction, [...approvals(), editSigned('yes')], signedTree), refuses('invalid_review', DECISIONS))
+    }
+  })
+
+  it('a boolean the service grounded needs its decision; one it marked ungrounded is optional', () => {
+    const grounded = withSigned(true, { evidence: [link('title'), link('year'), link('scale'), signedLink] })
+    assert.throws(() => authorize(grounded, approvals(), signedTree), refuses('invalid_review', DECISIONS))
+    assert.doesNotThrow(() => authorize(grounded, [...approvals(), approveSigned], signedTree))
+    const marked = withSigned(true, { diagnostics: ungrounded(signed) })
+    assert.equal(authorize(marked, approvals(), signedTree).optionalResultPathKeys?.has(JSON.stringify(signed)), true)
+  })
+
+  it('still refuses a coverage mismatch around booleans', () => {
+    const evidence = [link('title'), link('year'), link('scale')]
+    for (const extraction of [
+      withSigned(true, { evidence: [link('title'), link('year')] }),                     // a populated scalar unaccounted
+      withSigned(null, { evidence: [...evidence, signedLink] }),                        // evidence on a null boolean
+      withSigned(true, { evidence: [...evidence, signedLink], diagnostics: ungrounded(signed) }), // grounded and marked
+      withSigned(true, { evidence: [...evidence, signedLink, signedLink] }),            // a duplicated link
+    ])
+      assert.throws(() => authorize(extraction, [...approvals(), approveSigned], signedTree), refuses('invalid_review', COVERAGE))
+  })
+
+  it('a version 2 or 3 result is held to the full invariant for its booleans', () => {
+    for (const marker of [{ grounded: {} as never }, { unified: {} as never }]) {
+      const diagnostics = { ...snapshot().diagnostics, ...marker }
+      assert.throws(() => authorize(withSigned(true, { diagnostics }), approvals(), signedTree), refuses('invalid_review', COVERAGE))
+      const grounded = withSigned(true, { diagnostics, evidence: [link('title'), link('year'), link('scale'), signedLink] })
+      assert.doesNotThrow(() => authorize(grounded, [...approvals(), approveSigned], signedTree))
+      const marked = withSigned(true, { diagnostics: { ...ungrounded(signed), ...marker } })
+      assert.equal(authorize(marked, approvals(), signedTree).optionalResultPathKeys?.has(JSON.stringify(signed)), true)
+    }
+  })
+
+  it('an unaccounted item of a boolean array is tolerated; one of a string array is not', () => {
+    const tree = { ...schemaTree, schemaNodes: [...schemaTree.schemaNodes,
+      { id: 'flags', name: 'flags', type: 'array', itemType: 'boolean' }, { id: 'tags', name: 'tags', type: 'array', itemType: 'string' }] }
+    const tag: EvidenceLink = { resultPath: ['records', 0, 'tags', 0], evidenceAnchorId: 'anchor-kind' }
+    const tagApproval = { ...approve('kind'), resultPath: tag.resultPath }
+    const arrays = (evidence: EvidenceLink[]) => snapshot({ evidence,
+      result: { records: [{ title: 'Alpha', year: 1900, scale: 2.5, kind: 'map', flags: [true, false], tags: ['bronze'] }] } })
+    assert.doesNotThrow(() => authorize(arrays([link('title'), link('year'), link('scale'), tag]), [...approvals(), tagApproval], tree))
+    assert.throws(() => authorize(arrays([link('title'), link('year'), link('scale')]), approvals(), tree), refuses('invalid_review', COVERAGE))
+  })
+})

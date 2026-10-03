@@ -1,0 +1,426 @@
+You are continuing the same advisory/sparring work as Claude Code Fable 5.1. The user explicitly approved both repository advisory rounds. This is round2, a challenge of the attached draft integration PLAN. Tools are disabled; no implementation or claims of file inspection.
+
+I accepted your smaller first delivery, derived guidance, optional review obligations, transient field jump and bounded ephemeral spreadsheet schema import. Here are my rebuttals and source checks:
+1 "confirmed absent" was not in either the existing workbench decision contract or our user's scope. A page sample cannot prove absence over the full document. A null sample cell might remain null on sampled pages and have a value elsewhere; anchor-free negative claims cannot be carried with the existing evidence rule. I therefore propose missing-cell classification only, no new absent decision or transfer.
+2 An extra mandatory acknowledgment with no server rule adds friction, can be bypassed and changes no authority. The existing batch start view already pins and shows schema/method. We will show a clear, non-blocking scope/coverage warning there and preserve existing guards, not add a cosmetic gate.
+3 Extraction.reviewTransfer is already a nullable JSON column on ALL Extraction rows, including batch members. Current batches deliberately leave it null. Batch transfer is a behavioral/spec extension through a shared capture seam, not necessarily a schema migration. We plan it last, after checked single-transfer validation. Please examine whether the dependency/acceptance makes this appropriately bounded.
+4 "cheap link" reuse is not established: current batch membership/read paths are owned by Extraction.batchExtractionId, and a row carries its own admission/workflow/review identity. Reusing a completed result across batches would need a membership/execution-history design rather than just pointing another batch at it. We defer that whole-result cache feature.
+5 Manual editor and schema-create/revision flows already exist. PR4's generated description proposals are useful but should not block a direct field jump or deterministic import. We reuse them if shipped, without inventing an incompatible common confirmation envelope.
+6 Source-level scope facts and project-wide coverage must be accurate: aggregate distinct pages, revisions and source ids, and query only owned current pins. Do not pollute existing result/activity summaries with samples.
+7 Concurrent development advanced workbench files while we were planning; plan must recheck heads and existing tasks before implementation, not assume the first advisory brief is its final baseline.
+
+Return a focused adversarial review under1300words:
+- REJECT/ITERATE/READY_FOR_IMPLEMENTATION_PLANNING verdict, strictly for the plan, not runtime acceptance;
+- concrete contradictions or missing execution prerequisites with section/task references;
+- challenge my rebuttals, but do not defend earlier unverified claims;
+- whether the three follow-up PR boundaries are end-to-end and sufficiently scoped;
+- the top acceptance/counterexample scenarios still missing.
+Do not invent new states, migrations or policy goals unless necessary, and distinguish real blockers from future ideas. If the plan is sound, say so plainly.
+
+FIRST ROUND ADVICE:
+**Bottom line:** your direction is mostly right, but three pieces need correction. Readiness should be soft everywhere except one acknowledgment at batch admission. Batch transfer does not belong now. The missing/ungrounded semantics should keep workbench's optional-decision model and borrow only the classification from workflow, not its obligation.
+
+## 1. Keep / adapt / defer
+
+| Candidate | Verdict | Pushback |
+|---|---|---|
+| A derived guidance | Adapt | Pure derived read model over existing phase plus counts. If any "step done" state is persisted, it is a second lifecycle. One selector, one CTA component, nothing stored. |
+| B field-context jump | Keep as navigation intent | No SchemaIssueFlag table. Carry nodeId plus a few example cells as transient state. "Re-run same scope" already exists via scoped admission and flush-before-run. |
+| C classification | Adapt | Rename "success" to "grounded". Success implies correctness, which a review grid cannot know. Classes must map one-to-one onto existing decision and Evidence states or they drift. |
+| D null anchors | Resolve, see section 3 | Not "useful" as designed. Workflow's mandatory decision per occurrence is the opposite of workbench's optional model. |
+| E spreadsheet import | Adapt, bounded | Ephemeral import to a schema proposal only. Versioned spreadsheet slot, filename gold linkage and persisted column mapping exist for evaluation, not schema import. Do not carry them. |
+| F hard stabilise | Defer hard, adopt soft | The gate was bypassable in the old branch anyway. With page sampling, "reviewed pilot" would have to mean a full-document Extraction, which forces the workflow you are avoiding. |
+| G whole-result reuse | Defer, but note the cheap version | The clone design is broken. Admission-time dedupe is different: skip a source that already has a finalized full Extraction on the same schema revision, method and model pin. That is a link, not a copy. |
+| H ingestion sidebar | Superseded | Durable ingestion covers it. |
+| I parallel parsing | Defer | Processor concern, and it has a scanned-PDF defect. |
+| J gold/evaluation | Defer | Independent product. |
+
+## 2. Soft versus hard readiness, and batch transfer
+
+**Readiness: soft, with one acknowledgment.** Show facts, never a verdict: which schema revision, how many reviewed sample Extractions, pages and sources covered, unresolved fields, and whether the current revision has any review at all. Label samples as samples in every count. The one hard-ish point is the batch admission dialog: if the pinned schema revision has zero reviewed Extractions, require an explicit acknowledgment. No server rejection, so there is no gate to bypass and no second path to police.
+
+Counterargument you should weigh: the old hard gate existed because someone ran large batches on untested schemas and paid for it. If that is still happening, a server-side gate on "at least one reviewed Extraction on this revision" is cheaper than the model calls it prevents. Decide that from usage, not from principle.
+
+**Batch transfer: not now.** Reasons in order of weight:
+
+- **It changes persisted admission data.** Every other candidate is derived or transient. This one multiplies the surface that 9b87c307 just fixed.
+- **Atomicity.** A batch of many sources needs one snapshot per member computed inside the admission step. One stale pairing on one source then affects the whole batch admission path.
+- **Low overlap.** Transfer works only within the same document and source representation. Batches mostly target unsampled sources.
+- **PR2 acceptance is unchecked.** Extending unvalidated semantics is the wrong order.
+
+If you do it later, it is a per-member call of the same snapshot function with identical rules and no new rules. Put it last.
+
+## 3. Missing and ungrounded semantics
+
+Keep workbench's model. Decisions stay optional and non-authoritative until finalization. Borrow only the vocabulary.
+
+- **Grounded value:** value present with model Evidence anchor. Approval carries the anchor.
+- **Ungrounded value:** value present, no anchor. Approval requires researcher-picked reviewedEvidence, which PR3 already plans. Do not add an "accepted unverified" state. That is a third truth nobody can act on.
+- **Missing:** value null or absent. Allow one explicit decision kind, "confirmed absent", with no Evidence. This is the only anchor-free approval. It is distinct from "approved value" everywhere it is stored and displayed.
+- **Partial:** an array or record where some aligned occurrences are decided and some not. This is a classification, never a decision.
+- **Rejection:** unchanged, no Evidence required.
+
+Transfer rule for the new kind: "confirmed absent" carries only onto an aligned node whose new value is also null or absent. It never carries onto a node that now has a value, even a matching one. That keeps the exact value and Evidence checks intact.
+
+Completion: workflow's "every occurrence decided" becomes a summary metric, decided over total per class, not a gate. An undecided grounded cell is undecided, never implicitly approved.
+
+## 4. PR boundaries after PR3 and PR4
+
+**PR5 Review attention read model.** Server-side classification per leaf occurrence and per aligned record, plus completion counts. Unresolved-field navigation in the review grid. Depends on PR3 for the "confirmed absent" kind. No migration.
+
+**PR6 Field jump, re-run, guidance.** From a review grid field header, open the schema editor on that nodeId with a few example cells as transient state. Land in the same editor surface PR4 uses so proposals and manual edits share one path. "Re-run same scope" reuses scoped admission with the identical page set and the existing flush-before-run identity. Derived project guidance panel built from phase plus PR5 counts, including the soft readiness facts. Depends on PR4 and PR5. No migration.
+
+**PR7 Spreadsheet schema import.** Upload, parse with null-prototype maps and own-property checks, reject reserved header names, cap columns and rows, split headers on an optional separator into a field tree, infer types as hints, enum inference opt-in per field. Output is an ordinary schema proposal the researcher confirms through the existing revision path. Independent of PR5 and PR6 but after PR4 to reuse its confirmation UI. No migration if the file is not persisted.
+
+**PR8, optional and last. Batch member transfer.** Per-member snapshot at batch admission using the single-admission function unchanged. One forward migration on the current chain for the member snapshot column. Depends on PR2 acceptance and independent review being checked.
+
+## 5. Risks, counterexamples, acceptance, seams
+
+**Risks and counterexamples**
+
+- **Sample inflation.** Five reviewed two-page samples of one source must not read as "well tested". Guidance must say sample, pages and sources separately.
+- **Stale nodeId on jump.** The grid shows revision R. The editor is on R+1 and the node was removed or retyped. The jump degrades to path plus a warning, never to a silent no-op.
+- **Unsaved schema edits on re-run.** Re-run with a dirty editor must flush or block, using the existing identity check. Otherwise the researcher reviews output from a revision they did not intend.
+- **Enum inference blocks transfer.** Inferring allowed values from a handful of rows creates disallowed-value failures under the 9b87c307 rule on the next sample. Hence opt-in.
+- **Classification drift.** If the grid computes classes client-side and the summary server-side, they disagree within a week. Compute once.
+- **Guidance persisting state.** Any "dismissed" or "completed" flag turns A into lifecycle. Keep it derived; dismissals live in local UI state if at all.
+- **Header attacks.** Beyond the known prototype case: duplicate headers, empty headers, merged header rows, a very large column count, and separator characters inside quoted headers.
+
+**Acceptance scenarios**
+
+- A grounded, undecided cell shows as grounded and undecided. Completion counts it as undecided.
+- A null cell approved as "confirmed absent" carries to a re-run where the cell is still null, and does not carry where the cell now has a value.
+- A field jump from revision R after that node was renamed in R+1 opens the renamed node, or warns if removed.
+- Re-run same scope produces the same sorted unique page set and the same scoped artifact identity for an unchanged schema.
+- A spreadsheet whose first header is a reserved prototype name is rejected, and a subsequent schema validation sees an unpolluted prototype.
+- Readiness for a revision with only sample reviews never uses the word "ready" and never shows a full-result count.
+- Batch admission on a revision with zero reviews requires acknowledgment and still admits.
+
+**Seams to inspect** before writing any of it. I have not read these, so verify names and locations:
+
+- The reviewTransfer snapshot builder used at single admission, and where batch admission creates members.
+- Review decision persistence and the Evidence ownership check PR3 will touch.
+- The flush-before-run schema identity computation and the scoped artifact identity.
+- The Interaction Route edit proposal loader planned in PR4.
+- Project phase derivation, so guidance reads it rather than duplicating it.
+- The current migration chain tip on the integrated branch.
+
+## 6. Strongest reasons this direction could be wrong
+
+- **PR4 may be the wrong first investment.** A manual field jump with example cells could deliver most of PR4's value with none of its instruction-generation risk. Consider swapping or folding PR4 into PR6.
+- **Spreadsheet import may be the most valuable item, or worthless.** Humanities researchers often arrive with an Excel codebook. If that is your users, "bounded" under-invests. If schemas are already defined in the app, it is zero-value. Only usage evidence settles this.
+- **Deferring whole-result reuse defers the only feature that saves money.** Admission-time dedupe fixes the clone defect by not cloning. It is small and may matter more than guidance.
+- **Soft readiness may be ignored.** If the old gate was reacting to real cost incidents, advice will not stop them.
+- **Scope after unvalidated work.** Acceptance and independent review of PR1 and PR2 are unchecked, and another worker is changing the same application files. Four more PRs planned on top of unverified seams is the biggest risk here. The honest minimal plan is: validate, ship PR5 plus PR6 as one unit, then reassess whether PR7 and PR8 are still wanted.
+
+
+DRAFT PLAN:
+# Bring selected workflow features into the sample workbench
+
+Date: 2026-09-30. Status: draft for the second Claude Code Fable 5.1 advisory round.
+Implementation has not started in this planning task. The plan extends
+[the active workbench change](../../openspec/changes/sample-extraction-workbench/proposal.md);
+it does not replace its existing PRs or acceptance work.
+
+**Planning evidence**
+
+- Legacy donor: workflow `ba3e7cc105faa5a4ea021c4906d749a329fd914d`.
+- Workbench inspected for the first advisory round:
+  `9b87c30792207a7a5aadff24df1e0c515f9824b0`; development is continuing
+  concurrently. Recheck the final workbench/dev heads before implementation.
+- Current remote dev at inspection:
+  `287ccb4245b95654821849f91e067bbbd057c040`.
+- The reviewed workbench began from dev `80686ec4`; the inspected branch
+  needs the subsequent dev changes integrated. Old workflow code predates
+  DBOS and the included Parsing Service.
+- The first advisory round ran the exact requested model through Claude Code
+  with all tools disabled. Its [brief](2026-09-30-workbench-workflow-integration-evidence/advisor-brief.md)
+  and [advice](2026-09-30-workbench-workflow-integration-evidence/round1-advice.md)
+  are retained. Claims from the advisor remain hypotheses checked against the
+  repo, not implementation evidence.
+
+**Outcome**
+
+A researcher can create or import a schema, try it on chosen pages, review
+values beside fields, use a problematic value to reach the right field,
+change the schema and try the same pages again. Guidance makes the next useful
+action clear, and a collection start shows the limits of the samples already
+reviewed. The workbench remains the editing and review surface.
+
+A Sample Extraction stays an Extraction over at most 30 physical pages. It
+never becomes a full-document result or project-summary result. A later
+whole-document Extraction runs normally and can start with matching Carried
+Review Decisions as drafts. Sampling demonstrates behavior on those pages;
+it proves neither source-wide absence nor extraction accuracy.
+
+**Feature selection**
+
+| workflow idea | Decision for this plan |
+| --- | --- |
+| Workflow steps and next-action prompts | Adapt to derived guidance over current data and actor state; no new lifecycle or saved completion flags |
+| Field-level schema issue action | Adopt as a transient, source-labelled jump into the existing editor; no SchemaIssueFlag table |
+| Review prioritisation and completion summaries | Adopt descriptive grounding/review counts and unresolved-cell navigation; no accuracy score |
+| Missing/ungrounded-cell review | Use existing workbench PR3 Evidence rules and optional additional decisions; adopt classification, not legacy mandatory decisions on every empty occurrence |
+| Spreadsheet schema suggestion | Adopt upload → preview → researcher confirmation → ordinary Schema Revision; do not persist a spreadsheet slot or gold data |
+| Stabilised schema state and hard collection gate | Defer; show factual coverage and actionable warnings without a mandatory acknowledgment or a new server gate |
+| Whole reviewed-result cloning/reuse | Defer; no copying sample outcomes and no completed-result cache redesign in this plan |
+| Sample-review transfer into batch members | A separately accepted final follow-up after single transfer is validated; same matcher and existing reviewTransfer column |
+| Sidebar/cancellation rewrite | Superseded by current durable Source Ingestion; retain it |
+| Parallel parsing, gold corpora, evaluation dashboards, few-shot examples and retry infrastructure | Separate changes; not prerequisites or implied deliverables |
+
+The donor provides behavior and UI references, not commit/cherry-pick
+boundaries. Its commits mix features and incompatible generated migrations.
+
+**Invariants and decisions**
+
+1. Keep current authentication/ownership, signed sessions, origin checks,
+   per-account provider configuration, pinned method/model choices, canonical
+   source revisions and DBOS admission/recovery. No old app/ parser,
+   ExtractionJob, BatchExtractionMember, lease worker or second queue.
+2. New migrations, if actually needed, start from the integrated current
+   workbench/dev chain. Never replay the donor's migrations or regenerate
+   the baseline to accommodate it.
+3. Grounding, review and extraction completion are separate facts. A grounded
+   value may be undecided; a saved draft is not a finalized review; a reviewed
+   sample is not complete for its source. No “success percentage” or inferred
+   schema-readiness badge.
+4. Preserve the active PR3 policy: optional decisions on ungrounded/missing
+   paths use canonical researcher-picked Evidence as specified there.
+   This adoption adds no “confirmed absent” decision kind, no absent-value
+   transfer and no “approved elsewhere” shortcut. A missing cell is an
+   attention classification; adding a value follows PR3's Evidence flow.
+   Existing exact decision-set rules for grounded paths still apply.
+5. Current whole/batch admissions remain usable under their existing guards.
+   Guidance may warn that the current revision has no reviewed samples or
+   only limited page coverage. It does not demand a new acknowledgment,
+   set stabilisedAt or treat review counts as a correctness guarantee.
+6. Schema suggestions and changed guidance do not silently run extraction.
+   Editing/description proposals keep explicit Apply and flush-before-run.
+   Re-run after a changed schema uses a new Extraction ID; retry of an
+   uncertain admission retains the existing identity.
+7. Keep old finalized research/history readable. A new attention display
+   cannot retroactively invalidate an existing review or rewrite its decisions.
+
+**Delivery order**
+
+The active workbench tasks remain the source of truth for existing PR1–PR4.
+Integrate current dev on a dedicated integration branch after taking a clean
+snapshot of the ongoing workbench; preserve concurrent work. First record
+focused validation and independent review of page scope, single transfer and
+hand pairing. Resolve findings before extending admission semantics.
+
+Existing PR3 (Evidence and structural editing) and PR4 (description proposals
+from corrections) continue as already planned. The adoption below must not
+duplicate those tasks. Field navigation can use the existing manual editor
+before PR4; suggestion buttons appear only once PR4 is available.
+
+| Boundary | Dependencies | Researcher-visible completion |
+| --- | --- | --- |
+| PR5: guidance, review attention and field-context jump | Validated PR1/PR2; PR3 before offering ungrounded correction actions | Review a sample, locate a problem, edit its field, re-run its pages and see honest status/coverage |
+| PR6: spreadsheet schema import | Existing schema-create/revision/confirmation path; independent of PR4 model calls | Upload an Excel codebook, inspect/edit its inferred tree, confirm it and run an ordinary sample |
+| PR7: sample decisions in collection review | Single-transfer acceptance and independent review; PR5 labels | Full batch members extract normally and start review with safely matching sample decisions |
+
+PR5 and PR6 are the immediate selected-feature delivery. PR7 is a distinct
+follow-up, not a reason to delay shipping them. Complete PR7's specification
+and tests before changing batch admission.
+
+**PR5 — guidance and field review in the workbench**
+
+Implementation seams:
+`prototypes/studio/src/App.tsx`, `SchemaPanel.tsx`,
+`projectContexts/ProjectContextPage.tsx`,
+`projectContexts/BatchExtractionReviewGrid.tsx`, `ui/PhaseProgress.tsx`,
+`projectNavigation.ts`, `schemaSaveCoordinator.ts`,
+`packages/extraction/src/review-paths.ts`, `review-rules.ts` and the
+existing extraction/project DTO mappers. Proposed new selector/read-model
+modules should own the calculation rather than duplicate it across screens.
+
+Tasks:
+
+- [ ] Define one shared attention calculation using an Extraction's pinned
+  schema, actual rendered scalar occurrences, Evidence and review decisions.
+  Distinguish present+grounded, present+ungrounded, missing, undecided,
+  draft-decided and finalized. Preserve transfer labels and count actual
+  array occurrences; empty arrays create no synthetic review cells.
+- [ ] Expose/consume that calculation through existing extraction read DTOs.
+  API summaries and client cell ordering use the same definition.
+  Historical samples stay labelled with their revision and page scope.
+  Do not classify a past run against today's edited schema tree.
+- [ ] Add a non-blocking attention view/filter for unresolved, changed,
+  unsupported and missing cells. Reuse existing record labels and two-way PDF
+  provenance; selecting a cell opens/focuses it without changing its decision.
+- [ ] Add “Edit this field” at a value/column. Carry source Extraction ID,
+  pinned schema revision, node ID and selected source paths as transient
+  navigation data. Resolve stable node identity into the current editor;
+  show old/new types and revision context when changed. If removed, offer
+  the historical view and a clear explanation; do not guess by name.
+  Pass IDs to PR4's server-loaded correction context when available, not
+  arbitrary text embedded in a stored instruction.
+- [ ] Offer “Save and re-run these pages” through the existing save/admission
+  path. Preserve exact page selection, saved method and source pin checks.
+  A failed save/admission remains recoverable; an explicit new run has a new
+  identity. If the source was reprocessed, require a fresh scope choice.
+- [ ] Add guidance selected from existing project/read data and XState actor
+  snapshots/capabilities: ingest, create/import schema, run sample, review,
+  change/re-run, try another source, run whole source/start batch. Keep
+  authoritative existing guards; derive the suggestion rather than persisting
+  a phase, readiness flag or duplicate execution state.
+- [ ] Show reviewed sample/source counts and deduplicated physical page
+  coverage only where the owned data supports them. Within the open source,
+  repeated samples of the same two pages mean two unique pages, not ten.
+  Project-wide facts require a bounded, owned read projection restricted to
+  the current schema/source revisions; until supplied, show document-local
+  facts rather than claiming project coverage. Keep project result/activity
+  summaries sample-free.
+- [ ] In collection start views, say which schema revision is selected and
+  distinguish reviewed samples from full-document results. Suggestions to
+  review/test more sources remain optional. A falling issue rate across
+  different sources/page sets is not a readiness verdict.
+
+Acceptance:
+
+- A grounded undecided cell stays grounded and undecided; finalization remains
+  governed by the existing validated decision set.
+- Missing/ungrounded values stay visible. Canonical Evidence corrections use
+  PR3; no null-anchor “approved elsewhere” action appears.
+- Five reruns of pages12–13 show two unique pages on one source. Stale schema
+  or source samples do not count as current coverage.
+- Jumping from an older revision finds a renamed stable node, shows a type
+  change, or explains a removed node. No schema is mutated by navigation.
+- Dirty schema → save → re-run uses the acknowledged revision and the same
+  sorted page list. A reload restores admitted work and persisted reviews.
+- A successful zero-record result says “no records extracted on these pages”;
+  it does not report source-wide completeness or accuracy.
+- A six-source batch remains admissible without a new readiness gate, on
+  both existing-schema and suggested-schema paths, subject to existing guards.
+
+**PR6 — bounded spreadsheet schema import**
+
+Implementation seams:
+`prototypes/studio/api/extraction_schemas.ts`,
+`shared/schemaRevision.contract.ts`, `src/SchemaPanel.tsx`,
+`schemaSaveCoordinator.ts`, current schema proposal/confirmation UI,
+`packages/extraction/src/schema.ts` and the owned schema store.
+Add a narrowly named authenticated import-preview route/helper if needed;
+a deterministic import is not a model call or a new durable workflow.
+Inspect the existing confirmation components before choosing reuse:
+model-edit envelopes must not be stretched into an incompatible schema-create API.
+
+Tasks:
+
+- [ ] Add Excel upload to the schema-entry surface. Initial limits: 5MiB
+  compressed input, 25MiB cumulative expanded ZIP data, one explicitly
+  selected worksheet, 200 columns, 5,000 inspected data rows and 64KiB per
+  decoded cell. Validate before expensive unpacking, including ZIP size
+  accounting; reject unsupported/oversized/malformed input with actionable
+  errors. Review these defaults against real codebooks before raising them.
+- [ ] Read headers as data with safe own-property access and null-prototype
+  maps (or an equivalent tested safe representation). Validate against the
+  canonical schema rules. Duplicate paths and leaf/group collisions produce
+  column-specific errors; reject empty/ambiguous path segments.
+  Dangerous property names must be safely handled as data or explicitly
+  refused before mutation, never silently discarded.
+- [ ] Preview flat fields or an explicit researcher-chosen nesting separator.
+  Let the researcher include/exclude/rename columns and revise type hints.
+  Keep leading-zero identifiers, dates, rich text and formula results explicit;
+  reject unsupported cell representations instead of silently coercing them.
+  Numeric inference must be lossless; enum inference is opt-in per field.
+  A header named filename is not silently reserved for gold linkage.
+- [ ] Build fresh stable node IDs once for the preview, retain those IDs through
+  edits and confirmation, and pass the tree through current schema validation.
+  Require the normal record description and explicit researcher confirmation.
+  Confirmation uses current ownership, conflict/replay and revision paths;
+  never overwrite the Current Schema Revision as a side effect of upload.
+- [ ] Keep workbook bytes and column data transient. Persist the confirmed
+  schema through existing revisions; add no project spreadsheet table,
+  filename uniqueness rule, gold-record linkage or saved field-value mapping.
+  Closing/reloading an unconfirmed preview may require re-upload, clearly
+  communicated. No model call, API key or source Evidence claim is implied.
+- [ ] After confirmation, enter the ordinary page sample/review flow from PR5.
+
+Acceptance:
+
+- Prototype-path, duplicate, blank, empty-segment and leaf/group-collision
+  inputs cannot mutate Object.prototype or produce silently missing fields.
+- Numeric-looking IDs such as0012 stay strings by default. Enum hints do not
+  create an allowed-values constraint until the researcher chooses it.
+- Upload/preview/cancel writes no schema revision. Confirmation writes the
+  expected revision with the same node IDs; stale-head conflicts surface.
+- Another account cannot preview/save into the project. All failures use
+  validation/client errors as appropriate, not generic storage-outage errors.
+- The confirmed schema runs a normal sample, with the same Evidence and
+  transfer rules as a manually created schema.
+
+**PR7 — batch review transfer, after validation**
+
+Implementation seams: `packages/extraction/src/postgres-admission.ts`
+(`samplesReviewTransfer` and batch/suggested-batch admission),
+`postgres-batches.ts`, `postgres-reviews.ts`, `review-rules.ts`,
+`prototypes/studio/api/_batch_suggestion_workflow.ts`,
+`projectContexts/BatchExtractionReviewGrid.tsx`,
+`useBatchExtractionReviewGrid.ts` and current shared DTOs.
+
+Tasks:
+
+- [ ] First update the workbench review-transfer specification's explicit
+  “batch pins nothing” exclusion to describe this follow-up. Extract the
+  existing single-admission snapshot function behind one shared, owned
+  admission seam; keep the matcher and 9b87c307 safeguards unchanged.
+- [ ] At each fresh member admission, capture matching samples under that
+  member's document/source/schema/method pins, in the same transaction as
+  its Extraction row and DBOS enqueue. Reuse Extraction.reviewTransfer;
+  it already exists on all Extraction rows. No new snapshot column/table is
+  required absent an independently demonstrated storage need.
+- [ ] Cover ordinary batch and suggested-batch creation through the same
+  admission seam. Same-ID replay and recovery retain the original snapshot.
+  A genuinely new admission captures current decisions. Define explicit
+  retry behavior against the actual routes before changing their code.
+- [ ] Seed the member's review through the existing prepare/recover-draft path,
+  with its own result paths and carried provenance. Expose reviewed-in-sample,
+  changed, unmatched and remaining counts in the batch grid. Saved decisions
+  override carried suggestions; optimistic conflicts and explicit finalization
+  remain unchanged.
+- [ ] Use bounded/batched snapshot queries for selected sources; do not load
+  the whole project's samples or copy a full result. Keep snapshot size/query
+  work visible in a realistic many-member admission check; do not silently
+  truncate review decisions to fit a limit.
+
+Acceptance:
+
+- A mixed batch includes sampled and unsampled sources. Every source is
+  freshly extracted in full; only matching values begin with carried drafts.
+- Changed value, Evidence, source representation, removed field, disallowed
+  value, merged/split ambiguous record and stale manual pairing do not carry.
+- Later sample-review edits cannot change admitted member snapshots.
+  Recovery/replay do not refresh them.
+- A wholly carried member still requires explicit review finalization, and its
+  extraction identity is readable in grid, document and results endpoints.
+- A cross-owner source/sample is refused without partial rows/workflows.
+- Suggested-batch admission obeys the same behavior; no special route can
+  bypass snapshot/pin/ownership checks.
+
+**Verification and recording**
+
+Before each PR, add the applicable OpenSpec scenarios and run targeted unit/UI
+checks, then typecheck and lint. Persistence/admission changes also require
+guarded PostgreSQL integration, fresh/upgraded forward-migration checks when
+schema changes occur, DBOS restart/replay and draft-conflict scenarios.
+Use only caller-provisioned loopback port5432 postgres free_test_* databases.
+
+Before the combined adoption is accepted, run pnpm test:all with its documented
+infrastructure and the authenticated browser flow:
+import/create → sample → review → field jump/edit → same-pages re-run →
+whole-document extraction → collection review. Run local Parsing Service and
+test:service tiers as required by touched contracts; hosted CI skips Python.
+Record a dated validation receipt and obtain the required independent review.
+This planning task claims no runtime validation for the proposed features.
+
+**Remaining decisions**
+
+Spreadsheet limits above are initial product defaults with executable
+boundary cases, not guessed resource guarantees; confirm representative inputs
+before release. Capture any adjustment in the import spec. PR7 is gated on
+completed single-transfer validation, not on a claim that the legacy reuse
+feature was safe. A future mandatory collection readiness rule, whole-result
+reuse, project spreadsheet storage or absent-value decisions needs its own
+explicit requirements and evidence before broadening this plan.

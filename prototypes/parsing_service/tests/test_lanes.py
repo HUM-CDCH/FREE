@@ -233,9 +233,9 @@ def test_a_large_and_a_small_conversion_in_one_worker_produce_the_manifests_each
     book = kei_helper.stage_pdf(kei.inbox, "book.pdf", mask(every=7))
     small = kei_helper.stage_pdf(kei.inbox, "small.pdf", mask(every=11))
 
-    def convert(lane, workflow_id, name, sha):
+    def convert(lane, workflow_id, name, sha):  # with a debug report, so the pair transcribes rather than adopts
         return kei.enqueue("convert", lane, workflow_id,
-                           kei_helper.convert_request(name, sha, model="fake", cut="none"))
+                           kei_helper.convert_request(name, sha, model="fake", cut="none", debug=True))
     with registered(fake):
         alone = [kei.output(convert(config.CONVERT_LARGE, "kei-convert:alone-book", "book.pdf", book)),
                  kei.output(convert(config.CONVERT_SMALL, "kei-convert:alone-small", "small.pdf", small))]

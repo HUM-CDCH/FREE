@@ -1,4 +1,5 @@
 import type { UnifiedDiagnostics } from '../shared/extraction.contract'
+import { useState } from 'react'
 
 /** Why a unified Catalog candidate was not accepted, in the researcher's words. */
 const REASONS: Readonly<Record<string, string>> = {
@@ -68,9 +69,11 @@ export function CatalogReview({ unified }: { unified: UnifiedDiagnostics }) {
           : `${plural(unified.unresolved.length, 'source range')} could not be assigned to an entry.`}{' '}
         {unified.withheld.length > 0 && `${plural(unified.withheld.length, 'range')} the parser could not read were not processed. `}
         {failed.length === 0 ? 'Every required model call completed.' : `Not processed: ${failed.join(', ')}; values may be missing.`}{' '}
-        {completeness.evidence ? 'Every accepted value was verifier-supported.' : 'Some values stay proposals or conflicts.'}{' '}
+        {unified.nativeFields ? 'GLiFormer predictions are raw and unverified.'
+          : completeness.evidence ? 'Every accepted value was verifier-supported.' : 'Some values stay proposals or conflicts.'}{' '}
         Recall is not measured.
       </p>
+      {unified.nativeFields && <NativeFields fields={unified.nativeFields} />}
       <List title={plural(unified.unresolved.length, 'unresolved source range')} items={unified.unresolved.map(where)} />
       <List title={plural(unified.withheld.length, 'unread source range')} items={unified.withheld.map(where)} />
       <List title={plural(unified.unsettledEntries.length, 'entry with an uncertain end', 'entries with an uncertain end')}
@@ -93,5 +96,31 @@ export function CatalogReview({ unified }: { unified: UnifiedDiagnostics }) {
       <List title={plural(unified.contextOmitted.length, 'context range')  + ' left out to fit'}
         items={unified.contextOmitted.map((row) => `${row.kind} context for ${row.stage}${row.record === null ? '' : ` entry ${row.record + 1}`}: ${where(row)}`)} />
     </section>
+  )
+}
+
+function NativeFields({ fields }: { fields: NonNullable<UnifiedDiagnostics['nativeFields']> }) {
+  const [selected, setSelected] = useState(0)
+  const window = fields.windows[selected]
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer font-medium">GLiFormer inputs, raw output and native confidence</summary>
+      <p className="my-2">Scores are model diagnostics, not calibrated accuracy. A decoder effective score is not a learned confidence score.</p>
+      <select aria-label="GLiFormer input window" value={selected} onChange={(event) => setSelected(Number(event.target.value))}>
+        {fields.windows.map((item, index) => (
+          <option key={index} value={index}>
+            {item.entry} · window {index + 1} · {item.record_count} predictions
+          </option>
+        ))}
+      </select>
+      {window && <>
+        <p className="mt-2">Exact input · {window.input_tokens} tokens</p>
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words">{window.input_text}</pre>
+        <p className="mt-2">Raw output</p>
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(window.output, null, 2)}</pre>
+        <p className="mt-2">Native confidence diagnostics</p>
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(window.diagnostics, null, 2)}</pre>
+      </>}
+    </details>
   )
 }

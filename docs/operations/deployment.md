@@ -167,11 +167,17 @@ A record call under constrained decoding can loop on whitespace between JSON
 tokens until `max_tokens` (seen in production on 2 October 2026: 8,192 tokens of
 carriage returns inside an array, three runs out of three). The Parsing Service
 bounds that at 2,048 tokens for generic Catalog record calls and reports it as a
-whitespace loop. Do not enable vLLM's `--structured-outputs-config
-'{"disable_any_whitespace": true}'` for the extraction server: on
-`nvidia/Qwen3.8-27B-NVFP4` the compact grammar it forces changes the answers
-(with xgrammar 6 of 197 grave identifiers and 40 of 67 list values were lost on
-the same document; with guidance 153 identifiers), which is worse than the loop.
+whitespace loop. A generic Catalog record call that loops is asked once more,
+with the same prompt, under xgrammar's grammar for the same schema admitting at
+most 16 whitespace characters between JSON tokens (vLLM's
+`structured_outputs.grammar`); both calls stay in the artifact, the first marked
+`recovered` when the second is read. The worker pins `xgrammar` to the
+extraction server's version so the grammar it writes parses there. Do not enable
+vLLM's `--structured-outputs-config '{"disable_any_whitespace": true}'` for the
+extraction server: on `nvidia/Qwen3.8-27B-NVFP4` the compact grammar it forces
+changes the answers (with xgrammar 6 of 197 grave identifiers and 40 of 67 list
+values were lost on the same document; with guidance 153 identifiers), which is
+worse than the loop.
 
 For direct Compose commands, add `-f compose.gpu.yaml` after the local or
 production overlay. The normal launcher selects it after its GPU probe.
@@ -699,6 +705,32 @@ Run it after the drain (step 1 below), when no draft can change.
 4. **Roll back.** Nothing in the database changed, so the previous images
    start on it; drafts saved after the upgrade no longer carry the dropped
    decisions.
+
+## Upgrade: OCR result reuse
+
+Since `c0333c9b`, a parse of PDF bytes the Parsing Service already converted
+with the same effective settings reuses the earlier result instead of running
+OCR again (`prototypes/parsing_service/README.md`). The match is on the
+recipe fingerprint. The OCR server's image (`eugr/spark-vllm:latest`) and
+its weights (`datalab-to/surya-ocr-2`) are not pinned, so the recipe cannot
+see a change to either.
+
+- **When the OCR server changes**, set a new `KEI_OCR_REVISION` in `.env`
+  (any label, such as the date and what changed) and redeploy. This covers
+  pulling a newer image, new weights, or different quantization or server
+  flags that change what it reads. Without the new label, uploads of PDFs
+  parsed before the change keep their earlier OCR.
+  Setting it changes the fingerprint of every new served parse, so the first
+  parse of each PDF after the change runs OCR again. Earlier results stay
+  readable.
+- **Never bump `RESULT_VERSION` to force a re-OCR.** The reader refuses
+  results written at another version, so every earlier run would lose its
+  result, and extraction over its documents would fail.
+- **Rolling back below `c0333c9b`.** Older Parsing Service images cannot read
+  a result that reused another (its manifest carries `reused_from`, which
+  they refuse). Extraction and passages over those documents fail until you
+  roll forward again. Roll back only to an image that knows the field, or
+  reprocess the affected documents after the rollback.
 
 ## Cutover to durable execution (one-time, clean slate)
 

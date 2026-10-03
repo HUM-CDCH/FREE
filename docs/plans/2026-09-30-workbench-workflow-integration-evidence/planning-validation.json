@@ -1,0 +1,46 @@
+{
+  "status": "passed",
+  "scope": "Planning documentation only; no implementation or merge performed",
+  "baseline": "54c22483adc25d1bd56a26cde7300d14b9fefaa6",
+  "commands": [
+    "openspec validate sample-extraction-workbench --strict --no-interactive --json",
+    "git diff --check -- <owned planning paths>",
+    "local Markdown link, whitespace, model-receipt and checkbox preservation check"
+  ],
+  "openSpec": {
+    "valid": true,
+    "issues": []
+  },
+  "gitDiffCheck": {
+    "exitCode": 0
+  },
+  "artifactChecks": {
+    "markdown_files": 8,
+    "local_links_checked": 38,
+    "missing_links": [],
+    "trailing_whitespace": [],
+    "existing_checked_tasks_preserved": 11,
+    "new_unchecked_followups": 5,
+    "advisor_receipts": [
+      {
+        "round": 1,
+        "model": "claude-fable-5-1",
+        "is_error": false,
+        "session_id": "9f845042-7edc-4bb2-905f-33c152f7ee7b"
+      },
+      {
+        "round": 2,
+        "model": "claude-fable-5-1",
+        "is_error": false,
+        "session_id": "538b4989-5f34-4d91-bc96-8cb3aebd4c29"
+      }
+    ],
+    "exact_input_sha256": {
+      "advisor-brief.md": "8f44b08305ccf43b5b33c9959fa6cc68db7206637b28a5a28fc5fce2009aa7c8",
+      "round2-prompt.txt": "dfa4a2434677a7f2787021bc127a53a59e02c43a9dad3fa658c876bac08043a4",
+      "round2-plan-draft.txt": "50aa5e69598a0e550dad8fd1732326ca2430b5346dc51a37d8dcc2227e96f38e"
+    }
+  },
+  "proposedFeatureRuntimeTestsRun": false,
+  "recordedAt": "2026-09-29T22:57:46.004485+00:00"
+}

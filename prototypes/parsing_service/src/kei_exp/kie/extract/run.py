@@ -139,6 +139,19 @@ class ExtractRequest(BaseModel):
                 raise ValueError(f"identity_fields must be scalar record fields: {sorted(unknown)}")
         return self
 
+    @model_validator(mode="after")
+    def _native_fields_are_supported(self):
+        if extraction_models.routes(self.options)["fields"] == "gliformer":
+            from kei_exp.kie.extract.gliformer import native_schema
+            settings = self.options.unified
+            if settings is None or self.record_scope != "records":
+                raise ValueError("GLiFormer fields require unified Catalog extraction")
+            if settings.headings is True or settings.verification is True:
+                raise ValueError("GLiFormer pure extraction does not use heading context or value verification; "
+                                 "leave these Auto or off")
+            native_schema(self.schema_)
+        return self
+
 
 def _nodes(node):
     yield node

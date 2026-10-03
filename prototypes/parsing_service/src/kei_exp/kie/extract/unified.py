@@ -47,7 +47,7 @@ from kei_exp.canonical import canonical_json
 from kei_exp.failures import TransientBackendError, classify
 from kei_exp.files import publish_once
 from kei_exp.kie.blocks import Span
-from kei_exp.kie.extract import discovery, progress
+from kei_exp.kie.extract import discovery, gliformer, progress
 from kei_exp.kie.extract.acceptance import Outcome, typed_value
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
@@ -187,12 +187,13 @@ IDENTITY = ("version", "extraction_id", "source", "schema_sha256", "method", "de
 def _execution(extraction_id: str | None, evidence: Evidence, schema: Schema, options: UnifiedOptions,
                chat: Router, counters: dict) -> dict:
     """The execution record: the pins, and each stage's effective budget resolved from its role's served context."""
+    native = isinstance(chat.fields, gliformer.GLiFormerFields)
     stages = {}
     for stage, reserve in DEFAULTS[options.defaults]["reserves"].items():
         context = counters[ROLE[stage]].context_tokens
         if type(context) is not int or context <= 0:
             raise BudgetRefused(f"the {ROLE[stage]} model's server reports no context size to budget against")
-        output = options.output_tokens or reserve
+        output = 0 if native and ROLE[stage] == "fields" else options.output_tokens or reserve
         if (options.input_tokens or 0) + output > context:
             raise BudgetRefused(f"input {options.input_tokens} + reply {output} tokens exceed the {ROLE[stage]} "
                                 f"model's served context of {context}")
@@ -203,7 +204,7 @@ def _execution(extraction_id: str | None, evidence: Evidence, schema: Schema, op
             "schema_sha256": digest(schema.model_dump(by_alias=True, exclude_none=True)),
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
-            | {"stages": stages},
+            | {"stages": stages} | ({"headings": False, "verification": False} if native else {}),
             "models": chat.models, "prompt_version": PROMPT_VERSION, "discovery_version": discovery.VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
@@ -304,6 +305,10 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     `options.start_page` first (`work_order`), assembled in source order."""
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     schema, options = request.schema_, request.options.unified
+    if isinstance(chat.fields, gliformer.GLiFormerFields):
+        gliformer.native_schema(schema)
+        if options.headings is True or options.verification is True:
+            raise ValueError("GLiFormer pure extraction cannot use heading context or value verification")
     counters = counter if isinstance(counter, dict) else (counters_for(chat) if counter is None
                                                            else dict.fromkeys(("fields", "reasoning"), counter))
     check = before_entry or (lambda: None)
@@ -620,6 +625,7 @@ class _Work:
     undecided: int = 0
     values: dict = field(default_factory=dict)
     conflicts: list = field(default_factory=list)
+    native: list[dict] | None = None
 
 
 def _spans_from(rows: list[dict]) -> list[Span]:
@@ -639,7 +645,8 @@ def _entry_json(number: int, entry: dict, discovery_sha256: str, work: _Work) ->
             "work": {"found": found, "record": work.record, "contest": work.contest, "items": work.items,
                      "omitted": work.omitted, "calls": [_call_json(call) for call in work.calls],
                      "issues": [_issue_json(issue) for issue in work.issues], "windows": work.windows,
-                     "failed": work.failed, "undecided": work.undecided}}
+                     "failed": work.failed, "undecided": work.undecided,
+                     **({"native": work.native} if work.native is not None else {})}}
 
 
 def _found_of(rows: list[dict]) -> list[_Found]:
@@ -652,9 +659,10 @@ def _found_of(rows: list[dict]) -> list[_Found]:
 
 def _work_of(record: dict, nodes: list[Node]) -> _Work:
     work = record["work"]
-    return _Work(_found_of(work["found"]), conform(work["record"], nodes), work["contest"], work["items"],
-                 work["omitted"], [_call_of(call) for call in work["calls"]],
-                 [_issue_of(issue) for issue in work["issues"]], work["windows"], work["failed"], work["undecided"])
+    return _Work(_found_of(work["found"]), work["record"] if "native" in work else conform(work["record"], nodes),
+                 work["contest"], work["items"], work["omitted"], [_call_of(call) for call in work["calls"]],
+                 [_issue_of(issue) for issue in work["issues"]], work["windows"], work["failed"], work["undecided"],
+                 native=work.get("native"))
 
 
 def entry_links(record: dict, passages: dict) -> list[dict]:
@@ -702,6 +710,19 @@ class _Run:
 
     def entry(self, number: int, entry: dict, on_candidates: Callable[[_Work], None] | None = None) -> _Work:
         out = _Work()
+        if isinstance(self.budget.chat.fields, gliformer.GLiFormerFields):
+            out.native = []
+            if entry["end"] not in ("validated", "source_end"):
+                out.failed = 1
+                out.issues.append(Issue("entry_boundary_unresolved", "GLiFormer did not read an entry with an "
+                                        "unresolved end", number))
+                return out
+            out.native, out.calls = gliformer.read_entry(
+                self.budget.chat.fields, self.budget.counters["fields"], self.schema, entry, self.texts,
+                ceiling=self.budget.stages["entry"]["input_tokens"], overlap=self.effective["overlap"],
+                check=self.budget.check, number=number)
+            out.windows = len(out.native)
+            return out
         if not self.nodes:
             return out
         units = [Unit(each["segment"], each["start"], each["end"]) for each in entry["ranges"]]
@@ -982,8 +1003,21 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
     schema = request.schema_
     texts = {passage.id: passage.text for passage in evidence.passages}
     passages = {passage.id: passage for passage in evidence.passages}
-    records = [merge(entry.record, document.values if document else {}, evidence.source_name, schema)
-               for entry in entries]
+    native = isinstance(chat.fields, gliformer.GLiFormerFields)
+    native_windows, ungrounded = [], []
+    if native:
+        records = []
+        for index, entry in enumerate(entries):
+            for window in entry.native or []:
+                rows = window["output"]["record"]
+                native_windows.append({**window, "entry": found["entries"][index]["id"],
+                                       "record_start": len(records), "record_count": len(rows)})
+                records.extend(rows)
+        ungrounded = [path for index, record in enumerate(records)
+                      for path in gliformer.leaves(record, ("records", index))]
+    else:
+        records = [merge(entry.record, document.values if document else {}, evidence.source_name, schema)
+                   for entry in entries]
     calls = [_call_of(call) for call in found["calls"]] + \
         [call for work in (*entries, *([document] if document else [])) for call in work.calls]
     unresolved = [row for row in found["ledger"] if row["disposition"] == "unresolved"]
@@ -1000,7 +1034,7 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
         "boundaries": not unresolved and all(entry["end"] in ("validated", "source_end") for entry in found["entries"]),
         "processing": not any(processing[stage]["failed"] for stage in ("discovery", "entries", "document"))
         and not processing["verification"]["undecided"],
-        "evidence": not any(each.kind == "proposed" for entry in entries for each in entry.found)
+        "evidence": not ungrounded and not any(each.kind == "proposed" for entry in entries for each in entry.found)
         and not any(contest["outcome"] == "unresolved" for entry in entries for contest in entry.contest),
         "recall": "unmeasured"}
     result = {
@@ -1024,7 +1058,7 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
                      "candidates": [_review(each, None, texts) for each in (document.found if document else [])],
                      "conflicts": document.conflicts if document else []},
         "context_omitted": [row for work in (*entries, *([document] if document else [])) for row in work.omitted],
-        "ungrounded": [], "unverified": [node.name for node in schema.document_nodes],
+        "ungrounded": ungrounded, "unverified": [node.name for node in schema.document_nodes],
         "processing": processing, "completeness": completeness,
         "complete": completeness["boundaries"] and completeness["processing"] and completeness["evidence"],
         "issues": [*found["issues"], *(_issue_json(issue) for work in (*entries, *([document] if document else []))
@@ -1033,6 +1067,8 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
         "tokens": {"input": _total(call.input_tokens for call in calls),
                    "output": _total(call.output_tokens for call in calls)},
     }
+    if native:
+        result["native_fields"] = {"backend": "gliformer", "windows": native_windows}
     result["fingerprint"] = hashlib.sha256(canonical_json({
         "generation": evidence.generation, "digest": evidence.digest, "schema": result["schema"],
         "options": result["options"], "models": chat.models, "prompt_version": PROMPT_VERSION,

@@ -14,7 +14,7 @@ application-facing proxy behavior is identical.
 
 ## Prerequisites
 
-- Node.js 24 and pnpm 10.9 (`pnpm install` at the root also syncs Python
+- Node.js 24 and pnpm 12.8.1 (`pnpm install` at the root also syncs Python
   services through `uv`). `FREE_SKIP_PYTHON=1` is CI-only: it makes
   `pnpm install` skip the parsing service's `uv sync --frozen`. Leave it unset
   on development and deployment hosts.

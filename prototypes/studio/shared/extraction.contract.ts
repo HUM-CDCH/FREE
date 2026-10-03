@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { nativeFieldsSchema } from 'extraction/native-fields'
 import {
   activeSettingsSchema,
   articleSettingsIssues,
@@ -316,6 +317,7 @@ const unifiedCandidateSchema = z
  *  accounting, processing and evidence stay apart; recall is not measured. */
 export const unifiedDiagnosticsSchema = z
   .object({
+    nativeFields: nativeFieldsSchema.optional(),
     method: z.object({ requested: z.record(z.string(), z.json()), effective: z.record(z.string(), z.json()) }).strict(),
     records: z.object({ execution: z.string(), discovery: z.string() }).strict(),
     entries: count,

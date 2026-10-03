@@ -50,6 +50,30 @@ generation. `KEI_SOURCE_INBOX` is where Studio stages source PDFs; kei only
 reads it. Model weights under `/models` are a separate cache. Debug files are
 never authoritative Evidence.
 
+A `convert` of PDF bytes another run already parsed with the same effective
+settings reuses that work (`reuse.py`): it adopts the other run's complete
+result whose recipe hashes to the same fingerprint, rewritten as a new
+generation of this run whose manifest names it in `reused_from`, and for
+`page_source=ingest` it hard-links the other run's proven ingest of the same
+recipe. Every candidate is verified first, anything less is passed over and
+the work is done; a run asking for a debug report reuses nothing. Reuse is as
+fresh as the recipe, which names the settings, the docling, surya-ocr,
+pypdfium2 and pillow versions, and the transcriber's text rules. Anything else
+that changes the output for the same inputs must change the recipe, or later
+runs keep the earlier output:
+
+- a code change to what a transcriber kind writes: add or bump its entry in
+  `TEXT_RULES` (`transcription/types.py`);
+- a new image or new weights for the OCR model server under the same repo name:
+  set a new `KEI_OCR_REVISION`;
+- a change to what the ingest cuts: bump its `STAGE_VERSION`
+  (`kie/stages/ingest.py`). The ingest's own fingerprint does not name the OCR
+  recipe, so a re-OCR alone keeps the cut images.
+
+Do not bump `RESULT_VERSION` to force a re-OCR: it is the manifest format, and
+the reader refuses every result written at another version, so every earlier
+run would lose its result.
+
 | Setting | Purpose |
 | --- | --- |
 | `KEI_SYSTEM_DATABASE_URL` | Worker only: kei's DBOS system database (role `kei` on `free`); required |
@@ -58,8 +82,10 @@ never authoritative Evidence.
 | `KEI_SLOT` | The worker's slot: its lock file and its DBOS executor `kei-<slot>` |
 | `KEI_VLLM_URL` | OCR chat-completions endpoint, normally the `ocr_model` service |
 | `KEI_OCR_MODEL` | Default OCR model of a parse that names none (default `surya`) |
+| `KEI_OCR_REVISION` | Optional label of the OCR server's image and weights, named in every served parse's recipe; change it when they change, so earlier output is not reused |
 | `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction's instruction model server and the model it serves |
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
+| `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
 | `KEI_CATALOG_CHUNKS` | Worker only: chunks a grounded Catalog's entries run in at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`) |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source |
@@ -145,7 +171,10 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
 - Results preserve the parse generation/digest, schema, options, model (the
   fields model), `models` per role, prompt version, fingerprint, records,
   Evidence and diagnostics. Ungrounded values
-  remain explicit. Document-level fields are currently listed as `unverified`;
+  remain explicit. `calls` lists every model call; a generic Catalog record
+  call that looped on whitespace and was read on its one bounded-grammar retry
+  is kept, failed, with `recovered: true`, and does not by itself make the
+  result incomplete. Document-level fields are currently listed as `unverified`;
   `complete` applies to record values.
 - The task scope is the schema's `recordScope` (`document` for Article, `records`
   for a Catalog; `tests/fixtures/contracts/record-scope.json`). A declared scope
@@ -226,7 +255,8 @@ step raised into a retry or a portable failure code. The OCR runner
 lives in `kie/stages/ocr.py`, with native/Surya/VLM adapters in `transcription/`.
 `models.py` holds lightweight OCR records for the API; `transcription/specs.py`
 owns their Docling specifications. `kie/runner.py` orchestrates ingest and OCR;
-`kie/ingest_cache.py` owns ingest generation reuse, recovery and publication.
+`kie/ingest_cache.py` owns ingest generation reuse, recovery and publication;
+`reuse.py` finds another run's result and ingest of the same recipe.
 `result.py` publishes canonical pages and manifests; `pagefile.py` validates
 their identities and hashes. `kie/passages.py` reads those artifacts as the
 `Evidence`/`Passage` view shared by the recipe stages and extraction; it imports

@@ -7,6 +7,7 @@ import type { KeiExtractInput } from './kei-handoff.js'
 import type { ParsedDocument } from './parsed-document.js'
 import { refuseRecordCardinality } from './record-scope.js'
 import { recordScopeSchema } from './schema.js'
+import { nativeFieldsSchema } from './native-fields.js'
 import type { EvidenceLink, ExtractionStrategy } from './types.js'
 
 const path = z.array(z.union([z.string(), z.number().int().nonnegative()]))
@@ -226,6 +227,7 @@ const discoveryRecordSchema = z.object({
 export const unifiedArtifactSchema = artifactSchema.extend({
   extraction_version: z.literal(3),
   strategy: z.literal('catalog'),
+  native_fields: nativeFieldsSchema.optional(),
   evidence: z.array(unifiedEvidenceSchema),
   execution: executionRecordSchema, execution_sha256: sha256Hex,
   discovery: discoveryRecordSchema, discovery_sha256: sha256Hex,
@@ -462,5 +464,6 @@ function unifiedDiagnostics(artifact: KeiExpUnifiedArtifact) {
     items: artifact.items,
     document: artifact.document,
     contextOmitted: artifact.context_omitted,
+    ...(artifact.native_fields ? { nativeFields: artifact.native_fields } : {}),
   }
 }

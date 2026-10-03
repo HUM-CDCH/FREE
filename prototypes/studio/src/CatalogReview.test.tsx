@@ -26,6 +26,21 @@ const unified = unifiedDiagnosticsSchema.parse({
   contextOmitted: [{ ...span, stage: 'entry', record: 0, kind: 'heading' }],
 })
 
+it('shows raw GLiFormer predictions and native scores without treating decoder scores as accuracy', () => {
+  const data = unifiedDiagnosticsSchema.parse({ ...unified, nativeFields: { backend: 'gliformer', windows: [{
+    entry: 'p1_s0@0', record_start: 0, record_count: 2, ranges: [span], input_text: '200. Male with goatskin.',
+    input_tokens: 42, identity: { revision: 'pinned', threshold: '0.05' },
+    output: { record: [{ grave_id: '200', sex: null }, { sex: 'Baby' }] },
+    diagnostics: { raw_score: null, effective_score: 1, span_score: 0.123456 },
+  }] } })
+  render(<CatalogReview unified={data} />)
+  expect(screen.getByText(/GLiFormer predictions are raw and unverified/)).toBeInTheDocument()
+  expect(screen.getByText(/A decoder effective score is not a learned confidence score/)).toBeInTheDocument()
+  expect(screen.getByText('200. Male with goatskin.')).toBeInTheDocument()
+  expect(screen.getByText(/"raw_score": null/)).toBeInTheDocument()
+  expect(screen.getByText(/"sex": "Baby"/)).toBeInTheDocument()
+})
+
 it('keeps accounting, processing and evidence apart and names what is unresolved', () => {
   render(<CatalogReview unified={unified} />)
   const review = screen.getByRole('region', { name: 'Catalog review' })
