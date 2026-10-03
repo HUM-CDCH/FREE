@@ -174,13 +174,13 @@ def extract(source: Evidence, model=None, *, schema=SCHEMA, counter=None, run_di
 Add near `entry_file` (937):
 
 ```python
-def finished(directory) -> list[str]:
+def entry_records(directory) -> list[str]:
     """The finished entry records: the partial view's stage files (`.reading`, `.candidates`) are not records."""
     return sorted(path.name for path in directory.glob("catalog-entry-*.json")
                   if re.fullmatch(r"catalog-entry-\d+\.v\d+\.json", path.name))
 ```
 
-and replace every `sorted(path.name for path in directory.glob("catalog-entry-*.json"))` (966, 1042, 1048) with `finished(directory)`. Then add, after `test_an_entry_with_a_failed_call_or_undecided_verdict_is_never_published_so_a_retry_asks_again`:
+(not `finished`: `test_finished_entries_are_published_once_and_reused_after_a_crash` binds a local of that name, which would shadow the helper) and replace every `sorted(path.name for path in directory.glob("catalog-entry-*.json"))` (966, 1042, 1048) with `entry_records(directory)`. Then add, after `test_an_entry_with_a_failed_call_or_undecided_verdict_is_never_published_so_a_retry_asks_again`:
 
 ```python
 def test_entries_are_read_nearest_the_start_page_first_and_assembled_in_source_order():
@@ -221,11 +221,11 @@ def test_each_entry_publishes_a_reading_marker_and_its_candidates_before_verific
         (directory / "catalog-discovery.json").read_bytes())["entries"][1]["ranges"])
     assert {tuple(row["path"]) for row in written["candidates"]} == {("label",), ("site",), ("material",)}
     assert written["record"]["material"] == "Stein" and written["record"].get("gilded") is None
-    assert finished(directory) == [entry_file(0)]  # entry 1 is not a record
+    assert entry_records(directory) == [entry_file(0)]  # entry 1 is not a record
     again, chat = extract(source, run_dir=tmp_path, extraction_id="x1")
     assert any("Bdorf" in section(call["user"], "RECORD") for call in chat.calls)  # asked again, the stage files ignored
     assert not any("Adorf" in section(call["user"], "RECORD") for call in chat.calls)
-    assert again["records"][1]["material"] == "Stein" and finished(directory) == [entry_file(0), entry_file(1)]
+    assert again["records"][1]["material"] == "Stein" and entry_records(directory) == [entry_file(0), entry_file(1)]
     assert json.loads((directory / progress.PROGRESS_NAME).read_bytes())["start_page"] is None  # the retry's own header
 
 
@@ -679,7 +679,10 @@ def test_the_catalog_progress_names_each_entry_stage_and_the_finished_entries_li
     assert (document["strategy"], document["started_at_page"], document["discovered"], document["finished"]) == ("catalog", 1, 5, 2)
     assert [entry["stage"] for entry in document["entries"]] == ["finished", "finished", "candidates", "queued", "queued"]
     first, third, last = document["entries"][0], document["entries"][2], document["entries"][4]
-    assert first["index"] == 0 and first["page"] == 1 and set(first["record"]) >= {"label", "site", "material", "gilded", "finds"}
+    discovered = json.loads((run_dir / "extractions" / "x-1" / "catalog-discovery.json").read_bytes())
+    first_segment = discovered["entries"][0]["ranges"][0]["segment"]  # an entry's page is its first range's passage's
+    assert first["index"] == 0 and first["page"] == int(first_segment[1:].split("_s")[0])
+    assert set(first["record"]) >= {"label", "site", "material", "gilded", "finds"}
     assert first["evidence"] and all(link["linked_by"] == "verification" and link["path"][:2] == ["records", 0]
                                      and link["segment"].startswith(f"p{link['page']}_s") for link in first["evidence"])
     assert third["candidates"] and {"path", "value", "quote", "window"} <= set(third["candidates"][0]) and third["record"] is not None
@@ -1628,7 +1631,7 @@ async function readPartial(extraction: ExtractionAttemptSnapshot): Promise<Parti
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass** — `pnpm -r typecheck && pnpm --filter studio lint && pnpm -C prototypes/studio exec vitest run api/extractions.test.ts api/_extractions.test.ts api/document_reopen.test.ts src/useExtraction.test.tsx src/App.test.tsx && pnpm --filter extraction test` → PASS (the client's mocked reads parse without `partial`: Ruling 9).
+- [ ] **Step 6: Run the tests to verify they pass** — `pnpm -r typecheck && pnpm --filter studio lint && pnpm -C prototypes/studio exec vitest run api/extractions.test.ts api/_extractions.test.ts api/document_reopen.test.ts src/useExtraction.test.tsx src/App.test.tsx && pnpm --filter extraction test` → PASS (the client's mocked reads parse without `partial`: Ruling 9). `preprocessId` is required on both snapshot types: typecheck names any further snapshot literal (an untyped object a typed mock returns, for instance), and each gets `preprocessId: 'kei-exp:run-1:g1'`; the field is never made optional to get green.
 
 - [ ] **Step 7: Commit** — `feat(studio): the run request names the page being read; a running attempt reads back with its partial view`.
 

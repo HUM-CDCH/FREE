@@ -274,7 +274,7 @@ describe('PartialResults', () => {
     expect(screen.getByRole('progressbar', { name: 'Records read' })).toHaveAttribute('aria-valuenow', '40')
     const items = within(screen.getByRole('list', { name: 'Records being read' })).getAllByRole('listitem')
     expect(items.map((item) => item.getAttribute('data-record-state'))).toEqual(['finished', 'finished', 'checking', 'reading', 'queued'])
-    expect(items[0]).toHaveTextContent('1')
+    expect(within(items[0]!).getByText('1', { exact: true })).toBeInTheDocument()   // the entry's own label
     expect(items[0]).toHaveTextContent('· page 1')
     expect(items[4]).toHaveTextContent('Record 5')   // no label yet: the generic one
     expect(items[4]).toHaveTextContent('· page 4')
