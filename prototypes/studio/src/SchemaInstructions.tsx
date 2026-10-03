@@ -64,13 +64,13 @@ export function SchemaInstructionsDrawer({
     <div className="flex min-h-0 flex-col border-b border-line bg-canvas">
       <div className="scrollbar-subtle max-h-40 min-h-0 overflow-y-auto px-3.5 py-2">
         {instructions.items.length === 0 ? (
-          <p className="text-[11px] leading-relaxed text-ink-faint">No instructions yet — add one below.</p>
+          <p className="text-compact leading-relaxed text-ink-faint">No instructions yet — add one below.</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {instructions.items.map((instruction) => (
               <li
                 key={instruction.id}
-                className="flex items-start gap-1.5 rounded-md border border-line bg-surface px-2 py-1 text-[11px] leading-snug text-ink"
+                className="flex items-start gap-1.5 rounded-md border border-line bg-surface px-2 py-1 text-compact leading-snug text-ink"
               >
                 <span className="min-w-0 flex-1">{instruction.text}</span>
                 <button

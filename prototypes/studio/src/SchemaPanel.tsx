@@ -1230,196 +1230,205 @@ function SchemaPanel({
         )}
       </header>
 
-      {/* ── Schema list / states ── */}
-      <div ref={scrollRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        {historyError && <p role="alert" className="mb-2 text-xs text-danger">{historyError}</p>}
-        {snap.historicalPreview && (
-          <div
-            className="mb-3 flex items-center justify-between gap-3 rounded-md border border-accent/30 bg-accent-ghost px-3 py-2"
-            role="status"
-          >
-            <p className="text-compact text-ink">
-              Viewing historical Schema Revision{' '}
-              {snap.historicalPreview.revisionNumber}. This preview is read-only.
-            </p>
-            <div className="flex shrink-0 gap-1.5">
-              <Button onClick={() => schema.closeHistoricalPreview()}>Close preview</Button>
-              <Button variant="positive" disabled={creatingFromHistory} onClick={() => void createFromHistory()}>
-                Create Current Schema Revision
-              </Button>
-            </div>
-          </div>
-        )}
-        {ready && snap.generating && (
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2" role="status">
-            <p className="text-compact text-ink">Regenerating. The current saved schema remains available.</p>
-            <Button variant="danger" onClick={() => schema.cancelGeneration()}>Stop</Button>
-          </div>
-        )}
-        {ready && snap.sourceCoverage && snap.sourceCoverage.sourceRepresentationRevisionId === sourceRepresentationId && (
-          <div className="mb-3 rounded-md border border-line px-3 py-2" role="note">
-            <p className="text-compact text-ink-muted">{sourceCoverageNotice(snap.sourceCoverage)}</p>
-          </div>
-        )}
-        {ready && snap.generationError && (
-          <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
-            <p className="text-compact text-danger">Regeneration failed: {snap.generationError} The current saved schema is unchanged.</p>
-          </div>
-        )}
-        {snap.cancellationError && (
-          <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
-            <p className="text-compact text-danger">{snap.cancellationError}</p>
-          </div>
-        )}
-        {snap.save?.status === 'conflict' && (
-          <div
-            className="mb-2 flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2"
-            role="alert"
-          >
-            <p className="text-compact text-danger">
-              The Current Schema Revision changed elsewhere.
-            </p>
-            <button
-              className="min-h-6 shrink-0 cursor-pointer rounded-md border border-danger/40 bg-surface px-2 py-1 text-compact font-semibold text-danger outline-none hover:bg-danger-soft"
-              type="button"
-              onClick={() => schema.reloadCurrent()}
+      {/* ── Schema list / states, and the panel's toast over their bottom edge: clear of the conversation and the footer
+          below, and not scrolling away with the fields. ── */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div ref={scrollRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          {historyError && <p role="alert" className="mb-2 text-xs text-danger">{historyError}</p>}
+          {snap.historicalPreview && (
+            // A column: the text reads across the panel and the commands wrap beneath it, at the 264px rail too.
+            <div
+              className="mb-3 flex flex-col gap-2 rounded-md border border-accent/30 bg-accent-ghost px-3 py-2"
+              role="status"
             >
-              Reload Current Schema Revision
-            </button>
-          </div>
-        )}
-        {snap.view === 'empty' && (
-          <EmptyState title="No schema yet" description="Generate it from the document, import a codebook, or start blank.">
-            {onGenerateInstructions && (
-              <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate from the document</Button>
-            )}
-            {!editorReadOnly && <Button disabled={importDisabled} onClick={() => setImportOpen(true)}>Import from Excel codebook…</Button>}
-            {!editorReadOnly && <Button disabled={startingBlank} onClick={() => void startBlank()}>Start blank</Button>}
-          </EmptyState>
-        )}
-        {snap.view === 'empty' && mutationError && (
-          <p className="mt-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>
-        )}
-
-        {snap.view === 'generating' && <WorkingIndicator onStop={() => schema.cancelGeneration()} />}
-
-        {snap.view === 'failed' && (
-          <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
-            <p className="text-content leading-snug text-danger">{snap.generationError}</p>
-            {onGenerateInstructions && (
-              <Button className="mt-3" onClick={() => onGenerateInstructions(instructions.text)}>Retry</Button>
-            )}
-          </div>
-        )}
-
-        {ready && view === 'code' && (
-          <div className="flex flex-col gap-1.5">
-            {!jsonEditMode ? (
-              <div className="relative">
-                <pre className="overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2.5 font-mono text-compact leading-relaxed text-ink">
-                  {JSON.stringify(
-                    schemaDefinitionToTemplate({
-                      recordDescription: recordDescriptionDraft,
-                      schemaNodes: nodes,
-                    }),
-                    null,
-                    2,
-                  )}
-                </pre>
-                {!editorReadOnly && <Button className="absolute right-2 top-2 font-sans" onClick={startCodeEdit}>Edit</Button>}
+              <p className="min-w-0 text-compact text-ink">
+                Viewing historical Schema Revision{' '}
+                {snap.historicalPreview.revisionNumber}. This preview is read-only.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <Button onClick={() => schema.closeHistoricalPreview()}>Close preview</Button>
+                <Button variant="positive" disabled={creatingFromHistory} onClick={() => void createFromHistory()}>
+                  Create Current Schema Revision
+                </Button>
               </div>
-            ) : (
-              <>
-                <textarea
-                  aria-label="Schema code"
-                  wrap="off"
-                  className="w-full overflow-x-auto whitespace-pre rounded-md border border-accent/50 bg-canvas p-2.5 font-mono text-compact leading-relaxed text-ink outline-none focus:border-accent"
-                  style={{ minHeight: 240, resize: 'vertical' }}
-                  value={jsonDraft}
-                  onChange={e => setJsonDraft(e.target.value)}
-                  spellCheck={false}
-                />
-                {jsonEditError && (
-                  <p className="text-compact text-danger">{jsonEditError}</p>
-                )}
-                <div className="flex gap-1.5">
-                  <Button
-                    variant="positive"
-                    onClick={() => {
-                      try {
-                        const parsed: unknown = JSON.parse(jsonDraft)
-                        if (!isRecord(parsed)) throw new Error('The code must describe one object')
-                        const definition = templateToSchemaDefinition(parsed)
-                        schema.replaceDraft(definition, '✎ Schema updated from the code view')
-                        setJsonEditMode(false)
-                        setJsonEditError(null)
-                      } catch (e) {
-                        setJsonEditError(e instanceof Error ? e.message : 'The code could not be read')
-                      }
-                    }}
-                  >
-                    Save
-                  </Button>
-                  <Button onClick={() => { setJsonEditMode(false); setJsonEditError(null) }}>Cancel</Button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {ready && view === 'fields' && (
-          <>
-            <label className="mb-3 block">
-              <span className="text-compact font-semibold text-ink-muted">What one record is</span>
-              {editorReadOnly ? (
-                <p className="mt-1 text-secondary leading-relaxed text-ink-muted">{recordDescriptionDraft}</p>
-              ) : (
-                <textarea
-                  ref={descriptionRef}
-                  className="mt-1 block w-full resize-none rounded-[3px] border border-line bg-transparent px-2 py-1 text-secondary leading-relaxed text-ink outline-none transition-colors placeholder:text-ink-faint hover:border-line-strong focus:border-line-strong"
-                  rows={DESCRIPTION_ROWS.min}
-                  value={recordDescriptionDraft}
-                  placeholder="Describe the record this schema extracts…"
-                  onChange={(event) => setRecordDescriptionDraft(event.target.value)}
-                  onBlur={commitRecordDescription}
-                />
-              )}
-            </label>
-            {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
-            {/* The list carries its rows' 8px bleed, so no row's box overflows it (§6, the 264px rail). */}
-            <div ref={fieldListRef} role="list" aria-label="Schema fields" className="-mx-2 flex flex-col px-2">
-              {fieldContext && <div role="status" className="p-2 text-xs bg-accent-ghost">
-                From Extraction {fieldContext.extractionId} · revision {fieldContext.revisionNumber ?? fieldContext.schemaRevisionId} · {fieldContext.nodeType}
-                {contextNode ? ` → ${contextNode.name} (${contextNode.type}) in the current editor. Unsaved edits are retained.` : ' · This field was removed. No replacement was selected.'}
-                {!contextNode && <Button onClick={() => void schema.previewHistoricalRevision(fieldContext.schemaRevisionId)}>View historical schema</Button>}
-              </div>}
-              {(pending ? pending.reviewNodes : nodes).map((node, i) => renderField(node, null, i))}
-              {provisionalField && editing?.id === provisionalField.id && (
-                <FieldEditForm
-                  editing={editing}
-                  error={editingError}
-                  onChange={(next) => {
-                    setEditing(next)
-                    setProvisionalField(next)
-                    setEditingError(null)
-                  }}
-                  onSave={saveEdit}
-                  onCancel={cancelEdit}
-                />
-              )}
-              {/* final root slot */}
-              <div className={slotCls(null, nodes.length)} onMouseEnter={() => setSlotTarget(null, nodes.length)} />
             </div>
-            {!editorReadOnly && <button
-              ref={addFieldRef}
-              className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
-              type="button"
-              disabled={editing !== null}
-              onClick={addField}
+          )}
+          {ready && snap.generating && (
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2" role="status">
+              <p className="text-compact text-ink">Regenerating. The current saved schema remains available.</p>
+              <Button variant="danger" onClick={() => schema.cancelGeneration()}>Stop</Button>
+            </div>
+          )}
+          {ready && snap.sourceCoverage && snap.sourceCoverage.sourceRepresentationRevisionId === sourceRepresentationId && (
+            <div className="mb-3 rounded-md border border-line px-3 py-2" role="note">
+              <p className="text-compact text-ink-muted">{sourceCoverageNotice(snap.sourceCoverage)}</p>
+            </div>
+          )}
+          {ready && snap.generationError && (
+            <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
+              <p className="text-compact text-danger">Regeneration failed: {snap.generationError} The current saved schema is unchanged.</p>
+            </div>
+          )}
+          {snap.cancellationError && (
+            <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
+              <p className="text-compact text-danger">{snap.cancellationError}</p>
+            </div>
+          )}
+          {snap.save?.status === 'conflict' && (
+            <div
+              className="mb-2 flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2"
+              role="alert"
             >
-              + Add field
-            </button>}
-          </>
+              <p className="text-compact text-danger">
+                The Current Schema Revision changed elsewhere.
+              </p>
+              <button
+                className="min-h-6 shrink-0 cursor-pointer rounded-md border border-danger/40 bg-surface px-2 py-1 text-compact font-semibold text-danger outline-none hover:bg-danger-soft"
+                type="button"
+                onClick={() => schema.reloadCurrent()}
+              >
+                Reload Current Schema Revision
+              </button>
+            </div>
+          )}
+          {snap.view === 'empty' && (
+            <EmptyState title="No schema yet" description="Generate it from the document, import a codebook, or start blank.">
+              {onGenerateInstructions && (
+                <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate from the document</Button>
+              )}
+              {!editorReadOnly && <Button disabled={importDisabled} onClick={() => setImportOpen(true)}>Import from Excel codebook…</Button>}
+              {!editorReadOnly && <Button disabled={startingBlank} onClick={() => void startBlank()}>Start blank</Button>}
+            </EmptyState>
+          )}
+          {snap.view === 'empty' && mutationError && (
+            <p className="mt-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>
+          )}
+
+          {snap.view === 'generating' && <WorkingIndicator onStop={() => schema.cancelGeneration()} />}
+
+          {snap.view === 'failed' && (
+            <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
+              <p className="text-content leading-snug text-danger">{snap.generationError}</p>
+              {onGenerateInstructions && (
+                <Button className="mt-3" onClick={() => onGenerateInstructions(instructions.text)}>Retry</Button>
+              )}
+            </div>
+          )}
+
+          {ready && view === 'code' && (
+            <div className="flex flex-col gap-1.5">
+              {!jsonEditMode ? (
+                <div className="relative">
+                  <pre className="overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2.5 font-mono text-compact leading-relaxed text-ink">
+                    {JSON.stringify(
+                      schemaDefinitionToTemplate({
+                        recordDescription: recordDescriptionDraft,
+                        schemaNodes: nodes,
+                      }),
+                      null,
+                      2,
+                    )}
+                  </pre>
+                  {!editorReadOnly && <Button className="absolute right-2 top-2 font-sans" onClick={startCodeEdit}>Edit</Button>}
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    aria-label="Schema code"
+                    wrap="off"
+                    className="w-full overflow-x-auto whitespace-pre rounded-md border border-accent/50 bg-canvas p-2.5 font-mono text-compact leading-relaxed text-ink outline-none focus:border-accent"
+                    style={{ minHeight: 240, resize: 'vertical' }}
+                    value={jsonDraft}
+                    onChange={e => setJsonDraft(e.target.value)}
+                    spellCheck={false}
+                  />
+                  {jsonEditError && (
+                    <p className="text-compact text-danger">{jsonEditError}</p>
+                  )}
+                  <div className="flex gap-1.5">
+                    <Button
+                      variant="positive"
+                      onClick={() => {
+                        try {
+                          const parsed: unknown = JSON.parse(jsonDraft)
+                          if (!isRecord(parsed)) throw new Error('The code must describe one object')
+                          const definition = templateToSchemaDefinition(parsed)
+                          schema.replaceDraft(definition, '✎ Schema updated from the code view')
+                          setJsonEditMode(false)
+                          setJsonEditError(null)
+                        } catch (e) {
+                          setJsonEditError(e instanceof Error ? e.message : 'The code could not be read')
+                        }
+                      }}
+                    >
+                      Save
+                    </Button>
+                    <Button onClick={() => { setJsonEditMode(false); setJsonEditError(null) }}>Cancel</Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {ready && view === 'fields' && (
+            <>
+              <label className="mb-3 block">
+                <span className="text-compact font-semibold text-ink-muted">What one record is</span>
+                {editorReadOnly ? (
+                  <p className="mt-1 text-secondary leading-relaxed text-ink-muted">{recordDescriptionDraft}</p>
+                ) : (
+                  <textarea
+                    ref={descriptionRef}
+                    className="mt-1 block w-full resize-none rounded-[3px] border border-line bg-transparent px-2 py-1 text-secondary leading-relaxed text-ink outline-none transition-colors placeholder:text-ink-faint hover:border-line-strong focus:border-line-strong"
+                    rows={DESCRIPTION_ROWS.min}
+                    value={recordDescriptionDraft}
+                    placeholder="Describe the record this schema extracts…"
+                    onChange={(event) => setRecordDescriptionDraft(event.target.value)}
+                    onBlur={commitRecordDescription}
+                  />
+                )}
+              </label>
+              {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
+              {/* The list carries its rows' 8px bleed, so no row's box overflows it (§6, the 264px rail). */}
+              <div ref={fieldListRef} role="list" aria-label="Schema fields" className="-mx-2 flex flex-col px-2">
+                {fieldContext && <div role="status" className="p-2 text-xs bg-accent-ghost">
+                  From Extraction {fieldContext.extractionId} · revision {fieldContext.revisionNumber ?? fieldContext.schemaRevisionId} · {fieldContext.nodeType}
+                  {contextNode ? ` → ${contextNode.name} (${contextNode.type}) in the current editor. Unsaved edits are retained.` : ' · This field was removed. No replacement was selected.'}
+                  {!contextNode && <Button onClick={() => void schema.previewHistoricalRevision(fieldContext.schemaRevisionId)}>View historical schema</Button>}
+                </div>}
+                {(pending ? pending.reviewNodes : nodes).map((node, i) => renderField(node, null, i))}
+                {provisionalField && editing?.id === provisionalField.id && (
+                  <FieldEditForm
+                    editing={editing}
+                    error={editingError}
+                    onChange={(next) => {
+                      setEditing(next)
+                      setProvisionalField(next)
+                      setEditingError(null)
+                    }}
+                    onSave={saveEdit}
+                    onCancel={cancelEdit}
+                  />
+                )}
+                {/* final root slot */}
+                <div className={slotCls(null, nodes.length)} onMouseEnter={() => setSlotTarget(null, nodes.length)} />
+              </div>
+              {!editorReadOnly && <button
+                ref={addFieldRef}
+                className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
+                type="button"
+                disabled={editing !== null}
+                onClick={addField}
+              >
+                + Add field
+              </button>}
+            </>
+          )}
+        </div>
+        {panelToast && (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
+            <Toast message={panelToast.message} action={panelToast.action} onDismiss={dismissPanelToast} />
+          </div>
         )}
       </div>
 
@@ -1481,12 +1490,6 @@ function SchemaPanel({
             </>
           )}
         </ChatDrawer>
-      )}
-
-      {panelToast && (
-        <div className="pointer-events-none absolute inset-x-3 bottom-14 z-20 flex justify-center">
-          <Toast message={panelToast.message} action={panelToast.action} onDismiss={dismissPanelToast} />
-        </div>
       )}
 
       {/* ── Footer ── */}

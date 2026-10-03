@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RightRail from './RightRail'
@@ -89,10 +89,12 @@ function renderRail({
   open = true,
   tab = 'schema',
   inspection = defaultInspection,
+  extraction = defaultController,
 }: {
   open?: boolean
   tab?: 'evidence' | 'schema' | 'results'
   inspection?: ExtractionInspection
+  extraction?: ExtractionController
 } = {}) {
   return render(
     <RightRail
@@ -102,7 +104,7 @@ function renderRail({
       onTabChange={vi.fn()}
       schema={testSchema()}
       onClearDraft={vi.fn()}
-      extraction={defaultController}
+      extraction={extraction}
       onRunExtraction={vi.fn()}
       runExtractionDisabled={false}
       runExtractionStrategy={{ strategy: 'ARTICLE' }}
@@ -149,6 +151,18 @@ describe('RightRail developer UI visibility', () => {
     expect(schema.snapshot().draft).toEqual(draft)
     expect(screen.getByText(/This field was removed. No replacement was selected/)).toBeVisible()
     expect(screen.getByTitle('Edit gender')).toBeVisible()
+  })
+
+  it('a tab badge stays on one line at the 264px rail; the tab\'s label gives way first', () => {
+    renderRail({ extraction: { ...defaultController, hasResults: true, review: { ...defaultController.review, untouchedCount: 6 } } })
+    const results = screen.getByRole('tab', { name: /Results/ })
+    const badge = within(results).getByText('6 to check')
+    expect(badge.className).toMatch(/(^|\s)whitespace-nowrap(\s|$)/)
+    expect(badge.className).toMatch(/(^|\s)shrink-0(\s|$)/)
+    const label = within(results).getByText('Results')
+    expect(label.className).toMatch(/(^|\s)truncate(\s|$)/)
+    expect(label.className).toMatch(/(^|\s)min-w-0(\s|$)/)
+    expect(results.className).toMatch(/(^|\s)min-w-0(\s|$)/)
   })
 
   it('hides the Evidence tab by default', () => {

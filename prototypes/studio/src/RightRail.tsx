@@ -60,7 +60,7 @@ function TabBadge({ label, active }: { label: string; active: boolean }) {
   const tone = `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
   return (
     <span
-      className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-overline leading-none tabular-nums ${tone}`}
+      className={`inline-grid h-4 min-w-4.5 shrink-0 place-items-center whitespace-nowrap rounded-full px-1.5 font-mono text-overline leading-none tabular-nums ${tone}`}
     >
       {label}
     </span>
@@ -172,7 +172,7 @@ function RightRail({
           return (
             <button
               key={key}
-              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
+              className={`flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
                 active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
               }`}
               type="button"
@@ -182,7 +182,8 @@ function RightRail({
               id={`rail-tab-${key}`}
               onClick={() => onTabChange(key)}
             >
-              <span>{label}</span>
+              {/* At the 264px rail the label gives way (truncates); the badge keeps one line ("6 to check"). */}
+              <span className="min-w-0 truncate">{label}</span>
               {badge && <TabBadge label={badge.label} active={active} />}
             </button>
           )

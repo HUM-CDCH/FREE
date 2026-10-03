@@ -1899,6 +1899,34 @@ describe('schema header (redesign §5)', () => {
     expect(button('Close preview').className).toMatch(/\bbg-surface\b/)
   })
 
+  it('a history preview banner stacks its text above its commands, which wrap, so both fit the 264px rail', async () => {
+    renderPanel()
+    chooseSchemaAction('History')
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Schema history' })).getByRole('button', { name: /Revision 1/ }))
+    await screen.findByText('historical_place')
+    const text = screen.getByText(/Viewing historical Schema Revision 1/)
+    const banner = text.closest('[role="status"]')!
+    expect(banner.className).toMatch(/(^|\s)flex-col(\s|$)/)
+    expect(text.className).toMatch(/(^|\s)min-w-0(\s|$)/)
+    const commands = screen.getByRole('button', { name: 'Close preview' }).parentElement!
+    expect(commands.className).toMatch(/(^|\s)flex-wrap(\s|$)/)
+    expect(commands).toContainElement(screen.getByRole('button', { name: 'Create Current Schema Revision' }))
+    expect(text.compareDocumentPosition(commands) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('the Regenerate dialog lists its instructions in the compact size', () => {
+    renderPanel({}, { onGenerateInstructions: vi.fn() })
+    chooseSchemaAction('Regenerate from the document…')
+    const dialog = screen.getByRole('dialog', { name: 'Regenerate from the document' })
+    expect(within(dialog).getByText(/No instructions yet/).className).toMatch(/(^|\s)text-compact(\s|$)/)
+    const draft = within(dialog).getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(draft, { target: { value: 'Focus on graves' } })
+    fireEvent.keyDown(draft, { key: 'Enter' })
+    const item = within(dialog).getByText('Focus on graves').closest('li')!
+    expect(item.className).toMatch(/(^|\s)text-compact(\s|$)/)
+    expect(item.className).not.toMatch(/text-\[11px\]/)
+  })
+
   it('labels the record description "What one record is" and saves it on blur', () => {
     const setup = renderPanel()
     const description = screen.getByLabelText('What one record is')
@@ -2199,6 +2227,22 @@ describe('field rows (redesign §6)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(screen.getByText('Could not restore the field')).toBeInTheDocument()
     expect(screen.getAllByRole('listitem', { name: 'title' })).toHaveLength(1)
+  })
+
+  it('the Undo toast sits over the bottom of the fields, never inside the conversation drawer or its composer', () => {
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete title' }))
+    const toast = screen.getByText('Field removed').closest('[role="status"]')!
+    const composer = screen.getByPlaceholderText('Describe a change to the schema…')
+    const fields = screen.getByRole('list', { name: 'Schema fields' })
+    // Its nearest ancestor holding the fields does not hold the composer: the toast belongs to the fields area.
+    let area = toast.parentElement
+    while (area && !area.contains(fields)) area = area.parentElement
+    expect(area).not.toBeNull()
+    expect(area!.contains(composer)).toBe(false)
+    expect(toast.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Not inside the scrolling list either, so it stays at the area's bottom as the fields scroll.
+    expect(fields.closest('.overflow-y-auto')!.contains(toast)).toBe(false)
   })
 
   it('the Undo toast outlasts the default 2.6 s and goes after eight seconds', () => {
