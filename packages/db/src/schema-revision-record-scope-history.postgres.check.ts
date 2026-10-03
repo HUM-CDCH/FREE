@@ -68,5 +68,5 @@ test('the record-scope migration backfills legacy revisions and leaves every his
   assert.deepEqual(await scopes(), declared)
   assert.deepEqual(await snapshotHistory(client), seeded)
   // The runner itself has nothing left to apply.
-  assert.deepEqual((await migrate(database.url)).applied, [])
+  assert.deepEqual((await migrate(database.url, RECORD_SCOPE_MIGRATION)).applied, [])
 })
