@@ -704,11 +704,24 @@ describe('useExtraction server-owned lifecycle', () => {
 
     await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
 
-    expect(input.onMethodChanged).toHaveBeenCalledExactlyOnceWith(message)
+    expect(input.onMethodChanged).toHaveBeenCalledExactlyOnceWith(message, 'method_changed')
     expect(input.onError).not.toHaveBeenCalled()
     expect(api.requestExtraction).toHaveBeenCalledOnce()
     expect(result.current.attempt).toBe(earlier)
     expect(result.current.state.status).toBe('ready')
+  })
+
+  it('reports a refusal in the server\'s own words, without the code the request error prefixes', async () => {
+    const message = 'The schema is saved as a Catalog; refresh to run it.'
+    vi.mocked(api.requestExtraction).mockRejectedValueOnce(
+      new ApiRequestError(`record_scope_mismatch: ${message}`, 409, 'record_scope_mismatch'),
+    )
+    const input = { ...options(attempt()), onMethodChanged: vi.fn() }
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
+
+    expect(input.onMethodChanged).toHaveBeenCalledExactlyOnceWith(message, 'record_scope_mismatch')
   })
 
   it('offers no cancellation until the server has acknowledged the run', async () => {

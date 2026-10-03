@@ -715,13 +715,16 @@ test('two tabs expose and recover a durable Batch Schema Suggestion draft confli
   }
 
   const firstSuggestion = page.getByLabel('Suggested common fields')
-  await firstSuggestion.getByTitle('Edit place').click()
+  // A row's actions show, and take the pointer, on hover (§6).
+  await firstSuggestion.getByRole('listitem', { name: 'place' }).hover()
+  await firstSuggestion.getByRole('button', { name: 'Edit place', exact: true }).click()
   await firstSuggestion.getByPlaceholder('field_name').fill('city')
   await firstSuggestion.getByRole('button', { name: 'Save' }).click()
   await expect.poll(() => shared.suggestion.draftVersion).toBe(1)
 
   const secondSuggestion = otherPage.getByLabel('Suggested common fields')
-  await secondSuggestion.getByTitle('Edit place').click()
+  await secondSuggestion.getByRole('listitem', { name: 'place' }).hover()
+  await secondSuggestion.getByRole('button', { name: 'Edit place', exact: true }).click()
   await secondSuggestion.getByPlaceholder('field_name').fill('town')
   await secondSuggestion.getByRole('button', { name: 'Save' }).click()
   await expect(

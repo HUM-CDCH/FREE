@@ -1,12 +1,13 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
-import SchemaPanel, { type FieldContext } from './SchemaPanel'
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
-import ResultsTab, { type RunExtractionStrategy } from './ResultsTab'
+import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
+import { resultsBadgeFor } from './resultsBadge'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import EvidenceTab from './EvidenceTab'
 import type { SchemaDefinition } from 'extraction/schema'
@@ -36,30 +37,41 @@ type RightRailProps = {
   onGenerateInstructions?: (instruction: string) => void
   onClearDraft: () => void | Promise<void>
   extraction: ExtractionController
-  /** Absent when the open view starts no Extraction; Results then offers no run. */
-  onRunExtraction?: () => void | Promise<void>
-  runExtractionDisabled: boolean
-  runExtractionStrategy: RunExtractionStrategy
   inspection: ExtractionInspection
   /** Acknowledged Current Schema Revision, for the Results panel's comparison. */
   currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
+  /** Why the tab strip's Run cannot start now (its disabled title); Results' empty state says it. */
+  runUnavailableReason?: string | null
   sourceDocumentName: string
   sourceRepresentationId: string
   schemaName?: string | null
   onRenameSchema?: (name: string) => Promise<string | null>
+  recordScope?: SchemaPanelProps['recordScope']
+  boundaries?: SchemaPanelProps['boundaries']
+  /** Controls the Results header shows beside the attempt details: the snapshot choice, "Open latest reviewed". */
+  resultsHeaderExtras?: ReactNode
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
   onResultPathChange: (path: string[] | null) => void
 }
 
-function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
-  const tone = done
-    ? 'bg-green-soft text-green'
-    : `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
+/** A tab's count. Under a 300px tab strip (the 264px rail) a worded one ("7 to check") shows its number only, so the
+ *  tab's label stays whole; its full words stay its name and title. */
+function TabBadge({ label, active }: { label: string; active: boolean }) {
+  const tone = `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
+  const count = /^\d+(?=\D)/.exec(label)?.[0]
   return (
     <span
-      className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-[10px] leading-none tabular-nums ${tone}`}
+      role="img"
+      aria-label={label}
+      title={label}
+      className={`inline-grid h-4 min-w-4.5 shrink-0 place-items-center whitespace-nowrap rounded-full px-1.5 font-mono text-overline leading-none tabular-nums ${tone}`}
     >
-      {label}
+      {count ? (
+        <>
+          <span className="@max-[300px]:hidden">{label}</span>
+          <span className="hidden @max-[300px]:inline">{count}</span>
+        </>
+      ) : label}
     </span>
   )
 }
@@ -73,15 +85,16 @@ function RightRail({
   onGenerateInstructions,
   onClearDraft,
   extraction,
-  onRunExtraction,
-  runExtractionDisabled,
-  runExtractionStrategy,
   inspection,
   currentSchemaRevision,
+  runUnavailableReason = null,
   sourceDocumentName,
   sourceRepresentationId,
   schemaName,
   onRenameSchema,
+  recordScope,
+  boundaries,
+  resultsHeaderExtras,
   onSelectEvidence,
   onResultPathChange,
 }: RightRailProps) {
@@ -111,11 +124,11 @@ function RightRail({
   const schemaFieldCount = schemaReady
     ? countTemplateFields(nodesToTemplate(schemaSnap.draft!.schemaNodes))
     : 0
-  const resultsBadge = extraction.hasResults ? { label: '✓', done: true } : null
+  const resultsBadge = resultsBadgeFor(extraction)
   const tabs: {
     key: RailTab
     label: string
-    badge?: { label: string; done?: boolean } | null
+    badge?: { label: string } | null
   }[] = [
     ...(showDeveloperUi
       ? [
@@ -151,7 +164,7 @@ function RightRail({
         >
           <PanelToggleIcon side="right" />
         </button>
-        <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
+        <span className="mt-0.5 text-overline font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
           {tabs.map(({ label }) => label).join(' · ')}
         </span>
       </div>
@@ -160,13 +173,13 @@ function RightRail({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-stretch border-b border-line" role="tablist">
+      <div className="@container flex shrink-0 items-stretch border-b border-line" role="tablist">
         {tabs.map(({ key, label, badge }) => {
           const active = activeTab === key
           return (
             <button
               key={key}
-              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
+              className={`flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
                 active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
               }`}
               type="button"
@@ -176,8 +189,10 @@ function RightRail({
               id={`rail-tab-${key}`}
               onClick={() => onTabChange(key)}
             >
-              <span>{label}</span>
-              {badge && <TabBadge label={badge.label} active={active} done={badge.done} />}
+              {/* At the 264px rail a worded badge shows its number only, so the label stays whole; truncating it is the
+                  last resort. The badge keeps one line. */}
+              <span className="min-w-0 truncate">{label}</span>
+              {badge && <TabBadge label={badge.label} active={active} />}
             </button>
           )
         })}
@@ -206,6 +221,8 @@ function RightRail({
           sourceRepresentationId={sourceRepresentationId}
           schemaName={schemaName}
           onRenameSchema={onRenameSchema}
+          recordScope={recordScope}
+          boundaries={boundaries}
           fieldContext={fieldContext}
         />
       </div>
@@ -214,9 +231,6 @@ function RightRail({
           onEditField={editField}
           key={inspection.attempt?.extractionId ?? 'none'}
           controller={extraction}
-          onRunExtraction={onRunExtraction}
-          runExtractionDisabled={runExtractionDisabled}
-          runExtractionStrategy={runExtractionStrategy}
           inspectedAttempt={inspection.readOnly ? inspection.attempt ?? undefined : undefined}
           readOnly={inspection.readOnly}
           schemaReady={schemaReady}
@@ -224,9 +238,11 @@ function RightRail({
           pinnedSchema={inspection.pinnedSchema}
           exportSchema={inspection.exportSchema}
           currentSchemaRevision={currentSchemaRevision}
+          runUnavailableReason={runUnavailableReason}
           sourceDocumentName={sourceDocumentName}
           evidencePages={evidencePages}
           onResultPathChange={onResultPathChange}
+          headerExtras={resultsHeaderExtras}
           onSelectEvidence={(anchorId) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(
               (candidate) => candidate.anchor_id === anchorId,

@@ -1,9 +1,9 @@
-import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { exportExtractionResult, type ExtractionProvenance, type ProvenanceClaim } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import { MethodUsed } from './MethodUsed'
-import ResultValue, { singularItemLabel } from './ui/ResultValue'
-import { Overline, Spinner, Button, ModalDialog, Pill, type ButtonProps } from './ui'
+import ResultValue, { RecordHeader, singularItemLabel } from './ui/ResultValue'
+import { Overline, Spinner, Button, ModalDialog, Pill } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
@@ -29,28 +29,16 @@ type PinnedSchema = SchemaDefinition & {
   schemaRevisionId?: string
 }
 
-/**
- * What every run action here starts: the toolbar's current Extraction Strategy
- * and, for Catalog, its record boundaries (a recipe's label or Model
- * discovery). A run never repeats the displayed attempt, so the actions name
- * this selection instead of that attempt's strategy.
- */
-export type RunExtractionStrategy =
-  | { strategy: 'ARTICLE' }
-  | { strategy: 'CATALOG'; boundaries: string }
-  /** The schema names neither Article nor Catalog yet: a run waits for that choice. */
-  | { strategy: null }
+/** One way to run (decision 03): the tab strip's "▶ Run extraction". The Results tab starts no Extraction itself; its
+ *  empty state points at that button, or says why it cannot start (`runUnavailableReason`). Nowhere else: a view of an
+ *  earlier Source Representation, whose Run is disabled, shows the other states too. */
+const RUN_POINTER = 'Press ▶ Run extraction above.'
 
 type ResultsTabProps = {
   controller: ExtractionController
-  /**
-   * Starts a fresh Extraction. Absent when the open view starts none, e.g. an
-   * Extraction reopened on an earlier Source Representation: then no run
-   * action renders at all, while review and cancellation stay as they are.
-   */
-  onRunExtraction?: () => void | Promise<void>
-  runExtractionDisabled: boolean
-  runExtractionStrategy: RunExtractionStrategy
+  /** Why the tab strip's Run cannot start now, in its own words (its title); the empty state says it instead of
+   *  pointing at the button. Null or absent when Run can start. */
+  runUnavailableReason?: string | null
   schemaReady: boolean
   documentMarkdown: string | null
   sourceDocumentName: string
@@ -67,18 +55,20 @@ type ResultsTabProps = {
   onEditField?: (nodeId: string, path: (string | number)[]) => void
   /** Each Evidence anchor's first page (anchor id → page), for the export's Evidence sheet. */
   evidencePages?: ReadonlyMap<string, number>
+  /** The workspace's own header controls (snapshot choice, "Open latest reviewed"), before the attempt details. */
+  headerExtras?: ReactNode
 }
 
 type View = 'review' | 'json' | 'markdown'
 
 const preClasses =
-  'scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre bg-canvas px-4 py-3.5 font-mono text-[11px] leading-relaxed text-ink'
+  'scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre bg-canvas px-4 py-3.5 font-mono text-compact leading-relaxed text-ink'
 
 /** Tactile press for the panel's own actions; still only opt-in per button. */
 const pressable = 'active:scale-96 motion-reduce:active:scale-100'
 
 const noticeClasses =
-  'mt-2 rounded-md border border-stale bg-stale-soft px-2.5 py-2 text-[11.5px] leading-snug text-stale-ink'
+  'mt-2 rounded-md border border-stale bg-stale-soft px-2.5 py-2 text-compact leading-snug text-stale-ink'
 
 function outcomeLabel(outcome: string) {
   return outcome.replaceAll('_', ' ')
@@ -86,7 +76,7 @@ function outcomeLabel(outcome: string) {
 
 function summaryItem(label: string, value: string | number) {
   return (
-    <span className="rounded-full border border-line bg-surface-muted px-2 py-1 text-[11px] font-semibold text-ink-muted">
+    <span className="rounded-full border border-line bg-surface-muted px-2 py-1 text-compact font-semibold text-ink-muted">
       {label}: <span className="font-mono text-ink">{value}</span>
     </span>
   )
@@ -147,7 +137,7 @@ function DiagnosticDetails({
   identity?: Array<[string, string | number]>
 }) {
   return (
-    <details className="mt-1 rounded-md border border-line bg-surface-muted px-2.5 py-1.5 text-[11px] text-ink-muted">
+    <details className="mt-1 rounded-md border border-line bg-surface-muted px-2.5 py-1.5 text-compact text-ink-muted">
       <summary className="cursor-pointer font-semibold text-ink">Technical details</summary>
       <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         {identity?.map(([label, value]) => (
@@ -184,13 +174,13 @@ function GroundingDiagnostics({
 }) {
   return (
     <section className="mt-3 border-t border-line pt-2.5" aria-label="Grounding diagnostics">
-      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+      <p className="text-compact font-bold uppercase tracking-[0.08em] text-ink-muted">
         Grounding batches
       </p>
       <div className="mt-1.5 space-y-1.5">
         {diagnostics.batches.map((batch, index) => (
           <div key={`${index}-${batch.resultPath?.join('.') ?? 'run'}`} className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5">
-            <p className="text-[11.5px] text-ink">
+            <p className="text-compact text-ink">
               Batch {index + 1} · {batch.outcome} · {batch.candidateCount} candidate{batch.candidateCount === 1 ? '' : 's'}
             </p>
             <DiagnosticDetails diagnostic={batch} identity={batch.resultPath ? [['Result path', batch.resultPath.join('.')] ] : undefined} />
@@ -204,12 +194,12 @@ function GroundingDiagnostics({
 function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
   const diagnostics = attempt.diagnostics
   if (!diagnostics)
-    return <p className="text-[11.5px] text-ink-muted">Diagnostics are not available yet.</p>
+    return <p className="text-compact text-ink-muted">Diagnostics are not available yet.</p>
   const catalog = diagnostics.catalog
   return (
     <section aria-label="Extraction diagnostics">
       <div className="mt-2 space-y-2">
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+        <p className="text-compact font-bold uppercase tracking-[0.08em] text-ink-muted">
           Extraction diagnostics
         </p>
           <DiagnosticDetails
@@ -232,20 +222,20 @@ function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
           />
           {catalog && (
             <div className="space-y-2" aria-label="Catalog diagnostics">
-              <p className="text-[11.5px] font-semibold text-ink">Catalog stages</p>
+              <p className="text-compact font-semibold text-ink">Catalog stages</p>
               {catalog.stages.map((stage) => (
                 <div
                   key={stage.stage}
                   aria-label={`Catalog stage ${stage.stage}: ${stage.outcome}, ${stage.provenance}`}
                   className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5"
                 >
-                  <p className="text-[11.5px] text-ink">
+                  <p className="text-compact text-ink">
                     {stage.stage} · {outcomeLabel(stage.outcome)} · {stage.provenance}
                   </p>
                   <DiagnosticDetails diagnostic={stage} />
                 </div>
               ))}
-              <p className="text-[11.5px] font-semibold text-ink">Catalog records</p>
+              <p className="text-compact font-semibold text-ink">Catalog records</p>
               <div
                 data-testid="catalog-record-diagnostics"
                 className="max-h-48 space-y-1.5 overflow-y-auto pr-1"
@@ -256,10 +246,10 @@ function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
                     aria-label={`Catalog record ${record.ordinal + 1}: ${record.outcome}, ${record.provenance}, ${record.boundary.headingText}`}
                     className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5"
                   >
-                    <p className="text-[11.5px] text-ink">
+                    <p className="text-compact text-ink">
                       Record {record.ordinal + 1} · {outcomeLabel(record.outcome)} · {record.provenance} · {record.boundary.headingText}
                     </p>
-                    <p className="text-[11px] text-ink-muted">
+                    <p className="text-compact text-ink-muted">
                       Canonical {record.boundary.startContentIndex}–{record.boundary.endContentIndex}
                       {record.boundary.headingLevel !== null && ` · heading level ${record.boundary.headingLevel}`}
                     </p>
@@ -319,10 +309,10 @@ function AttemptDetails({ attempt }: { attempt: ExtractionAttempt }) {
           onDismiss={() => setOpen(false)}
         >
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">Run details</p>
+            <p className="text-compact font-bold uppercase tracking-[0.08em] text-ink-muted">Run details</p>
             <button
               type="button"
-              className="cursor-pointer rounded px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted hover:text-ink"
+              className="cursor-pointer rounded px-1.5 py-0.5 text-compact font-semibold text-ink-muted hover:text-ink"
               onClick={() => setOpen(false)}
             >
               Close
@@ -358,31 +348,6 @@ function statusLabel(state: ExtractionState, attempt: ExtractionAttempt | null):
 }
 
 /**
- * A run action named for the fresh Extraction it starts. For Catalog, the
- * record boundaries follow it as visible text that also describes the button.
- */
-function RunExtractionButton({
-  run,
-  withCurrentSchema = false,
-  ...button
-}: Omit<ButtonProps, 'children'> & { run: RunExtractionStrategy; withCurrentSchema?: boolean }) {
-  const boundariesId = useId()
-  const strategy = run.strategy === 'CATALOG' ? 'Catalog ' : run.strategy === 'ARTICLE' ? 'Article ' : ''
-  return (
-    <>
-      <Button {...button} aria-describedby={run.strategy === 'CATALOG' ? boundariesId : undefined}>
-        {`Run ${strategy}extraction${withCurrentSchema ? ' with current schema' : ''}`}
-      </Button>
-      {run.strategy === 'CATALOG' && (
-        <span id={boundariesId} className="self-center text-[11px] text-ink-muted">
-          Boundaries: {run.boundaries}
-        </span>
-      )}
-    </>
-  )
-}
-
-/**
  * Progress, Schema Revision comparison and connection state, each readable on
  * its own: the status never hides behind the revision badge, and a lost
  * connection keeps the last known status on screen.
@@ -394,9 +359,6 @@ function ExtractionStatus({
   usedSchema,
   currentSchemaRevision,
   readOnly,
-  runExtractionDisabled,
-  runExtractionStrategy,
-  onRunExtraction,
 }: {
   controller: ExtractionController
   state: ExtractionState
@@ -404,9 +366,6 @@ function ExtractionStatus({
   usedSchema: PinnedSchema | null
   currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
   readOnly: boolean
-  runExtractionDisabled: boolean
-  runExtractionStrategy: RunExtractionStrategy
-  onRunExtraction?: () => void | Promise<void>
 }) {
   const [schemaOpen, setSchemaOpen] = useState(false)
   const label = statusLabel(state, attempt)
@@ -434,10 +393,10 @@ function ExtractionStatus({
   return (
     <section aria-label="Extraction status" className="shrink-0 border-b border-line bg-surface px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <p role="status" className="text-[11.5px] font-semibold text-ink">{label}</p>
+        <p role="status" className="text-compact font-semibold text-ink">{label}</p>
         {previousSchema && <Pill tone="stale" outline>Previous schema</Pill>}
       </div>
-      <p className="mt-0.5 text-[11px] text-ink-muted">
+      <p className="mt-0.5 text-compact text-ink-muted">
         {known === null
           ? 'Schema Revision loading…'
           : usedRevisionNumber === null
@@ -455,7 +414,7 @@ function ExtractionStatus({
       )}
       {running && !readOnly && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <p className="text-[11.5px] text-ink-muted">You can continue working on other documents.</p>
+          <p className="text-compact text-ink-muted">You can continue working on other documents.</p>
           {/* Nothing to cancel until the server acknowledges the run ("Starting extraction…"). */}
           <Button
             variant="secondary"
@@ -467,27 +426,14 @@ function ExtractionStatus({
             {controller.cancellationRequested ? 'Cancellation requested…' : 'Cancel extraction'}
           </Button>
           {controller.cancellationError && (
-            <p role="alert" className="basis-full text-[11.5px] text-danger">
+            <p role="alert" className="basis-full text-compact text-danger">
               Cancellation failed: {controller.cancellationError}
             </p>
           )}
         </div>
       )}
       {completed && previousSchema && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <p className="text-[11.5px] text-ink-muted">Review applies to {usedRevisionLabel}</p>
-          {!readOnly && onRunExtraction && (
-            <RunExtractionButton
-              run={runExtractionStrategy}
-              withCurrentSchema
-              variant="secondary"
-              size="sm"
-              className={pressable}
-              disabled={runExtractionDisabled}
-              onClick={() => void onRunExtraction()}
-            />
-          )}
-        </div>
+        <p className="mt-2 text-compact text-ink-muted">Review applies to {usedRevisionLabel}</p>
       )}
       <button
         type="button"
@@ -495,14 +441,14 @@ function ExtractionStatus({
         aria-controls="results-used-schema"
         disabled={usedSchemaShown === null}
         title={usedSchemaShown === null ? 'The used Schema Revision is still loading' : undefined}
-        className={`mt-1.5 cursor-pointer rounded px-1 py-0.5 text-[11px] font-semibold text-accent outline-none hover:bg-accent-ghost/40 disabled:cursor-default disabled:text-ink-muted ${pressable}`}
+        className={`mt-1.5 cursor-pointer rounded px-1 py-0.5 text-compact font-semibold text-accent outline-none hover:bg-accent-ghost/40 disabled:cursor-default disabled:text-ink-muted ${pressable}`}
         onClick={() => setSchemaOpen((open) => !open)}
       >
         {schemaOpen ? 'Hide used schema' : 'View used schema'}
       </button>
       {schemaOpen && usedSchemaShown && (
         <div id="results-used-schema" className="mt-1.5 flex max-h-56 flex-col rounded-md border border-line">
-          <p className="shrink-0 border-b border-line bg-surface-muted px-3 py-1.5 text-[11px] text-ink-muted">
+          <p className="shrink-0 border-b border-line bg-surface-muted px-3 py-1.5 text-compact text-ink-muted">
             {usedRevisionLabel} · <span className="font-mono text-ink">{usedSchemaShown.schemaRevisionId ?? known?.schemaRevisionId ?? 'unknown'}</span> · read-only
           </p>
           <pre className={`${preClasses} rounded-b-md px-3 py-2`}>{JSON.stringify(schemaDefinitionToTemplate({ recordDescription: usedSchemaShown.recordDescription, schemaNodes: usedSchemaShown.schemaNodes }), null, 2)}</pre>
@@ -522,15 +468,9 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField }: ResultsTabProps) {
+function ResultsTab({ controller, runUnavailableReason = null, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField, headerExtras }: ResultsTabProps) {
   const approvalDescriptionId = useId()
   const attempt = inspectedAttempt ?? controller.attempt
-  // The header's single "… with current schema" run action replaces the
-  // summary row's plain one whenever the result predates the Current Schema Revision.
-  const previousSchema =
-    attempt !== null &&
-    currentSchemaRevision !== null &&
-    attempt.schemaRevisionId !== currentSchemaRevision.schemaRevisionId
   const state = useMemo(
     () => inspectedAttempt
       ? extractionStateFromAttempt(inspectedAttempt)
@@ -593,8 +533,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
   const displayResult = useMemo(() => pinnedSchema
     ? orderResultFields(unorderedResult, pinnedSchema.schemaNodes)
     : unorderedResult, [unorderedResult, pinnedSchema])
-  const activeAttempt =
-    attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
   const stats = useMemo(
     () => (displayResult !== null ? resultStats(displayResult) : null),
     [displayResult],
@@ -720,7 +658,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
 
   const resultViewTabs: Array<{ value: View; label: string }> = [
     { value: 'review', label: 'Review' },
-    { value: 'json', label: 'Raw JSON' },
+    { value: 'json', label: 'Values as code' },
     { value: 'markdown', label: 'Markdown' },
   ]
 
@@ -730,12 +668,25 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     if (isRecord(node)) return Object.entries(node as Record<string, unknown>).map(([k, v]) => ({ pathKey: k, displayName: k, value: v }))
     return []
   }, [displayResult, navPath])
+  // A Catalog record's entries open on its heading and the page its first Evidence names (§8): one record of several
+  // once opened, or a single-record Catalog's only record at the top. An Article result is one object: no heading.
+  const openRecord = articleRecords?.length === 1 && attempt?.strategy === 'CATALOG' && navPath.length === 0
+    ? 0
+    : articleRecords && articleRecords.length > 1 && navPath.length === 1 && /^\d+$/.test(navPath[0]!)
+      ? Number(navPath[0]) : null
+  const openRecordLink = openRecord !== null && state.status === 'ready'
+    ? state.evidenceLinks.find((link) => link.resultPath[0] === 'records' && Number(link.resultPath[1]) === openRecord)
+    : undefined
+  const recordPage = openRecordLink ? evidencePages?.get(openRecordLink.evidenceAnchorId) ?? null : null
 
   return (
     <div className="scrollbar-subtle flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="flex items-center justify-between px-4 py-2.5">
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5">
         <Overline as="h2">Extraction results</Overline>
-        {attempt && <AttemptDetails attempt={attempt} />}
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          {headerExtras}
+          {attempt && <AttemptDetails attempt={attempt} />}
+        </div>
       </div>
       {attention && <ReviewAttention attention={attention} onEditField={onEditField}
         onSelect={(path) => { onResultPathChange?.(path.map(String)); const link = attempt?.evidenceLinks?.find((each) => resultPathKey(each.resultPath) === resultPathKey(path)); if (link) onSelectEvidence?.(link.evidenceAnchorId) }} />}
@@ -746,9 +697,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
         usedSchema={pinnedSchema}
         currentSchemaRevision={currentSchemaRevision}
         readOnly={readOnly || Boolean(inspectedAttempt)}
-        runExtractionDisabled={runExtractionDisabled}
-        runExtractionStrategy={runExtractionStrategy}
-        onRunExtraction={onRunExtraction}
       />
 
       {state.status === 'ready' && stats && (
@@ -768,11 +716,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               {claims && claims.unsupported > 0 && summaryItem('Unsupported', claims.unsupported)}
               {claims && claims.notCompleted > 0 && summaryItem('Not completed', claims.notCompleted)}
               {claims && claims.excluded > 0 && summaryItem('Excluded', claims.excluded)}
-              {checkCount > 0 && summaryItem('To check', checkCount)}
+              {/* Grounding's doubts: a linked value not found in its passage, or found in others too. Not "to check", which
+                  is the badge's and the row marker's word for undecided values. */}
+              {checkCount > 0 && summaryItem('Doubtful links', checkCount)}
               {/* {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)} */}
             </div>
             {(requiredCount > 0 || attempt?.reviewedAt || (!reviewReadOnly && (controller.review.loading || controller.review.error))) && (
-              <section aria-label="Review progress" className="mt-2 text-[11.5px] text-ink-muted">
+              <section aria-label="Review progress" className="mt-2 text-compact text-ink-muted">
                 <span role={reviewReadOnly ? undefined : 'status'} aria-atomic="true">
                   {attempt?.reviewedAt ? <><span>Review saved</span> · {requiredCount} decision{requiredCount === 1 ? '' : 's'}</>
                     : reviewReadOnly ? `Not reviewed · ${requiredCount} required decision${requiredCount === 1 ? '' : 's'}`
@@ -789,7 +739,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               </section>
             )}
             {claims && (
-              <section aria-label="Completion" className="mt-2 space-y-0.5 text-[11.5px] leading-snug text-ink-muted">
+              <section aria-label="Completion" className="mt-2 space-y-0.5 text-compact leading-snug text-ink-muted">
                 <p data-dimension="processing">Extraction: {attempt?.complete ? 'complete' : 'not shown complete'} · record recall unmeasured</p>
                 <p data-dimension="evidence">Evidence checks: {linkCounts.verifier} verifier-supported · {linkCounts.rule > 0 && `${linkCounts.rule} linked by rule · `}{claims.unsupported} unsupported · {claims.notCompleted} not completed · {claims.excluded} excluded by policy ({claims.claims} claims)</p>
                 <p data-dimension="review">Review: {attempt?.reviewedAt ? `${madeDecisions.length} decisions saved` : `${madeDecisions.length} decisions pending`}{state.ungroundedCount > 0 && ` · ${state.ungroundedCount} value${state.ungroundedCount === 1 ? '' : 's'} without evidence ${state.ungroundedCount === 1 ? 'is' : 'are'} not reviewable`}</p>
@@ -888,13 +838,10 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       <Button size="sm" variant="secondary" onClick={controller.review.reload}>Retry</Button>
                     )}
                     {(controller.review.error || !controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null)) && controller.review.canAccept && (
-                      <Button size="sm" variant={controller.review.error ? 'secondary' : 'primary'} disabled={editingPaths.size > 0}
+                      <Button size="sm" variant={controller.review.error ? 'secondary' : 'positive'} disabled={editingPaths.size > 0}
                         onClick={() => void controller.review.accept()}>{controller.review.error ? 'Retry' : 'Save review'}</Button>
                     )}
                   </>
-                )}
-                {!readOnly && !previousSchema && onRunExtraction && (
-                  <RunExtractionButton run={runExtractionStrategy} variant="secondary" size="sm" disabled={runExtractionDisabled || activeAttempt} onClick={() => void onRunExtraction()} />
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-3" role="tablist" aria-label="Result view">
@@ -908,7 +855,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       id={`results-tab-${value}`}
                       aria-selected={active}
                       aria-controls={`results-panel-${value}`}
-                      className={`cursor-pointer border-b-2 px-0.5 pb-1 text-[11px] font-semibold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
+                      className={`cursor-pointer border-b-2 px-0.5 pb-1 text-compact font-semibold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
                         active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
                       }`}
                       onClick={() => setView(value)}
@@ -920,7 +867,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               </div>
             </div>
             {!reviewReadOnly && controller.review.available && !attempt?.reviewedAt && (
-              <p id={approvalDescriptionId} className="mt-2 text-[11px] leading-snug text-ink-muted">
+              <p id={approvalDescriptionId} className="mt-2 text-compact leading-snug text-ink-muted">
                 Approve only the remaining required decisions. Existing edits and rejections, and ungrounded values, are unchanged.{' '}
                 The review saves automatically when all required decisions are made.
               </p>
@@ -932,12 +879,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               </div>
             )}
             {reviewSaved && (state.ungroundedCount > 0 || (claims?.notCompleted ?? 0) > 0) && (
-              <p role="status" className="text-[11px] text-ink-muted">
+              <p role="status" className="text-compact text-ink-muted">
                 {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} without evidence {state.ungroundedCount === 1 ? 'was' : 'were'} not reviewed{claims && `; ${claims.notCompleted} check${claims.notCompleted === 1 ? '' : 's'} never completed`}
               </p>
             )}
             {controller.review.error && (
-              <p role="alert" className="mt-2 text-[11.5px] leading-snug text-danger">
+              <p role="alert" className="mt-2 text-compact leading-snug text-danger">
                 {controller.review.error}
               </p>
             )}
@@ -951,7 +898,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               </div>
             )}
             {noGroundedValues && (
-              <div className="mt-2 rounded-md border border-line-strong bg-surface-muted px-2.5 py-2 text-[11.5px] leading-snug text-ink" role="status">
+              <div className="mt-2 rounded-md border border-line-strong bg-surface-muted px-2.5 py-2 text-compact leading-snug text-ink" role="status">
                 <p className="font-semibold">No grounded values</p>
                 <p className="text-ink-muted">No populated value has model Evidence. Values remain visible; optional cells do not block finalizing a review.</p>
               </div>
@@ -961,7 +908,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
             {/* An attempt without a claim accounting cannot tell unsupported from unfinished values; with one, the
                 Completion section names both apart. */}
             {!claims && state.ungroundedCount > 0 && (
-              <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
+              <p className="mt-2 text-compact leading-snug text-ink-muted">
                 {state.ungroundedCount} ungrounded value{state.ungroundedCount === 1 ? ' is' : 's are'} excluded from required review and {state.ungroundedCount === 1 ? 'remains' : 'remain'} recorded without Evidence.
               </p>
             )}
@@ -979,14 +926,14 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                   container: overflow-y-auto above). */}
               <nav aria-label="Result navigation" className="sticky top-0 z-10 flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-2 py-1">
                 <button
-                  className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30"
+                  className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-content font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30"
                   type="button"
                   title="Back"
                   disabled={backStack.length === 0}
                   onClick={goBack}
                 >‹</button>
                 <button
-                  className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30"
+                  className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-content font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30"
                   type="button"
                   title="Forward"
                   disabled={forwardStack.length === 0}
@@ -996,7 +943,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 <div className="scrollbar-subtle flex min-w-0 flex-1 items-center overflow-x-auto">
                   <button
                     aria-current={navPath.length === 0 ? 'page' : undefined}
-                    className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-accent hover:bg-accent-ghost/40 disabled:cursor-default disabled:text-ink"
+                    className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-secondary font-semibold text-accent hover:bg-accent-ghost/40 disabled:cursor-default disabled:text-ink"
                     type="button"
                     disabled={navPath.length === 0}
                     onClick={() => navTo([])}
@@ -1006,15 +953,15 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                     const label = !isNaN(idx) && String(idx) === seg ? singularItemLabel(navPath[i - 1] ?? 'item', idx) : seg
                     return (
                       <span key={i} className="flex items-center gap-0.5">
-                        <span className="text-[11px] text-ink-faint">›</span>
+                        <span className="text-compact text-ink-faint">›</span>
                         {i < navPath.length - 1 ? (
                           <button
-                            className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-ink-muted hover:text-accent"
+                            className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-secondary font-semibold text-ink-muted hover:text-accent"
                             type="button"
                             onClick={() => navTo(navPath.slice(0, i + 1))}
                           >{label}</button>
                         ) : (
-                          <span aria-current="page" className="shrink-0 px-1.5 py-0.5 text-[12px] font-semibold text-ink">{label}</span>
+                          <span aria-current="page" className="shrink-0 px-1.5 py-0.5 text-secondary font-semibold text-ink">{label}</span>
                         )}
                       </span>
                     )
@@ -1024,7 +971,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                   <>
                     <span className="mx-1 h-3.5 w-px shrink-0 bg-line" />
                     <button
-                      className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[11.5px] font-semibold text-ink-muted hover:bg-accent-ghost/40 hover:text-accent"
+                      className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-compact font-semibold text-ink-muted hover:bg-accent-ghost/40 hover:text-accent"
                       type="button"
                       title="Return to root"
                       onClick={clearNavigation}
@@ -1034,6 +981,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               </nav>
               {/* Content */}
               <div className="bg-canvas px-3 py-2">
+                {openRecord !== null && <RecordHeader label={singularItemLabel('records', openRecord)} page={recordPage} />}
                 {currentEntries.map(({ pathKey, displayName, value: val }) => (
                   <ResultValue
                     key={pathKey}
@@ -1059,6 +1007,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       )
                     }}
                     getContested={(path) => contestedByPath.get(JSON.stringify(path))}
+                    getValueState={(path) => {
+                      const key = JSON.stringify(path)
+                      if (evidenceLinkByPath.has(key)) return 'grounded'
+                      if (contestedByPath.has(key)) return 'contested'
+                      const value = getAtPath(displayResult, path.map(String))
+                      return value === null || value === undefined || value === '' ? 'empty' : undefined
+                    }}
                     getClaimStatus={(path) => {
                       const status = statuses.get(JSON.stringify(absoluteReviewPath(path)))
                       return status && status.state !== 'supported' ? describeClaimStatus(status) : undefined
@@ -1069,7 +1024,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                       getSchemaNode: (path) => pinnedSchema
                         ? schemaNodeAtResultPath(pinnedSchema.schemaNodes, absoluteReviewPath(path))
                         : null,
-                      isTouched: (path) => controller.review.isTouched(absoluteReviewPath(path)),
+                      // An inspected attempt's decisions are its persisted ones, all made; the live controller's untouched set
+                      // belongs to the current attempt.
+                      isTouched: inspectedAttempt ? () => true : (path) => controller.review.isTouched(absoluteReviewPath(path)),
                       onEditingChange,
                       onDecision: readOnly || inspectedAttempt || attempt?.reviewedAt || controller.review.saving
                         ? undefined
@@ -1106,8 +1063,8 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                 <pre className={preClasses}>{documentMarkdown}</pre>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
-                  <p className="text-[13px] font-semibold text-ink">Markdown unavailable</p>
-                  <p className="mt-1.5 max-w-[34ch] text-[11.5px] leading-snug text-ink-muted">
+                  <p className="text-content font-semibold text-ink">Markdown unavailable</p>
+                  <p className="mt-1.5 max-w-[34ch] text-compact leading-snug text-ink-muted">
                     Parsed Markdown has not been received for this source document.
                   </p>
                 </div>
@@ -1138,50 +1095,26 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
 
       {state.status === 'error' && (
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
-          <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
-          <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
-          {!readOnly && onRunExtraction && (
-            <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
-            </div>
-          )}
+          <p className="text-content font-semibold text-danger">Extraction failed</p>
+          <p className="mt-1 wrap-anywhere text-secondary leading-snug text-ink-muted">{state.message}</p>
         </div>
       )}
 
       {state.status === 'idle' && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
-          <p className="text-[13.5px] font-semibold text-ink">No results yet</p>
-          <p className="mt-1.5 max-w-[34ch] text-[11.5px] leading-snug text-ink-muted">
+          <p className="text-content font-semibold text-ink">No results yet</p>
+          <p className="mt-1.5 max-w-[34ch] text-compact leading-snug text-ink-muted">
             {schemaReady
               ? 'Run extraction to apply the schema across the source document.'
               : 'Generate a schema in the Schema tab first, then run extraction.'}
           </p>
-          {!readOnly && onRunExtraction && (schemaReady ? (
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
-            </div>
-          ) : (
-            <Button
-              variant="primary"
-              size="md"
-              className="mt-4"
-              disabled={runExtractionDisabled}
-              onClick={() => void onRunExtraction()}
-            >
-              Generate a schema first
-            </Button>
-          ))}
+          {!readOnly && schemaReady && <p className="mt-1.5 text-compact font-semibold text-ink">{runUnavailableReason ?? RUN_POINTER}</p>}
         </div>
       )}
 
       {state.status === 'cancelled' && (
         <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
-          <p className="text-[13px] font-semibold text-ink">Extraction cancelled</p>
-          {!readOnly && onRunExtraction && (
-            <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
-            </div>
-          )}
+          <p className="text-content font-semibold text-ink">Extraction cancelled</p>
         </div>
       )}
     </div>

@@ -26,11 +26,13 @@ test.afterEach(async () => {
 })
 
 async function regenerate(page: Page, instruction: string) {
-  await page.getByRole('button', { name: 'Regenerate' }).click()
-  const input = page.getByPlaceholder(/Add a generation instruction/)
+  await page.getByRole('button', { name: 'Schema actions' }).click()
+  await page.getByRole('menuitem', { name: 'Regenerate from the document…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Regenerate from the document' })
+  const input = dialog.getByPlaceholder(/Add a generation instruction/)
   await input.fill(instruction)
   await input.press('Enter')
-  await page.getByRole('button', { name: /Regenerate schema/ }).click()
+  await dialog.getByRole('button', { name: /Regenerate schema/ }).click()
 }
 
 async function requestEdit(page: Page, instruction: string) {
@@ -102,7 +104,7 @@ test('a Studio restart between two polls: the reloaded page sees the new boot ID
   await expect(page.getByText(STILL_WORKING('Rename title to heading'))).toBeVisible({ timeout: 20_000 })
   // The workspace finishes loading its document before Studio goes: a load cut mid-way is the page's bounded
   // "could not be opened" failure, which is not what this spec is about.
-  await expect(page.getByText('6 pages', { exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('/ 6', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(page.getByText('title', { exact: true }).first()).toBeVisible({ timeout: 20_000 })
   await page.waitForTimeout(3_000) // the PDF worker and the rest of the document's loads (the polls never go idle)
   const requests = recordApiRequests(page)

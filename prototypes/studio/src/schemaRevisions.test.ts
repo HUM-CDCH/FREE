@@ -85,6 +85,18 @@ describe('schema revision client', () => {
     })
   })
 
+  it('sends a fenced rename\'s expected name; an unfenced rename sends none', async () => {
+    const fetch = vi.fn(async () => Response.json({
+      extractionSchema: { extractionSchemaId: SCHEMA, name: 'Historic places', createdAt: revision.createdAt },
+    }))
+    vi.stubGlobal('fetch', fetch)
+
+    await renameExtractionSchema(PROJECT, SCHEMA, 'Historic places', undefined, 'Extraction Schema')
+    expect(JSON.parse(String((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({
+      projectContextId: PROJECT, name: 'Historic places', expectedName: 'Extraction Schema',
+    })
+  })
+
   it('initializes, lists, gets, and appends through validated same-origin DTOs', async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(Response.json({ revision }, { status: 201 }))

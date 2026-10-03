@@ -4,6 +4,7 @@ import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
+import FreeMonogram from './FreeMonogram'
 import PanelToggleIcon from './PanelToggleIcon'
 import { useOpenDocumentTabs } from './useOpenDocumentTabs'
 import { useShiftWheelHorizontalScroll } from './useShiftWheelHorizontalScroll'
@@ -333,15 +334,7 @@ export default function AppFrame({
   const activeProjectName =
     projects.find(
       (project) => project.projectContextId === routedProjectContextId,
-    )?.name ?? ''
-  const activeDocumentName =
-    route.kind === 'document'
-      ? (workspace?.filename ??
-        openProjectTabs.find(
-          (tab) => tab.sourceDocumentId === route.sourceDocumentId,
-        )?.name ??
-        null)
-      : null
+    )?.name ?? null
   const backToReviewGridBatchExtractionId =
     route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
   const hasOpenDocumentTabs = Boolean(
@@ -445,17 +438,16 @@ export default function AppFrame({
               if (route.kind !== 'root') navigateFromRail({ kind: 'root' })
             }}
           >
-            <img
-              src={browserStudioPath('/free-logo.png')}
-              alt=""
-              className="size-20 shrink-0 -translate-y-1 object-contain"
-            />
+            {effectiveNavOpen ? (
+              <img
+                src={browserStudioPath('/free-logo.png')}
+                alt=""
+                className="size-20 shrink-0 -translate-y-1 object-contain"
+              />
+            ) : (
+              <FreeMonogram />
+            )}
           </a>
-          {/* {effectiveNavOpen && (
-            <h1 className="text-[17px] font-extrabold tracking-[0.06em]">
-              FREE
-            </h1>
-          )} */}
           {effectiveNavOpen && (
             <button
               data-rail-toggle
@@ -510,7 +502,6 @@ export default function AppFrame({
         {routedProjectContextId && openProjectTabs.length > 0 && (
           <DocumentTabBar
             projectName={activeProjectName}
-            documentName={activeDocumentName}
             tabs={openProjectTabs}
             activeSourceDocumentId={activeTabSourceDocumentId}
             onActivate={activateTab}

@@ -1,3 +1,4 @@
+import { Button } from './ui'
 import type { PendingSchemaProposal } from './useSchemaProposalReview'
 
 
@@ -15,7 +16,7 @@ export function ProposalReviewBar({
   return (
     <div className="shrink-0 border-t border-line px-3.5 py-2.5">
       <div
-        className="mb-2 text-[10px] leading-relaxed text-ink-muted"
+        className="mb-2 text-compact leading-relaxed text-ink-muted"
         data-testid="schema-proposal-summary"
       >
         {proposal.changes.map((change) =>
@@ -25,21 +26,12 @@ export function ProposalReviewBar({
         )}
       </div>
       <div className="flex items-center gap-2">
-        <button
-          className="cursor-pointer rounded-md border border-accent bg-accent px-3.5 py-1.5 font-sans text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 disabled:cursor-default disabled:opacity-40"
-          type="button"
-          onClick={onApply}
-          disabled={!canApply}
-        >
+        <Button variant="positive" onClick={onApply} disabled={!canApply}>
           Apply changes
-        </button>
-        <button
-          className="cursor-pointer rounded-md border border-line-strong bg-surface px-3 py-1.5 font-sans text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
-          type="button"
-          onClick={onDiscard}
-        >
+        </Button>
+        <Button variant="danger" onClick={onDiscard}>
           Discard
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -80,10 +80,12 @@ export function schemaAncestorIds(
   return ancestors
 }
 
+/** The node as a group holding `children`. Everything a group carries survives (its description, `valueSource`,
+ *  `evidencePolicy`); a scalar made a group loses what a group may not carry (`itemType`, `allowedValues`) and its
+ *  `valueSource`, which named where its own one value came from. */
 function nodeWithChildren(node: SchemaNode, children: SchemaNode[]): SchemaNode {
-  return {
-    id: node.id,
-    name: node.name,
+  const group: Record<string, unknown> = {
+    ...node,
     type:
       node.type === 'array'
         ? 'array'
@@ -91,8 +93,12 @@ function nodeWithChildren(node: SchemaNode, children: SchemaNode[]): SchemaNode 
           ? 'object'
           : node.type,
     children,
-    ...(node.description && { description: node.description }),
   }
+  delete group.itemType
+  delete group.allowedValues
+  // A conversion, not a restore into (or a drop onto) an existing group.
+  if (node.children === undefined) delete group.valueSource
+  return group as SchemaNode
 }
 
 function insertIntoNode(
@@ -133,6 +139,22 @@ function insertAtSlot(
         }
       : node
   })
+}
+
+/** Puts a removed node back under `parentId` at `index`; null when that parent no longer exists or is no longer a
+ *  group. Sibling names are checked by the commit gate, not here. */
+export function restoreSchemaNode(
+  nodes: readonly SchemaNode[],
+  node: SchemaNode,
+  parentId: string | null,
+  index: number,
+): SchemaNode[] | null {
+  if (parentId !== null) {
+    // A parent retyped to a scalar has no children to restore into; inserting would turn it back into a group.
+    const parent = enumerateFieldPaths(nodes).find((field) => field.id === parentId)?.node
+    if (parent?.children === undefined) return null
+  }
+  return insertAtSlot(deepClone(nodes), parentId, index, node)
 }
 
 function sourceIndex(nodes: readonly SchemaNode[], drag: SchemaDrag): number {

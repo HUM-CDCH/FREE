@@ -806,10 +806,15 @@ export type ResearcherProjectStore = {
     projectContextId: string,
     limit: number,
   ): Promise<ExtractionSchemaSummary[] | null>
+  /**
+   * With `expectedName`, the rename applies only while the schema still carries that name (trimmed, as names are
+   * stored); otherwise the schema is answered as it stands. Null when the Project Context or the schema is not owned.
+   */
   renameExtractionSchema(
     projectContextId: string,
     extractionSchemaId: string,
     name: string,
+    expectedName?: string,
   ): Promise<ExtractionSchemaRecord | null>
   /**
    * Omitted, `sourceCoverage` is inherited from the head: an edit keeps the declaration of the suggestion it was made
@@ -2092,7 +2097,7 @@ export function createResearcherProjectStore(
         return summaries
       })
     },
-    async renameExtractionSchema(projectContextId, extractionSchemaId, name) {
+    async renameExtractionSchema(projectContextId, extractionSchemaId, name, expectedName) {
       if (
         !(await ownsProjectContext(
           database.orm,
@@ -2101,10 +2106,25 @@ export function createResearcherProjectStore(
         ))
       )
         return null
-      const row = await database.orm.public.ExtractionSchema.where({
-        id: extractionSchemaId,
-        projectContextId,
-      }).update({ name: extractionSchemaName(name) })
+      const schema = { id: extractionSchemaId, projectContextId }
+      const renamed = extractionSchemaName(name)
+      // A fenced rename is one `UPDATE … WHERE name = expected` (`updateAll`; `update` would select the row first, then
+      // update it by its key, letting a rename committed in between be overwritten). Matching nothing, it was superseded
+      // by another rename: the schema is answered as it stands.
+      const row =
+        expectedName === undefined
+          ? await database.orm.public.ExtractionSchema.where(schema).update({ name: renamed })
+          : ((
+              await database.orm.public.ExtractionSchema.where({
+                ...schema,
+                name: expectedName.trim(),
+              }).updateAll({ name: renamed })
+            )[0] ??
+            (await database.orm.public.ExtractionSchema.select(
+              'id',
+              'name',
+              'createdAt',
+            ).first(schema)))
       return row
         ? {
             extractionSchemaId: row.id,

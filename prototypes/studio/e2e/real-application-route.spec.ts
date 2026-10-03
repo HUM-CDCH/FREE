@@ -105,9 +105,10 @@ async function highlighted(page: Page, anchor: string, pageNumber: number) {
   await expect(overlay).toBeInViewport()
 }
 
-/** The value row (`PrimitiveRow`) whose name is `leaf`. */
+/** The visible Results value row (`PrimitiveRow`), excluding the mounted Schema tab's same-named field rows. */
 function valueRow(page: Page, leaf: string) {
-  return page.locator('div.group').filter({ has: page.getByText(leaf, { exact: true }) })
+  return page.getByRole('tabpanel', { name: /^Results/ }).locator('div.group')
+    .filter({ has: page.getByText(leaf, { exact: true }) })
 }
 
 /** How the Results tab names the last step of `path`: a field by its name, an array item as `Site 2`. */
@@ -213,22 +214,24 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     page.setDefaultTimeout(120_000)
     const workspace = `/projects/${project}/documents/${source.sourceDocumentId}`
     await page.goto(workspace)
-    const selector = page.getByRole('combobox', { name: 'Extraction strategy' })
+    // The schema header's Record scope names Article `document` and Catalog `records`.
+    const recordScope = strategy === 'ARTICLE' ? 'document' : 'records'
+    const selector = page.getByRole('combobox', { name: 'Record scope' })
     await expect(selector).toHaveValue('')
-    await expect(page.getByRole('button', { name: /Run extraction/ })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '▶ Run extraction', exact: true })).toBeDisabled()
     const saved = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/schema-revisions' &&
       response.request().method() === 'POST')
-    await selector.selectOption(strategy)
+    await selector.selectOption(recordScope)
     const scopeSave = await saved
     expect(scopeSave.status(), await scopeSave.text()).toBe(201)
-    expect((await scopeSave.json()).revision.recordScope).toBe(strategy === 'ARTICLE' ? 'document' : 'records')
+    expect((await scopeSave.json()).revision.recordScope).toBe(recordScope)
     await expect(page.getByText(/Unsaved changes|Saving…/)).toHaveCount(0)
     await page.reload()
-    await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+    await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
 
     const admitted = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/extractions' &&
       response.request().method() === 'POST')
-    await page.getByRole('button', { name: /Run extraction/ }).click()
+    await page.getByRole('button', { name: '▶ Run extraction', exact: true }).click()
     const admission = await admitted
     expect(admission.status(), await admission.text()).toBe(201)
     const id = (await admission.json()).extractionId as string
@@ -329,7 +332,10 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
     if (unfinished) await expect(page.getByText(new RegExp(
       `values? without evidence (?:was|were) not reviewed; ${claims.notCompleted} checks? never completed`))).toBeVisible()
-    await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+    // The Record scope is in the Schema tab's header; the review continues in Results.
+    await page.getByRole('tab', { name: /^Schema/ }).click()
+    await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(strategy === 'ARTICLE' ? 'document' : 'records')
+    await page.getByRole('tab', { name: /Results/ }).click()
     await open(page, chosen!.resultPath, records.length)
     await expect(page.getByText(edited, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: `View Evidence for extracted value of ${item}`, exact: true }).click()

@@ -31,7 +31,7 @@ type ExtractionRunRequest = Readonly<{
   schemaRevisionId: string
   strategy: ExtractionStrategy
   catalogRecipe?: string
-  /** The saved method the start view showed; admission refuses it if the account's changed since. */
+  /** The saved method read at the click; admission refuses it if the account's changed since. */
   method: ExtractionMethodIntent
 }>
 
@@ -57,8 +57,9 @@ type UseExtractionOptions = {
    * it stops offering runs on the old revision.
    */
   onSuperseded?: () => void
-  /** The account's saved advanced settings changed after the start view showed them: nothing started. */
-  onMethodChanged?: (message: string) => void
+  /** Admission refused the run's method or scope (`code`: a changed saved method, a pending migration, a record-scope
+   *  refusal): nothing started. The caller re-reads the saved method on `METHOD_CHANGED`. */
+  onMethodChanged?: (message: string, code: string) => void
   initialAttempt?: ExtractionAttempt | null
   reviewTarget?: ReviewTarget | null
   /**
@@ -96,11 +97,17 @@ function definiteRejection(error: unknown): error is ApiRequestError {
 
 /** PR #140: a run on a Source Representation that reprocessing replaced is refused before anything starts. */
 const SOURCE_REPRESENTATION_SUPERSEDED = 'source_representation_superseded'
-const METHOD_CHANGED = 'method_changed'
+export const METHOD_CHANGED = 'method_changed'
 /** Legacy Catalog preferences wait for their migration: refreshable, like a changed method. */
 const MIGRATION_REQUIRED = 'catalog_migration_required'
 /** A strategy the schema's saved Article/Catalog scope does not name (or none saved): said like a changed method. */
 const RECORD_SCOPE_REFUSALS: ReadonlySet<string> = new Set(['record_scope_required', 'record_scope_mismatch'])
+
+/** The server's own words for a refusal: `ApiRequestError` prefixes its message with `<code>: `. */
+function serverMessage(error: ApiRequestError): string {
+  const prefix = `${error.code}: `
+  return error.code && error.message.startsWith(prefix) ? error.message.slice(prefix.length) : error.message
+}
 
 export type ExtractionController = ReturnType<typeof useExtraction>
 
@@ -461,10 +468,10 @@ export function useExtraction({
         return null
       }
       if (definiteRejection(error) && (error.code === METHOD_CHANGED || error.code === MIGRATION_REQUIRED || RECORD_SCOPE_REFUSALS.has(error.code ?? ''))) {
-        // Nothing started: the previous attempt stays, and the start view refreshes its summary.
+        // Nothing started: the previous attempt stays, and the caller re-reads the saved method or says why.
         monitorRef.current = null
         setState(extractionStateFromAttempt(attempt))
-        onMethodChanged?.(error.message)
+        onMethodChanged?.(serverMessage(error), error.code!)
         return null
       }
       if (definiteRejection(error)) {

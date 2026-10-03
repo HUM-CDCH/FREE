@@ -83,13 +83,14 @@ export function createPatchExtractionSchema(
         throw new ApiError(
           422,
           'invalid_request',
-          `projectContextId and extractionSchemaId must be canonical lowercase UUIDs, and name must be 1 to ${extractionSchemaNameLimit} characters after trimming.`,
+          `projectContextId and extractionSchemaId must be canonical lowercase UUIDs, and name, and expectedName when given, must be 1 to ${extractionSchemaNameLimit} characters after trimming.`,
         )
       const schema = await store
         .renameExtractionSchema(
           parsed.data.projectContextId,
           match[1],
           parsed.data.name,
+          parsed.data.expectedName,
         )
         .catch((cause) => {
           throw persistenceUnavailable(cause)

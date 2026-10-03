@@ -432,7 +432,8 @@ export function createSchemaEditorController(
     draft = definition
     draftVersion += 1
     publish()
-    options.onCommitMessage?.(message)
+    // An empty label is a caller that shows its own notice (the field-row delete and its Undo).
+    if (message) options.onCommitMessage?.(message)
     persistence.edit(definition)
   }
 

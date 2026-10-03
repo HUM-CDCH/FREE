@@ -120,14 +120,14 @@ function FirstRun({ onCreate }: { onCreate: () => void }) {
             <span className="text-[13px] font-semibold text-ink">
               {phase.name}
             </span>
-            <span className="text-[11.5px] leading-relaxed text-ink-muted">
+            <span className="text-compact leading-relaxed text-ink-muted">
               {phase.copy}
             </span>
           </li>
         ))}
       </ol>
 
-      <Button variant="primary" size="md" className="px-6 py-3" onClick={onCreate}>
+      <Button variant="positive" size="md" className="px-6 py-3" onClick={onCreate}>
         <PlusIcon />
         Create your first project
       </Button>
@@ -188,7 +188,7 @@ export function StudioHome({
               </p>
             )}
           </div>
-          <Button variant="primary" size="md" onClick={() => setCreating(true)}>
+          <Button variant="positive" size="md" onClick={() => setCreating(true)}>
             <PlusIcon />
             New Project
           </Button>
@@ -255,7 +255,7 @@ export function StudioHome({
                         <span className="min-w-0">
                           <h2
                             id={`project-${project.projectContextId}-name`}
-                            className="break-words text-[12.5px] font-semibold text-ink"
+                            className="break-words text-secondary font-semibold text-ink"
                           >
                             {project.name}
                           </h2>
@@ -307,10 +307,10 @@ export function StudioHome({
                           <span className="size-1.5 rounded-full bg-accent" />
                         </span>
                         <span className="flex min-w-0 flex-col gap-0.5">
-                          <span className="text-[12.5px] text-ink">
+                          <span className="text-secondary text-ink">
                             {eventLabels[event.kind]}
                           </span>
-                          <span className="text-[11.5px] leading-relaxed text-ink-faint">
+                          <span className="text-compact leading-relaxed text-ink-faint">
                             <span className="group-hover:underline">
                               {event.projectContextName}
                             </span>

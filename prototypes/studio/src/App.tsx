@@ -10,7 +10,6 @@ import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
-import type { RunExtractionStrategy } from './ResultsTab'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
 import { deleteModelOperation, requestSchema } from './api'
@@ -19,17 +18,20 @@ import {
   type ParsedDocument,
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
-import { useExtraction } from './useExtraction'
+import { METHOD_CHANGED, useExtraction } from './useExtraction'
+import { resultsBadgeFor } from './resultsBadge'
+import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
-import { SavedMethodSummary } from './SavedMethodSummary'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
-import ExtractionFinishedDialog from './ExtractionFinishedDialog'
-import { Button, Spinner } from './ui'
+import { Button, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
+import { createThumbnailRenderer } from './PageThumbnails'
+import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
-import { recordScopeOf, strategyOf, type SchemaDefinition } from 'extraction/schema'
+import { defaultSchemaName } from './schemaNames'
+import { strategyOf, type SchemaDefinition } from 'extraction/schema'
 import { browserStudioPath } from './studioUrl.js'
 import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
 
@@ -133,7 +135,13 @@ export type DocumentWorkspaceProps = {
   /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
       portalled into so the PDF controls share that row instead of a second one. */
   tabBarSlot?: HTMLElement | null
+  /** How long the first generation's automatic name may wait for its answer before the renames queued behind it go
+      ahead (default 20 s; tests shorten it). */
+  automaticRenameTimeoutMs?: number
 }
+
+/** An admission refusal useExtraction reported through `onMethodChanged`: nothing was started. */
+type RunRefusal = { message: string; code: string }
 
 type PinnedAttemptSchema = SchemaDefinition & {
   schemaRevisionId: string
@@ -155,10 +163,10 @@ export function DocumentWorkspace({
   onInitialResourceLoadFailure,
   onSourceSuperseded,
   tabBarSlot = null,
+  automaticRenameTimeoutMs = 20_000,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
-  const toastTimerRef = useRef<number | undefined>(undefined)
   const pdfViewerRef = useRef<PDFViewer | null>(null)
   const activeSourceRepresentationIdRef = useRef(sourceRepresentationId)
   useEffect(() => {
@@ -166,7 +174,9 @@ export function DocumentWorkspace({
   }, [sourceRepresentationId])
 
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
+  const [pdfDocument, setPdfDocument] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [zoomPercent, setZoomPercent] = useState(100)
+  const { toast, showToast, dismissToast, holdToast, consumeSwitch } = useToast()
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
     extractionSchema,
@@ -176,6 +186,49 @@ export function DocumentWorkspace({
   })
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
+  // Renames of the schema run one at a time, in the order they were asked for, so the server keeps the last one asked;
+  // each records the server's answer and shows it unless a later rename has started, which shows its own. A late
+  // first-generation name can then never replace a rename the researcher made meanwhile: on screen by this order, on the
+  // server by its fence (`renameSchema`).
+  const renameQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const renameSequenceRef = useRef(0)
+  const durableSchemaNameRef = useRef(extractionSchema?.name ?? null)
+  /** Renames the schema; null on success, else why not. `expectedName` (the automatic first name only: 'Extraction
+   *  Schema', the name the server created the schema with) fences the rename on the server, which applies it only while
+   *  the schema still carries that name and otherwise answers the name as it stands; it is also the server's name
+   *  should this rename fail. With `timeoutMs` the request is given up (aborted, so it fails) once it has waited that
+   *  long for its answer, and the queue goes on with the next rename: a stalled automatic name never strands the
+   *  researcher's rename behind it. Giving up stops the waiting, not the server's write, but the fence makes that write
+   *  harmless in all but one case: an abandoned automatic name reaching the database after the researcher's rename
+   *  finds another name there and changes nothing, so it does not overwrite a later manual name. The one exception: a
+   *  researcher's own name equal to the creation name ('Extraction Schema') still satisfies the fence, so an abandoned
+   *  automatic write landing after it still applies. The fence is on the name, not a version; a rename version would
+   *  close that case, an accepted residual. The queue keeps the order on screen. A researcher's own rename is never
+   *  fenced. */
+  function renameSchema(extractionSchemaId: string, name: string, expectedName?: string, timeoutMs?: number): Promise<string | null> {
+    const sequence = ++renameSequenceRef.current
+    const request = renameQueueRef.current.then(() => {
+      if (timeoutMs === undefined) return renameExtractionSchema(projectContextId, extractionSchemaId, name, undefined, expectedName)
+      // Counted from when the request is sent, not from when it joined the queue.
+      const abort = new AbortController()
+      const timer = setTimeout(() => abort.abort(), timeoutMs)
+      return renameExtractionSchema(projectContextId, extractionSchemaId, name, abort.signal, expectedName).finally(() => clearTimeout(timer))
+    })
+    renameQueueRef.current = request.catch(() => undefined)
+    const latest = () => sequence === renameSequenceRef.current
+    return request.then(
+      (renamed) => {
+        durableSchemaNameRef.current = renamed.name
+        if (latest()) setSchemaName(renamed.name)
+        return null
+      },
+      (error: unknown) => {
+        if (expectedName !== undefined) durableSchemaNameRef.current = expectedName
+        if (latest()) setSchemaName(durableSchemaNameRef.current)
+        return error instanceof Error ? error.message : 'Schema could not be renamed.'
+      },
+    )
+  }
   const [savingForRun, setSavingForRun] = useState(false)
   // The page the viewer shows (pdf.js `pagechanging`).
   const [currentPage, setCurrentPage] = useState(1)
@@ -192,10 +245,6 @@ export function DocumentWorkspace({
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('schema')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-  // Whether the toast on screen explains the refresh that is about to replace
-  // this document's Source Representation, so that switch must not clear it.
-  const [toastOutlivesSwitch, setToastOutlivesSwitch] = useState(false)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   // Extraction Schemas keyed by Schema Revision id, so any attempt — active,
   // restored, or historical — resolves the exact revision it ran with.
@@ -212,13 +261,11 @@ export function DocumentWorkspace({
     return known
   }, [persistedExtraction, latestReviewedExtraction])
   const [knownSchemas, setKnownSchemas] = useState(reopenedSchemas)
-  const [finishedExtractionReport, setFinishedExtractionReport] = useState<{
-    attempt: ExtractionAttempt
-    schemaNodes: SchemaDefinition['schemaNodes']
-  } | null>(null)
-  // A run started here reports once it terminates; restored or reconnected
-  // runs never open the dialog.
-  const pendingReportRef = useRef<{ extractionId: string; schemaNodes: SchemaDefinition['schemaNodes'] } | null>(null)
+  // A run started here offers "Review now" once it succeeds; restored or reconnected runs only say they finished. The
+  // run is "started here" from the request on: `admittingRef` while its admission is awaited (an admission already
+  // finished reaches onTerminal inside that await), then `pendingReportRef` by its identity.
+  const pendingReportRef = useRef<string | null>(null)
+  const admittingRef = useRef(false)
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const resizeControllerRef = useRef<AbortController | null>(null)
 
@@ -240,8 +287,8 @@ export function DocumentWorkspace({
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setKnownSchemas(reopenedSchemas)
     setResultPath(null)
-    if (!toastOutlivesSwitch) setToast(null)
-    setToastOutlivesSwitch(false)
+    if (toast?.outlivesSwitch) consumeSwitch()
+    else dismissToast()
     setDocIndex({ status: 'parsing' })
   }
 
@@ -360,6 +407,7 @@ export function DocumentWorkspace({
           return
         }
 
+        setPdfDocument(pdf)
         pdfViewer.setDocument(pdf)
         // setDocument initializes page views asynchronously. Setting a scale
         // before the first page exists makes pdf.js try (and fail) to scroll
@@ -395,6 +443,7 @@ export function DocumentWorkspace({
 
     return () => {
       pdfViewerRef.current = null
+      setPdfDocument(null)
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
         pdfViewer,
@@ -404,6 +453,9 @@ export function DocumentWorkspace({
       if (loadingTask) void loadingTask.destroy()
     }
   }, [onInitialResourceLoadFailure, pdfUrl])
+
+  const thumbnails = useMemo(() => (pdfDocument ? createThumbnailRenderer(pdfDocument) : null), [pdfDocument])
+  useEffect(() => () => thumbnails?.dispose(), [thumbnails])
 
   // Read the retained canonical index separately from the viewer so it never
   // reloads the PDF or clears annotations.
@@ -433,23 +485,6 @@ export function DocumentWorkspace({
     return () => abortController.abort()
   }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl])
 
-
-  useEffect(
-    () => () => {
-      window.clearTimeout(toastTimerRef.current)
-    },
-    [],
-  )
-
-  function showToast(message: string, { outlivesSwitch = false, durationMs = 2600 } = {}) {
-    window.clearTimeout(toastTimerRef.current)
-    setToast(message)
-    setToastOutlivesSwitch(outlivesSwitch)
-    toastTimerRef.current = window.setTimeout(() => {
-      setToast(null)
-      setToastOutlivesSwitch(false)
-    }, durationMs)
-  }
 
   // Front-end reset only: the durable schema remains the save target, while
   // the editor returns to its ungenerated state.
@@ -494,10 +529,15 @@ export function DocumentWorkspace({
       // Stop cancels the workflow; leaving the page only detaches (the controller's dispose).
       { cancel: () => deleteModelOperation(`suggestion:${operationId}`) },
     )
-    // The first successful generation initializes the Extraction Schema;
-    // name it the way initializeSchemaRevision's caller always has.
-    if (!hadSchema && schema.snapshot().extractionSchemaId !== null)
-      setSchemaName((name) => name ?? 'Extraction Schema')
+    // The first successful generation initializes the Extraction Schema; it is named after its Source Document (§5).
+    if (!hadSchema) {
+      const extractionSchemaId = schema.snapshot().extractionSchemaId
+      if (extractionSchemaId) {
+        const name = defaultSchemaName(filename)
+        setSchemaName(name)
+        void renameSchema(extractionSchemaId, name, 'Extraction Schema', automaticRenameTimeoutMs)
+      }
+    }
   }
 
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
@@ -544,11 +584,6 @@ export function DocumentWorkspace({
     window.addEventListener('mouseup', onUp, { signal: controller.signal })
   }
 
-  const statusStyles: Record<LoadState['status'], { dot: string; text?: string }> = {
-    loading: { dot: 'animate-pulse bg-amber-500' },
-    ready: { dot: 'bg-green' },
-    error: { dot: 'bg-danger', text: 'text-danger' },
-  }
   const schemaReady = schemaSnap.view === 'editing'
   //
   // const schemaStale =
@@ -558,9 +593,17 @@ export function DocumentWorkspace({
   const effectiveRailOpen = railOpen
   const effectiveRailWidth = effectiveRailOpen ? railWidth : COLLAPSED_WIDTH
 
-  // The account's saved method: a run submits what it saw, and admission refuses it if an Apply changed it since.
+  // The account's saved method: a run re-reads it at the click and submits that, and admission refuses it if an Apply
+  // changed it since.
   const saved = useSavedMethod()
-  const [methodConflict, setMethodConflict] = useState<string | null>(null)
+  // The last refusal useExtraction reported for the run in flight; runExtraction reads it after a null acknowledgement.
+  const refusalRef = useRef<RunRefusal | null>(null)
+  // Whether the account's last ready saved method is the unified Catalog. A run's re-read puts `saved.state` through
+  // `loading`, so the Boundaries choice follows this, not the live state, and does not flicker on every click. State
+  // adjusted during render, not a ref: a ref may not be read while rendering.
+  const [lastReadyUnifiedCatalog, setLastReadyUnifiedCatalog] = useState(false)
+  if (saved.state.status === 'ready' && (saved.state.unifiedCatalog === true) !== lastReadyUnifiedCatalog)
+    setLastReadyUnifiedCatalog(saved.state.unifiedCatalog === true)
   const reviewTarget = sourceRepresentationId
     ? { sourceRepresentationId, schemaRevisionId: schemaSnap.extractableSchemaRevisionId }
     : null
@@ -573,36 +616,41 @@ export function DocumentWorkspace({
     })
     onSourceSuperseded?.()
   }
+  /** The completion notice (decision 04): one toast, no dialog. With `reviewNow` (a run started here that succeeded) it
+   *  offers "Review now", which opens the rail (collapsed during the run, say) on the Results tab, and stays eight
+   *  seconds. */
+  function showCompletion(isRerun: boolean, reviewNow: boolean) {
+    showToast(
+      isRerun ? '↻ Re-run complete — review it in the Results tab' : '✓ Extraction complete — review it in the Results tab',
+      reviewNow ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setRailOpen(true); setRailTab('results') } } } : undefined,
+    )
+  }
   const extraction = useExtraction({
     schemaReady,
     indexing,
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
     reviewTarget,
-    // Completion preserves the rail tab and inspected snapshot; a completion
-    // report temporarily takes focus until dismissed or Review now is chosen.
+    // Completion preserves the rail tab and inspected snapshot; it says so in one toast, whose "Review now" (a run started
+    // here that succeeded) opens Results.
     onTerminal: (attempt, isRerun) => {
-      if (pendingReportRef.current?.extractionId === attempt.extractionId) {
-        const { schemaNodes } = pendingReportRef.current
-        pendingReportRef.current = null
-        if (attempt.outcome === 'SUCCEEDED')
-          setFinishedExtractionReport({ attempt, schemaNodes })
-      }
+      // While a run started here is being admitted, the only monitor that can finish is that run's own: starting it
+      // stopped any other.
+      const reported = admittingRef.current || pendingReportRef.current === attempt.extractionId
+      if (reported) pendingReportRef.current = null
       selectNextRunAfter(attempt)
       if (attempt.failure?.code === 'cancelled')
         showToast('Extraction cancelled — no result was saved')
       else if (attempt.executionStatus === 'FAILED')
         showToast('Extraction failed — see details in Results')
       else
-        showToast(
-          isRerun
-            ? '↻ Re-run complete — view the JSON in the Results tab'
-            : '✓ Extraction complete — view the JSON in the Results tab',
-        )
+        showCompletion(isRerun, reported && attempt.outcome === 'SUCCEEDED')
     },
     onError: () => showToast('Extraction failed — see details in Results'),
     onSuperseded,
-    onMethodChanged: setMethodConflict,
+    onMethodChanged: (message, code) => {
+      refusalRef.current = { message, code }
+    },
   })
 
   /**
@@ -688,32 +736,23 @@ export function DocumentWorkspace({
     active: effectiveRailOpen && railTab === 'results',
   })
 
-  /** Saves pending schema edits as the Current Schema Revision, then admits the run over the whole document. A failed
-   *  admission leaves the revision saved; running again only admits. */
+  /** Saves pending schema edits as the Current Schema Revision, reads the account's saved method again, then admits the
+   *  run over the whole document: what admission pins is what was saved at the click (§2). A `method_changed` refusal
+   *  re-reads once and retries; a second refusal starts nothing. A failed admission leaves the revision saved. */
   async function runExtraction() {
-    if (savingForRun || running || !sourceRepresentationCurrent || saved.state.status !== 'ready') return
-    const savedState = saved.state
+    if (savingForRun || running || !sourceRepresentationCurrent) return
     setSavingForRun(true)
     const targetSourceRepresentationId = sourceRepresentationId
+    const stillHere = () => activeSourceRepresentationIdRef.current === targetSourceRepresentationId
     try {
       const revision = await schema.flush()
-      if (
-        activeSourceRepresentationIdRef.current !==
-        targetSourceRepresentationId
-      )
-        return
-      if (!revision)
-        throw new Error('Save the Current Schema Revision before extraction.')
+      if (!stillHere()) return
+      if (!revision) throw new Error('Save the Current Schema Revision before extraction.')
       // The saved revision's own scope decides what a run is; admission refuses any other.
-      if (revision.recordScope === null)
-        throw new Error('Choose Article or Catalog before extraction.')
+      if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the schema header before extraction.')
       const strategy = strategyOf(revision.recordScope)
-      // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
-      const catalogRecipe = savedState.unifiedCatalog ? null : nextCatalogRecipe || null
-      const method = savedMethodFor(savedState, strategy, catalogRecipe)
-      setMethodConflict(null)
-      // The researcher asked for this run, so it is what they now inspect;
-      // its schema is known before the server acknowledges the attempt.
+      // The researcher asked for this run, so it is what they now inspect; its schema is known before the server
+      // acknowledges the attempt.
       setSelectedInspectionId(null)
       setKnownSchemas((known) => ({
         ...known,
@@ -724,28 +763,47 @@ export function DocumentWorkspace({
           schemaNodes: revision.schemaNodes,
         },
       }))
-      const acknowledged = await extraction.runExtraction(
-        method,
-        {
-          sourceRepresentationId: targetSourceRepresentationId,
-          schemaRevisionId: revision.schemaRevisionId,
-        },
-        strategy,
-        catalogRecipe,
-      )
-      if (!acknowledged) return
-      selectNextRunAfter(acknowledged)
-      if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
-        if (acknowledged.outcome === 'SUCCEEDED')
-          setFinishedExtractionReport({ attempt: acknowledged, schemaNodes: revision.schemaNodes })
-      } else
-        pendingReportRef.current = { extractionId: acknowledged.extractionId, schemaNodes: revision.schemaNodes }
+      const target = { sourceRepresentationId: targetSourceRepresentationId, schemaRevisionId: revision.schemaRevisionId }
+      for (let round = 0; round < 2; round += 1) {
+        // An Apply elsewhere aborts a read in flight, which then resolves null although the settings are ready: read
+        // once more before saying they could not be read.
+        let savedState = await saved.refresh()
+        if (!stillHere()) return
+        if (!savedState) {
+          savedState = await saved.refresh()
+          if (!stillHere()) return
+        }
+        if (!savedState) throw new Error('Saved advanced settings could not be read. Nothing was started.')
+        // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
+        const catalogRecipe = savedState.unifiedCatalog ? null : nextCatalogRecipe || null
+        refusalRef.current = null
+        admittingRef.current = true
+        let acknowledged: Awaited<ReturnType<typeof extraction.runExtraction>>
+        try {
+          acknowledged = await extraction.runExtraction(savedMethodFor(savedState, strategy, catalogRecipe), target, strategy, catalogRecipe)
+        } finally {
+          admittingRef.current = false
+        }
+        if (!stillHere()) return
+        if (acknowledged) {
+          selectNextRunAfter(acknowledged)
+          // Finished when acknowledged, it has had its one completion toast (with "Review now") from onTerminal.
+          if (acknowledged.executionStatus !== 'COMPLETED' && acknowledged.executionStatus !== 'FAILED')
+            pendingReportRef.current = acknowledged.extractionId
+          return
+        }
+        // Set by onMethodChanged during the await above; TypeScript keeps the `null` assignment's narrowing across it.
+        const refusal = refusalRef.current as RunRefusal | null
+        if (refusal?.code !== METHOD_CHANGED) {
+          // A superseded source or a definite rejection already spoke through its own callback; the other refusals
+          // (migration, record scope) are told here, now that the saved-method summary is gone.
+          if (refusal) showToast(refusal.message, { durationMs: 6000 })
+          return
+        }
+        if (round === 1) showToast('Your saved settings changed. Run again.', { durationMs: 6000 })
+      }
     } catch (error) {
-      showToast(
-        error instanceof Error
-          ? error.message
-          : 'Save the Current Schema Revision before extraction.',
-      )
+      showToast(error instanceof Error ? error.message : 'Save the Current Schema Revision before extraction.')
     } finally {
       setSavingForRun(false)
     }
@@ -757,7 +815,6 @@ export function DocumentWorkspace({
   }
 
   const runExtractionUnavailable =
-    saved.state.status !== 'ready' ||
     savingForRun ||
     running ||
     !sourceRepresentationId ||
@@ -767,43 +824,26 @@ export function DocumentWorkspace({
     indexing ||
     schemaSnap.save?.status === 'conflict' ||
     schemaSnap.save?.status === 'error'
-  const runLabel = running
-    ? extraction.cancellationRequested
-      ? 'Cancellation requested…'
-      : 'Cancel extraction'
-    : extraction.hasResults
-      ? '↻ Re-run extraction'
-      : '▶ Run extraction'
-  // The selection runExtraction posts, named on every Results-tab run action so
-  // none of them promises to repeat the inspected attempt. None without a choice.
-  const runExtractionStrategy: RunExtractionStrategy =
-    nextExtractionStrategy === 'CATALOG'
-      ? {
-          strategy: 'CATALOG',
-          boundaries:
-            CATALOG_RECIPES.find((recipe) => recipe.id === nextCatalogRecipe)?.label ??
-            'Model discovery',
-        }
-      : nextExtractionStrategy === 'ARTICLE'
-        ? { strategy: 'ARTICLE' }
-        : { strategy: null }
-  // Said wherever a run waits for the Article/Catalog choice.
-  const strategyHelp = 'Article: one object for the whole document. Catalog: a collection of records.'
-  const strategyUnchosen = !running && schemaReady && nextExtractionStrategy === null
-
-  const hintText =
-    running
-      ? 'Extraction is running. Follow its status in the Results tab'
-      : strategyUnchosen
-      ? strategyHelp
-      : extraction.hasResults
-      ? 'View the extracted JSON in the Results tab'
-      : !sourceRepresentationCurrent
-        ? 'Go back to the current Source Representation to run a new Extraction'
-        : schemaReady
-          ? 'Press Run extraction to apply the schema across the whole document'
-          : 'Open the Schema tab to generate the extraction schema for this document'
-
+  // Why Run cannot start now, in the words its title uses; Results' empty state says the same. Null while it can (or
+  // while a run is active, when the button is Stop), and for the transient save-before-run, whose title stays the
+  // strategy's.
+  const runUnavailableReason: string | null = running || !runExtractionUnavailable
+    ? null
+    : !sourceRepresentationCurrent
+      ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
+      : schemaSnap.save?.status === 'error'
+        ? 'The schema is not saved. Retry the save first.'
+        : schemaSnap.save?.status === 'conflict'
+          ? 'The schema changed elsewhere. Reload it in the Schema tab first.'
+          : indexing
+            ? 'The document is still being indexed'
+            : !schemaReady
+              ? 'Generate a schema in the Schema tab first'
+              : nextExtractionStrategy === null
+                ? 'Choose Article or Catalog in the schema header'
+                : null
+  const badge = resultsBadgeFor(extraction)
+  const runLabel = running ? (extraction.cancellationRequested ? 'Cancellation requested…' : '■ Stop extraction') : '▶ Run extraction'
   return (
     <div
       className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-canvas text-ink"
@@ -812,193 +852,112 @@ export function DocumentWorkspace({
       onPaste={handleClipboard}
       onKeyDown={handleKeyDown}
     >
-      {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row —
-          these controls share that row instead of a second one, so the open
-          Source Document's Extraction controls cost no extra vertical space.
-          The document's name is already on its tab and in the breadcrumb, so
-          it isn't repeated here. */}
+      {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row, so the open Source Document's run action costs
+          no extra vertical space. */}
       {tabBarSlot && createPortal(
         <>
-          {indexing && (
-            <span className="shrink-0 text-xs font-medium text-ink-muted">Indexing document…</span>
-          )}
+          {/* Transient status only (Rulings 2 and 3): the indexing state while it runs, then the save state. A scope choice saves at once; field edits wait out the debounce. Run waits for either, and a failed save
+              blocks it until Retry saves the latest draft and scope. Saved, this renders nothing (the panel footer says so). */}
+          {indexing && <span className="shrink-0 text-compact font-medium text-ink-muted">Indexing document…</span>}
           {docIndex.status === 'error' && (
-            <span className="shrink-0 text-xs font-medium text-danger" title={docIndex.message}>
-              Indexing failed
-            </span>
+            <span className="shrink-0 text-compact font-medium text-danger" title={docIndex.message}>Indexing failed</span>
           )}
-          {inspectionChoices.length > 1 && (
-            <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''} onChange={(event) => setSelectedInspectionId(event.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-xs">
-              {inspectionChoices.map((choice) => <option key={choice.extractionId} value={choice.extractionId}>{choice.label}</option>)}
-            </select>
-          )}
-          {reviewedOnAnotherSource && latestReviewedExtraction && (
-            <Button
-              variant="secondary"
-              onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId)}
-            >
-              Open latest reviewed
-            </Button>
-          )}
-          <p
-            aria-live="polite"
-            className={`hidden w-fit shrink-0 items-center gap-2 rounded-full border border-line bg-surface-muted py-1 pl-2.5 pr-3 text-xs font-medium text-ink-muted sm:inline-flex ${statusStyles[loadState.status].text ?? ''}`}
-          >
-            <span aria-hidden="true" className={`size-1.5 rounded-full ${statusStyles[loadState.status].dot}`} />
-            {loadState.status === 'loading' && 'Loading PDF…'}
-            {loadState.status === 'ready' && `${loadState.pageCount} pages`}
-            {loadState.status === 'error' && loadState.message}
-          </p>
-          {loadState.status === 'ready' && (
-            <div
-              className="flex shrink-0 items-center rounded-full border border-line bg-surface-muted p-0.5"
-              role="group"
-              aria-label="PDF zoom"
-            >
-              <button
-                type="button"
-                aria-label="Zoom out"
-                title="Zoom out (Ctrl + -)"
-                disabled={zoomPercent <= 10}
-                onClick={() => pdfViewerRef.current?.decreaseScale()}
-                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
-              >
-                −
-              </button>
-              <button
-                type="button"
-                aria-label="Reset zoom to 100%"
-                title="Reset zoom to 100%"
-                onClick={() => {
-                  if (pdfViewerRef.current) pdfViewerRef.current.currentScale = 1
-                }}
-                className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink"
-              >
-                {zoomPercent}%
-              </button>
-              <button
-                type="button"
-                aria-label="Zoom in"
-                title="Zoom in (Ctrl + +)"
-                disabled={zoomPercent >= 2500}
-                onClick={() => pdfViewerRef.current?.increaseScale()}
-                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
-              >
-                +
-              </button>
-            </div>
-          )}
-          <label
-            className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted"
-            title={strategyHelp}
-          >
-            Strategy
-            <select
-              aria-label="Extraction strategy"
-              aria-describedby={strategyUnchosen ? 'extraction-strategy-help' : undefined}
-              value={running ? latestAttempt.strategy : nextExtractionStrategy ?? ''}
-              disabled={running || savingForRun}
-              onChange={(event) =>
-                schema.setRecordScope(recordScopeOf(event.target.value as ExtractionStrategy))
-              }
-              className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink"
-            >
-              {!running && nextExtractionStrategy === null && (
-                <option value="" disabled>Choose…</option>
-              )}
-              <option value="ARTICLE">Article</option>
-              <option value="CATALOG">Catalog</option>
-            </select>
-          </label>
-          {/* A scope choice saves at once; field edits wait out the debounce. Run waits for either, and a failed
-              save blocks it until Retry saves the latest draft and scope. */}
           <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
-          {!running && nextExtractionStrategy === 'CATALOG' && !(saved.state.status === 'ready' && saved.state.unifiedCatalog) && (
-            <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
-              Boundaries
-              <select
-                aria-label="Record boundaries"
-                value={nextCatalogRecipe}
-                disabled={savingForRun}
-                onChange={(event) => setNextCatalogRecipe(event.target.value)}
-                title="How catalogue entries are found: by the model, or by a numbered-catalogue recipe with source-backed evidence"
-                className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink"
-              >
-                <option value="">Model discovery</option>
-                {CATALOG_RECIPES.map((recipe) => (
-                  <option key={recipe.id} value={recipe.id}>{recipe.label}</option>
-                ))}
-              </select>
-            </label>
-          )}
-          {!running && nextExtractionStrategy !== null && (
-            <SavedMethodSummary variant="toolbar" saved={saved.state} conflict={methodConflict}
-              method={saved.state.status === 'ready'
-                ? savedMethodFor(saved.state, nextExtractionStrategy, nextExtractionStrategy === 'CATALOG' && !saved.state.unifiedCatalog ? nextCatalogRecipe || null : null)
-                : null}
-              onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
-          )}
+          {/* Run is the screen's one positive; while a run is active it is Stop, in danger, also once its cancellation is
+              requested (then disabled). */}
           <Button
-            variant="primary"
+            variant={running ? 'danger' : 'positive'}
             size="md"
-            disabled={
-              running
-                ? extraction.cancellationRequested
-                : runExtractionUnavailable
-            }
+            disabled={running ? extraction.cancellationRequested : runExtractionUnavailable}
             title={
               running
-                ? extraction.cancellationRequested
-                  ? 'Waiting for the Extraction to stop'
-                  : 'Cancel the active Extraction'
-                : !sourceRepresentationCurrent
-                  ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
-                  : schemaSnap.save?.status === 'error'
-                  ? 'The schema is not saved. Retry the save first.'
-                  : schemaSnap.save?.status === 'conflict'
-                  ? 'The schema changed elsewhere. Reload it in the Schema tab first.'
-                  : schemaReady
-                    ? nextExtractionStrategy === 'CATALOG'
-                      ? 'Find catalogue entries and extract one record per entry'
-                      : nextExtractionStrategy === 'ARTICLE'
-                        ? 'Run one values extraction across the whole Source Document'
-                        : `Choose Article or Catalog first. ${strategyHelp}`
-                    : 'Generate a schema in the Schema tab first'
+                ? extraction.cancellationRequested ? 'Waiting for the Extraction to stop' : 'Cancel the active Extraction'
+                : runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
+                  ? 'Find the catalogue entries and extract one record per entry'
+                  : 'Extract one record from the whole document')
             }
-            onClick={() =>
-              running
-                ? void extraction.requestCancellation()
-                : void runExtraction()
-            }
+            onClick={() => (running ? void extraction.requestCancellation() : void runExtraction())}
           >
             {runLabel}
+            {running && !extraction.cancellationRequested && badge && <span className="font-medium opacity-80"> · {badge.label}</span>}
           </Button>
         </>,
         tabBarSlot,
       )}
-      <div className="min-h-0 flex-1 overflow-hidden p-1 sm:p-3">
-        <div className="relative flex h-full min-h-0 overflow-hidden rounded-lg border border-line sm:rounded-2xl">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="relative flex h-full min-h-0 overflow-hidden">
           {/* Reserve COLLAPSED_WIDTH for the schema rail when it becomes an overlay. */}
           <section className="relative flex min-h-0 min-w-0 flex-1 flex-col max-[859px]:mr-[46px]" aria-label="PDF document">
-            {loadState.status === 'ready' && (
-              <div className="shrink-0 border-b border-line bg-surface px-3 py-1.5 text-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button ref={pagesToggleRef} aria-expanded={pagesOpen} aria-controls={pageNavigationId}
-                    className="min-h-9" onClick={() => setPagesOpen((open) => !open)}>Pages</Button>
-                  <span className="text-ink-muted">{currentPage} / {loadState.pageCount}</span>
+            <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-line bg-surface px-2">
+              <Button ref={pagesToggleRef} aria-expanded={pagesOpen} aria-controls={pageNavigationId}
+                disabled={loadState.status !== 'ready'} onClick={() => setPagesOpen((open) => !open)}>
+                <span aria-hidden="true">☰</span> Pages
+              </Button>
+              {loadState.status === 'ready' ? (
+                <PagePager page={currentPage} pageCount={loadState.pageCount}
+                  onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }} />
+              ) : (
+                <p role="status" aria-live="polite" className={`text-compact font-medium ${loadState.status === 'error' ? 'text-danger' : 'text-ink-muted'}`}>
+                  {loadState.status === 'loading' ? 'Loading PDF…' : loadState.message}
+                </p>
+              )}
+              {loadState.status === 'ready' && (
+                <div className="flex shrink-0 items-center rounded-full border border-line bg-surface-muted p-0.5" role="group" aria-label="PDF zoom">
+                  <button
+                    type="button"
+                    aria-label="Zoom out"
+                    title="Zoom out (Ctrl + -)"
+                    disabled={zoomPercent <= 10}
+                    onClick={() => pdfViewerRef.current?.decreaseScale()}
+                    className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Reset zoom to 100%"
+                    title="Reset zoom to 100%"
+                    onClick={() => {
+                      if (pdfViewerRef.current) pdfViewerRef.current.currentScale = 1
+                    }}
+                    className="min-w-11 rounded-full px-1.5 text-center text-compact font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink"
+                  >
+                    {zoomPercent}%
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Zoom in"
+                    title="Zoom in (Ctrl + +)"
+                    disabled={zoomPercent >= 2500}
+                    onClick={() => pdfViewerRef.current?.increaseScale()}
+                    className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+                  >
+                    +
+                  </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
             <div className="relative flex min-h-0 flex-1">
               {loadState.status === 'ready' && pagesOpen && <PageNavigation
                 id={pageNavigationId} pageCount={loadState.pageCount} currentPage={currentPage}
                 onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }}
-                onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }} />}
+                onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }}
+                thumbnails={thumbnails} />}
               <div className="relative min-w-0 flex-1">
                 <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
               </div>
+              {/* Under the 34px toolbar, over the page: the toast never covers the toolbar's controls. Above the loading
+                  cover (z-20), which a notice outliving a switch of Source Representation shows under, and above the
+                  rail (z-30), which under 860px overlays the page's right side when open: the toast and its action
+                  stay visible and take the pointer there. No ancestor up to the workspace sets a stacking context, so
+                  this z-40 competes with the rail's z-30 directly. */}
+              {toast && (
+                <div className="pointer-events-none absolute inset-x-4 top-3 z-40 flex justify-center">
+                  <Toast key={toast.id} message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
+                </div>
+              )}
             </div>
             {loadState.status === 'loading' && (
               <Spinner
@@ -1006,19 +965,6 @@ export function DocumentWorkspace({
                 ariaLabel="Loading Source Document"
               />
             )}
-            {toast && (
-              <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
-                <p className="animate-fadeup min-w-0 truncate rounded-xl border border-line-strong bg-surface px-4.5 py-2 text-xs font-semibold text-ink shadow-float">
-                  {toast}
-                </p>
-              </div>
-            )}
-            <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden justify-center sm:flex">
-              <p className="flex min-w-0 items-center gap-2 rounded-full bg-ink px-4 py-2 text-xs font-medium text-canvas shadow-float">
-                <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent-soft" />
-                <span id={strategyUnchosen ? 'extraction-strategy-help' : undefined} className="truncate">{hintText}</span>
-              </p>
-            </div>
           </section>
           {effectiveRailOpen && (
             <div
@@ -1045,9 +991,6 @@ export function DocumentWorkspace({
               onGenerateInstructions={handleGenerate}
               onClearDraft={resetSchema}
               extraction={extraction}
-              onRunExtraction={sourceRepresentationCurrent ? runExtraction : undefined}
-              runExtractionDisabled={runExtractionUnavailable}
-              runExtractionStrategy={runExtractionStrategy}
               inspection={{
                 attempt: inspectedAttempt,
                 readOnly: inspectionReadOnly,
@@ -1058,26 +1001,36 @@ export function DocumentWorkspace({
                 exportSchema: inspectedAttemptSchema,
               }}
               currentSchemaRevision={currentSchemaRevision}
+              runUnavailableReason={runUnavailableReason}
               sourceDocumentName={filename}
               sourceRepresentationId={sourceRepresentationId}
               schemaName={schemaName}
+              recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: running || savingForRun }}
+              boundaries={
+                !running && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
+                  ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
+                  : null
+              }
+              resultsHeaderExtras={
+                <>
+                  {inspectionChoices.length > 1 && (
+                    <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''}
+                      onChange={(event) => setSelectedInspectionId(event.target.value)}
+                      className="rounded-[3px] border border-line bg-surface px-2 py-1 text-compact">
+                      {inspectionChoices.map((choice) => <option key={choice.extractionId} value={choice.extractionId}>{choice.label}</option>)}
+                    </select>
+                  )}
+                  {reviewedOnAnotherSource && latestReviewedExtraction && (
+                    <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId)}>Open latest reviewed</Button>
+                  )}
+                </>
+              }
               onRenameSchema={async (name) => {
-                const extractionSchemaId = schemaSnap.extractionSchemaId
+                // The live controller, not this render's snapshot: an import or Start blank renames right after initialising.
+                const extractionSchemaId = schema.snapshot().extractionSchemaId
                 if (!projectContextId || !extractionSchemaId)
                   return 'No durable schema is open.'
-                try {
-                  const renamed = await renameExtractionSchema(
-                    projectContextId,
-                    extractionSchemaId,
-                    name,
-                  )
-                  setSchemaName(renamed.name)
-                  return null
-                } catch (error) {
-                  return error instanceof Error
-                    ? error.message
-                    : 'Schema could not be renamed.'
-                }
+                return renameSchema(extractionSchemaId, name)
               }}
               onSelectEvidence={selectEvidenceAnchor}
               onResultPathChange={setResultPath}
@@ -1085,19 +1038,6 @@ export function DocumentWorkspace({
           </aside>
         </div>
       </div>
-      {finishedExtractionReport && (
-        <ExtractionFinishedDialog
-          key={finishedExtractionReport.attempt.extractionId}
-          attempt={finishedExtractionReport.attempt}
-          documentName={filename}
-          schemaNodes={finishedExtractionReport.schemaNodes}
-          onReviewNow={() => {
-            setRailTab('results')
-            setFinishedExtractionReport(null)
-          }}
-          onDismiss={() => setFinishedExtractionReport(null)}
-        />
-      )}
     </div>
   )
 }

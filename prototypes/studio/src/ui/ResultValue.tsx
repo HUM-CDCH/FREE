@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import pluralize from 'pluralize'
 import type { SchemaNode } from 'extraction/schema'
 import type {
@@ -69,15 +69,21 @@ export type ResultValueProps = {
   getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined
   onSelectEvidence?: (anchorId: string) => void
   review?: ResultReview
+  /** The value's §8 state, when the caller knows it; reading and queued rows show no value text. */
+  getValueState?: (path: ResultPath) => ValueState | undefined
 }
 
 export type ClaimStatusNote = { label: string; detail: string }
+
+/** The six per-value states of §8: this component styles them; the settled attempt supplies grounded, empty and
+ *  contested, the streaming view later supplies checking, reading and queued. */
+export type ValueState = 'grounded' | 'checking' | 'reading' | 'queued' | 'empty' | 'contested'
 
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
 
 function MissingBadge() {
   return (
-    <span className="rounded-full border border-line-strong bg-surface-muted px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-faint">
+    <span className="rounded-full border border-line-strong bg-surface-muted px-2 py-0.5 text-overline font-bold uppercase tracking-[0.08em] text-ink-faint">
       Missing
     </span>
   )
@@ -90,11 +96,47 @@ function ContestedBadge({ candidates }: { candidates: readonly unknown[] }) {
   const listed = candidates.map(candidateText).join(' · ')
   return (
     <span className="flex min-w-0 items-center gap-1.5" role="note" aria-label={`Contested: sources disagreed (${listed})`} title={`Sources disagreed: ${listed}`}>
-      <span className="shrink-0 rounded-full border border-stale/50 bg-stale-soft px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-stale-ink">
+      <span className="shrink-0 rounded-full border border-stale/50 bg-stale-soft px-2 py-0.5 text-overline font-bold uppercase tracking-[0.08em] text-stale-ink">
         Contested
       </span>
-      <span className="min-w-0 truncate text-[11.5px] text-ink-muted">{listed}</span>
+      <span className="min-w-0 truncate text-compact text-ink-muted">{listed}</span>
     </span>
+  )
+}
+
+const candidateTitle = 'Candidate · being verified'
+
+/** The hollow marker of a candidate value that verification has not settled yet. */
+function CandidateMarker({ className = '' }: { className?: string }) {
+  return <span aria-hidden="true" className={`size-2 shrink-0 rounded-full border border-ink-muted ${className}`} />
+}
+
+/** A grounded value with no decision yet (decision 14): a small filled accent dot before the value, unlike the hollow
+ *  §8 "checking" marker. The Results badge counts these ("n to check"). */
+function ToCheckMarker({ className = '' }: { className?: string }) {
+  return <span role="img" aria-label="to check" title="To check" className={`size-2 shrink-0 rounded-full bg-accent ${className}`} />
+}
+
+/** A value with Evidence is itself the way to it (decision 14): a link-styled button named for the field, described by
+ *  the value it shows, at least 24px tall. */
+function EvidenceValue({ label, title, valueId, onSelect, children }: {
+  label: string
+  title?: string
+  valueId: string
+  onSelect: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-describedby={valueId}
+      title={title}
+      className="inline-flex min-h-6 min-w-0 max-w-full cursor-pointer items-start text-left text-ink underline decoration-accent/40 underline-offset-2 outline-none transition-colors hover:text-accent hover:decoration-accent"
+      onClick={onSelect}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -115,7 +157,7 @@ function CollapseArrow({ expanded }: { expanded: boolean }) {
 // in place".
 function EnterChevron() {
   return (
-    <span className="shrink-0 text-[15px] font-bold leading-none text-ink-muted">›</span>
+    <span className="shrink-0 text-base font-bold leading-none text-ink-muted">›</span>
   )
 }
 
@@ -164,8 +206,8 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 // ── PrimitiveRow ──────────────────────────────────────────────────────────────
 
 function PrimitiveRow({
-  name, value, path, onChange, expandText, evidenceAnchorId, evidenceCheck, evidenceDetail, contested, claimStatus, onSelectEvidence, review,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; evidenceCheck?: string; evidenceDetail?: string; contested?: readonly unknown[]; claimStatus?: ClaimStatusNote; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, expandText, evidenceAnchorId, evidenceCheck, evidenceDetail, contested, claimStatus, onSelectEvidence, review, state,
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; evidenceCheck?: string; evidenceDetail?: string; contested?: readonly unknown[]; claimStatus?: ClaimStatusNote; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview; state?: ValueState }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
@@ -215,6 +257,19 @@ function PrimitiveRow({
   const evidenceForExtracted = decision?.action === 'EDITED' || decision?.action === 'REJECTED'
   const evidenceLabel = evidenceForExtracted ? `View Evidence for extracted value of ${name}` : `View Evidence for ${name}`
   const evidenceTitle = evidenceForExtracted ? 'Evidence for the extracted value' : undefined
+  const valueId = useId()
+  const evidenceShown = Boolean(evidenceAnchorId && onSelectEvidence)
+  // "To check": a grounded value whose decision the researcher has not made yet, as the badge and Review attention count
+  // them. An ungrounded or missing value also carries an untouched decision (with no Evidence anchor) the server prepared:
+  // it keeps its status dot, like a decided row.
+  const toCheck = Boolean(decision?.evidenceAnchorId) && !touched
+  const statusDot = toCheck
+    ? <span className="w-3.5 shrink-0" />
+    : <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
+  /** The value text, as the button to its Evidence when it has one. */
+  const valueText = (span: ReactNode) => evidenceShown
+    ? <EvidenceValue label={evidenceLabel} title={evidenceTitle} valueId={valueId} onSelect={() => onSelectEvidence!(evidenceAnchorId!)}>{span}</EvidenceValue>
+    : span
 
   function startEdit() {
     setReviewError(null)
@@ -236,16 +291,28 @@ function PrimitiveRow({
   }
   function cancel() { setReviewError(null); setEditing(false) }
 
+  if (state === 'reading' || state === 'queued') {
+    return (
+      <div className="-mx-2 grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)] items-center gap-x-2 rounded-[3px] px-2 py-1.5">
+        <span className="w-3.5 shrink-0" />
+        <span className={`font-mono text-content font-medium ${state === 'queued' ? 'text-ink-muted' : 'text-ink'}`}>{name}</span>
+        {state === 'reading'
+          ? <span role="img" aria-label="Reading" title="Reading" className="h-3 w-24 animate-pulse rounded-sm border border-dashed border-line-strong" />
+          : <span role="img" aria-label="Queued" title="Queued" className="h-px w-16 bg-line-strong" />}
+      </div>
+    )
+  }
+
   if (editing) {
     return (
       <div className="my-0.5 flex items-center gap-1.5 rounded-[3px] border border-accent bg-accent-ghost px-2.5 py-2"
         onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) save() }}>
         <span className="w-2 shrink-0" />
-        <span className="shrink-0 font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        <span className="shrink-0 font-mono text-content font-medium text-ink">{name}</span>
         {review?.getSchemaNode(path)?.allowedValues ? (
           <select
             aria-label={`Reviewed value for ${name}`}
-            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-content text-ink outline-none focus-visible:border-accent"
             value={draft}
             autoFocus
             onChange={e => setDraft(e.target.value)}
@@ -256,7 +323,7 @@ function PrimitiveRow({
         ) : review?.getSchemaNode(path)?.type === 'boolean' ? (
           <select
             aria-label={`Reviewed value for ${name}`}
-            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-content text-ink outline-none focus-visible:border-accent"
             value={draft}
             autoFocus
             onChange={e => setDraft(e.target.value)}
@@ -268,7 +335,7 @@ function PrimitiveRow({
         ) : (
           <input
             aria-label={`Reviewed value for ${name}`}
-            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-content text-ink outline-none focus-visible:border-accent"
             type={review?.getSchemaNode(path)?.type === 'date' ? 'date' : review?.getSchemaNode(path)?.type === 'number' || review?.getSchemaNode(path)?.type === 'integer' ? 'number' : 'text'}
             step={review?.getSchemaNode(path)?.type === 'integer' ? '1' : undefined}
             value={draft}
@@ -278,12 +345,12 @@ function PrimitiveRow({
           />
         )}
         <button
-          className="shrink-0 cursor-pointer rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
+          className="shrink-0 cursor-pointer rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-compact font-semibold text-ink-muted outline-none hover:text-accent"
           type="button"
           aria-label={`Cancel editing reviewed value for ${name}`}
           onClick={cancel}
         >✗</button>
-        {reviewError && <span role="alert" className="text-[11px] text-danger">{reviewError}</span>}
+        {reviewError && <span role="alert" className="text-compact text-danger">{reviewError}</span>}
       </div>
     )
   }
@@ -292,8 +359,8 @@ function PrimitiveRow({
     return (
       <div className="-mx-2 group rounded-[3px] px-2 pb-2 pt-1.5 transition-colors hover:bg-accent-ghost/30">
         <div className="grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)_auto_auto] items-center gap-x-2">
-          <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
-          <span className="font-mono text-[13.5px] font-medium text-ink">{name}</span>
+          {statusDot}
+          <span className="font-mono text-content font-medium text-ink">{name}</span>
           <span />
           {onChange && (
             <button
@@ -305,23 +372,15 @@ function PrimitiveRow({
               <PencilIcon />
             </button>
           )}
-          {evidenceAnchorId && onSelectEvidence && (
-            <button
-              className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-[10.5px] font-bold text-accent outline-none hover:border-accent"
-              type="button"
-              aria-label={evidenceLabel}
-              title={evidenceTitle}
-              onClick={() => onSelectEvidence(evidenceAnchorId)}
-            >
-              Evidence
-            </button>
-          )}
           {!evidenceAnchorId && claimStatus && <ClaimBadge status={claimStatus} />}
-          {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         </div>
-        <div className="pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
-          {text}
+        <div className="flex items-start gap-1.5 pl-4 pt-0.5 text-content leading-relaxed text-ink-muted"
+          title={state === 'checking' ? candidateTitle : undefined}>
+          {state === 'checking' && <CandidateMarker className="mt-[7px]" />}
+          {toCheck && <ToCheckMarker className="mt-[7px]" />}
+          {valueText(<span id={valueId} className="min-w-0 wrap-anywhere whitespace-pre-wrap">{text}</span>)}
         </div>
+        {evidenceCheck && <EvidenceCheckNote reason={evidenceCheck} />}
         {evidenceDetail && <EvidenceDetail text={evidenceDetail} />}
         {reviewEditable && (
           <ReviewActions
@@ -341,37 +400,35 @@ function PrimitiveRow({
   return (
     <div className="-mx-2 group rounded-[3px] px-2 transition-colors hover:bg-accent-ghost/30">
       <div className="grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)_auto_auto] items-start gap-x-2 gap-y-0.5 py-1.5">
-        <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
-        <span className="font-mono text-[13.5px] font-medium leading-snug text-ink">
+        {statusDot}
+        <span className="font-mono text-content font-medium leading-snug text-ink">
           {name}
         </span>
         {missing ? (
-          contested ? <ContestedBadge candidates={contested} /> : <MissingBadge />
+          // A rejected value shows as Missing; it still leads to the extracted value's Evidence.
+          contested ? <ContestedBadge candidates={contested} /> : valueText(<span id={valueId} className="inline-flex"><MissingBadge /></span>)
+        ) : state === 'checking' ? (
+          <span className={`flex min-w-0 gap-1.5 text-content text-ink-muted ${expanded ? 'items-baseline leading-relaxed' : 'items-center leading-snug'}`} title={candidateTitle}>
+            <CandidateMarker />
+            <span ref={valueRef} className={expanded ? 'min-w-0 wrap-anywhere whitespace-pre-wrap' : 'min-w-0 line-clamp-2'}>{text}</span>
+          </span>
         ) : (
-          <span
-            ref={valueRef}
-            className={
-              expanded
-                ? 'min-w-0 wrap-anywhere whitespace-pre-wrap text-[13px] leading-relaxed text-ink'
-                : 'min-w-0 line-clamp-2 text-[13px] leading-snug text-ink-muted'
-            }
-          >
-            {text}
+          <span className={`flex min-w-0 gap-1.5 ${expanded ? 'items-baseline' : 'items-start'}`}>
+            {toCheck && <ToCheckMarker className={expanded ? '' : 'mt-[5px]'} />}
+            {valueText(
+              <span
+                id={valueId}
+                ref={valueRef}
+                className={`${expanded
+                  ? 'min-w-0 wrap-anywhere whitespace-pre-wrap text-content leading-relaxed'
+                  : 'min-w-0 line-clamp-2 text-content leading-snug'} ${evidenceShown ? '' : expanded ? 'text-ink' : 'text-ink-muted'}`}
+              >
+                {text}
+              </span>,
+            )}
           </span>
         )}
-        {evidenceAnchorId && onSelectEvidence && (
-          <button
-            className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-[10.5px] font-bold text-accent outline-none hover:border-accent"
-            type="button"
-            aria-label={evidenceLabel}
-            title={evidenceTitle}
-            onClick={() => onSelectEvidence(evidenceAnchorId)}
-          >
-            Evidence
-          </button>
-        )}
         {!missing && !evidenceAnchorId && claimStatus && <ClaimBadge status={claimStatus} />}
-        {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         {(onChange || reviewEditable) && !reviewEditable && (
           <button
             className="shrink-0 cursor-pointer px-0.5 text-ink-faint opacity-0 outline-none transition-all group-hover:opacity-100 hover:text-accent"
@@ -384,7 +441,7 @@ function PrimitiveRow({
         )}
         {long && !missing && (
           <button
-            className="col-start-3 justify-self-start cursor-pointer text-[11px] font-bold text-accent outline-none hover:underline"
+            className="col-start-3 justify-self-start cursor-pointer text-compact font-bold text-accent outline-none hover:underline"
             type="button"
             onClick={() => setExpanded(v => !v)}
           >
@@ -392,6 +449,7 @@ function PrimitiveRow({
           </button>
         )}
       </div>
+      {evidenceCheck && <EvidenceCheckNote reason={evidenceCheck} />}
       {evidenceDetail && <EvidenceDetail text={evidenceDetail} />}
       {reviewEditable && (
         <ReviewActions
@@ -409,7 +467,7 @@ function PrimitiveRow({
 }
 
 function EvidenceDetail({ text }: { text: string }) {
-  return <p className="pb-1 pl-[22px] text-[11px] leading-snug text-ink-faint">{text}</p>
+  return <p className="pb-1 pl-[22px] text-compact leading-snug text-ink-faint">{text}</p>
 }
 
 // Leading status indicator: a hollow dot for an untouched (default-approved)
@@ -497,32 +555,23 @@ function ReviewActions({ name, action, touched, onApprove, onEdit, onReject, onR
 function ClaimBadge({ status }: { status: ClaimStatusNote }) {
   return (
     <span role="note" aria-label={`${status.label}: ${status.detail}`} title={status.detail}
-      className="shrink-0 rounded-full border border-stale/50 bg-stale-soft px-2 py-0.5 text-[10.5px] font-bold text-stale-ink">
+      className="shrink-0 rounded-full border border-stale/50 bg-stale-soft px-2 py-0.5 text-overline font-bold text-stale-ink">
       {status.label}
     </span>
   )
 }
 
-/** Grounding's doubt about a link: the value is not in the passage, or it
- *  also occurs elsewhere. A prompt to look, never a verdict. */
-function CheckBadge({ reason }: { reason: string }) {
-  return (
-    <span
-      className="shrink-0 rounded-full border border-amber-300/60 bg-amber-50/50 px-2 py-0.5 text-[10.5px] font-bold text-amber-800"
-      role="note"
-      aria-label={reason}
-      title={reason}
-    >
-      Check
-    </span>
-  )
+/** Grounding's doubt about a link: the value is not in the passage, or it also occurs elsewhere. A prompt to look,
+ *  never a verdict: a quiet line under the value (decision 14: no pill), named by its reason. */
+function EvidenceCheckNote({ reason }: { reason: string }) {
+  return <p role="note" aria-label={reason} className="pb-1 pl-[22px] text-compact leading-snug text-stale-ink">{reason}</p>
 }
 
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review, getValueState,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview; getValueState?: (path: ResultPath) => ValueState | undefined }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -536,24 +585,24 @@ function ObjectSection({
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-3.5 shrink-0" /> : <span className="flex w-3.5 shrink-0 items-center text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
-        <span className="font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        <span className="font-mono text-content font-medium text-ink">{name}</span>
         <span className="flex min-w-0 items-center gap-2">
           {onNavigateTo && <EnterChevron />}
           {expanded ? (
-            <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white">
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white">
               {entries.length} field{entries.length !== 1 ? 's' : ''}
             </span>
           ) : entries.length === 0 ? (
             <MissingBadge />
           ) : preview ? (
-            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">{preview}</span>
+            <span className="min-w-0 flex-1 truncate text-content text-ink-muted">{preview}</span>
           ) : null}
         </span>
       </button>
       {expanded && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
           {entries.length === 0 ? (
-            <p className="py-1.5 text-[13px] text-ink-muted">No fields returned.</p>
+            <p className="py-1.5 text-content text-ink-muted">No fields returned.</p>
           ) : (
             entries.map(([key, child]) => (
               <ResultValue
@@ -572,6 +621,7 @@ function ObjectSection({
                 getClaimStatus={getClaimStatus}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
+                getValueState={getValueState}
                 depth={depth + 1}
               />
             ))
@@ -585,8 +635,8 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review, getValueState,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview; getValueState?: (path: ResultPath) => ValueState | undefined }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
@@ -598,10 +648,10 @@ function ArraySection({
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-3.5 shrink-0" /> : <span className="flex w-3.5 shrink-0 items-center text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
-        <span className="font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        <span className="font-mono text-content font-medium text-ink">{name}</span>
         <span className="flex min-w-0 items-center gap-2">
           {onNavigateTo && <EnterChevron />}
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 font-sans text-[10.5px] font-semibold text-ink-muted">
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 font-sans text-overline font-semibold text-ink-muted">
             {value.length} item{value.length !== 1 ? 's' : ''}
           </span>
         </span>
@@ -629,6 +679,7 @@ function ArraySection({
                 getClaimStatus={getClaimStatus}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
+                getValueState={getValueState}
               />
             ))
           )}
@@ -640,14 +691,24 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review, getValueState }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} getValueState={getValueState} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} getValueState={getValueState} />
   }
-  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} evidenceCheck={getEvidenceCheck?.(path)} evidenceDetail={getEvidenceDetail?.(path)} contested={getContested?.(path)} claimStatus={getClaimStatus?.(path)} onSelectEvidence={onSelectEvidence} review={review} />
+  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} evidenceCheck={getEvidenceCheck?.(path)} evidenceDetail={getEvidenceDetail?.(path)} contested={getContested?.(path)} claimStatus={getClaimStatus?.(path)} onSelectEvidence={onSelectEvidence} review={review} state={getValueState?.(path)} />
+}
+
+/** A record's heading in a Catalog result: its label and the page its first Evidence names. */
+export function RecordHeader({ label, page }: { label: string; page: number | null }) {
+  return (
+    <p className="flex items-baseline gap-2 px-2 pt-2 text-secondary font-semibold text-ink">
+      <span>{label}</span>
+      {page !== null && <span className="text-compact font-medium text-ink-muted">· page {page}</span>}
+    </p>
+  )
 }
 
 export default ResultValue

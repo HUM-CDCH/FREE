@@ -154,10 +154,11 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await installArtifactRoutes(page)
   await page.goto(`/projects/${id.project}/documents/${id.document}`)
   await page.getByRole('tab', { name: /^Schema / }).click()
-  const history = page.getByRole('button', { name: 'Schema history' })
+  await page.getByRole('button', { name: 'Schema actions' }).click()
+  const history = page.getByRole('menuitem', { name: 'History' })
   await expect(history).toBeEnabled({ timeout: 15_000 })
   await history.click()
-  await page.getByRole('button', { name: /^Revision 1:/ }).click()
+  await page.getByRole('dialog', { name: 'Schema history' }).getByRole('button', { name: /^Revision 1:/ }).click()
 
   await expect(page.getByText('Viewing historical Schema Revision 1. This preview is read-only.')).toBeVisible()
   await expect(page.getByRole('button', { name: '+ Add field' })).toHaveCount(0)
@@ -201,17 +202,19 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await installArtifactRoutes(freshPage)
   await freshPage.goto(`/projects/${id.project}/documents/${id.document}`)
   await freshPage.getByRole('tab', { name: /^Schema / }).click()
-  const freshHistory = freshPage.getByRole('button', { name: 'Schema history' })
+  await freshPage.getByRole('button', { name: 'Schema actions' }).click()
+  const freshHistory = freshPage.getByRole('menuitem', { name: 'History' })
   await expect(freshHistory).toBeEnabled({ timeout: 15_000 })
   await freshHistory.click()
-  await expect(freshPage.getByText('Revision 3 · Current')).toBeVisible()
-  const fieldButtons = freshPage.locator(
-    'button[title="Edit zeta"], button[title="Edit group"], button[title="Edit beta"], button[title="Edit alpha"]',
+  await expect(freshPage.getByRole('dialog', { name: 'Schema history' }).getByText('Revision 3 · Current')).toBeVisible()
+  // The rows' worded Edit actions, by their accessible names (decision 11 dropped their titles), in document order.
+  const fieldButtons = freshPage.getByRole('list', { name: 'Schema fields' }).locator(
+    'button[aria-label="Edit zeta"], button[aria-label="Edit group"], button[aria-label="Edit beta"], button[aria-label="Edit alpha"]',
   )
   await expect(fieldButtons).toHaveCount(5)
   expect(
     await fieldButtons.evaluateAll((buttons) =>
-      buttons.map((button) => button.getAttribute('title')),
+      buttons.map((button) => button.getAttribute('aria-label')),
     ),
   ).toEqual([
     'Edit zeta',

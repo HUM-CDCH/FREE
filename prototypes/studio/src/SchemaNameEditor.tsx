@@ -1,10 +1,12 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { extractionSchemaNameSchema } from '../shared/schemaRevision.contract'
 
 type SchemaNameEditorProps = {
   name: string
   onSubmit: (name: string) => Promise<string | null>
   className?: string
+  /** The element the static name renders as: `h2` where the name is a panel's heading. */
+  nameAs?: 'span' | 'h2'
 }
 
 function PencilIcon() {
@@ -21,25 +23,35 @@ function PencilIcon() {
   )
 }
 
-/** A fixed-height schema-name control: entering edit mode never moves siblings. */
+/** A fixed-height schema-name control: entering edit mode never moves siblings. Escape and Cancel close it at any time,
+ *  also while a rename is saving or waiting its turn: that rename goes on, and the name shown follows its answer. */
 export default function SchemaNameEditor({
   name,
   onSubmit,
   className = '',
+  nameAs: Name = 'span',
 }: SchemaNameEditorProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(name)
   const [saving, setSaving] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const failureId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
+  /** Counts closed editing sessions: a rename left saving by Escape or Cancel answers into a later session otherwise. */
+  const session = useRef(0)
   const parsed = extractionSchemaNameSchema.safeParse(draft)
+  const close = () => {
+    session.current += 1
+    setSaving(false)
+    setEditing(false)
+  }
 
   if (!editing)
     return (
-      <div className={`flex h-7 min-w-0 items-center gap-1 ${className}`}>
-        <span className="truncate">{name}</span>
+      <div className={`group flex h-7 min-w-0 items-center gap-1 text-content font-semibold text-ink ${className}`}>
+        <Name className="truncate">{name}</Name>
         <button
-          className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent"
+          className="grid size-6 shrink-0 place-items-center rounded-md text-ink-muted opacity-0 outline-none transition-colors hover:bg-accent-soft hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
           type="button"
           aria-label={`Rename schema ${name}`}
           title="Rename schema"
@@ -59,30 +71,36 @@ export default function SchemaNameEditor({
       className={`relative flex h-7 min-w-0 items-center gap-1 ${className}`}
       onSubmit={async (event) => {
         event.preventDefault()
-        if (!parsed.success) return
+        if (!parsed.success || saving) return
+        const submitted = session.current
         setSaving(true)
         setFailure(null)
+        // Save is disabled while saving; the focus waits in the name, where Escape reaches the editor.
+        inputRef.current?.focus()
         const rejected = await onSubmit(parsed.data)
+        if (submitted !== session.current) return
         setSaving(false)
         if (rejected) setFailure(rejected)
         else setEditing(false)
       }}
     >
       <input
+        ref={inputRef}
         autoFocus
-        className="h-7 min-w-0 flex-1 border-b border-line-strong bg-transparent p-0 font-[inherit] text-[inherit] outline-none focus-visible:border-accent disabled:opacity-60"
+        className="h-7 min-w-0 flex-1 border-b border-line-strong bg-transparent p-0 font-[inherit] text-[inherit] outline-none focus-visible:border-accent read-only:opacity-60"
         aria-label={`Schema name for ${name}`}
         value={draft}
-        disabled={saving}
+        readOnly={saving}
+        aria-busy={saving}
         aria-invalid={!parsed.success}
         aria-describedby={failure ? failureId : undefined}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Escape' && !saving) setEditing(false)
+          if (event.key === 'Escape') close()
         }}
       />
       <button
-        className="shrink-0 rounded-md p-1 leading-none text-accent outline-none hover:bg-accent-soft disabled:opacity-60"
+        className="grid size-6 shrink-0 place-items-center rounded-md leading-none text-accent outline-none hover:bg-accent-soft disabled:opacity-60"
         type="submit"
         aria-label="Save schema name"
         title="Save schema name"
@@ -91,12 +109,11 @@ export default function SchemaNameEditor({
         <span aria-hidden="true">✓</span>
       </button>
       <button
-        className="shrink-0 rounded-md p-1 leading-none text-ink-muted outline-none hover:bg-line/60 hover:text-ink disabled:opacity-60"
+        className="grid size-6 shrink-0 place-items-center rounded-md leading-none text-ink-muted outline-none hover:bg-line/60 hover:text-ink disabled:opacity-60"
         type="button"
         aria-label="Cancel schema rename"
         title="Cancel schema rename"
-        disabled={saving}
-        onClick={() => setEditing(false)}
+        onClick={close}
       >
         <span aria-hidden="true">×</span>
       </button>

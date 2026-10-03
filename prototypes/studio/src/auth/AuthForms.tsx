@@ -25,7 +25,7 @@ function AuthCard({ title, description, children }: AuthCardProps) {
             alt=""
             className="mb-1 h-14 w-auto object-contain object-left"
           />
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          <p className="text-overline font-bold uppercase tracking-[0.18em] text-accent">
             Research workspace
           </p>
           <h1 className="mt-2 font-serif text-2xl font-semibold text-ink">
@@ -83,7 +83,7 @@ export function SessionFailure({ onRetry }: { onRetry: () => void }) {
       <p role="alert" className="mb-4 text-sm text-danger">
         Session verification failed. Try again.
       </p>
-      <Button variant="primary" size="md" onClick={onRetry}>
+      <Button variant="secondary" size="md" onClick={onRetry}>
         Try again
       </Button>
     </AuthCard>
@@ -101,7 +101,7 @@ export function SignedOutLanding() {
         method="get"
         onSubmit={clearSessionSignedOut}
       >
-        <Button type="submit" variant="primary" size="md" className="w-full">
+        <Button type="submit" variant="positive" size="md" className="w-full">
           Sign in with Microsoft
         </Button>
       </form>
@@ -115,7 +115,7 @@ export function SessionExpiryWarning({ onContinue }: { onContinue: () => void })
       className="fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-accent/40 bg-surface px-4 py-3 shadow-float"
     >
       <p role="alert" className="text-sm text-ink">Your session expires soon.</p>
-      <Button variant="primary" size="sm" onClick={onContinue}>
+      <Button variant="positive" size="sm" onClick={onContinue}>
         Continue session
       </Button>
     </aside>
@@ -177,7 +177,7 @@ export function ProjectLoadFailure({ onRetry }: { onRetry: () => void }) {
       <p role="alert" className="mb-4 text-sm text-danger">
         Workspace loading failed. Try again.
       </p>
-      <Button variant="primary" size="md" onClick={onRetry}>
+      <Button variant="secondary" size="md" onClick={onRetry}>
         Try again
       </Button>
     </AuthCard>

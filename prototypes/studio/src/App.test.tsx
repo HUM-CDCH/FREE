@@ -38,7 +38,8 @@ const {
   }
 })
 
-// The account keeps every service default: each run submits `{ models: null, settings: <its slot>: null }`.
+// The account keeps every service default: each run submits `{ models: null, settings: <its slot>: null }`. A run
+// re-reads it (`refresh`), which answers the ready state, or null when it is not ready.
 const saved = vi.hoisted(() => ({
   state: {
     status: 'ready',
@@ -52,10 +53,31 @@ const saved = vi.hoisted(() => ({
   } as import('./savedMethod').SavedMethodState,
   refresh: vi.fn(),
 }))
+const savedRefresh = async () => (saved.state.status === 'ready' ? saved.state : null)
+saved.refresh.mockImplementation(savedRefresh)
 vi.mock('./savedMethod', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./savedMethod')>()),
   useSavedMethod: () => saved,
 }))
+// Every toast the workspace asks for, in order: one completion must be asked for once (a toast replaced at once is still
+// announced). The wrapper keeps showToast's identity, so the workspace's hooks see the same callback.
+const shownToasts = vi.hoisted(() => [] as string[])
+vi.mock('./useToast', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./useToast')>()
+  const { useCallback } = await import('react')
+  return {
+    ...actual,
+    useToast: () => {
+      const host = actual.useToast()
+      const { showToast } = host
+      const recorded = useCallback<typeof showToast>((message, options) => {
+        shownToasts.push(message)
+        showToast(message, options)
+      }, [showToast])
+      return { ...host, showToast: recorded }
+    },
+  }
+})
 vi.mock('pdfjs-dist/build/pdf.worker.mjs?url', () => ({ default: 'pdf.worker.mjs' }))
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: {},
@@ -152,6 +174,14 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
     scrollPageIntoView = scrollPageIntoView
   },
 }))
+/** Answers `PATCH /api/extraction-schemas/<id>`: the rename a first generated schema gets (§5). */
+function renamedSchema(url: string, init: RequestInit) {
+  const { name } = JSON.parse(String(init.body)) as { name: string }
+  return Response.json({
+    extractionSchema: { extractionSchemaId: url.split('/').at(-1), name, createdAt: '2026-08-09T10:00:00.000Z' },
+  })
+}
+
 const reopened: DocumentWorkspaceProps = {
   onOpenExtraction: vi.fn(),
   // The real tab-strip slot (DocumentTabBar.tsx) that the workspace's PDF
@@ -221,11 +251,14 @@ const reopened: DocumentWorkspaceProps = {
 
 afterEach(() => {
   cleanup()
+  shownToasts.length = 0
   document.querySelector('base')?.remove()
   vi.unstubAllGlobals()
   getDocument.mockClear()
   destroyLoadingTask.mockClear()
   scrollPageIntoView.mockClear()
+  saved.refresh.mockReset()
+  saved.refresh.mockImplementation(savedRefresh)
 })
 
 type RevisionWrite = {
@@ -265,8 +298,22 @@ function appendRevision(
   }, { status: 201 })
 }
 
-/** Renders the reopened workspace and waits for indexing to settle. */
-async function renderReopened() {
+/** A RUNNING attempt the stubbed server acknowledges for the reopened document's current revision. */
+function runningAttempt(extractionId: string) {
+  return {
+    extractionId,
+    sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+    sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+    schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+    strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'RUNNING', outcome: null, complete: null,
+    modelAttribution: null, diagnostics: null, failure: null, resultPayload: null,
+    evidenceLinks: null, reviewable: false, batchExtractionId: null,
+    createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+  }
+}
+
+/** Renders the reopened workspace, with any props overridden, and waits for indexing to settle. */
+async function renderReopened(overrides: Partial<DocumentWorkspaceProps> = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn((input: string | URL | Request) =>
@@ -277,7 +324,7 @@ async function renderReopened() {
       ),
     ),
   )
-  const mounted = render(<DocumentWorkspace {...reopened} />)
+  const mounted = render(<DocumentWorkspace {...reopened} {...overrides} />)
   await waitFor(() =>
     expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
   )
@@ -285,6 +332,202 @@ async function renderReopened() {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('a run re-reads the saved method before posting and labels itself Stop while running', async () => {
+    const extractionResponse = Promise.withResolvers<Response>()
+    const order: string[] = []
+    saved.refresh.mockImplementation(async () => { order.push('refresh'); return saved.state.status === 'ready' ? saved.state : null })
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) { order.push('post'); return extractionResponse.promise }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    // Run is the screen's positive; Stop is red (decision 02).
+    expect(screen.getByRole('button', { name: '▶ Run extraction' }).className).toMatch(/(^|\s)bg-green(\s|$)/)
+    // While Run can start, Results' empty state points at it.
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByText('Press ▶ Run extraction above.')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    await waitFor(() => expect(order).toEqual(['refresh', 'post']))
+    extractionResponse.resolve(Response.json({ ...runningAttempt('51000000-0000-4000-8006-000000000031') }, { status: 201 }))
+    expect(await screen.findByRole('button', { name: /■ Stop extraction/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /■ Stop extraction/ })).toHaveTextContent('running')
+    expect(screen.getByRole('button', { name: /■ Stop extraction/ }).className).toMatch(/(^|\s)bg-danger(\s|$)/)
+    expect(screen.getByRole('button', { name: /■ Stop extraction/ }).className).not.toMatch(/(^|\s)bg-green(\s|$)/)
+  })
+
+  // Decision 04: a run started here that succeeds says so in one toast with "Review now"; a run this page only reopened
+  // (restored while running) says it finished, with nothing offered.
+  it.each(['started here', 'restored while running'] as const)('a run %s that completes while monitored ends in one completion toast', async (origin) => {
+    // A run started here carries the identity the page made for it.
+    let extractionId = '51000000-0000-4000-8006-000000000042'
+    const completed = () => ({ ...runningAttempt(extractionId), executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 1, finishReason: 'stop', inputTokens: 1, outputTokens: 1, grounding: null, catalog: null },
+      resultPayload: { records: [{ place: 'Ellekilde' }] }, evidenceLinks: [], reviewable: true })
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        extractionId = (JSON.parse(String(init?.body)) as { id: string }).id
+        return Promise.resolve(Response.json(runningAttempt(extractionId), { status: 201 }))
+      }
+      if (url.endsWith(`/api/extractions/${extractionId}`)) return Promise.resolve(Response.json({ extraction: completed(), pendingReviewDecisions: null }))
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened}
+      persistedExtraction={origin === 'started here' ? null : { ...reopened.persistedExtraction!, ...runningAttempt(extractionId) } as DocumentWorkspaceProps['persistedExtraction']} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    if (origin === 'started here') {
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      expect(await screen.findByRole('button', { name: /■ Stop extraction/ })).toBeEnabled()
+    }
+    expect(await screen.findByText(/complete — review it in the Results tab$/, undefined, { timeout: 4_000 })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
+    if (origin === 'restored while running') {
+      expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
+      return
+    }
+    expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Review now' }))
+    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  // Review now opens the Results tab even when the researcher collapsed the rail during the run: it opens the rail too.
+  it('Review now opens a rail collapsed during the run on its Results tab', async () => {
+    let extractionId = '51000000-0000-4000-8006-000000000043'
+    const completed = () => ({ ...runningAttempt(extractionId), executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 1, finishReason: 'stop', inputTokens: 1, outputTokens: 1, grounding: null, catalog: null },
+      resultPayload: { records: [{ place: 'Ellekilde' }] }, evidenceLinks: [], reviewable: true })
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        extractionId = (JSON.parse(String(init?.body)) as { id: string }).id
+        return Promise.resolve(Response.json(runningAttempt(extractionId), { status: 201 }))
+      }
+      if (url.endsWith(`/api/extractions/${extractionId}`)) return Promise.resolve(Response.json({ extraction: completed(), pendingReviewDecisions: null }))
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByTitle('Collapse panel'))
+    expect(screen.queryByRole('tab', { name: /^Results/ })).not.toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Review now' }, { timeout: 4_000 }))
+    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTitle('Collapse panel')).toBeInTheDocument()
+  })
+
+  it('a method_changed refusal is retried once with a fresh read, a second one ends with a toast', async () => {
+    const posts: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        posts.push(JSON.parse(String(init?.body)))
+        return Promise.resolve(Response.json({ error: { code: 'method_changed', message: 'Stale.' } }, { status: 409 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    await waitFor(() => expect(posts).toHaveLength(2))
+    expect(saved.refresh).toHaveBeenCalledTimes(2)
+    expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+  })
+
+  it('a failed read of the saved method, read again once, starts nothing and says so (Review Focus 1)', async () => {
+    saved.refresh.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+    const posts: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        posts.push(url)
+        return Promise.resolve(new Response('unexpected', { status: 500 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    expect(await screen.findByText('Saved advanced settings could not be read. Nothing was started.')).toBeInTheDocument()
+    expect(saved.refresh).toHaveBeenCalledTimes(2)
+    expect(posts).toHaveLength(0)
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+  })
+
+  it('a read of the saved method that an Apply interrupted is read again, and the run goes ahead', async () => {
+    // An Apply aborts the read in flight, which resolves null although the settings are ready.
+    saved.refresh.mockResolvedValueOnce(null)
+    const posts: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        posts.push(JSON.parse(String(init?.body)))
+        return Promise.resolve(Response.json(runningAttempt('51000000-0000-4000-8006-000000000032'), { status: 201 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    await waitFor(() => expect(posts).toHaveLength(1))
+    expect(saved.refresh).toHaveBeenCalledTimes(2)
+    expect(await screen.findByRole('button', { name: /■ Stop extraction/ })).toBeEnabled()
+    expect(screen.queryByText('Saved advanced settings could not be read. Nothing was started.')).not.toBeInTheDocument()
+  })
+
+  it('without a saved record scope the run is disabled and points at the schema header', async () => {
+    await renderReopened({ persistedExtraction: null, extractionSchema: { ...reopened.extractionSchema!, recordScope: null } })
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
+    expect(screen.queryByText(/Press Run extraction/)).not.toBeInTheDocument()
+    // Results' empty state says why, in the same words, instead of pointing at a disabled Run.
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByText('Choose Article or Catalog in the schema header')).toBeVisible()
+    expect(screen.queryByText('Press ▶ Run extraction above.')).not.toBeInTheDocument()
+  })
+
+  it('the toolbar pager navigates on Enter and ignores an invalid page', async () => {
+    await renderReopened()
+    expect(screen.getByText('/ 3')).toBeInTheDocument()
+    const input = screen.getByLabelText('Current page')
+    fireEvent.change(input, { target: { value: '3' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.getByRole('button', { name: 'Go to page 3' })).toHaveAttribute('aria-current', 'page')
+    fireEvent.change(screen.getByLabelText('Current page'), { target: { value: '999' } })
+    fireEvent.blur(screen.getByLabelText('Current page'))
+    expect(screen.getByLabelText('Current page')).toHaveValue('3')
+    const previous = screen.getByRole('button', { name: 'Previous page' })
+    previous.focus()
+    fireEvent.click(previous)
+    expect(screen.getByRole('button', { name: 'Go to page 2' })).toHaveAttribute('aria-current', 'page')
+    // The pager stays mounted, so the button keeps focus for the next press.
+    expect(previous).toHaveFocus()
+    expect(screen.getByLabelText('Current page')).toHaveValue('2')
+  })
+
   it('clears a resize drag when the workspace unmounts', async () => {
     const mounted = await renderReopened()
     const separator = mounted.container.querySelector<HTMLElement>(
@@ -466,7 +709,7 @@ describe('reopened Source Document workspace', () => {
   it('supports toolbar and keyboard zoom through the documented boundaries', async () => {
     await renderReopened()
 
-    expect(await screen.findByText('3 pages')).toBeInTheDocument()
+    expect(await screen.findByText('/ 3')).toBeInTheDocument()
     const zoomOut = screen.getByRole('button', { name: 'Zoom out' })
     const resetZoom = screen.getByRole('button', {
       name: 'Reset zoom to 100%',
@@ -594,7 +837,7 @@ describe('reopened Source Document workspace', () => {
     expect(highlight.dataset.resultPath).toBe('["record","place"]')
     expect(highlight.style.background).toContain('0.28')
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Values as code' }))
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
     )
@@ -731,6 +974,7 @@ describe('reopened Source Document workspace', () => {
     const schemaRevisionId = '51000000-0000-4000-8005-000000000010'
     const extractionSchemaId = '51000000-0000-4000-8005-000000000011'
     let schemaNodes: unknown[] = []
+    const renames: Array<{ projectContextId: string; name: string }> = []
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -767,6 +1011,13 @@ describe('reopened Source Document workspace', () => {
               summary: 'Initial schema',
             }],
           })
+        if (url === `/api/extraction-schemas/${extractionSchemaId}` && init?.method === 'PATCH') {
+          const rename = JSON.parse(String(init.body)) as { projectContextId: string; name: string }
+          renames.push(rename)
+          return Response.json({
+            extractionSchema: { extractionSchemaId, name: rename.name, createdAt: '2026-08-09T10:00:00.000Z' },
+          })
+        }
         throw new Error(`Unexpected request: ${url}`)
       }),
     )
@@ -778,8 +1029,212 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Schema history' })).toBeEnabled())
+    fireEvent.click(await screen.findByRole('button', { name: 'Schema actions' }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'History' })).toBeEnabled())
     expect(schemaNodes).toHaveLength(1)
+    // A first schema is named after its Source Document.
+    expect(await screen.findByRole('button', { name: 'Rename schema Beretning' })).toBeInTheDocument()
+    // Fenced behind the name the server created the schema with (a later rename by anyone wins over it).
+    expect(renames).toEqual([{ projectContextId: reopened.projectContextId, name: 'Beretning', expectedName: 'Extraction Schema' }])
+  })
+
+  // The first generation names the schema after its Source Document; a rename through the pencil meanwhile waits for
+  // that save and is the name that stays, whatever the automatic save answers (Ruling: renames are serialized).
+  it.each([
+    ['succeeds', 'succeeds', 'Ellekilde graves'],
+    ['fails', 'succeeds', 'Ellekilde graves'],
+    ['fails', 'is refused', 'Extraction Schema'],
+  ] as const)('the automatic first name %s late; a manual rename that %s meanwhile leaves "%s"', async (automatic, manual, expected) => {
+    const schemaRevisionId = '51000000-0000-4000-8005-000000000040'
+    const extractionSchemaId = '51000000-0000-4000-8005-000000000041'
+    const patches: string[] = []
+    let releaseAutomatic: (() => void) | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.endsWith('/api/generate_schema'))
+          return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1 })
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as { schemaNodes: unknown[] }
+          return Response.json({ revision: { schemaRevisionId, extractionSchemaId, revisionNumber: 1, origin: 'suggestion',
+            createdAt: '2026-08-09T10:00:00.000Z', recordDescription: 'One site record.', recordScope: null, schemaNodes: body.schemaNodes } },
+          { status: 201 })
+        }
+        if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+        if (url.startsWith('/api/model-operations?')) return Response.json({ operations: [] })
+        if (url === `/api/extraction-schemas/${extractionSchemaId}` && init?.method === 'PATCH') {
+          const { name } = JSON.parse(String(init.body)) as { name: string }
+          patches.push(name)
+          if (name === 'Beretning') {
+            await new Promise<void>((resolve) => { releaseAutomatic = resolve })
+            if (automatic === 'fails') return Response.json({ error: { code: 'unavailable', message: 'Try again.' } }, { status: 503 })
+          } else if (manual === 'is refused') {
+            return Response.json({ error: { code: 'name_taken', message: 'That name is taken.' } }, { status: 409 })
+          }
+          return renamedSchema(url, init)
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
+    await waitFor(() => expect(releaseAutomatic).not.toBeNull())
+    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Ellekilde graves' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    // The manual rename waits for the automatic one: the server applies them in the order they were asked for.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(patches).toEqual(['Beretning'])
+
+    releaseAutomatic!()
+    await waitFor(() => expect(patches).toEqual(['Beretning', 'Ellekilde graves']))
+    if (manual === 'is refused') {
+      expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.')
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel schema rename' }))
+    }
+    expect(await screen.findByRole('heading', { name: expected })).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(screen.getByRole('heading', { name: expected })).toBeInTheDocument()
+  })
+
+  // A first name whose request never answers holds the renames behind it only until its time limit (20 s; shortened
+  // here): the manual rename then goes out and its name shows. Meanwhile Escape closes the waiting editor.
+  it.each(['kept open', 'closed with Escape'] as const)('a first name that never answers lets a manual rename go after its time limit (editor %s)', async (editor) => {
+    const schemaRevisionId = '51000000-0000-4000-8005-000000000050'
+    const extractionSchemaId = '51000000-0000-4000-8005-000000000051'
+    const patches: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.endsWith('/api/generate_schema'))
+          return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1 })
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as { schemaNodes: unknown[] }
+          return Response.json({ revision: { schemaRevisionId, extractionSchemaId, revisionNumber: 1, origin: 'suggestion',
+            createdAt: '2026-08-09T10:00:00.000Z', recordDescription: 'One site record.', recordScope: null, schemaNodes: body.schemaNodes } },
+          { status: 201 })
+        }
+        if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+        if (url.startsWith('/api/model-operations?')) return Response.json({ operations: [] })
+        if (url === `/api/extraction-schemas/${extractionSchemaId}` && init?.method === 'PATCH') {
+          const { name } = JSON.parse(String(init.body)) as { name: string }
+          patches.push(name)
+          // Never answers; like a real fetch, it gives up only when aborted.
+          if (name === 'Beretning')
+            return new Promise<Response>((_resolve, reject) => {
+              init.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')))
+            })
+          return renamedSchema(url, init)
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
+    await waitFor(() => expect(patches).toEqual(['Beretning']))
+    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Ellekilde graves' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(patches).toEqual(['Beretning'])
+    if (editor === 'closed with Escape') {
+      fireEvent.keyDown(screen.getByLabelText('Schema name for Beretning'), { key: 'Escape' })
+      expect(screen.queryByLabelText('Schema name for Beretning')).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
+    }
+
+    await waitFor(() => expect(patches).toEqual(['Beretning', 'Ellekilde graves']), { timeout: 3_000 })
+    expect(await screen.findByRole('heading', { name: 'Ellekilde graves' })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Schema name for/)).not.toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(screen.getByRole('heading', { name: 'Ellekilde graves' })).toBeInTheDocument()
+  })
+
+  // Giving up on the first name stops the browser's waiting, not the server's write: here its PATCH reaches the server's
+  // write only after the manual rename was acknowledged. The automatic name is fenced behind the schema's creation name,
+  // so the late write changes nothing and the manual name stays durable.
+  it('a first name abandoned after its time limit cannot overwrite the manual name the server acknowledged meanwhile', async () => {
+    const schemaRevisionId = '51000000-0000-4000-8005-000000000060'
+    const extractionSchemaId = '51000000-0000-4000-8005-000000000061'
+    let serverName = 'Extraction Schema'
+    const bodies: Array<{ name: string; expectedName?: string }> = []
+    let releaseWrite: (() => void) | null = null
+    let heldWrite: Promise<void> | null = null
+    /** The server's PATCH: an unfenced rename always applies; a fenced one only while the stored name is the expected. */
+    const serverRename = (rename: { name: string; expectedName?: string }) => {
+      if (rename.expectedName === undefined || rename.expectedName === serverName) serverName = rename.name
+      return { extractionSchema: { extractionSchemaId, name: serverName, createdAt: '2026-08-09T10:00:00.000Z' } }
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.endsWith('/api/generate_schema'))
+          return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1 })
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as { schemaNodes: unknown[] }
+          return Response.json({ revision: { schemaRevisionId, extractionSchemaId, revisionNumber: 1, origin: 'suggestion',
+            createdAt: '2026-08-09T10:00:00.000Z', recordDescription: 'One site record.', recordScope: null, schemaNodes: body.schemaNodes } },
+          { status: 201 })
+        }
+        if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+        if (url.startsWith('/api/model-operations?')) return Response.json({ operations: [] })
+        if (url === `/api/extraction-schemas/${extractionSchemaId}` && init?.method === 'PATCH') {
+          const rename = JSON.parse(String(init.body)) as { name: string; expectedName?: string }
+          bodies.push(rename)
+          if (rename.name === 'Beretning') {
+            // The server's write waits; the browser gives up on it (an abort rejects only the client's promise).
+            heldWrite = new Promise<void>((resolve) => { releaseWrite = resolve }).then(() => { serverRename(rename) })
+            return new Promise<Response>((_resolve, reject) => {
+              init.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')))
+            })
+          }
+          return Response.json(serverRename(rename))
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
+    await waitFor(() => expect(bodies.map(({ name }) => name)).toEqual(['Beretning']))
+    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Custom' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    // After the time limit the manual rename goes out and the server applies it at once.
+    await waitFor(() => expect(bodies.map(({ name }) => name)).toEqual(['Beretning', 'Custom']), { timeout: 3_000 })
+    expect(await screen.findByRole('heading', { name: 'Custom' })).toBeInTheDocument()
+    expect(serverName).toBe('Custom')
+
+    // The abandoned write now reaches the server's database.
+    releaseWrite!()
+    await heldWrite
+    expect(serverName).toBe('Custom')
+    expect(bodies).toEqual([
+      { projectContextId: reopened.projectContextId, name: 'Beretning', expectedName: 'Extraction Schema' },
+      { projectContextId: reopened.projectContextId, name: 'Custom' },
+    ])
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(screen.getByRole('heading', { name: 'Custom' })).toBeInTheDocument()
   })
 
   it('saves a schema generated from excerpts with its declaration, and the reopened workspace shows it beside that source only', async () => {
@@ -816,6 +1271,8 @@ describe('reopened Source Document workspace', () => {
         }
         if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
         if (url.startsWith('/api/model-operations?')) return Response.json({ operations: [] })
+        if (url.startsWith('/api/extraction-schemas/') && init?.method === 'PATCH')
+          return renamedSchema(url, init)
         throw new Error(`Unexpected request: ${url}`)
       }),
     )
@@ -826,6 +1283,7 @@ describe('reopened Source Document workspace', () => {
 
     expect(await screen.findByText(notice)).toBeInTheDocument()
     expect(written.map((body) => body.sourceCoverage)).toEqual([excerpted])
+    expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
     generated.unmount()
 
     const saved = written[0] as { recordDescription: string; schemaNodes: SchemaNode[] }
@@ -952,14 +1410,18 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Schema history' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'History' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
-    fireEvent.keyDown(screen.getByDisplayValue('nyt_felt'), { key: 'Escape' })
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'unsaved field' } })
+    fireEvent.keyDown(screen.getByPlaceholderText('field_name'), { key: 'Escape' })
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(0)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
-    fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'History' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Schema history' })).getByRole('button', { name: /Revision 1/ }))
 
     expect(await screen.findByText('historical_group')).toBeInTheDocument()
     expect(screen.getByText('historical_title')).toBeInTheDocument()
@@ -989,7 +1451,8 @@ describe('reopened Source Document workspace', () => {
     })
     expect(screen.getByText('historical_group')).toBeInTheDocument()
     expect(screen.getByText('historical_title')).toBeInTheDocument()
-    expect(screen.queryByText('nyt_felt')).not.toBeInTheDocument()
+    expect(screen.queryByText('unsaved_field')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('field_name')).not.toBeInTheDocument()
   })
 
   it('flushes edits before clearing, then regenerates onto the existing schema', async () => {
@@ -1044,9 +1507,11 @@ describe('reopened Source Document workspace', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'locality' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear schema' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Clear current schema' })).getByRole('button', { name: 'Clear schema' }))
 
     expect(await screen.findByText('No schema yet')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
@@ -1068,7 +1533,7 @@ describe('reopened Source Document workspace', () => {
     // The Schema tab's badge is the field count derived from the reopened template.
     expect(screen.getByRole('tab', { name: /^Schema\s*1$/ })).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: '↻ Re-run extraction' }),
+      screen.getByRole('button', { name: '▶ Run extraction' }),
     ).toBeInTheDocument()
   })
 
@@ -1131,9 +1596,8 @@ describe('reopened Source Document workspace', () => {
     )
   })
 
-  it.each(['toolbar', 'results'] as const)(
-    'waits for a dirty schema save before starting an Article rerun from the %s',
-    async (runSurface) => {
+  // The tab strip's Run is the only run (decision 03); the Results tab no longer offers a second surface to test.
+  it('waits for a dirty schema save before starting an Article rerun from the tab strip', async () => {
     const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
     let resolveExtraction!: (response: Response) => void
     const extractionResponse = new Promise<Response>((resolve) => {
@@ -1181,19 +1645,13 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    if (runSurface === 'results')
-      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    const run = screen.getByRole('button', {
-      name: runSurface === 'toolbar' ? '↻ Re-run extraction' : 'Run Article extraction',
-    })
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
     fireEvent.click(run)
-    if (runSurface === 'toolbar') {
-      fireEvent.click(run)
-      await waitFor(() => expect(run).toBeDisabled())
-    }
+    fireEvent.click(run)
+    await waitFor(() => expect(run).toBeDisabled())
 
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
     expect(extractionRequests[0]).toEqual(expect.objectContaining({
@@ -1220,13 +1678,12 @@ describe('reopened Source Document workspace', () => {
     }))
     expect(
       await screen.findByText(
-        '↻ Re-run complete — view the JSON in the Results tab',
+        '↻ Re-run complete — review it in the Results tab',
       ),
     ).toBeVisible()
     expect(extractionRequests).toHaveLength(1)
     expect(cancellationRequests).toEqual([])
-    },
-  )
+  })
 
   it('marks the result as previous only once a new Schema Revision is saved, then runs and cancels with the current one', async () => {
     const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
@@ -1276,7 +1733,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
@@ -1290,11 +1747,12 @@ describe('reopened Source Document workspace', () => {
       { timeout: 4_000 },
     )
     expect(screen.getByText('Previous schema')).toBeInTheDocument()
+    // The tab strip's Run is the only run (decision 03).
     expect(screen.getByText('Review applies to Schema Revision 1')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Run (Article|Catalog) extraction$/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
     expect(screen.getByText('Ellekilde')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction with current schema' }))
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
     expect(extractionRequests[0]!.schemaRevisionId).toBe(savedSchemaRevisionId)
     extractionResponse.resolve(Response.json({
@@ -1310,12 +1768,17 @@ describe('reopened Source Document workspace', () => {
     expect(await screen.findByText('Using Schema Revision 2 · Current revision: 2', undefined, { timeout: 4_000 })).toBeInTheDocument()
     expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
     expect(screen.getByText('You can continue working on other documents.')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Cancel extraction' })).toHaveLength(2)
+    // The Results tab's Cancel and the tab strip's Stop.
+    expect(screen.getByRole('button', { name: 'Cancel extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^■ Stop extraction/ })).toBeEnabled()
     fireEvent.click(screen.getByTitle('Cancel the active Extraction'))
     await waitFor(() => expect(cancellationRequests).toHaveLength(1))
+    // The Results tab's and the tab strip's.
     expect(screen.getAllByRole('button', { name: 'Cancellation requested…' })).toHaveLength(2)
     for (const control of screen.getAllByRole('button', { name: 'Cancellation requested…' }))
       expect(control).toBeDisabled()
+    // The tab strip's stays red while the cancellation is requested (decision 02).
+    expect(screen.getByTitle('Waiting for the Extraction to stop').className).toMatch(/(^|\s)bg-danger(\s|$)/)
   })
 
   it('navigates a long document with the keyboard and offers no sample controls', async () => {
@@ -1326,6 +1789,9 @@ describe('reopened Source Document workspace', () => {
     await renderReopened()
     const navigation = within(await screen.findByRole('navigation', { name: 'Page navigation' }))
     const firstPage = navigation.getByRole('button', { name: 'Go to page 1' })
+    expect(navigation.getAllByRole('button', { name: /^Go to page/ })[0]!.querySelector('canvas')).toBeInTheDocument()
+    // The mocked document has no getPage, so the thumbnail render fails and the card stays blank.
+    await waitFor(() => expect(firstPage.querySelector('canvas')).toHaveAttribute('data-thumbnail', 'unavailable'))
     firstPage.focus()
     fireEvent.keyDown(firstPage, { key: 'End' })
     const lastPage = navigation.getByRole('button', { name: 'Go to page 120' })
@@ -1382,12 +1848,12 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    const selector = screen.getByLabelText('Extraction strategy')
-    expect(selector).toHaveValue('ARTICLE')
-    // Record boundaries only apply to Catalog; generic model discovery stays the default.
-    expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
-    fireEvent.change(selector, { target: { value: 'CATALOG' } })
-    const boundaries = screen.getByLabelText('Record boundaries')
+    const selector = screen.getByLabelText('Record scope')
+    expect(selector).toHaveValue('document')
+    // The Boundaries choice appears only for a Catalog; generic model discovery stays the default.
+    expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
+    fireEvent.change(selector, { target: { value: 'records' } })
+    const boundaries = screen.getByLabelText('Boundaries')
     expect(boundaries).toHaveValue('')
     if (recipe) fireEvent.change(boundaries, { target: { value: recipe } })
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
@@ -1401,8 +1867,8 @@ describe('reopened Source Document workspace', () => {
     if (recipe) expect(extractionRequests[0].catalogRecipe).toBe(recipe)
     else expect(extractionRequests[0]).not.toHaveProperty('catalogRecipe')
     // The schema stays a Catalog; only the boundaries return to model discovery.
-    await waitFor(() => expect(screen.getByLabelText('Record boundaries')).toHaveValue(''))
-    expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+    await waitFor(() => expect(screen.getByLabelText('Boundaries')).toHaveValue(''))
+    expect(screen.getByLabelText('Record scope')).toHaveValue('records')
   })
 
   it('with the unified Catalog enabled, a Catalog start offers no recipe and submits the unified method', async () => {
@@ -1424,14 +1890,16 @@ describe('reopened Source Document workspace', () => {
       }))
       render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
-      expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
-      fireEvent.click(screen.getByText('Saved advanced settings', { exact: false }))
-      expect(screen.getByText('Unified Catalog, defaults version 1')).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
+      expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-      await waitFor(() => expect(extractionRequests).toHaveLength(1))
-      expect(extractionRequests[0]).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 1 } } } })
-      expect(extractionRequests[0]).not.toHaveProperty('catalogRecipe')
+      // The stub refuses every run as method_changed: the click re-reads the saved method and retries once.
+      await waitFor(() => expect(extractionRequests).toHaveLength(2))
+      for (const request of extractionRequests) {
+        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 1 } } } })
+        expect(request).not.toHaveProperty('catalogRecipe')
+      }
+      expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
     } finally {
       saved.state = before
     }
@@ -1524,45 +1992,56 @@ describe('reopened Source Document workspace', () => {
     /** Saves Catalog and starts a run from the toolbar; acknowledging it resets the one-shot boundaries, unless it
      *  failed. The schema stays a Catalog. */
     async function runCatalogFromToolbar(bodies: unknown[], recipe?: string, nextRecipe = '') {
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
       if (recipe)
-        fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+        fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
+      expect(screen.getByRole('button', { name: '▶ Run extraction' }))
+        .toHaveAttribute('title', 'Find the catalogue entries and extract one record per entry')
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('CATALOG', recipe))
       await waitFor(() =>
-        expect(screen.getByLabelText('Record boundaries')).toHaveValue(nextRecipe),
+        expect(screen.getByLabelText('Boundaries')).toHaveValue(nextRecipe),
       )
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
     }
 
-    /** Opens Results and finds its run action by the exact name it must carry. */
-    function resultsRunAction(name: string) {
+    /** The one run (decision 03): the tab strip's, titled for the schema's strategy (decision 05). Results, opened,
+     *  offers no run of its own. */
+    function tabStripRun(strategy: 'ARTICLE' | 'CATALOG') {
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-      return screen.getByRole('button', { name })
+      expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
+      const run = screen.getByRole('button', { name: '▶ Run extraction' })
+      expect(run).toHaveAttribute('title', strategy === 'CATALOG'
+        ? 'Find the catalogue entries and extract one record per entry'
+        : 'Extract one record from the whole document')
+      return run
     }
 
-    it('names and posts the schema\'s Catalog after a Catalog run that succeeds', async () => {
+    it('titles and posts the schema\'s Catalog after a Catalog run that succeeds', async () => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
-      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+      // Its completion is a toast with Review now, not a dialog to dismiss (decision 04).
+      expect(await screen.findByRole('button', { name: 'Review now' })).toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
 
-      const action = resultsRunAction('Run Catalog extraction')
-      expect(action).toHaveAccessibleDescription('Boundaries: Model discovery')
-      fireEvent.click(action)
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
+      fireEvent.click(tabStripRun('CATALOG'))
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual(posted('CATALOG'))
     })
 
-    it('names and posts the same Catalog run after one that fails', async () => {
+    it('titles and posts the same Catalog run after one that fails', async () => {
       const bodies = stubRuns('FAILED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
+      // A failure keeps its own toast, with nothing to review now.
+      expect(await screen.findByText('Extraction failed — see details in Results')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
 
-      const action = resultsRunAction('Run Catalog extraction')
-      expect(action).toHaveAccessibleDescription('Boundaries: Model discovery')
-      fireEvent.click(action)
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
+      fireEvent.click(tabStripRun('CATALOG'))
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual(posted('CATALOG'))
     })
@@ -1570,20 +2049,19 @@ describe('reopened Source Document workspace', () => {
     it.each([
       ['failed', 'FAILED', 'Extraction failed'],
       ['completed', 'SUCCEEDED', 'Catalogued'],
-    ] as const)('names and posts the schema\'s Article after reopening a %s Catalog attempt', async (_label, outcome, shown) => {
+    ] as const)('titles and posts the schema\'s Article after reopening a %s Catalog attempt', async (_label, outcome, shown) => {
       const bodies = stubRuns(outcome)
       await renderWorkspace({
         ...catalogAttempts[outcome],
         sourceRepresentation: reopened.persistedExtraction!.sourceRepresentation,
         extractionSchema: reopened.persistedExtraction!.extractionSchema,
       })
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('document')
 
-      const action = resultsRunAction('Run Article extraction')
-      // Results shows the reopened Catalog attempt, not an empty workspace's run action.
+      const run = tabStripRun('ARTICLE')
+      // Results shows the reopened Catalog attempt, not an empty workspace.
       expect(screen.getByText(shown)).toBeVisible()
-      expect(action).not.toHaveAccessibleDescription()
-      fireEvent.click(action)
+      fireEvent.click(run)
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('ARTICLE'))
     })
@@ -1591,29 +2069,26 @@ describe('reopened Source Document workspace', () => {
     it.each([
       ['selects the recipe again', 'numbered-catalogue-de@1', 'Numbered catalogue (German)'],
       ['keeps Model discovery', undefined, 'Model discovery'],
-    ] as const)('after a recipe run, names and posts Catalog as the researcher %s', async (_label, recipe, boundaries) => {
+    ] as const)('after a recipe run, titles and posts Catalog as the researcher %s', async (_label, recipe, boundaries) => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies, 'numbered-catalogue-de@1')
-      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
       // The recipe is one-shot: the schema stays a Catalog, and its next run starts at Model discovery.
-      expect(screen.getByLabelText('Record boundaries')).toHaveValue('')
-      expect(resultsRunAction('Run Catalog extraction')).toHaveAccessibleDescription('Boundaries: Model discovery')
+      expect(screen.getByLabelText('Boundaries')).toHaveValue('')
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
       if (recipe)
-        fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+        fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
 
-      const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
-      expect(action).toHaveAccessibleDescription(`Boundaries: ${boundaries}`)
-      expect(screen.getByText(`Boundaries: ${boundaries}`)).toBeVisible()
-      fireEvent.click(action)
+      // The schema header names the boundaries the run posts; the Results tab no longer repeats them.
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue(boundaries)
+      expect(screen.queryByText(/^Boundaries: /)).not.toBeInTheDocument()
+      fireEvent.click(tabStripRun('CATALOG'))
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual(posted('CATALOG', recipe))
     })
   })
 
   describe('the strategy is the schema\'s saved record scope', () => {
-    const help = 'Article: one object for the whole document. Catalog: a collection of records.'
-
     /** A workspace whose fetches answer revision writes (kept) and runs (kept, each refused or queued as given). */
     function stubWorkspace(run: (body: Record<string, unknown>) => Response = (body) => Response.json({
       extractionId: body.id,
@@ -1659,35 +2134,37 @@ describe('reopened Source Document workspace', () => {
       const { writes, runs } = stubWorkspace()
       await renderWith({ ...reopened.extractionSchema!, recordScope: null })
 
-      const selector = screen.getByLabelText('Extraction strategy')
+      const selector = screen.getByLabelText('Record scope')
       expect(selector).toHaveValue('')
-      expect(screen.getByRole('option', { name: 'Choose…' })).toBeDisabled()
-      expect(selector).toHaveAccessibleDescription(help)
+      // The schema header's own choice explains the two scopes; Run points at it.
+      expect(screen.getByRole('option', { name: 'Choose Article or Catalog' })).toBeDisabled()
+      expect(screen.getByRole('option', { name: 'Article · one object for the document' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Catalog · a collection of records' })).toBeInTheDocument()
       const run = screen.getByRole('button', { name: '▶ Run extraction' })
       expect(run).toBeDisabled()
-      expect(run).toHaveAttribute('title', expect.stringContaining(help))
+      expect(run).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-      expect(screen.getByRole('button', { name: 'Run extraction' })).toBeDisabled()
+      // The Results tab offers no run of its own (decision 03).
+      expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
 
-      fireEvent.change(selector, { target: { value: 'CATALOG' } })
-      expect(selector).toHaveValue('CATALOG')
-      expect(screen.queryByText(help)).not.toBeInTheDocument()
+      fireEvent.change(selector, { target: { value: 'records' } })
+      expect(selector).toHaveValue('records')
       await waitFor(() => expect(run).toBeEnabled())
       fireEvent.click(run)
 
       await waitFor(() => expect(runs).toHaveLength(1))
       expect(writes).toEqual([expect.objectContaining({ expectedRevisionNumber: 1, recordScope: 'records' })])
       expect(runs[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) })
-      expect(selector).toHaveValue('CATALOG')
+      expect(selector).toHaveValue('records')
     })
 
     it('keeps the scope through a schema edit: the append names none and the server keeps the head\'s', async () => {
       const { writes, runs } = stubWorkspace(undefined, 'records')
       await renderWith({ ...reopened.extractionSchema!, recordScope: 'records' })
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
 
       fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
@@ -1696,13 +2173,13 @@ describe('reopened Source Document workspace', () => {
       expect(writes).toHaveLength(1)
       expect(writes[0]).not.toHaveProperty('recordScope')
       expect(runs[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) })
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
     })
 
     /** Renames the `place` field in the Schema tab: a field edit the 1500 ms debounce holds. */
     function renamePlaceField() {
       fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     }
@@ -1711,10 +2188,11 @@ describe('reopened Source Document workspace', () => {
       const { writes } = stubWorkspace()
       await renderWith(reopened.extractionSchema)
       renamePlaceField()
-      expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+      // The toolbar and the Schema panel's footer both show the save state.
+      expect(screen.getAllByText('Unsaved changes')).toHaveLength(2)
       expect(writes).toHaveLength(0)
 
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
 
       // Well inside the debounce: the scope does not wait for it, and it carries the edit.
       await waitFor(() => expect(writes).toHaveLength(1))
@@ -1723,9 +2201,9 @@ describe('reopened Source Document workspace', () => {
         recordScope: 'records',
         schemaNodes: [expect.objectContaining({ name: 'location' })],
       })
-      await waitFor(() => expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument())
-      expect(screen.queryByText('Saving…')).not.toBeInTheDocument()
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      await waitFor(() => expect(screen.queryAllByText('Unsaved changes')).toHaveLength(0))
+      expect(screen.queryAllByText('Saving…')).toHaveLength(0)
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
     })
 
     it('shows a failed scope save, refuses Run until Retry saves it, then runs the saved revision', async () => {
@@ -1745,17 +2223,27 @@ describe('reopened Source Document workspace', () => {
       await renderWith(reopened.extractionSchema)
       const run = screen.getByRole('button', { name: '▶ Run extraction' })
 
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
-      expect(await screen.findByRole('alert')).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
+      // One alert and one Retry, the toolbar's (reachable with the Schema tab hidden); the Schema panel's footer says it
+      // as status text.
+      const schemaPanel = screen.getByRole('tabpanel', { name: /^Schema/ })
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
+      expect(schemaPanel).not.toContainElement(alert)
+      expect(schemaPanel).not.toContainElement(screen.getByRole('button', { name: 'Retry save' }))
+      expect(
+        within(schemaPanel).getAllByRole('status')
+          .some((status) => /^Not saved: .*The database is unavailable\.$/.test(status.textContent ?? '')),
+      ).toBe(true)
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute('title', 'The schema is not saved. Retry the save first.')
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
 
       fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
       await waitFor(() => expect(writes).toHaveLength(1))
       expect(writes[0]).toMatchObject({ expectedRevisionNumber: 1, recordScope: 'records' })
       await waitFor(() => expect(run).toBeEnabled())
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.queryAllByRole('alert')).toHaveLength(0)
 
       fireEvent.click(run)
       await waitFor(() => expect(runs).toHaveLength(1))
@@ -1779,17 +2267,21 @@ describe('reopened Source Document workspace', () => {
     it.each([
       ['record_scope_mismatch', 'The schema is saved as a Catalog; refresh to run it.'],
       ['record_scope_required', 'Choose Article or Catalog for this schema before it can run.'],
-    ])('shows a %s refusal with the server\'s message where a changed method is shown', async (code, message) => {
+    ])('shows a %s refusal with the server\'s message as a notice, and starts nothing', async (code, message) => {
       const { runs } = stubWorkspace(() => Response.json({ error: { code, message } }, { status: 409 }))
       await renderWith(reopened.extractionSchema)
 
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
+      // The workspace's toast over the PDF says it in the server's own words, without the code.
+      const notice = await within(screen.getByRole('region', { name: 'PDF document' })).findByText(message)
+      expect(notice.closest('[role="status"]')?.textContent).toBe(message)
+      // Only a changed method is retried.
       expect(runs).toHaveLength(1)
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
     })
 
-    it('declares the choice made before the first revision when a suggestion initializes it', async () => {
+    it('a schema a suggestion initializes without a scope waits for the header\'s choice, saved before Run', async () => {
       const written: Array<Record<string, unknown>> = []
       vi.stubGlobal(
         'fetch',
@@ -1805,10 +2297,10 @@ describe('reopened Source Document workspace', () => {
             written.push(body)
             return Response.json({
               revision: {
-                schemaRevisionId: '51000000-0000-4000-8005-000000000040',
+                schemaRevisionId: `51000000-0000-4000-8005-0000000000${40 + written.length * 2}`,
                 extractionSchemaId: '51000000-0000-4000-8005-000000000041',
-                revisionNumber: 1,
-                origin: 'suggestion',
+                revisionNumber: written.length,
+                origin: written.length === 1 ? 'suggestion' : 'researcher-edit',
                 createdAt: '2026-08-09T10:00:00.000Z',
                 recordDescription: body.recordDescription,
                 recordScope: body.recordScope ?? null,
@@ -1817,20 +2309,29 @@ describe('reopened Source Document workspace', () => {
             }, { status: 201 })
           }
           if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+          if (url.startsWith('/api/extraction-schemas/') && init?.method === 'PATCH')
+            return renamedSchema(url, init)
           throw new Error(`Unexpected request: ${url}`)
         }),
       )
       await renderWith(null)
-      const selector = screen.getByLabelText('Extraction strategy')
-      expect(selector).toHaveValue('')
-      fireEvent.change(selector, { target: { value: 'ARTICLE' } })
+      // The scope is chosen in the schema header, which exists once there is a schema.
+      expect(screen.queryByLabelText('Record scope')).not.toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
       fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
       await waitFor(() => expect(written).toHaveLength(1))
-      expect(written[0]).toMatchObject({ recordScope: 'document' })
+      expect(written[0]).not.toHaveProperty('recordScope')
+      expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
+      const selector = screen.getByLabelText('Record scope')
+      expect(selector).toHaveValue('')
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
+
+      fireEvent.change(selector, { target: { value: 'document' } })
+      await waitFor(() => expect(written).toHaveLength(2))
+      expect(written[1]).toMatchObject({ expectedRevisionNumber: 1, recordScope: 'document' })
       await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
-      expect(selector).toHaveValue('ARTICLE')
+      expect(selector).toHaveValue('document')
     })
   })
 
@@ -1866,7 +2367,7 @@ describe('reopened Source Document workspace', () => {
       render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
 
-      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
@@ -1939,8 +2440,8 @@ describe('reopened Source Document workspace', () => {
       await waitFor(() =>
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
-      fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
+      fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toMatchObject({ strategy: 'CATALOG', catalogRecipe: recipe })
@@ -1948,11 +2449,11 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(await screen.findByText('Discovery failed.', undefined, { timeout: 4_000 })).toBeVisible()
       // The schema stays a Catalog, and the failed attempt's recipe is the next run's boundaries.
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
-      expect(screen.getByLabelText('Record boundaries')).toHaveDisplayValue('Numbered catalogue (German)')
-      const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
-      expect(action).toHaveAccessibleDescription('Boundaries: Numbered catalogue (German)')
-      fireEvent.click(action)
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Numbered catalogue (German)')
+      // The tab strip's Run is the only run (decision 03).
+      expect(screen.queryByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual({
         id: expect.any(String),
@@ -1997,13 +2498,13 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(screen.getByText('Ellekilde')).toBeVisible()
 
-      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
       expect(posts).toHaveLength(1)
       expect(screen.getByText('This document has been reprocessed — no new Extraction was started')).toBeVisible()
       expect(screen.getByText('Ellekilde')).toBeVisible()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
-      const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+      const run = screen.getByRole('button', { name: '▶ Run extraction' })
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute(
         'title',
@@ -2013,29 +2514,34 @@ describe('reopened Source Document workspace', () => {
     })
 
     it.each([
-      [{ status: 'loading' } as const, 'Loading saved advanced settings…'],
-      [{ status: 'error', message: 'Unavailable.' } as const, 'Nothing can start until they load.'],
-    ])('starts nothing while the saved settings are %o', async (state, shown) => {
+      [{ status: 'loading' } as const],
+      [{ status: 'error', message: 'Unavailable.' } as const],
+    ])('starts nothing when the saved settings read at the click is not ready (%o)', async (state) => {
       const ready = saved.state
       saved.state = state
       try {
+        const posts: string[] = []
         vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
           const url = String(input)
           if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
           if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
           if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions')) posts.push(url)
           return Promise.resolve(new Response('pdf'))
         }))
         render(<DocumentWorkspace {...reopened} />)
         await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-        expect(screen.getByText(shown, { exact: false })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+        // The click reads the saved method itself, so Run does not wait on the mount-time read.
+        fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+        expect(await screen.findByText('Saved advanced settings could not be read. Nothing was started.')).toBeInTheDocument()
+        expect(posts).toHaveLength(0)
+        expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
       } finally {
         saved.state = ready
       }
     })
 
-    it('shows the saved advanced settings it submits; a method_changed refusal opens them with a refresh and no failure', async () => {
+    it('a method_changed refusal re-reads the saved settings and retries once, then says so without a failure', async () => {
       const message = 'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
       const posts: unknown[] = []
       vi.stubGlobal(
@@ -2053,20 +2559,18 @@ describe('reopened Source Document workspace', () => {
           return Promise.resolve(new Response('pdf'))
         }),
       )
-      saved.refresh.mockClear()
       render(<DocumentWorkspace {...reopened} />)
       await waitFor(() =>
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
-      expect(screen.getByText('Saved advanced settings')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
-      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Nothing was started'))
-      expect(posts).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
+      expect(posts).toHaveLength(2)
+      expect(saved.refresh).toHaveBeenCalledTimes(2)
+      expect(screen.queryByText(message)).not.toBeInTheDocument()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'Refresh summary' }))
-      expect(saved.refresh).toHaveBeenCalledOnce()
-      expect(screen.queryByRole('button', { name: 'Refresh summary' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
     })
 
     it('keeps the superseded notice when the refresh moves a plain route to the reprocessed Source Representation', async () => {
@@ -2114,7 +2618,7 @@ describe('reopened Source Document workspace', () => {
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
 
-      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
       await waitFor(() =>
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
@@ -2124,6 +2628,49 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByText('This document has been reprocessed — no new Extraction was started')).toBeVisible()
       // The workspace now shows the reprocessed Source Representation, which can be run.
       expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+    })
+
+    it('a notice that outlives the switch stays above the switched document\'s loading cover', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST')
+            return Promise.resolve(Response.json(
+              { error: { code: 'source_representation_superseded', message: 'This document has been reprocessed.' } },
+              { status: 409 },
+            ))
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      const reprocessedId = '51000000-0000-4000-8002-000000000078'
+      const resource = (artifact: 'pdf' | 'markdown' | 'source') =>
+        `/api/project-contexts/${reopened.projectContextId}/source-representations/${reprocessedId}/${artifact}`
+      const onSourceSuperseded = vi.fn(() =>
+        rerender(
+          <DocumentWorkspace {...reopened} sourceRepresentationId={reprocessedId} sourceRepresentationCurrent
+            pdfUrl={resource('pdf')} markdownUrl={resource('markdown')} parsedDocumentUrl={resource('source')}
+            persistedExtraction={null} latestReviewedExtraction={null} onSourceSuperseded={onSourceSuperseded} />,
+        ),
+      )
+      const { rerender } = render(<DocumentWorkspace {...reopened} onSourceSuperseded={onSourceSuperseded} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      // The reprocessed document's PDF is still loading when the notice shows.
+      getDocument.mockReturnValueOnce({ promise: new Promise<{ numPages: number }>(() => {}), destroy: destroyLoadingTask })
+
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
+      const cover = await screen.findByRole('status', { name: 'Loading Source Document' })
+      const notice = screen.getByText('This document has been reprocessed — no new Extraction was started').closest('[role="status"]')!
+      const host = notice.parentElement!
+      // Same stacking context (the document section); the notice's host stacks above the loading cover.
+      const z = (element: Element) => Number(/(?:^|\s)z-(\d+)(?:\s|$)/.exec(element.className)?.[1] ?? 0)
+      expect(cover.className).toMatch(/(^|\s)absolute(\s|$)/)
+      expect(z(host)).toBeGreaterThan(z(cover))
+      expect(host.closest('section')).toBe(cover.closest('section'))
     })
   })
 
@@ -2225,7 +2772,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })
@@ -2350,13 +2897,14 @@ describe('reopened Source Document workspace', () => {
     )
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: 'Cancel extraction' }),
+        screen.getByRole('button', { name: /^■ Stop extraction/ }),
       ).toBeInTheDocument(),
     )
     expect(
-      screen.getByRole('button', { name: 'Cancel extraction' }),
+      screen.getByRole('button', { name: /^■ Stop extraction/ }),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+    // The record scope is the schema's own, and is locked while the run is active.
+    expect(screen.getByLabelText('Record scope')).toBeDisabled()
 
     mounted.rerender(
       <StrictMode>
@@ -2369,12 +2917,12 @@ describe('reopened Source Document workspace', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: '↻ Re-run extraction' }),
+        screen.getByRole('button', { name: '▶ Run extraction' }),
       ).toBeInTheDocument(),
     )
     await new Promise((resolve) => window.setTimeout(resolve, 2_100))
     expect(
-      screen.queryByRole('button', { name: 'Cancel extraction' }),
+      screen.queryByRole('button', { name: /^■ Stop extraction/ }),
     ).not.toBeInTheDocument()
   })
 
@@ -2469,15 +3017,34 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
 
+    // Every completion toast that reaches the page, as rendered: one, already with its action (never a plain one first).
+    const completions: string[] = []
+    const watcher = new MutationObserver(() => {
+      for (const toast of document.querySelectorAll('[role="status"]'))
+        if (toast.textContent?.includes('Extraction complete') && completions.at(-1) !== toast.textContent)
+          completions.push(toast.textContent)
+    })
+    watcher.observe(document.body, { subtree: true, childList: true, characterData: true })
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-    // Completion never switches the rail tab; it reports through the finished
-    // dialog and the researcher opens Results themselves.
-    expect(await screen.findByText('✓ Extraction complete — view the JSON in the Results tab')).toBeVisible()
-    // A terminal admission can show the toast before its awaiting caller opens the dialog.
-    expect(await screen.findByRole('heading', { name: 'Extraction finished' })).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    // Completion never switches the rail tab by itself (decision 04): one toast, no dialog, whose "Review now" opens
+    // Results. The admission was already finished: its one completion toast carries the action from the start.
+    expect(await screen.findByText('✓ Extraction complete — review it in the Results tab')).toBeVisible()
+    const reviewNow = await screen.findByRole('button', { name: 'Review now' })
+    watcher.disconnect()
+    expect(completions).toEqual(['✓ Extraction complete — review it in the Results tabReview now'])
+    // The toast floats over the page under the PDF toolbar, never over its controls: its host sits in the viewer area.
+    const toastHost = screen.getByText('✓ Extraction complete — review it in the Results tab').closest('[role="status"]')!.parentElement!
+    expect(toastHost.parentElement!).not.toContainElement(screen.getByRole('button', { name: 'Pages' }))
+    expect(toastHost.parentElement!).toContainElement(document.querySelector('.pdf-viewer') as HTMLElement)
+    expect(shownToasts.filter((message) => message.includes('Extraction complete'))).toHaveLength(1)
+    expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    // It outlasts the plain toast's 2.6 s.
+    await new Promise((resolve) => setTimeout(resolve, 2_700))
+    expect(screen.getByRole('button', { name: 'Review now' })).toBe(reviewNow)
+    fireEvent.click(reviewNow)
+    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
     const approve = await screen.findByRole('button', { name: /Approve remaining/ })
     await waitFor(() => expect(approve).toBeEnabled())
     fireEvent.click(approve)
@@ -2668,8 +3235,9 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     return mounted
   }
 
+  /** The Results tab's own run actions: none since decision 03 (the tab strip's Run is the only one). */
   const resultsRunActions = () =>
-    screen.queryAllByRole('button', { name: /^Run (Article|Catalog) extraction/ })
+    screen.queryAllByRole('button', { name: /^Run (Article |Catalog )?extraction/ })
 
   it.each([
     [
@@ -2706,10 +3274,9 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     stubWorkspace()
     await renderView(pinnedView(attempt))
 
-    const run = screen.getByRole('button', { name: /^(↻ Re-run|▶ Run) extraction$/ })
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
     expect(run).toBeDisabled()
     expect(run).toHaveAttribute('title', earlierSourceRunTitle)
-    expect(screen.queryByText(/^Press Run extraction/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(screen.getByText(shown, { exact: true })).toBeVisible()
     expect(resultsRunActions()).toEqual([])
@@ -2741,7 +3308,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     )
     expect(screen.getByRole('button', { name: 'Reject place' })).toBeEnabled()
     expect(resultsRunActions()).toEqual([])
-    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
   })
 
   it('still cancels a running Extraction', async () => {
@@ -2754,7 +3321,9 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     await renderView(pinnedView(attempt))
 
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(screen.getAllByRole('button', { name: 'Cancel extraction' })).toHaveLength(2)
+    // The Results tab's Cancel and the tab strip's Stop.
+    expect(screen.getByRole('button', { name: 'Cancel extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^■ Stop extraction/ })).toBeEnabled()
     const cancel = screen.getByTitle('Cancel the active Extraction')
     expect(cancel).toBeEnabled()
     fireEvent.click(cancel)
@@ -2776,15 +3345,17 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
         },
       },
     ],
-  ] as const)('keeps the run actions of %s', async (_label, view) => {
+  ] as const)('keeps the run of %s', async (_label, view) => {
     const { runs } = stubWorkspace()
     await renderView(view)
 
-    const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
     expect(run).toBeEnabled()
-    expect(run).toHaveAttribute('title', 'Run one values extraction across the whole Source Document')
+    expect(run).toHaveAttribute('title', 'Extract one record from the whole document')
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction' }))
+    // The tab strip's Run is the only run (decision 03).
+    expect(resultsRunActions()).toEqual([])
+    fireEvent.click(run)
     await waitFor(() => expect(runs).toHaveLength(1))
     expect(runs[0]).toMatchObject({ sourceRepresentationRevisionId: reopened.sourceRepresentationId })
   })
@@ -2793,7 +3364,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     const reviewed = attemptOn(earlierRepresentationId, { reviewedAt: '2026-08-01T00:00:00.000Z' })
     const { runs } = stubWorkspace()
     const { rerender } = await renderView(pinnedView(reviewed))
-    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
 
     // The plain route: the current Source Representation, its newer unreviewed
     // attempt, and the reviewed one still on the earlier source.
@@ -2813,11 +3384,12 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
-    const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
     expect(run).toBeEnabled()
+    // "Open latest reviewed" sits in the Results header.
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
+    expect(resultsRunActions()).toEqual([])
 
     fireEvent.click(run)
     await waitFor(() => expect(runs).toHaveLength(1))
@@ -2839,6 +3411,8 @@ describe('updated latest reviewed extraction', () => {
     const { rerender } = render(<DocumentWorkspace {...reopened} latestReviewedExtraction={first} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     rerender(<DocumentWorkspace {...reopened} latestReviewedExtraction={second} />)
+    // The snapshot choice sits in the Results header.
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(screen.getByRole<HTMLOptionElement>('option', { name: 'Latest reviewed' }).value).toBe(second.extractionId)
   })
 

@@ -42,8 +42,10 @@ describe('Studio interface theme', () => {
     expect(contrast(hex(foreground), hex(background))).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('white primary-button text passes AA on accent', () => {
+  it('white text passes AA on the accent, positive and danger fills', () => {
     expect(contrast('#ffffff', hex('accent'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast('#ffffff', hex('green'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast('#ffffff', hex('danger'))).toBeGreaterThanOrEqual(4.5)
   })
 
   it('defines a dual-color focus indicator and opts entry motion in', () => {

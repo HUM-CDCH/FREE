@@ -29,7 +29,8 @@ export type SchemaProposalReview = {
     workflowId: string | null,
   ): void
   toggle(changeId: string): void
-  apply(): void
+  /** True when the proposal was applied; false when it was refused (kept for review) or discarded as stale. */
+  apply(): boolean
   discard(): void
   reset(): void
 }
@@ -88,7 +89,7 @@ export function useSchemaProposalReview(
   }, [pending])
 
   const apply = useCallback(() => {
-    if (!pending || !replay?.hasChanges) return
+    if (!pending || !replay?.hasChanges) return false
     const current = schema.snapshot()
     if (
       current.draftVersion !== pending.originalDraftVersion ||
@@ -96,7 +97,7 @@ export function useSchemaProposalReview(
     ) {
       appendMessage('Schema changed during review. The proposal was discarded.')
       reset()
-      return
+      return false
     }
     const result = schema.commit(
       () => replay.nodes,
@@ -108,12 +109,13 @@ export function useSchemaProposalReview(
           ? `Cannot apply the proposal: a sibling field already uses “${result.duplicateName}”.`
           : 'Cannot apply the proposal because no schema draft is open.',
       )
-      return
+      return false
     }
     appendMessage(
       `✓ ${replay.appliedCount} schema change${replay.appliedCount === 1 ? '' : 's'} applied.`,
     )
     reset()
+    return true
   }, [appendMessage, pending, replay, reset, schema])
 
   const discard = useCallback(() => {

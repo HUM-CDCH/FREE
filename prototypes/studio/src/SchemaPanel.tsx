@@ -2,6 +2,7 @@ import { SchemaImport } from './SchemaImport'
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -9,7 +10,7 @@ import {
 import { deleteModelOperation, requestSchemaEdit } from './api'
 import { sourceCoverageNotice } from './sourceCoverageNotice'
 import type { SchemaEditorController } from './currentSchemaRevision'
-import { countTemplateFields, isRecord } from '../shared/template'
+import { isRecord } from '../shared/template'
 import {
   FIELD_TYPES,
   SCALAR_FIELD_TYPES,
@@ -17,23 +18,24 @@ import {
   type ScalarFieldType,
 } from 'extraction/allowed-values'
 import {
+  type RecordScope,
   type SchemaNode,
   enumerateFieldPaths,
   mkId,
-  nodesToTemplate,
   schemaDefinitionToTemplate,
   templateToSchemaDefinition,
 } from 'extraction/schema'
 import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
-import { Button } from './ui'
+import { Button, EmptyState, ModalDialog, SegmentedControl, Toast } from './ui'
+import FieldRow from './FieldRow'
+import ChatDrawer from './ChatDrawer'
+import { useToast } from './useToast'
+import ActionsMenu, { type ActionItem } from './ActionsMenu'
 import SchemaNameEditor from './SchemaNameEditor'
+import { SchemaSaveStatus } from './SchemaSaveStatus'
+import { defaultSchemaName, UNTITLED_SCHEMA_NAME } from './schemaNames'
+import { deriveSchemaProposal } from '../shared/schemaChanges'
 import {
-  deriveSchemaProposal,
-  type Change,
-  type ReplayOutcome,
-} from '../shared/schemaChanges'
-import {
-  InstructionCount,
   SchemaInstructionsChat,
   SchemaInstructionsDrawer,
 } from './SchemaInstructions'
@@ -44,12 +46,19 @@ import { useModelOperationRecovery } from './useModelOperationRecovery'
 import {
   moveSchemaNodes,
   removeSchemaNode,
+  restoreSchemaNode,
   schemaAncestorIds,
   schemaDragMode,
   updateSchemaNode,
 } from './schemaEditorTree'
 
 const EMPTY_NODES: SchemaNode[] = []
+/** `ids` taken out of the collapsed set, so those groups show their children. */
+const withoutIds = (current: ReadonlySet<string>, ids: Iterable<string>) => {
+  const next = new Set(current)
+  for (const id of ids) next.delete(id)
+  return next
+}
 
 const scrollIntoViewOnce = (element: HTMLElement | null) => element?.scrollIntoView?.({ block: 'nearest' })
 const focusField = (element: HTMLElement | null) => { scrollIntoViewOnce(element); element?.focus({ preventScroll: true }) }
@@ -63,9 +72,9 @@ export type FieldContext = {
   resultPaths: (string | number)[][]
 }
 
-const CHAT_GREETING = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
+const CONVERSATION_EMPTY = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
 
-type SchemaPanelProps = {
+export type SchemaPanelProps = {
   schema: SchemaEditorController
   /** Extraction Schema generation; omitted where generation is unavailable. */
   onGenerateInstructions?: (instruction: string) => void
@@ -81,6 +90,15 @@ type SchemaPanelProps = {
   /** Reports edits visible in the panel that are not yet in its controller. */
   onPendingLocalEditChange?: (pending: boolean) => void
   fieldContext?: FieldContext | null
+  /** The Article/Catalog choice under the schema name; null until one is saved. */
+  recordScope?: { value: RecordScope | null; onChange: (scope: RecordScope) => void; disabled?: boolean }
+  /** How catalogue entries are found, beside the record scope; omitted or null where it does not apply. */
+  boundaries?: {
+    value: string
+    options: ReadonlyArray<{ id: string; label: string }>
+    onChange: (id: string) => void
+    disabled?: boolean
+  } | null
 }
 
 type DragState = {
@@ -134,150 +152,9 @@ function editingOf(node: SchemaNode): FieldEditing {
   }
 }
 
-function AllowedValuesBadge({ node, onEdit, disabled }: { node: SchemaNode; onEdit?: () => void; disabled?: boolean }) {
-  if (!node.allowedValues) return null
-  const title = `Allowed values${onEdit ? ' — click to edit' : ''}: ${node.allowedValues.join(', ')}`
-  if (!onEdit) {
-    return (
-      <span
-        className="min-w-0 shrink truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted"
-        title={title}
-      >
-        {node.allowedValues.join(' | ')}
-      </span>
-    )
-  }
-  return (
-    <button
-      type="button"
-      className="min-w-0 shrink cursor-pointer truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-default disabled:opacity-60 disabled:hover:bg-canvas disabled:hover:text-ink-muted"
-      title={title}
-      disabled={disabled}
-      onClick={onEdit}
-    >
-      {node.allowedValues.join(' | ')}
-    </button>
-  )
-}
-
-function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
-  if (outcome === 'rejected') return (
-    <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 text-[9px] font-semibold text-ink-muted">
-      Rejected
-    </span>
-  )
-  if (outcome === 'unresolved') return (
-    <span
-      className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
-      title={change?.outcome === 'unresolved'
-        ? change.reason
-        : 'This accepted change depends on another review decision that is not currently accepted.'}
-    >
-      Unresolved
-    </span>
-  )
-  if (!change?.reason) {
-    if (outcome !== 'conflict') return null
-    return (
-      <span
-        className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
-        title="This proposal conflicts with a schema invariant."
-      >
-        Conflict
-      </span>
-    )
-  }
-  return (
-    <span
-      className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
-      title={change.reason}
-    >
-      Conflict
-    </span>
-  )
-}
-
-function AcceptanceControl({ id, name, accepted, onChange }: {
-  id: string
-  name: string
-  accepted: boolean
-  onChange: (id: string) => void
-}) {
-  return (
-    <label className="flex shrink-0 cursor-pointer items-center gap-1 text-[10px] font-semibold text-ink-muted">
-      <input
-        type="checkbox"
-        className="cursor-pointer accent-accent"
-        aria-label={`Accept change to ${name}`}
-        checked={accepted}
-        onChange={() => onChange(id)}
-      />
-      Accept
-    </label>
-  )
-}
-
 type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
 
-
-function fieldTypeLabel(node: SchemaNode): string {
-  if (node.type !== 'array') return node.type
-  return node.children === undefined ? `array<${node.itemType}>` : 'array<object>'
-}
-
-function FieldTypeBadge({ node, onEdit, disabled }: { node: SchemaNode; onEdit?: () => void; disabled?: boolean }) {
-  const label = fieldTypeLabel(node)
-  const className = 'shrink-0 rounded bg-canvas px-1.5 py-0.5 font-mono text-[9px] text-ink-muted'
-  if (!onEdit) return <span className={className}>{label}</span>
-  return (
-    <button
-      type="button"
-      className={`${className} cursor-pointer outline-none transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-default disabled:opacity-60`}
-      title={`Type: ${label} — click to edit`}
-      disabled={disabled}
-      onClick={onEdit}
-    >
-      {label}
-    </button>
-  )
-}
-
-function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; change?: Change; impliedRemoved?: boolean }) {
-  if (change?.kind === 'modified' && change.before && change.after) {
-    const nameChanged = change.before.name !== change.after.name
-    const beforeType = fieldTypeLabel(change.before)
-    const afterType = fieldTypeLabel(change.after)
-    return (
-      <>
-        {nameChanged ? (
-          <>
-            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-danger line-through">{change.before.name}</span>
-            <span className="shrink-0 text-[10px] text-ink-faint" aria-hidden="true">→</span>
-            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-green">{change.after.name}</span>
-          </>
-        ) : (
-          <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{change.after.name}</span>
-        )}
-        {beforeType !== afterType && (
-          <>
-            <span className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 font-mono text-[9px] text-danger line-through">{beforeType}</span>
-            <span className="shrink-0 rounded bg-green-soft px-1.5 py-0.5 font-mono text-[9px] text-green">{afterType}</span>
-          </>
-        )}
-      </>
-    )
-  }
-
-  const tone = change?.kind === 'added'
-    ? 'text-green'
-    : change?.kind === 'removed' || impliedRemoved
-      ? 'text-danger line-through'
-      : 'text-ink'
-  return (
-    <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${tone}`}>{node.name}</span>
-  )
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Data model and converters
@@ -290,13 +167,7 @@ function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; 
 // ────────────────────────────────────────────────────────────────────────────
 
 
-function subtreeIdsOf(node: SchemaNode): string[] {
-  const ids = [node.id]
-  for (const child of node.children ?? []) ids.push(...subtreeIdsOf(child))
-  return ids
-}
-
-/** Per-field notes set via the "i" description button, so Regenerate carries them into the instruction. */
+/** Per-field notes set from each row's note action, so Regenerate carries them into the instruction. */
 function fieldDescriptionsInstruction(nodes: readonly SchemaNode[]): string {
   const notes = enumerateFieldPaths(nodes)
     .filter(({ node }) => node.description)
@@ -313,20 +184,38 @@ function WorkingIndicator({ onStop }: { onStop: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-md border border-line bg-canvas px-4 py-8 text-center" aria-live="polite">
       <span aria-hidden="true" className="animate-spin-slow size-7 rounded-full border-[3px] border-line border-t-accent" />
-      <p className="text-[13px] font-semibold text-ink">Producing schema…</p>
-      <p className="max-w-[34ch] text-xs leading-snug text-ink-muted">This can take a while on large documents.</p>
-      <button className={`${genBtnCls} mt-1`} type="button" onClick={onStop}>Stop</button>
+      <p className="text-content font-semibold text-ink">Producing schema…</p>
+      <p className="max-w-[34ch] text-secondary leading-snug text-ink-muted">This can take a while on large documents.</p>
+      <Button variant="danger" size="sm" className="mt-1" onClick={onStop}>Stop</Button>
     </div>
   )
 }
 
-const genBtnCls =
-  'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-accent bg-accent px-3 py-1.5 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-50 disabled:hover:brightness-100'
+const dialogCls =
+  'm-auto w-full max-w-sm rounded-card border border-line bg-surface p-4 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]'
+
+/** The record description's height in rows (§5): two at rest, growing with its wrapped text to six. */
+const DESCRIPTION_ROWS = { min: 2, max: 6 }
+/** `leading-relaxed` at `text-secondary` (12px × 1.625), for a computed style that has none (jsdom). */
+const DESCRIPTION_LINE_HEIGHT = 19.5
+
+/** The record description's rows for its wrapped text (not only its line breaks), from two to six: measured at the
+ *  minimum so it can shrink too. The rows are written to the element directly; React renders the constant minimum. */
+function fitDescriptionRows(element: HTMLTextAreaElement) {
+  element.rows = DESCRIPTION_ROWS.min
+  const style = getComputedStyle(element)
+  const lineHeight = parseFloat(style.lineHeight) || DESCRIPTION_LINE_HEIGHT
+  const padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0)
+  const lines = Math.round((element.scrollHeight - padding) / lineHeight)
+  element.rows = Math.min(DESCRIPTION_ROWS.max, Math.max(DESCRIPTION_ROWS.min, lines))
+}
 
 // Field editing uses stable ids, not paths.
-function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
+function FieldEditForm({ editing, error, focus = 'name', onChange, onSave, onCancel }: {
   editing: FieldEditing
   error: string | null
+  /** The input focused on opening: the name, or the allowed values when the row's values pill opened the form. */
+  focus?: 'name' | 'values'
   onChange: (e: FieldEditing) => void
   onSave: () => void
   onCancel: () => void
@@ -354,18 +243,18 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
           className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-xs font-semibold text-ink outline-none focus-visible:border-accent"
           value={editing.name}
           placeholder="field_name"
-          autoFocus
+          autoFocus={focus === 'name' || editing.type !== 'string'}
           onChange={e => onChange({ ...editing, name: e.target.value })}
           onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
         />
-        <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
-        <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" aria-label="Cancel field edit" onClick={onCancel}>✗</button>
+        <Button variant="positive" disabled={!editing.name.trim()} onClick={onSave}>Save</Button>
+        <Button aria-label="Cancel field edit" onClick={onCancel}>✗</Button>
       </div>
       <div className="flex items-center gap-1.5">
-        <label className="flex min-w-0 flex-1 items-center gap-2 text-[10px] font-semibold text-ink-muted">
+        <label className="flex min-w-0 flex-1 items-center gap-2 text-overline font-semibold text-ink-muted">
           <span className="shrink-0">Type</span>
           <select
-            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-compact text-ink outline-none focus-visible:border-accent"
             aria-label="Field type"
             value={editing.type}
             onChange={(event) => onChange({ ...editing, type: event.target.value as FieldType })}
@@ -374,10 +263,10 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
           </select>
         </label>
         {editing.type === 'array' && (
-          <label className="flex min-w-0 flex-1 items-center gap-2 text-[10px] font-semibold text-ink-muted">
+          <label className="flex min-w-0 flex-1 items-center gap-2 text-overline font-semibold text-ink-muted">
             <span className="shrink-0">Items</span>
             <select
-              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
+              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-compact text-ink outline-none focus-visible:border-accent"
               aria-label="Array item type"
               value={editing.itemType === null ? 'object' : editing.itemType ?? 'string'}
               onChange={(event) => onChange({
@@ -393,11 +282,11 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
       </div>
       {editing.type === 'string' && (
         <div className="flex flex-col gap-1 border-t border-accent/20 pt-1.5">
-          <span className="text-[10px] font-semibold text-ink-muted">Allowed values (leave empty for free text)</span>
+          <span className="text-overline font-semibold text-ink-muted">Allowed values (leave empty for free text)</span>
           {editing.allowedValues && editing.allowedValues.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {editing.allowedValues.map((value) => (
-                <span key={value} className="flex items-center gap-1 rounded bg-canvas px-1.5 py-0.5 font-mono text-[10.5px] text-ink">
+                <span key={value} className="flex items-center gap-1 rounded bg-canvas px-1.5 py-0.5 font-mono text-overline text-ink">
                   {value}
                   <button
                     type="button"
@@ -411,17 +300,19 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
           )}
           <div className="flex items-center gap-1.5">
             <input
-              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
+              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-compact text-ink outline-none focus-visible:border-accent"
+              aria-label="Add allowed value"
+              autoFocus={focus === 'values'}
               value={newValue}
               placeholder="add value…"
               onChange={e => setNewValue(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addValue() } }}
             />
-            <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={addValue}>Add</button>
+            <Button onClick={addValue}>Add</Button>
           </div>
         </div>
       )}
-      {error && <span className="text-[10px] font-semibold text-danger" role="alert">{error}</span>}
+      {error && <span className="text-overline font-semibold text-danger" role="alert">{error}</span>}
     </div>
   )
 }
@@ -441,10 +332,10 @@ function DescriptionEditForm({ existing, value, onChange, onAdd, onDelete, onCan
   if (confirmingDelete) {
     return (
       <div className="mt-0.5 mb-0.5 flex items-center justify-between gap-1.5 rounded-md border border-danger/30 bg-danger-soft px-2 py-1">
-        <span className="text-[12px] font-semibold text-danger">Clear all notes on this field?</span>
+        <span className="text-secondary font-semibold text-danger">Clear all notes on this field?</span>
         <div className="flex shrink-0 gap-1.5">
-          <button className="cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-ink" type="button" onClick={() => setConfirmingDelete(false)}>Cancel</button>
-          <button className="cursor-pointer rounded-md bg-danger px-2 py-0.5 text-[11px] font-semibold text-white outline-none hover:brightness-110" type="button" onClick={onDelete}>Clear</button>
+          <Button onClick={() => setConfirmingDelete(false)}>Cancel</Button>
+          <Button variant="danger" onClick={onDelete}>Clear</Button>
         </div>
       </div>
     )
@@ -455,36 +346,26 @@ function DescriptionEditForm({ existing, value, onChange, onAdd, onDelete, onCan
       {notes.length > 0 && (
         <ul className="flex flex-col gap-0.5">
           {notes.map((note, i) => (
-            <li key={i} className="text-[11.5px] leading-snug text-ink">{note}</li>
+            <li key={i} className="text-compact leading-snug text-ink">{note}</li>
           ))}
         </ul>
       )}
       <div className="flex items-center gap-1.5">
         <input
-          className="min-w-0 flex-1 bg-transparent font-sans text-[12px] text-ink outline-none placeholder:text-ink-faint"
+          className="min-w-0 flex-1 bg-transparent font-sans text-secondary text-ink outline-none placeholder:text-ink-faint"
           placeholder={notes.length > 0 ? 'Add another note…' : 'Describe this field for the extraction model…'}
           value={value}
           autoFocus
           onChange={e => onChange(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') onAdd(); if (e.key === 'Escape') onCancel() }}
         />
-        <button
-          className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2 py-0.5 text-[11px] font-bold text-white outline-none transition-[filter] hover:brightness-108 disabled:cursor-default disabled:opacity-50"
-          type="button"
-          disabled={!value.trim()}
-          onClick={onAdd}
-        >
+        <Button variant="positive" disabled={!value.trim()} onClick={onAdd}>
           Add
-        </button>
+        </Button>
         {notes.length > 0 && (
-          <button
-            className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-danger"
-            type="button"
-            title="Clear all notes"
-            onClick={() => setConfirmingDelete(true)}
-          >🗑</button>
+          <Button variant="danger" title="Clear all notes" onClick={() => setConfirmingDelete(true)}>🗑</Button>
         )}
-        <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" title="Close" onClick={onCancel}>✗</button>
+        <Button title="Close" onClick={onCancel}>✗</Button>
       </div>
     </div>
   )
@@ -506,6 +387,8 @@ function SchemaPanel({
   showRegenerate = true,
   onPendingLocalEditChange,
   fieldContext = null,
+  recordScope,
+  boundaries,
 }: SchemaPanelProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const nodes =
@@ -519,13 +402,16 @@ function SchemaPanel({
   const [dragY, setDragY] = useState(0)
   const [overTarget, setOverTarget] = useState<DropTarget | null>(null)
   const [editing, setEditing] = useState<FieldEditing | null>(null)
+  const [editFocus, setEditFocus] = useState<'name' | 'values'>('name')
   const [provisionalField, setProvisionalField] =
     useState<FieldEditing | null>(null)
   const [editingError, setEditingError] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
-  const [chat, setChat] = useState<ChatMsg[]>([
-    { role: 'assistant', text: CHAT_GREETING },
-  ])
+  const { toast: panelToast, showToast: showPanelToast, dismissToast: dismissPanelToast, holdToast: holdPanelToast } = useToast()
+  const [chat, setChat] = useState<ChatMsg[]>([])
+  /** The researcher's open or collapse; null keeps the default: open before a schema exists or while a recovered
+   *  request runs, collapsed otherwise. */
+  const [drawerOpen, setDrawerOpen] = useState<boolean | null>(null)
   const appendChatMessage = useCallback(
     (message: string) =>
       setChat((current) => [...current, { role: 'assistant', text: message }]),
@@ -549,9 +435,9 @@ function SchemaPanel({
     chatAbortRef.current?.abort()
     chatAbortRef.current = null
   }, [])
-  const [view, setView] = useState<'fields' | 'json'>('fields')
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [view, setView] = useState<'fields' | 'code'>('fields')
+  /** Groups the researcher closed. Every other group shows its children, wherever it first appears (§6). */
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   const [openDescId, setOpenDescId] = useState<string | null>(null)
   const [descDraft, setDescDraft] = useState('')
   const [jsonEditMode, setJsonEditMode] = useState(false)
@@ -561,6 +447,8 @@ function SchemaPanel({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [creatingFromHistory, setCreatingFromHistory] = useState(false)
   const [confirmingDeleteSchema, setConfirmingDeleteSchema] = useState(false)
+  const [regenerateOpen, setRegenerateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
 
   // ── refs for event handlers (avoid stale closures) ──
@@ -572,10 +460,12 @@ function SchemaPanel({
   const dragStartYRef = useRef(0)
   const rafRef = useRef<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fieldListRef = useRef<HTMLDivElement>(null)
+  const addFieldRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!fieldContext) return
     const ancestors = schemaAncestorIds(nodes, new Set([fieldContext.nodeId]))
-    setExpandedIds((current) => new Set([...current, ...ancestors]))
+    setCollapsedIds((current) => withoutIds(current, ancestors))
   }, [fieldContext, nodes])
   const [recordDescriptionDraft, setRecordDescriptionDraft] = useState(
     () => snap.draft?.recordDescription ?? '',
@@ -588,20 +478,22 @@ function SchemaPanel({
     busy: chatLoading || pending !== null,
     appendMessage: appendChatMessage,
     onReopened: (proposal) => {
+      // A reopened proposal is reviewed in the conversation, as one that has just arrived.
+      setDrawerOpen(true)
       const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
-      setExpandedIds((current) => new Set([...current, ...ancestors]))
+      setCollapsedIds((current) => withoutIds(current, ancestors))
     },
   })
   // Shown wherever the chat lives: before the first schema (the instructions chat) and after (the edit chat).
   const runningRows = recovery.running.map((operation) => (
     <div
       key={operation.workflowId}
-      className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-[12px] text-ink-muted"
+      className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-secondary text-ink-muted"
     >
       <span>{`Still working on an earlier request: “${operation.instruction}”`}</span>
       <button
         type="button"
-        className="shrink-0 text-[11px] text-ink underline"
+        className="min-h-6 shrink-0 cursor-pointer text-compact text-ink underline"
         aria-label={`Stop earlier request “${operation.instruction}”`}
         onClick={() => recovery.stop(operation.workflowId)}
       >
@@ -613,7 +505,15 @@ function SchemaPanel({
   const creatingFromHistoryRef = useRef(false)
 
   const ready = snap.view === 'editing'
-  const displayedFieldCount = ready ? countTemplateFields(nodesToTemplate(nodes)) : 0
+  // A recovered running request continues a send made before the reload, and a send opens the conversation.
+  const drawerShown = drawerOpen ?? (!ready || recovery.running.length > 0)
+  // The schema's birth ends the instructions conversation: the new schema rests with its composer line closed.
+  const wasReady = useRef(ready)
+  useEffect(() => {
+    if (ready && !wasReady.current) setDrawerOpen(null)
+    wasReady.current = ready
+  }, [ready])
+  const shownScope = snap.historicalPreview ? snap.historicalPreview.recordScope ?? null : recordScope?.value ?? null
   const dx = dragging ? dragX - dragStartXRef.current : 0
   const dy = dragging ? dragY - dragStartYRef.current : 0
   const dragMode = schemaDragMode(dx, dy)
@@ -654,27 +554,30 @@ function SchemaPanel({
       setEditingError(null)
       setMutationError(null)
       resetProposal()
-      setSelectedIds(new Set())
       setOpenDescId(null)
       setJsonEditMode(false)
       setJsonDraft('')
       setJsonEditError(null)
       setView('fields')
-      setExpandedIds(new Set())
+      setCollapsedIds(new Set())
       setDescDraft('')
       setChatInput('')
       setHistoryError(null)
       setConfirmingDeleteSchema(false)
+      setRegenerateOpen(false)
+      // A pending Undo belongs to the replaced draft: restoring into the new one would graft an old field onto it.
+      dismissPanelToast()
       setRecordDescriptionDraft(
         schema.snapshot().draft?.recordDescription ?? '',
       )
       if (clearConversation) {
         setHistoryOpen(false)
         resetInstructions()
-        setChat([{ role: 'assistant', text: CHAT_GREETING }])
+        setChat([])
+        setDrawerOpen(null)
       }
     },
-    [resetInstructions, resetProposal, schema],
+    [dismissPanelToast, resetInstructions, resetProposal, schema],
   )
   const observedReplacementVersion = useRef(snap.replacementVersion)
   useEffect(() => {
@@ -687,7 +590,7 @@ function SchemaPanel({
   useEffect(() => {
     const el = chatRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [chat.length, pending])
+  }, [chat.length, pending, instructions.items.length, drawerShown])
 
 
   // ── Auto-scroll helpers ──
@@ -767,6 +670,97 @@ function SchemaPanel({
       return
     }
     resetEditorUi(true)
+  }
+
+  /** The code view's editor, opened on the current definition, whose version it remembers: a code Save over field edits
+   *  made since (in the Fields view, which a session leaves open) is refused rather than replacing them. */
+  const codeBaseVersionRef = useRef(0)
+  function startCodeEdit() {
+    codeBaseVersionRef.current = schema.snapshot().draftVersion
+    setJsonDraft(JSON.stringify(schemaDefinitionToTemplate({ recordDescription: recordDescriptionDraft, schemaNodes: nodes }), null, 2))
+    setJsonEditMode(true)
+    setJsonEditError(null)
+  }
+
+  const importDisabled = editorReadOnly || editing !== null || openDescId !== null || snap.generating || !schema.operationScope()?.projectContextId
+  const menuItems: ActionItem[] = [
+    { id: 'import', label: 'Import from Excel codebook…', onSelect: () => setImportOpen(true), disabled: importDisabled },
+    // "Edit as code" opens the code view ready to edit (§5); Fields | Code switches to it for reading. A session already
+    // open keeps its unsaved code and its error: choosing the action again only shows it.
+    { id: 'code', label: 'Edit as code', onSelect: () => { setView('code'); if (!jsonEditMode) startCodeEdit() } },
+    {
+      id: 'history', label: 'History', onSelect: () => setHistoryOpen(true),
+      disabled: snap.history.length === 0 || creatingFromHistory || snap.creatingFromRevisionId !== null || snap.previewingRevisionId !== null,
+    },
+    ...(showRegenerate && onGenerateInstructions
+      ? [{ id: 'regenerate', label: 'Regenerate from the document…', onSelect: () => setRegenerateOpen(true), disabled: snap.generating }]
+      : []),
+    { id: 'clear', label: 'Clear schema', tone: 'danger' as const, divider: true, onSelect: () => setConfirmingDeleteSchema(true) },
+  ]
+
+  /** A durable schema with no fields yet: the researcher names it and describes the record (Ruling 5). The description
+   *  textarea is focused with its placeholder text selected once the panel is ready, so typing replaces it. */
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
+  // Grows by content, not by line breaks: measured on every edit and whenever the textarea mounts.
+  useLayoutEffect(() => {
+    if (descriptionRef.current) fitDescriptionRows(descriptionRef.current)
+  }, [recordDescriptionDraft, ready, view, editorReadOnly])
+  // And whenever its width changes with no edit: a rail resize re-wraps the text, and so does the Schema tab shown again
+  // after it was hidden (0px wide while hidden, so it is measured once it is shown). Height-only notifications are the
+  // rows just set; measuring on them would loop. The measurement waits for the next frame: resizing the observed
+  // element inside its own notification is the "ResizeObserver loop" error.
+  useEffect(() => {
+    const element = descriptionRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    let width: number | null = null
+    let frame = 0
+    const observer = new ResizeObserver((entries) => {
+      const next = entries[entries.length - 1]!.contentRect.width
+      if (next === width) return
+      width = next
+      if (next === 0) return
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => fitDescriptionRows(element))
+    })
+    observer.observe(element)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [ready, view, editorReadOnly])
+  const [focusDescriptionOnReady, setFocusDescriptionOnReady] = useState(false)
+  useEffect(() => {
+    if (!focusDescriptionOnReady || !ready) return
+    // Spent on the first ready render, focused or not, so a later unrelated transition cannot fire it.
+    descriptionRef.current?.focus()
+    descriptionRef.current?.select()
+    setFocusDescriptionOnReady(false)
+  }, [focusDescriptionOnReady, ready])
+
+  const startingBlankRef = useRef(false)
+  const [startingBlank, setStartingBlank] = useState(false)
+  async function startBlank() {
+    if (startingBlankRef.current) return
+    startingBlankRef.current = true
+    setStartingBlank(true)
+    setMutationError(null)
+    try {
+      await schema.confirmDefinition({ recordDescription: 'Untitled record', schemaNodes: [] })
+      if (!editorReadOnly) setFocusDescriptionOnReady(true)
+      // A schema cleared and started again keeps its name; only a new one is named.
+      if (!schemaName) await renameNewSchema(UNTITLED_SCHEMA_NAME)
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'The schema could not be created.')
+    } finally {
+      startingBlankRef.current = false
+      setStartingBlank(false)
+    }
+  }
+
+  /** Names a schema that has none yet (Start blank, an import); a rejected rename shows like any other failed edit. */
+  async function renameNewSchema(name: string) {
+    const rejected = await onRenameSchema?.(name)
+    if (rejected) setMutationError(rejected)
   }
 
 
@@ -850,7 +844,7 @@ function SchemaPanel({
     const t: DropTarget = { type: 'group', id, name }
     overTargetRef.current = t
     setOverTarget(t)
-    setExpandedIds(s => new Set([...s, id]))
+    setCollapsedIds((current) => withoutIds(current, [id]))
   }
 
   function clearGroupTarget(id: string) {
@@ -867,7 +861,11 @@ function SchemaPanel({
       setEditingError('Need at least 2 allowed values, or remove the last one for free text.')
       return
     }
-    const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_') || 'field'
+    const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!name) {
+      setEditingError('Enter a field name.')
+      return
+    }
     const result =
       provisionalField?.id === editing.id
         ? schema.commit(
@@ -911,31 +909,37 @@ function SchemaPanel({
     setEditingError(null)
   }
 
-  function bulkRemoveNodes() {
-    const count = selectedIds.size
-    // Removals cannot create duplicate sibling names; the gate's scan passes.
-    schema.commit((current) => {
-      let next = current
-      for (const id of selectedIds) {
-        const [, after] = removeSchemaNode(next, id)
-        next = after
-      }
-      return next
-    }, `${count} field${count !== 1 ? 's' : ''} removed`)
-    if (editing && selectedIds.has(editing.id)) setEditing(null)
-    setSelectedIds(new Set())
-  }
-
-  function toggleSelected(node: SchemaNode) {
-    const ids = subtreeIdsOf(node)
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      const select = !next.has(node.id)
-      for (const id of ids) {
-        if (select) next.add(id)
-        else next.delete(id)
-      }
-      return next
+  /** One click removes the field and its subtree; Undo puts it back where it was for eight seconds (§6). Both commits
+   *  carry an empty label: the controller toasts every non-empty label at the top of the document (`onCommitMessage`,
+   *  wired in `App.tsx`), and the panel's toast is the one notice for delete and undo. */
+  function deleteField(node: SchemaNode, parentId: string | null, index: number) {
+    const focusTarget = rowAfterDeleting(node.id)
+    const result = schema.commit((current) => removeSchemaNode(current, node.id)[1], '')
+    if (!result.ok) {
+      setMutationError(
+        result.reason === 'no-draft'
+          ? 'No schema draft is open.'
+          : `A sibling field already uses “${result.duplicateName}”.`,
+      )
+      return
+    }
+    // Keyboard focus stays in the list rather than falling to the page when the focused row goes.
+    focusTarget?.focus()
+    // A form open on the field or anywhere inside it goes with it.
+    const removedIds = new Set(enumerateFieldPaths([node]).map((field) => field.id))
+    if (editing && removedIds.has(editing.id)) cancelEdit()
+    if (openDescId !== null && removedIds.has(openDescId)) setOpenDescId(null)
+    showPanelToast('Field removed', {
+      durationMs: 8_000,
+      action: {
+        label: 'Undo',
+        onAction: () => {
+          // Computed from the live snapshot before anything is committed: an impossible restore commits nothing.
+          const current = schema.snapshot().draft?.schemaNodes
+          const restored = current ? restoreSchemaNode(current, node, parentId, index) : null
+          if (!restored || !schema.commit(() => restored, '').ok) showPanelToast('Could not restore the field')
+        },
+      },
     })
   }
 
@@ -946,7 +950,7 @@ function SchemaPanel({
     )
   }
 
-  /** Each "i" note appends as a new line rather than replacing the field's existing notes. */
+  /** Each note appends as a new line rather than replacing the field's existing notes. */
   function addNodeDescriptionNote(id: string, existing: string | undefined, draft: string) {
     const note = draft.trim()
     if (!note) return
@@ -954,14 +958,19 @@ function SchemaPanel({
     setDescDraft('')
   }
 
+  /** Where focus goes once a field's row is removed: the next visible row outside its subtree, else the previous row,
+   *  else "+ Add field". Rows of other fields keep their DOM nodes across the commit, so the element stays valid. */
+  function rowAfterDeleting(id: string): HTMLElement | null {
+    const rows = Array.from(fieldListRef.current?.querySelectorAll<HTMLElement>('[role="listitem"]') ?? [])
+    const index = rows.findIndex((row) => row.closest('[data-schema-node-id]')?.getAttribute('data-schema-node-id') === id)
+    if (index < 0) return addFieldRef.current
+    const subtree = rows[index]!.closest('[data-schema-node-id]')!
+    return rows.slice(index + 1).find((row) => !subtree.contains(row)) ?? rows[index - 1] ?? addFieldRef.current
+  }
+
   function addField() {
     if (editing) return
-    const cur = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
-    let name = 'nyt_felt'
-    let suffix = 2
-    while (cur.some(n => n.name === name)) name = `nyt_felt_${suffix++}`
-    const id = mkId()
-    const next = { id, name, type: 'verbatim-string' as const }
+    const next = { id: mkId(), name: '', type: 'verbatim-string' as const }
     setProvisionalField(next)
     setView('fields')
     setEditing(next)
@@ -974,6 +983,7 @@ function SchemaPanel({
   // ── Chat ──
   async function sendChatMessage(text: string) {
     if (!text.trim() || chatLoading || pending) return
+    setDrawerOpen(true)
     const userMsg = text.trim()
     setChat(c => [...c, { role: 'user', text: userMsg }])
     setChatInput('')
@@ -1033,8 +1043,10 @@ function SchemaPanel({
             originalSchemaRevisionId,
             `edit:${operationId}`,
           )
+          // A pending proposal keeps the drawer open with its Apply / Discard bar, even if it was collapsed meanwhile.
+          setDrawerOpen(true)
           const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
-          setExpandedIds((current) => new Set([...current, ...ancestors]))
+          setCollapsedIds((current) => withoutIds(current, ancestors))
         }
       }
     } catch (err) {
@@ -1047,7 +1059,7 @@ function SchemaPanel({
       ) {
         setChat(c => [...c, { role: 'assistant', text: 'Cancelled.' }])
       } else {
-        setChatInput(userMsg)
+        // The sent message stays in the conversation above the error; the composer stays empty for the next one.
         setChat(c => [...c, { role: 'assistant', text: `Error: ${err instanceof Error ? err.message : 'Request failed'}` }])
       }
     } finally {
@@ -1080,289 +1092,77 @@ function SchemaPanel({
     return `h-1.5 border-t-2 transition-[border-color] duration-100 ${on ? 'border-accent' : 'border-transparent'}`
   }
 
-  function rowCls(_id: string, intoGroup: boolean, isDragging: boolean) {
-    return [
-      '-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5',
-      'border border-solid transition-[background,border,opacity] duration-150',
-      intoGroup || isDragging ? 'border-accent' : 'border-transparent',
-      intoGroup ? 'bg-accent-ghost' : '',
-      isDragging ? 'opacity-40' : '',
-    ].join(' ')
-  }
-
   const msgCls = (role: 'user' | 'assistant') =>
     role === 'user'
-      ? 'self-end max-w-[88%] rounded-[11px_11px_3px_11px] bg-accent px-3 py-1.5 text-xs leading-relaxed text-white'
-      : 'self-start max-w-[92%] rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-1.5 text-xs leading-relaxed text-ink'
+      ? 'self-end max-w-[88%] rounded-[11px_11px_3px_11px] bg-accent px-3 py-1.5 text-secondary leading-relaxed text-white'
+      : 'self-start max-w-[92%] rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-1.5 text-secondary leading-relaxed text-ink'
 
   const editDisabled = editorReadOnly || !!dragging
 
   const chatBlocked = !!pending || chatLoading
-
-  const tabCls = (active: boolean) =>
-    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
+  // A refused or stale Apply keeps the drawer open: its explanation, and a refused proposal's review, stay in view.
+  const applyProposal = () => { if (proposalReview.apply()) setDrawerOpen(false) }
+  const discardProposal = () => { proposalReview.discard(); setDrawerOpen(false) }
+  const sendInstruction = () => {
+    if (!instructions.draft.trim()) return
+    setDrawerOpen(true)
+    instructions.send()
+  }
+  // The one-row instructions field keeps the scroll of the text it held; emptied, it would show its wrapped
+  // placeholder from that offset (its tail). Back to the start once it is empty.
+  const instructionInputRef = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const element = instructionInputRef.current
+    if (!element || instructions.draft !== '') return
+    element.scrollTop = 0
+    element.scrollLeft = 0
+  }, [instructions.draft])
+  // Before a schema exists the dot is the only way back to the instructions and their Generate schema action.
+  const dot = drawerShown ? null : runningRows.length > 0 ? { title: 'An earlier request is still running' } : !ready || chat.length > 0 || pending ? { title: 'Show conversation' } : null
 
   // Render helpers for field rows
   // ────────────────────────────────────────────────────────────────────────
 
-  function renderRootField(node: SchemaNode, i: number) {
+  function renderField(node: SchemaNode, parentId: string | null, index: number, ancestorRemoved = false): React.ReactNode {
     const isGroup = node.children !== undefined
     const isDragging = dragging?.id === node.id
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === node.id
-    const isEditing = editing?.id === node.id
+    const isExpanded = !collapsedIds.has(node.id) || intoGroup
     const change = pending?.changes.find((item) => item.id === node.id)
-    const diffStatus = change?.kind ?? null
-    const isDiff = diffStatus !== null
-    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-amber-100' : ''
-
-    return (
-      <div key={node.id} data-schema-node-id={node.id} tabIndex={-1} ref={fieldContext?.nodeId === node.id ? focusField : undefined}>
-        {/* drop slot before this field */}
-        <div className={slotCls(null, i)} onMouseEnter={() => setSlotTarget(null, i)} />
-
-        {isEditing && editing && !isDiff ? (
-          <FieldEditForm
-            editing={editing}
-            error={editingError}
-            onChange={(next) => { setEditing(next); setEditingError(null) }}
-            onSave={saveEdit}
-            onCancel={cancelEdit}
-          />
-        ) : (
-          <div
-            className={`${rowCls(node.id, intoGroup, isDragging)} ${diffBg}`}
-            onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name)}
-            onMouseLeave={() => !isDiff && clearGroupTarget(node.id)}
-          >
-            {!isDiff && !editorReadOnly && (
-              <span
-                className="shrink-0 cursor-grab select-none px-0.5 text-sm leading-none text-ink-faint"
-                onMouseDown={e => startDrag(e, node.id, null, node.name, isGroup)}
-              >
-                ⠿
-              </span>
-            )}
-            <FieldChangeLabel node={node} change={change} />
-            {!isDiff && (
-              <FieldTypeBadge
-                node={node}
-                disabled={editDisabled}
-                onEdit={!editorReadOnly ? () => { setEditing(editingOf(node)); setEditingError(null) } : undefined}
-              />
-            )}
-            <AllowedValuesBadge
-              node={node}
-              disabled={editDisabled}
-              onEdit={!isDiff && !editorReadOnly ? () => { setEditing(editingOf(node)); setEditingError(null) } : undefined}
-            />
-            <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
-            {intoGroup && !isDiff && (
-              <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
-                into {node.name}
-              </span>
-            )}
-            <span className="min-w-0 flex-1" />
-            {change && <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptedChangeIds.has(change.id)} onChange={proposalReview.toggle} />}
-            {!isDiff && !editorReadOnly && (
-              <button
-                className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
-                type="button"
-                title="Add description"
-                onClick={() => {
-                  const next = openDescId === node.id ? null : node.id
-                  if (next) setDescDraft('')
-                  setOpenDescId(next)
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
-              </button>
-            )}
-            {!isDiff && !editorReadOnly && (
-              <button
-                className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
-                type="button"
-                title={`Edit ${node.name}`}
-                disabled={editDisabled}
-                onClick={() => { setEditing(editingOf(node)); setEditingError(null) }}
-              >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
-              </button>
-            )}
-            {!isDiff && !editorReadOnly && (
-              <input
-                type="checkbox"
-                className="shrink-0 cursor-pointer accent-accent"
-                checked={selectedIds.has(node.id)}
-                onChange={() => toggleSelected(node)}
-                onClick={e => e.stopPropagation()}
-              />
-            )}
-          </div>
-        )}
-
-        {openDescId === node.id && (
-          <DescriptionEditForm
-            existing={node.description ?? ''}
-            value={descDraft}
-            onChange={setDescDraft}
-            onAdd={() => addNodeDescriptionNote(node.id, node.description, descDraft)}
-            onDelete={() => { updateNodeDescription(node.id, undefined); setOpenDescId(null) }}
-            onCancel={() => setOpenDescId(null)}
-          />
-        )}
-
-        {/* Nested children area — shown when there are children or dragging (for drop slot) */}
-        {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (
-          <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j, diffStatus === 'removed'))}
-            <div
-              className={slotCls(node.id, (node.children ?? []).length)}
-              onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)}
-            />
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  function renderChildField(child: SchemaNode, parentId: string, j: number, ancestorRemoved = false): React.ReactNode {
-    const isDragging = dragging?.id === child.id
-    const isEditing = editing?.id === child.id
-    const isGroup = child.children !== undefined
-    const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === child.id
-    const isExpanded = expandedIds.has(child.id) || intoGroup
-    const change = pending?.changes.find((item) => item.id === child.id)
     const diffStatus = change?.kind ?? (ancestorRemoved ? 'removed' : null)
     const isDiff = diffStatus !== null
-    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-amber-100' : ''
-
-    const toggleExpand = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      setExpandedIds(s => {
-        const ns = new Set(s)
-        if (ns.has(child.id)) ns.delete(child.id)
-        else ns.add(child.id)
-        return ns
-      })
-    }
-
+    const isEditing = editing?.id === node.id
+    // The row itself is the group target, at every level: the slot above it and its children below are targets of their
+    // own, and the pointer moving from either onto the row must replace their target.
     return (
-      <div
-        key={child.id}
-        data-schema-node-id={child.id}
-        tabIndex={-1}
-        ref={fieldContext?.nodeId === child.id ? focusField : undefined}
-        onMouseEnter={() => !isDiff && setGroupTarget(child.id, child.name)}
-        onMouseLeave={() => !isDiff && clearGroupTarget(child.id)}
-      >
-        <div className={slotCls(parentId, j)} onMouseEnter={e => { e.stopPropagation(); setSlotTarget(parentId, j) }} />
+      <div key={node.id} data-schema-node-id={node.id}>
+        <div className={slotCls(parentId, index)} onMouseEnter={() => setSlotTarget(parentId, index)} />
         {isEditing && editing && !isDiff ? (
-          <FieldEditForm
-            editing={editing}
-            error={editingError}
-            onChange={(next) => { setEditing(next); setEditingError(null) }}
-            onSave={saveEdit}
-            onCancel={cancelEdit}
-          />
+          <FieldEditForm editing={editing} error={editingError} focus={editFocus} onChange={(next) => { setEditing(next); setEditingError(null) }} onSave={saveEdit} onCancel={cancelEdit} />
         ) : (
-          <div
-            className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup && !isDiff ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''} ${diffBg}`}
-          >
-            {!isDiff && !editorReadOnly && (
-              <span
-                className="shrink-0 cursor-grab select-none px-0.5 text-[13px] leading-none text-ink-faint"
-                onMouseDown={e => startDrag(e, child.id, parentId, child.name, isGroup)}
-              >
-                ⠿
-              </span>
-            )}
-            <FieldChangeLabel node={child} change={change} impliedRemoved={ancestorRemoved} />
-            {!isDiff && (
-              <FieldTypeBadge
-                node={child}
-                disabled={editDisabled}
-                onEdit={!editorReadOnly ? () => { setEditing(editingOf(child)); setEditingError(null) } : undefined}
-              />
-            )}
-            <AllowedValuesBadge
-              node={child}
-              disabled={editDisabled}
-              onEdit={!isDiff && !editorReadOnly ? () => { setEditing(editingOf(child)); setEditingError(null) } : undefined}
-            />
-            <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
-            {isGroup && !isDiff && (
-              <span
-                className="shrink-0 flex items-center text-ink-faint hover:text-accent cursor-pointer transition-colors"
-                onClick={toggleExpand}
-              >
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 120ms' }}>
-                  <polygon points="0,0 8,4 0,8" />
-                </svg>
-              </span>
-            )}
-            {intoGroup && !isDiff && (
-              <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
-                into {child.name}
-              </span>
-            )}
-            <span className="min-w-0 flex-1" />
-            {change && <AcceptanceControl id={change.id} name={change.after?.name ?? child.name} accepted={acceptedChangeIds.has(change.id)} onChange={proposalReview.toggle} />}
-            {!isDiff && !editorReadOnly && (
-              <button
-                className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
-                type="button"
-                title="Add description"
-                onClick={() => {
-                  const next = openDescId === child.id ? null : child.id
-                  if (next) setDescDraft('')
-                  setOpenDescId(next)
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
-              </button>
-            )}
-            {!isDiff && !editorReadOnly && (
-              <button
-                className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
-                type="button"
-                title={`Edit ${child.name}`}
-                disabled={editDisabled}
-                onClick={() => { setEditing(editingOf(child)); setEditingError(null) }}
-              >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
-              </button>
-            )}
-            {!isDiff && !editorReadOnly && (
-              <input
-                type="checkbox"
-                className="shrink-0 cursor-pointer accent-accent"
-                checked={selectedIds.has(child.id)}
-                onChange={() => toggleSelected(child)}
-                onClick={e => e.stopPropagation()}
-              />
-            )}
-          </div>
+          <FieldRow node={node} isGroup={isGroup} expanded={isExpanded}
+            onToggleExpanded={() => setCollapsedIds((current) => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next })}
+            change={change} outcome={change && replay?.outcomes.get(change.id)} impliedRemoved={ancestorRemoved}
+            acceptance={change ? { accepted: acceptedChangeIds.has(change.id), onToggle: proposalReview.toggle } : undefined}
+            readOnly={editorReadOnly} editDisabled={editDisabled} dragging={isDragging} dragActive={!!dragging} intoGroup={intoGroup}
+            onMouseEnter={isDiff ? undefined : () => setGroupTarget(node.id, node.name)}
+            onMouseLeave={isDiff ? undefined : () => clearGroupTarget(node.id)}
+            onStartDrag={(event) => startDrag(event, node.id, parentId, node.name, isGroup)}
+            onEdit={() => { setEditing(editingOf(node)); setEditFocus('name'); setEditingError(null) }}
+            onEditValues={() => { setEditing(editingOf(node)); setEditFocus('values'); setEditingError(null) }}
+            onAddNote={() => { const next = openDescId === node.id ? null : node.id; if (next) setDescDraft(''); setOpenDescId(next) }}
+            onDelete={() => deleteField(node, parentId, index)}
+            nodeRef={fieldContext?.nodeId === node.id ? focusField : undefined} />
         )}
-
-        {openDescId === child.id && (
-          <DescriptionEditForm
-            existing={child.description ?? ''}
-            value={descDraft}
-            onChange={setDescDraft}
-            onAdd={() => addNodeDescriptionNote(child.id, child.description, descDraft)}
-            onDelete={() => { updateNodeDescription(child.id, undefined); setOpenDescId(null) }}
-            onCancel={() => setOpenDescId(null)}
-          />
+        {openDescId === node.id && (
+          <DescriptionEditForm existing={node.description ?? ''} value={descDraft} onChange={setDescDraft}
+            onAdd={() => addNodeDescriptionNote(node.id, node.description, descDraft)}
+            onDelete={() => { updateNodeDescription(node.id, undefined); setOpenDescId(null) }} onCancel={() => setOpenDescId(null)} />
         )}
-
-        {/* Children area — shown when expanded and has children or dragging (for drop slot) */}
-        {isGroup && isExpanded && ((child.children ?? []).length > 0 || !!dragging) && (
-          <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k, ancestorRemoved || diffStatus === 'removed'))}
-            <div
-              className={slotCls(child.id, (child.children ?? []).length)}
-              onMouseEnter={() => setSlotTarget(child.id, (child.children ?? []).length)}
-            />
+        {isGroup && isExpanded && ((node.children ?? []).length > 0 || !!dragging) && (
+          <div role="list" aria-label={`Fields of ${node.name}`} className="-mr-2 ml-4 mt-0.5 border-l border-line pl-3 pr-2">
+            {(node.children ?? []).map((child, childIndex) => renderField(child, node.id, childIndex, ancestorRemoved || diffStatus === 'removed'))}
+            <div className={slotCls(node.id, (node.children ?? []).length)} onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)} />
           </div>
         )}
       </div>
@@ -1371,512 +1171,426 @@ function SchemaPanel({
 
   // ────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <SchemaImport schema={schema} disabled={editorReadOnly || editing !== null || openDescId !== null || snap.generating} />
-
+    <div className="relative flex h-full min-h-0 flex-col">
       {/* ── Header ── */}
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">Extraction Schema</h2>
-          {schemaName && ready ? (
-            editorReadOnly || !onRenameSchema ? (
-              <p className="h-7 truncate font-mono text-[13px] font-medium leading-7 text-ink">{schemaName}</p>
+      <header className="flex shrink-0 flex-col gap-1 border-b border-line px-4 pb-2 pt-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1 text-content font-semibold text-ink">
+            {schemaName && ready ? (
+              editorReadOnly || !onRenameSchema ? (
+                <h2 className="h-7 truncate leading-7">{schemaName}</h2>
+              ) : (
+                <SchemaNameEditor name={schemaName} nameAs="h2" onSubmit={onRenameSchema} />
+              )
             ) : (
-              <SchemaNameEditor
-                name={schemaName}
-                className="font-mono text-[13px] font-medium text-ink"
-                onSubmit={onRenameSchema}
+              <h2 className="h-7 truncate leading-7">{sourceDocumentName}</h2>
+            )}
+          </div>
+          {ready && (
+            <div className="flex shrink-0 items-center gap-2">
+              <SegmentedControl
+                aria-label="Schema view"
+                value={view}
+                onChange={setView}
+                options={[{ value: 'fields', label: 'Fields' }, { value: 'code', label: 'Code' }]}
               />
-            )
-          ) : (
-            <p className="h-7 truncate font-mono text-[13px] font-medium leading-7 text-ink">{sourceDocumentName}</p>
+              {!editorReadOnly && <ActionsMenu label="Schema actions" items={menuItems} />}
+            </div>
           )}
         </div>
-        {ready && (
-          <div className="flex shrink-0 items-center gap-2">
-            <div className="flex overflow-hidden rounded-md border border-line">
-              <button className={tabCls(view === 'fields')} type="button" aria-pressed={view === 'fields'} onClick={() => setView('fields')}>Fields</button>
-              <button className={`${tabCls(view === 'json')} font-mono`} type="button" aria-pressed={view === 'json'} onClick={() => setView('json')}>{'JSON'}</button>
-            </div>
-            {!editorReadOnly && <div className="relative">
-              <button
-                className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-danger/50 hover:text-danger"
-                type="button"
-                aria-label="Clear current schema"
-                title="Clear current schema"
-                onClick={() => setConfirmingDeleteSchema((open) => !open)}
-              >
-                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8 2a1 1 0 00-1 1v1H4a1 1 0 000 2h12a1 1 0 100-2h-3V3a1 1 0 00-1-1H8zM5 7a1 1 0 011 1v8a2 2 0 002 2h4a2 2 0 002-2V8a1 1 0 112 0v8a4 4 0 01-4 4H8a4 4 0 01-4-4V8a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-              </button>
-              {confirmingDeleteSchema && (
-                <div className="absolute right-0 top-full z-30 mt-1.5 w-64 rounded-lg border border-danger/30 bg-surface p-3 shadow-float">
-                  <p className="text-[12px] font-semibold text-ink">Clear current schema?</p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
-                    This clears the current editor only. Saved Schema Revisions remain in history.
-                  </p>
-                  <div className="mt-2.5 flex justify-end gap-1.5">
-                    <button
-                      className="cursor-pointer rounded-md px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none hover:text-ink"
-                      type="button"
-                      onClick={() => setConfirmingDeleteSchema(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="cursor-pointer rounded-md bg-danger px-2.5 py-1 text-[11px] font-semibold text-white outline-none hover:brightness-110"
-                      type="button"
-                      onClick={deleteSchema}
-                    >
-                      Clear schema
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>}
+        {ready && (recordScope || boundaries) && (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-secondary text-ink-muted">
+            {recordScope && (
+              <span className="inline-flex items-center gap-0.5">
+                {/* A historical preview shows that revision's scope, read-only like the rest of the preview. */}
+                <select
+                  aria-label="Record scope"
+                  className={`min-h-6 cursor-pointer appearance-none bg-transparent outline-none hover:text-ink disabled:cursor-default ${
+                    shownScope === null ? 'font-semibold text-accent' : 'text-ink-muted'
+                  }`}
+                  value={shownScope ?? ''}
+                  disabled={recordScope.disabled || editorReadOnly}
+                  onChange={(event) => { if (!editorReadOnly) recordScope.onChange(event.target.value as RecordScope) }}
+                >
+                  {shownScope === null && <option value="" disabled>Choose Article or Catalog</option>}
+                  <option value="document">Article · one object for the document</option>
+                  <option value="records">Catalog · a collection of records</option>
+                </select>
+                <span aria-hidden="true" className="text-ink-faint">▾</span>
+              </span>
+            )}
+            {boundaries && (
+              <label className="inline-flex items-center gap-1">
+                Boundaries
+                <select
+                  aria-label="Boundaries"
+                  className="min-h-6 cursor-pointer appearance-none bg-transparent text-ink outline-none disabled:cursor-default"
+                  value={boundaries.value}
+                  disabled={boundaries.disabled}
+                  title="How catalogue entries are found: by the model, or by a numbered-catalogue recipe with source-backed evidence"
+                  onChange={(event) => boundaries.onChange(event.target.value)}
+                >
+                  <option value="">Model discovery</option>
+                  {boundaries.options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </select>
+                <span aria-hidden="true" className="text-ink-faint">▾</span>
+              </label>
+            )}
           </div>
         )}
       </header>
 
-      {/* ── Schema list / states ── */}
-      <div ref={scrollRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        {historyError && <p role="alert" className="mb-2 text-xs text-danger">{historyError}</p>}
-        {snap.historicalPreview && (
-          <div
-            className="mb-3 flex items-center justify-between gap-3 rounded-md border border-accent/30 bg-accent-ghost px-3 py-2"
-            role="status"
-          >
-            <p className="text-[11px] text-ink">
-              Viewing historical Schema Revision{' '}
-              {snap.historicalPreview.revisionNumber}. This preview is read-only.
-            </p>
-            <div className="flex shrink-0 gap-1.5">
-              <button
-                className="cursor-pointer rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none hover:text-ink"
-                type="button"
-                onClick={() => schema.closeHistoricalPreview()}
-              >
-                Close preview
-              </button>
-              <button
-                className="cursor-pointer rounded-md bg-accent px-2 py-1 text-[11px] font-semibold text-white outline-none hover:brightness-108 disabled:cursor-default disabled:opacity-50"
-                type="button"
-                disabled={creatingFromHistory}
-                onClick={() => void createFromHistory()}
-              >
-                Create Current Schema Revision
-              </button>
-            </div>
-          </div>
-        )}
-        {ready && snap.generating && (
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2" role="status">
-            <p className="text-[11px] text-ink">Regenerating. The current saved schema remains available.</p>
-            <button className={genBtnCls} type="button" onClick={() => schema.cancelGeneration()}>Stop</button>
-          </div>
-        )}
-        {ready && snap.sourceCoverage && snap.sourceCoverage.sourceRepresentationRevisionId === sourceRepresentationId && (
-          <div className="mb-3 rounded-md border border-line px-3 py-2" role="note">
-            <p className="text-[11px] text-ink-muted">{sourceCoverageNotice(snap.sourceCoverage)}</p>
-          </div>
-        )}
-        {ready && snap.generationError && (
-          <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
-            <p className="text-[11px] text-danger">Regeneration failed: {snap.generationError} The current saved schema is unchanged.</p>
-          </div>
-        )}
-        {snap.cancellationError && (
-          <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
-            <p className="text-[11px] text-danger">{snap.cancellationError}</p>
-          </div>
-        )}
-        {snap.save?.status === 'conflict' && (
-          <div
-            className="mb-2 flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2"
-            role="alert"
-          >
-            <p className="text-[11px] text-danger">
-              The Current Schema Revision changed elsewhere.
-            </p>
-            <button
-              className="shrink-0 cursor-pointer rounded-md border border-danger/40 bg-surface px-2 py-1 text-[11px] font-semibold text-danger outline-none hover:bg-danger-soft"
-              type="button"
-              onClick={() => schema.reloadCurrent()}
+      {/* ── Schema list / states, and the panel's toast over their bottom edge: clear of the conversation and the footer
+          below, and not scrolling away with the fields. ── */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div ref={scrollRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          {historyError && <p role="alert" className="mb-2 text-xs text-danger">{historyError}</p>}
+          {snap.historicalPreview && (
+            // A column: the text reads across the panel and the commands wrap beneath it, at the 264px rail too.
+            <div
+              className="mb-3 flex flex-col gap-2 rounded-md border border-accent/30 bg-accent-ghost px-3 py-2"
+              role="status"
             >
-              Reload Current Schema Revision
-            </button>
-          </div>
-        )}
-        {snap.view === 'empty' && (
-          <div className="rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
-            <p className="text-[13px] font-semibold text-ink">No schema yet</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-              Chat to add instructions, or generate now.
-            </p>
-          </div>
-        )}
-
-        {snap.view === 'generating' && <WorkingIndicator onStop={() => schema.cancelGeneration()} />}
-
-        {snap.view === 'failed' && (
-          <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
-            <p className="text-[13px] leading-snug text-danger">{snap.generationError}</p>
-            {onGenerateInstructions && (
-              <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerateInstructions(instructions.text)}>Retry</button>
-            )}
-          </div>
-        )}
-
-        {ready && view === 'json' && (
-          <div className="flex flex-col gap-1.5">
-            {!jsonEditMode ? (
-              <div className="relative">
-                <pre className="overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2.5 font-mono text-[11px] leading-relaxed text-ink">
-                  {JSON.stringify(
-                    schemaDefinitionToTemplate({
-                      recordDescription: recordDescriptionDraft,
-                      schemaNodes: nodes,
-                    }),
-                    null,
-                    2,
-                  )}
-                </pre>
-                {!editorReadOnly && <button
-                  className="absolute right-2 top-2 cursor-pointer rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[10px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent"
-                  type="button"
-                  onClick={() => {
-                    setJsonDraft(
-                      JSON.stringify(
-                        schemaDefinitionToTemplate({
-                          recordDescription: recordDescriptionDraft,
-                          schemaNodes: nodes,
-                        }),
-                        null,
-                        2,
-                      ),
-                    )
-                    setJsonEditMode(true)
-                    setJsonEditError(null)
-                  }}
-                >
-                  Edit
-                </button>}
-              </div>
-            ) : (
-              <>
-                <textarea
-                  className="w-full rounded-md border border-accent/50 bg-canvas p-2.5 font-mono text-[11px] leading-relaxed text-ink outline-none focus:border-accent"
-                  style={{ minHeight: 240, resize: 'vertical' }}
-                  value={jsonDraft}
-                  onChange={e => setJsonDraft(e.target.value)}
-                  spellCheck={false}
-                />
-                {jsonEditError && (
-                  <p className="text-[11px] text-danger">{jsonEditError}</p>
-                )}
-                <div className="flex gap-1.5">
-                  <button
-                    className="cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 font-sans text-[11px] font-bold text-white outline-none hover:brightness-108"
-                    type="button"
-                    onClick={() => {
-                      try {
-                        const parsed: unknown = JSON.parse(jsonDraft)
-                        if (!isRecord(parsed)) throw new Error('JSON must be an object')
-                        const definition = templateToSchemaDefinition(parsed)
-                        schema.replaceDraft(definition, '✎ Schema updated via JSON editor')
-                        setJsonEditMode(false)
-                        setJsonEditError(null)
-                      } catch (e) {
-                        setJsonEditError(e instanceof Error ? e.message : 'Invalid JSON')
-                      }
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button
-                    className="cursor-pointer rounded-md border border-line-strong bg-surface px-2.5 py-1 font-sans text-[11px] font-semibold text-ink-muted outline-none hover:text-accent"
-                    type="button"
-                    onClick={() => { setJsonEditMode(false); setJsonEditError(null) }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {ready && view === 'fields' && (
-          <>
-            <div className="mb-3 rounded-lg border border-line bg-canvas px-3 py-2.5">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
-                Record description
+              <p className="min-w-0 text-compact text-ink">
+                Viewing historical Schema Revision{' '}
+                {snap.historicalPreview.revisionNumber}. This preview is read-only.
               </p>
-              {editorReadOnly ? (
-                <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                  {recordDescriptionDraft}
-                </p>
-              ) : (
-                <textarea
-                  aria-label="Record description"
-                  className="mt-1 block w-full resize-none bg-transparent text-xs leading-relaxed text-ink outline-none placeholder:text-ink-faint"
-                  rows={2}
-                  value={recordDescriptionDraft}
-                  placeholder="Describe the record represented by this schema…"
-                  onChange={(event) =>
-                    setRecordDescriptionDraft(event.target.value)
-                  }
-                  onBlur={commitRecordDescription}
-                />
-              )}
-            </div>
-            {mutationError && <p className="mb-2 text-[11px] font-semibold text-danger" role="alert">{mutationError}</p>}
-            {!editorReadOnly && selectedIds.size > 0 && (
-              <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5 shadow-float">
-                <span className="text-[12px] font-semibold text-danger">
-                  {selectedIds.size} field{selectedIds.size !== 1 ? 's' : ''} selected
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    className="cursor-pointer rounded-md px-2 py-1 text-[11.5px] font-semibold text-ink-muted hover:text-ink outline-none"
-                    type="button"
-                    onClick={() => setSelectedIds(new Set())}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="cursor-pointer rounded-md bg-danger px-2.5 py-1 text-[11.5px] font-semibold text-white outline-none hover:brightness-110"
-                    type="button"
-                    onClick={bulkRemoveNodes}
-                  >
-                    Delete
-                  </button>
-                </div>
+              <div className="flex flex-wrap gap-1.5">
+                <Button onClick={() => schema.closeHistoricalPreview()}>Close preview</Button>
+                <Button variant="positive" disabled={creatingFromHistory} onClick={() => void createFromHistory()}>
+                  Create Current Schema Revision
+                </Button>
               </div>
-            )}
-            <div className="flex flex-col">
-              {fieldContext && <div role="status" className="p-2 text-xs bg-accent-ghost">
-                From Extraction {fieldContext.extractionId} · revision {fieldContext.revisionNumber ?? fieldContext.schemaRevisionId} · {fieldContext.nodeType}
-                {contextNode ? ` → ${contextNode.name} (${contextNode.type}) in the current editor. Unsaved edits are retained.` : ' · This field was removed. No replacement was selected.'}
-                {!contextNode && <Button onClick={() => void schema.previewHistoricalRevision(fieldContext.schemaRevisionId)}>View historical schema</Button>}
-              </div>}
-              {(pending ? pending.reviewNodes : nodes).map((node, i) => renderRootField(node, i))}
-              {provisionalField && editing?.id === provisionalField.id && (
-                <FieldEditForm
-                  editing={editing}
-                  error={editingError}
-                  onChange={(next) => {
-                    setEditing(next)
-                    setProvisionalField(next)
-                    setEditingError(null)
-                  }}
-                  onSave={saveEdit}
-                  onCancel={cancelEdit}
-                />
-              )}
-              {/* final root slot */}
-              <div className={slotCls(null, nodes.length)} onMouseEnter={() => setSlotTarget(null, nodes.length)} />
             </div>
-            {!editorReadOnly && <button
-              className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
-              type="button"
-              disabled={editing !== null}
-              onClick={addField}
+          )}
+          {ready && snap.generating && (
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2" role="status">
+              <p className="text-compact text-ink">Regenerating. The current saved schema remains available.</p>
+              <Button variant="danger" onClick={() => schema.cancelGeneration()}>Stop</Button>
+            </div>
+          )}
+          {ready && snap.sourceCoverage && snap.sourceCoverage.sourceRepresentationRevisionId === sourceRepresentationId && (
+            <div className="mb-3 rounded-md border border-line px-3 py-2" role="note">
+              <p className="text-compact text-ink-muted">{sourceCoverageNotice(snap.sourceCoverage)}</p>
+            </div>
+          )}
+          {ready && snap.generationError && (
+            <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
+              <p className="text-compact text-danger">Regeneration failed: {snap.generationError} The current saved schema is unchanged.</p>
+            </div>
+          )}
+          {snap.cancellationError && (
+            <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
+              <p className="text-compact text-danger">{snap.cancellationError}</p>
+            </div>
+          )}
+          {snap.save?.status === 'conflict' && (
+            <div
+              className="mb-2 flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2"
+              role="alert"
             >
-              + Add field
-            </button>}
-          </>
+              <p className="text-compact text-danger">
+                The Current Schema Revision changed elsewhere.
+              </p>
+              <button
+                className="min-h-6 shrink-0 cursor-pointer rounded-md border border-danger/40 bg-surface px-2 py-1 text-compact font-semibold text-danger outline-none hover:bg-danger-soft"
+                type="button"
+                onClick={() => schema.reloadCurrent()}
+              >
+                Reload Current Schema Revision
+              </button>
+            </div>
+          )}
+          {snap.view === 'empty' && (
+            <EmptyState title="No schema yet" description="Generate it from the document, import a codebook, or start blank.">
+              {onGenerateInstructions && (
+                <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate from the document</Button>
+              )}
+              {!editorReadOnly && <Button disabled={importDisabled} onClick={() => setImportOpen(true)}>Import from Excel codebook…</Button>}
+              {!editorReadOnly && <Button disabled={startingBlank} onClick={() => void startBlank()}>Start blank</Button>}
+            </EmptyState>
+          )}
+          {snap.view === 'empty' && mutationError && (
+            <p className="mt-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>
+          )}
+
+          {snap.view === 'generating' && <WorkingIndicator onStop={() => schema.cancelGeneration()} />}
+
+          {snap.view === 'failed' && (
+            <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
+              <p className="text-content leading-snug text-danger">{snap.generationError}</p>
+              {onGenerateInstructions && (
+                <Button className="mt-3" onClick={() => onGenerateInstructions(instructions.text)}>Retry</Button>
+              )}
+            </div>
+          )}
+
+          {ready && view === 'code' && (
+            <div className="flex flex-col gap-1.5">
+              {!jsonEditMode ? (
+                <div className="relative">
+                  <pre className="overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2.5 font-mono text-compact leading-relaxed text-ink">
+                    {JSON.stringify(
+                      schemaDefinitionToTemplate({
+                        recordDescription: recordDescriptionDraft,
+                        schemaNodes: nodes,
+                      }),
+                      null,
+                      2,
+                    )}
+                  </pre>
+                  {!editorReadOnly && <Button className="absolute right-2 top-2 font-sans" onClick={startCodeEdit}>Edit</Button>}
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    aria-label="Schema code"
+                    wrap="off"
+                    className="w-full overflow-x-auto whitespace-pre rounded-md border border-accent/50 bg-canvas p-2.5 font-mono text-compact leading-relaxed text-ink outline-none focus:border-accent"
+                    style={{ minHeight: 240, resize: 'vertical' }}
+                    value={jsonDraft}
+                    onChange={e => setJsonDraft(e.target.value)}
+                    spellCheck={false}
+                  />
+                  {jsonEditError && (
+                    <p className="text-compact text-danger">{jsonEditError}</p>
+                  )}
+                  <div className="flex gap-1.5">
+                    <Button
+                      variant="positive"
+                      onClick={() => {
+                        if (schema.snapshot().draftVersion !== codeBaseVersionRef.current) {
+                          setJsonEditError('The fields changed while you were editing the code. Copy any code you want to keep, Cancel this code edit, then open Edit as code again to continue from the current fields.')
+                          return
+                        }
+                        try {
+                          const parsed: unknown = JSON.parse(jsonDraft)
+                          if (!isRecord(parsed)) throw new Error('The code must describe one object')
+                          const definition = templateToSchemaDefinition(parsed)
+                          schema.replaceDraft(definition, '✎ Schema updated from the code view')
+                          setJsonEditMode(false)
+                          setJsonEditError(null)
+                        } catch (e) {
+                          setJsonEditError(e instanceof Error ? e.message : 'The code could not be read')
+                        }
+                      }}
+                    >
+                      Save
+                    </Button>
+                    <Button onClick={() => { setJsonEditMode(false); setJsonEditError(null) }}>Cancel</Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {ready && view === 'fields' && (
+            <>
+              <label className="mb-3 block">
+                <span className="text-compact font-semibold text-ink-muted">What one record is</span>
+                {editorReadOnly ? (
+                  <p className="mt-1 text-secondary leading-relaxed text-ink-muted">{recordDescriptionDraft}</p>
+                ) : (
+                  <textarea
+                    ref={descriptionRef}
+                    className="mt-1 block w-full resize-none rounded-[3px] border border-line bg-transparent px-2 py-1 text-secondary leading-relaxed text-ink outline-none transition-colors placeholder:text-ink-faint hover:border-line-strong focus:border-line-strong"
+                    rows={DESCRIPTION_ROWS.min}
+                    value={recordDescriptionDraft}
+                    placeholder="Describe the record this schema extracts…"
+                    onChange={(event) => setRecordDescriptionDraft(event.target.value)}
+                    onBlur={commitRecordDescription}
+                  />
+                )}
+              </label>
+              {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
+              {/* The list carries its rows' 8px bleed, so no row's box overflows it (§6, the 264px rail). */}
+              <div ref={fieldListRef} role="list" aria-label="Schema fields" className="-mx-2 flex flex-col px-2">
+                {fieldContext && <div role="status" className="p-2 text-xs bg-accent-ghost">
+                  From Extraction {fieldContext.extractionId} · revision {fieldContext.revisionNumber ?? fieldContext.schemaRevisionId} · {fieldContext.nodeType}
+                  {contextNode ? ` → ${contextNode.name} (${contextNode.type}) in the current editor. Unsaved edits are retained.` : ' · This field was removed. No replacement was selected.'}
+                  {!contextNode && <Button onClick={() => void schema.previewHistoricalRevision(fieldContext.schemaRevisionId)}>View historical schema</Button>}
+                </div>}
+                {(pending ? pending.reviewNodes : nodes).map((node, i) => renderField(node, null, i))}
+                {provisionalField && editing?.id === provisionalField.id && (
+                  <FieldEditForm
+                    editing={editing}
+                    error={editingError}
+                    onChange={(next) => {
+                      setEditing(next)
+                      setProvisionalField(next)
+                      setEditingError(null)
+                    }}
+                    onSave={saveEdit}
+                    onCancel={cancelEdit}
+                  />
+                )}
+                {/* final root slot */}
+                <div className={slotCls(null, nodes.length)} onMouseEnter={() => setSlotTarget(null, nodes.length)} />
+              </div>
+              {!editorReadOnly && <button
+                ref={addFieldRef}
+                className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
+                type="button"
+                disabled={editing !== null}
+                onClick={addField}
+              >
+                + Add field
+              </button>}
+            </>
+          )}
+        </div>
+        {panelToast && (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
+            <Toast key={panelToast.id} message={panelToast.message} action={panelToast.action} onDismiss={dismissPanelToast} onHoldChange={holdPanelToast} />
+          </div>
         )}
       </div>
 
-      {/* Pre-generation instructions: recorded locally as the instruction
-          source for "Generate schema". Hidden once ready, where the bottom slot
-          switches to the schema edit-chat below — a different mechanism (it
-          walks proposed changes node by node) that this doesn't replace. */}
-      {!ready && (
-        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: '60%' }}>
-          <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1.5">
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
-            {snap.view === 'empty' && onGenerateInstructions && (
-              <button className={genBtnCls} type="button" onClick={() => onGenerateInstructions(instructions.text)}>
-                Generate schema{instructions.countLabel}
-              </button>
-            )}
-          </div>
-          {runningRows.length > 0 && <div className="flex flex-col gap-2 px-3.5 pt-2.5">{runningRows}</div>}
-          <SchemaInstructionsChat
-            instructions={instructions}
-            messageClass={msgCls}
-          />
-        </div>
-      )}
-
-      {/* Chat panel. Growing with conversation length is only wanted before a
-          schema exists (see the !ready panel above) — once a schema has been
-          generated, and especially while a diff is pending review, the chat
-          must stay capped low so it doesn't cover the schema/diff above it. */}
-      {ready && !editorReadOnly && (
-        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: pending ? '32%' : '45%' }}>
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3.5 py-1">
-            <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
-            <div className="flex min-w-0 shrink items-center gap-1.5">
-              {showRegenerate && (
-                <div className="relative shrink-0">
-                  <button
-                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-accent/60 bg-accent-soft px-2.5 py-1 text-[11px] font-bold text-accent outline-none transition-colors hover:border-accent hover:brightness-105 disabled:cursor-default disabled:opacity-50 disabled:hover:border-accent/60 disabled:hover:brightness-100"
-                    type="button"
-                    aria-expanded={instructions.open}
-                    title="Start over: regenerate the whole schema from the document and instructions"
-                    disabled={snap.generating}
-                    onClick={instructions.toggle}
-                  >
-                    Regenerate
-                    <InstructionCount count={instructions.count} />
-                    <span aria-hidden="true" className="text-[9px]">{instructions.open ? '▾' : '▸'}</span>
-                  </button>
-                  {instructions.open && (
-                    <div className="scrollbar-subtle absolute right-0 bottom-full z-30 mb-1.5 w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-float">
-                      <SchemaInstructionsDrawer instructions={instructions} />
-                      <div className="flex items-center justify-end gap-2 px-2.5 py-2">
-                        <button
-                          className={genBtnCls}
-                          type="button"
-                          onClick={() => {
-                            instructions.toggle()
-                            onGenerateInstructions?.(
-                              [instructions.text, fieldDescriptionsInstruction(nodes)]
-                                .filter(Boolean)
-                                .join('\n\n'),
-                            )
-                          }}
-                        >
-                          Regenerate schema{instructions.countLabel}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+      {/* The conversation: before a schema exists, the instructions recorded for "Generate schema"; after, the schema
+          edit chat, which proposes changes for review. One composer line at rest; sending opens the drawer. */}
+      {(!ready || !editorReadOnly) && (
+        <ChatDrawer open={drawerShown} onCollapse={() => setDrawerOpen(false)} onExpand={() => setDrawerOpen(true)}
+          title={ready ? 'Conversation' : 'Instructions for generation'} dot={dot} bodyRef={chatRef}
+          headerAction={!ready && snap.view === 'empty' && onGenerateInstructions ? (
+            // No message count here: the drawer lists "Message n of n", and the header must fit the 264px rail.
+            <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate schema</Button>
+          ) : undefined}
+          bar={ready && pending ? <ProposalReviewBar proposal={pending} canApply={canApply} onApply={applyProposal} onDiscard={discardProposal} /> : undefined}
+          composer={ready ? (
+            <>
+              <input className="min-w-0 flex-1 bg-transparent font-sans text-secondary text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
+                placeholder="Describe a change to the schema…" value={chatInput} disabled={chatBlocked}
+                onChange={(event) => setChatInput(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') void sendChatMessage(chatInput) }} />
+              {chatLoading ? (
+                <button type="button" className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-danger text-compact text-white outline-none hover:brightness-108"
+                  onClick={cancelChat} title="Stop schema edit request" aria-label="Stop schema edit request">■</button>
+              ) : (
+                <button type="button" className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
+                  aria-label="Send" disabled={!chatInput.trim() || chatBlocked} onClick={() => void sendChatMessage(chatInput)}>↑</button>
               )}
-              <div className="relative">
-                <button
-                  className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent disabled:cursor-default disabled:opacity-40"
-                  type="button"
-                  aria-label="Schema history"
-                  title="Schema edit history"
-                  disabled={snap.history.length === 0 || creatingFromHistory || snap.creatingFromRevisionId !== null || snap.previewingRevisionId !== null}
-                  onClick={() => setHistoryOpen((open) => !open)}
-                >
-                  <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v5a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V5z" clipRule="evenodd" />
-                  </svg>
-                </button>
-                {historyOpen && (
-                <div className="scrollbar-subtle absolute right-0 bottom-full z-30 mb-1.5 max-h-80 w-72 overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-float">
-                  {snap.history.map((revision) => (
-                    <button
-                      key={revision.schemaRevisionId}
-                      type="button"
-                      className="block w-full rounded-md px-3 py-2 text-left outline-none hover:bg-accent-ghost"
-                      aria-label={`Revision ${revision.revisionNumber}: ${revision.summary}`}
-                      disabled={creatingFromHistory || snap.previewingRevisionId !== null}
-                      onClick={() => void previewHistory(revision)}
-                    >
-                      <span className="block text-xs font-semibold text-ink">
-                        Revision {revision.revisionNumber}{revision.revisionNumber === snap.currentRevisionNumber ? ' · Current' : ''}
-                      </span>
-                      <span className="block text-[11px] text-ink-muted">{revision.origin} · {revision.summary}</span>
-                      <span className="block text-[10px] text-ink-faint">{new Date(revision.createdAt).toLocaleString()}</span>
-                    </button>
-                  ))}
-                </div>
-                )}
-              </div>
-            </div>
-          </div>
-          <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
+            </>
+          ) : (
+            <>
+              <textarea ref={instructionInputRef} className="min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary text-ink outline-none placeholder:text-ink-faint" rows={1}
+                placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations")…'} value={instructions.draft}
+                onChange={(event) => instructions.setDraft(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendInstruction() } }} />
+              <button type="button" aria-label="Add instruction" className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
+                disabled={!instructions.draft.trim()} onClick={sendInstruction}>↑</button>
+            </>
+          )}>
+          {ready ? (
             <div className="flex flex-col gap-2">
               {runningRows}
-              {chat.map((m, i) => (
-                <div key={i} className={msgCls(m.role)}>{m.text}</div>
-              ))}
+              {chat.length === 0 && runningRows.length === 0 && !chatLoading && (
+                <p className="text-secondary leading-relaxed text-ink-faint">{CONVERSATION_EMPTY}</p>
+              )}
+              {chat.map((message, index) => <div key={index} className={msgCls(message.role)}>{message.text}</div>)}
               {chatLoading && (
                 <div className="self-start rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2">
                   <span className="flex gap-1">
-                    <span className="animate-pulse text-ink-faint text-sm">•</span>
-                    <span className="animate-pulse text-ink-faint text-sm" style={{ animationDelay: '0.15s' }}>•</span>
-                    <span className="animate-pulse text-ink-faint text-sm" style={{ animationDelay: '0.3s' }}>•</span>
+                    <span className="animate-pulse text-content text-ink-faint">•</span>
+                    <span className="animate-pulse text-content text-ink-faint" style={{ animationDelay: '0.15s' }}>•</span>
+                    <span className="animate-pulse text-content text-ink-faint" style={{ animationDelay: '0.3s' }}>•</span>
                   </span>
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Apply / Discard action bar — sticky, outside scroll area */}
-          {pending && (
-            <ProposalReviewBar
-              proposal={pending}
-              canApply={canApply}
-              onApply={proposalReview.apply}
-              onDiscard={proposalReview.discard}
-            />
+          ) : (
+            <>
+              {runningRows.length > 0 && <div className="mb-2 flex flex-col gap-2">{runningRows}</div>}
+              <SchemaInstructionsChat instructions={instructions} messageClass={msgCls} />
+            </>
           )}
-
-          <div className="shrink-0 px-3.5 pb-3 pt-1.5">
-            <div className="flex items-center gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">
-              <input
-                className="min-w-0 flex-1 bg-transparent font-sans text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
-                placeholder="Describe a change to the schema…"
-                value={chatInput}
-                disabled={chatBlocked}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') void sendChatMessage(chatInput) }}
-              />
-              {chatLoading ? (
-                <button
-                  type="button"
-                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108"
-                  onClick={cancelChat}
-                  title="Stop schema edit request"
-                  aria-label="Stop schema edit request"
-                >
-                  ■
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
-                  disabled={!chatInput.trim() || chatBlocked}
-                  onClick={() => void sendChatMessage(chatInput)}
-                >
-                  ↑
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        </ChatDrawer>
       )}
 
       {/* ── Footer ── */}
-      <footer className="flex min-h-10 shrink-0 items-center justify-between gap-2 border-t border-line px-4 py-2">
-        <p className="text-[11px] leading-snug text-ink-faint">
-          {snap.view === 'generating' && (
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-amber-500" />
-              Producing schema from the document…
-            </span>
-          )}
-          {ready && `${displayedFieldCount} field${displayedFieldCount === 1 ? '' : 's'} `}
-          {snap.view === 'empty' && 'Generate to produce the schema from the document'}
-          {snap.view === 'failed' && 'Generation failed'}
-        </p>
+      <footer className="flex min-h-10 shrink-0 items-center justify-between gap-2 border-t border-line px-4 py-2 text-compact text-ink-faint">
+        {snap.view === 'generating' && (
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-stale" />
+            Producing schema from the document…
+          </span>
+        )}
+        {snap.view === 'empty' && 'Generate, import or start blank to create the schema'}
+        {snap.view === 'failed' && 'Generation failed'}
+        {/* Status text only: the save's alert and Retry belong to the host beside its run controls, reachable with the
+            Schema tab hidden. */}
+        {ready && <SchemaSaveStatus save={snap.save} showSaved retry={false} onRetry={() => void schema.flush().catch(() => undefined)} />}
       </footer>
+
+      <SchemaImport
+        schema={schema}
+        disabled={importDisabled}
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          if (!schemaName) void renameNewSchema(defaultSchemaName(sourceDocumentName))
+        }}
+      />
+      {historyOpen && (
+        <ModalDialog className={dialogCls} ariaLabel="Schema history" onDismiss={() => setHistoryOpen(false)}>
+          <h3 className="text-secondary font-semibold text-ink">Schema history</h3>
+          <div className="scrollbar-subtle mt-2 max-h-80 overflow-y-auto">
+            {snap.history.map((revision) => (
+              <button
+                key={revision.schemaRevisionId}
+                type="button"
+                className="block w-full rounded-md px-3 py-2 text-left outline-none hover:bg-accent-ghost focus-visible:bg-accent-ghost"
+                aria-label={`Revision ${revision.revisionNumber}${revision.revisionNumber === snap.currentRevisionNumber ? ' · Current' : ''}: ${revision.summary}`}
+                disabled={creatingFromHistory || snap.previewingRevisionId !== null}
+                onClick={() => void previewHistory(revision)}
+              >
+                <span className="block text-secondary font-semibold text-ink">
+                  Revision {revision.revisionNumber}{revision.revisionNumber === snap.currentRevisionNumber ? ' · Current' : ''}
+                </span>
+                <span className="block text-compact text-ink-muted">{revision.origin} · {revision.summary}</span>
+                <span className="block text-overline text-ink-faint">{new Date(revision.createdAt).toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+        </ModalDialog>
+      )}
+      {regenerateOpen && (
+        <ModalDialog className={dialogCls} ariaLabel="Regenerate from the document" onDismiss={() => setRegenerateOpen(false)}>
+          <h3 className="mb-2 text-secondary font-semibold text-ink">Regenerate from the document</h3>
+          <SchemaInstructionsDrawer instructions={instructions} />
+          <div className="mt-3 flex justify-end gap-2">
+            <Button onClick={() => setRegenerateOpen(false)}>Cancel</Button>
+            <Button
+              variant="positive"
+              disabled={snap.generating}
+              onClick={() => {
+                setRegenerateOpen(false)
+                onGenerateInstructions?.([instructions.text, fieldDescriptionsInstruction(nodes)].filter(Boolean).join('\n\n'))
+              }}
+            >
+              Regenerate schema{instructions.countLabel}
+            </Button>
+          </div>
+        </ModalDialog>
+      )}
+      {confirmingDeleteSchema && (
+        <ModalDialog className={dialogCls} ariaLabel="Clear current schema" onDismiss={() => setConfirmingDeleteSchema(false)}>
+          <p className="text-secondary font-semibold text-ink">Clear current schema?</p>
+          <p className="mt-1 text-compact leading-relaxed text-ink-muted">
+            This clears the current editor only. Saved Schema Revisions remain in history.
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button onClick={() => setConfirmingDeleteSchema(false)}>Cancel</Button>
+            {/* A clear the workspace refuses keeps the dialog open; a clear it accepts resets the editor, closing it. */}
+            <Button variant="danger" onClick={() => void deleteSchema()}>Clear schema</Button>
+          </div>
+        </ModalDialog>
+      )}
 
       {/* Drag overlay chip */}
       {dragging && (
         <div
           style={{ position: 'fixed', left: dragX + 18, top: dragY - 16, pointerEvents: 'none', zIndex: 9999 }}
-          className="flex select-none items-center gap-1.5 rounded-lg border-[1.5px] border-accent bg-surface px-3 py-1.5 font-mono text-[12.5px] font-medium text-ink shadow-[0_4px_20px_rgba(51,48,44,.22)] whitespace-nowrap"
+          className="flex select-none items-center gap-1.5 rounded-lg border-[1.5px] border-accent bg-surface px-3 py-1.5 font-mono text-secondary font-medium text-ink shadow-[0_4px_20px_rgba(51,48,44,.22)] whitespace-nowrap"
         >
           <span className="text-sm">{dragMode === 'indent' ? '→' : dragMode === 'outdent' ? '←' : '⠿'}</span>
           {dragging.name}

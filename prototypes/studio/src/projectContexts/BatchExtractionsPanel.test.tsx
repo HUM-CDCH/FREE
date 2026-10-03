@@ -593,12 +593,12 @@ describe('BatchExtractionsPanel', () => {
     expect(await within(schema).findByText('One place record.')).toBeVisible()
     expect(within(schema).getByText('place')).toBeVisible()
     expect(within(schema).getByRole('button', { name: 'Fields' })).toBeVisible()
-    expect(within(schema).getByRole('button', { name: 'JSON' })).toBeVisible()
+    expect(within(schema).getByRole('button', { name: 'Code' })).toBeVisible()
     expect(
       within(schema).getByPlaceholderText('Describe a change to the schema…'),
     ).toBeVisible()
 
-    fireEvent.click(within(schema).getByTitle('Edit place'))
+    fireEvent.click(within(schema).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(schema).getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })
@@ -809,7 +809,12 @@ describe('BatchExtractionsPanel', () => {
     await waitFor(() => expect(strategy).toBeEnabled())
 
     fireEvent.change(strategy, { target: { value: 'CATALOG' } })
+    // The Batch's own notice is the one alert, with the one Retry; the schema panel's footer says it as status text.
     expect(await screen.findByRole('alert')).toHaveTextContent('The database is unavailable.')
+    expect(
+      within(screen.getByLabelText('Extraction Schema fields')).getAllByRole('status')
+        .some((status) => /^Not saved: .*The database is unavailable\.$/.test(status.textContent ?? '')),
+    ).toBe(true)
     expect(strategy).toHaveValue('CATALOG')
     expect(screen.getByRole('button', { name: 'Run 1 Source Document' })).toBeDisabled()
 
@@ -818,7 +823,7 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(await enabledRun('Run 1 Source Document'))
     await waitFor(() => expect(posted).toHaveLength(1))
     expect(posted[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId })
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('alert')).toHaveLength(0)
   })
 
   it('with the unified Catalog enabled, a Catalog batch submits the same unified method as a single run', async () => {
@@ -1542,9 +1547,8 @@ describe('BatchExtractionsPanel', () => {
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(await enabledRun('Run 2 Source Documents'))
 
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      /already been run/,
-    )
+    // The schema panel's footer is a status region too.
+    expect(await screen.findByText(/already been run/)).toHaveAttribute('role', 'status')
   })
 
   it('reopens an older replay without changing durable newest-first history order', async () => {
@@ -1594,9 +1598,8 @@ describe('BatchExtractionsPanel', () => {
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(await enabledRun('Run 2 Source Documents'))
 
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      /already been run/,
-    )
+    // The schema panel's footer is a status region too.
+    expect(await screen.findByText(/already been run/)).toHaveAttribute('role', 'status')
     expect(onNavigate).toHaveBeenCalledWith(
       expect.objectContaining({ batchExtractionId }),
     )
@@ -1875,8 +1878,8 @@ describe('BatchExtractionsPanel', () => {
     const suggested = await openSuggestedFields()
     expect(within(suggested).getByText('place')).toBeVisible()
     expect(within(suggested).getByText('Suggesting common fields…')).toBeVisible()
-    expect(within(suggested).queryByTitle('Edit place')).not.toBeInTheDocument()
-    expect(within(suggested).queryByRole('button', { name: /Regenerate/ })).not.toBeInTheDocument()
+    expect(within(suggested).queryByRole('button', { name: 'Edit place' })).not.toBeInTheDocument()
+    expect(within(suggested).queryByRole('button', { name: 'Schema actions' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeDisabled()
     expect(
       fetch.mock.calls.filter(([, init]) => init?.method === 'PATCH' || init?.method === 'POST'),
@@ -1970,7 +1973,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     const suggested = await openSuggestedFields()
-    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })
@@ -1979,7 +1982,10 @@ describe('BatchExtractionsPanel', () => {
     expect(await within(suggested).findByText('This work stopped before it finished. Start it again.', {}, { timeout: 2_000 })).toBeVisible()
     expect(within(suggested).getByText('location')).toBeVisible()
     expect(within(suggested).getByRole('button', { name: 'Try again' })).toBeDisabled()
-    expect(within(suggested).queryByRole('button', { name: /Regenerate/ })).not.toBeInTheDocument()
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Schema actions' }))
+    expect(within(suggested).getByRole('menuitem', { name: 'History' })).toBeInTheDocument()
+    expect(within(suggested).queryByRole('menuitem', { name: /Regenerate/ })).not.toBeInTheDocument()
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Schema actions' }))
     expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeDisabled()
   })
 
@@ -2127,8 +2133,12 @@ describe('BatchExtractionsPanel', () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
 
-    fireEvent.click(within(suggested).getByRole('button', { name: 'Regenerate' }))
-    fireEvent.click(within(suggested).getByRole('button', { name: /Regenerate schema/ }))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(within(suggested).getByRole('menuitem', { name: 'Regenerate from the document…' }))
+    fireEvent.click(
+      within(within(suggested).getByRole('dialog', { name: 'Regenerate from the document' }))
+        .getByRole('button', { name: /Regenerate schema/ }),
+    )
     await waitFor(() =>
       expect(
         fetch.mock.calls.filter(
@@ -2198,14 +2208,14 @@ describe('BatchExtractionsPanel', () => {
     })
     const suggested = await screen.findByLabelText('Suggested common fields')
 
-    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })
     fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(patchBodies).toHaveLength(1), { timeout: 2_000 })
 
-    fireEvent.click(within(suggested).getByTitle('Edit location'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit location' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'city' },
     })
@@ -2307,7 +2317,7 @@ describe('BatchExtractionsPanel', () => {
       target: { value: '__suggest_common_fields__' },
     })
     const suggested = await screen.findByLabelText('Suggested common fields')
-    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })
@@ -2318,7 +2328,7 @@ describe('BatchExtractionsPanel', () => {
       screen.getByRole('button', { name: 'Run 2 Source Documents' }),
     ).toBeDisabled()
 
-    fireEvent.click(within(suggested).getByTitle('Edit location'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit location' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'location_name' },
     })
@@ -2363,7 +2373,7 @@ describe('BatchExtractionsPanel', () => {
     })
     await waitFor(() => expect(run).toBeEnabled())
 
-    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: '' },
     })
@@ -2391,7 +2401,8 @@ describe('BatchExtractionsPanel', () => {
       screen.getByRole('button', { name: 'Run 2 Source Documents' }),
     ).toBeDisabled()
     expect(within(suggested).queryByRole('button', { name: /Regenerate|Try again/ })).not.toBeInTheDocument()
-    expect(within(suggested).queryByTitle('Edit place')).not.toBeInTheDocument()
+    expect(within(suggested).queryByRole('button', { name: 'Schema actions' })).not.toBeInTheDocument()
+    expect(within(suggested).queryByRole('button', { name: 'Edit place' })).not.toBeInTheDocument()
     expect(fetch.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   })
 

@@ -1174,6 +1174,7 @@ describe('two-account schema, revision, suggestion, and editing isolation', () =
       ids.projectA,
       ids.schemaB,
       'Stolen schema',
+      undefined,
     )
     expect(aliceStore.appendSchemaRevision).toHaveBeenCalledWith(
       ids.projectA,

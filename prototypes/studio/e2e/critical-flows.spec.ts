@@ -106,7 +106,7 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
     page,
     page.getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
   )
-  await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
+  await expect(page.getByText('/ 6', { exact: true })).toBeVisible({
     timeout: 15_000,
   })
 
