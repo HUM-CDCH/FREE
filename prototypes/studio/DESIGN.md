@@ -107,7 +107,8 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 - Toast — message plus one optional action; float shadow; eight seconds when an action is offered, 2.6 s otherwise.
 
 ### Field Row
-- Field row — 30px: grip, disclosure, mono name (never truncated by its metadata), type and values pills, actions revealed on hover and focus-within.
+- Field row — 30px at rest: grip, disclosure, mono name (never truncated by its metadata: the type and values pills wrap under it when the line is too narrow), then the 28px Edit / Add note / Delete actions as an overlay on the row's right edge, shown on hover and focus-within and stepping aside while a pill has keyboard focus. The actions reserve no width at rest, so a row fits the 264px rail; the overlay covers the end of the first line while shown.
+- The row itself (not the slot above it or its children) is the drop target for "into <group>".
 
 ## 6. Motion & Interaction
 
