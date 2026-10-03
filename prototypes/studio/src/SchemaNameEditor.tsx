@@ -39,7 +39,7 @@ export default function SchemaNameEditor({
       <div className={`group flex h-7 min-w-0 items-center gap-1 text-content font-semibold text-ink ${className}`}>
         <span className="truncate">{name}</span>
         <button
-          className="shrink-0 rounded-md p-1 text-ink-muted opacity-0 outline-none transition-colors hover:bg-accent-soft hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+          className="grid size-6 shrink-0 place-items-center rounded-md text-ink-muted opacity-0 outline-none transition-colors hover:bg-accent-soft hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
           type="button"
           aria-label={`Rename schema ${name}`}
           title="Rename schema"
@@ -82,7 +82,7 @@ export default function SchemaNameEditor({
         }}
       />
       <button
-        className="shrink-0 rounded-md p-1 leading-none text-accent outline-none hover:bg-accent-soft disabled:opacity-60"
+        className="grid size-6 shrink-0 place-items-center rounded-md leading-none text-accent outline-none hover:bg-accent-soft disabled:opacity-60"
         type="submit"
         aria-label="Save schema name"
         title="Save schema name"
@@ -91,7 +91,7 @@ export default function SchemaNameEditor({
         <span aria-hidden="true">✓</span>
       </button>
       <button
-        className="shrink-0 rounded-md p-1 leading-none text-ink-muted outline-none hover:bg-line/60 hover:text-ink disabled:opacity-60"
+        className="grid size-6 shrink-0 place-items-center rounded-md leading-none text-ink-muted outline-none hover:bg-line/60 hover:text-ink disabled:opacity-60"
         type="button"
         aria-label="Cancel schema rename"
         title="Cancel schema rename"

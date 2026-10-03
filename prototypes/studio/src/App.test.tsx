@@ -1763,15 +1763,17 @@ describe('reopened Source Document workspace', () => {
       const run = screen.getByRole('button', { name: '▶ Run extraction' })
 
       fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
-      // The toolbar and the Schema panel's footer both say it, each with a Retry.
-      const alerts = await screen.findAllByRole('alert')
-      expect(alerts).toHaveLength(2)
-      for (const alert of alerts) expect(alert).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
+      // One alert and one Retry, in the Schema panel's footer; the toolbar says it as status text.
+      expect(await screen.findByRole('alert')).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
+      expect(screen.getAllByRole('button', { name: 'Retry save' })).toHaveLength(1)
+      expect(
+        screen.getAllByRole('status').filter((status) => /^Not saved: .*The database is unavailable\.$/.test(status.textContent ?? '')),
+      ).toHaveLength(1)
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute('title', 'The schema is not saved. Retry the save first.')
       expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
 
-      fireEvent.click(screen.getAllByRole('button', { name: 'Retry save' })[0])
+      fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
       await waitFor(() => expect(writes).toHaveLength(1))
       expect(writes[0]).toMatchObject({ expectedRevisionNumber: 1, recordScope: 'records' })
       await waitFor(() => expect(run).toBeEnabled())
