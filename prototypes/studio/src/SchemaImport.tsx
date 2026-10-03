@@ -6,7 +6,12 @@ import { IMPORT_LIMITS, importDefinition, type ImportColumn } from '../shared/sc
 import { authenticatedFetch } from './auth/authenticatedFetch'
 import { Button } from './ui'
 
-export function SchemaImport({ schema, disabled }: { schema: SchemaEditorController; disabled: boolean }) {
+/** `onImported` runs once a confirmed import is the schema's definition. */
+export function SchemaImport({ schema, disabled, onImported }: {
+  schema: SchemaEditorController
+  disabled: boolean
+  onImported?: () => void
+}) {
   const [file, setFile] = useState<File | null>(null), [worksheets, setWorksheets] = useState<string[]>([])
   const [worksheet, setWorksheet] = useState(''), [header, setHeader] = useState(1), [separator, setSeparator] = useState('')
   const [columns, setColumns] = useState<ImportColumn[]>([]), [description, setDescription] = useState('')
@@ -70,7 +75,7 @@ export function SchemaImport({ schema, disabled }: { schema: SchemaEditorControl
           if (!definition) return
           if (schema.snapshot().draftVersion !== base.current) { setError('The editor changed during preview. Close and re-upload to keep those edits.'); return }
           setBusy(true); setError(null)
-          try { await schema.confirmDefinition(definition); close() }
+          try { await schema.confirmDefinition(definition); close(); onImported?.() }
           catch (error) { setError(error instanceof Error ? error.message : 'Schema could not be confirmed.'); setBusy(false) }
         }}>{schema.snapshot().extractionSchemaId ? 'Confirm as a new revision of the selected schema' : 'Confirm schema'}</Button>
       </fieldset>}

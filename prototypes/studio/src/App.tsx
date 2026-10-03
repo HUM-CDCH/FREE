@@ -30,6 +30,7 @@ import { PageNavigation } from './PageNavigation'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
+import { defaultSchemaName } from './schemaNames'
 import { recordScopeOf, strategyOf, type SchemaDefinition } from 'extraction/schema'
 import { browserStudioPath } from './studioUrl.js'
 import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
@@ -474,10 +475,17 @@ export function DocumentWorkspace({
       // Stop cancels the workflow; leaving the page only detaches (the controller's dispose).
       { cancel: () => deleteModelOperation(`suggestion:${operationId}`) },
     )
-    // The first successful generation initializes the Extraction Schema;
-    // name it the way initializeSchemaRevision's caller always has.
-    if (!hadSchema && schema.snapshot().extractionSchemaId !== null)
-      setSchemaName((name) => name ?? 'Extraction Schema')
+    // The first successful generation initializes the Extraction Schema; it is named after its Source Document (§5).
+    if (!hadSchema) {
+      const extractionSchemaId = schema.snapshot().extractionSchemaId
+      if (extractionSchemaId) {
+        const name = defaultSchemaName(filename)
+        setSchemaName(name)
+        renameExtractionSchema(projectContextId, extractionSchemaId, name)
+          .then((renamed) => setSchemaName(renamed.name))
+          .catch(() => setSchemaName('Extraction Schema'))
+      }
+    }
   }
 
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
@@ -1039,8 +1047,15 @@ export function DocumentWorkspace({
               sourceDocumentName={filename}
               sourceRepresentationId={sourceRepresentationId}
               schemaName={schemaName}
+              recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: running || savingForRun }}
+              boundaries={
+                !running && nextExtractionStrategy === 'CATALOG' && !(saved.state.status === 'ready' && saved.state.unifiedCatalog)
+                  ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
+                  : null
+              }
               onRenameSchema={async (name) => {
-                const extractionSchemaId = schemaSnap.extractionSchemaId
+                // The live controller, not this render's snapshot: an import or Start blank renames right after initialising.
+                const extractionSchemaId = schema.snapshot().extractionSchemaId
                 if (!projectContextId || !extractionSchemaId)
                   return 'No durable schema is open.'
                 try {

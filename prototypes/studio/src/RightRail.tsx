@@ -1,6 +1,6 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
-import SchemaPanel, { type FieldContext } from './SchemaPanel'
+import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
@@ -47,6 +47,8 @@ type RightRailProps = {
   sourceRepresentationId: string
   schemaName?: string | null
   onRenameSchema?: (name: string) => Promise<string | null>
+  recordScope?: SchemaPanelProps['recordScope']
+  boundaries?: SchemaPanelProps['boundaries']
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
   onResultPathChange: (path: string[] | null) => void
 }
@@ -82,6 +84,8 @@ function RightRail({
   sourceRepresentationId,
   schemaName,
   onRenameSchema,
+  recordScope,
+  boundaries,
   onSelectEvidence,
   onResultPathChange,
 }: RightRailProps) {
@@ -206,6 +210,8 @@ function RightRail({
           sourceRepresentationId={sourceRepresentationId}
           schemaName={schemaName}
           onRenameSchema={onRenameSchema}
+          recordScope={recordScope}
+          boundaries={boundaries}
           fieldContext={fieldContext}
         />
       </div>

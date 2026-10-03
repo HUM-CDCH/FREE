@@ -26,11 +26,13 @@ test.afterEach(async () => {
 })
 
 async function regenerate(page: Page, instruction: string) {
-  await page.getByRole('button', { name: 'Regenerate' }).click()
-  const input = page.getByPlaceholder(/Add a generation instruction/)
+  await page.getByRole('button', { name: 'Schema actions' }).click()
+  await page.getByRole('menuitem', { name: 'Regenerate from the document…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Regenerate from the document' })
+  const input = dialog.getByPlaceholder(/Add a generation instruction/)
   await input.fill(instruction)
   await input.press('Enter')
-  await page.getByRole('button', { name: /Regenerate schema/ }).click()
+  await dialog.getByRole('button', { name: /Regenerate schema/ }).click()
 }
 
 async function requestEdit(page: Page, instruction: string) {

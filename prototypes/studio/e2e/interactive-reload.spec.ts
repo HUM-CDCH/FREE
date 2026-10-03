@@ -25,13 +25,15 @@ test.afterEach(async () => {
   stack = undefined
 })
 
-/** Regenerates the open schema with one instruction, through the panel's Regenerate popover. */
+/** Regenerates the open schema with one instruction, through the schema actions menu's Regenerate dialog. */
 async function regenerate(page: Page, instruction: string) {
-  await page.getByRole('button', { name: 'Regenerate' }).click()
-  const input = page.getByPlaceholder(/Add a generation instruction/)
+  await page.getByRole('button', { name: 'Schema actions' }).click()
+  await page.getByRole('menuitem', { name: 'Regenerate from the document…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Regenerate from the document' })
+  const input = dialog.getByPlaceholder(/Add a generation instruction/)
   await input.fill(instruction)
   await input.press('Enter')
-  await page.getByRole('button', { name: /Regenerate schema/ }).click()
+  await dialog.getByRole('button', { name: /Regenerate schema/ }).click()
 }
 
 /** Asks the edit chat for one change. */
@@ -43,7 +45,7 @@ async function requestEdit(page: Page, instruction: string) {
 
 /** Edits the record description, which the workspace saves as a new revision after its debounce. */
 async function describeRecord(page: Page, text: string) {
-  const description = page.getByLabel('Record description')
+  const description = page.getByLabel('What one record is')
   await description.fill(text)
   await description.blur()
 }
@@ -93,7 +95,7 @@ test('a reloaded page drops a finished generation when newer work exists @determ
 
   await expect(page.getByText(STILL_WORKING('Catalog entries'))).toHaveCount(0, { timeout: 20_000 })
   // The generation's base moved: it is dropped, the page adopts the newer revision and shows no error.
-  await expect(page.getByLabel('Record description')).toHaveValue('One edited record.', { timeout: 20_000 })
+  await expect(page.getByLabel('What one record is')).toHaveValue('One edited record.', { timeout: 20_000 })
   await page.waitForTimeout(3_000)
   expect(await revisionCount()).toBe(2)
   await expect(page.getByText('heading', { exact: true })).toHaveCount(0)

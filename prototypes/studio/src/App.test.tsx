@@ -731,6 +731,7 @@ describe('reopened Source Document workspace', () => {
     const schemaRevisionId = '51000000-0000-4000-8005-000000000010'
     const extractionSchemaId = '51000000-0000-4000-8005-000000000011'
     let schemaNodes: unknown[] = []
+    const renames: Array<{ projectContextId: string; name: string }> = []
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -767,6 +768,13 @@ describe('reopened Source Document workspace', () => {
               summary: 'Initial schema',
             }],
           })
+        if (url === `/api/extraction-schemas/${extractionSchemaId}` && init?.method === 'PATCH') {
+          const rename = JSON.parse(String(init.body)) as { projectContextId: string; name: string }
+          renames.push(rename)
+          return Response.json({
+            extractionSchema: { extractionSchemaId, name: rename.name, createdAt: '2026-08-09T10:00:00.000Z' },
+          })
+        }
         throw new Error(`Unexpected request: ${url}`)
       }),
     )
@@ -778,8 +786,12 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Schema history' })).toBeEnabled())
+    fireEvent.click(await screen.findByRole('button', { name: 'Schema actions' }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'History' })).toBeEnabled())
     expect(schemaNodes).toHaveLength(1)
+    // A first schema is named after its Source Document.
+    expect(await screen.findByRole('button', { name: 'Rename schema Beretning' })).toBeInTheDocument()
+    expect(renames).toEqual([{ projectContextId: reopened.projectContextId, name: 'Beretning' }])
   })
 
   it('saves a schema generated from excerpts with its declaration, and the reopened workspace shows it beside that source only', async () => {
@@ -952,14 +964,17 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Schema history' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'History' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
     fireEvent.keyDown(screen.getByDisplayValue('nyt_felt'), { key: 'Escape' })
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(0)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
-    fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'History' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Schema history' })).getByRole('button', { name: /Revision 1/ }))
 
     expect(await screen.findByText('historical_group')).toBeInTheDocument()
     expect(screen.getByText('historical_title')).toBeInTheDocument()
@@ -1045,8 +1060,9 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear schema' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Clear current schema' })).getByRole('button', { name: 'Clear schema' }))
 
     expect(await screen.findByText('No schema yet')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
@@ -1711,7 +1727,8 @@ describe('reopened Source Document workspace', () => {
       const { writes } = stubWorkspace()
       await renderWith(reopened.extractionSchema)
       renamePlaceField()
-      expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+      // The toolbar and the Schema panel's footer both show the save state.
+      expect(screen.getAllByText('Unsaved changes')).toHaveLength(2)
       expect(writes).toHaveLength(0)
 
       fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
@@ -1723,8 +1740,8 @@ describe('reopened Source Document workspace', () => {
         recordScope: 'records',
         schemaNodes: [expect.objectContaining({ name: 'location' })],
       })
-      await waitFor(() => expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument())
-      expect(screen.queryByText('Saving…')).not.toBeInTheDocument()
+      await waitFor(() => expect(screen.queryAllByText('Unsaved changes')).toHaveLength(0))
+      expect(screen.queryAllByText('Saving…')).toHaveLength(0)
       expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
     })
 
@@ -1746,16 +1763,19 @@ describe('reopened Source Document workspace', () => {
       const run = screen.getByRole('button', { name: '▶ Run extraction' })
 
       fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
-      expect(await screen.findByRole('alert')).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
+      // The toolbar and the Schema panel's footer both say it, each with a Retry.
+      const alerts = await screen.findAllByRole('alert')
+      expect(alerts).toHaveLength(2)
+      for (const alert of alerts) expect(alert).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute('title', 'The schema is not saved. Retry the save first.')
       expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
 
-      fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
+      fireEvent.click(screen.getAllByRole('button', { name: 'Retry save' })[0])
       await waitFor(() => expect(writes).toHaveLength(1))
       expect(writes[0]).toMatchObject({ expectedRevisionNumber: 1, recordScope: 'records' })
       await waitFor(() => expect(run).toBeEnabled())
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.queryAllByRole('alert')).toHaveLength(0)
 
       fireEvent.click(run)
       await waitFor(() => expect(runs).toHaveLength(1))

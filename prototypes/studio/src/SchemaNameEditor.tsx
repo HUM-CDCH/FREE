@@ -36,10 +36,10 @@ export default function SchemaNameEditor({
 
   if (!editing)
     return (
-      <div className={`flex h-7 min-w-0 items-center gap-1 ${className}`}>
+      <div className={`group flex h-7 min-w-0 items-center gap-1 text-content font-semibold text-ink ${className}`}>
         <span className="truncate">{name}</span>
         <button
-          className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent"
+          className="shrink-0 rounded-md p-1 text-ink-muted opacity-0 outline-none transition-colors hover:bg-accent-soft hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
           type="button"
           aria-label={`Rename schema ${name}`}
           title="Rename schema"

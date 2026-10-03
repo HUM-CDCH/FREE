@@ -15,15 +15,6 @@ function acknowledgement(index: number): React.ReactNode {
 }
 
 
-export function InstructionCount({ count }: { count: number }) {
-  if (count === 0) return null
-  return (
-    <span className="inline-grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-ink/10 px-1 font-mono text-[9.5px] leading-none tabular-nums text-ink-muted">
-      {count}
-    </span>
-  )
-}
-
 /** Pre-generation conversation over the same instruction state used by the drawer. */
 export function SchemaInstructionsChat({
   instructions,
@@ -143,7 +134,7 @@ export function SchemaInstructionsDrawer({
         />
         <button
           type="button"
-          className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
+          className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
           disabled={!instructions.draft.trim()}
           onClick={instructions.send}
         >
