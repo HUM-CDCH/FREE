@@ -358,6 +358,7 @@
           "ok": true,
           "output_tokens": 5,
           "record": null,
+          "recovered": false,
           "stage": "discovery"
         }
       ],
@@ -449,7 +450,7 @@
         }
       ]
     },
-    "discovery_sha256": "0c11f3fcc23f3849d2c3ec692dc493adfbd09f0255f88b8759b47a0e5aae6496",
+    "discovery_sha256": "0f02c4f0c3881b41ec3e7cc4a02afe1b2f3162a12399d1697445d1af5625f276",
     "records": [
       {
         "label": "12",
@@ -858,7 +859,8 @@
         "error": null,
         "counted_input_tokens": 244,
         "context_tokens": 16384,
-        "max_output_tokens": 4096
+        "max_output_tokens": 4096,
+        "recovered": false
       },
       {
         "stage": "entry",
@@ -871,7 +873,8 @@
         "error": null,
         "counted_input_tokens": 168,
         "context_tokens": 16384,
-        "max_output_tokens": 4096
+        "max_output_tokens": 4096,
+        "recovered": false
       },
       {
         "stage": "verification",
@@ -884,7 +887,8 @@
         "error": null,
         "counted_input_tokens": 150,
         "context_tokens": 16384,
-        "max_output_tokens": 2048
+        "max_output_tokens": 2048,
+        "recovered": false
       },
       {
         "stage": "entry",
@@ -897,7 +901,8 @@
         "error": null,
         "counted_input_tokens": 166,
         "context_tokens": 16384,
-        "max_output_tokens": 4096
+        "max_output_tokens": 4096,
+        "recovered": false
       },
       {
         "stage": "verification",
@@ -910,7 +915,8 @@
         "error": null,
         "counted_input_tokens": 146,
         "context_tokens": 16384,
-        "max_output_tokens": 2048
+        "max_output_tokens": 2048,
+        "recovered": false
       },
       {
         "stage": "document",
@@ -923,13 +929,14 @@
         "error": null,
         "counted_input_tokens": 106,
         "context_tokens": 16384,
-        "max_output_tokens": 2048
+        "max_output_tokens": 2048,
+        "recovered": false
       }
     ],
     "tokens": {
       "input": 980,
       "output": 30
     },
-    "fingerprint": "a0f900d66fdcbb3be135e6dc953d8d29bc366f960e5176e8a8485fa5b12e2e83"
+    "fingerprint": "ee96a67d384220832e3c4d3ae2236ad72e83dfc88ce557edf59a0ededbb49a04"
   }
 }

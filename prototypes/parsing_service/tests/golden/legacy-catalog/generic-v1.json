@@ -397,7 +397,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": null,
+      "recovered": false
     },
     {
       "stage": "discovery",
@@ -410,7 +411,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": null,
+      "recovered": false
     },
     {
       "stage": "record",
@@ -423,7 +425,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": 2048
+      "max_output_tokens": 2048,
+      "recovered": false
     },
     {
       "stage": "record",
@@ -436,7 +439,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": 2048
+      "max_output_tokens": 2048,
+      "recovered": false
     },
     {
       "stage": "record",
@@ -449,7 +453,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": 2048
+      "max_output_tokens": 2048,
+      "recovered": false
     },
     {
       "stage": "record",
@@ -462,7 +467,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": 2048
+      "max_output_tokens": 2048,
+      "recovered": false
     },
     {
       "stage": "record",
@@ -475,7 +481,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": 2048
+      "max_output_tokens": 2048,
+      "recovered": false
     },
     {
       "stage": "grounding",
@@ -488,7 +495,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": null,
+      "recovered": false
     },
     {
       "stage": "grounding",
@@ -501,7 +509,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": null,
+      "recovered": false
     },
     {
       "stage": "grounding",
@@ -514,7 +523,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": null,
+      "recovered": false
     },
     {
       "stage": "grounding",
@@ -527,7 +537,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": null,
+      "recovered": false
     },
     {
       "stage": "grounding",
@@ -540,7 +551,8 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": null,
+      "recovered": false
     }
   ],
   "tokens": {
