@@ -105,9 +105,10 @@ async function highlighted(page: Page, anchor: string, pageNumber: number) {
   await expect(overlay).toBeInViewport()
 }
 
-/** The value row (`PrimitiveRow`) whose name is `leaf`. */
+/** The visible Results value row (`PrimitiveRow`), excluding the mounted Schema tab's same-named field rows. */
 function valueRow(page: Page, leaf: string) {
-  return page.locator('div.group').filter({ has: page.getByText(leaf, { exact: true }) })
+  return page.getByRole('tabpanel', { name: /^Results/ }).locator('div.group')
+    .filter({ has: page.getByText(leaf, { exact: true }) })
 }
 
 /** How the Results tab names the last step of `path`: a field by its name, an array item as `Site 2`. */
