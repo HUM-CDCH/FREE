@@ -215,6 +215,8 @@ test('the code view scrolls long lines sideways at 264px, reading and editing @d
     scrolls: element.scrollWidth > element.clientWidth,
   }))
   expect(reading).toEqual({ overflowX: 'auto', whiteSpace: 'pre', scrolls: true })
+  // The code view's commands are the shared Button, at least 24px tall (§10).
+  expect((await rail(page).getByRole('button', { name: 'Edit', exact: true }).boundingBox())!.height).toBeGreaterThanOrEqual(24)
   await page.getByRole('button', { name: 'Schema actions' }).click()
   await page.getByRole('menuitem', { name: 'Edit as code' }).click()
   const editor = page.getByRole('textbox', { name: 'Schema code' })
@@ -223,6 +225,8 @@ test('the code view scrolls long lines sideways at 264px, reading and editing @d
     scrolls: element.scrollWidth > element.clientWidth,
   }))
   expect(editing).toEqual({ overflowX: 'auto', whiteSpace: 'pre', scrolls: true })
+  for (const name of ['Save', 'Cancel'])
+    expect((await rail(page).getByRole('button', { name, exact: true }).boundingBox())!.height, name).toBeGreaterThanOrEqual(24)
   const panel = await rail(page).evaluate((element) => [element.scrollWidth, element.clientWidth])
   expect(panel[0]).toBeLessThanOrEqual(panel[1]!)
 })
