@@ -27,7 +27,11 @@ function ThumbnailCanvas({ page, thumbnails, visible }: { page: number; thumbnai
         setState('unavailable')
         return
       }
-      context.drawImage(bitmap, 0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
+      // Fit the page inside the card, keeping its aspect ratio, centred.
+      const scale = Math.min(THUMBNAIL_WIDTH / bitmap.width, THUMBNAIL_HEIGHT / bitmap.height)
+      const width = bitmap.width * scale
+      const height = bitmap.height * scale
+      context.drawImage(bitmap, (THUMBNAIL_WIDTH - width) / 2, (THUMBNAIL_HEIGHT - height) / 2, width, height)
       setState('drawn')
     })
     return () => {
