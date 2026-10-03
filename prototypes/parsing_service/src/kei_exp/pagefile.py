@@ -22,7 +22,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from kei_exp.canonical import canonical_json
 from kei_exp.geometry import PixelBox, PointBox
 
-RESULT_VERSION = 5  # in the manifest and the recipe; bumped when the files can change for the same inputs
+# In the manifest and the recipe; bumped when the files' format changes. The reader refuses every other version, so
+# a change only to what is written for the same inputs changes the recipe instead (`kei_exp.result.recipe`).
+RESULT_VERSION = 5
 # 5: native table cells with offsets into the unchanged parent text and physical-page geometry
 # 4: a generation identity in the manifest and every page file, the sha256 of every page file in the manifest with a
 #    digest over them, units named by kind, the crop transform as named pairs beside the record's diagnostics, and

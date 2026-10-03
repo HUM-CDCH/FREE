@@ -7,8 +7,9 @@ asked for, an ingest must be proven by `load_ingest`, and anything less is passe
 What is taken is copied (page files rewritten under this run's generation, ingest images hard-linked), so nothing
 here depends on the candidate afterwards and `deleteRuns` needs no rule for it.
 
-Reuse is as fresh as the recipe: a change to what the cut or a transcriber writes for the same inputs must bump
-`RESULT_VERSION` or the text rules, as the recipe already requires, or reuse returns the earlier output. The worker
+Reuse is as fresh as the recipe: a change to what the cut or a transcriber writes for the same inputs must change it
+(a transcriber's text rules, the deployment's `KEI_OCR_REVISION`, the ingest's stage version; the service README),
+or reuse returns the earlier output. The worker
 binds these to a run (`workflows/convert.py`); the standalone CLI reuses nothing.
 """
 import errno
