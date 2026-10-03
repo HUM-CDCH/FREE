@@ -89,7 +89,8 @@ def test_extract_hands_the_loaded_evidence_to_the_implementation_the_options_cho
     request = run.ExtractRequest(schema=SCHEMA, options=options)
     chat, counter, hook = FakeChat(lambda *_: None), object(), lambda: None
     result = run.extract(run_dir, request, chat, generation=catalogue.GENERATION, counter=counter, chunks=3,
-                         before_entry=hook)
+                         before_entry=hook, extraction_id="x1")
     assert result == {"artifact": chosen.__name__, "records": [{}]}
+    named = {"extraction_id": "x1"} if chosen is article else {}  # Article publishes its stage files under the id
     assert received == [(chosen, (run_dir, load(run_dir), request, Router(chat, chat)),
-                         {"counter": counter, "chunks": 3, "before_entry": hook})]
+                         {"counter": counter, "chunks": 3, "before_entry": hook, **named})]

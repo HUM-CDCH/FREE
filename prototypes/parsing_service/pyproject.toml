@@ -51,6 +51,9 @@ dev = [
 line-length = 120
 
 [tool.pytest.ini_options]
+# The sources beside the tests, first on the path: a worktree's tests read its own `src`, not the editable install of
+# another checkout that a shared venv may hold.
+pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
     "slow: spawns real processes or containers",

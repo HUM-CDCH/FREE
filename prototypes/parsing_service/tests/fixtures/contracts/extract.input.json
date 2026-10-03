@@ -22,7 +22,7 @@
           {"id": "f", "name": "fundart", "type": "string", "description": "find category after FA:"}
         ]
       },
-      "options": {"strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}}
+      "options": {"strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}, "start_page": 2}
     }
   }
 }

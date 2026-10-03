@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 import requests
+from pydantic import ValidationError
 
 from kei_exp.canonical import canonical_json
 from kei_exp.kie.extract import discovery, run, unified
@@ -844,6 +845,18 @@ def test_unified_options_refuse_legacy_limits_and_record_no_character_limits():
             "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}, "unified": {"defaults": 1}}})
     assert request(overlap=0).options.dumped() == {"strategy": "catalog", "models": None,
                                                    "unified": {"defaults": 1, "overlap": 0}}
+
+
+def test_a_start_page_is_a_strict_one_based_integer_that_the_artifact_never_records():
+    """The start page orders the work (design §4); the artifact and its fingerprint are those of the request without it."""
+    with_page = run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 1}, "start_page": 6})
+    assert with_page.start_page == 6
+    assert "start_page" not in with_page.dumped()
+    assert with_page.dumped() == run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 1}}).dumped()
+    assert run.Options.model_validate({"strategy": "article", "start_page": 400}).start_page == 400  # beyond the document: an order from its end
+    for refused in (0, -1, "6", 6.0, True):  # strict, as UnifiedOptions is: a page is an integer, never coerced
+        with pytest.raises(ValidationError):
+            run.Options.model_validate({"strategy": "article", "start_page": refused})
 
 
 def test_the_records_are_published_once_and_reused_on_re_execution(tmp_path):

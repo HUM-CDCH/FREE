@@ -62,7 +62,8 @@ class Records:
 
 
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter: dict | None = None,
-            chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+            chunks: int = 1, before_entry: Callable[[], None] | None = None,
+            extraction_id: str | None = None) -> dict:
     """The Article artifact for `request` (the validated `run.ExtractRequest`) over `evidence`.
 
     The result is exactly one record, the document's root (`run.dispatch` holds it to that); when no value context
@@ -70,7 +71,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     `counter` is one counter per role, by default the counter of each role's endpoint. `before_entry` is called before
     each context's document-level call, each value context's call, the root's verification and each grounding batch,
     and, with bounded contexts, before each count that sizes a context and the selection; what it raises ends the
-    extraction. `run_dir` and `chunks` are not used: Article reads only the evidence and runs unsplit."""
+    extraction. `run_dir` and `chunks` are not used: Article reads only the evidence and runs unsplit; `extraction_id`
+    names the directory its stage files are published under (Task 3)."""
     check = before_entry or unchecked
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()

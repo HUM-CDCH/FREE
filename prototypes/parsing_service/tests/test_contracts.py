@@ -38,6 +38,8 @@ def test_the_extract_fixture_carries_a_request_kei_accepts():
     assert request.record_scope == "records"
     assert [node.name for node in request.schema_.nodes] == [node["name"] for node in SCHEMA["schemaNodes"]]
     assert request.options.strategy == "catalog"
+    assert request.options.start_page == 2  # Studio sends the page the researcher was reading; kei orders its work by it
+    assert "start_page" not in request.options.dumped()
     assert request.options.catalog is not None and request.options.catalog.recipe == "numbered-catalogue-de@1"
 
 

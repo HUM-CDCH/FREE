@@ -52,6 +52,11 @@ class Options(BaseModel):
     catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
     article: ArticleOptions | None = None
     unified: UnifiedOptions | None = None  # the unified Catalog method: result version 3
+    # The page the researcher was reading when the run started, one-based: the order the unified Catalog reads its
+    # entries and Article its bounded value contexts in (nearest first), never which of them are read. Excluded from
+    # `dumped()`, so the artifact and its fingerprint are those of the same request without it (design §4). Strict,
+    # as UnifiedOptions is: "6" is no page. A page beyond the document orders the work from the document's end.
+    start_page: int | None = Field(default=None, ge=1, strict=True)
 
     @model_validator(mode="after")
     def _models_are_served(self) -> Options:
@@ -80,9 +85,10 @@ class Options(BaseModel):
 
     def dumped(self) -> dict:
         """The options as the artifact and the fingerprint record them: no `catalog` key on the version 1 path, and
-        the unified method without the character limits it never reads."""
+        the unified method without the character limits it never reads. The start page is never recorded: it orders the
+        work, not the result."""
         result = self.model_dump(exclude={name for name in ("catalog", "article", "unified")
-                                          if getattr(self, name) is None})
+                                          if getattr(self, name) is None} | {"start_page"})
         if self.catalog is not None and self.catalog.factors is None:
             result["catalog"].pop("factors")
         if self.unified is not None:  # it has no character limits to record
@@ -191,7 +197,7 @@ def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, 
     scope = request.record_scope
     if scope == "document":
         result = article.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
-                                 before_entry=before_entry)
+                                 before_entry=before_entry, extraction_id=extraction_id)
     elif request.options.unified is not None:
         result = unified.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
                                  before_entry=before_entry, extraction_id=extraction_id)
