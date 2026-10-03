@@ -114,21 +114,31 @@ export function createKeiExpClient({
     },
     async readExtractionProgress(runId, extractionId, signal) {
       if (!KEI_RUN_ID.test(runId) || !KEI_RUN_ID.test(extractionId)) return null
+      // A request or a body that fails, stalls past the timeout or is cut off is a transport failure: transient. The
+      // caller's own abort rejects with its reason.
+      const unreachable = (error: unknown) => {
+        signal?.throwIfAborted()
+        return Object.assign(new Error('kei-exp could not be reached to read the extraction progress.', { cause: error }), { transient: true })
+      }
       let response: Response
       try {
         response = await fetchRequest(`${root}/api/runs/${runId}/extractions/${extractionId}/progress`, {
           method: 'GET', signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(PROGRESS_TIMEOUT_MS)]),
         })
       } catch (error) {
-        signal?.throwIfAborted()
-        throw Object.assign(new Error('kei-exp could not be reached to read the extraction progress.', { cause: error }), { transient: true })
+        throw unreachable(error)
       }
       if (response.status === 404) {
         await response.body?.cancel()
         return null
       }
       if (!response.ok) throw Object.assign(new Error(await httpFailure(response)), { transient: true })
-      return (await response.json()) as unknown
+      let text: string
+      try { text = await response.text() }
+      catch (error) { throw unreachable(error) }
+      // A body that arrived but is not JSON is refused as the artifact read's is.
+      try { return JSON.parse(text) as unknown }
+      catch (error) { throw new ExtractionError('invalid_model_output', 'kei-exp returned invalid JSON.', { cause: error }) }
     },
   }
 }

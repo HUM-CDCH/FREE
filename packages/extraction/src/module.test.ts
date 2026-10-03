@@ -88,6 +88,24 @@ describe('kei-exp read client', () => {
       await assert.rejects(progressClient(response).read(), (error: unknown) => (error as { transient?: unknown }).transient === true)
   })
 
+  it('a progress body cut off or stalled after its headers is transient; a body that is not JSON is invalid output', async () => {
+    const failing = new Response(new ReadableStream({ start: (controller) => controller.error(new DOMException('timed out', 'TimeoutError')) }))
+    await assert.rejects(progressClient(failing).read(), (error: unknown) => (error as { transient?: unknown }).transient === true)
+    await assert.rejects(progressClient(new Response('not json')).read(),
+      (error: unknown) => error instanceof ExtractionError && error.code === 'invalid_model_output' && !('transient' in error))
+  })
+
+  it('an aborted progress read rejects with the caller\'s reason, not as transient', async () => {
+    const controller = new AbortController()
+    // As fetch does, the body errors once the request's signal aborts mid-body.
+    const cut = new Response(new ReadableStream({ start: (stream) => {
+      controller.abort(new Error('closed'))
+      stream.error(new DOMException('aborted', 'AbortError'))
+    } }))
+    const { read } = progressClient(cut)
+    await assert.rejects(read(controller.signal), (error: unknown) => (error as Error).message === 'closed' && !('transient' in (error as object)))
+  })
+
   it('every progress read carries a bounded signal: two seconds, the poll interval', async () => {
     const { requests, read } = progressClient(json({}))
     await read()
