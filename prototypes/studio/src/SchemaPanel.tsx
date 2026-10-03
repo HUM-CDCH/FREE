@@ -652,7 +652,7 @@ function SchemaPanel({
     resetEditorUi(true)
   }
 
-  const importDisabled = editorReadOnly || editing !== null || openDescId !== null || snap.generating
+  const importDisabled = editorReadOnly || editing !== null || openDescId !== null || snap.generating || !schema.operationScope()?.projectContextId
   const menuItems: ActionItem[] = [
     { id: 'import', label: 'Import from Excel codebook…', onSelect: () => setImportOpen(true), disabled: importDisabled },
     { id: 'code', label: 'Edit as code', onSelect: () => setView('code') },

@@ -1610,6 +1610,19 @@ describe('schema header (redesign §5)', () => {
     expect(screen.getByRole('dialog', { name: 'Import from Excel codebook' })).toBeInTheDocument()
   })
 
+  it('the import action is disabled without a project to import into', () => {
+    const setup = renderPanel()
+    expect(setup.schema.operationScope()).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Import from Excel codebook…' })).toBeDisabled()
+
+    cleanup()
+    const empty = renderPanel({ noSchema: true }, { schemaName: null })
+    expect(empty.schema.operationScope()).toBeNull()
+    expect(screen.getByRole('heading', { name: 'No schema yet' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import from Excel codebook…' })).toBeDisabled()
+  })
+
   it('says the saved record scope in words and saves a change at once', () => {
     const onChange = vi.fn()
     renderPanel({}, { recordScope: { value: 'document', onChange } })
