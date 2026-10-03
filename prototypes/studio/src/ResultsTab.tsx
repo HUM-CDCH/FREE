@@ -732,9 +732,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
     if (isRecord(node)) return Object.entries(node as Record<string, unknown>).map(([k, v]) => ({ pathKey: k, displayName: k, value: v }))
     return []
   }, [displayResult, navPath])
-  // Inside one record of several, the entries open on that record's heading and the page its first Evidence names.
-  const openRecord = articleRecords && articleRecords.length > 1 && navPath.length === 1 && /^\d+$/.test(navPath[0]!)
-    ? Number(navPath[0]) : null
+  // A Catalog record's entries open on its heading and the page its first Evidence names (§8): one record of several
+  // once opened, or a single-record Catalog's only record at the top. An Article result is one object: no heading.
+  const openRecord = articleRecords?.length === 1 && attempt?.strategy === 'CATALOG' && navPath.length === 0
+    ? 0
+    : articleRecords && articleRecords.length > 1 && navPath.length === 1 && /^\d+$/.test(navPath[0]!)
+      ? Number(navPath[0]) : null
   const openRecordLink = openRecord !== null && state.status === 'ready'
     ? state.evidenceLinks.find((link) => link.resultPath[0] === 'records' && Number(link.resultPath[1]) === openRecord)
     : undefined

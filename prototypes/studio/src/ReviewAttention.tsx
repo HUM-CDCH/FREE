@@ -20,10 +20,13 @@ export function ReviewAttention({ attention, onSelect, onEditField }: {
   onEditField?: (nodeId: string, path: (string | number)[]) => void
 }) {
   const [filter, setFilter] = useState<Filter>('required')
+  // Open on arrival while required decisions remain. Fixed at mount, so React never reapplies it over the researcher's
+  // own open or close.
+  const [openOnArrival] = useState(() => attention.requiredRemaining > 0)
   const cells = attention.cells.filter((cell) =>
     filter === 'all' || (filter === 'required' ? cell.presence === 'grounded' && !cell.decision : cell.presence === filter))
   return (
-    <details className="border-b border-line px-3 py-2 text-secondary">
+    <details open={openOnArrival} className="border-b border-line px-3 py-2 text-secondary">
       <summary className="cursor-pointer font-semibold text-ink">Review attention · {attention.requiredRemaining} to check</summary>
       <p className="mt-1 text-compact text-ink-muted">
         {attention.grounded} grounded · {attention.ungrounded} ungrounded · {attention.missing} missing. Missing and ungrounded values are optional attention; they do not block finalization.

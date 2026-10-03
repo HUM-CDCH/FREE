@@ -477,12 +477,12 @@ function SchemaPanel({
   const runningRows = recovery.running.map((operation) => (
     <div
       key={operation.workflowId}
-      className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-[12px] text-ink-muted"
+      className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-secondary text-ink-muted"
     >
       <span>{`Still working on an earlier request: “${operation.instruction}”`}</span>
       <button
         type="button"
-        className="shrink-0 text-[11px] text-ink underline"
+        className="min-h-6 shrink-0 cursor-pointer text-compact text-ink underline"
         aria-label={`Stop earlier request “${operation.instruction}”`}
         onClick={() => recovery.stop(operation.workflowId)}
       >
@@ -1409,7 +1409,8 @@ function SchemaPanel({
         <ChatDrawer open={drawerShown} onCollapse={() => setDrawerOpen(false)} onExpand={() => setDrawerOpen(true)}
           title={ready ? 'Conversation' : 'Instructions for generation'} dot={dot} bodyRef={chatRef}
           headerAction={!ready && snap.view === 'empty' && onGenerateInstructions ? (
-            <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate schema{instructions.countLabel}</Button>
+            // No message count here: the drawer lists "Message n of n", and the header must fit the 264px rail.
+            <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate schema</Button>
           ) : undefined}
           bar={ready && pending ? <ProposalReviewBar proposal={pending} canApply={canApply} onApply={applyProposal} onDiscard={discardProposal} /> : undefined}
           composer={ready ? (

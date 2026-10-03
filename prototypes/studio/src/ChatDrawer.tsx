@@ -24,9 +24,10 @@ export default function ChatDrawer({ open, onCollapse, onExpand, title, headerAc
     <div className={`flex shrink-0 flex-col border-t border-line bg-surface-muted ${open ? 'h-[40%] min-h-48' : ''}`}>
       {open && (
         <section aria-label="Conversation" className="flex min-h-0 flex-1 flex-col">
+          {/* At the 264px rail the title gives way (truncates) and the actions keep their width. */}
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3.5 py-1.5">
-            <span className="text-overline font-bold uppercase tracking-[0.12em] text-ink-muted">{title}</span>
-            <div className="flex items-center gap-1.5">
+            <span className="min-w-0 truncate text-overline font-bold uppercase tracking-[0.12em] text-ink-muted" title={title}>{title}</span>
+            <div className="flex shrink-0 items-center gap-1.5">
               {headerAction}
               <button type="button" aria-label="Collapse conversation" title="Collapse"
                 className="grid size-6 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none hover:text-accent" onClick={onCollapse}>

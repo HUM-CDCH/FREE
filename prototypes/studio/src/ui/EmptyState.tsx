@@ -22,11 +22,12 @@ function EmptyState({ icon, title, description, tone = 'neutral', children, clas
           {icon}
         </p>
       )}
-      <h2 className={`${icon ? 'mt-2 ' : ''}text-[13px] font-semibold ${tone === 'danger' ? 'text-danger' : 'text-ink'}`}>
+      <h2 className={`${icon ? 'mt-2 ' : ''}text-content font-semibold ${tone === 'danger' ? 'text-danger' : 'text-ink'}`}>
         {title}
       </h2>
       {description && <p className="mt-1 text-xs leading-relaxed text-ink-muted">{description}</p>}
-      {children && <div className="mt-3 flex items-center justify-center gap-2">{children}</div>}
+      {/* Wraps: three actions do not fit one line of the 264px rail. */}
+      {children && <div className="mt-3 flex flex-wrap items-center justify-center gap-2">{children}</div>}
     </div>
   )
 }

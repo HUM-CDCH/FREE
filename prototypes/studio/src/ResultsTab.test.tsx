@@ -193,7 +193,8 @@ describe('ResultsTab grounded values', () => {
       pinnedSchema={{ recordDescription: 'One record.', schemaNodes: [
         { id: 'title', name: 'title', type: 'string' }, { id: 'gender', name: 'gender', type: 'string' },
       ] }} />)
-    fireEvent.click(screen.getByText('Review attention · 1 to check'))
+    // Open on arrival while a required decision remains (§8).
+    expect(screen.getByText('Review attention · 1 to check').closest('details')).toHaveAttribute('open')
     const filter = screen.getByRole('group', { name: 'Review attention' })
     expect(within(filter).getByRole('button', { name: 'Required' })).toHaveAttribute('aria-pressed', 'true')
     const rows = () => screen.getByText('Review attention · 1 to check').closest('details')!.querySelectorAll('li')
@@ -222,6 +223,26 @@ describe('ResultsTab grounded values', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Item 1\b/ }))
     expect(screen.getByText('Record 1')).toBeVisible()
     expect(screen.queryByText(/· page/)).not.toBeInTheDocument()
+  })
+
+  it('a single-record Catalog opens on its record heading and page; an Article result has no record heading', () => {
+    const result = { records: [{ place: 'Oslo' }] }
+    const evidenceLinks = [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-oslo' }]
+    const attempt = (strategy: 'ARTICLE' | 'CATALOG'): ExtractionAttempt =>
+      ({ ...articleAttempt, strategy, complete: true, resultPayload: result, evidenceLinks })
+    const tab = (strategy: 'ARTICLE' | 'CATALOG') => (
+      <ResultsTab {...defaultRunProps}
+        controller={controller({ status: 'ready', result, evidenceLinks, ungroundedCount: 0 }, attempt(strategy))}
+        schemaReady documentMarkdown="" sourceDocumentName="Source" evidencePages={new Map([['anchor-oslo', 3]])} />
+    )
+    const { rerender } = render(tab('CATALOG'))
+    expect(screen.getByText('Record 1')).toBeVisible()
+    expect(screen.getByText('· page 3')).toBeVisible()
+    expect(screen.getByText('Oslo')).toBeVisible()
+    rerender(tab('ARTICLE'))
+    expect(screen.queryByText('Record 1')).not.toBeInTheDocument()
+    expect(screen.queryByText(/· page/)).not.toBeInTheDocument()
+    expect(screen.getByText('Oslo')).toBeVisible()
   })
 
   it('renders markup-like schema names and extracted values as inert text', () => {

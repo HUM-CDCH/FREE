@@ -143,7 +143,7 @@ describe('RightRail developer UI visibility', () => {
         sourceDocumentName="test.pdf" sourceRepresentationId="source-1" onSelectEvidence={() => {}} onResultPathChange={() => {}} />
     }
     render(<Rail />)
-    fireEvent.click(screen.getByText(/Review attention · 1 to check/))
+    expect(screen.getByText(/Review attention · 1 to check/).closest('details')).toHaveAttribute('open')
     fireEvent.click(screen.getByRole('button', { name: 'Edit field' }))
     expect(schema.snapshot().historicalPreview).toBeNull()
     expect(schema.snapshot().draft).toEqual(draft)

@@ -2245,6 +2245,23 @@ describe('chat composer and drawer (redesign §7)', () => {
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
   })
 
+  it('the instructions drawer header fits the narrow rail: a truncating title, a fixed actions group, no message count', () => {
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    const drawer = screen.getByRole('region', { name: 'Conversation' })
+    // The drawer lists "Message 1 of 1" already.
+    const generate = within(drawer).getByRole('button', { name: 'Generate schema' })
+    expect(within(drawer).getByText('Message 1 of 1')).toBeInTheDocument()
+    const actions = generate.parentElement!
+    expect(actions).toContainElement(within(drawer).getByRole('button', { name: 'Collapse conversation' }))
+    expect(actions.className).toMatch(/\bshrink-0\b/)
+    const title = within(drawer).getByText('Instructions for generation')
+    expect(title.className).toMatch(/\bmin-w-0\b/)
+    expect(title.className).toMatch(/\btruncate\b/)
+  })
+
   it('a collapsed instructions drawer comes back from the dot, with its instructions and Generate schema', () => {
     renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
     const input = screen.getByPlaceholderText(/Add a generation instruction/)

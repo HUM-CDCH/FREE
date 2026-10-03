@@ -17,11 +17,29 @@ describe('ReviewAttention', () => {
       ],
       grounded: 2, ungrounded: 0, missing: 0, requiredRemaining: 2,
     }} />)
-    fireEvent.click(screen.getByText('Review attention · 2 to check'))
+    // Open on arrival: two required decisions remain.
+    expect(screen.getByText('Review attention · 2 to check').closest('details')).toHaveAttribute('open')
     expect(screen.getByRole('button', { name: 'Record 3 · people / 0 / name' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'context / title' }))
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(['context', 'title'])
     expect(screen.queryByRole('button', { name: 'Edit field' })).not.toBeInTheDocument()
+  })
+
+  it('opens while required decisions remain, and keeps the researcher\'s own open or close', () => {
+    const cells = [{ nodeId: 'a', resultPath: ['records', 0, 'a'], presence: 'grounded' as const, decision: null }]
+    const view = render(<ReviewAttention onSelect={vi.fn()} attention={{ cells, grounded: 1, ungrounded: 0, missing: 0, requiredRemaining: 1 }} />)
+    const details = screen.getByText('Review attention · 1 to check').closest('details')!
+    expect(details).toHaveAttribute('open')
+    expect(screen.getByRole('button', { name: 'Record 1 · a' })).toBeVisible()
+    details.open = false
+    view.rerender(<ReviewAttention onSelect={vi.fn()} attention={{ cells, grounded: 1, ungrounded: 0, missing: 0, requiredRemaining: 1 }} />)
+    expect(details).not.toHaveAttribute('open')
+    cleanup()
+
+    render(<ReviewAttention onSelect={vi.fn()} attention={{
+      cells: [{ ...cells[0]!, decision: { action: 'APPROVED' } }], grounded: 1, ungrounded: 0, missing: 0, requiredRemaining: 0,
+    }} />)
+    expect(screen.getByText('Review attention · 0 to check').closest('details')).not.toHaveAttribute('open')
   })
 
   it('colours a decided cell by its decision: accepted and edited green, rejected red', () => {
@@ -34,7 +52,7 @@ describe('ReviewAttention', () => {
       ],
       grounded: 4, ungrounded: 0, missing: 0, requiredRemaining: 1,
     }} />)
-    fireEvent.click(screen.getByText('Review attention · 1 to check'))
+    expect(screen.getByText('Review attention · 1 to check').closest('details')).toHaveAttribute('open')
     fireEvent.click(screen.getByRole('button', { name: 'All' }))
     expect(screen.getByText('approved')).toHaveClass('text-green')
     expect(screen.getByText('edited')).toHaveClass('text-green')
