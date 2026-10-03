@@ -14,7 +14,12 @@ type PageNavigationProps = {
   thumbnails: ThumbnailRenderer | null
 }
 
-function ThumbnailCanvas({ page, thumbnails, visible }: { page: number; thumbnails: ThumbnailRenderer | null; visible: boolean }) {
+function ThumbnailCanvas({ page, current, thumbnails, visible }: {
+  page: number
+  current: boolean
+  thumbnails: ThumbnailRenderer | null
+  visible: boolean
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [state, setState] = useState<'pending' | 'drawn' | 'unavailable'>('pending')
   useEffect(() => {
@@ -27,12 +32,17 @@ function ThumbnailCanvas({ page, thumbnails, visible }: { page: number; thumbnai
         setState('unavailable')
         return
       }
-      // Fit the page inside the card, keeping its aspect ratio, centred.
-      const scale = Math.min(THUMBNAIL_WIDTH / bitmap.width, THUMBNAIL_HEIGHT / bitmap.height)
-      const width = bitmap.width * scale
-      const height = bitmap.height * scale
-      context.drawImage(bitmap, (THUMBNAIL_WIDTH - width) / 2, (THUMBNAIL_HEIGHT - height) / 2, width, height)
-      setState('drawn')
+      try {
+        // Fit the page inside the card, keeping its aspect ratio, centred.
+        const scale = Math.min(THUMBNAIL_WIDTH / bitmap.width, THUMBNAIL_HEIGHT / bitmap.height)
+        const width = bitmap.width * scale
+        const height = bitmap.height * scale
+        context.drawImage(bitmap, (THUMBNAIL_WIDTH - width) / 2, (THUMBNAIL_HEIGHT - height) / 2, width, height)
+        setState('drawn')
+      } catch {
+        // A closed or detached bitmap: the card shows its number on a blank thumbnail.
+        setState('unavailable')
+      }
     })
     return () => {
       cancelled = true
@@ -45,13 +55,15 @@ function ThumbnailCanvas({ page, thumbnails, visible }: { page: number; thumbnai
       width={THUMBNAIL_WIDTH}
       height={THUMBNAIL_HEIGHT}
       data-thumbnail={state}
-      className="block rounded-[2px] border border-line-strong bg-surface shadow-sm"
+      // The current-page mark is a 2px ink border, which the global :focus-visible ring (outline + box-shadow) never
+      // overrides; the other cards' 1px border plus 1px margin keeps every card the same size.
+      className={`block rounded-[2px] bg-surface shadow-sm ${current ? 'border-2 border-ink' : 'm-px border border-line-strong'}`}
     />
   )
 }
 
 /** The page rail: a thumbnail card per page, rendered lazily while the rail is open and the page is within one rail
- *  height of view. The current page carries a 2px ink ring; the keyboard model is a roving tab stop with arrows, Home and End. */
+ *  height of view. The current page's thumbnail carries a 2px ink border; the keyboard model is a roving tab stop with arrows, Home and End. */
 export function PageNavigation({ id, pageCount, currentPage, onNavigate, onClose, thumbnails }: PageNavigationProps) {
   const pageButtons = useRef(new Map<number, HTMLButtonElement>())
   const navRef = useRef<HTMLElement>(null)
@@ -117,11 +129,9 @@ export function PageNavigation({ id, pageCount, currentPage, onNavigate, onClose
                   pageButtons.current.get(nextPage)?.focus()
                 }
               }}
-              className={`flex w-[62px] cursor-pointer flex-col items-center gap-1 rounded-[3px] p-1 outline-none transition-colors hover:bg-accent-ghost ${
-                page === currentPage ? 'ring-2 ring-ink ring-offset-1 ring-offset-surface-muted' : ''
-              }`}
+              className="flex w-[62px] cursor-pointer flex-col items-center gap-1 rounded-[3px] p-1 outline-none transition-colors hover:bg-accent-ghost"
             >
-              <ThumbnailCanvas page={page} thumbnails={thumbnails} visible={visible.has(page)} />
+              <ThumbnailCanvas page={page} current={page === currentPage} thumbnails={thumbnails} visible={visible.has(page)} />
               <span className="text-compact tabular-nums text-ink-muted">{page}</span>
             </button>
           </li>

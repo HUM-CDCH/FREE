@@ -30,4 +30,17 @@ describe('createThumbnailRenderer', () => {
     await renderer.render(1)
     expect(paint).toHaveBeenCalledTimes(2)
   })
+
+  it('a bitmap that arrives after dispose is closed too', async () => {
+    const late = bitmap()
+    const { promise, resolve } = Promise.withResolvers<ImageBitmap | null>()
+    const renderer = createThumbnailRenderer(pdf, vi.fn(() => promise))
+    const pending = renderer.render(1)
+    renderer.dispose()
+    expect(late.close).not.toHaveBeenCalled()
+    resolve(late)
+    await pending
+    await Promise.resolve()
+    expect(late.close).toHaveBeenCalledOnce()
+  })
 })

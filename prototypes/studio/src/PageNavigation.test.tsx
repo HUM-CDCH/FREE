@@ -19,8 +19,10 @@ it('renders one thumbnail card per page, numbered, and rings the current page', 
   const buttons = screen.getAllByRole('button', { name: /^Go to page \d$/ })
   expect(buttons).toHaveLength(3)
   expect(buttons[1]).toHaveAttribute('aria-current', 'page')
-  expect(buttons[1]!.className).toMatch(/ring-ink/)
-  expect(buttons[0]!.className).not.toMatch(/ring-ink/)
+  // The mark is a border on the thumbnail, which the global :focus-visible ring (outline + box-shadow) leaves alone.
+  expect(buttons[1]!.querySelector('canvas')!.className).toMatch(/border-2 border-ink/)
+  expect(buttons[0]!.querySelector('canvas')!.className).not.toMatch(/border-ink/)
+  expect(buttons[1]!.className).not.toMatch(/ring-/)
   expect(buttons.map((button) => button.textContent)).toEqual(['1', '2', '3'])
   expect(buttons[0]!.querySelector('canvas')).toHaveAttribute('data-thumbnail', 'pending')
 })
@@ -49,6 +51,14 @@ it('draws each bitmap once it arrives and marks a missing one unavailable', asyn
   expect(landscapeHeight).toBeCloseTo(35.35, 1)
   expect(landscapeY).toBeCloseTo(11.33, 1)
   expect(landscapeX).toBeCloseTo(0)
+})
+
+it('a bitmap that cannot be drawn leaves a blank card', async () => {
+  const drawImage = vi.fn(() => { throw new Error('detached') })
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D)
+  rail({ render: vi.fn(async () => ({ width: 73, height: 95 }) as ImageBitmap), dispose: vi.fn() })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Go to page 1' }).querySelector('canvas')).toHaveAttribute('data-thumbnail', 'unavailable'))
+  expect(drawImage).toHaveBeenCalled()
 })
 
 it('keeps the keyboard model: arrows, Home and End move and navigate, Escape closes', () => {

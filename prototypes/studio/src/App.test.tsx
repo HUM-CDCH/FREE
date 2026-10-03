@@ -1492,6 +1492,8 @@ describe('reopened Source Document workspace', () => {
     const navigation = within(await screen.findByRole('navigation', { name: 'Page navigation' }))
     const firstPage = navigation.getByRole('button', { name: 'Go to page 1' })
     expect(navigation.getAllByRole('button', { name: /^Go to page/ })[0]!.querySelector('canvas')).toBeInTheDocument()
+    // The mocked document has no getPage, so the thumbnail render fails and the card stays blank.
+    await waitFor(() => expect(firstPage.querySelector('canvas')).toHaveAttribute('data-thumbnail', 'unavailable'))
     firstPage.focus()
     fireEvent.keyDown(firstPage, { key: 'End' })
     const lastPage = navigation.getByRole('button', { name: 'Go to page 120' })
