@@ -276,8 +276,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(page.getByRole('combobox', { name: 'Field model' })).toHaveCount(0)
   await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
   await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
-  await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toBeVisible({ timeout: 20_000 })
-  await page.getByRole('button', { name: 'Dismiss', exact: true }).click()
+  // Completion is one toast with Review now, no dialog (decision 04).
+  await expect(page.getByRole('button', { name: 'Review now', exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
   expect(interactivePosts).toBe(1)
   const chosen = await db.orm.public.Extraction.where({ sourceDocumentId })
     .select('requestedModels', 'diagnostics').first()
@@ -320,20 +321,17 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     page,
     page.getByRole('button', { name: '▶ Run extraction' }),
   )
-  await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toBeVisible({ timeout: 20_000 })
+  const reviewNow = page.getByRole('button', { name: 'Review now', exact: true })
+  await expect(reviewNow).toBeVisible({ timeout: 20_000 })
   await expect(
     page.getByText('Unexpected model key: surprise', { exact: true }),
   ).toHaveCount(0)
-  // Completion announces itself but never switches the rail tab.
+  // Completion announces itself in one toast (decision 04) but never switches the rail tab; its Review now does.
   await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'false')
-  const completionDialog = page.getByRole('dialog', { name: 'Extraction finished', exact: true })
-  await expect(completionDialog).toBeVisible({ timeout: 20_000 })
-  await activateWithKeyboard(
-    page,
-    completionDialog.getByRole('button', { name: 'Dismiss', exact: true }),
-  )
-  await expect(completionDialog).toBeHidden()
-  await activateWithKeyboard(page, page.getByRole('tab', { name: /Results/ }))
+  await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
+  await activateWithKeyboard(page, reviewNow)
+  await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(reviewNow).toHaveCount(0)
   await expect(
     page.getByRole('button', { name: 'View Evidence for title' }),
   ).toBeVisible()
@@ -706,13 +704,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toBeEnabled()
-  const retryCompletionDialog = freshPage.getByRole('dialog', { name: 'Extraction finished', exact: true })
-  await expect(retryCompletionDialog).toBeVisible({ timeout: 20_000 })
-  await activateWithKeyboard(
-    freshPage,
-    retryCompletionDialog.getByRole('button', { name: 'Dismiss', exact: true }),
-  )
-  await expect(retryCompletionDialog).toBeHidden()
+  // The retry's completion: one toast with Review now, no dialog to dismiss (decision 04).
+  await expect(freshPage.getByRole('button', { name: 'Review now', exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(freshPage.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
   await freshPage.getByRole('tab', { name: 'Values as code' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
 

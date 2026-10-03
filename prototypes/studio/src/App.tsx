@@ -23,7 +23,6 @@ import { resultsBadgeFor } from './resultsBadge'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
-import ExtractionFinishedDialog from './ExtractionFinishedDialog'
 import { Button, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
 import { createThumbnailRenderer } from './PageThumbnails'
@@ -255,13 +254,8 @@ export function DocumentWorkspace({
     return known
   }, [persistedExtraction, latestReviewedExtraction])
   const [knownSchemas, setKnownSchemas] = useState(reopenedSchemas)
-  const [finishedExtractionReport, setFinishedExtractionReport] = useState<{
-    attempt: ExtractionAttempt
-    schemaNodes: SchemaDefinition['schemaNodes']
-  } | null>(null)
-  // A run started here reports once it terminates; restored or reconnected
-  // runs never open the dialog.
-  const pendingReportRef = useRef<{ extractionId: string; schemaNodes: SchemaDefinition['schemaNodes'] } | null>(null)
+  // A run started here offers "Review now" once it succeeds; restored or reconnected runs only say they finished.
+  const pendingReportRef = useRef<string | null>(null)
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const resizeControllerRef = useRef<AbortController | null>(null)
 
@@ -612,32 +606,32 @@ export function DocumentWorkspace({
     })
     onSourceSuperseded?.()
   }
+  /** The completion notice (decision 04): one toast, no dialog. With `reviewNow` (a run started here that succeeded) it
+   *  offers "Review now", which opens the Results tab, and stays eight seconds. */
+  function showCompletion(isRerun: boolean, reviewNow: boolean) {
+    showToast(
+      isRerun ? '↻ Re-run complete — review it in the Results tab' : '✓ Extraction complete — review it in the Results tab',
+      reviewNow ? { durationMs: 8000, action: { label: 'Review now', onAction: () => setRailTab('results') } } : undefined,
+    )
+  }
   const extraction = useExtraction({
     schemaReady,
     indexing,
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
     reviewTarget,
-    // Completion preserves the rail tab and inspected snapshot; a completion
-    // report temporarily takes focus until dismissed or Review now is chosen.
+    // Completion preserves the rail tab and inspected snapshot; it says so in one toast, whose "Review now" (a run started
+    // here that succeeded) opens Results.
     onTerminal: (attempt, isRerun) => {
-      if (pendingReportRef.current?.extractionId === attempt.extractionId) {
-        const { schemaNodes } = pendingReportRef.current
-        pendingReportRef.current = null
-        if (attempt.outcome === 'SUCCEEDED')
-          setFinishedExtractionReport({ attempt, schemaNodes })
-      }
+      const reported = pendingReportRef.current === attempt.extractionId
+      if (reported) pendingReportRef.current = null
       selectNextRunAfter(attempt)
       if (attempt.failure?.code === 'cancelled')
         showToast('Extraction cancelled — no result was saved')
       else if (attempt.executionStatus === 'FAILED')
         showToast('Extraction failed — see details in Results')
       else
-        showToast(
-          isRerun
-            ? '↻ Re-run complete — review it in the Results tab'
-            : '✓ Extraction complete — review it in the Results tab',
-        )
+        showCompletion(isRerun, reported && attempt.outcome === 'SUCCEEDED')
     },
     onError: () => showToast('Extraction failed — see details in Results'),
     onSuperseded,
@@ -770,14 +764,16 @@ export function DocumentWorkspace({
         // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
         const catalogRecipe = savedState.unifiedCatalog ? null : nextCatalogRecipe || null
         refusalRef.current = null
+        // What useExtraction counts as a re-run: one started while an attempt is shown.
+        const isRerun = extraction.attempt !== null
         const acknowledged = await extraction.runExtraction(savedMethodFor(savedState, strategy, catalogRecipe), target, strategy, catalogRecipe)
         if (!stillHere()) return
         if (acknowledged) {
           selectNextRunAfter(acknowledged)
+          // Finished when acknowledged: its completion toast has shown already; a success adds "Review now" to it.
           if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
-            if (acknowledged.outcome === 'SUCCEEDED')
-              setFinishedExtractionReport({ attempt: acknowledged, schemaNodes: revision.schemaNodes })
-          } else pendingReportRef.current = { extractionId: acknowledged.extractionId, schemaNodes: revision.schemaNodes }
+            if (acknowledged.outcome === 'SUCCEEDED') showCompletion(isRerun, true)
+          } else pendingReportRef.current = acknowledged.extractionId
           return
         }
         // Set by onMethodChanged during the await above; TypeScript keeps the `null` assignment's narrowing across it.
@@ -1014,19 +1010,6 @@ export function DocumentWorkspace({
           </aside>
         </div>
       </div>
-      {finishedExtractionReport && (
-        <ExtractionFinishedDialog
-          key={finishedExtractionReport.attempt.extractionId}
-          attempt={finishedExtractionReport.attempt}
-          documentName={filename}
-          schemaNodes={finishedExtractionReport.schemaNodes}
-          onReviewNow={() => {
-            setRailTab('results')
-            setFinishedExtractionReport(null)
-          }}
-          onDismiss={() => setFinishedExtractionReport(null)}
-        />
-      )}
     </div>
   )
 }

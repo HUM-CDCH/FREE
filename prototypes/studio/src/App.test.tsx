@@ -337,6 +337,45 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('button', { name: /■ Stop extraction/ }).className).not.toMatch(/(^|\s)bg-green(\s|$)/)
   })
 
+  // Decision 04: a run started here that succeeds says so in one toast with "Review now"; a run this page only reopened
+  // (restored while running) says it finished, with nothing offered.
+  it.each(['started here', 'restored while running'] as const)('a run %s that completes while monitored ends in one completion toast', async (origin) => {
+    // A run started here carries the identity the page made for it.
+    let extractionId = '51000000-0000-4000-8006-000000000042'
+    const completed = () => ({ ...runningAttempt(extractionId), executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 1, finishReason: 'stop', inputTokens: 1, outputTokens: 1, grounding: null, catalog: null },
+      resultPayload: { records: [{ place: 'Ellekilde' }] }, evidenceLinks: [], reviewable: true })
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        extractionId = (JSON.parse(String(init?.body)) as { id: string }).id
+        return Promise.resolve(Response.json(runningAttempt(extractionId), { status: 201 }))
+      }
+      if (url.endsWith(`/api/extractions/${extractionId}`)) return Promise.resolve(Response.json({ extraction: completed(), pendingReviewDecisions: null }))
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened}
+      persistedExtraction={origin === 'started here' ? null : { ...reopened.persistedExtraction!, ...runningAttempt(extractionId) } as DocumentWorkspaceProps['persistedExtraction']} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    if (origin === 'started here') {
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      expect(await screen.findByRole('button', { name: /■ Stop extraction/ })).toBeEnabled()
+    }
+    expect(await screen.findByText(/complete — review it in the Results tab$/, undefined, { timeout: 4_000 })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
+    if (origin === 'restored while running') {
+      expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
+      return
+    }
+    expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Review now' }))
+    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('a method_changed refusal is retried once with a fresh read, a second one ends with a toast', async () => {
     const posts: unknown[] = []
     vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -1852,7 +1891,9 @@ describe('reopened Source Document workspace', () => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
-      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+      // Its completion is a toast with Review now, not a dialog to dismiss (decision 04).
+      expect(await screen.findByRole('button', { name: 'Review now' })).toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
 
       expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
       fireEvent.click(tabStripRun('CATALOG'))
@@ -1864,6 +1905,9 @@ describe('reopened Source Document workspace', () => {
       const bodies = stubRuns('FAILED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
+      // A failure keeps its own toast, with nothing to review now.
+      expect(await screen.findByText('Extraction failed — see details in Results')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
 
       expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
       fireEvent.click(tabStripRun('CATALOG'))
@@ -1898,7 +1942,6 @@ describe('reopened Source Document workspace', () => {
       const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies, 'numbered-catalogue-de@1')
-      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
       // The recipe is one-shot: the schema stays a Catalog, and its next run starts at Model discovery.
       expect(screen.getByLabelText('Boundaries')).toHaveValue('')
       expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
@@ -2801,14 +2844,18 @@ describe('reopened Source Document workspace', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-    // Completion never switches the rail tab; it reports through the finished
-    // dialog and the researcher opens Results themselves.
+    // Completion never switches the rail tab by itself (decision 04): one toast, no dialog, whose "Review now" opens
+    // Results. A terminal admission shows the toast before its awaiting caller adds the action.
     expect(await screen.findByText('✓ Extraction complete — review it in the Results tab')).toBeVisible()
-    // A terminal admission can show the toast before its awaiting caller opens the dialog.
-    expect(await screen.findByRole('heading', { name: 'Extraction finished' })).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    const reviewNow = await screen.findByRole('button', { name: 'Review now' })
+    expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    // It outlasts the plain toast's 2.6 s.
+    await new Promise((resolve) => setTimeout(resolve, 2_700))
+    expect(screen.getByRole('button', { name: 'Review now' })).toBe(reviewNow)
+    fireEvent.click(reviewNow)
+    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
     const approve = await screen.findByRole('button', { name: /Approve remaining/ })
     await waitFor(() => expect(approve).toBeEnabled())
     fireEvent.click(approve)
