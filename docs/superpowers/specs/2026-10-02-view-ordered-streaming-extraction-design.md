@@ -1,6 +1,6 @@
 # View-ordered, streamed extraction — design
 
-Date: 2026-10-02 · Status: Part A (service, package, API) implemented by `docs/superpowers/plans/2026-10-03-view-ordered-streaming-service.md`; Part B (client, `…-client.md`) pending · Scope:
+Date: 2026-10-02 · Status: implemented locally by `docs/superpowers/plans/2026-10-03-view-ordered-streaming-service.md` (Part A) and `docs/superpowers/plans/2026-10-03-view-ordered-streaming-client.md` (Part B); Part B delivery pending (see its SDD ledger) · Scope:
 `prototypes/parsing_service/src/kei_exp` (`kie/extract/unified.py`,
 `kie/extract/article.py`, `kie/extract/run.py`, `api.py`), `packages/extraction/src`,
 `prototypes/studio/api`, `prototypes/studio/shared`, `prototypes/studio/src`,
@@ -59,8 +59,8 @@ Records are listed in the order they were read: those on the start page
 first, then the rest in source order. The Results tab header shows "Reading
 records · 7 of 48 · started at page 6" and a progress bar; the Results badge
 shows "7 of 48". Evidence highlights draw on the page as links arrive. When the
-attempt settles, the settled result replaces the partial view in place (record
-index is the React key, so nothing flickers).
+attempt settles, the settled list takes the partial list's place in one render,
+in source order (Part B, Ruling 7: two components, no DOM continuity promised).
 
 First-record latency is discovery plus one entry: discovery reads the whole
 source before any record is extracted, and this spec does not reorder it.

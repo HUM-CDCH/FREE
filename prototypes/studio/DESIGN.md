@@ -103,6 +103,7 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 - **Structure**: shallow bordered section using `bg-surface` or `bg-canvas`.
 - **Variants**: object section, array item, missing primitive.
 - **States**: expandable where content can be long.
+- While an Extraction runs, Results lists records in the server's reading order, with server-provided value states (reading, checking, grounded, empty, contested). Candidates appear only with "Candidate · being verified"; collapsed object previews use grounded values only. Records awaiting values use placeholders. The header reads "Reading records · k of n · started at page p" with a progress bar (Article names answered contexts); the badge and run button read "k of n". At settlement, the settled list takes the view's place in source order.
 
 ### Toast
 - Toast — message plus one optional action; float shadow; eight seconds when an action is offered, 2.6 s otherwise. Its timer holds while it is hovered or has focus within, so a researcher reaching its action does not lose it.

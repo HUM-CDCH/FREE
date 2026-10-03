@@ -195,10 +195,12 @@ export function UndoIcon({ size = 13 }: { size?: number }) {
   )
 }
 
-// Returns the first non-empty string value in a record — used as a collapsed preview label.
-function firstStringValue(obj: Record<string, unknown>): string | null {
-  for (const val of Object.values(obj)) {
-    if (typeof val === 'string' && val.trim()) return val.trim()
+// Explicit streaming states suppress unverified previews. Undefined keeps settled ungrounded previews;
+// the partial view always supplies an explicit state, including for missing metadata (Ruling 8).
+function firstStringValue(obj: Record<string, unknown>, path: ResultPath, getValueState?: ResultValueProps['getValueState']): string | null {
+  for (const [name, val] of Object.entries(obj)) {
+    const state = getValueState?.([...path, name])
+    if (typeof val === 'string' && val.trim() && (state === undefined || state === 'grounded')) return val.trim()
   }
   return null
 }
@@ -404,14 +406,20 @@ function PrimitiveRow({
         <span className="font-mono text-content font-medium leading-snug text-ink">
           {name}
         </span>
-        {missing ? (
-          // A rejected value shows as Missing; it still leads to the extracted value's Evidence.
-          contested ? <ContestedBadge candidates={contested} /> : valueText(<span id={valueId} className="inline-flex"><MissingBadge /></span>)
-        ) : state === 'checking' ? (
+        {state === 'checking' ? (
           <span className={`flex min-w-0 gap-1.5 text-content text-ink-muted ${expanded ? 'items-baseline leading-relaxed' : 'items-center leading-snug'}`} title={candidateTitle}>
             <CandidateMarker />
-            <span ref={valueRef} className={expanded ? 'min-w-0 wrap-anywhere whitespace-pre-wrap' : 'min-w-0 line-clamp-2'}>{text}</span>
+            <span ref={valueRef} className={expanded ? 'min-w-0 wrap-anywhere whitespace-pre-wrap' : 'min-w-0 line-clamp-2'}>{missing ? 'No value text supplied.' : text}</span>
           </span>
+        ) : missing ? (
+          // A supplied partial state wins over blank contents. Explicit review edits/rejections still show reviewed absence.
+          contested ? <ContestedBadge candidates={contested} /> : valueText(
+            <span id={valueId} className="inline-flex">
+              {state === 'grounded' && !evidenceForExtracted
+                ? <span className="text-content text-ink-muted">No value text supplied.</span>
+                : <MissingBadge />}
+            </span>,
+          )
         ) : (
           <span className={`flex min-w-0 gap-1.5 ${expanded ? 'items-baseline' : 'items-start'}`}>
             {toCheck && <ToCheckMarker className={expanded ? '' : 'mt-[5px]'} />}
@@ -574,7 +582,7 @@ function ObjectSection({
 }: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview; getValueState?: (path: ResultPath) => ValueState | undefined }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
-  const preview = firstStringValue(value)
+  const preview = firstStringValue(value, path, getValueState)
 
   return (
     <div>
@@ -593,7 +601,9 @@ function ObjectSection({
               {entries.length} field{entries.length !== 1 ? 's' : ''}
             </span>
           ) : entries.length === 0 ? (
-            <MissingBadge />
+            getValueState?.(path) !== undefined
+              ? <span className="text-content text-ink-muted">0 fields</span>
+              : <MissingBadge />
           ) : preview ? (
             <span className="min-w-0 flex-1 truncate text-content text-ink-muted">{preview}</span>
           ) : null}
@@ -659,7 +669,9 @@ function ArraySection({
       {expanded && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
           {value.length === 0 ? (
-            <div className="py-1"><MissingBadge /></div>
+            getValueState?.(path) !== undefined
+              ? <p className="py-1.5 text-content text-ink-muted">No items returned.</p>
+              : <div className="py-1"><MissingBadge /></div>
           ) : (
             value.map((item, i) => (
               <ResultValue

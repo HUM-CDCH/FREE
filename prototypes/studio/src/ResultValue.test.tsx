@@ -201,12 +201,73 @@ describe('results rows without pills (decision 14)', () => {
   })
 })
 
-describe('a rejected value (decision 14)', () => {
-  it('shows Missing, and Missing leads to the extracted value\'s Evidence', () => {
+describe('collapsed streaming previews', () => {
+  it('skips candidate text and previews only a server-grounded leaf', () => {
+    render(<ResultValue name="nested" value={{ candidate: 'Unchecked', verified: 'Verified' }} path={['nested']} defaultExpanded={false}
+      getValueState={(path) => path.at(-1) === 'verified' ? 'grounded' : 'checking'} />)
+    expect(screen.getByRole('button', { name: /nested\s*Verified/ })).toBeInTheDocument()
+    expect(screen.queryByText('Unchecked')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /nested\s*Verified/ }))
+    expect(screen.getByTitle('Candidate · being verified')).toHaveTextContent('Unchecked')
+  })
+  it('keeps the settled preview when no streaming state callback is supplied', () => {
+    render(<ResultValue name="nested" value={{ name: 'Settled value' }} defaultExpanded={false} />)
+    expect(screen.getByRole('button', { name: /nested\s*Settled value/ })).toBeInTheDocument()
+  })
+  it('keeps the settled ungrounded preview when the Results tab state callback returns undefined', () => {
+    render(<ResultValue name="nested" value={{ name: 'Settled ungrounded value' }} defaultExpanded={false} getValueState={() => undefined} />)
+    expect(screen.getByRole('button', { name: /nested\s*Settled ungrounded value/ })).toBeInTheDocument()
+  })
+  it.each(['checking', 'reading', 'queued'] as const)('hides an explicitly %s leaf from a collapsed preview', (state) => {
+    render(<ResultValue name="nested" value={{ name: 'Unverified value' }} defaultExpanded={false} getValueState={() => state} />)
+    expect(screen.queryByText('Unverified value')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button'))
+    if (state === 'checking') expect(screen.getByTitle('Candidate · being verified')).toHaveTextContent('Unverified value')
+    else expect(screen.queryByText('Unverified value')).not.toBeInTheDocument()
+  })
+})
+
+describe('empty container presentation', () => {
+  it.each([
+    { value: {}, count: '0 fields', expandedCopy: 'No fields returned.' },
+    { value: [], count: '0 items', expandedCopy: 'No items returned.' },
+  ])('reports $count as payload shape when streaming states are supplied', ({ value, count, expandedCopy }) => {
+    render(<ResultValue name="container" value={value} defaultExpanded={false} getValueState={() => 'queued'} />)
+    expect(screen.getByText(count)).toBeInTheDocument()
+    expect(screen.queryByText('Missing')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByText(expandedCopy)).toBeInTheDocument()
+    expect(screen.queryByText('Missing')).not.toBeInTheDocument()
+  })
+  it('keeps settled absence badges without a streaming state callback', () => {
+    render(<><ResultValue name="object" value={{}} defaultExpanded={false} /><ResultValue name="array" value={[]} /></>)
+    expect(screen.getAllByText('Missing')).toHaveLength(2)
+  })
+  it('keeps settled empty container badges when the Results tab state callback returns undefined', () => {
+    render(<><ResultValue name="object" value={{}} defaultExpanded={false} getValueState={() => undefined} />
+      <ResultValue name="array" value={[]} getValueState={() => undefined} /></>)
+    expect(screen.getAllByText('Missing')).toHaveLength(2)
+  })
+})
+
+describe('explicit scalar states without text', () => {
+  it.each([
+    { state: 'checking' as const, value: null }, { state: 'checking' as const, value: '' },
+    { state: 'grounded' as const, value: null }, { state: 'grounded' as const, value: '' },
+  ])('keeps $state for a blank scalar ($value)', ({ state, value }) => {
+    render(<ResultValue name="title" value={value} path={['title']} getValueState={() => state} />)
+    expect(screen.getByText('No value text supplied.')).toBeInTheDocument()
+    expect(screen.queryByText('Missing')).not.toBeInTheDocument()
+    if (state === 'checking') expect(screen.getByTitle('Candidate · being verified')).toHaveTextContent('No value text supplied.')
+  })
+})
+
+describe('explicit reviewed absence (decision 14)', () => {
+  it.each(['REJECTED', 'EDITED'] as const)('shows Missing for %s, and Missing leads to the extracted value\'s Evidence', (action) => {
     const onSelectEvidence = vi.fn()
     render(<ResultValue name="title" value={null} path={['title']} getValueState={() => 'grounded'} getEvidenceAnchorId={() => 'a1'}
       onSelectEvidence={onSelectEvidence} review={{ getDecision: () => ({ resultPath: ['title'], evidenceAnchorId: 'a1',
-        reviewedOccurrenceIds: [], action: 'REJECTED', reviewedValue: null }), getSchemaNode: () => null, isTouched: () => true }} />)
+        reviewedOccurrenceIds: [], action, reviewedValue: null }), getSchemaNode: () => null, isTouched: () => true }} />)
     const link = screen.getByRole('button', { name: 'View Evidence for extracted value of title' })
     expect(link).toHaveTextContent('Missing')
     fireEvent.click(link)

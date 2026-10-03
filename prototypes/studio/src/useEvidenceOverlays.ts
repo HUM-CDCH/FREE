@@ -5,6 +5,7 @@ import type {
   ParsedEvidenceAnchor,
 } from 'extraction/parsed-document'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { EvidenceLink } from '../shared/groundedExtraction'
 import {
   anchorOccurrences,
   reviewedAnchorOccurrences,
@@ -103,8 +104,8 @@ function scrollOverlayIntoView(container: HTMLElement, overlay: HTMLElement) {
 
 /**
  * Owns persistent result-path painting and focused-anchor navigation. The
- * workspace supplies only the active attempt, schema field names, and viewer
- * refs; all occurrence filtering, page repaint, scroll, and cleanup stay here.
+ * workspace supplies the inspected attempt, partial links, schema field names,
+ * and viewer refs; occurrence filtering, repaint, scroll, and cleanup stay here.
  */
 export function useEvidenceOverlays({
   containerRef,
@@ -114,32 +115,38 @@ export function useEvidenceOverlays({
   fieldNames,
   resultPath,
   active,
+  partialEvidenceLinks,
 }: {
   containerRef: RefObject<HTMLDivElement | null>
   viewerRef: RefObject<PDFViewer | null>
   parsedDocument: ParsedDocument | null
   attempt: Pick<
     ExtractionAttempt,
-    'outcome' | 'evidenceLinks' | 'reviewDecisions'
+    'extractionId' | 'executionStatus' | 'outcome' | 'evidenceLinks' | 'reviewDecisions'
   > | null
   fieldNames: readonly string[]
   resultPath: readonly string[] | null
   active: boolean
+  partialEvidenceLinks?: readonly EvidenceLink[] | null
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
   useEffect(() => {
     const container = containerRef.current
     const viewer = viewerRef.current
+    const running = attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
+    const evidenceLinks = attempt?.outcome === 'SUCCEEDED'
+      ? attempt.evidenceLinks ?? []
+      : running ? partialEvidenceLinks ?? null : null
     if (
       !container ||
       !parsedDocument ||
-      attempt?.outcome !== 'SUCCEEDED' ||
+      !attempt ||
+      evidenceLinks === null ||
       !active ||
       !resultPath
     )
       return
 
-    const evidenceLinks = attempt.evidenceLinks ?? []
     const reviewedByAnchor = new Map(
       (attempt.reviewDecisions ?? []).map((decision) => [
         decision.evidenceAnchorId,
@@ -190,15 +197,15 @@ export function useEvidenceOverlays({
 
     viewer?.eventBus?.on('pagerendered', paint)
     const firstOccurrence = paint()
-    // A focused anchor already scrolled precisely; a page-top jump on top of
-    // that reads as the viewer moving twice.
-    if (firstOccurrence && !container.querySelector('.parsed-evidence-focus'))
+    // A selected anchor owns navigation even while pdf.js has yet to render
+    // its page and the focus overlay cannot be painted.
+    if (firstOccurrence && !running && !stopFocusedPaint.current)
       viewer?.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     return () => {
       viewer?.eventBus?.off('pagerendered', paint)
       removeOverlays(container, 'parsed-evidence-highlight')
     }
-  }, [active, attempt, containerRef, fieldNames, parsedDocument, resultPath, viewerRef])
+  }, [active, attempt, containerRef, fieldNames, parsedDocument, partialEvidenceLinks, resultPath, viewerRef])
 
   useEffect(
     () => () => {
@@ -207,7 +214,7 @@ export function useEvidenceOverlays({
       removeOverlays(containerRef.current, 'parsed-evidence-focus')
       removeOverlays(containerRef.current, 'parsed-evidence-highlight')
     },
-    [attempt, containerRef, parsedDocument],
+    [attempt?.extractionId, containerRef, parsedDocument],
   )
 
   return useCallback(

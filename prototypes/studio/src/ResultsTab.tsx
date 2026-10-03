@@ -3,6 +3,7 @@ import { exportExtractionResult, type ExtractionProvenance, type ProvenanceClaim
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import { MethodUsed } from './MethodUsed'
 import ResultValue, { RecordHeader, singularItemLabel } from './ui/ResultValue'
+import PartialResults from './PartialResults'
 import { Overline, Spinner, Button, ModalDialog, Pill } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
@@ -542,11 +543,12 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, docu
   const [backStack, setBackStack] = useState<string[][]>([])
   const [forwardStack, setForwardStack] = useState<string[][]>([])
 
+  const partialShown = state.status === 'running' && state.partial !== null
   useEffect(
     () => onResultPathChange?.(
-      view === 'review' ? [...articlePathPrefix, ...navPath] : null,
+      partialShown ? ['records'] : view === 'review' ? [...articlePathPrefix, ...navPath] : null,
     ),
-    [articlePathPrefix, navPath, onResultPathChange, view],
+    [articlePathPrefix, navPath, onResultPathChange, partialShown, view],
   )
   const evidenceLinkByPath = useMemo(
     () =>
@@ -1074,7 +1076,10 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, docu
         </>
       )}
 
-      {state.status === 'running' && (
+      {state.status === 'running' && state.partial && (
+        <PartialResults partial={state.partial} schemaNodes={pinnedSchema?.schemaNodes} onSelectEvidence={onSelectEvidence} />
+      )}
+      {state.status === 'running' && !state.partial && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
           {/* Queued or running only once the server acknowledged the attempt: until then the attempt on screen is
               the previous one, and the new run may not exist yet. */}

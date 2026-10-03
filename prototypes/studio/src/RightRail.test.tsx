@@ -9,7 +9,7 @@ import ResultsTab from './ResultsTab'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionInspection } from './RightRail'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { ExtractionAttempt, PartialResult } from '../shared/extraction.contract'
 import type { SchemaRevision } from '../shared/schemaRevision.contract'
 import {
   createSchemaEditorController,
@@ -169,6 +169,17 @@ describe('RightRail developer UI visibility', () => {
     const label = within(results).getByText('Results')
     expect(label.className).toMatch(/(^|\s)min-w-0(\s|$)/)
     expect(results.className).toMatch(/(^|\s)min-w-0(\s|$)/)
+  })
+
+  it('shows server record counts in the Results badge during extraction', () => {
+    const partial: PartialResult = { strategy: 'CATALOG', startedAtPage: 2, discovered: 48, finished: 7, records: [], document: null }
+    renderRail({ extraction: {
+      ...defaultController,
+      attempt: { executionStatus: 'RUNNING' } as ExtractionAttempt,
+      state: { status: 'running', step: 'extraction', partial },
+    } })
+    const results = screen.getByRole('tab', { name: /^Results\s*7 of 48$/ })
+    expect(within(results).getByRole('img', { name: '7 of 48' })).toHaveAttribute('title', '7 of 48')
   })
 
   it('hides the Evidence tab by default', () => {
