@@ -105,3 +105,17 @@ collator. Oversized input was refused with HTTP 413; a foreign identity with
 HTTP 409. Native output still contained incorrect grouping and extra records. This is integration
 evidence, not a full-document benchmark, held-out evaluation, or human gold.
 Production Studio/DBOS end-to-end deployment has not been exercised by this probe.
+
+For a grave catalogue, the record description must distinguish a grave's number
+from a numbered discussion section. The development verification uses this description:
+
+> One catalogue entry for one grave, headed by that grave identifier and
+> describing its contents or burials. The number identifies the grave, not a
+> chapter or numbered section. Exclude narrative discussion, summaries, tables,
+> section headings and numbered paragraphs about groups of graves, even when
+> they contain grave numbers. These are non-record text. Leather includes
+> skins, hides and fur.
+
+This is schema guidance to discovery and native extraction, not a page filter or
+an output correction. See [PR verification](../../../../docs/validation/2026-10-03-gliformer-fields.md#pr-164-baratheon-application-verification)
+for the real application test and its model-quality limits.

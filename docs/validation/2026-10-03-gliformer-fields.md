@@ -80,3 +80,86 @@ only; values are unverified; model scores are uncalibrated. Production Studio
 and DBOS recovery against the real native server were not exercised. The
 normal launcher does not automatically include the experimental overlay.
 See the [operator instructions](../../prototypes/parsing_service/model_servers/gliformer/README.md).
+
+## PR #164: Baratheon application verification
+
+The integration was cherry-picked onto current `dev` (`89612460`) as
+`feat/gliformer-fields-dev`, without the unrelated research-branch history.
+[PR #164](https://github.com/HUM-CDCH/FREE/pull/164) records the final verification
+outcome, merge SHA and deployment smoke. Baratheon's isolated checkout is
+`/home/geba/Projects/FREE-pr164`; its main checkout's local deployment edits are
+preserved. Git bundles transfer the exact reviewed commits because Baratheon
+has no working GitHub SSH credential.
+
+The checks run on Baratheon, with the locked Python environment and
+`PYTHONPATH` explicitly pointing at the PR checkout, include:
+
+- `pnpm test:unit:node`: 2,265 passed (1,888 Studio tests and 377 Node tests).
+- The complete Python fast suite: 1,353 passed, 72 skipped, 79 deselected.
+  Skips include optional fixtures; PostgreSQL and live-model tests are excluded
+  from this fast tier.
+- Native adapter and explicit GPU protocol tests: 20 passed, including real
+  token/inference agreement, over-budget refusal and foreign-identity refusal.
+- Whole-workspace typecheck and lint passed. Lint reports two existing hooks
+  warnings in `useExtraction.ts`, with no errors.
+- Safety tier: 29 passed.
+- General browser tier: 59 passed initially, two sign-in readiness timeouts,
+  six not run after a serial-group failure, five intentionally skipped.
+  Both failures passed unchanged with one worker; all 17 model-configuration
+  tests then passed serially, covering the six deferred cases. All five
+  Studio/ingestion restart-recovery browser tests passed separately.
+- The native real-model application test initially passed in 46 seconds:
+  authenticated upload, real PDF parsing, saved field/reasoning selection,
+  PostgreSQL/DBOS admission and execution, raw output accepted unchanged by
+  Studio, confidence display, parsing API/worker restart, reload and CSV export.
+  Three discovered entries produced three native windows and three records.
+
+`e2e/gliformer-route.spec.ts` is an explicit opt-in test on the existing real
+service harness. It uses actual Qwen and native GLiFormer endpoints, its own
+mock-OIDC accounts and disposable database, and no production research state.
+The service harness clears inherited native-backend configuration unless the
+real-model run explicitly names it. These tests do not prove Entra browser
+login or an interrupted native GPU call's DBOS recovery; component tests cover
+checkpoint reuse and identity-change refusal.
+
+A fresh upload of the seven-page Mostagedda PDF (SHA-256
+`37321a719f736c7ecc5f6d52a1f1dbfbcb5296361c9a191906a513276caead78`)
+produced 289 canonical anchors. The first full application run passed transport,
+persistence, restart and export, but inspection found a semantic scope error:
+Qwen treated numbered discussion sections as graves and sent page-seven text to
+GLiFormer. The development test schema was clarified to distinguish grave
+identifiers from numbered sections. Assertions now require grave 10,031's input
+and refuse page-seven or discussion-section inputs for this known PDF. No
+production page-number filter, grave-ID rewrite or material repair was added.
+The final rerun and artifacts are reported in the PR; the initial full result is
+not a catalogue-only success or extraction-quality evidence.
+
+Reproduction from the Baratheon checkout (use the current OCR container address):
+
+```sh
+export PYTHONPATH="$PWD/prototypes/parsing_service/src"
+export FREE_CATALOG_METHOD=unified
+export FREE_REAL_EXTRACT_URL=http://127.0.0.1:18080/v1/chat/completions
+export FREE_REAL_EXTRACT_MODEL=nvidia/Qwen3.8-27B-NVFP4
+export FREE_REAL_GLIFORMER_URL=http://127.0.0.1:17866
+export FREE_REAL_EXTRACT_TIMEOUT=1800
+# For the full scanned PDF also set FREE_REAL_OCR_URL and FREE_GLIFORMER_ROUTE_PDF.
+# FREE_GLIFORMER_ROUTE_OUTPUT retains canonical/model/Studio artifacts and export.
+pnpm --filter studio exec playwright test --config playwright.service.config.ts gliformer-route.spec.ts
+```
+
+The tested native image is the pinned image above, threshold 0.05. Parsing and
+Studio images were built on Baratheon from `20904947`; subsequent code changes
+are confined to the test's schema and boundary assertions. Image IDs:
+
+- Parsing: `sha256:2a5d6823aea1b0e6bf0cfd221128289badd6f8e336d8a30f4e4c0b026b14c74f`
+- Studio: `sha256:af117c4e6e8680929f6c7d984c2a286d9dbdf7f39f7757ced5d1c6ab6c55f74c`
+
+Manual review of the full PR diff found no bloat blockers. The optional model
+service and backend are required by the requested architecture; the real-model
+test uses the existing durable test stack. No workflow sequence, schema
+migration, production default or quality-release gate is changed. Native output
+still includes wrong IDs, extra records and false material mentions; confidence
+is not calibrated. This is development integration evidence, not human gold or
+a held-out quality evaluation. The live deployment's unified-method gate stays
+at its existing value; installing code does not activate the experimental method.
