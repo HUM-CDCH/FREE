@@ -57,11 +57,22 @@ generation of this run whose manifest names it in `reused_from`, and for
 `page_source=ingest` it hard-links the other run's proven ingest of the same
 recipe. Every candidate is verified first, anything less is passed over and
 the work is done; a run asking for a debug report reuses nothing. Reuse is as
-fresh as the recipe: a change to what the cut or a transcriber writes for the
-same inputs must bump `RESULT_VERSION` (`pagefile.py`) or the transcriber's
-`TEXT_RULES` entry (`transcription/types.py`), and a change to the ingest's
-output its `STAGE_VERSION` (`kie/stages/ingest.py`), or later runs keep the
-earlier output.
+fresh as the recipe, which names the settings, the docling, surya-ocr,
+pypdfium2 and pillow versions, and the transcriber's text rules. Anything else
+that changes the output for the same inputs must change the recipe, or later
+runs keep the earlier output:
+
+- a code change to what a transcriber kind writes: add or bump its entry in
+  `TEXT_RULES` (`transcription/types.py`);
+- a new image or new weights for the OCR model server under the same repo name:
+  set a new `KEI_OCR_REVISION`;
+- a change to what the ingest cuts: bump its `STAGE_VERSION`
+  (`kie/stages/ingest.py`). The ingest's own fingerprint does not name the OCR
+  recipe, so a re-OCR alone keeps the cut images.
+
+Do not bump `RESULT_VERSION` to force a re-OCR: it is the manifest format, and
+the reader refuses every result written at another version, so every earlier
+run would lose its result.
 
 | Setting | Purpose |
 | --- | --- |
@@ -71,6 +82,7 @@ earlier output.
 | `KEI_SLOT` | The worker's slot: its lock file and its DBOS executor `kei-<slot>` |
 | `KEI_VLLM_URL` | OCR chat-completions endpoint, normally the `ocr_model` service |
 | `KEI_OCR_MODEL` | Default OCR model of a parse that names none (default `surya`) |
+| `KEI_OCR_REVISION` | Optional label of the OCR server's image and weights, named in every served parse's recipe; change it when they change, so earlier output is not reused |
 | `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction's instruction model server and the model it serves |
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |

@@ -700,6 +700,32 @@ Run it after the drain (step 1 below), when no draft can change.
    start on it; drafts saved after the upgrade no longer carry the dropped
    decisions.
 
+## Upgrade: OCR result reuse
+
+Since `c0333c9b`, a parse of PDF bytes the Parsing Service already converted
+with the same effective settings reuses the earlier result instead of running
+OCR again (`prototypes/parsing_service/README.md`). The match is on the
+recipe fingerprint. The OCR server's image (`eugr/spark-vllm:latest`) and
+its weights (`datalab-to/surya-ocr-2`) are not pinned, so the recipe cannot
+see a change to either.
+
+- **When the OCR server changes**, set a new `KEI_OCR_REVISION` in `.env`
+  (any label, such as the date and what changed) and redeploy. This covers
+  pulling a newer image, new weights, or different quantization or server
+  flags that change what it reads. Without the new label, uploads of PDFs
+  parsed before the change keep their earlier OCR.
+  Setting it changes the fingerprint of every new served parse, so the first
+  parse of each PDF after the change runs OCR again. Earlier results stay
+  readable.
+- **Never bump `RESULT_VERSION` to force a re-OCR.** The reader refuses
+  results written at another version, so every earlier run would lose its
+  result, and extraction over its documents would fail.
+- **Rolling back below `c0333c9b`.** Older Parsing Service images cannot read
+  a result that reused another (its manifest carries `reused_from`, which
+  they refuse). Extraction and passages over those documents fail until you
+  roll forward again. Roll back only to an image that knows the field, or
+  reprocess the affected documents after the rollback.
+
 ## Cutover to durable execution (one-time, clean slate)
 
 This runbook moves a deployment from Procrastinate to DBOS once, before FREE

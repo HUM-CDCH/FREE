@@ -81,9 +81,12 @@ removes stray pages. An uncheckpointed retry may publish another generation, as 
 
 ### Freshness
 
-The recipe carries explicit versions, not a code hash. A change to cut or transcription output must bump
-`RESULT_VERSION` or the relevant text-rules version, as the recipe already requires; otherwise reuse returns the
-earlier output. Documented in the service README.
+The recipe carries explicit versions, not a code hash: docling, surya-ocr, pypdfium2 and pillow, the transcriber's
+text rules, and the deployment's `KEI_OCR_REVISION` for a served model when set (the OCR server's image and weights
+are not pinned, so they can change under one repo name). A change to transcription output changes one of those;
+otherwise reuse returns the earlier output. `RESULT_VERSION` is not the lever: the reader refuses every other
+version, so bumping it would make every earlier result unreadable. A change to the cut bumps the ingest's
+`STAGE_VERSION`. Documented in the service README and in `docs/operations/deployment.md`.
 
 ## Testing
 
@@ -111,3 +114,10 @@ Fast tests (no Postgres, no model), against a temporary `runs.RUNS`:
   Markdown from memory instead of reading every page back.
 - Deferred: fault-injection tests for GC during copy and crash between page and manifest publication; the `EXDEV`
   copy fallback (one volume in every deployment).
+- Follow-up after merge (Codex gpt-6-astra limitations review, 2026-10-03): the README pointed at `RESULT_VERSION`
+  as the freshness lever, which would make every earlier result unreadable; corrected to text rules /
+  `KEI_OCR_REVISION` / ingest `STAGE_VERSION`. Added pypdfium2 and pillow to `versions()` (every crop passes through
+  them) and the optional `KEI_OCR_REVISION`. The deferred fault-injection tests now exist (a copy failing part way,
+  `EXDEV`, a donor deleted or unreadable while read, a crash before the manifest). The real-OCR Studio spec is
+  committed as opt-in (`real-service-reuse.spec.ts`). Not taken here: a researcher boundary on candidates (the
+  user's decision); hosted CI still skips Python (`FREE_SKIP_PYTHON=1`).
