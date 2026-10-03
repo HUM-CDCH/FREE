@@ -12,12 +12,14 @@ export type ActionItem = {
 
 /** A "⋯" (or custom) trigger and a `role="menu"` list: arrow keys move between items (from the trigger, ArrowDown to the
  *  first and ArrowUp to the last), Escape closes and returns focus, a blur or a pointer press outside closes. Items only
- *  receive focus through the arrow keys, so the trigger keeps its place in the tab order. */
-export default function ActionsMenu({ label, items, trigger, triggerClassName = '' }: {
+ *  receive focus through the arrow keys, so the trigger keeps its place in the tab order. `align` names the trigger edge
+ *  the list lines up with: `right` (the default) opens it leftwards, `left` rightwards, for a trigger near the left edge. */
+export default function ActionsMenu({ label, items, trigger, triggerClassName = '', align = 'right' }: {
   label: string
   items: ActionItem[]
   trigger?: ReactNode
   triggerClassName?: string
+  align?: 'left' | 'right'
 }) {
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
@@ -80,7 +82,7 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
           role="menu"
           aria-label={label}
           onMouseDown={(event) => event.preventDefault()}
-          className="absolute right-0 top-full z-30 mt-1 min-w-56 rounded-xl border border-line bg-surface py-1 shadow-float"
+          className={`absolute top-full z-30 mt-1 min-w-56 rounded-xl border border-line bg-surface py-1 shadow-float ${align === 'left' ? 'left-0' : 'right-0'}`}
         >
           {items.map((item) => (
             <li key={item.id} role="none" className={item.divider ? 'mt-1 border-t border-line pt-1' : ''}>

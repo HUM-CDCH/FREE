@@ -331,7 +331,10 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
     if (unfinished) await expect(page.getByText(new RegExp(
       `values? without evidence (?:was|were) not reviewed; ${claims.notCompleted} checks? never completed`))).toBeVisible()
+    // The Record scope is in the Schema tab's header; the review continues in Results.
+    await page.getByRole('tab', { name: /^Schema/ }).click()
     await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(strategy === 'ARTICLE' ? 'document' : 'records')
+    await page.getByRole('tab', { name: /Results/ }).click()
     await open(page, chosen!.resultPath, records.length)
     await expect(page.getByText(edited, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: `View Evidence for extracted value of ${item}`, exact: true }).click()

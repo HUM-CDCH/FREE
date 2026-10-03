@@ -39,6 +39,7 @@ function ProjectChip({ name, onNavigateProject, onBackToReviewGrid }: {
       {onBackToReviewGrid ? (
         <ActionsMenu
           label="Project actions"
+          align="left"
           trigger={<span aria-hidden="true">▾</span>}
           triggerClassName="rounded-l-none border-l-0"
           items={[{ id: 'grid', label: 'Back to review grid', onSelect: onBackToReviewGrid }]}

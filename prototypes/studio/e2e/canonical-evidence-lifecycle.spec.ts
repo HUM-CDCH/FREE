@@ -662,11 +662,15 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // Back returns to the current Source Representation Revision and its newer, unreviewed attempt.
   await freshPage.goBack()
   await expect(freshPage).toHaveURL(url)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
   await expect(freshPage.getByRole('button', { name: 'Open latest reviewed', exact: true })).toBeVisible()
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   kei.omitGrounding = false
   kei.blockNextResult = true
+  // The Record scope is in the Schema tab's header; the journey continues in Results.
+  await freshPage.getByRole('tab', { name: /^Schema/ }).click()
   await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   // Running shows only once Studio acknowledged the admission, so leaving now cannot lose the Extraction. kei holding
   // the result keeps it running until the cancel below.
@@ -682,13 +686,19 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   resultGate.release?.()
 
   kei.failNextValues = true
+  // The Record scope is in the Schema tab's header; the journey continues in Results.
+  await freshPage.getByRole('tab', { name: /^Schema/ }).click()
   await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(freshPage.getByText('Extraction failed', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(freshPage.getByRole('tab', { name: 'Raw JSON' })).toHaveCount(0)
 
   kei.incompleteNextResult = true
+  // The Record scope is in the Schema tab's header; the journey continues in Results.
+  await freshPage.getByRole('tab', { name: /^Schema/ }).click()
   await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
   // The failed attempt's Results action names the schema's saved strategy.
   await freshPage.getByRole('button', {
     name: strategy === 'CATALOG' ? 'Run Catalog extraction' : 'Run Article extraction',
@@ -723,7 +733,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // The re-run is admitted QUEUED (its workflow was enqueued with its row); kei then holds it, so the cancel below
   // stops work still in flight rather than racing its completion.
   kei.blockNextResult = true
+  // The Record scope is in the Schema tab's header; the journey continues in Results.
+  await freshPage.getByRole('tab', { name: /^Schema/ }).click()
   await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(freshPage.getByText('Queued extraction…')).toBeVisible()
   await freshPage.getByTitle('Cancel the active Extraction').click()
@@ -807,7 +820,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   kei.blockNextResult = true
+  // The Record scope is in the Schema tab's header; the journey continues in Results.
+  await freshPage.getByRole('tab', { name: /^Schema/ }).click()
   await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 20_000 })
   const status = freshPage.getByRole('region', { name: 'Extraction status' })

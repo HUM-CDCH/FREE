@@ -21,6 +21,18 @@ function renderMenu(items: ActionItem[]) {
 const item = (id: string, extra: Partial<ActionItem> = {}): ActionItem => ({ id, label: id, onSelect: vi.fn(), ...extra })
 
 describe('ActionsMenu', () => {
+  it('lines the list up with the trigger\'s right edge by default, and with its left edge when aligned left', () => {
+    const { open } = renderMenu([item('First')])
+    open()
+    expect(screen.getByRole('menu')).toHaveClass('right-0')
+    expect(screen.getByRole('menu')).not.toHaveClass('left-0')
+    cleanup()
+    render(<ActionsMenu label="Project actions" align="left" items={[item('Back')]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    expect(screen.getByRole('menu')).toHaveClass('left-0')
+    expect(screen.getByRole('menu')).not.toHaveClass('right-0')
+  })
+
   it('opens from the trigger; its items stay out of the tab order', () => {
     const { trigger, open } = renderMenu([item('First'), item('Second')])
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
