@@ -379,4 +379,28 @@ it('Run requires a valid draft, a surviving member and no active attempt', async
     assert.deepEqual(await db.orm.public.BatchExtraction.select('requestedSettings').first({ id: created.batch.batchExtractionId }),
       { requestedSettings: { article: SPANS } })
   })
+
+  it('an incompatible GLiFormer draft confirms and enqueues nothing', async (t) => {
+    t.after(cleanup)
+    process.env.FREE_CATALOG_METHOD = 'unified'
+    t.after(() => { delete process.env.FREE_CATALOG_METHOD })
+    const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf'])
+    const models = { fields: 'gliformer' }
+    await configureAccount(project.researcherAccountId, { extractionModels: models })
+    const draft = { recordDescription: 'A grave', schemaNodes: [
+      { id: 'material', name: 'leather_material', type: 'boolean' },
+    ] }
+    const batchSchemaSuggestionId = await readySuggestion(project, draft)
+    const before = await db.orm.public.SchemaRevision.select('id').all()
+    await assert.rejects(scheduler(project.researcherAccountId).scheduleSuggestedBatch({
+      projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'CATALOG',
+      method: { models, settings: { unified: { defaults: 1 } } },
+    }), (error: unknown) => error instanceof ExtractionError && error.code === 'incompatible_extraction_model' &&
+      error.message.includes('leather_material'))
+    assert.deepEqual(await confirmation(batchSchemaSuggestionId), { confirmedSchemaRevisionId: null, batchExtractionId: null })
+    assert.deepEqual(await db.orm.public.SchemaRevision.select('id').all(), before)
+    assert.deepEqual(await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all(), [])
+    assert.deepEqual((await db.orm.public.BatchSchemaSuggestion.select('draft').first({ id: batchSchemaSuggestionId }))?.draft, draft)
+    assert.equal(kei.submissions.length, 0)
+  })
 })

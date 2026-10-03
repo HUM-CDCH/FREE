@@ -23,6 +23,7 @@ import {
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type { ExtractionExecution } from './dependencies.js'
 import { ExtractionError } from './errors.js'
+import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import { extractWorkflowId } from './kei-handoff.js'
 import {
   accountMethod,
@@ -267,6 +268,7 @@ export async function admitInteractiveExtraction(
         { models: pins.requestedModels, settings: pins.requestedSettings })))
         return 'method-changed'
       refuseUnusableIdentityFields(pins.requestedSettings, pins.schemaTree)
+      refuseIncompatibleGliformer({ models: pins.requestedModels, settings: pins.requestedSettings }, pins.schemaTree)
       await transaction.orm.public.Extraction.create({
         id: input.extractionId,
         sourceDocumentId: pins.sourceDocumentId,
@@ -442,6 +444,7 @@ export async function admitBatchExtraction(
       if (!(await savedMethodStillCurrent(client, researcherAccountId, input.strategy, null, method)))
         return 'method-changed' as const
       refuseUnusableIdentityFields(method.settings, schema.schemaTree)
+      refuseIncompatibleGliformer(method, schema.schemaTree)
       await orm.public.BatchExtraction.create({
         id: batchExtractionId,
         projectContextId: input.projectContextId,

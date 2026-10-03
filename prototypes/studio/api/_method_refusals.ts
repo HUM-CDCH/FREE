@@ -23,6 +23,8 @@ export function methodRefusal(error: unknown): ApiError | null {
       return new ApiError(409, 'record_scope_mismatch', error.message, { cause: error })
     case 'invalid_identity_fields':
       return new ApiError(422, 'invalid_identity_fields', error.message, { cause: error })
+    case 'incompatible_extraction_model':
+      return new ApiError(422, 'incompatible_extraction_model', error.message, { cause: error })
     case 'invalid_model_config':
       return new ApiError(500, 'invalid_model_config', 'The saved model configuration is invalid.', { cause: error })
     default:

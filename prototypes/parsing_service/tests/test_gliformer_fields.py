@@ -3,6 +3,7 @@ import json
 import os
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 import requests
@@ -70,6 +71,29 @@ def test_optional_fields_only_and_no_default_change():
         run.Options(models={"reasoning": "gliformer"})
     with pytest.raises(ValueError, match="native unified Catalog"):
         Router(Native(), None).for_stage("document")
+
+
+@pytest.mark.parametrize("case", json.loads((Path(__file__).parent / "fixtures/contracts/gliformer-compatibility.json")
+                                          .read_text())["cases"], ids=lambda case: case["id"])
+def test_studio_admission_contract_matches_service(case, monkeypatch):
+    registry = models.registry({"KEI_GLIFORMER_URL": "http://native.test", "KEI_NUEXTRACT_URL": "http://nu.test"})
+    monkeypatch.setattr(models, "EXTRACT_MODELS", registry)
+    monkeypatch.setattr(models, "DEFAULTS", models.defaults(registry))
+    method = case["method"]
+    slot, settings = next(iter(method["settings"].items()))
+    options = {"strategy": "article" if slot == "article" else "catalog"}
+    if method["models"]:
+        options["models"] = method["models"]
+    if settings is not None:
+        options[slot] = settings
+    if slot == "recipe":
+        options["catalog"] = {"recipe": "numbered-catalogue-de@1"}
+    body = {"schema": case["schema"], "options": options}
+    if case["accepted"]:
+        run.ExtractRequest.model_validate(body)
+    else:
+        with pytest.raises(ValidationError):
+            run.ExtractRequest.model_validate(body)
 
 
 @pytest.mark.parametrize("field", [
