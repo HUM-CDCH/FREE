@@ -71,7 +71,7 @@ def test_another_fingerprint_adopts_nothing_and_writes_nothing(digital_pdf, root
 
 
 def incomplete(directory: Path) -> None:
-    edit_json(directory / "result" / "result.json", lambda m: m.update({"status": "incomplete", "incomplete": "capped"}))
+    edit_json(directory / "result" / "result.json", lambda m: m.update({"status": "incomplete", "incomplete": "cap"}))
 
 
 def tampered(directory: Path) -> None:
