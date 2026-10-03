@@ -135,15 +135,19 @@ function insertAtSlot(
   })
 }
 
-/** Puts a removed node back under `parentId` at `index`; null when that parent no longer exists. Sibling names are
- *  checked by the commit gate, not here. */
+/** Puts a removed node back under `parentId` at `index`; null when that parent no longer exists or is no longer a
+ *  group. Sibling names are checked by the commit gate, not here. */
 export function restoreSchemaNode(
   nodes: readonly SchemaNode[],
   node: SchemaNode,
   parentId: string | null,
   index: number,
 ): SchemaNode[] | null {
-  if (parentId !== null && !enumerateFieldPaths(nodes).some((field) => field.id === parentId)) return null
+  if (parentId !== null) {
+    // A parent retyped to a scalar has no children to restore into; inserting would turn it back into a group.
+    const parent = enumerateFieldPaths(nodes).find((field) => field.id === parentId)?.node
+    if (parent?.children === undefined) return null
+  }
   return insertAtSlot(deepClone(nodes), parentId, index, node)
 }
 

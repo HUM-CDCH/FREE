@@ -1741,7 +1741,7 @@ describe('field rows (redesign §6)', () => {
     expect(within(row).getByRole('button', { name: 'Delete sex' }).className).toMatch(/size-7/)
   })
 
-  it('deletes a field in one click and Undo restores it in place', async () => {
+  it('deletes a field in one click and Undo restores it in place', () => {
     const setup = renderPanel()
     fireEvent.click(within(screen.getByRole('listitem', { name: 'title' })).getByRole('button', { name: 'Delete title' }))
     expect(screen.queryByRole('listitem', { name: 'title' })).not.toBeInTheDocument()
@@ -1810,5 +1810,74 @@ describe('field rows (redesign §6)', () => {
     fireEvent.keyDown(screen.getByRole('listitem', { name: 'gender' }), { key: 'Delete' })
     expect(screen.queryByRole('listitem', { name: 'gender' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+    // Focus moves to the next row, else the previous row, else "+ Add field" — never to the page body.
+    expect(screen.getByRole('listitem', { name: 'title' })).toHaveFocus()
+    fireEvent.keyDown(group, { key: 'Delete' })
+    expect(screen.getByRole('listitem', { name: 'title' })).toHaveFocus()
+    fireEvent.keyDown(screen.getByRole('listitem', { name: 'title' }), { key: 'Delete' })
+    expect(screen.getByRole('button', { name: '+ Add field' })).toHaveFocus()
+  })
+
+  it('read-only: a note is plain text, Enter and Delete do nothing, and Space still toggles a group', () => {
+    const setup = renderPanel({ panelNodes: [{ id: 'g', name: 'grave', type: 'object', children: [{ id: 'g1', name: 'depth', type: 'number' }] }, ...nodes] }, { readOnly: true })
+    expect(screen.getByText('Research rule').closest('button')).toBeNull()
+    fireEvent.keyDown(screen.getByRole('listitem', { name: 'title' }), { key: 'Delete' })
+    fireEvent.keyDown(screen.getByRole('listitem', { name: 'title' }), { key: 'Enter' })
+    expect(setup.edits).toHaveLength(0)
+    expect(screen.queryByPlaceholderText('field_name')).not.toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('listitem', { name: 'grave' }), { key: ' ' })
+    expect(screen.queryByRole('listitem', { name: 'depth' })).not.toBeInTheDocument()
+  })
+
+  it('Undo is refused when a sibling now has the field\'s name', () => {
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete title' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'title' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByText('Could not restore the field')).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem', { name: 'title' })).toHaveLength(1)
+  })
+
+  it('the Undo toast outlasts the default 2.6 s and goes after eight seconds', () => {
+    vi.useFakeTimers()
+    try {
+      renderPanel()
+      fireEvent.click(screen.getByRole('button', { name: 'Delete title' }))
+      act(() => { vi.advanceTimersByTime(2_600) })
+      expect(screen.getByText('Field removed')).toBeInTheDocument()
+      act(() => { vi.advanceTimersByTime(5_400) })
+      expect(screen.queryByText('Field removed')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a replaced draft dismisses a pending Undo', () => {
+    const setup = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete title' }))
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+    act(() => { setup.schema.adoptDraft({ recordDescription: 'An imported record.', schemaNodes: [{ id: 'year', name: 'year', type: 'integer' }] }) })
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Field removed')).not.toBeInTheDocument()
+  })
+
+  it('a proposal row whose change is only its allowed values still shows them', async () => {
+    renderPanel()
+    await send({
+      status: 'proposed',
+      fields: {
+        title: { name: 'title', type: 'string', removed: false },
+        gender: { name: 'gender', type: 'string', removed: false, allowedValues: ['woman', 'man', 'other'] },
+      },
+      additions: [],
+      issues: [],
+    })
+    const row = screen.getByRole('listitem', { name: 'gender' })
+    expect(within(row).getByRole('checkbox', { name: 'Accept change to gender' })).toBeInTheDocument()
+    const values = within(row).getByText('3 values')
+    expect(values).toHaveAttribute('title', 'Allowed values: woman, man, other')
+    expect(values.closest('button')).toBeNull()
   })
 })

@@ -438,6 +438,8 @@ function SchemaPanel({
   const dragStartYRef = useRef(0)
   const rafRef = useRef<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fieldListRef = useRef<HTMLDivElement>(null)
+  const addFieldRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!fieldContext) return
     const ancestors = schemaAncestorIds(nodes, new Set([fieldContext.nodeId]))
@@ -530,6 +532,8 @@ function SchemaPanel({
       setHistoryError(null)
       setConfirmingDeleteSchema(false)
       setRegenerateOpen(false)
+      // A pending Undo belongs to the replaced draft: restoring into the new one would graft an old field onto it.
+      dismissPanelToast()
       setRecordDescriptionDraft(
         schema.snapshot().draft?.recordDescription ?? '',
       )
@@ -539,7 +543,7 @@ function SchemaPanel({
         setChat([{ role: 'assistant', text: CHAT_GREETING }])
       }
     },
-    [resetInstructions, resetProposal, schema],
+    [dismissPanelToast, resetInstructions, resetProposal, schema],
   )
   const observedReplacementVersion = useRef(snap.replacementVersion)
   useEffect(() => {
@@ -834,11 +838,18 @@ function SchemaPanel({
    *  carry an empty label: the controller toasts every non-empty label at the top of the document (`onCommitMessage`,
    *  wired in `App.tsx`), and the panel's toast is the one notice for delete and undo. */
   function deleteField(node: SchemaNode, parentId: string | null, index: number) {
+    const focusTarget = rowAfterDeleting(node.id)
     const result = schema.commit((current) => removeSchemaNode(current, node.id)[1], '')
     if (!result.ok) {
-      setMutationError('No schema draft is open.')
+      setMutationError(
+        result.reason === 'no-draft'
+          ? 'No schema draft is open.'
+          : `A sibling field already uses “${result.duplicateName}”.`,
+      )
       return
     }
+    // Keyboard focus stays in the list rather than falling to the page when the focused row goes.
+    focusTarget?.focus()
     // A form open on the field or anywhere inside it goes with it.
     const removedIds = new Set(enumerateFieldPaths([node]).map((field) => field.id))
     if (editing && removedIds.has(editing.id)) cancelEdit()
@@ -870,6 +881,16 @@ function SchemaPanel({
     if (!note) return
     updateNodeDescription(id, existing ? `${existing}\n${note}` : note)
     setDescDraft('')
+  }
+
+  /** Where focus goes once a field's row is removed: the next visible row outside its subtree, else the previous row,
+   *  else "+ Add field". Rows of other fields keep their DOM nodes across the commit, so the element stays valid. */
+  function rowAfterDeleting(id: string): HTMLElement | null {
+    const rows = Array.from(fieldListRef.current?.querySelectorAll<HTMLElement>('[role="listitem"]') ?? [])
+    const index = rows.findIndex((row) => row.closest('[data-schema-node-id]')?.getAttribute('data-schema-node-id') === id)
+    if (index < 0) return addFieldRef.current
+    const subtree = rows[index]!.closest('[data-schema-node-id]')!
+    return rows.slice(index + 1).find((row) => !subtree.contains(row)) ?? rows[index - 1] ?? addFieldRef.current
   }
 
   function addField() {
@@ -1316,7 +1337,7 @@ function SchemaPanel({
               )}
             </label>
             {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
-            <div role="list" aria-label="Schema fields" className="flex flex-col">
+            <div ref={fieldListRef} role="list" aria-label="Schema fields" className="flex flex-col">
               {fieldContext && <div role="status" className="p-2 text-xs bg-accent-ghost">
                 From Extraction {fieldContext.extractionId} · revision {fieldContext.revisionNumber ?? fieldContext.schemaRevisionId} · {fieldContext.nodeType}
                 {contextNode ? ` → ${contextNode.name} (${contextNode.type}) in the current editor. Unsaved edits are retained.` : ' · This field was removed. No replacement was selected.'}
@@ -1340,6 +1361,7 @@ function SchemaPanel({
               <div className={slotCls(null, nodes.length)} onMouseEnter={() => setSlotTarget(null, nodes.length)} />
             </div>
             {!editorReadOnly && <button
+              ref={addFieldRef}
               className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
               type="button"
               disabled={editing !== null}

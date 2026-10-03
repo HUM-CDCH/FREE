@@ -100,4 +100,9 @@ describe('restoreSchemaNode', () => {
     const [, withoutGroup] = removeSchemaNode(without, 'g')
     expect(restoreSchemaNode(withoutGroup, removed!, 'g', 0)).toBeNull()
   })
+  it('is null when the parent was retyped to a scalar', () => {
+    const [removed, without] = removeSchemaNode(tree, 'g1')
+    const retyped = without.map((node) => (node.id === 'g' ? { id: 'g', name: 'grave', type: 'string' as const } : node))
+    expect(restoreSchemaNode(retyped, removed!, 'g', 0)).toBeNull()
+  })
 })

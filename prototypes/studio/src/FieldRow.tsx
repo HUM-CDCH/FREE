@@ -24,7 +24,12 @@ export type FieldRowProps = {
   nodeRef?: (element: HTMLDivElement | null) => void
 }
 
-const ACTION = 'grid size-7 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-accent disabled:cursor-default disabled:opacity-40'
+// Colours stay off the shared base: two utilities of one property resolve by stylesheet order, not class order.
+const ACTION = 'grid size-7 cursor-pointer place-items-center rounded-[3px] outline-none transition-colors disabled:cursor-default disabled:opacity-40'
+const ACTION_PLAIN = `${ACTION} text-ink-muted hover:bg-surface-muted hover:text-accent`
+const ACTION_DANGER = `${ACTION} text-danger hover:bg-danger-soft`
+/** The type and values pills' buttons: at least 24px tall around the pill. */
+const PILL_BUTTON = 'inline-flex min-h-6 shrink-0 cursor-pointer items-center rounded-full outline-none disabled:cursor-default disabled:opacity-60'
 
 function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
   if (outcome === 'rejected') return (
@@ -162,10 +167,12 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         intoGroup || dragging ? 'border-accent' : 'border-transparent'
       } ${intoGroup ? 'bg-accent-ghost' : ''} ${dragging ? 'opacity-40' : ''} ${diffBg}`}
       onKeyDown={(event) => {
-        if (event.target !== event.currentTarget || readOnly || isDiff) return
+        if (event.target !== event.currentTarget) return
+        // Opening and closing a group is reading, not editing: Space works in read-only and proposal views too.
+        if (event.key === ' ' && isGroup) { event.preventDefault(); onToggleExpanded?.(); return }
+        if (readOnly || isDiff) return
         if (event.key === 'Enter') { event.preventDefault(); onEdit() }
         else if (event.key === 'Delete') { event.preventDefault(); onDelete() }
-        else if (event.key === ' ' && isGroup) { event.preventDefault(); onToggleExpanded?.() }
       }}
     >
       <div className="flex min-h-[30px] items-center gap-1">
@@ -180,17 +187,22 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         ) : <span className="w-6 shrink-0" />}
         <FieldChangeLabel node={node} change={change} impliedRemoved={impliedRemoved} />
         {!isDiff && (
-          <button type="button" className="shrink-0 cursor-pointer rounded-full outline-none disabled:cursor-default disabled:opacity-60"
+          <button type="button" className={PILL_BUTTON}
             title={`Type: ${typeWords} — click to edit`} disabled={editDisabled || readOnly} onClick={onEdit}>
-            <Pill tone="neutral" className="text-compact font-medium">{typeWords}</Pill>
+            <Pill tone="neutral" size="compact">{typeWords}</Pill>
           </button>
         )}
-        {!isDiff && node.allowedValues && (
-          <button type="button" className="shrink-0 cursor-pointer rounded-full outline-none disabled:cursor-default disabled:opacity-60"
+        {node.allowedValues && (isDiff ? (
+          // A proposal row still shows the closed set it carries; it is reviewed, not edited, here.
+          <Pill outline size="compact" className="shrink-0" title={`Allowed values: ${node.allowedValues.join(', ')}`}>
+            {node.allowedValues.length} values
+          </Pill>
+        ) : (
+          <button type="button" className={PILL_BUTTON}
             title={`Allowed values — click to edit: ${node.allowedValues.join(', ')}`} disabled={editDisabled || readOnly} onClick={onEdit}>
-            <Pill outline className="text-compact font-medium">{node.allowedValues.length} values</Pill>
+            <Pill outline size="compact">{node.allowedValues.length} values</Pill>
           </button>
-        )}
+        ))}
         <ChangeBadge change={change} outcome={outcome} />
         {intoGroup && !isDiff && (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white">into {node.name}</span>
@@ -199,18 +211,20 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         {change && acceptance && <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptance.accepted} onChange={acceptance.onToggle} />}
         {!isDiff && !readOnly && (
           <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-            <button type="button" className={ACTION} title={`Edit ${node.name}`} aria-label={`Edit ${node.name}`} disabled={editDisabled} onClick={onEdit}><PencilIcon /></button>
-            <button type="button" className={ACTION} title="Add note" aria-label={`Add note to ${node.name}`} disabled={editDisabled} onClick={onAddNote}><NotePlusIcon /></button>
-            <button type="button" className={`${ACTION} text-danger hover:bg-danger-soft hover:text-danger`} title={`Delete ${node.name}`} aria-label={`Delete ${node.name}`} disabled={editDisabled} onClick={onDelete}><TrashIcon /></button>
+            <button type="button" className={ACTION_PLAIN} title={`Edit ${node.name}`} aria-label={`Edit ${node.name}`} disabled={editDisabled} onClick={onEdit}><PencilIcon /></button>
+            <button type="button" className={ACTION_PLAIN} title="Add note" aria-label={`Add note to ${node.name}`} disabled={editDisabled} onClick={onAddNote}><NotePlusIcon /></button>
+            <button type="button" className={ACTION_DANGER} title={`Delete ${node.name}`} aria-label={`Delete ${node.name}`} disabled={editDisabled} onClick={onDelete}><TrashIcon /></button>
           </span>
         )}
       </div>
-      {node.description && !isDiff && (
+      {node.description && !isDiff && (readOnly ? (
+        <p className="pb-1 pl-9 text-secondary leading-snug text-ink-muted whitespace-pre-line">{node.description}</p>
+      ) : (
         <button type="button" onClick={onAddNote} disabled={editDisabled}
-          className="block w-full cursor-text pb-1 pl-9 text-left text-secondary leading-snug text-ink-muted whitespace-pre-line outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted">
+          className="inline-flex min-h-6 w-full cursor-text items-center pb-1 pl-9 text-left text-secondary leading-snug text-ink-muted whitespace-pre-line outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted">
           {node.description}
         </button>
-      )}
+      ))}
     </div>
   )
 }
