@@ -216,6 +216,30 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     assert.equal(await survivorStore.modelOperationScopeExists(project.projectContextId, null), false)
     assert.equal(await survivorStore.modelOperationScopeExists(survivor.projectContextId, schema.id), false)
   })
+  await t.test('conditional schema renames recheck the expected name after competing PostgreSQL writes', async () => {
+    const scope = project.projectContextId
+    await store.renameExtractionSchema(scope, schema.id, 'Extraction Schema')
+    const names = ['First automatic name', 'Second automatic name']
+    const results = await withBlockedUpdates(databaseUrl, 'ExtractionSchema', schema.id, 2,
+      () => Promise.all(names.map((name) => store.renameExtractionSchema(scope, schema.id, name, ' Extraction Schema '))),
+    )
+    const saved = await db.orm.public.ExtractionSchema.select('name').first({ id: schema.id })
+    assert.ok(names.includes(saved!.name))
+    assert.deepEqual(results.map((result) => result?.name), [saved!.name, saved!.name],
+      'only one fenced update wins; the loser reads the winner instead of overwriting it')
+
+    await store.renameExtractionSchema(scope, schema.id, 'Extraction Schema')
+    await withBlockedUpdates(databaseUrl, 'ExtractionSchema', schema.id, 2, () => Promise.all([
+      store.renameExtractionSchema(scope, schema.id, 'Automatic name', 'Extraction Schema'),
+      store.renameExtractionSchema(scope, schema.id, 'Researcher name'),
+    ]))
+    assert.equal((await db.orm.public.ExtractionSchema.select('name').first({ id: schema.id }))?.name, 'Researcher name',
+      'the manual name wins whichever blocked write PostgreSQL releases first')
+    assert.equal((await store.renameExtractionSchema(scope, schema.id, 'Late automatic name', 'Extraction Schema'))?.name,
+      'Researcher name')
+    assert.equal(await survivorStore.renameExtractionSchema(scope, schema.id, 'Foreign name', 'Researcher name'), null)
+    assert.equal((await db.orm.public.ExtractionSchema.select('name').first({ id: schema.id }))?.name, 'Researcher name')
+  })
   await db.orm.public.SchemaRevision.create({
     extractionSchemaId: schema.id,
     revisionNumber: 1,

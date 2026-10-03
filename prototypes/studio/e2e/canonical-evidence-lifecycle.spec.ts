@@ -295,6 +295,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   expect(railBox.x, '820px: the open rail overlays Review now\'s place').toBeLessThan(reviewNowBox.x + reviewNowBox.width)
   expect(await firstReviewNow.evaluate((element, [x, y]) => element.contains(document.elementFromPoint(x!, y!)),
     [reviewNowBox.x + reviewNowBox.width / 2, reviewNowBox.y + reviewNowBox.height / 2]), '820px: Review now is the hit target').toBe(true)
+  await page.screenshot({ path: testInfo.outputPath('completion-toast-820px.png') })
   await firstReviewNow.click({ timeout: 3_000 })
   await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
   await expect(firstReviewNow).toHaveCount(0)

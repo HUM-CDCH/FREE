@@ -322,16 +322,18 @@ async function checkKeyboard(page: Page, width: number) {
     `${width}px: focused Delete`)
 }
 
-test('field rows fit the rail at 344px and 264px @deterministic', async ({ page }) => {
+test('field rows fit the rail at 344px and 264px @deterministic', async ({ page }, testInfo) => {
   test.setTimeout(90_000)
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
   await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
   await checkRows(page, 344)
   await checkKeyboard(page, 344)
+  await page.screenshot({ path: testInfo.outputPath('field-rows-344px.png') })
   await resizeRail(page, 264)
   await checkRows(page, 264)
   await checkKeyboard(page, 264)
+  await page.screenshot({ path: testInfo.outputPath('field-rows-264px.png') })
   // A collapsed group's "· n fields" pill fits too.
   await page.getByRole('button', { name: 'Collapse findings' }).click()
   const findings = page.getByRole('listitem', { name: 'findings' })
