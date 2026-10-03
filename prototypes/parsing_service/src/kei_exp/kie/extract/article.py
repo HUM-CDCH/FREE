@@ -40,6 +40,7 @@ from kei_exp.kie.extract.stages import (REPLY_TOKENS, Issue, Link, _instruction,
                                         record_request, leaves)
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter, counters_for
 from kei_exp.kie.passages import Evidence, Passage, text_of
+from kei_exp.workflows.cancel import CancelCheck
 
 # The one document identity's label, shown where a record's identity would be (grounding); no identity attribute.
 DOCUMENT_LABEL = "the whole document"
@@ -76,9 +77,11 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     and, with bounded contexts, before each count that sizes a context and the selection; what it raises ends the
     extraction. `chunks` is not used: Article runs unsplit. With `run_dir` and `extraction_id`, the header, each value
     context's answered fields with the root assembled so far, and each grounding batch's links are published under the
-    extraction directory for the partial view (design §2); `options.start_page` orders bounded value contexts, nearest
-    first."""
+    extraction directory for the partial view (design §2), each after `before_entry` again, unthrottled, so a cancel
+    issued during the call just returned writes nothing that would refresh the run's garbage-collection age;
+    `options.start_page` orders bounded value contexts, nearest first."""
     check = before_entry or unchecked
+    strict = partial(check, force=True) if isinstance(check, CancelCheck) else check
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     schema = request.schema_
@@ -101,8 +104,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     extracted = document_root(evidence.passages, schema, chat, counters=counter,
                               record_chars=options.record_chars, check=check, method=method, contexts=contexts,
                               start_page=options.start_page,
-                              on_context=(partial(_context_stage, directory, execution) if directory is not None
-                                          else None))
+                              on_context=(partial(_context_stage, directory, execution, strict)
+                                          if directory is not None else None))
     if extracted.calls and not any(call.ok for call in extracted.calls):
         raise RootUnanswered(f"article_root_unanswered: none of the {len(extracted.value_contexts[0])} value "
                              f"context(s) answered the document's root; the last call failed: "
@@ -112,7 +115,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     support = ground_records(extracted.slices, schema, chat, check=check, budget=options.record_chars,
         counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,
         value_contexts=extracted.value_contexts, origins=extracted.origins,
-        on_batch=partial(_grounding_stage, directory, execution, count()) if directory is not None else None)
+        on_batch=partial(_grounding_stage, directory, execution, strict, count()) if directory is not None else None)
     links = support.links
     calls += support.calls
     issues += support.issues
@@ -165,19 +168,24 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     return result
 
 
-def _context_stage(directory: Path, execution: str, index: int, total: int, answered: int, failed: int, group: Context,
-                   fields: dict, root: dict, contested: list[dict], ok: bool, calls: list[Call]) -> None:
+def _context_stage(directory: Path, execution: str, check: Callable[[], None], index: int, total: int, answered: int,
+                   failed: int, group: Context, fields: dict, root: dict, contested: list[dict], ok: bool,
+                   calls: list[Call]) -> None:
     """One value context's answered fields and the root assembled so far, for the partial view (design §2); read by
     no path of this module. `ok` is false when this context's call failed; `failed` counts every failed context so far,
-    so the latest file alone says whether unknown fields remain even when an earlier file's write was dropped."""
+    so the latest file alone says whether unknown fields remain even when an earlier file's write was dropped. `check`
+    runs first: what it raises (a cancel issued during the call) ends the extraction before anything is written."""
+    check()
     progress.write_stage(directory / progress.context_name(index), {
         "version": progress.ARTICLE_STAGE_VERSION, "execution": execution, "context": index, "of": total,
         "answered": answered, "failed": failed, "passages": group.dumped(), "fields": fields, "root": root,
         "contested": contested, "ok": ok, "calls": [asdict(call) for call in calls]})
 
 
-def _grounding_stage(directory: Path, execution: str, batches: count, links: Sequence[Link]) -> None:
-    """The links one grounding batch made, as the artifact writes a link (`assembly.artifact`)."""
+def _grounding_stage(directory: Path, execution: str, check: Callable[[], None], batches: count,
+                     links: Sequence[Link]) -> None:
+    """The links one grounding batch made, as the artifact writes a link (`assembly.artifact`), after `check`."""
+    check()
     progress.write_stage(directory / progress.grounding_name(next(batches)), {
         "version": progress.ARTICLE_STAGE_VERSION, "execution": execution,
         "links": [{**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)} for link in links]})

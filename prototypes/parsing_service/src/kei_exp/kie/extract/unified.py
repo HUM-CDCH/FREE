@@ -61,6 +61,7 @@ from kei_exp.kie.extract.tokens import counters_for
 from kei_exp.kie.extract.windows import Unit
 from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
+from kei_exp.workflows.cancel import CancelCheck
 
 EXTRACTION_VERSION = 3
 PROMPT_VERSION = 3  # 3: discovery places are one-line [line, kind, label] lists, start text only mid-line
@@ -281,11 +282,13 @@ def work_order(entries: list[dict], pages: dict[str, int], start_page: int | Non
     return sorted(range(len(entries)), key=distance)
 
 
-def _candidates_stage(directory: Path, execution: str, number: int, entry: dict, discovery_sha256: str,
-                      nodes: list[Node], work: _Work) -> None:
+def _candidates_stage(directory: Path, execution: str, check: Callable[[], None], number: int, entry: dict,
+                      discovery_sha256: str, nodes: list[Node], work: _Work) -> None:
     """The entry's candidates after its values windows and before verification (design §2): the partial view shows
     them as candidates, visibly so, and knows from `failed` whether a window left fields unknown. `read` never looks
-    at this file; a retried values call rewrites it."""
+    at this file; a retried values call rewrites it. `check` runs first: what it raises (a cancel issued during the
+    entry's last window) ends the extraction before anything is written."""
+    check()
     progress.write_stage(directory / progress.candidates_name(number), {
         "version": progress.CANDIDATES_VERSION, "execution": execution, "index": number,
         "discovery_sha256": discovery_sha256, "ranges": entry["ranges"],
@@ -302,7 +305,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     `extraction_id` the execution, discovery and entry records are published under `run_dir` and reused on
     re-execution; without one (the CLI) they live only in the artifact. `before_entry` is called before every model
     call and before returning; what it raises ends the extraction. Entries run `chunks` at a time, nearest
-    `options.start_page` first (`work_order`), assembled in source order."""
+    `options.start_page` first (`work_order`), assembled in source order. An entry's candidates file is written only
+    after `before_entry` again, unthrottled, so a cancel issued during its windows' calls refreshes no run's age."""
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     schema, options = request.schema_, request.options.unified
     if isinstance(chat.fields, gliformer.GLiFormerFields):
@@ -312,6 +316,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     counters = counter if isinstance(counter, dict) else (counters_for(chat) if counter is None
                                                            else dict.fromkeys(("fields", "reasoning"), counter))
     check = before_entry or (lambda: None)
+    strict = partial(check, force=True) if isinstance(check, CancelCheck) else check
     check()
     directory = run_dir / "extractions" / extraction_id if run_dir is not None and extraction_id else None
     # Not `execution`: that name is the execution record, assigned a few lines below.
@@ -352,8 +357,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             return _work_of(_published(path, dict, _entry_reusable(number, entry, discovery_sha256)), run.nodes)
         progress.write_stage(directory / progress.reading_name(number),
                              {"version": progress.CANDIDATES_VERSION, "execution": stage_execution, "index": number})
-        work = run.entry(number, entry, on_candidates=partial(_candidates_stage, directory, stage_execution, number,
-                                                              entry, discovery_sha256, run.nodes))
+        work = run.entry(number, entry, on_candidates=partial(_candidates_stage, directory, stage_execution, strict,
+                                                              number, entry, discovery_sha256, run.nodes))
         record = _entry_json(number, entry, discovery_sha256, work)
         if work.failed or work.undecided or any(not call.ok for call in work.calls):
             return _work_of(json.loads(canonical_json(record)), run.nodes)  # read as a published one is, unpublished

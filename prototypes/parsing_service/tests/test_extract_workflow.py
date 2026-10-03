@@ -483,8 +483,10 @@ def test_a_cancelled_version_1_extraction_stops_before_its_next_call(kei, script
     kei_helper.until(lambda: ended, 10, "the step's extraction returning")
     assert isinstance(ended[0], KeiFailure) and ended[0].code == "cancelled"
     assert events == asked
-    # Article's stage files (the partial view) may remain for garbage collection (design, Error handling); no result.
-    assert not (kei.runs / run_id / "extractions" / "x-1" / "result.json").exists()
+    # No result, and no stage file after the cancel (it would refresh the run's garbage-collection age).
+    directory = kei.runs / run_id / "extractions" / "x-1"
+    assert not (directory / "result.json").exists()
+    assert not list(directory.glob("article-*"))
 
 
 @pytest.mark.parametrize("strategy, expected", [("article", ["record", "grounding"]),
@@ -512,5 +514,63 @@ def test_cancellation_during_the_final_model_call_prevents_publication(tmp_path,
         workflow.extract_run(WID, run_id, catalogue.GENERATION, body)
     assert stopped.value.code == "cancelled"
     assert events == expected
-    # Article's stage files (the partial view) may remain for garbage collection (design, Error handling); no result.
-    assert not (runs.RUNS / run_id / "extractions" / "x-1" / "result.json").exists()
+    # No result, and no stage file after the cancel: Article's context file came before it, its grounding batch's
+    # file would have followed it and refreshed the run's garbage-collection age.
+    directory = runs.RUNS / run_id / "extractions" / "x-1"
+    assert not (directory / "result.json").exists()
+    assert not list(directory.glob("article-grounding-*"))
+
+
+@pytest.fixture
+def cancellable(monkeypatch):
+    """The step's cancellation check over a status a test flips; throttled for a minute, so only a forced check (one
+    that bypasses the throttle) sees a cancel issued during a call."""
+    from kei_exp.workflows import cancel
+    status = SimpleNamespace(status="PENDING")
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(workflow_id=WID, get_workflow_status=lambda wid: status))
+    monkeypatch.setattr(cancel, "MIN_INTERVAL", 60.0)
+    return status
+
+
+def test_a_cancellation_during_the_article_value_call_writes_no_stage_file_after_it(tmp_path, scripted, monkeypatch,
+                                                                                     cancellable):
+    """A stage file written once the workflow is cancelled would refresh the run's garbage-collection age (Baratheon,
+    `real-service-gc.spec.ts`): the context's file is not written, and grounding is never asked."""
+    monkeypatch.setattr(runs, "RUNS", tmp_path / "runs")
+    source = {"pages": [{"page": 1, "units": [{"index": 0, "segments": ["Hill", "Valley"]}]}]}
+    run_id = kei_helper.converted_run(runs.RUNS, "kei-convert:ingest:p:value-call", source)
+    events = []
+
+    def cancel_value_call(stage):
+        if stage == "record":
+            cancellable.status = "CANCELLED"
+    scripted["script"] = version_1(events, hold=cancel_value_call)
+    body = kei_helper.extract_request(run_id, catalogue.GENERATION, V1["article"])["request"]
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.extract_run(WID, run_id, catalogue.GENERATION, body)
+    assert stopped.value.code == "cancelled"
+    assert events == ["record"]
+    directory = runs.RUNS / run_id / "extractions" / "x-1"
+    assert sorted(path.name for path in directory.iterdir()) == ["extraction-progress.json"]  # the header alone
+
+
+def test_a_cancellation_during_a_unified_entry_call_writes_no_candidates_file(parsed, scripted, cancellable):
+    """The entry's reading marker precedes its values call; its candidates file would follow the call, so a cancel
+    issued during the call leaves none, and verification is never asked."""
+    run_id, generation = parsed
+    asked: list[str] = []
+    model = unified_model(run_id, asked)
+
+    def script(system, user, schema):
+        if system.startswith("You extract structured data"):  # an entry's values call
+            cancellable.status = "CANCELLED"
+        return model(system, user, schema)
+    scripted["script"] = script
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.extract_run(WID, run_id, generation, unified_body())
+    assert stopped.value.code == "cancelled"
+    assert "check" not in asked and asked.count("extract") >= 1  # "You check values": verification
+    directory = runs.RUNS / run_id / "extractions" / "x-1"
+    assert (directory / "catalog-entry-0.reading.v1.json").exists()
+    assert not list(directory.glob("catalog-entry-*.candidates.v1.json"))
+    assert not (directory / "result.json").exists()
