@@ -40,13 +40,15 @@ it('a switch-surviving toast keeps its message through one switch, then dismisse
   expect(result.current.toast).toBeNull()
 })
 
-/** A host as App and the schema panel wire it: the toast holds its timer while it is hovered or has focus within. */
+/** A host as App and the schema panel wire it: the toast holds its timer while it is hovered or has focus within, and
+ *  each shown toast mounts fresh (keyed by its id). */
 function Host() {
   const { toast, showToast, dismissToast, holdToast } = useToast()
   return (
     <>
       <button type="button" onClick={() => showToast('✓ Extraction complete', { durationMs: 8000, action: { label: 'Review now', onAction: () => {} } })}>show</button>
-      {toast && <Toast message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />}
+      <button type="button" onClick={() => showToast('Field restored', { durationMs: 8000, action: { label: 'Undo', onAction: () => {} } })}>replace</button>
+      {toast && <Toast key={toast.id} message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />}
     </>
   )
 }
@@ -82,4 +84,39 @@ it('holds its timer while a keyboard user is on its action, and goes after the f
   act(() => screen.getByRole('button', { name: 'show' }).focus())
   act(() => vi.advanceTimersByTime(1100))
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+it('a toast that replaces a hovered one starts unheld, and holds again on the next hover', () => {
+  vi.useFakeTimers()
+  render(<Host />)
+  fireEvent.click(screen.getByRole('button', { name: 'show' }))
+  fireEvent.mouseEnter(screen.getByRole('status'))
+  // Replaced while the pointer rests on it: the new toast has its own timer, not the old one's hold.
+  fireEvent.click(screen.getByRole('button', { name: 'replace' }))
+  expect(screen.getByRole('status')).toHaveTextContent('Field restored')
+  act(() => vi.advanceTimersByTime(7000))
+  fireEvent.mouseEnter(screen.getByRole('status'))
+  act(() => vi.advanceTimersByTime(5000))
+  expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+  fireEvent.mouseLeave(screen.getByRole('status'))
+  act(() => vi.advanceTimersByTime(1100))
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+it('a replacement toast runs out on its own timer when nothing holds it', () => {
+  vi.useFakeTimers()
+  render(<Host />)
+  fireEvent.click(screen.getByRole('button', { name: 'show' }))
+  fireEvent.mouseEnter(screen.getByRole('status'))
+  fireEvent.click(screen.getByRole('button', { name: 'replace' }))
+  act(() => vi.advanceTimersByTime(8100))
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+it('every shown toast has its own id', () => {
+  const { result } = renderHook(() => useToast())
+  act(() => result.current.showToast('One'))
+  const first = result.current.toast!.id
+  act(() => result.current.showToast('One'))
+  expect(result.current.toast!.id).not.toBe(first)
 })

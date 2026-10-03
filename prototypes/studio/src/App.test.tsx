@@ -2525,6 +2525,49 @@ describe('reopened Source Document workspace', () => {
       // The workspace now shows the reprocessed Source Representation, which can be run.
       expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
     })
+
+    it('a notice that outlives the switch stays above the switched document\'s loading cover', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST')
+            return Promise.resolve(Response.json(
+              { error: { code: 'source_representation_superseded', message: 'This document has been reprocessed.' } },
+              { status: 409 },
+            ))
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      const reprocessedId = '51000000-0000-4000-8002-000000000078'
+      const resource = (artifact: 'pdf' | 'markdown' | 'source') =>
+        `/api/project-contexts/${reopened.projectContextId}/source-representations/${reprocessedId}/${artifact}`
+      const onSourceSuperseded = vi.fn(() =>
+        rerender(
+          <DocumentWorkspace {...reopened} sourceRepresentationId={reprocessedId} sourceRepresentationCurrent
+            pdfUrl={resource('pdf')} markdownUrl={resource('markdown')} parsedDocumentUrl={resource('source')}
+            persistedExtraction={null} latestReviewedExtraction={null} onSourceSuperseded={onSourceSuperseded} />,
+        ),
+      )
+      const { rerender } = render(<DocumentWorkspace {...reopened} onSourceSuperseded={onSourceSuperseded} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      // The reprocessed document's PDF is still loading when the notice shows.
+      getDocument.mockReturnValueOnce({ promise: new Promise<{ numPages: number }>(() => {}), destroy: destroyLoadingTask })
+
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
+      const cover = await screen.findByRole('status', { name: 'Loading Source Document' })
+      const notice = screen.getByText('This document has been reprocessed — no new Extraction was started').closest('[role="status"]')!
+      const host = notice.parentElement!
+      // Same stacking context (the document section); the notice's host stacks above the loading cover.
+      const z = (element: Element) => Number(/(?:^|\s)z-(\d+)(?:\s|$)/.exec(element.className)?.[1] ?? 0)
+      expect(cover.className).toMatch(/(^|\s)absolute(\s|$)/)
+      expect(z(host)).toBeGreaterThan(z(cover))
+      expect(host.closest('section')).toBe(cover.closest('section'))
+    })
   })
 
   describe('Extraction Model Choice', () => {

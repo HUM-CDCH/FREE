@@ -1441,7 +1441,7 @@ function SchemaPanel({
         </div>
         {panelToast && (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
-            <Toast message={panelToast.message} action={panelToast.action} onDismiss={dismissPanelToast} onHoldChange={holdPanelToast} />
+            <Toast key={panelToast.id} message={panelToast.message} action={panelToast.action} onDismiss={dismissPanelToast} onHoldChange={holdPanelToast} />
           </div>
         )}
       </div>

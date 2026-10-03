@@ -940,10 +940,11 @@ export function DocumentWorkspace({
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
               </div>
-              {/* Under the 34px toolbar, over the page: the toast never covers the toolbar's controls. */}
+              {/* Under the 34px toolbar, over the page: the toast never covers the toolbar's controls. Above the loading
+                  cover (z-20), which a notice outliving a switch of Source Representation shows under. */}
               {toast && (
-                <div className="pointer-events-none absolute inset-x-4 top-3 z-20 flex justify-center">
-                  <Toast message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
+                <div className="pointer-events-none absolute inset-x-4 top-3 z-30 flex justify-center">
+                  <Toast key={toast.id} message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
                 </div>
               )}
             </div>

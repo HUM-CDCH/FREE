@@ -192,6 +192,22 @@ async function checkRows(page: Page, width: number) {
         expect(box.y, `${width}px, ${name}: actions below the pills`).toBeGreaterThanOrEqual(Math.max(...controls.map((control) => control.y + control.height)) - 0.5)
       }
     }
+    // From the keyboard: Tab from a focused nested row's last pill reaches its in-flow Edit, and the actions show while
+    // focus is within the row.
+    await page.mouse.move(0, 0)
+    const kind = page.getByRole('listitem', { name: 'kind', exact: true })
+    const kindActions = actionsOf(kind, 'kind')
+    await kind.focus()
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Tab')
+    await expect(kind.getByTitle(/^Allowed values/), `${width}px, kind: its last pill focused`).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(kindActions[0]!, `${width}px, kind: Tab from the last pill reaches Edit`).toBeFocused()
+    await expect.poll(() => opacity(kindActions[0]!.locator('..')), `${width}px, kind: actions shown while focused`).toBe('1')
+    const editBox = (await kindActions[0]!.boundingBox())!
+    expectInside(editBox, (await kind.boundingBox())!, `${width}px, kind: the focused Edit inside its row`)
+    expect(editBox.height, `${width}px, kind: the focused Edit 28px tall`).toBe(28)
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   }
   if (width >= 344) {
     // Rows are 30px at rest when their pills fit beside the name, clear of the actions' 140px: at 344px the top level

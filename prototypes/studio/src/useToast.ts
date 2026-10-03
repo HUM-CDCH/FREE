@@ -8,7 +8,9 @@ export type ToastOptions = {
   outlivesSwitch?: boolean
 }
 
-export type ToastState = { message: string; action?: ToastAction; outlivesSwitch: boolean }
+/** `id` is new for every shown toast: hosts key the rendered Toast by it, so a replacement mounts fresh (its hover and
+ *  focus hold start clear). */
+export type ToastState = { id: number; message: string; action?: ToastAction; outlivesSwitch: boolean }
 
 /** One toast at a time; a new message replaces the current one and restarts the timer. While the toast is held (hovered,
  *  or focus within it: `holdToast`, wired to the Toast's `onHoldChange`) its timer stops; released, the rest runs on. */
@@ -18,6 +20,7 @@ export function useToast() {
   /** When the shown toast goes, and, while it is held, the time it has left. */
   const deadline = useRef(0)
   const heldRemaining = useRef<number | null>(null)
+  const nextId = useRef(0)
   useEffect(() => () => window.clearTimeout(timer.current), [])
   const dismissToast = useCallback(() => {
     window.clearTimeout(timer.current)
@@ -27,7 +30,8 @@ export function useToast() {
   const showToast = useCallback((message: string, { durationMs = 2600, action, outlivesSwitch = false }: ToastOptions = {}) => {
     window.clearTimeout(timer.current)
     heldRemaining.current = null
-    setToast({ message, ...(action ? { action } : {}), outlivesSwitch })
+    nextId.current += 1
+    setToast({ id: nextId.current, message, ...(action ? { action } : {}), outlivesSwitch })
     deadline.current = Date.now() + durationMs
     timer.current = window.setTimeout(() => setToast(null), durationMs)
   }, [])
