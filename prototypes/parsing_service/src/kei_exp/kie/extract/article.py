@@ -183,6 +183,13 @@ def _grounding_stage(directory: Path, execution: str, batches: count, links: Seq
         "links": [{**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)} for link in links]})
 
 
+def _answered(attempts: Sequence[Call]) -> bool:
+    """A value context answered when its final attempt did, as `calls.complete` judges a reply: a structured request the
+    server refused before the attempt that answered stays in the context's calls, never makes it a failed context. A
+    context that made no attempt answered nothing."""
+    return bool(attempts) and attempts[-1].ok
+
+
 def context_order(groups: Sequence[Context], start_page: int | None) -> list[int]:
     """Value contexts in the order they are called (design §4): nearest `start_page` first (a context's distance is
     its nearest page's), a context without a page last, ties in source order; without a start page, source order.
@@ -242,9 +249,9 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
             so_far, conflicts, _, _ = (assemble_document([candidates[number] for number in done],
                                                          sharing([groups[number] for number in done]))
                                        if len(done) != 1 else (candidates[done[0]], [], [], []))
-            failed = sum(not all(call.ok for call in answered[number][0]) for number in done)  # cumulative
+            failed = sum(not _answered(answered[number][0]) for number in done)  # cumulative
             on_context(index, len(groups), len(done), failed, group, fields, conform(so_far, schema.record_nodes),
-                       conflicts, all(call.ok for call in attempts), attempts)
+                       conflicts, _answered(attempts), attempts)
     for each in answered:  # calls and issues in source order: the artifact is the same whatever the order of work
         if each is not None:
             calls += each[0]

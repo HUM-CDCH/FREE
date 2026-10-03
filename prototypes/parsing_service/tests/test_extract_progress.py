@@ -71,6 +71,34 @@ def test_each_context_publishes_the_root_assembled_so_far_in_the_order_contexts_
     assert [(answered, failed, ok) for _, _, answered, failed, _, _, _, _, ok, _ in told] == [(1, 1, False), (2, 1, True)]  # failed is cumulative
 
 
+def test_a_context_answered_after_a_refused_structured_request_is_answered_and_its_nulls_are_empty(tmp_path):
+    # The server refuses the reply schema with HTTP 400 and `llm` asks again without it (`reply.attempts`): the context's
+    # final attempt answered, so it is no failed context, and the field it left null is empty, not unknown (Ruling 7).
+    source = passages(["31. Hill; 32. Brook.", "Results: Hill 1827."])
+    directory = tmp_path / "extractions" / "x4"
+
+    def fields(system, user, schema):
+        if "title" in schema["properties"]:
+            return {"title": "Sites"}
+        answer = {"entry_no": "31", "site": "Hill", "year": None, "finds": []}
+        return Reply(text=json.dumps(answer), input_tokens=len(system.split()) + len(user.split()) + WordCounter.template_tokens,
+                     output_tokens=5, finish="stop", seconds=0.0, attempts=("HTTP 400: response_format is not supported",))
+    request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article"})
+    result = article.extract(tmp_path, evidence(source), request,
+                             Router(CountingChat(fields), CountingChat(lambda system, user, schema: {claim: "E1" for claim in schema["properties"]})),
+                             counter={role: WordCounter() for role in ("fields", "reasoning")}, extraction_id="x4")
+    context = json.loads((directory / progress.context_name(0)).read_bytes())
+    assert (context["ok"], context["failed"], context["answered"], context["of"]) == (True, 0, 1, 1)
+    assert [(call["stage"], call["ok"]) for call in context["calls"]] == [("record", False), ("record", True)]  # the refusal kept
+    assert context["calls"][0]["error"].startswith("HTTP 400")
+    assert any(not call["ok"] and call["error"].startswith("HTTP 400") for call in result["calls"])  # and in the artifact's diagnostics
+    document = progress.read_progress(tmp_path, "x4")
+    progress.ProgressDocument.model_validate(document)
+    [entry] = document["entries"]
+    assert entry["record"]["year"] is None and entry["failed"] == 0  # every context answered, none failed: the null is empty
+    assert (document["document"]["answered"], document["document"]["of"], document["document"]["failed_contexts"]) == (1, 1, 0)
+
+
 def test_article_publishes_the_header_each_context_and_each_grounding_batch_for_the_partial_view(tmp_path):
     source = passages(["31. Hill; 32. Brook.", "Results: Hill 1827. Brook 1828."])
     directory = tmp_path / "extractions" / "x2"
