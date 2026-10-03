@@ -54,9 +54,11 @@ def enqueue_delete(kei, conversions=(), history=()):
 
 
 def converted(kei, workflow_id="kei-convert:ingest:p:a"):
-    sha = kei_helper.stage_pdf(kei.inbox, f"{workflow_id[-1]}.pdf", mask())
+    # Bytes of its own per conversion: bytes an earlier one converted would adopt its result, never reaching the gate.
+    name = workflow_id[-1]
+    sha = kei_helper.stage_pdf(kei.inbox, f"{name}.pdf", mask(every=2 + ord(name) % 32))
     kei.enqueue("convert", config.CONVERT_SMALL, workflow_id,
-                kei_helper.convert_request(f"{workflow_id[-1]}.pdf", sha, model="fake", cut="none"))
+                kei_helper.convert_request(f"{name}.pdf", sha, model="fake", cut="none"))
     return workflow_id
 
 

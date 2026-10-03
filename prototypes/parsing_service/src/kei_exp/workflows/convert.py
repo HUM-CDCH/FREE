@@ -2,9 +2,10 @@
 
 Three checkpointed steps: resolve_models (the admitted Ingestion Model Choice or kei's default, once, so a recovered
 attempt keeps it), prepare_run (the run directory, the verified source, params.json, the page limit) and convert_run
-(probe the OCR server, resolve native vs OCR, convert). The result is published by rename inside the conversion; a
-re-executed convert_run publishes a new generation over it, and its output names the one it published. No worker
-output.md: the manifest and page files are the product; the standalone CLI keeps its Markdown.
+(resolve native vs OCR, adopt another run's result of the same recipe or probe the OCR server and convert). The
+result is published by rename inside the conversion; a re-executed convert_run publishes a new generation over it,
+and its output names the one it published. No worker output.md: the manifest and page files are the product; the
+standalone CLI keeps its Markdown.
 """
 from __future__ import annotations
 
@@ -17,9 +18,10 @@ from pathlib import Path
 from dbos import DBOS, WorkflowSerializationFormat
 from pydantic import ValidationError
 
-from kei_exp import runs, runtime
+from kei_exp import reuse, runs, runtime
 from kei_exp.failures import STEP_RETRY, KeiFailure, TransientBackendError
 from kei_exp.kie import runner
+from kei_exp.kie.ingest_model import IngestConfig
 from kei_exp.kie.stages.ocr import check_ingest, check_knobs
 from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
 from kei_exp.pagefile import read_manifest
@@ -145,9 +147,18 @@ def convert_run(workflow_id: str, params: dict) -> dict:
     check(force=True)  # before anything reads the PDF
     directory = runs.RUNS / params["id"]
     execution = runs.execution_for(directory, params)
-    serving(execution)
-    check(force=True)  # resolution read the text layer; the conversion is the model work
-    runner.convert(execution, emit=check.sink(_log))
+    check(force=True)  # resolution read the text layer; what follows publishes a result
+
+    def before_ocr() -> None:  # an adopted result needs no model server
+        serving(execution)
+        check(force=True)  # the probe may wait; a whole-page run emits no checked event before transcribing
+    reusing = {} if execution.debug_dir is not None else {  # a debug report describes work done: it reuses none
+        "seed": lambda doc_dir: reuse.seed_ingest(doc_dir, params["source_sha256"],
+                                                  IngestConfig.model_validate(execution.ingest or {}), own=directory),
+        "adopt": lambda fingerprint, pages: reuse.adopt_result(
+            fingerprint, directory / "result", source_sha256=params["source_sha256"], source_name=params["source_name"],
+            page_count=params["page_count"], pages=pages, own=directory)}
+    runner.convert(execution, emit=check.sink(_log), before_ocr=before_ocr, **reusing)
     manifest = read_manifest(directory / "result")
     return ConvertOk(ok=True, run_id=params["id"], generation=manifest.generation, page_count=manifest.page_count,
                      source_sha256=manifest.recipe["source_sha256"],
