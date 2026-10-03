@@ -1715,6 +1715,37 @@ describe('schema header (redesign §5)', () => {
     expect(onChange).toHaveBeenCalledWith('records')
   })
 
+  it('a historical preview shows its own record scope, read-only, and choosing a scope there saves nothing', async () => {
+    const onChange = vi.fn()
+    const setup = renderPanel({
+      getRevision: async () => ({ ...schemaHistory[1], recordScope: 'document', recordDescription: 'One historical record.', schemaNodes: historicalNodes }),
+    }, { recordScope: { value: 'records', onChange } })
+    expect(screen.getByLabelText('Record scope')).toHaveDisplayValue('Catalog · a collection of records')
+    chooseSchemaAction('History')
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Schema history' })).getByRole('button', { name: /Revision 1/ }))
+    expect(await screen.findByText('historical_place')).toBeInTheDocument()
+
+    const scope = screen.getByLabelText('Record scope')
+    expect(scope).toHaveDisplayValue('Article · one object for the document')
+    expect(scope).toBeDisabled()
+    fireEvent.change(scope, { target: { value: 'records' } })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(setup.edits).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close preview' }))
+    expect(screen.getByLabelText('Record scope')).toHaveDisplayValue('Catalog · a collection of records')
+    expect(screen.getByLabelText('Record scope')).toBeEnabled()
+  })
+
+  it('a historical preview saved without a scope asks for one, still read-only', async () => {
+    renderPanel({}, { recordScope: { value: 'records', onChange: vi.fn() } })
+    chooseSchemaAction('History')
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Schema history' })).getByRole('button', { name: /Revision 1/ }))
+    expect(await screen.findByText('historical_place')).toBeInTheDocument()
+    expect(screen.getByLabelText('Record scope')).toHaveDisplayValue('Choose Article or Catalog')
+    expect(screen.getByLabelText('Record scope')).toBeDisabled()
+  })
+
   it('asks for Article or Catalog while none is saved, and shows Boundaries only when given', () => {
     const { rerender } = renderPanel({}, { recordScope: { value: null, onChange: vi.fn() } })
     expect(screen.getByLabelText('Record scope')).toHaveValue('')
@@ -1723,6 +1754,75 @@ describe('schema header (redesign §5)', () => {
     rerender({}, { recordScope: { value: 'records', onChange: vi.fn() },
       boundaries: { value: '', options: [{ id: 'numbered-catalogue-de@1', label: 'Numbered catalogue (German)' }], onChange: vi.fn() } })
     expect(screen.getByLabelText('Boundaries')).toHaveValue('')
+  })
+
+  it('the record description grows with its wrapped text from two rows to six, not only with line breaks', () => {
+    // jsdom has no layout: a description's height is its length in 40-character lines of 19.5px, plus 8px padding.
+    const scrollHeight = vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get')
+      .mockImplementation(function (this: HTMLTextAreaElement) { return Math.max(1, Math.ceil(this.value.length / 40)) * 19.5 + 8 })
+    try {
+      renderPanel()
+      const description = screen.getByLabelText('What one record is') as HTMLTextAreaElement
+      expect(description.rows).toBe(2)
+      fireEvent.change(description, { target: { value: 'One grave '.repeat(16) } }) // 160 characters, one line: four rows
+      expect(description.rows).toBe(4)
+      fireEvent.change(description, { target: { value: 'One grave '.repeat(60) } })
+      expect(description.rows).toBe(6)
+      fireEvent.change(description, { target: { value: 'One grave.' } })
+      expect(description.rows).toBe(2)
+    } finally {
+      scrollHeight.mockRestore()
+    }
+  })
+
+  it('Edit as code opens the code view ready to edit; long lines scroll sideways in both modes', () => {
+    renderPanel()
+    chooseSchemaAction('Edit as code')
+    const editor = screen.getByRole('textbox', { name: 'Schema code' }) as HTMLTextAreaElement
+    expect(editor.value).toContain('"title"')
+    expect(editor).toHaveAttribute('wrap', 'off')
+    expect(editor.className).toMatch(/\boverflow-x-auto\b/)
+    expect(editor.className).toMatch(/\bwhitespace-pre\b/)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    const code = screen.getByText(/"_description"/).closest('pre')!
+    expect(code.className).toMatch(/\boverflow-x-auto\b/)
+    expect(code.className).toMatch(/\bwhitespace-pre\b/)
+  })
+
+  it('the workspace commands use the shared buttons: Stop danger, Retry and Edit secondary, Save and Create positive', async () => {
+    const button = (name: string) => screen.getByRole('button', { name })
+    // Regenerating: Stop is a destructive command.
+    const setup = renderPanel({}, { onGenerateInstructions: vi.fn() })
+    let reject!: (reason: Error) => void
+    act(() => { void setup.schema.generate(() => new Promise((_resolve, fail) => { reject = fail })).catch(() => undefined) })
+    expect(button('Stop').className).toMatch(/\bbg-danger\b/)
+    expect(button('Stop').className).not.toMatch(/(^|\s)bg-accent(\s|$)|11\.5px/)
+    await act(async () => reject(new Error('Model unavailable')))
+    // Code view: Edit is secondary, Save is positive, both at least 24px tall (Button's sm size).
+    fireEvent.click(button('Code'))
+    expect(button('Edit').className).toMatch(/\bbg-surface\b/)
+    expect(button('Edit').className).toMatch(/\btext-compact\b/)
+    expect(button('Edit').className).not.toMatch(/text-\[10px\]/)
+    fireEvent.click(button('Edit'))
+    expect(button('Save').className).toMatch(/\bbg-green\b/)
+    expect(button('Save').className).not.toMatch(/\bbg-accent\b/)
+    cleanup()
+
+    // A failed first generation: Retry is secondary.
+    const failed = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
+    await act(async () => { await failed.schema.generate(async () => { throw new Error('Model unavailable') }).catch(() => undefined) })
+    expect(button('Retry').className).toMatch(/\bbg-surface\b/)
+    expect(button('Retry').className).not.toMatch(/(^|\s)bg-accent(\s|$)|11\.5px/)
+    cleanup()
+
+    // A historical preview: creating a Current Schema Revision from it is positive.
+    renderPanel()
+    chooseSchemaAction('History')
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Schema history' })).getByRole('button', { name: /Revision 1/ }))
+    await screen.findByText('historical_place')
+    expect(button('Create Current Schema Revision').className).toMatch(/\bbg-green\b/)
+    expect(button('Create Current Schema Revision').className).not.toMatch(/\bbg-accent\b/)
+    expect(button('Close preview').className).toMatch(/\bbg-surface\b/)
   })
 
   it('labels the record description "What one record is" and saves it on blur', () => {
@@ -2063,6 +2163,31 @@ describe('chat composer and drawer (redesign §7)', () => {
     additions: [],
     issues: [],
   }
+
+  it('a sent message leaves the composer empty, also when the reply is an error', async () => {
+    renderPanel({ durableScope: true })
+    requestSchemaEdit.mockRejectedValueOnce(new Error('invalid_model_config: No model is configured.'))
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Add a field for the excavation leader' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(input).toHaveValue('')
+    expect(await screen.findByText('Error: invalid_model_config: No model is configured.')).toBeInTheDocument()
+    expect(screen.getByText('Add a field for the excavation leader')).toBeInTheDocument()
+    expect(input).toHaveValue('')
+  })
+
+  it('the instructions composer clears and scrolls back to its start after a send, so its placeholder reads from the beginning', () => {
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/) as HTMLTextAreaElement
+    expect(input).toHaveAttribute('placeholder', 'Add a generation instruction (e.g. "Focus on names, dates, and locations")…')
+    let scrollTop = 0
+    Object.defineProperty(input, 'scrollTop', { configurable: true, get: () => scrollTop, set: (value: number) => { scrollTop = value } })
+    fireEvent.change(input, { target: { value: 'Focus on the burials and their grave goods, layer by layer, with dates' } })
+    scrollTop = 38 // the typed text wrapped and scrolled the one-row field
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(input).toHaveValue('')
+    expect(scrollTop).toBe(0)
+  })
 
   it('is one composer line at rest, with no greeting, and expands on send', async () => {
     renderPanel({ durableScope: true })
