@@ -1950,4 +1950,75 @@ describe('chat composer and drawer (redesign §7)', () => {
     fireEvent.click(within(drawer).getByRole('button', { name: /^Generate schema/ }))
     expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
   })
+
+  it('the new schema rests with one composer line, though instructions opened the drawer before it', async () => {
+    const setup = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.getByRole('region', { name: 'Conversation' })).toBeInTheDocument()
+
+    await act(async () => {
+      await setup.schema.generate(async () => ({ _description: 'One test record.', title: 'string' }))
+    })
+
+    expect(await screen.findByPlaceholderText('Describe a change to the schema…')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+  })
+
+  it('a collapsed instructions drawer comes back from the dot, with its instructions and Generate schema', () => {
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
+    const input = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(input, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show conversation' }))
+    const drawer = screen.getByRole('region', { name: 'Conversation' })
+    expect(within(drawer).getByText('Focus on dates')).toBeInTheDocument()
+    expect(within(drawer).getByRole('button', { name: /^Generate schema/ })).toBeInTheDocument()
+  })
+
+  it('an empty instruction does not reopen the collapsed drawer', () => {
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
+    fireEvent.keyDown(screen.getByPlaceholderText(/Add a generation instruction/), { key: 'Enter' })
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+  })
+
+  it('a proposal that arrives while the drawer is collapsed opens it with the Apply bar', async () => {
+    let resolveResponse!: (response: SchemaEditResponse) => void
+    requestSchemaEdit.mockReturnValueOnce(new Promise<SchemaEditResponse>((resolve) => {
+      resolveResponse = resolve
+    }))
+    renderPanel({ durableScope: true })
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Rename title to heading' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByRole('button', { name: 'Stop schema edit request' })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+
+    await act(async () => resolveResponse(proposalResponse))
+
+    const drawer = await screen.findByRole('region', { name: 'Conversation' })
+    expect(within(drawer).getByRole('button', { name: 'Apply changes' })).toBeVisible()
+  })
+
+  it('Discard closes the drawer', async () => {
+    renderPanel({ durableScope: true })
+    requestSchemaEdit.mockResolvedValueOnce(proposalResponse)
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Rename title to heading' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByRole('button', { name: 'Apply changes' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show conversation' })).toBeInTheDocument()
+  })
 })

@@ -487,6 +487,12 @@ function SchemaPanel({
   const ready = snap.view === 'editing'
   // A recovered running request continues a send made before the reload, and a send opens the conversation.
   const drawerShown = drawerOpen ?? (!ready || recovery.running.length > 0)
+  // The schema's birth ends the instructions conversation: the new schema rests with its composer line closed.
+  const wasReady = useRef(ready)
+  useEffect(() => {
+    if (ready && !wasReady.current) setDrawerOpen(null)
+    wasReady.current = ready
+  }, [ready])
   const dx = dragging ? dragX - dragStartXRef.current : 0
   const dy = dragging ? dragY - dragStartYRef.current : 0
   const dragMode = schemaDragMode(dx, dy)
@@ -975,6 +981,8 @@ function SchemaPanel({
             originalSchemaRevisionId,
             `edit:${operationId}`,
           )
+          // A pending proposal keeps the drawer open with its Apply / Discard bar, even if it was collapsed meanwhile.
+          setDrawerOpen(true)
           const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
           setCollapsedIds((current) => withoutIds(current, ancestors))
         }
@@ -1033,7 +1041,13 @@ function SchemaPanel({
   // A refused or stale Apply keeps the drawer open: its explanation, and a refused proposal's review, stay in view.
   const applyProposal = () => { if (proposalReview.apply()) setDrawerOpen(false) }
   const discardProposal = () => { proposalReview.discard(); setDrawerOpen(false) }
-  const dot = drawerShown ? null : runningRows.length > 0 ? { title: 'An earlier request is still running' } : chat.length > 0 || pending ? { title: 'Show conversation' } : null
+  const sendInstruction = () => {
+    if (!instructions.draft.trim()) return
+    setDrawerOpen(true)
+    instructions.send()
+  }
+  // Before a schema exists the dot is the only way back to the instructions and their Generate schema action.
+  const dot = drawerShown ? null : runningRows.length > 0 ? { title: 'An earlier request is still running' } : !ready || chat.length > 0 || pending ? { title: 'Show conversation' } : null
 
   // Render helpers for field rows
   // ────────────────────────────────────────────────────────────────────────
@@ -1413,9 +1427,9 @@ function SchemaPanel({
               <textarea className="min-w-0 flex-1 resize-none bg-transparent font-sans text-secondary text-ink outline-none placeholder:text-ink-faint" rows={1}
                 placeholder={'Add a generation instruction (e.g. "Focus on names, dates, and locations")…'} value={instructions.draft}
                 onChange={(event) => instructions.setDraft(event.target.value)}
-                onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); setDrawerOpen(true); instructions.send() } }} />
+                onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendInstruction() } }} />
               <button type="button" aria-label="Add instruction" className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-green text-compact text-white outline-none hover:brightness-108 disabled:opacity-40"
-                disabled={!instructions.draft.trim()} onClick={() => { setDrawerOpen(true); instructions.send() }}>↑</button>
+                disabled={!instructions.draft.trim()} onClick={sendInstruction}>↑</button>
             </>
           )}>
           {ready ? (
