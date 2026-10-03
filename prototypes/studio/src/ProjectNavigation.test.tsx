@@ -450,6 +450,8 @@ describe('Studio home', () => {
   it('creates a Project Context from the home page and routes into it', async () => {
     renderRoutes(lifecycleFetch())
 
+    // The home page's one filled primary (decision 01).
+    expect((await home().findByRole('button', { name: 'New Project' })).className).toMatch(/(^|\s)bg-green(\s|$)/)
     fireEvent.click(
       await home().findByRole('button', { name: 'New Project' }),
     )
@@ -484,6 +486,7 @@ describe('Studio home', () => {
 
     // The create action opens the existing modal and routes into the created
     // Project Context.
+    expect(home().getByRole('button', { name: 'Create your first project' }).className).toMatch(/(^|\s)bg-green(\s|$)/)
     fireEvent.click(
       home().getByRole('button', { name: 'Create your first project' }),
     )

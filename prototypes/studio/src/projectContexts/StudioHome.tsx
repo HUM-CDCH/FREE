@@ -127,7 +127,7 @@ function FirstRun({ onCreate }: { onCreate: () => void }) {
         ))}
       </ol>
 
-      <Button variant="secondary" size="md" className="px-6 py-3" onClick={onCreate}>
+      <Button variant="positive" size="md" className="px-6 py-3" onClick={onCreate}>
         <PlusIcon />
         Create your first project
       </Button>
@@ -188,7 +188,7 @@ export function StudioHome({
               </p>
             )}
           </div>
-          <Button variant="secondary" size="md" onClick={() => setCreating(true)}>
+          <Button variant="positive" size="md" onClick={() => setCreating(true)}>
             <PlusIcon />
             New Project
           </Button>

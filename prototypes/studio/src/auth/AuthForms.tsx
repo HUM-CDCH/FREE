@@ -101,7 +101,7 @@ export function SignedOutLanding() {
         method="get"
         onSubmit={clearSessionSignedOut}
       >
-        <Button type="submit" variant="secondary" size="md" className="w-full">
+        <Button type="submit" variant="positive" size="md" className="w-full">
           Sign in with Microsoft
         </Button>
       </form>
@@ -115,7 +115,7 @@ export function SessionExpiryWarning({ onContinue }: { onContinue: () => void })
       className="fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-accent/40 bg-surface px-4 py-3 shadow-float"
     >
       <p role="alert" className="text-sm text-ink">Your session expires soon.</p>
-      <Button variant="secondary" size="sm" onClick={onContinue}>
+      <Button variant="positive" size="sm" onClick={onContinue}>
         Continue session
       </Button>
     </aside>
