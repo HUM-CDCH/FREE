@@ -5,6 +5,7 @@ import hashlib
 import json
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -91,7 +92,7 @@ def test_the_manifest_names_the_generation_and_every_page_file_with_its_hash(wri
     assert manifest.recipe["pages_requested"] is None and manifest.recipe["result_version"] == RESULT_VERSION
     assert manifest.tokens == {"input": 30, "output": 60} and manifest.recipe["transcriber"] == "surya"
     assert manifest.recipe["record"]["params"] == MODELS["surya"].params
-    assert set(manifest.recipe["versions"]) == {"docling", "surya-ocr"}
+    assert set(manifest.recipe["versions"]) == {"docling", "surya-ocr", "pypdfium2", "pillow"}
     stored = json.loads((directory / "result.json").read_text(encoding="utf-8"))
     assert stored["pages"] == {"1": {"sha256": manifest.pages[1].sha256, "complete": False},
                                "2": {"sha256": manifest.pages[2].sha256, "complete": True},
@@ -232,6 +233,20 @@ def test_the_recipe_fingerprint_follows_the_recipe_alone(digital_pdf, tmp_path):
     assert first.fingerprint == second.fingerprint and first.generation != second.generation
     assert first.digest != second.digest  # two sets of files, each naming its own generation: two identities
     assert Result.model_validate_json((tmp_path / "one" / "result.json").read_text(encoding="utf-8")).generation
+
+
+def test_the_deployments_ocr_revision_changes_a_served_recipe_only_when_set(digital_pdf, tmp_path, monkeypatch):
+    """A model server's weights or image can change under the same repo name: the deployment says so, and reuse
+    of what the earlier server wrote stops. Unset, every fingerprint is as it was; a run with no model ignores it."""
+    made = execution(digital_pdf, tmp_path)
+    unserved = replace(made, model=None)
+    monkeypatch.delenv("KEI_OCR_REVISION", raising=False)
+    before = recipe(made, "ab" * 32, None)
+    assert "ocr_revision" not in before
+    monkeypatch.setenv("KEI_OCR_REVISION", "2026-10-03 surya weights")
+    after = recipe(made, "ab" * 32, None)
+    assert after == {**before, "ocr_revision": "2026-10-03 surya weights"} and fingerprint(after) != fingerprint(before)
+    assert "ocr_revision" not in recipe(unserved, "ab" * 32, None)
 
 
 # --- The reader: a result directory a consumer must not trust is refused, naming the file and the field --------

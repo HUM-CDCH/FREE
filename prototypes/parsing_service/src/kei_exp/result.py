@@ -8,6 +8,7 @@ fingerprint, the token totals and the status. Nothing here reads the debug repor
 their reader are `kei_exp.pagefile`, a leaf a reader can import without the converter.
 """
 import hashlib
+import os
 import secrets
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
@@ -65,6 +66,9 @@ def recipe(execution: Execution, source_sha256: str, ingest_digest: str | None) 
         "versions": versions(),
         **({"ocr_regions": [{"page": region.page, "bbox": list(region.bbox)} for region in execution.ocr_regions]}
            if execution.ocr_regions else {}),
+        # What the deployment says its model server is: a served model's weights and server can change under the same
+        # repo name, which nothing here can see. Unset, the recipe is as it was.
+        **({"ocr_revision": revision} if execution.model and (revision := os.environ.get("KEI_OCR_REVISION")) else {}),
         # Only a transcriber whose text rules have changed names them, so every other recipe stays as it was.
         **({"text_rules": _text_rules(execution, record.kind if record else None)}
            if execution.transcriber in TEXT_RULES else {}),
@@ -84,7 +88,9 @@ def fingerprint(recipe: dict) -> str:
 
 
 def versions() -> dict[str, str]:
-    return {"docling": version("docling"), "surya-ocr": version("surya-ocr")}
+    """The packages whose behaviour the output depends on: the parsers, and the PDF renderer and image library every
+    crop passes through."""
+    return {name: version(name) for name in ("docling", "surya-ocr", "pypdfium2", "pillow")}
 
 
 def new_generation() -> str:
