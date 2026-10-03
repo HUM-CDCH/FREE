@@ -207,13 +207,14 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await expect(freshHistory).toBeEnabled({ timeout: 15_000 })
   await freshHistory.click()
   await expect(freshPage.getByRole('dialog', { name: 'Schema history' }).getByText('Revision 3 · Current')).toBeVisible()
-  const fieldButtons = freshPage.locator(
-    'button[title="Edit zeta"], button[title="Edit group"], button[title="Edit beta"], button[title="Edit alpha"]',
+  // The rows' worded Edit actions, by their accessible names (decision 11 dropped their titles), in document order.
+  const fieldButtons = freshPage.getByRole('list', { name: 'Schema fields' }).locator(
+    'button[aria-label="Edit zeta"], button[aria-label="Edit group"], button[aria-label="Edit beta"], button[aria-label="Edit alpha"]',
   )
   await expect(fieldButtons).toHaveCount(5)
   expect(
     await fieldButtons.evaluateAll((buttons) =>
-      buttons.map((button) => button.getAttribute('title')),
+      buttons.map((button) => button.getAttribute('aria-label')),
     ),
   ).toEqual([
     'Edit zeta',
