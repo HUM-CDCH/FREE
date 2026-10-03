@@ -2,7 +2,7 @@
 
 ## 1. Atmosphere & Identity
 
-FREE feels like a quiet research desk: paper-forward, compact, and evidence-minded. The signature is warm document surfaces paired with restrained terracotta actions, so the source document remains the primary visual object.
+FREE feels like a quiet research desk: paper-forward, compact, and evidence-minded. The signature is warm document surfaces paired with restrained terracotta accents, so the source document remains the primary visual object.
 
 ## 2. Color
 
@@ -102,6 +102,12 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 - **Structure**: shallow bordered section using `bg-surface` or `bg-canvas`.
 - **Variants**: object section, array item, missing primitive.
 - **States**: expandable where content can be long.
+
+### Toast
+- Toast — message plus one optional action; float shadow; eight seconds when an action is offered, 2.6 s otherwise.
+
+### Field Row
+- Field row — 30px: grip, disclosure, mono name (never truncated by its metadata), type and values pills, actions revealed on hover and focus-within.
 
 ## 6. Motion & Interaction
 

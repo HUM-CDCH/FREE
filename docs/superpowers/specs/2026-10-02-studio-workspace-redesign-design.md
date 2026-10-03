@@ -1,6 +1,6 @@
 # Studio workspace redesign — design
 
-Date: 2026-10-02 · Status: proposed, awaiting review · Scope: `prototypes/studio/src`,
+Date: 2026-10-02 · Status: implemented on feat/studio-workspace-redesign (plan 2026-10-03) · Scope: `prototypes/studio/src`,
 `prototypes/studio/DESIGN.md`
 
 ## Purpose

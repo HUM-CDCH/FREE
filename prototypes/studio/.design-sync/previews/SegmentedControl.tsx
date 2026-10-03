@@ -28,7 +28,7 @@ export function ResultView() {
         onChange={noop}
         options={[
           { value: 'review', label: 'Review' },
-          { value: 'json', label: 'Raw JSON' },
+          { value: 'json', label: 'Values as code' },
           { value: 'markdown', label: 'Markdown' },
         ]}
       />
