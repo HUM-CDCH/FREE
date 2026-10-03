@@ -2,13 +2,14 @@
 of this run, and another run's proven ingest of the same recipe seeded into this one; every candidate that cannot be
 proven is passed over. Runs under a temporary `runs.RUNS`; results hand-built by the writer, ingests by the real
 single-mode ingest over a generated PDF."""
+import errno
 import json
 import shutil
 from pathlib import Path
 
 import pytest
 
-from kei_exp import reuse, runs
+from kei_exp import pagefile, reuse, runs
 from kei_exp.canonical import sha256_file
 from kei_exp.kie.ingest_cache import IngestPaths, ingest_step
 from kei_exp.kie.ingest_model import IngestConfig
@@ -200,3 +201,80 @@ def test_a_seed_that_fails_leaves_nothing_behind_and_the_ingest_runs(scanned, ro
     assert list(doc_dir.iterdir()) == []
     step, _ = ingest_step(root / "run-own" / "input.pdf", SINGLE, doc_dir)
     assert step.skipped is False
+
+
+def test_a_copy_that_fails_part_way_is_removed_and_the_next_candidate_is_seeded(scanned, root, monkeypatch):
+    """The first donor's copy fails after one file is linked; nothing of it stays and the second donor's is taken."""
+    ingested("run-a", scanned, root)
+    second = IngestPaths(ingested("run-b", scanned, root)).accepted
+    linked = reuse._link
+    calls = []
+
+    def second_link_fails(source: str, target: str) -> None:
+        calls.append(source)
+        if len(calls) == 2:
+            raise PermissionError(target)
+        linked(source, target)
+    monkeypatch.setattr(reuse, "_link", second_link_fails)
+    doc_dir = document(scanned, root)
+    reuse.seed_ingest(doc_dir, sha256_file(scanned), SINGLE, own=root / "run-own")
+    assert "/run-a/" in calls[0] and "/run-a/" in calls[1]
+    assert sorted(entry.name for entry in doc_dir.iterdir()) == ["ingest"]
+    assert (doc_dir / "ingest" / "pages" / "001.png").samefile(second / "pages" / "001.png")
+    assert ingest_step(root / "run-own" / "input.pdf", SINGLE, doc_dir)[0].skipped is True
+
+
+def test_a_donor_on_another_file_system_is_copied(scanned, root, monkeypatch):
+    donated = IngestPaths(ingested("run-a", scanned, root)).accepted
+
+    def across_devices(source, target):
+        raise OSError(errno.EXDEV, "Invalid cross-device link", target)
+    monkeypatch.setattr(reuse.os, "link", across_devices)
+    doc_dir = document(scanned, root)
+    reuse.seed_ingest(doc_dir, sha256_file(scanned), SINGLE, own=root / "run-own")
+    page = doc_dir / "ingest" / "pages" / "001.png"
+    assert not page.samefile(donated / "pages" / "001.png") and page.read_bytes() == (donated / "pages" / "001.png").read_bytes()
+    assert ingest_step(root / "run-own" / "input.pdf", SINGLE, doc_dir)[0].skipped is True
+
+
+def deleted(directory: Path) -> None:
+    """As GC deleting the donor between its manifest read and its page reads would."""
+    shutil.rmtree(directory.parent)
+
+
+def unreadable_pages(directory: Path) -> None:
+    raise PermissionError(directory / "pages" / "3.json")
+
+
+@pytest.mark.parametrize("trouble", [deleted, unreadable_pages])
+def test_a_donor_that_fails_while_it_is_read_is_passed_over_and_nothing_is_published(digital_pdf, root, monkeypatch,
+                                                                                    trouble):
+    donated = donor("run-a", digital_pdf, root)
+    loading = pagefile.load_result
+
+    def troubled(directory, **options):
+        trouble(directory)
+        return loading(directory, **options)
+    monkeypatch.setattr(pagefile, "load_result", troubled)
+    assert adopt(donated, root) is None
+    assert not (root / "run-own" / "result" / "result.json").exists()
+
+
+def test_a_crash_before_the_manifest_leaves_no_result_and_a_retry_adopts_cleanly(digital_pdf, root, monkeypatch):
+    """Pages published, the manifest not: a reader finds no result, and the step run again publishes one whole."""
+    donated = donor("run-a", digital_pdf, root)
+    publishing = reuse.publish
+
+    def crash(path):
+        raise RuntimeError("the worker died here")
+    monkeypatch.setattr(reuse, "publish", crash)
+    with pytest.raises(RuntimeError):
+        adopt(donated, root)
+    assert sorted(path.name for path in (root / "run-own" / "result" / "pages").iterdir()) == ["3.json", "4.json"]
+    with pytest.raises(pagefile.ResultError):
+        load_result(root / "run-own" / "result")
+    monkeypatch.setattr(reuse, "publish", publishing)
+    adopted = adopt(donated, root)
+    assert adopted is not None
+    loaded = load_result(root / "run-own" / "result", require_complete=True)
+    assert loaded.manifest == adopted and {page.generation for page in loaded.pages.values()} == {adopted.generation}
