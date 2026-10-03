@@ -1491,6 +1491,7 @@ describe('reopened Source Document workspace', () => {
     await renderReopened()
     const navigation = within(await screen.findByRole('navigation', { name: 'Page navigation' }))
     const firstPage = navigation.getByRole('button', { name: 'Go to page 1' })
+    expect(navigation.getAllByRole('button', { name: /^Go to page/ })[0]!.querySelector('canvas')).toBeInTheDocument()
     firstPage.focus()
     fireEvent.keyDown(firstPage, { key: 'End' })
     const lastPage = navigation.getByRole('button', { name: 'Go to page 120' })

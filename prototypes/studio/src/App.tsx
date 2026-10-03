@@ -27,6 +27,7 @@ import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction
 import ExtractionFinishedDialog from './ExtractionFinishedDialog'
 import { Button, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
+import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
@@ -171,6 +172,7 @@ export function DocumentWorkspace({
   }, [sourceRepresentationId])
 
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
+  const [pdfDocument, setPdfDocument] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [zoomPercent, setZoomPercent] = useState(100)
   const { toast, showToast, dismissToast, consumeSwitch } = useToast()
   const schema = useDurableCurrentSchemaRevision({
@@ -362,6 +364,7 @@ export function DocumentWorkspace({
           return
         }
 
+        setPdfDocument(pdf)
         pdfViewer.setDocument(pdf)
         // setDocument initializes page views asynchronously. Setting a scale
         // before the first page exists makes pdf.js try (and fail) to scroll
@@ -397,6 +400,7 @@ export function DocumentWorkspace({
 
     return () => {
       pdfViewerRef.current = null
+      setPdfDocument(null)
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
         pdfViewer,
@@ -406,6 +410,9 @@ export function DocumentWorkspace({
       if (loadingTask) void loadingTask.destroy()
     }
   }, [onInitialResourceLoadFailure, pdfUrl])
+
+  const thumbnails = useMemo(() => (pdfDocument ? createThumbnailRenderer(pdfDocument) : null), [pdfDocument])
+  useEffect(() => () => thumbnails?.dispose(), [thumbnails])
 
   // Read the retained canonical index separately from the viewer so it never
   // reloads the PDF or clears annotations.
@@ -890,7 +897,8 @@ export function DocumentWorkspace({
               {loadState.status === 'ready' && pagesOpen && <PageNavigation
                 id={pageNavigationId} pageCount={loadState.pageCount} currentPage={currentPage}
                 onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }}
-                onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }} />}
+                onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }}
+                thumbnails={thumbnails} />}
               <div className="relative min-w-0 flex-1">
                 <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
