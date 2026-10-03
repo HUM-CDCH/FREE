@@ -900,7 +900,7 @@ export function DocumentWorkspace({
           </label>
           {/* A scope choice saves at once; field edits wait out the debounce. Run waits for either, and a failed
               save blocks it until Retry saves the latest draft and scope. */}
-          <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} retry={false} className="max-w-72" />
+          <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
           {!running && nextExtractionStrategy === 'CATALOG' && !(saved.state.status === 'ready' && saved.state.unifiedCatalog) && (
             <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
               Boundaries

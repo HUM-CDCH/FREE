@@ -809,14 +809,16 @@ describe('BatchExtractionsPanel', () => {
     await waitFor(() => expect(strategy).toBeEnabled())
 
     fireEvent.change(strategy, { target: { value: 'CATALOG' } })
-    // The Batch's own notice and the schema panel's footer both say it, each with a Retry.
-    const alerts = await screen.findAllByRole('alert')
-    expect(alerts).toHaveLength(2)
-    for (const alert of alerts) expect(alert).toHaveTextContent('The database is unavailable.')
+    // The Batch's own notice is the one alert, with the one Retry; the schema panel's footer says it as status text.
+    expect(await screen.findByRole('alert')).toHaveTextContent('The database is unavailable.')
+    expect(
+      within(screen.getByLabelText('Extraction Schema fields')).getAllByRole('status')
+        .some((status) => /^Not saved: .*The database is unavailable\.$/.test(status.textContent ?? '')),
+    ).toBe(true)
     expect(strategy).toHaveValue('CATALOG')
     expect(screen.getByRole('button', { name: 'Run 1 Source Document' })).toBeDisabled()
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Retry save' }).at(-1)!)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
     await waitFor(() => expect(writes).toEqual([expect.objectContaining({ expectedRevisionNumber: 1, recordScope: 'records' })]))
     fireEvent.click(await enabledRun('Run 1 Source Document'))
     await waitFor(() => expect(posted).toHaveLength(1))

@@ -1567,7 +1567,7 @@ describe('schema header (redesign §5)', () => {
       showRegenerate: true,
       onGenerateInstructions: vi.fn(),
     })
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Places')
+    expect(screen.getByRole('heading', { level: 2 })).toHaveAccessibleName('Places')
     expect(screen.queryByText('Extraction Schema')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Code' }))
     expect(screen.getByText(/"_description": "One test record\."/)).toBeInTheDocument()
@@ -1633,6 +1633,67 @@ describe('schema header (redesign §5)', () => {
     await waitFor(() => expect(setup.initialized).toHaveLength(1))
     expect(await screen.findByLabelText('What one record is')).toHaveValue('Untitled record')
     expect(onRenameSchema).not.toHaveBeenCalled()
+  })
+
+  it('Start blank creates one schema however often it is clicked, and is absent from a read-only panel', async () => {
+    const setup = renderPanel({ durableScope: true, noSchema: true }, { schemaName: null })
+    const start = screen.getByRole('button', { name: 'Start blank' })
+    fireEvent.click(start)
+    fireEvent.click(start)
+    await screen.findByLabelText('What one record is')
+    expect(setup.initialized).toHaveLength(1)
+
+    cleanup()
+    renderPanel({ durableScope: true, noSchema: true }, { readOnly: true })
+    expect(screen.getByRole('heading', { name: 'No schema yet' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start blank' })).not.toBeInTheDocument()
+  })
+
+  it('an imported first schema is named after the document, and a refused name shows as an error', async () => {
+    const column = { id: 'stable-import-id', column: 1, name: 'site', type: 'string', include: true,
+      examples: ['A'], kinds: ['text'], choices: [], suggestedType: 'string' }
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => Response.json({
+      worksheets: ['Codebook'], columns: String(input).includes('worksheet=') ? [column] : [],
+    })))
+    try {
+      const onRenameSchema = vi.fn(async () => 'That name is taken.')
+      const setup = renderPanel({ durableScope: true, noSchema: true }, { onRenameSchema, schemaName: null, sourceDocumentName: 'Sites.pdf' })
+      fireEvent.change(screen.getByLabelText('Import Excel codebook'), { target: { files: [new File(['bytes'], 'codebook.xlsx')] } })
+      await screen.findByRole('option', { name: 'Codebook' })
+      fireEvent.change(screen.getByLabelText('Import worksheet'), { target: { value: 'Codebook' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Preview worksheet' }))
+      fireEvent.change(await screen.findByLabelText('Imported record description'), { target: { value: 'One site.' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm schema' }))
+
+      await waitFor(() => expect(setup.initialized).toHaveLength(1))
+      await waitFor(() => expect(onRenameSchema).toHaveBeenCalledWith('Sites'))
+      expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('the Regenerate dialog cannot start a second generation, and closes when the draft is replaced', async () => {
+    const onGenerateInstructions = vi.fn()
+    const setup = renderPanel({}, { onGenerateInstructions })
+    chooseSchemaAction('Regenerate from the document…')
+    const dialog = screen.getByRole('dialog', { name: 'Regenerate from the document' })
+    expect(within(dialog).getByRole('button', { name: /Regenerate schema/ })).toBeEnabled()
+
+    let finish!: () => void
+    act(() => {
+      void setup.schema.generate(() => new Promise((resolve) => {
+        finish = () => resolve({ _description: 'One test record.', title: 'string' })
+      }))
+    })
+    expect(within(dialog).getByRole('button', { name: /Regenerate schema/ })).toBeDisabled()
+    await act(async () => finish())
+
+    act(() => {
+      setup.schema.adoptDraft({ recordDescription: 'One replacement record.', schemaNodes: historicalNodes })
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Regenerate from the document' })).not.toBeInTheDocument())
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
   })
 
   it('History, Regenerate and Clear schema open dialogs from the actions menu', async () => {

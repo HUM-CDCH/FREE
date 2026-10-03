@@ -5,6 +5,8 @@ type SchemaNameEditorProps = {
   name: string
   onSubmit: (name: string) => Promise<string | null>
   className?: string
+  /** The element the static name renders as: `h2` where the name is a panel's heading. */
+  nameAs?: 'span' | 'h2'
 }
 
 function PencilIcon() {
@@ -26,6 +28,7 @@ export default function SchemaNameEditor({
   name,
   onSubmit,
   className = '',
+  nameAs: Name = 'span',
 }: SchemaNameEditorProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(name)
@@ -37,7 +40,7 @@ export default function SchemaNameEditor({
   if (!editing)
     return (
       <div className={`group flex h-7 min-w-0 items-center gap-1 text-content font-semibold text-ink ${className}`}>
-        <span className="truncate">{name}</span>
+        <Name className="truncate">{name}</Name>
         <button
           className="grid size-6 shrink-0 place-items-center rounded-md text-ink-muted opacity-0 outline-none transition-colors hover:bg-accent-soft hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
           type="button"

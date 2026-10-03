@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
 export type ActionItem = {
   id: string
@@ -10,8 +10,9 @@ export type ActionItem = {
   divider?: boolean
 }
 
-/** A "⋯" (or custom) trigger and a `role="menu"` list: arrow keys move between items, Escape closes and returns focus,
- *  a blur outside closes. Items only receive focus through the arrow keys, so the trigger keeps its place in the tab order. */
+/** A "⋯" (or custom) trigger and a `role="menu"` list: arrow keys move between items (from the trigger, ArrowDown to the
+ *  first and ArrowUp to the last), Escape closes and returns focus, a blur or a pointer press outside closes. Items only
+ *  receive focus through the arrow keys, so the trigger keeps its place in the tab order. */
 export default function ActionsMenu({ label, items, trigger, triggerClassName = '' }: {
   label: string
   items: ActionItem[]
@@ -21,6 +22,16 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLUListElement>(null)
+  const root = useRef<HTMLDivElement>(null)
+  // A click does not focus a button in Safari, or in Firefox on macOS, so a blur alone would miss an outside press.
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node | null)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [open])
   function close(returnFocus: boolean) {
     setOpen(false)
     if (returnFocus) button.current?.focus()
@@ -37,10 +48,14 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
     event.preventDefault()
     const entries = [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])]
     const at = entries.findIndex((entry) => entry === document.activeElement)
-    entries[(at + (event.key === 'ArrowDown' ? 1 : -1) + entries.length) % entries.length]?.focus()
+    const next = at === -1
+      ? (event.key === 'ArrowDown' ? 0 : entries.length - 1)
+      : (at + (event.key === 'ArrowDown' ? 1 : -1) + entries.length) % entries.length
+    entries[next]?.focus()
   }
   return (
     <div
+      ref={root}
       className="relative"
       onKeyDown={onKeyDown}
       onBlur={(event) => {
@@ -72,6 +87,7 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
               <button
                 type="button"
                 role="menuitem"
+                tabIndex={-1}
                 disabled={item.disabled}
                 className={`flex w-full items-center px-3 py-1.5 text-left text-secondary font-semibold outline-none hover:bg-surface-muted focus-visible:bg-surface-muted disabled:cursor-default disabled:opacity-50 ${
                   item.tone === 'danger' ? 'text-danger' : 'text-ink'

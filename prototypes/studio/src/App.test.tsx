@@ -152,6 +152,14 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
     scrollPageIntoView = scrollPageIntoView
   },
 }))
+/** Answers `PATCH /api/extraction-schemas/<id>`: the rename a first generated schema gets (§5). */
+function renamedSchema(url: string, init: RequestInit) {
+  const { name } = JSON.parse(String(init.body)) as { name: string }
+  return Response.json({
+    extractionSchema: { extractionSchemaId: url.split('/').at(-1), name, createdAt: '2026-08-09T10:00:00.000Z' },
+  })
+}
+
 const reopened: DocumentWorkspaceProps = {
   onOpenExtraction: vi.fn(),
   // The real tab-strip slot (DocumentTabBar.tsx) that the workspace's PDF
@@ -828,6 +836,8 @@ describe('reopened Source Document workspace', () => {
         }
         if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
         if (url.startsWith('/api/model-operations?')) return Response.json({ operations: [] })
+        if (url.startsWith('/api/extraction-schemas/') && init?.method === 'PATCH')
+          return renamedSchema(url, init)
         throw new Error(`Unexpected request: ${url}`)
       }),
     )
@@ -838,6 +848,7 @@ describe('reopened Source Document workspace', () => {
 
     expect(await screen.findByText(notice)).toBeInTheDocument()
     expect(written.map((body) => body.sourceCoverage)).toEqual([excerpted])
+    expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
     generated.unmount()
 
     const saved = written[0] as { recordDescription: string; schemaNodes: SchemaNode[] }
@@ -1763,12 +1774,17 @@ describe('reopened Source Document workspace', () => {
       const run = screen.getByRole('button', { name: '▶ Run extraction' })
 
       fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
-      // One alert and one Retry, in the Schema panel's footer; the toolbar says it as status text.
-      expect(await screen.findByRole('alert')).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
-      expect(screen.getAllByRole('button', { name: 'Retry save' })).toHaveLength(1)
+      // One alert and one Retry, the toolbar's (reachable with the Schema tab hidden); the Schema panel's footer says it
+      // as status text.
+      const schemaPanel = screen.getByRole('tabpanel', { name: /^Schema/ })
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/^Not saved: .*The database is unavailable\.$/)
+      expect(schemaPanel).not.toContainElement(alert)
+      expect(schemaPanel).not.toContainElement(screen.getByRole('button', { name: 'Retry save' }))
       expect(
-        screen.getAllByRole('status').filter((status) => /^Not saved: .*The database is unavailable\.$/.test(status.textContent ?? '')),
-      ).toHaveLength(1)
+        within(schemaPanel).getAllByRole('status')
+          .some((status) => /^Not saved: .*The database is unavailable\.$/.test(status.textContent ?? '')),
+      ).toBe(true)
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute('title', 'The schema is not saved. Retry the save first.')
       expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
@@ -1839,6 +1855,8 @@ describe('reopened Source Document workspace', () => {
             }, { status: 201 })
           }
           if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+          if (url.startsWith('/api/extraction-schemas/') && init?.method === 'PATCH')
+            return renamedSchema(url, init)
           throw new Error(`Unexpected request: ${url}`)
         }),
       )
@@ -1851,6 +1869,7 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
       await waitFor(() => expect(written).toHaveLength(1))
       expect(written[0]).toMatchObject({ recordScope: 'document' })
+      expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
       await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
       expect(selector).toHaveValue('ARTICLE')
     })

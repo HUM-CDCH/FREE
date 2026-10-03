@@ -577,6 +577,7 @@ function SchemaPanel({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [creatingFromHistory, setCreatingFromHistory] = useState(false)
   const [confirmingDeleteSchema, setConfirmingDeleteSchema] = useState(false)
+  const [regenerateOpen, setRegenerateOpen] = useState(false)
 
 
   // ── refs for event handlers (avoid stale closures) ──
@@ -680,6 +681,7 @@ function SchemaPanel({
       setChatInput('')
       setHistoryError(null)
       setConfirmingDeleteSchema(false)
+      setRegenerateOpen(false)
       setRecordDescriptionDraft(
         schema.snapshot().draft?.recordDescription ?? '',
       )
@@ -784,7 +786,6 @@ function SchemaPanel({
     resetEditorUi(true)
   }
 
-  const [regenerateOpen, setRegenerateOpen] = useState(false)
   const menuItems: ActionItem[] = [
     { id: 'code', label: 'Edit as code', onSelect: () => setView('code') },
     {
@@ -802,24 +803,37 @@ function SchemaPanel({
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const [focusDescriptionOnReady, setFocusDescriptionOnReady] = useState(false)
   useEffect(() => {
-    if (!focusDescriptionOnReady || !ready || !descriptionRef.current) return
-    descriptionRef.current.focus()
-    descriptionRef.current.select()
+    if (!focusDescriptionOnReady || !ready) return
+    // Spent on the first ready render, focused or not, so a later unrelated transition cannot fire it.
+    descriptionRef.current?.focus()
+    descriptionRef.current?.select()
     setFocusDescriptionOnReady(false)
   }, [focusDescriptionOnReady, ready])
 
+  const startingBlankRef = useRef(false)
+  const [startingBlank, setStartingBlank] = useState(false)
   async function startBlank() {
+    if (startingBlankRef.current) return
+    startingBlankRef.current = true
+    setStartingBlank(true)
     setMutationError(null)
     try {
       await schema.confirmDefinition({ recordDescription: 'Untitled record', schemaNodes: [] })
-      setFocusDescriptionOnReady(true)
+      if (!editorReadOnly) setFocusDescriptionOnReady(true)
       // A schema cleared and started again keeps its name; only a new one is named.
-      if (schemaName) return
-      const rejected = await onRenameSchema?.(UNTITLED_SCHEMA_NAME)
-      if (rejected) setMutationError(rejected)
+      if (!schemaName) await renameNewSchema(UNTITLED_SCHEMA_NAME)
     } catch (error) {
       setMutationError(error instanceof Error ? error.message : 'The schema could not be created.')
+    } finally {
+      startingBlankRef.current = false
+      setStartingBlank(false)
     }
+  }
+
+  /** Names a schema that has none yet (Start blank, an import); a rejected rename shows like any other failed edit. */
+  async function renameNewSchema(name: string) {
+    const rejected = await onRenameSchema?.(name)
+    if (rejected) setMutationError(rejected)
   }
 
 
@@ -1426,24 +1440,24 @@ function SchemaPanel({
         schema={schema}
         disabled={editorReadOnly || editing !== null || openDescId !== null || snap.generating}
         onImported={() => {
-          if (!schemaName) void onRenameSchema?.(defaultSchemaName(sourceDocumentName))
+          if (!schemaName) void renameNewSchema(defaultSchemaName(sourceDocumentName))
         }}
       />
 
       {/* ── Header ── */}
       <header className="flex shrink-0 flex-col gap-1 border-b border-line px-4 pb-2 pt-2.5">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="group min-w-0 flex-1 text-content font-semibold text-ink">
+          <div className="min-w-0 flex-1 text-content font-semibold text-ink">
             {schemaName && ready ? (
               editorReadOnly || !onRenameSchema ? (
-                <span className="block h-7 truncate leading-7">{schemaName}</span>
+                <h2 className="h-7 truncate leading-7">{schemaName}</h2>
               ) : (
-                <SchemaNameEditor name={schemaName} onSubmit={onRenameSchema} />
+                <SchemaNameEditor name={schemaName} nameAs="h2" onSubmit={onRenameSchema} />
               )
             ) : (
-              <span className="block h-7 truncate leading-7">{sourceDocumentName}</span>
+              <h2 className="h-7 truncate leading-7">{sourceDocumentName}</h2>
             )}
-          </h2>
+          </div>
           {ready && (
             <div className="flex shrink-0 items-center gap-2">
               <SegmentedControl
@@ -1462,7 +1476,7 @@ function SchemaPanel({
               <span className="inline-flex items-center gap-0.5">
                 <select
                   aria-label="Record scope"
-                  className={`cursor-pointer appearance-none bg-transparent outline-none hover:text-ink disabled:cursor-default ${
+                  className={`min-h-6 cursor-pointer appearance-none bg-transparent outline-none hover:text-ink disabled:cursor-default ${
                     recordScope.value === null ? 'font-semibold text-accent' : 'text-ink-muted'
                   }`}
                   value={recordScope.value ?? ''}
@@ -1481,7 +1495,7 @@ function SchemaPanel({
                 Boundaries
                 <select
                   aria-label="Boundaries"
-                  className="cursor-pointer appearance-none bg-transparent text-ink outline-none disabled:cursor-default"
+                  className="min-h-6 cursor-pointer appearance-none bg-transparent text-ink outline-none disabled:cursor-default"
                   value={boundaries.value}
                   disabled={boundaries.disabled}
                   title="How catalogue entries are found: by the model, or by a numbered-catalogue recipe with source-backed evidence"
@@ -1571,7 +1585,7 @@ function SchemaPanel({
             {onGenerateInstructions && (
               <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate from the document</Button>
             )}
-            <Button onClick={() => void startBlank()}>Start blank</Button>
+            {!editorReadOnly && <Button disabled={startingBlank} onClick={() => void startBlank()}>Start blank</Button>}
           </EmptyState>
         )}
         {snap.view === 'empty' && mutationError && (
@@ -1686,7 +1700,7 @@ function SchemaPanel({
                 />
               )}
             </label>
-            {mutationError && <p className="mb-2 text-[11px] font-semibold text-danger" role="alert">{mutationError}</p>}
+            {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
             {!editorReadOnly && selectedIds.size > 0 && (
               <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5 shadow-float">
                 <span className="text-[12px] font-semibold text-danger">
@@ -1849,7 +1863,9 @@ function SchemaPanel({
         )}
         {snap.view === 'empty' && 'Generate, import or start blank to create the schema'}
         {snap.view === 'failed' && 'Generation failed'}
-        {ready && <SchemaSaveStatus save={snap.save} showSaved onRetry={() => void schema.flush().catch(() => undefined)} />}
+        {/* Status text only: the save's alert and Retry belong to the host beside its run controls, reachable with the
+            Schema tab hidden. */}
+        {ready && <SchemaSaveStatus save={snap.save} showSaved retry={false} onRetry={() => void schema.flush().catch(() => undefined)} />}
       </footer>
 
       {historyOpen && (
@@ -1883,6 +1899,7 @@ function SchemaPanel({
             <Button onClick={() => setRegenerateOpen(false)}>Cancel</Button>
             <Button
               variant="positive"
+              disabled={snap.generating}
               onClick={() => {
                 setRegenerateOpen(false)
                 onGenerateInstructions?.([instructions.text, fieldDescriptionsInstruction(nodes)].filter(Boolean).join('\n\n'))
