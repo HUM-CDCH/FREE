@@ -51,8 +51,12 @@ import {
 } from './schemaEditorTree'
 
 const EMPTY_NODES: SchemaNode[] = []
-/** Top-level groups start open; nested groups start closed (§6). */
-const rootGroupIds = (list: readonly SchemaNode[]) => new Set(list.filter((node) => node.children !== undefined).map((node) => node.id))
+/** `ids` taken out of the collapsed set, so those groups show their children. */
+const withoutIds = (current: ReadonlySet<string>, ids: Iterable<string>) => {
+  const next = new Set(current)
+  for (const id of ids) next.delete(id)
+  return next
+}
 
 const scrollIntoViewOnce = (element: HTMLElement | null) => element?.scrollIntoView?.({ block: 'nearest' })
 const focusField = (element: HTMLElement | null) => { scrollIntoViewOnce(element); element?.focus({ preventScroll: true }) }
@@ -411,7 +415,8 @@ function SchemaPanel({
     chatAbortRef.current = null
   }, [])
   const [view, setView] = useState<'fields' | 'code'>('fields')
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => rootGroupIds(nodes))
+  /** Groups the researcher closed. Every other group shows its children, wherever it first appears (§6). */
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   const [openDescId, setOpenDescId] = useState<string | null>(null)
   const [descDraft, setDescDraft] = useState('')
   const [jsonEditMode, setJsonEditMode] = useState(false)
@@ -436,7 +441,7 @@ function SchemaPanel({
   useEffect(() => {
     if (!fieldContext) return
     const ancestors = schemaAncestorIds(nodes, new Set([fieldContext.nodeId]))
-    setExpandedIds((current) => new Set([...current, ...ancestors]))
+    setCollapsedIds((current) => withoutIds(current, ancestors))
   }, [fieldContext, nodes])
   const [recordDescriptionDraft, setRecordDescriptionDraft] = useState(
     () => snap.draft?.recordDescription ?? '',
@@ -450,7 +455,7 @@ function SchemaPanel({
     appendMessage: appendChatMessage,
     onReopened: (proposal) => {
       const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
-      setExpandedIds((current) => new Set([...current, ...ancestors]))
+      setCollapsedIds((current) => withoutIds(current, ancestors))
     },
   })
   // Shown wherever the chat lives: before the first schema (the instructions chat) and after (the edit chat).
@@ -519,7 +524,7 @@ function SchemaPanel({
       setJsonDraft('')
       setJsonEditError(null)
       setView('fields')
-      setExpandedIds(rootGroupIds(schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES))
+      setCollapsedIds(new Set())
       setDescDraft('')
       setChatInput('')
       setHistoryError(null)
@@ -760,7 +765,7 @@ function SchemaPanel({
     const t: DropTarget = { type: 'group', id, name }
     overTargetRef.current = t
     setOverTarget(t)
-    setExpandedIds(s => new Set([...s, id]))
+    setCollapsedIds((current) => withoutIds(current, [id]))
   }
 
   function clearGroupTarget(id: string) {
@@ -942,7 +947,7 @@ function SchemaPanel({
             `edit:${operationId}`,
           )
           const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
-          setExpandedIds((current) => new Set([...current, ...ancestors]))
+          setCollapsedIds((current) => withoutIds(current, ancestors))
         }
       }
     } catch (err) {
@@ -1004,7 +1009,7 @@ function SchemaPanel({
     const isGroup = node.children !== undefined
     const isDragging = dragging?.id === node.id
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === node.id
-    const isExpanded = expandedIds.has(node.id) || intoGroup
+    const isExpanded = !collapsedIds.has(node.id) || intoGroup
     const change = pending?.changes.find((item) => item.id === node.id)
     const diffStatus = change?.kind ?? (ancestorRemoved ? 'removed' : null)
     const isDiff = diffStatus !== null
@@ -1018,7 +1023,7 @@ function SchemaPanel({
           <FieldEditForm editing={editing} error={editingError} onChange={(next) => { setEditing(next); setEditingError(null) }} onSave={saveEdit} onCancel={cancelEdit} />
         ) : (
           <FieldRow node={node} isGroup={isGroup} expanded={isExpanded}
-            onToggleExpanded={() => setExpandedIds((current) => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next })}
+            onToggleExpanded={() => setCollapsedIds((current) => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next })}
             change={change} outcome={change && replay?.outcomes.get(change.id)} impliedRemoved={ancestorRemoved}
             acceptance={change ? { accepted: acceptedChangeIds.has(change.id), onToggle: proposalReview.toggle } : undefined}
             readOnly={editorReadOnly} editDisabled={editDisabled} dragging={isDragging} intoGroup={intoGroup}

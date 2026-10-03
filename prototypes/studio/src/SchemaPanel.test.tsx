@@ -520,7 +520,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       }],
     }] })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand group' }))
+    expect(screen.getByRole('button', { name: 'Collapse group' })).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(screen.getByTitle('Edit leaf'))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'renamed leaf' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -1782,6 +1782,19 @@ describe('field rows (redesign §6)', () => {
     expect(within(row).getByText('Research rule')).toBeInTheDocument()
     fireEvent.click(within(row).getByText('Research rule'))
     expect(screen.getByPlaceholderText('Add another note…')).toBeInTheDocument()
+  })
+
+  it('a group that first appears after mount shows its children without a click', () => {
+    const setup = renderPanel()
+    act(() => {
+      setup.schema.commit((current) => [...current, { id: 'g', name: 'grave', type: 'object', children: [
+        { id: 'g1', name: 'depth', type: 'number' },
+        { id: 'g2', name: 'site', type: 'object', children: [{ id: 'g21', name: 'parish', type: 'string' }] },
+      ] }], '✎ Schema updated')
+    })
+    expect(screen.getByRole('listitem', { name: 'depth' })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'parish' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse grave' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('keyboard: Enter edits, Delete removes with undo, Space toggles a group', () => {
