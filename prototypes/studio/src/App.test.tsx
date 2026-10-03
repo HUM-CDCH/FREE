@@ -1003,6 +1003,66 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('heading', { name: expected })).toBeInTheDocument()
   })
 
+  // A first name whose request never answers holds the renames behind it only until its time limit (20 s; shortened
+  // here): the manual rename then goes out and its name shows. Meanwhile Escape closes the waiting editor.
+  it.each(['kept open', 'closed with Escape'] as const)('a first name that never answers lets a manual rename go after its time limit (editor %s)', async (editor) => {
+    const schemaRevisionId = '51000000-0000-4000-8005-000000000050'
+    const extractionSchemaId = '51000000-0000-4000-8005-000000000051'
+    const patches: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.endsWith('/api/generate_schema'))
+          return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1 })
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as { schemaNodes: unknown[] }
+          return Response.json({ revision: { schemaRevisionId, extractionSchemaId, revisionNumber: 1, origin: 'suggestion',
+            createdAt: '2026-08-09T10:00:00.000Z', recordDescription: 'One site record.', recordScope: null, schemaNodes: body.schemaNodes } },
+          { status: 201 })
+        }
+        if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+        if (url.startsWith('/api/model-operations?')) return Response.json({ operations: [] })
+        if (url === `/api/extraction-schemas/${extractionSchemaId}` && init?.method === 'PATCH') {
+          const { name } = JSON.parse(String(init.body)) as { name: string }
+          patches.push(name)
+          // Never answers; like a real fetch, it gives up only when aborted.
+          if (name === 'Beretning')
+            return new Promise<Response>((_resolve, reject) => {
+              init.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')))
+            })
+          return renamedSchema(url, init)
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
+    await waitFor(() => expect(patches).toEqual(['Beretning']))
+    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Ellekilde graves' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(patches).toEqual(['Beretning'])
+    if (editor === 'closed with Escape') {
+      fireEvent.keyDown(screen.getByLabelText('Schema name for Beretning'), { key: 'Escape' })
+      expect(screen.queryByLabelText('Schema name for Beretning')).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
+    }
+
+    await waitFor(() => expect(patches).toEqual(['Beretning', 'Ellekilde graves']), { timeout: 3_000 })
+    expect(await screen.findByRole('heading', { name: 'Ellekilde graves' })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Schema name for/)).not.toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(screen.getByRole('heading', { name: 'Ellekilde graves' })).toBeInTheDocument()
+  })
+
   it('saves a schema generated from excerpts with its declaration, and the reopened workspace shows it beside that source only', async () => {
     const excerpted = {
       complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }],

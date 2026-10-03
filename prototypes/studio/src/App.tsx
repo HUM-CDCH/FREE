@@ -137,6 +137,9 @@ export type DocumentWorkspaceProps = {
   /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
       portalled into so the PDF controls share that row instead of a second one. */
   tabBarSlot?: HTMLElement | null
+  /** How long the first generation's automatic name may wait for its answer before the renames queued behind it go
+      ahead (default 20 s; tests shorten it). */
+  automaticRenameTimeoutMs?: number
 }
 
 /** An admission refusal useExtraction reported through `onMethodChanged`: nothing was started. */
@@ -162,6 +165,7 @@ export function DocumentWorkspace({
   onInitialResourceLoadFailure,
   onSourceSuperseded,
   tabBarSlot = null,
+  automaticRenameTimeoutMs = 20_000,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
@@ -191,10 +195,20 @@ export function DocumentWorkspace({
   const renameSequenceRef = useRef(0)
   const durableSchemaNameRef = useRef(extractionSchema?.name ?? null)
   /** Renames the schema; null on success, else why not. `unchangedName` is the server's name should this rename fail
-   *  (the first generation's, which the server created before naming it). */
-  function renameSchema(extractionSchemaId: string, name: string, unchangedName?: string): Promise<string | null> {
+   *  (the first generation's, which the server created before naming it). With `timeoutMs` the request is given up
+   *  (aborted, so it fails) once it has waited that long for its answer, and the queue goes on with the next rename: a
+   *  stalled automatic name never strands the researcher's rename behind it. Giving up stops the waiting, not
+   *  necessarily the server, which may still apply the abandoned name after the next one. The queue makes that unlikely
+   *  (the next rename is sent only once this one is given up on) but cannot exclude it. */
+  function renameSchema(extractionSchemaId: string, name: string, unchangedName?: string, timeoutMs?: number): Promise<string | null> {
     const sequence = ++renameSequenceRef.current
-    const request = renameQueueRef.current.then(() => renameExtractionSchema(projectContextId, extractionSchemaId, name))
+    const request = renameQueueRef.current.then(() => {
+      if (timeoutMs === undefined) return renameExtractionSchema(projectContextId, extractionSchemaId, name)
+      // Counted from when the request is sent, not from when it joined the queue.
+      const abort = new AbortController()
+      const timer = setTimeout(() => abort.abort(), timeoutMs)
+      return renameExtractionSchema(projectContextId, extractionSchemaId, name, abort.signal).finally(() => clearTimeout(timer))
+    })
     renameQueueRef.current = request.catch(() => undefined)
     const latest = () => sequence === renameSequenceRef.current
     return request.then(
@@ -518,7 +532,7 @@ export function DocumentWorkspace({
       if (extractionSchemaId) {
         const name = defaultSchemaName(filename)
         setSchemaName(name)
-        void renameSchema(extractionSchemaId, name, 'Extraction Schema')
+        void renameSchema(extractionSchemaId, name, 'Extraction Schema', automaticRenameTimeoutMs)
       }
     }
   }

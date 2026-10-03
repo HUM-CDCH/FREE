@@ -199,6 +199,17 @@ const DESCRIPTION_ROWS = { min: 2, max: 6 }
 /** `leading-relaxed` at `text-secondary` (12px × 1.625), for a computed style that has none (jsdom). */
 const DESCRIPTION_LINE_HEIGHT = 19.5
 
+/** The record description's rows for its wrapped text (not only its line breaks), from two to six: measured at the
+ *  minimum so it can shrink too. The rows are written to the element directly; React renders the constant minimum. */
+function fitDescriptionRows(element: HTMLTextAreaElement) {
+  element.rows = DESCRIPTION_ROWS.min
+  const style = getComputedStyle(element)
+  const lineHeight = parseFloat(style.lineHeight) || DESCRIPTION_LINE_HEIGHT
+  const padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0)
+  const lines = Math.round((element.scrollHeight - padding) / lineHeight)
+  element.rows = Math.min(DESCRIPTION_ROWS.max, Math.max(DESCRIPTION_ROWS.min, lines))
+}
+
 // Field editing uses stable ids, not paths.
 function FieldEditForm({ editing, error, focus = 'name', onChange, onSave, onCancel }: {
   editing: FieldEditing
@@ -687,18 +698,26 @@ function SchemaPanel({
   /** A durable schema with no fields yet: the researcher names it and describes the record (Ruling 5). The description
    *  textarea is focused with its placeholder text selected once the panel is ready, so typing replaces it. */
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
-  // Grows by content, not by line breaks: measured at the minimum so it can shrink too. The rows are written to the
-  // element directly; React renders the constant minimum and never touches them again.
+  // Grows by content, not by line breaks: measured on every edit and whenever the textarea mounts.
   useLayoutEffect(() => {
-    const element = descriptionRef.current
-    if (!element) return
-    element.rows = DESCRIPTION_ROWS.min
-    const style = getComputedStyle(element)
-    const lineHeight = parseFloat(style.lineHeight) || DESCRIPTION_LINE_HEIGHT
-    const padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0)
-    const lines = Math.round((element.scrollHeight - padding) / lineHeight)
-    element.rows = Math.min(DESCRIPTION_ROWS.max, Math.max(DESCRIPTION_ROWS.min, lines))
+    if (descriptionRef.current) fitDescriptionRows(descriptionRef.current)
   }, [recordDescriptionDraft, ready, view, editorReadOnly])
+  // And whenever its width changes with no edit: a rail resize re-wraps the text, and so does the Schema tab shown again
+  // after it was hidden (0px wide while hidden, so it is measured once it is shown). Height-only notifications are the
+  // rows just set; measuring on them would loop.
+  useEffect(() => {
+    const element = descriptionRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    let width: number | null = null
+    const observer = new ResizeObserver((entries) => {
+      const next = entries[entries.length - 1]!.contentRect.width
+      if (next === width) return
+      width = next
+      if (next > 0) fitDescriptionRows(element)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [ready, view, editorReadOnly])
   const [focusDescriptionOnReady, setFocusDescriptionOnReady] = useState(false)
   useEffect(() => {
     if (!focusDescriptionOnReady || !ready) return

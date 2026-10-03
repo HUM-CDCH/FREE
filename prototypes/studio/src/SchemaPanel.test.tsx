@@ -1775,6 +1775,54 @@ describe('schema header (redesign §5)', () => {
     }
   })
 
+  it('the record description re-measures when its width changes (a rail resize, a tab shown again), not when only its height does', () => {
+    // jsdom has no layout: the text wraps at `perLine` characters, each line 19.5px, plus 8px padding.
+    let perLine = 40
+    const scrollHeight = vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get')
+      .mockImplementation(function (this: HTMLTextAreaElement) { return Math.max(1, Math.ceil(this.value.length / perLine)) * 19.5 + 8 })
+    type Observed = { callback: ResizeObserverCallback; targets: Element[]; disconnected: boolean; observer: ResizeObserver }
+    const observed: Observed[] = []
+    vi.stubGlobal('ResizeObserver', class {
+      record: Observed
+      constructor(callback: ResizeObserverCallback) {
+        this.record = { callback, targets: [], disconnected: false, observer: this as unknown as ResizeObserver }
+        observed.push(this.record)
+      }
+      observe(target: Element) { this.record.targets.push(target) }
+      unobserve() {}
+      disconnect() { this.record.disconnected = true }
+    })
+    try {
+      renderPanel()
+      const description = screen.getByLabelText('What one record is') as HTMLTextAreaElement
+      const watching = observed.filter((record) => record.targets.includes(description))
+      expect(watching).toHaveLength(1)
+      const resize = (width: number, height: number) => act(() => watching[0]!.callback(
+        [{ target: description, contentRect: { width, height } } as unknown as ResizeObserverEntry], watching[0]!.observer))
+      fireEvent.change(description, { target: { value: 'One grave '.repeat(16) } }) // 160 characters: four rows
+      expect(description.rows).toBe(4)
+      resize(300, 86)
+      // Narrower: the same text wraps into more rows, with no keystroke.
+      perLine = 32
+      resize(240, 86)
+      expect(description.rows).toBe(5)
+      // A height-only notification (the rows just set) is not a reason to measure.
+      perLine = 80
+      resize(240, 105)
+      expect(description.rows).toBe(5)
+      // Hidden (0px wide) and shown again at a new width: measured once it shows.
+      resize(0, 0)
+      expect(description.rows).toBe(5)
+      resize(480, 105)
+      expect(description.rows).toBe(2)
+      cleanup()
+      expect(watching[0]!.disconnected).toBe(true)
+    } finally {
+      scrollHeight.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('Edit as code opens the code view ready to edit; long lines scroll sideways in both modes', () => {
     renderPanel()
     chooseSchemaAction('Edit as code')
