@@ -58,6 +58,10 @@ describe('through kei\'s contract', { skip: !fixture && 'set EXTRACTION_TEST_DAT
     const published = JSON.parse(new TextDecoder().decode(
       await keiExp.readExtractionArtifact(document.runId, input.extractionId),
     )) as { records: unknown[]; model: string; models: Record<string, string>; complete: boolean }
+    // The stand-in serves kei's progress route too; a spawned stand-in has no progress script, so it is 404 (`no progress yet`).
+    const progress = await fetch(`${standIn.url}/api/runs/${document.runId}/extractions/${input.extractionId}/progress`)
+    assert.equal(progress.status, 404)
+    assert.deepEqual(await progress.json(), { detail: 'no progress yet' })
     assert.deepEqual(completed.extraction.result, { records: published.records })
     assert.equal(completed.extraction.complete, published.complete)
     assert.deepEqual(completed.extraction.modelAttribution, { provider: 'kei-exp', modelId: published.model })

@@ -7,7 +7,7 @@ import type { KeiExtractInput } from './kei-handoff.js'
 import type { ParsedDocument } from './parsed-document.js'
 import { refuseRecordCardinality } from './record-scope.js'
 import { recordScopeSchema } from './schema.js'
-import type { ExtractionStrategy } from './types.js'
+import type { EvidenceLink, ExtractionStrategy } from './types.js'
 
 const path = z.array(z.union([z.string(), z.number().int().nonnegative()]))
 /** One model call, as the Parsing Service's `kie/extract/calls.py` `Call` is written into the artifact. */
@@ -22,7 +22,7 @@ const callSchema = z.object({
   error: z.string().nullable(),
 })
 /** One grounded value's evidence: kei-exp's `Link`, with `path` and `bbox_pt` as lists. */
-const evidenceSchema = z.object({
+export const evidenceSchema = z.object({
   path,
   segment: z.string().regex(/^p\d+_s\d+$/),
   page: z.number().int().positive(),
@@ -159,7 +159,7 @@ const count = z.number().int().nonnegative()
 const candidatePath = z.array(z.union([z.string(), z.number().int().nonnegative(), z.null()]))
 /** Version 3 evidence (`kie/extract/unified.py` `_link`): a verified value, its literal span or the passage that
  *  supports a yes/no, a label or a derived value, and the occurrence of the list item it belongs to. */
-const unifiedEvidenceSchema = evidenceSchema.extend({
+export const unifiedEvidenceSchema = evidenceSchema.extend({
   linked_by: z.literal('verification'),
   support: z.enum(['literal', 'supporting']),
   spans: z.array(span).min(1),
@@ -168,6 +168,31 @@ const unifiedEvidenceSchema = evidenceSchema.extend({
   raw: z.string(),
   item: z.array(span).nullable(),
 })
+
+/** The Evidence anchor a kei link names: the segment's text anchor, or the cell's when the link is a table cell. */
+export const evidenceAnchorIdOf = (link: { segment: string; cell?: string | null }): string =>
+  `a_${link.segment}${link.cell ? `_${link.cell}` : ''}`
+
+/** A version 3 link as the Extraction keeps it: a verified value with its spans (`VerifiedGrounding`). */
+export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>, evidenceAnchorId: string): EvidenceLink {
+  return {
+    resultPath: link.path, evidenceAnchorId, precision: link.precision, verbatim: link.verbatim, lexicalHits: link.hits,
+    grounding: {
+      linkedBy: link.linked_by, support: link.support, textSpans: link.spans, alternatives: link.alternatives,
+      precision: link.precision, raw: link.raw, itemSpans: link.item,
+    },
+  }
+}
+
+/** A version 1 link as the Extraction keeps it. */
+export function plainEvidenceLink(link: z.infer<typeof evidenceSchema>, evidenceAnchorId: string): EvidenceLink {
+  return {
+    resultPath: link.path, evidenceAnchorId,
+    ...(link.precision ? { precision: link.precision } : {}),
+    verbatim: link.verbatim, lexicalHits: link.hits,
+    ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
+  }
+}
 /** A version 3 candidate kept for review: proposed (unverified, a partial list item, a competing value...) or rejected. */
 const unifiedCandidateSchema = z.object({
   path: candidatePath, value: z.unknown(), quote: z.string().nullable(), support: z.enum(['literal', 'supporting']).nullable(),
@@ -306,7 +331,7 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
   if (unified && !embedsItsRecords(unified, raw as Record<string, unknown>, pins, request))
     throw new ExtractionError('invalid_model_output', 'kei-exp returned execution or discovery records that do not belong to this Extraction.')
   const anchorId = (link: { segment: string; cell?: string | null; page: number }) => {
-    const id = `a_${link.segment}${link.cell ? `_${link.cell}` : ''}`
+    const id = evidenceAnchorIdOf(link)
     if (link.cell) {
       const anchor = document.evidence_index.anchors.find((anchor) => anchor.anchor_id === id)
       if (
@@ -330,20 +355,10 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
     outcome: 'SUCCEEDED',
     complete: artifact.complete,
     result: { records: artifact.records },
-    evidence: unified
-      ? unified.evidence.map((link) => ({
-          resultPath: link.path,
-          evidenceAnchorId: anchorId(link),
-          precision: link.precision,
-          verbatim: link.verbatim,
-          lexicalHits: link.hits,
-          grounding: {
-            linkedBy: link.linked_by, support: link.support, textSpans: link.spans, alternatives: link.alternatives,
-            precision: link.precision, raw: link.raw, itemSpans: link.item,
-          },
-        }))
-      : grounded
-      ? grounded.evidence.map((link) => ({
+    evidence: artifact.extraction_version === 3
+      ? artifact.evidence.map((link) => unifiedEvidenceLink(link, anchorId(link)))
+      : artifact.extraction_version === 2
+      ? artifact.evidence.map((link) => ({
           resultPath: link.path,
           evidenceAnchorId: anchorId(link),
           ...(link.precision ? { precision: link.precision } : {}),
@@ -358,14 +373,7 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
             },
           },
         }))
-      : artifact.evidence.map((link) => ({
-          resultPath: link.path,
-          evidenceAnchorId: anchorId(link),
-          ...(link.precision ? { precision: link.precision } : {}),
-          verbatim: link.verbatim,
-          lexicalHits: link.hits,
-          ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
-        })),
+      : artifact.evidence.map((link) => plainEvidenceLink(link, anchorId(link))),
     modelAttribution: { provider: 'kei-exp', modelId: artifact.model },
     diagnostics: {
       phase: 'persisting', durationMs: Math.round(artifact.seconds * 1000),
