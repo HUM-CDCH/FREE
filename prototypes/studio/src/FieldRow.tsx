@@ -2,7 +2,6 @@ import pluralize from 'pluralize'
 import type { SchemaNode } from 'extraction/schema'
 import type { Change, ReplayOutcome } from '../shared/schemaChanges'
 import { Pill } from './ui'
-import { PencilIcon } from './ui/ResultValue'
 import { fieldTypeWords } from './fieldTypeWords'
 
 export type FieldRowProps = {
@@ -33,22 +32,26 @@ export type FieldRowProps = {
   nodeRef?: (element: HTMLDivElement | null) => void
 }
 
-// Colours stay off the shared base: two utilities of one property resolve by stylesheet order, not class order.
-const ACTION = 'grid size-7 cursor-pointer place-items-center rounded-[3px] outline-none transition-colors disabled:cursor-default disabled:opacity-40'
+// Colours stay off the shared base: two utilities of one property resolve by stylesheet order, not class order. Worded,
+// not icons explained by tooltips (decision 11): 28px tall, at least 28px wide.
+const ACTION = 'inline-flex h-7 min-w-7 shrink-0 cursor-pointer items-center justify-center rounded-[3px] px-2 text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-40'
 const ACTION_PLAIN = `${ACTION} text-ink-muted hover:bg-surface-muted hover:text-accent`
 const ACTION_DANGER = `${ACTION} text-danger hover:bg-danger-soft`
 /** The type and values pills' buttons: at least 24px tall around the pill. A type longer than its line ellipsizes. */
 const PILL_BUTTON = 'inline-flex min-h-6 min-w-0 max-w-full cursor-pointer items-center rounded-full outline-none disabled:cursor-default disabled:opacity-60'
 const PILL_FIT = 'min-w-0 max-w-full'
-/** The actions overlay the right end of the row's first line (three 28px targets 4px apart after a 4px lead: 96px).
- *  Shown, and only then hit by a pointer, on hover and focus within the row; at rest a tap there reaches the row, never
- *  an unseen action. While a pill has keyboard focus the overlay steps aside as well. */
-const ACTIONS = 'pointer-events-none absolute right-0 top-px flex items-center gap-1 rounded-[3px] bg-surface pl-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
-/** The pills' line keeps the overlay's 96px clear on the right at every width, so the pills wrap before the actions'
- *  zone and a pointer on any part of a pill reaches the pill. The name, not a control, may still run under the actions:
- *  its cap is the whole line, and its full text is its title. */
-const CLEAR_OF_ACTIONS = 'pr-[96px]'
-const NAME_UNDER_ACTIONS = 'max-w-[calc(100%_+_96px)]'
+/** The actions overlay the right end of the row's first line, at a constant 140px: "Edit", "Note" and "Delete" measure
+ *  37 + 40 + 49px, 4px apart after a 4px lead (138px). Shown, and only then hit by a pointer, on hover and focus within
+ *  the row; at rest a tap there reaches the row, never an unseen action. While a pill has keyboard focus the overlay
+ *  steps aside as well. */
+const ACTIONS = 'pointer-events-none absolute right-0 top-px flex w-[140px] items-center justify-end gap-1 rounded-[3px] bg-surface pl-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
+/** The pills keep clear of the actions, so a pointer on any part of a pill reaches the pill. On a row line of 296px and
+ *  more their line keeps the overlay's 140px clear (they wrap before it), which leaves them at least 110px. A narrower
+ *  row (the 264px rail, nested rows) would squeeze them under a pill's width: there they start on the line below the
+ *  name, at its full width, and the name's line holds the name alone. Either way the name, not a control, may run under
+ *  the actions (its full text is its title). The row line is the size container (`@container`). */
+const CLEAR_OF_ACTIONS = 'pr-[140px] @max-[296px]:pr-0'
+const NAME_UNDER_ACTIONS = 'max-w-[calc(100%_+_140px)] @max-[296px]:max-w-full @max-[296px]:basis-full'
 const NOTE_INDENT = 'pl-[46px]'
 
 function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
@@ -159,22 +162,6 @@ function CollapseArrow({ expanded }: { expanded: boolean }) {
   )
 }
 
-function NotePlusIcon() {
-  return (
-    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4h9l3 3v9H4z" /><path d="M7 10h6M7 13h4" /><path d="M14 2v4h4" />
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M8 2a1 1 0 00-1 1v1H4a1 1 0 000 2h12a1 1 0 100-2h-3V3a1 1 0 00-1-1H8zM5 7a1 1 0 011 1v8a2 2 0 002 2h4a2 2 0 002-2V8a1 1 0 112 0v8a4 4 0 01-4 4H8a4 4 0 01-4-4V8a1 1 0 011-1z" clipRule="evenodd" />
-    </svg>
-  )
-}
-
 /** One schema field's row (§6): grip, disclosure, then the name with its type and values pills (wrapping under the name
  *  when the line is too narrow) and proposal badges; the actions overlay the right edge on hover and focus-within. A
  *  note renders below in full. The panel owns recursion, drag targets and edit forms. */
@@ -210,7 +197,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         else if (event.key === 'Delete') { event.preventDefault(); onDelete() }
       }}
     >
-      <div className="relative flex min-h-[30px] items-start gap-1">
+      <div className="@container relative flex min-h-[30px] items-start gap-1">
         {!isDiff && !readOnly ? (
           <span aria-hidden="true" className="flex h-[30px] w-3.5 shrink-0 cursor-grab select-none items-center justify-center text-sm leading-none text-ink-faint opacity-60" onMouseDown={onStartDrag}>⠿</span>
         ) : <span className="w-3.5 shrink-0" />}
@@ -251,9 +238,9 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         )}
         {hasActions && !dragActive && (
           <span data-row-actions className={ACTIONS}>
-            <button type="button" className={ACTION_PLAIN} title={`Edit ${node.name}`} aria-label={`Edit ${node.name}`} disabled={editDisabled} onClick={onEdit}><PencilIcon /></button>
-            <button type="button" className={ACTION_PLAIN} title="Add note" aria-label={`Add note to ${node.name}`} disabled={editDisabled} onClick={onAddNote}><NotePlusIcon /></button>
-            <button type="button" className={ACTION_DANGER} title={`Delete ${node.name}`} aria-label={`Delete ${node.name}`} disabled={editDisabled} onClick={onDelete}><TrashIcon /></button>
+            <button type="button" className={ACTION_PLAIN} aria-label={`Edit ${node.name}`} disabled={editDisabled} onClick={onEdit}>Edit</button>
+            <button type="button" className={ACTION_PLAIN} aria-label={`Add note to ${node.name}`} disabled={editDisabled} onClick={onAddNote}>Note</button>
+            <button type="button" className={ACTION_DANGER} aria-label={`Delete ${node.name}`} disabled={editDisabled} onClick={onDelete}>Delete</button>
           </span>
         )}
       </div>

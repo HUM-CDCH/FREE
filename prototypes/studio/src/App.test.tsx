@@ -1514,7 +1514,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     const run = screen.getByRole('button', { name: '▶ Run extraction' })
@@ -1602,7 +1602,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
@@ -2033,7 +2033,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByLabelText('Record scope')).toHaveValue('records')
 
       fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
@@ -2048,7 +2048,7 @@ describe('reopened Source Document workspace', () => {
     /** Renames the `place` field in the Schema tab: a field edit the 1500 ms debounce holds. */
     function renamePlaceField() {
       fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     }
@@ -2236,7 +2236,7 @@ describe('reopened Source Document workspace', () => {
       render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
 
-      fireEvent.click(screen.getByTitle('Edit place'))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
       fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
@@ -2598,7 +2598,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })

@@ -529,7 +529,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     }] })
 
     expect(screen.getByRole('button', { name: 'Collapse group' })).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.click(screen.getByTitle('Edit leaf'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit leaf' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'renamed leaf' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -593,7 +593,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(setup.edits).toHaveLength(1)
     expect(screen.getByText('entered_field')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByTitle('Edit title'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit title' }))
     fireEvent.change(screen.getByDisplayValue('title'), {
       target: { value: 'discarded name' },
     })
@@ -610,7 +610,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     const setup = renderPanel()
 
     expect(screen.getAllByTitle('Type: string — click to edit')).toHaveLength(2)
-    fireEvent.click(screen.getByTitle('Edit title'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit title' }))
     fireEvent.change(screen.getByRole('combobox', { name: 'Field type' }), { target: { value: 'number' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -644,7 +644,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   it('keeps an inline edit open when its name duplicates a sibling field', () => {
     const setup = renderPanel()
 
-    fireEvent.click(screen.getByTitle('Edit title'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit title' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'gender' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -659,7 +659,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       { id: 'n1', name: 'nyt_felt', type: 'verbatim-string' },
     ] })
 
-    fireEvent.click(screen.getByTitle('Edit nyt_felt'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit nyt_felt' }))
     fireEvent.change(screen.getAllByPlaceholderText('field_name').at(-1)!, {
       target: { value: 'nuum' },
     })
@@ -675,7 +675,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   it('preserves an existing closed set when the field is renamed', () => {
     const setup = renderPanel()
 
-    fireEvent.click(screen.getByTitle('Edit gender'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit gender' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'sex' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -1196,7 +1196,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.change(chatInput, { target: { value: 'Check fields' } })
     fireEvent.keyDown(chatInput, { key: 'Enter' })
 
-    fireEvent.click(screen.getByTitle('Edit title'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit title' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'heading' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -1476,7 +1476,7 @@ describe('SchemaPanel field context', () => {
     const setup = setupController({ panelNodes: [{ id: 'title', name: 'heading', type: 'integer' }] })
     const props = { schema: setup.schema, onClearDraft: vi.fn(), sourceDocumentName: 'test.pdf' }
     const mounted = render(<SchemaPanel {...props} />)
-    fireEvent.click(screen.getByTitle('Edit heading'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit heading' }))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'unsaved_name' } })
     const before = setup.schema.snapshot().draft
     mounted.rerender(<SchemaPanel {...props} fieldContext={{ extractionId: 'old-sample', schemaRevisionId: 'old-revision',
@@ -1657,7 +1657,7 @@ describe('SchemaPanel clear current schema', () => {
 
     await waitFor(() => expect(onClearDraft).toHaveBeenCalledTimes(1))
     expect(screen.getByText('Clear current schema?')).toBeInTheDocument()
-    expect(screen.getByTitle('Edit title')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit title' })).toBeInTheDocument()
   })
 })
 
@@ -2068,10 +2068,14 @@ describe('field rows (redesign §6)', () => {
     const name = within(row).getByText('sex')
     expect(name.className).toMatch(/\bshrink-0\b/)
     expect(name.parentElement!.className).toMatch(/\bflex-wrap\b/)
-    // The pills' line keeps the actions' 96px clear (three 28px targets, two 4px gaps, a 4px lead), so the pills wrap
-    // before the actions; the name alone may run under them, up to the whole line.
-    expect(name.parentElement!.className).toMatch(/(^|\s)pr-\[96px\](\s|$)/)
-    expect(name.className).toMatch(/(^|\s)max-w-\[calc\(100%_\+_96px\)\](\s|$)/)
+    // The pills' line keeps the actions' constant 140px clear, so the pills wrap before the actions; the name alone may
+    // run under them, up to the whole line. A row line under 296px starts the pills on the line below the name instead,
+    // at full width (the row line is the size container).
+    expect(name.parentElement!.className).toMatch(/(^|\s)pr-\[140px\](\s|$)/)
+    expect(name.parentElement!.className).toMatch(/(^|\s)@max-\[296px\]:pr-0(\s|$)/)
+    expect(name.parentElement!.parentElement!.className).toMatch(/(^|\s)@container(\s|$)/)
+    expect(name.className).toMatch(/(^|\s)max-w-\[calc\(100%_\+_140px\)\](\s|$)/)
+    expect(name.className).toMatch(/(^|\s)@max-\[296px\]:basis-full(\s|$)/)
     expect(within(row).getByText('6 values')).toBeInTheDocument()
     expect(within(row).getByTitle('Type: string — click to edit')).toBeInTheDocument()
     expect(within(screen.getByRole('listitem', { name: 'dates' })).getByTitle('Type: list of dates — click to edit')).toBeInTheDocument()
@@ -2088,7 +2092,21 @@ describe('field rows (redesign §6)', () => {
     expect(actions.className).toMatch(/(^|\s)pointer-events-none(\s|$)/)
     expect(actions.className).toMatch(/(^|\s)group-hover:pointer-events-auto(\s|$)/)
     expect(actions.className).toMatch(/(^|\s)group-focus-within:pointer-events-auto(\s|$)/)
-    expect(within(row).getByRole('button', { name: 'Delete sex' }).className).toMatch(/size-7/)
+    expect(actions.className).toMatch(/(^|\s)w-\[140px\](\s|$)/)
+    // Worded, not icons explained by tooltips (decision 11): Edit, Note, Delete, 28px tall, the names kept.
+    const worded = [['Edit sex', 'Edit'], ['Add note to sex', 'Note'], ['Delete sex', 'Delete']] as const
+    for (const [label, text] of worded) {
+      const action = within(row).getByRole('button', { name: label })
+      expect(action).toHaveTextContent(text)
+      expect(action).not.toHaveAttribute('title')
+      expect(action.className).toMatch(/(^|\s)h-7(\s|$)/)
+      expect(action.className).toMatch(/(^|\s)min-w-7(\s|$)/)
+      expect(action.className).toMatch(/(^|\s)text-compact(\s|$)/)
+      expect(action.className).toMatch(/(^|\s)font-semibold(\s|$)/)
+      expect(action.querySelector('svg')).toBeNull()
+    }
+    expect(within(row).getByRole('button', { name: 'Delete sex' }).className).toMatch(/(^|\s)text-danger(\s|$)/)
+    expect(actions.className).toMatch(/(^|\s)gap-1(\s|$)/)
   })
 
   it('a read-only row has no actions, so its pills keep no room for them', () => {

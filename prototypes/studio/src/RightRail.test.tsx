@@ -146,7 +146,7 @@ describe('RightRail developer UI visibility', () => {
     expect(schema.snapshot().historicalPreview).toBeNull()
     expect(schema.snapshot().draft).toEqual(draft)
     expect(screen.getByText(/This field was removed. No replacement was selected/)).toBeVisible()
-    expect(screen.getByTitle('Edit gender')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Edit gender' })).toBeVisible()
   })
 
   it('a tab badge stays on one line at the 264px rail; the tab\'s label gives way first', () => {

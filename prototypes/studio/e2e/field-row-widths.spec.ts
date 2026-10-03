@@ -13,8 +13,6 @@ import { loginResearcher } from './auth.js'
 const SIX = (values: string) => values.split(' ')
 const schemaNodes = [
   { id: 'title', name: 'title', type: 'string', description: 'The report title as printed on its cover page.' },
-  // Short enough that its type pill fits beside it, clear of the actions' zone, even at 264px.
-  { id: 'site', name: 'site', type: 'string' },
   { id: 'context', name: 'archaeological_context', type: 'string', allowedValues: SIX('grave settlement hoard ritual production unknown') },
   { id: 'sex', name: 'sex', type: 'string', allowedValues: SIX('f m unknown child adult elder') },
   { id: 'findings', name: 'findings', type: 'array', children: [
@@ -25,7 +23,7 @@ const schemaNodes = [
   ] },
 ] as const
 /** Every field, root to depth 2; all groups start open. */
-const rows = ['title', 'site', 'archaeological_context', 'sex', 'findings', 'kind', 'deposit', 'layer']
+const rows = ['title', 'archaeological_context', 'sex', 'findings', 'kind', 'deposit', 'layer']
 
 const pdfPath = fileURLToPath(new URL('../../../examples/1790-06-17-1.pdf', import.meta.url))
 const parsedDocumentPath = fileURLToPath(new URL('../src/assets/parsed_document.v2.json', import.meta.url))
@@ -143,29 +141,49 @@ async function checkRows(page: Page, width: number) {
     const row = page.getByRole('listitem', { name, exact: true })
     await row.scrollIntoViewIfNeeded()
     await row.hover()
+    // Measured again after the scroll, which moves the list.
+    const listBox = (await list.boundingBox())!
     const what = `${width}px, ${name}`
     const nameBox = await row.getByText(name, { exact: true }).boundingBox()
     expectInside(nameBox, listBox, `${what}: name`)
-    for (const pill of await row.locator('[data-row-pill]').all())
-      expectInside(await pill.boundingBox(), listBox, `${what}: pill ${await pill.getAttribute('title')}`)
+    for (const pill of await row.locator('[data-row-pill]').all()) {
+      const pillTitle = await pill.getAttribute('title')
+      expectInside(await pill.boundingBox(), listBox, `${what}: pill ${pillTitle}`)
+      // Never squeezed under its own width by the actions' zone.
+      const cut = await pill.evaluate((element) => [element, ...element.querySelectorAll('*')]
+        .some((part) => part.scrollWidth > part.clientWidth + 0.5))
+      expect(cut, `${what}: pill ${pillTitle} shown in full`).toBe(false)
+    }
     const actions = actionsOf(row, name)
     await expect.poll(() => opacity(actions[0]!.locator('..')), `${what}: actions shown on hover`).toBe('1')
     for (const action of actions) {
       const box = (await action.boundingBox())!
       expectInside(box, listBox, `${what}: ${await action.getAttribute('aria-label')}`)
-      expect([box.width, box.height], `${what}: 28px action target`).toEqual([28, 28])
+      // Worded (decision 11): 28px tall, at least 28px wide.
+      expect(box.height, `${what}: 28px action target`).toBe(28)
+      expect(box.width, `${what}: action at least 28px wide`).toBeGreaterThanOrEqual(28)
     }
   }
   // A name is never truncated by its own metadata: its pills wrap under it instead.
   const longName = page.getByRole('listitem', { name: 'archaeological_context' }).getByText('archaeological_context', { exact: true })
   const truncated = await longName.evaluate((element) => element.scrollWidth > element.clientWidth)
   expect(truncated, `${width}px: archaeological_context shown in full`).toBe(false)
-  // Rows are 30px at rest when their pills fit beside the name, clear of the actions' 96px zone: at 344px `sex · string ·
-  // 6 values` does. At 264px the zone leaves 87px of the line, so most rows' pills wrap under the name (`title · string`
-  // misses by 2px); `site · string` still fits.
-  const restingRow = width >= 344 ? 'sex' : 'site'
-  const restingLine = page.getByRole('listitem', { name: restingRow, exact: true }).locator('> div').first()
-  expect((await restingLine.boundingBox())!.height, `${width}px: ${restingRow} row height`).toBe(30)
+  if (width >= 344) {
+    // Rows are 30px at rest when their pills fit beside the name, clear of the actions' 140px: at 344px the top level
+    // keeps 123px for them, so `title · string` does (`sex · string · 6 values`, 137px, wraps its values pill).
+    const titleLine = page.getByRole('listitem', { name: 'title', exact: true }).locator('> div').first()
+    expect((await titleLine.boundingBox())!.height, `${width}px: title row height`).toBe(30)
+  } else {
+    // A row line under 296px would leave its pills under 110px beside the name: at 264px every row's pills start on the
+    // line below the name, at its left edge, and the name's line holds the name alone.
+    for (const name of rows) {
+      const row = page.getByRole('listitem', { name, exact: true })
+      const nameBox = (await row.getByText(name, { exact: true }).boundingBox())!
+      const first = (await row.locator('[data-row-pill]').first().boundingBox())!
+      expect(first.y, `${width}px, ${name}: pills below the name`).toBeGreaterThanOrEqual(nameBox.y + nameBox.height - 0.5)
+      expect(Math.abs(first.x - nameBox.x), `${width}px, ${name}: pills start under the name`).toBeLessThanOrEqual(0.5)
+    }
+  }
   // A note starts where its field's name starts.
   const title = page.getByRole('listitem', { name: 'title', exact: true })
   const nameStart = (await title.getByText('title', { exact: true }).boundingBox())!.x

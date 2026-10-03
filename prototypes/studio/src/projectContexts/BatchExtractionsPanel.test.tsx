@@ -598,7 +598,7 @@ describe('BatchExtractionsPanel', () => {
       within(schema).getByPlaceholderText('Describe a change to the schema…'),
     ).toBeVisible()
 
-    fireEvent.click(within(schema).getByTitle('Edit place'))
+    fireEvent.click(within(schema).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(schema).getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })
@@ -1878,7 +1878,7 @@ describe('BatchExtractionsPanel', () => {
     const suggested = await openSuggestedFields()
     expect(within(suggested).getByText('place')).toBeVisible()
     expect(within(suggested).getByText('Suggesting common fields…')).toBeVisible()
-    expect(within(suggested).queryByTitle('Edit place')).not.toBeInTheDocument()
+    expect(within(suggested).queryByRole('button', { name: 'Edit place' })).not.toBeInTheDocument()
     expect(within(suggested).queryByRole('button', { name: 'Schema actions' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeDisabled()
     expect(
@@ -1973,7 +1973,7 @@ describe('BatchExtractionsPanel', () => {
     renderPanel()
 
     const suggested = await openSuggestedFields()
-    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })
@@ -2208,14 +2208,14 @@ describe('BatchExtractionsPanel', () => {
     })
     const suggested = await screen.findByLabelText('Suggested common fields')
 
-    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })
     fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(patchBodies).toHaveLength(1), { timeout: 2_000 })
 
-    fireEvent.click(within(suggested).getByTitle('Edit location'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit location' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'city' },
     })
@@ -2317,7 +2317,7 @@ describe('BatchExtractionsPanel', () => {
       target: { value: '__suggest_common_fields__' },
     })
     const suggested = await screen.findByLabelText('Suggested common fields')
-    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'location' },
     })
@@ -2328,7 +2328,7 @@ describe('BatchExtractionsPanel', () => {
       screen.getByRole('button', { name: 'Run 2 Source Documents' }),
     ).toBeDisabled()
 
-    fireEvent.click(within(suggested).getByTitle('Edit location'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit location' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: 'location_name' },
     })
@@ -2373,7 +2373,7 @@ describe('BatchExtractionsPanel', () => {
     })
     await waitFor(() => expect(run).toBeEnabled())
 
-    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Edit place' }))
     fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
       target: { value: '' },
     })
@@ -2402,7 +2402,7 @@ describe('BatchExtractionsPanel', () => {
     ).toBeDisabled()
     expect(within(suggested).queryByRole('button', { name: /Regenerate|Try again/ })).not.toBeInTheDocument()
     expect(within(suggested).queryByRole('button', { name: 'Schema actions' })).not.toBeInTheDocument()
-    expect(within(suggested).queryByTitle('Edit place')).not.toBeInTheDocument()
+    expect(within(suggested).queryByRole('button', { name: 'Edit place' })).not.toBeInTheDocument()
     expect(fetch.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   })
 

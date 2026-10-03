@@ -829,7 +829,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await freshPage.getByRole('tab', { name: /^Schema/ }).click()
   // A row's actions show, and take the pointer, on hover (§6).
   await freshPage.getByRole('listitem', { name: 'year' }).hover()
-  await freshPage.getByTitle('Edit year').click()
+  await freshPage.getByRole('button', { name: 'Edit year', exact: true }).click()
   await freshPage.getByPlaceholder('field_name').fill('year_of_record')
   await freshPage.getByRole('button', { name: 'Save', exact: true }).click()
   await freshPage.getByRole('tab', { name: /Results/ }).click()
