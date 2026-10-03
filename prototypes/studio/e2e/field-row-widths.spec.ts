@@ -40,8 +40,16 @@ const id = {
   representation: randomUUID(), schema: randomUUID(),
 }
 
+// Seeded once per worker process, as the ids above are: Playwright runs this file's beforeAll again in the same worker
+// for another test group (the touch-screen tests' own fixtures, a repeat).
+let seeded: Promise<void> | null = null
 test.beforeAll(async () => {
   if (withoutDatabase) return
+  seeded ??= seed()
+  await seeded
+})
+
+async function seed() {
   const { db } = await import('../../../packages/db/src/prisma/db.js')
   await db.orm.public.ResearcherAccount.create({
     id: id.account, tenantId: DEVELOPMENT_ENTRA_TENANT_ID, objectId: id.object, displayName: 'Field Row Researcher',
@@ -69,7 +77,7 @@ test.beforeAll(async () => {
       schemaNodes,
     },
   })
-})
+}
 
 async function openSchema(page: Page) {
   const [pdf, parsedDocument] = await Promise.all([readFile(pdfPath), readFile(parsedDocumentPath, 'utf8')])
