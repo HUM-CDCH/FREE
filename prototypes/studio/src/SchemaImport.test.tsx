@@ -40,6 +40,8 @@ it('preview and cancel save nothing; explicit confirmation keeps renamed IDs and
   const table = screen.getByRole('table')
   expect(within(table).getAllByRole('columnheader').map((header) => header.textContent))
     .toEqual(['Include', 'Name', 'Type', 'Allowed values', 'Examples'])
+  expect(screen.getByRole('checkbox', { name: 'Column 1 allowed values' })).not.toBeChecked()
+  expect(within(table).getByText('A, B')).toBeVisible()
   fireEvent.change(screen.getByLabelText('Imported record description'), { target: { value: 'One codebook record.' } })
   fireEvent.change(screen.getByLabelText('Column 1 name'), { target: { value: 'identifier' } })
   expect(within(screen.getByRole('list', { name: 'Fields to import' })).getByRole('listitem')).toHaveTextContent('identifier — string')
@@ -59,5 +61,59 @@ it('renders nothing while closed', () => {
     initialize: vi.fn(), append: vi.fn(), listRevisions: async () => [], getRevision: vi.fn() }))
   render(<SchemaImport schema={schema} disabled={false} open={false} onClose={vi.fn()} />)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  schema.dispose()
+})
+
+function previewSetup() {
+  const schema = createSchemaEditorController(durableSchemaPersistence({ projectContextId: 'project', initial: null,
+    initialize: vi.fn(), append: vi.fn(), listRevisions: async () => [], getRevision: vi.fn() }))
+  const column = { id: 'stable-import-id', column: 1, name: 'filename', type: 'string', include: true,
+    examples: ['0012'], kinds: ['text'], choices: [], suggestedType: 'string' }
+  authenticatedFetch.mockImplementation(async (url: string) => Response.json({ worksheets: ['Codebook'],
+    columns: url.includes('worksheet=') ? [column] : [] }))
+  const upload = async () => {
+    fireEvent.change(screen.getByLabelText('Excel codebook file'), { target: { files: [new File(['bytes'], 'codebook.xlsx')] } })
+    await screen.findByRole('option', { name: 'Codebook' })
+    fireEvent.change(screen.getByLabelText('Import worksheet'), { target: { value: 'Codebook' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview worksheet' }))
+    await screen.findByLabelText('Column 1 name')
+  }
+  return { schema, upload }
+}
+
+it('a dismissed import starts over with an empty record description, separator and header row 1', async () => {
+  const { schema, upload } = previewSetup()
+  const onClose = vi.fn()
+  const view = render(<SchemaImport schema={schema} disabled={false} open onClose={onClose} />)
+  await upload()
+  fireEvent.change(screen.getByLabelText('Imported record description'), { target: { value: 'One codebook record.' } })
+  fireEvent.change(screen.getByLabelText('Nesting separator'), { target: { value: '.' } })
+  fireEvent.change(screen.getByLabelText('Header row'), { target: { value: '3' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(onClose).toHaveBeenCalledOnce()
+  view.rerender(<SchemaImport schema={schema} disabled={false} open={false} onClose={onClose} />)
+  view.rerender(<SchemaImport schema={schema} disabled={false} open onClose={onClose} />)
+  await upload()
+  expect(screen.getByLabelText('Imported record description')).toHaveValue('')
+  expect(screen.getByLabelText('Nesting separator')).toHaveValue('')
+  expect(screen.getByLabelText('Header row')).toHaveValue(1)
+  schema.dispose()
+})
+
+it('a click inside the dialog content does not dismiss it; a backdrop click does', async () => {
+  const { schema, upload } = previewSetup()
+  const onClose = vi.fn()
+  render(<SchemaImport schema={schema} disabled={false} open onClose={onClose} />)
+  await upload()
+  const dialog = screen.getByRole('dialog', { name: 'Import from Excel codebook' })
+  const content = dialog.firstElementChild as HTMLElement
+  expect(content.tagName).toBe('DIV')
+  expect(content).toContainElement(screen.getByRole('heading', { name: 'Import from Excel codebook' }))
+  expect(dialog).not.toHaveClass('p-4')
+  fireEvent.click(content)
+  expect(onClose).not.toHaveBeenCalled()
+  expect(screen.getByLabelText('Column 1 name')).toBeInTheDocument()
+  fireEvent.click(dialog)
+  expect(onClose).toHaveBeenCalledOnce()
   schema.dispose()
 })
