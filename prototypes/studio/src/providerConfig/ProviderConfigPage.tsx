@@ -258,11 +258,11 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
 
       <footer className="flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-line bg-surface px-5 py-3">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-[11.5px] text-ink-faint">{dirty ? 'Unsaved changes' : 'Everything saved'}</span>
+          <span className="text-compact text-ink-faint">{dirty ? 'Unsaved changes' : 'Everything saved'}</span>
           {editor.settingsIssues.length > 0 && (
             <button
               type="button"
-              className="text-[11.5px] font-semibold text-danger underline"
+              className="text-compact font-semibold text-danger underline"
               onClick={() => {
                 setTab('advanced')
                 setFocusIssue(true)

@@ -25,7 +25,7 @@ function AuthCard({ title, description, children }: AuthCardProps) {
             alt=""
             className="mb-1 h-14 w-auto object-contain object-left"
           />
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          <p className="text-overline font-bold uppercase tracking-[0.18em] text-accent">
             Research workspace
           </p>
           <h1 className="mt-2 font-serif text-2xl font-semibold text-ink">
