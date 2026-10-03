@@ -374,10 +374,10 @@ function PrimitiveRow({
         </span>
         {missing ? (
           contested ? <ContestedBadge candidates={contested} /> : <MissingBadge />
-        ) : state === 'checking' && !expanded ? (
-          <span className="flex min-w-0 items-center gap-1.5 text-content leading-snug text-ink-muted" title={candidateTitle}>
+        ) : state === 'checking' ? (
+          <span className={`flex min-w-0 gap-1.5 text-content text-ink-muted ${expanded ? 'items-baseline leading-relaxed' : 'items-center leading-snug'}`} title={candidateTitle}>
             <CandidateMarker />
-            <span ref={valueRef} className="min-w-0 line-clamp-2">{text}</span>
+            <span ref={valueRef} className={expanded ? 'min-w-0 wrap-anywhere whitespace-pre-wrap' : 'min-w-0 line-clamp-2'}>{text}</span>
           </span>
         ) : (
           <span

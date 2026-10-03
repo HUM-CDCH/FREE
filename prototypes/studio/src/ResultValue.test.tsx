@@ -76,6 +76,31 @@ describe('value states (redesign §8)', () => {
     expect(nested.closest('[title="Candidate · being verified"]')!.className).toMatch(/text-ink-muted/)
     expect(screen.getByTitle('Candidate · being verified')).toBeInTheDocument()
   })
+  it('an expanded checking value keeps its candidate marker', () => {
+    // jsdom lays nothing out: report the clamped value as overflowing so the row offers "More".
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(80)
+    const clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(40)
+    try {
+      render(<ResultValue name="title" value="A long candidate" path={['title']} {...states('checking')} />)
+      fireEvent.click(screen.getByRole('button', { name: 'More' }))
+      expect(screen.getByRole('button', { name: 'Less' })).toBeInTheDocument()
+      const value = screen.getByText('A long candidate')
+      expect(value.closest('[title="Candidate · being verified"]')!.className).toMatch(/text-ink-muted/)
+      expect(value.className).not.toMatch(/line-clamp-2/)
+    } finally {
+      scrollHeight.mockRestore()
+      clientHeight.mockRestore()
+    }
+  })
+  it('asks for each leaf\'s state by its own full path', () => {
+    const getValueState = vi.fn((path: string[]) => JSON.stringify(path) === JSON.stringify(['a', 'b', 'c']) ? 'reading' as const : undefined)
+    render(<ResultValue name="a" value={{ b: { c: 'hidden while reading', d: 'shown' } }} path={['a']} getValueState={getValueState} />)
+    expect(getValueState).toHaveBeenCalledWith(['a', 'b', 'c'])
+    expect(getValueState).toHaveBeenCalledWith(['a', 'b', 'd'])
+    expect(screen.getByLabelText('Reading')).toBeInTheDocument()
+    expect(screen.queryByText('hidden while reading')).not.toBeInTheDocument()
+    expect(screen.getByText('shown')).toBeInTheDocument()
+  })
   it('queued shows a line marker and the name only', () => {
     render(<ResultValue name="title" value={null} path={['title']} {...states('queued')} />)
     expect(screen.getByLabelText('Queued')).toBeInTheDocument()
