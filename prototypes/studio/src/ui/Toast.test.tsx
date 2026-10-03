@@ -7,13 +7,14 @@ import { useToast } from '../useToast'
 
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
-it('announces the message and runs its one action, then dismisses', () => {
+it('announces the message, then dismisses and runs its one action', () => {
   const onAction = vi.fn(), onDismiss = vi.fn()
   render(<Toast message="Field removed" action={{ label: 'Undo', onAction }} onDismiss={onDismiss} />)
   expect(screen.getByRole('status')).toHaveTextContent('Field removed')
   fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
   expect(onAction).toHaveBeenCalledOnce()
   expect(onDismiss).toHaveBeenCalledOnce()
+  expect(onDismiss.mock.invocationCallOrder[0]).toBeLessThan(onAction.mock.invocationCallOrder[0])
 })
 
 it('the host shows one toast at a time and clears it after its duration', () => {
@@ -29,6 +30,7 @@ it('the host shows one toast at a time and clears it after its duration', () => 
 })
 
 it('a switch-surviving toast keeps its message through one switch, then dismisses like any other', () => {
+  vi.useFakeTimers()
   const { result } = renderHook(() => useToast())
   act(() => result.current.showToast('This document has been reprocessed', { outlivesSwitch: true, durationMs: 6000 }))
   act(() => result.current.consumeSwitch())

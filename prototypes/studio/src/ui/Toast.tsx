@@ -4,7 +4,7 @@ export type ToastAction = { label: string; onAction: () => void }
 
 export type ToastProps = {
   message: ReactNode
-  /** One optional command, e.g. Undo. The toast dismisses after it runs. */
+  /** One optional command, e.g. Undo. The toast is dismissed before the action runs, so an action may show a follow-up toast. */
   action?: ToastAction
   onDismiss?: () => void
   className?: string
@@ -23,8 +23,8 @@ function Toast({ message, action, onDismiss, className = '' }: ToastProps) {
           type="button"
           className="inline-flex min-h-6 shrink-0 cursor-pointer items-center rounded-sm px-2 font-bold text-green outline-none hover:underline"
           onClick={() => {
-            action.onAction()
             onDismiss?.()
+            action.onAction()
           }}
         >
           {action.label}
