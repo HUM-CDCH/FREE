@@ -204,6 +204,50 @@ def test_a_finished_entry_beside_a_stale_candidates_or_reading_file_is_finished(
     assert document["entries"][0]["evidence"] == []  # no result under this run directory: links are left out, not invented
 
 
+def test_a_published_entry_outside_its_layout_is_not_finished_and_is_shown_from_its_other_stage_files(tmp_path):
+    source = unified_evidence("1. Adorf. Material: Holz.")
+    unified_extract(source, run_dir=tmp_path, extraction_id="x1")
+    directory = tmp_path / "extractions" / "x1"
+    execution = json.loads((directory / progress.PROGRESS_NAME).read_bytes())["execution"]
+    progress.write_stage(directory / progress.candidates_name(0), {"version": 1, "execution": execution, "index": 0,
+                         "discovery_sha256": "0" * 64, "ranges": [], "candidates": [], "record": {"label": "1"}, "failed": 0})
+    published = directory / unified.entry_name(0)
+    record = json.loads(published.read_bytes())
+    for work in ({**record["work"], "record": []},                                    # a record that is no object
+                 {**record["work"], "contest": {}},                                   # contests that are no list
+                 {**record["work"], "contest": [{"path": ["records", 0, "material"], "outcome": "unresolved"}]}):  # a row without its values
+        published.write_bytes(json.dumps({**record, "work": work}).encode())
+        document = progress.read_progress(tmp_path, "x1")
+        progress.ProgressDocument.model_validate(document)
+        assert document["finished"] == 0 and document["entries"][0]["stage"] == "candidates"
+        assert document["entries"][0]["record"] == {"label": "1"} and document["entries"][0]["evidence"] is None
+    published.write_bytes(json.dumps(record).encode())
+    assert progress.read_progress(tmp_path, "x1")["entries"][0]["stage"] == "finished"
+
+
+def test_links_that_cannot_be_made_leave_a_finished_entry_finished_with_its_record_and_contests(tmp_path, monkeypatch):
+    source = unified_evidence("1. Adorf. Material: Holz. " + " ".join(["Text"] * 700) + " Material: Stein.")
+
+    def last_material(record, user, schema):
+        answer = unified_fields(record, user, schema)
+        if material := re.findall(r"Material: (\w+)", record):
+            answer["material"] = candidate(material[-1], f"Material: {material[-1]}")
+        return answer
+    unified_extract(source, Model(source, entry=last_material, choice="NONE"), run_dir=tmp_path, extraction_id="x1",
+                    input_tokens=520, output_tokens=64)
+    monkeypatch.setattr(progress, "_passages", lambda run_dir: {})  # a result that loads, without the passage named
+
+    def missing_passage(record, passages):
+        raise KeyError("p1_s0")
+    monkeypatch.setattr(unified, "entry_links", missing_passage)
+    document = progress.read_progress(tmp_path, "x1")
+    progress.ProgressDocument.model_validate(document)
+    [entry] = document["entries"]
+    assert document["finished"] == 1 and entry["stage"] == "finished" and entry["evidence"] == []
+    assert entry["record"]["site"] == "Adorf" and entry["record"]["material"] is None
+    assert entry["contested"] == [{"path": ["material"], "candidates": ["Holz", "Stein"]}]
+
+
 def test_malformed_or_stale_stage_files_are_skipped_never_served(tmp_path):
     source = unified_evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
     directory = tmp_path / "extractions" / "x1"

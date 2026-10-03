@@ -93,6 +93,31 @@ class _Marker(_Stage):
     index: int
 
 
+class _Competitor(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    value: Any
+
+
+class _Arbitration(BaseModel):
+    """A `work.contest` row as `_settle` writes it: the path (`records`, n, ...), its outcome and the verified values."""
+    model_config = ConfigDict(extra="allow")
+    path: list[str | int]
+    outcome: str
+    candidates: list[_Competitor]
+
+
+class _EntryWork(BaseModel):
+    """The fields of a published entry's `work` the reader takes; the record's other fields ride along unread."""
+    model_config = ConfigDict(extra="allow")
+    record: dict[str, Any]
+    contest: list[Any]  # a row that is no object is skipped; an object row must be an `_Arbitration`
+
+
+class _FinishedEntry(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    work: _EntryWork
+
+
 class _CandidateRow(BaseModel):
     model_config = ConfigDict(extra="forbid")
     path: list[str | int]
@@ -211,19 +236,13 @@ def _catalog(directory: Path, run_dir: Path, header: _Header) -> dict | None:
         row = {"index": number, "label": entry.get("label"), "page": _page_of(entry), "stage": "queued",
                "candidates": None, "record": None, "evidence": None, "contested": None, "failed": None}
         published = _json(directory / unified.entry_name(number))
-        if isinstance(published, dict):
-            try:
-                contests = [_ContestRow(path=contest["path"][2:], candidates=[each["value"] for each in contest["candidates"]])
-                            for contest in published["work"]["contest"]
-                            if isinstance(contest, dict) and contest.get("outcome") == "unresolved"]
-                row.update(stage="finished", record=published["work"]["record"],
-                           evidence=unified.entry_links(published, passages) if passages is not None else [],
-                           contested=[contest.model_dump() for contest in contests])
-                finished += 1
-                entries.append(row)
-                continue
-            except (KeyError, TypeError, AttributeError, ValidationError):  # a record outside its own layout: this view does not guess
-                row = {**row, "stage": "queued", "record": None, "evidence": None, "contested": None}
+        if (settled := _finished(published)) is not None:
+            record, contested = settled
+            row.update(stage="finished", record=record, evidence=_entry_evidence(published, passages),
+                       contested=contested)
+            finished += 1
+            entries.append(row)
+            continue
         if (candidates := _stage(directory / candidates_name(number), _Candidates, header.execution)) is not None:
             row.update(stage="candidates", candidates=[each.model_dump() for each in candidates.candidates],
                        record=candidates.record, failed=candidates.failed)
@@ -232,6 +251,30 @@ def _catalog(directory: Path, run_dir: Path, header: _Header) -> dict | None:
         entries.append(row)
     return {"version": PROGRESS_VERSION, "strategy": "catalog", "started_at_page": header.start_page,
             "discovered": len(entries), "finished": finished, "entries": entries, "document": None}
+
+
+def _finished(published: Any) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+    """A published entry's record and its unresolved arbitrations (record-relative paths), or None when the fields the
+    view reads are outside their layout: such an entry is shown from its other stage files, as if unpublished."""
+    try:
+        work = _FinishedEntry.model_validate(published).work
+        arbitrations = [_Arbitration.model_validate(row) for row in work.contest if isinstance(row, dict)]
+    except ValidationError:
+        return None
+    return work.record, [_ContestRow(path=row.path[2:], candidates=[each.value for each in row.candidates]).model_dump()
+                         for row in arbitrations if row.outcome == "unresolved"]
+
+
+def _entry_evidence(published: dict, passages: dict[str, Passage] | None) -> list[dict]:
+    """The finished entry's links, made by the artifact's own code; none when the result cannot be loaded or the links
+    cannot be made from it (a passage the record names is gone): the entry stays finished either way (design §3)."""
+    from kei_exp.kie.extract import unified  # as in `_catalog`
+    if passages is None:
+        return []
+    try:
+        return unified.entry_links(published, passages)
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+        return []
 
 
 def _article(directory: Path, header: _Header) -> dict | None:
