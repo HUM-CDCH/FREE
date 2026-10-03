@@ -90,6 +90,7 @@ export function createPatchExtractionSchema(
           parsed.data.projectContextId,
           match[1],
           parsed.data.name,
+          parsed.data.expectedName,
         )
         .catch((cause) => {
           throw persistenceUnavailable(cause)

@@ -1004,7 +1004,8 @@ describe('reopened Source Document workspace', () => {
     expect(schemaNodes).toHaveLength(1)
     // A first schema is named after its Source Document.
     expect(await screen.findByRole('button', { name: 'Rename schema Beretning' })).toBeInTheDocument()
-    expect(renames).toEqual([{ projectContextId: reopened.projectContextId, name: 'Beretning' }])
+    // Fenced behind the name the server created the schema with (a later rename by anyone wins over it).
+    expect(renames).toEqual([{ projectContextId: reopened.projectContextId, name: 'Beretning', expectedName: 'Extraction Schema' }])
   })
 
   // The first generation names the schema after its Source Document; a rename through the pencil meanwhile waits for
@@ -1131,6 +1132,79 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByLabelText(/^Schema name for/)).not.toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(screen.getByRole('heading', { name: 'Ellekilde graves' })).toBeInTheDocument()
+  })
+
+  // Giving up on the first name stops the browser's waiting, not the server's write: here its PATCH reaches the server's
+  // write only after the manual rename was acknowledged. The automatic name is fenced behind the schema's creation name,
+  // so the late write changes nothing and the manual name stays durable.
+  it('a first name abandoned after its time limit cannot overwrite the manual name the server acknowledged meanwhile', async () => {
+    const schemaRevisionId = '51000000-0000-4000-8005-000000000060'
+    const extractionSchemaId = '51000000-0000-4000-8005-000000000061'
+    let serverName = 'Extraction Schema'
+    const bodies: Array<{ name: string; expectedName?: string }> = []
+    let releaseWrite: (() => void) | null = null
+    let heldWrite: Promise<void> | null = null
+    /** The server's PATCH: an unfenced rename always applies; a fenced one only while the stored name is the expected. */
+    const serverRename = (rename: { name: string; expectedName?: string }) => {
+      if (rename.expectedName === undefined || rename.expectedName === serverName) serverName = rename.name
+      return { extractionSchema: { extractionSchemaId, name: serverName, createdAt: '2026-08-09T10:00:00.000Z' } }
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.endsWith('/api/generate_schema'))
+          return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1 })
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as { schemaNodes: unknown[] }
+          return Response.json({ revision: { schemaRevisionId, extractionSchemaId, revisionNumber: 1, origin: 'suggestion',
+            createdAt: '2026-08-09T10:00:00.000Z', recordDescription: 'One site record.', recordScope: null, schemaNodes: body.schemaNodes } },
+          { status: 201 })
+        }
+        if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+        if (url.startsWith('/api/model-operations?')) return Response.json({ operations: [] })
+        if (url === `/api/extraction-schemas/${extractionSchemaId}` && init?.method === 'PATCH') {
+          const rename = JSON.parse(String(init.body)) as { name: string; expectedName?: string }
+          bodies.push(rename)
+          if (rename.name === 'Beretning') {
+            // The server's write waits; the browser gives up on it (an abort rejects only the client's promise).
+            heldWrite = new Promise<void>((resolve) => { releaseWrite = resolve }).then(() => { serverRename(rename) })
+            return new Promise<Response>((_resolve, reject) => {
+              init.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')))
+            })
+          }
+          return Response.json(serverRename(rename))
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
+    await waitFor(() => expect(bodies.map(({ name }) => name)).toEqual(['Beretning']))
+    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Custom' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    // After the time limit the manual rename goes out and the server applies it at once.
+    await waitFor(() => expect(bodies.map(({ name }) => name)).toEqual(['Beretning', 'Custom']), { timeout: 3_000 })
+    expect(await screen.findByRole('heading', { name: 'Custom' })).toBeInTheDocument()
+    expect(serverName).toBe('Custom')
+
+    // The abandoned write now reaches the server's database.
+    releaseWrite!()
+    await heldWrite
+    expect(serverName).toBe('Custom')
+    expect(bodies).toEqual([
+      { projectContextId: reopened.projectContextId, name: 'Beretning', expectedName: 'Extraction Schema' },
+      { projectContextId: reopened.projectContextId, name: 'Custom' },
+    ])
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(screen.getByRole('heading', { name: 'Custom' })).toBeInTheDocument()
   })
 
   it('saves a schema generated from excerpts with its declaration, and the reopened workspace shows it beside that source only', async () => {

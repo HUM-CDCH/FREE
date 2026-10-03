@@ -188,24 +188,28 @@ export function DocumentWorkspace({
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
   // Renames of the schema run one at a time, in the order they were asked for, so the server keeps the last one asked;
   // each records the server's answer and shows it unless a later rename has started, which shows its own. A late
-  // first-generation name can then never replace a rename the researcher made meanwhile (on screen or on the server).
+  // first-generation name can then never replace a rename the researcher made meanwhile: on screen by this order, on the
+  // server by its fence (`renameSchema`).
   const renameQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const renameSequenceRef = useRef(0)
   const durableSchemaNameRef = useRef(extractionSchema?.name ?? null)
-  /** Renames the schema; null on success, else why not. `unchangedName` is the server's name should this rename fail
-   *  (the first generation's, which the server created before naming it). With `timeoutMs` the request is given up
-   *  (aborted, so it fails) once it has waited that long for its answer, and the queue goes on with the next rename: a
-   *  stalled automatic name never strands the researcher's rename behind it. Giving up stops the waiting, not
-   *  necessarily the server, which may still apply the abandoned name after the next one. The queue makes that unlikely
-   *  (the next rename is sent only once this one is given up on) but cannot exclude it. */
-  function renameSchema(extractionSchemaId: string, name: string, unchangedName?: string, timeoutMs?: number): Promise<string | null> {
+  /** Renames the schema; null on success, else why not. `expectedName` (the automatic first name only: 'Extraction
+   *  Schema', the name the server created the schema with) fences the rename on the server, which applies it only while
+   *  the schema still carries that name and otherwise answers the name as it stands; it is also the server's name
+   *  should this rename fail. With `timeoutMs` the request is given up (aborted, so it fails) once it has waited that
+   *  long for its answer, and the queue goes on with the next rename: a stalled automatic name never strands the
+   *  researcher's rename behind it. Giving up stops the waiting, not the server's write, but the fence makes that write
+   *  harmless: an abandoned automatic name reaching the database after the researcher's rename finds another name there
+   *  and changes nothing, so it can no longer overwrite a later manual name. The queue keeps the order on screen. A
+   *  researcher's own rename is never fenced. */
+  function renameSchema(extractionSchemaId: string, name: string, expectedName?: string, timeoutMs?: number): Promise<string | null> {
     const sequence = ++renameSequenceRef.current
     const request = renameQueueRef.current.then(() => {
-      if (timeoutMs === undefined) return renameExtractionSchema(projectContextId, extractionSchemaId, name)
+      if (timeoutMs === undefined) return renameExtractionSchema(projectContextId, extractionSchemaId, name, undefined, expectedName)
       // Counted from when the request is sent, not from when it joined the queue.
       const abort = new AbortController()
       const timer = setTimeout(() => abort.abort(), timeoutMs)
-      return renameExtractionSchema(projectContextId, extractionSchemaId, name, abort.signal).finally(() => clearTimeout(timer))
+      return renameExtractionSchema(projectContextId, extractionSchemaId, name, abort.signal, expectedName).finally(() => clearTimeout(timer))
     })
     renameQueueRef.current = request.catch(() => undefined)
     const latest = () => sequence === renameSequenceRef.current
@@ -216,7 +220,7 @@ export function DocumentWorkspace({
         return null
       },
       (error: unknown) => {
-        if (unchangedName !== undefined) durableSchemaNameRef.current = unchangedName
+        if (expectedName !== undefined) durableSchemaNameRef.current = expectedName
         if (latest()) setSchemaName(durableSchemaNameRef.current)
         return error instanceof Error ? error.message : 'Schema could not be renamed.'
       },

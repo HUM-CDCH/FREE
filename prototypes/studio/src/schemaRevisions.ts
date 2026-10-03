@@ -34,16 +34,19 @@ export async function listExtractionSchemas(
   return extractionSchemaListResponseSchema.parse(value).extractionSchemas
 }
 
+/** With `expectedName` the server renames only while the schema still carries that name, and otherwise answers the
+ *  schema's name as it stands. */
 export async function renameExtractionSchema(
   projectContextId: string,
   extractionSchemaId: string,
   name: string,
   signal?: AbortSignal,
+  expectedName?: string,
 ) {
   const response = await authenticatedFetch(`/api/extraction-schemas/${extractionSchemaId}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ projectContextId, name }),
+    body: JSON.stringify(expectedName === undefined ? { projectContextId, name } : { projectContextId, name, expectedName }),
     signal,
   })
   const value = await body(response)

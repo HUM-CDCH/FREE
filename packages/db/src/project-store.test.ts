@@ -1378,6 +1378,47 @@ describe('ResearcherProjectStore Schema Revisions', () => {
     assert.equal(database.tables.ExtractionSchema[0].name, 'Historic places')
   })
 
+  // The automatic first name is fenced behind the name the schema was created with: once anything else renamed it, the
+  // fenced rename changes nothing and answers the name as it stands. An unfenced (a researcher's) rename always applies.
+  it('applies a fenced rename only while the schema still carries the expected name', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const places = {
+      extractionSchemaId: SCHEMA,
+      createdAt: new Date('2026-08-01T11:10:00Z'),
+    }
+
+    assert.deepEqual(
+      await store.renameExtractionSchema(PROJECT, SCHEMA, 'Beretning', 'Extraction Schema'),
+      { ...places, name: 'Places' },
+    )
+    assert.equal(database.tables.ExtractionSchema[0].name, 'Places')
+    assert.deepEqual(
+      await store.renameExtractionSchema(PROJECT, SCHEMA, 'Beretning', '  Places  '),
+      { ...places, name: 'Beretning' },
+    )
+    assert.equal(database.tables.ExtractionSchema[0].name, 'Beretning')
+    assert.deepEqual(
+      await store.renameExtractionSchema(PROJECT, SCHEMA, 'Custom'),
+      { ...places, name: 'Custom' },
+    )
+    assert.equal(database.tables.ExtractionSchema[0].name, 'Custom')
+    assert.equal(
+      await store.renameExtractionSchema(PROJECT, '51000000-0000-4000-8003-000000000099', 'Unknown', 'Custom'),
+      null,
+    )
+    assert.equal(
+      await store.renameExtractionSchema(PROJECT, '51000000-0000-4000-8003-000000000002', 'Not here', 'Other schema'),
+      null,
+    )
+    assert.equal(
+      await store.renameExtractionSchema(OTHER_PROJECT, SCHEMA, 'Not owned', 'Custom'),
+      null,
+    )
+    assert.equal(database.tables.ExtractionSchema[0].name, 'Custom')
+    assert.equal(database.tables.ExtractionSchema[1].name, 'Other schema')
+  })
+
   it('deletes only an owned Source Document without exposing package metadata', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)

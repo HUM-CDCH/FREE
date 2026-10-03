@@ -106,6 +106,32 @@ describe('PATCH /api/extraction-schemas/:id', () => {
       PROJECT,
       SCHEMA,
       'Historic places',
+      undefined,
+    )
+  })
+
+  // The automatic first name is fenced behind the schema's creation name; a rename it no longer applies to answers the
+  // schema's name as it stands, with 200: superseded, not failed.
+  it('passes a fence to the store and answers the name as it stands when the fence no longer holds', async () => {
+    const renameExtractionSchema = vi.fn(async () => ({
+      extractionSchemaId: SCHEMA,
+      name: 'Custom',
+      createdAt: schemas[0].createdAt,
+    }))
+    const PATCH = createPatchExtractionSchema({ renameExtractionSchema })
+    const response = await PATCH(
+      request({ projectContextId: PROJECT, name: 'Beretning', expectedName: 'Extraction Schema' }),
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      extractionSchema: { extractionSchemaId: SCHEMA, name: 'Custom' },
+    })
+    expect(renameExtractionSchema).toHaveBeenCalledWith(
+      PROJECT,
+      SCHEMA,
+      'Beretning',
+      'Extraction Schema',
     )
   })
 
@@ -114,6 +140,8 @@ describe('PATCH /api/extraction-schemas/:id', () => {
       renameExtractionSchema: vi.fn(async () => null),
     })
     expect((await missing(request({ projectContextId: PROJECT, name: '' }))).status).toBe(422)
+    for (const expectedName of ['', '   ', 'x'.repeat(513), 42, null])
+      expect((await missing(request({ projectContextId: PROJECT, name: 'Valid', expectedName }))).status, String(expectedName)).toBe(422)
     expect((await missing(request({ projectContextId: PROJECT, name: 'Valid' }))).status).toBe(404)
 
     const unavailable = createPatchExtractionSchema({

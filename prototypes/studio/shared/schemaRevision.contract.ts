@@ -82,6 +82,8 @@ export const extractionSchemaWriteRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
     name: extractionSchemaNameSchema,
+    /** The rename applies only while the schema still carries this name; omitted, it applies regardless. */
+    expectedName: extractionSchemaNameSchema.optional(),
   })
   .strict()
 export const extractionSchemaResponseSchema = z
