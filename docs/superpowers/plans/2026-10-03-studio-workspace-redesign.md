@@ -28,20 +28,21 @@
 
 1. **`SavedMethodSummary` is not deleted.** The spec's Files section deletes it, but `projectContexts/BatchExtractionsPanel.tsx` renders its `panel` variant twice and the project page is out of scope. Ruling: delete the `toolbar` variant and the `variant` prop; keep the component for the batch panel. Costs one small file if wrong.
 2. **The tab-strip slot shows the save state only while it blocks or is in flight** (`SchemaSaveStatus` already renders nothing once saved). §1 puts "the schema save state" in the slot and §5 puts "Saved · revision 3" in the panel footer; both hold when the slot carries the transient states and the footer the persistent one.
-3. **The snapshot `<select>` ("Latest attempt / Latest reviewed"), the "Open latest reviewed" button and the indexing status leave the tab strip** (§1: "Nothing else") and render at the right of the Results tab header, which is where they decide what is shown. The indexing status also stays in the Run button's disabled `title`.
+3. **The snapshot `<select>` ("Latest attempt / Latest reviewed") and the "Open latest reviewed" button leave the tab strip** (§1: "Nothing else") and render at the right of the Results tab header, which is where they decide what is shown. **The indexing status stays in the tab-strip slot as transient text** beside the save state, the same class of status Ruling 2 keeps there, because it gates Run while the researcher is on the Schema tab; it also stays in the Run button's disabled `title`. Controller default of the 2026-10-03 plan review, pending the user's review of the resulting UI.
 4. **The undo toast for a deleted field is hosted by the schema panel itself**, docked above the composer, through the same `Toast` primitive that replaces the inline toast of `App.tsx` (§6: "the existing showToast with an action slot added"). The panel also renders inside the batch panel, which has no document toast; one host inside the panel serves both and keeps the toast next to the action.
-5. **"Start blank" initialises a durable schema with no fields** (`schemaNodesSchema` allows an empty array) **and the record description "Untitled record"** (`recordDescriptionSchema` requires at least one character); the panel then renames it "Untitled schema". The researcher replaces both.
+5. **"Start blank" initialises a durable schema with no fields** (`schemaNodesSchema` allows an empty array) **and the record description "Untitled record"** (`recordDescriptionSchema` requires at least one character); the panel then renames it "Untitled schema" and focuses the description textarea with its text selected, so the first keystroke replaces the placeholder before it can reach a model as prompt input. The researcher replaces both. Controller default of the 2026-10-03 plan review, pending the user's review of the resulting UI.
 6. **Default names are set by the client.** The server names every new Extraction Schema "Extraction Schema" (`project-store.ts`); the client renames it through the existing `PATCH /api/extraction-schemas/:id` right after the first generation or import, to the Source Document's file name without its extension (`defaultSchemaName`). A failed rename keeps the server's name; nothing else fails.
 7. **`method_changed` is told apart from the other refusals** by passing the refusal code to `onMethodChanged` (one extra argument in `useExtraction.ts`); migration and record-scope refusals show their message as a toast, since the summary that showed them is gone.
 8. **The collapsed rail's monogram is an inline SVG** (`FreeMonogram.tsx`: a 24px rounded square in accent with a white "F"); there is no monogram asset and no new file may be added under `public/` without a designer's mark.
 9. **Undo restores the removed subtree at its old parent and index** (`restoreSchemaNode`), not the whole previous tree, so edits made after the delete survive. When the parent is gone or the name is now taken, the commit fails and the toast says "Could not restore the field" (spec, Error handling).
 10. **Type pill words:** `string`, `number`, `integer`, `boolean`, `date`, `verbatim` (for `verbatim-string`), `object`, `list of <plural item type>` (`list of strings`, `list of dates`), `list of objects`; a collapsed group appends ` · n fields` (spec §6 item 2 and 4).
+11. **Defaults taken at the 2026-10-03 plan review, for the user to judge on the resulting UI:** §10's mapping is kept as the spec writes it, so Sign in, Retry, Continue and "Create project" render as outline (`secondary`) buttons; the row keyboard binds Delete only (the spec's key; Backspace is not bound); the group disclosure is a 24px target (`size-6`), the spec's floor; the indexing status stays in the slot (Ruling 3); Start blank focuses the description (Ruling 5).
 
 ## Review Focus
 
 1. **The saved-method read fails at the click** (network error on `/api/model_config`): nothing starts, the toast says "Saved advanced settings could not be read. Nothing was started." — Task 4.
 2. **Undo after the parent group was deleted or the name was re-used**: no field appears twice, the toast says "Could not restore the field" — Task 6.
-3. **A thumbnail render rejects** (`getPage` throws, no 2D context, no `createImageBitmap`): the card shows the number, navigation and keyboard still work — Task 5.
+3. **A thumbnail render rejects** (`getPage` or `render` rejects, no `createImageBitmap`, or the card's own 2D context is missing): the card shows the number, navigation and keyboard still work — Task 5.
 4. **The page input receives `0`, `999` or `abc`**: nothing navigates, the field resets to the current page on blur — Task 4.
 5. **A pending proposal with the drawer collapsed**: the dot marks it and the Apply / Discard bar is reachable again on reopen; a collapse never discards — Task 7.
 
@@ -49,9 +50,9 @@
 
 ## File structure
 
-New: `src/ui/Toast.tsx`, `src/ui/Toast.test.tsx`, `src/useToast.ts`, `src/FreeMonogram.tsx`, `src/schemaNames.ts`, `src/schemaNames.test.ts`, `src/resultsBadge.ts`, `src/resultsBadge.test.ts`, `src/SchemaActionsMenu.tsx`, `src/PageThumbnails.ts`, `src/PageThumbnails.test.ts`, `src/PageNavigation.test.tsx`, `src/DocumentTabBar.test.tsx`, `src/ui/Button.test.tsx`, `src/FieldRow.tsx` (the field row, extracted from `SchemaPanel.tsx`), `src/fieldTypeWords.ts`, `src/fieldTypeWords.test.ts`, `src/ChatDrawer.tsx`.
+New: `src/ui/Toast.tsx`, `src/ui/Toast.test.tsx`, `src/useToast.ts`, `src/FreeMonogram.tsx`, `src/schemaNames.ts`, `src/schemaNames.test.ts`, `src/resultsBadge.ts`, `src/resultsBadge.test.ts`, `src/ActionsMenu.tsx`, `src/PagePager.tsx`, `src/PageThumbnails.ts`, `src/PageThumbnails.test.ts`, `src/PageNavigation.test.tsx`, `src/DocumentTabBar.test.tsx`, `src/ui/Button.test.tsx`, `src/FieldRow.tsx` (the field row, extracted from `SchemaPanel.tsx`), `src/fieldTypeWords.ts`, `src/fieldTypeWords.test.ts`, `src/ChatDrawer.tsx`.
 
-Edited: `src/index.css`, `DESIGN.md`, `src/ui/README.md`, `src/ui/Button.tsx`, `src/ui/index.ts`, `src/ui/ResultValue.tsx`, `src/App.tsx`, `src/AppFrame.tsx`, `src/DocumentTabBar.tsx`, `src/PageNavigation.tsx`, `src/RightRail.tsx`, `src/SchemaPanel.tsx`, `src/SchemaNameEditor.tsx`, `src/SchemaInstructions.tsx`, `src/SchemaSaveStatus.tsx`, `src/SchemaImport.tsx`, `src/SavedMethodSummary.tsx`, `src/ResultsTab.tsx`, `src/ReviewAttention.tsx`, `src/useExtraction.ts`, `src/schemaEditorTree.ts`, the 20 `variant="primary"` call sites (Task 1), and the tests beside each; `e2e/canonical-evidence-lifecycle.spec.ts`, `e2e/real-application-route.spec.ts`, `e2e/interactive-reload.spec.ts`, `e2e/interactive-restart.spec.ts`.
+Edited: `src/index.css`, `DESIGN.md`, `src/ui/README.md`, `src/ui/Button.tsx`, `src/ui/index.ts`, `src/ui/ResultValue.tsx`, `src/ui/Pill.tsx`, `src/App.tsx`, `src/AppFrame.tsx`, `src/DocumentTabBar.tsx`, `src/PageNavigation.tsx`, `src/RightRail.tsx`, `src/SchemaPanel.tsx`, `src/SchemaNameEditor.tsx`, `src/SchemaInstructions.tsx`, `src/SchemaSaveStatus.tsx`, `src/SchemaImport.tsx`, `src/SavedMethodSummary.tsx`, `src/ResultsTab.tsx`, `src/ReviewAttention.tsx`, `src/useExtraction.ts`, `src/schemaEditorTree.ts`, `src/currentSchemaRevision.ts`, the 20 `variant="primary"` call sites (Task 1), and the tests beside each; `e2e/canonical-evidence-lifecycle.spec.ts`, `e2e/real-application-route.spec.ts`, `e2e/interactive-reload.spec.ts`, `e2e/interactive-restart.spec.ts`.
 
 Deleted: nothing whole (see Ruling 1). Removed inside files: the breadcrumb row, the floating hint pill, the toolbar strategy and boundaries selects, the toolbar `SavedMethodSummary`, the selection checkboxes and bulk delete, the chat greeting bubble, the "n fields" footer, the `nyt_felt` default.
 
@@ -62,6 +63,7 @@ Deleted: nothing whole (see Ruling 1). Removed inside files: the breadcrumb row,
 **Files:**
 - Modify: `prototypes/studio/src/index.css:6-45` (`@theme`)
 - Modify: `prototypes/studio/src/ui/Button.tsx`
+- Modify: `prototypes/studio/src/ui/Pill.tsx` (its hardcoded `text-[10.5px]` becomes `text-overline`)
 - Create: `prototypes/studio/src/ui/Button.test.tsx`
 - Modify: the 20 `variant="primary"` call sites listed in Step 5
 - Modify: `prototypes/studio/DESIGN.md` (§2 Rules, §3 Scale, §5 Action Button), `prototypes/studio/src/ui/README.md` (Button row)
@@ -160,6 +162,8 @@ export default Button
   --text-overline: 10.5px;
 ```
 
+Then in `src/ui/Pill.tsx` replace `text-[10.5px]` with `text-overline` (the spec's Files list names the Pill; the token exists from this step).
+
 - [ ] **Step 5: Map every `variant="primary"`** (grep `variant="primary"` under `src`, excluding tests; 20 hits at the base commit):
 
 | File | Button | New variant |
@@ -196,7 +200,7 @@ Expected: all pass (no test asserts the old `bg-accent` fill on a primary button
 - [ ] **Step 8: Commit**
 
 ```bash
-git add prototypes/studio/src/index.css prototypes/studio/src/ui/Button.tsx prototypes/studio/src/ui/Button.test.tsx prototypes/studio/src/ui/README.md prototypes/studio/DESIGN.md <the 20 mapped files>
+git add prototypes/studio/src/index.css prototypes/studio/src/ui/Button.tsx prototypes/studio/src/ui/Pill.tsx prototypes/studio/src/ui/Button.test.tsx prototypes/studio/src/ui/README.md prototypes/studio/DESIGN.md <the 20 mapped files>
 git commit -m "feat(studio): green positive and red danger button variants; rail type tokens
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
@@ -349,7 +353,7 @@ Import `Toast` from `./ui`.
 **Files:**
 - Create: `prototypes/studio/src/ActionsMenu.tsx`, `prototypes/studio/src/schemaNames.ts`, `prototypes/studio/src/schemaNames.test.ts`
 - Modify: `prototypes/studio/src/SchemaPanel.tsx` (header 1377-1440, empty state 1511-1518, record description 1612-1633, chat-header controls 1724-1794, footer 1861-1873, `view` state), `prototypes/studio/src/SchemaNameEditor.tsx:39-40`, `prototypes/studio/src/SchemaSaveStatus.tsx`, `prototypes/studio/src/SchemaInstructions.tsx` (delete `InstructionCount`), `prototypes/studio/src/SchemaImport.tsx` (an `onConfirmed` callback), `prototypes/studio/src/RightRail.tsx` (two pass-through props), `prototypes/studio/src/App.tsx:497-500, 1064-1081` (default name after generation; rename reads the live snapshot)
-- Test: `prototypes/studio/src/SchemaPanel.test.tsx`, `prototypes/studio/src/App.test.tsx`, `prototypes/studio/e2e/interactive-reload.spec.ts`, `prototypes/studio/e2e/interactive-restart.spec.ts`
+- Test: `prototypes/studio/src/SchemaPanel.test.tsx`, `prototypes/studio/src/App.test.tsx`, `prototypes/studio/e2e/interactive-reload.spec.ts`, `prototypes/studio/e2e/interactive-restart.spec.ts`, `prototypes/studio/e2e/schema-order-lifecycle.spec.ts`, `prototypes/studio/src/projectContexts/BatchExtractionsPanel.test.tsx`
 
 **Interfaces:**
 - Consumes: `Button` variants and `text-*` tokens (Task 1); `SchemaEditorController.confirmDefinition`, `setRecordScope`, `flush`, `snapshot().save` (`SchemaSaveState` has `status` `'saved' | 'dirty' | 'saving' | 'error' | 'conflict'` and `acknowledged.revisionNumber`).
@@ -424,7 +428,7 @@ describe('schema header (redesign §5)', () => {
     expect(screen.queryByText(/\d+ fields?\s*$/)).not.toBeInTheDocument()
   })
 
-  it('the empty state offers Generate and Start blank; Start blank creates an empty schema named Untitled schema', async () => {
+  it('the empty state offers Generate and Start blank; Start blank creates an empty schema named Untitled schema and focuses its description', async () => {
     const onRenameSchema = vi.fn(async () => null)
     const onGenerateInstructions = vi.fn()
     const setup = renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions, onRenameSchema, schemaName: null })
@@ -434,6 +438,9 @@ describe('schema header (redesign §5)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start blank' }))
     await waitFor(() => expect(setup.initialized).toEqual([{ recordDescription: 'Untitled record', schemaNodes: [] }]))
     await waitFor(() => expect(onRenameSchema).toHaveBeenCalledWith('Untitled schema'))
+    const description = (await screen.findByLabelText('What one record is')) as HTMLTextAreaElement
+    await waitFor(() => expect(description).toHaveFocus())
+    expect(description.value.slice(description.selectionStart, description.selectionEnd)).toBe('Untitled record')
   })
 
   it('History, Regenerate and Clear schema open dialogs from the actions menu', async () => {
@@ -579,7 +586,7 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
 
 - [ ] **Step 6: `SchemaPanel.tsx` header, line two, description, footer, empty state, menu.** In order:
 
-1. Props: add `recordScope` and `boundaries` (interfaces above) to `SchemaPanelProps` and the destructuring. Rename the view state to `useState<'fields' | 'code'>('fields')`; every `'json'` becomes `'code'`.
+1. Props: add `recordScope` and `boundaries` (interfaces above) to `SchemaPanelProps` and the destructuring. Rename the view state to `useState<'fields' | 'code'>('fields')`; every `'json'` becomes `'code'`. The code view's three researcher-facing messages lose the word JSON (Global Constraints): line 1585 `'JSON must be an object'` → `'The code must describe one object'`; line 1587's commit label `'✎ Schema updated via JSON editor'` → `'✎ Schema updated from the code view'`; line 1591 `'Invalid JSON'` → `'The code could not be read'`. Any test asserting the old strings follows.
 2. Imports: `import { Button, EmptyState, ModalDialog, SegmentedControl } from './ui'`, `import ActionsMenu, { type ActionItem } from './ActionsMenu'`, `import { UNTITLED_SCHEMA_NAME } from './schemaNames'`, `import type { RecordScope } from 'extraction/schema'`. Drop `InstructionCount` from the `./SchemaInstructions` import and delete that component from `SchemaInstructions.tsx`.
 3. Replace the header (1377-1440) with:
 
@@ -651,7 +658,7 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
       </header>
 ```
 
-4. `menuItems`, the dialogs and `startBlank`, placed after `deleteSchema()`:
+4. `menuItems`, the dialogs and `startBlank`, placed after `deleteSchema()` (`useRef` and `useEffect` join the React import if missing):
 
 ```tsx
   const [regenerateOpen, setRegenerateOpen] = useState(false)
@@ -667,12 +674,24 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
     { id: 'clear', label: 'Clear schema', tone: 'danger' as const, divider: true, onSelect: () => setConfirmingDeleteSchema(true) },
   ]
 
-  /** A durable schema with no fields yet: the researcher names it and describes the record (Ruling 5). */
+  /** A durable schema with no fields yet: the researcher names it and describes the record (Ruling 5). The description
+   *  textarea is focused with its placeholder text selected once the panel is ready, so typing replaces it. */
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
+  const [focusDescriptionOnReady, setFocusDescriptionOnReady] = useState(false)
+  useEffect(() => {
+    if (!focusDescriptionOnReady || !ready || !descriptionRef.current) return
+    descriptionRef.current.focus()
+    descriptionRef.current.select()
+    setFocusDescriptionOnReady(false)
+  }, [focusDescriptionOnReady, ready])
+
   async function startBlank() {
     setMutationError(null)
     try {
       await schema.confirmDefinition({ recordDescription: 'Untitled record', schemaNodes: [] })
-      await onRenameSchema?.(UNTITLED_SCHEMA_NAME)
+      setFocusDescriptionOnReady(true)
+      const rejected = await onRenameSchema?.(UNTITLED_SCHEMA_NAME)
+      if (rejected) setMutationError(rejected)
     } catch (error) {
       setMutationError(error instanceof Error ? error.message : 'The schema could not be created.')
     }
@@ -706,6 +725,7 @@ Render the three dialogs at the end of the component (before the drag chip), eac
                 <p className="mt-1 text-secondary leading-relaxed text-ink-muted">{recordDescriptionDraft}</p>
               ) : (
                 <textarea
+                  ref={descriptionRef}
                   className="mt-1 block w-full resize-none rounded-[3px] border border-line bg-transparent px-2 py-1 text-secondary leading-relaxed text-ink outline-none transition-colors placeholder:text-ink-faint hover:border-line-strong focus:border-line-strong"
                   rows={Math.min(6, Math.max(2, recordDescriptionDraft.split('\n').length))}
                   value={recordDescriptionDraft}
@@ -766,7 +786,7 @@ Render the three dialogs at the end of the component (before the drag chip), eac
 **Files:**
 - Create: `prototypes/studio/src/FreeMonogram.tsx`, `prototypes/studio/src/resultsBadge.ts`, `prototypes/studio/src/resultsBadge.test.ts`, `prototypes/studio/src/DocumentTabBar.test.tsx`, `prototypes/studio/src/PagePager.tsx`
 - Modify: `prototypes/studio/src/AppFrame.tsx:426-453, 510-540`, `prototypes/studio/src/DocumentTabBar.tsx`, `prototypes/studio/src/App.tsx` (the portal slot 820-978, `runExtraction` 691-752, `runExtractionUnavailable`/`runLabel`/`hintText` 759-805, the work surface 979-1021, the `RightRail` props), `prototypes/studio/src/RightRail.tsx` (badge; `resultsHeaderExtras`), `prototypes/studio/src/ResultsTab.tsx:734-739` (`headerExtras`), `prototypes/studio/src/useExtraction.ts:60-61, 99, 463-469`, `prototypes/studio/src/SavedMethodSummary.tsx` (toolbar variant removed), `prototypes/studio/src/projectContexts/BatchExtractionsPanel.tsx:1077, 1336` (drop `variant`)
-- Test: `prototypes/studio/src/App.test.tsx`, `prototypes/studio/src/useExtraction.test.tsx`, `prototypes/studio/src/SavedMethodSummary.test.tsx`, `prototypes/studio/src/RightRail.test.tsx`, `prototypes/studio/e2e/canonical-evidence-lifecycle.spec.ts`, `prototypes/studio/e2e/real-application-route.spec.ts`
+- Test: `prototypes/studio/src/App.test.tsx`, `prototypes/studio/src/useExtraction.test.tsx`, `prototypes/studio/src/SavedMethodSummary.test.tsx`, `prototypes/studio/src/RightRail.test.tsx`, `prototypes/studio/e2e/canonical-evidence-lifecycle.spec.ts`, `prototypes/studio/e2e/real-application-route.spec.ts`, `prototypes/studio/e2e/critical-flows.spec.ts`, `prototypes/studio/e2e/interactive-restart.spec.ts`, `prototypes/studio/e2e/project-navigation.spec.ts`
 
 **Interfaces:**
 - Consumes: `Button variant="positive"` (Task 1), `useToast`/`Toast` (Task 2), `RightRailProps.recordScope`/`boundaries` (Task 3).
@@ -874,6 +894,28 @@ Add to `App.test.tsx` (inside `describe('reopened Source Document workspace')`, 
     await waitFor(() => expect(posts).toHaveLength(2))
     expect(saved.refresh).toHaveBeenCalledTimes(2)
     expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+  })
+
+  it('a failed read of the saved method starts nothing and says so (Review Focus 1)', async () => {
+    saved.refresh.mockResolvedValueOnce(null)
+    const posts: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        posts.push(url)
+        return Promise.resolve(new Response('unexpected', { status: 500 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    expect(await screen.findByText('Saved advanced settings could not be read. Nothing was started.')).toBeInTheDocument()
+    expect(posts).toHaveLength(0)
     expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
   })
 
@@ -1088,8 +1130,12 @@ export default function PagePager({ page, pageCount, onNavigate }: { page: numbe
 ```tsx
       {tabBarSlot && createPortal(
         <>
-          {/* A scope choice saves at once; field edits wait out the debounce. Run waits for either, and a failed save
+          {/* Transient status only (Rulings 2 and 3): the indexing state while it runs, then the save state. A scope choice saves at once; field edits wait out the debounce. Run waits for either, and a failed save
               blocks it until Retry saves the latest draft and scope. Saved, this renders nothing (the panel footer says so). */}
+          {indexing && <span className="shrink-0 text-compact font-medium text-ink-muted">Indexing document…</span>}
+          {docIndex.status === 'error' && (
+            <span className="shrink-0 text-compact font-medium text-danger" title={docIndex.message}>Indexing failed</span>
+          )}
           <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
           <Button
             variant="positive"
@@ -1152,10 +1198,6 @@ export default function PagePager({ page, pageCount, onNavigate }: { page: numbe
 ```tsx
               resultsHeaderExtras={
                 <>
-                  {indexing && <span className="text-compact font-medium text-ink-muted">Indexing document…</span>}
-                  {docIndex.status === 'error' && (
-                    <span className="text-compact font-medium text-danger" title={docIndex.message}>Indexing failed</span>
-                  )}
                   {inspectionChoices.length > 1 && (
                     <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''}
                       onChange={(event) => setSelectedInspectionId(event.target.value)}
@@ -1174,7 +1216,7 @@ export default function PagePager({ page, pageCount, onNavigate }: { page: numbe
 
 - [ ] **Step 9: `SavedMethodSummary.tsx`**: remove the `variant` prop and the `toolbar` branches (the `details` is `text-secondary`, the body `mt-1 rounded-md border border-line bg-surface p-3`); `BatchExtractionsPanel.tsx:1077, 1336` drop `variant="panel"`; `SavedMethodSummary.test.tsx` second case renders without `variant`.
 
-- [ ] **Step 10: Update tests and e2e.** `App.test.tsx`: 469 `findByText('3 pages')` → `findByText('/ 3')`; 1223 and 2475 → the new toast copy; 1346-1406 `getByLabelText('Extraction strategy')` → `getByLabelText('Record scope')`, `'Record boundaries'` → `'Boundaries'`; 1408-1437 delete the `Saved advanced settings` click and the `Unified Catalog, defaults version 1` assertion, expect `extractionRequests` to have length 2 (the retry) each matching the unified method, and the toast "Your saved settings changed. Run again."; 2061 delete the `Saved advanced settings` assertion; 2712 delete the hint assertion; 2816 click the Results tab before looking for "Open latest reviewed"; any `getByText('Indexing document…')` waits keep working (the text now lives in the Results header, still in the document). `RightRail.test.tsx`: `defaultController` is unchanged; a case asserting the `✓` badge, if any, asserts "n to check". `e2e/canonical-evidence-lifecycle.spec.ts`: 268 and 939 `'6 pages'` → `page.getByText('/ 6', { exact: true })`; 278, 318, 672, 688, 694, 729, 813 `combobox 'Extraction strategy'` → `combobox 'Record scope'`; 280 and 323: replace the `'↻ Re-run extraction'` visibility wait with `await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toBeVisible({ timeout: 20_000 })` followed by `await page.getByRole('button', { name: 'Dismiss', exact: true }).click()` at 280 only (329-331 already assert and use that dialog for the second document — keep those); 673, 730 `'↻ Re-run extraction'` → `'▶ Run extraction'`; 814, 835 → `{ name: '▶ Run extraction' }`; delete 379-384 (the saved-settings summary no longer exists; keep the review-progress, approve-remaining and scroll-width checks); 642-645: insert `await freshPage.getByRole('tab', { name: /Results/ }).click()` before the "Open latest reviewed" click. `e2e/real-application-route.spec.ts`: 216, 227, 332 `'Extraction strategy'` → `'Record scope'`.
+- [ ] **Step 10: Update tests and e2e.** `App.test.tsx`: 469 `findByText('3 pages')` → `findByText('/ 3')`; 1223 and 2475 → the new toast copy; 1346-1406 `getByLabelText('Extraction strategy')` → `getByLabelText('Record scope')`, `'Record boundaries'` → `'Boundaries'`; 1408-1437 delete the `Saved advanced settings` click and the `Unified Catalog, defaults version 1` assertion, expect `extractionRequests` to have length 2 (the retry) each matching the unified method, and the toast "Your saved settings changed. Run again."; 2061 delete the `Saved advanced settings` assertion; 2712 delete the hint assertion; 2816 click the Results tab before looking for "Open latest reviewed"; the `Indexing document…` text stays in the slot (Ruling 3), so those waits are unchanged. `RightRail.test.tsx`: `defaultController` is unchanged; a case asserting the `✓` badge, if any, asserts "n to check". `e2e/canonical-evidence-lifecycle.spec.ts`: 268 and 939 `'6 pages'` → `page.getByText('/ 6', { exact: true })`; 278, 318, 672, 688, 694, 729, 813 `combobox 'Extraction strategy'` → `combobox 'Record scope'`; 280 and 323: replace the `'↻ Re-run extraction'` visibility wait with `await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toBeVisible({ timeout: 20_000 })` followed by `await page.getByRole('button', { name: 'Dismiss', exact: true }).click()` at 280 only (329-331 already assert and use that dialog for the second document — keep those); 673, 730 `'↻ Re-run extraction'` → `'▶ Run extraction'`; 814, 835 → `{ name: '▶ Run extraction' }`; delete 379-384 (the saved-settings summary no longer exists; keep the review-progress, approve-remaining and scroll-width checks); 642-645: insert `await freshPage.getByRole('tab', { name: /Results/ }).click()` before the "Open latest reviewed" click. `e2e/real-application-route.spec.ts`: 216, 227, 332 `'Extraction strategy'` → `'Record scope'`. The `'6 pages'` wait also lives in `e2e/critical-flows.spec.ts:109`, `e2e/interactive-restart.spec.ts:105` and `e2e/project-navigation.spec.ts:1089, 1120`: each becomes `page.getByText('/ 6', { exact: true })` (three of these specs run in Task 10's gates).
 
 - [ ] **Step 11: Verify** — `pnpm -C prototypes/studio typecheck && pnpm -C prototypes/studio lint && pnpm -C prototypes/studio exec vitest run src/resultsBadge.test.ts src/DocumentTabBar.test.tsx src/App.test.tsx src/useExtraction.test.tsx src/SavedMethodSummary.test.tsx src/RightRail.test.tsx src/ProjectNavigation.test.tsx src/projectContexts` → pass. `grep -n "hintText\|SavedMethodSummary\|Extraction strategy\|Breadcrumb" prototypes/studio/src/App.tsx prototypes/studio/src/DocumentTabBar.tsx` → nothing.
 
@@ -1190,7 +1232,7 @@ export default function PagePager({ page, pageCount, onNavigate }: { page: numbe
 - Test: `prototypes/studio/src/App.test.tsx` (the keyboard case at 1321 keeps passing)
 
 **Interfaces:**
-- Consumes: the viewer's `pdfjsLib.PDFDocumentProxy` (`getPage(n)` → `getViewport({ scale })`, `render({ canvasContext, viewport }).promise`).
+- Consumes: the viewer's `pdfjsLib.PDFDocumentProxy` (`getPage(n)` → `getViewport({ scale })`, `render({ canvas, viewport }).promise`; in pdfjs-dist 6 `RenderParameters.canvas` is required and `canvasContext` is only a deprecated compatibility path, so passing the context alone fails `typecheck`).
 - Produces: `createThumbnailRenderer(pdf, paint?) : ThumbnailRenderer` with `ThumbnailRenderer = { render(page: number): Promise<ImageBitmap | null>; dispose(): void }` and `THUMBNAIL_SCALE = 0.12`; `PageNavigation` gains the prop `thumbnails: ThumbnailRenderer | null`; each page card is `button[aria-label="Go to page n"]` holding `canvas[data-thumbnail="pending" | "drawn" | "unavailable"]` and the page number.
 
 - [ ] **Step 1: Write the failing tests.** `src/PageThumbnails.test.ts`:
@@ -1308,9 +1350,8 @@ async function paintPage(pdf: ThumbnailSource, pageNumber: number): Promise<Imag
   const canvas = document.createElement('canvas')
   canvas.width = Math.ceil(viewport.width)
   canvas.height = Math.ceil(viewport.height)
-  const context = canvas.getContext('2d')
-  if (!context) return null
-  await page.render({ canvasContext: context, viewport }).promise
+  // pdfjs-dist 6: `canvas` is the required render target; `canvasContext` survives only as a deprecated path.
+  await page.render({ canvas, viewport }).promise
   return typeof createImageBitmap === 'function' ? createImageBitmap(canvas) : null
 }
 
@@ -1484,8 +1525,8 @@ export function PageNavigation({ id, pageCount, currentPage, onNavigate, onClose
 
 **Files:**
 - Create: `prototypes/studio/src/FieldRow.tsx`, `prototypes/studio/src/fieldTypeWords.ts`, `prototypes/studio/src/fieldTypeWords.test.ts`
-- Modify: `prototypes/studio/src/SchemaPanel.tsx` (delete `AllowedValuesBadge` 137-161, `FieldTypeBadge` 224-244, `fieldTypeLabel`, `subtreeIdsOf`, `bulkRemoveNodes` 914-927, `toggleSelected` 929-940, the selection bar 1635-1657, the `selectedIds` state and its resets; merge `renderRootField`/`renderChildField` 1108-1370 into one `renderField`; `addField` 957-968; `saveEdit` 870; `FieldEditForm` Save button 361), `prototypes/studio/src/schemaEditorTree.ts` (export `restoreSchemaNode`)
-- Test: `prototypes/studio/src/SchemaPanel.test.tsx`, `prototypes/studio/src/schemaEditorTree.test.ts`, `prototypes/studio/src/App.test.tsx`
+- Modify: `prototypes/studio/src/SchemaPanel.tsx` (delete `AllowedValuesBadge` 137-161, `FieldTypeBadge` 224-244, `fieldTypeLabel`, `subtreeIdsOf`, `bulkRemoveNodes` 914-927, `toggleSelected` 929-940, the selection bar 1635-1657, the `selectedIds` state and its resets; merge `renderRootField`/`renderChildField` 1108-1370 into one `renderField`; `addField` 957-968; `saveEdit` 870; `FieldEditForm` Save button 361), `prototypes/studio/src/schemaEditorTree.ts` (export `restoreSchemaNode`), `prototypes/studio/src/currentSchemaRevision.ts:435` (an empty commit label is not announced)
+- Test: `prototypes/studio/src/SchemaPanel.test.tsx`, `prototypes/studio/src/schemaEditorTree.test.ts`, `prototypes/studio/src/currentSchemaRevision.test.ts`, `prototypes/studio/src/App.test.tsx`
 
 **Interfaces:**
 - Consumes: `Toast`/`useToast` (Task 2), `Pill` (`tone="neutral"`, `outline`), `PencilIcon` from `./ui/ResultValue`, `removeSchemaNode`.
@@ -1536,6 +1577,17 @@ describe('restoreSchemaNode', () => {
 })
 ```
 
+Add to `src/currentSchemaRevision.test.ts` (beside "drops the extractable revision after a valid mutation", reusing `setupDurable`, `revision` and `node`):
+
+```ts
+  it('an empty commit label is not announced: the caller shows its own notice', () => {
+    const setup = setupDurable({ initial: revision(1, 'site') })
+    expect(setup.controller.commit((current) => [...current, node('year')], '')).toEqual({ ok: true })
+    expect(setup.messages).toHaveLength(0)
+    expect(setup.edits).toHaveLength(1)
+  })
+```
+
 Add to `src/SchemaPanel.test.tsx` (rows are found with `screen.getByRole('listitem', { name: 'gender' })`; the `nodes` fixture already has `gender` with two allowed values):
 
 ```tsx
@@ -1561,7 +1613,7 @@ describe('field rows (redesign §6)', () => {
     fireEvent.click(within(screen.getByRole('listitem', { name: 'title' })).getByRole('button', { name: 'Delete title' }))
     expect(screen.queryByRole('listitem', { name: 'title' })).not.toBeInTheDocument()
     expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['gender'])
-    expect(screen.getByRole('status')).toHaveTextContent('Field removed')
+    expect(screen.getByText('Field removed')).toBeInTheDocument() // not getByRole('status'): the footer's save status has that role too
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['title', 'gender'])
     expect(screen.getByRole('listitem', { name: 'title' })).toBeInTheDocument()
@@ -1572,7 +1624,7 @@ describe('field rows (redesign §6)', () => {
     fireEvent.click(within(screen.getByRole('listitem', { name: 'depth' })).getByRole('button', { name: 'Delete depth' }))
     fireEvent.click(within(screen.getByRole('listitem', { name: 'grave' })).getByRole('button', { name: 'Delete grave' }))
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
-    expect(screen.getByRole('status')).toHaveTextContent('Could not restore the field')
+    expect(screen.getByText('Could not restore the field')).toBeInTheDocument()
     expect(screen.queryByRole('listitem', { name: 'depth' })).not.toBeInTheDocument()
   })
 
@@ -1743,7 +1795,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget || readOnly || isDiff) return
           if (event.key === 'Enter') { event.preventDefault(); onEdit() }
-          else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); onDelete() }
+          else if (event.key === 'Delete') { event.preventDefault(); onDelete() }
           else if (event.key === ' ' && isGroup) { event.preventDefault(); onToggleExpanded?.() }
         }}
       >
@@ -1752,10 +1804,10 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         ) : <span className="w-3.5 shrink-0" />}
         {isGroup ? (
           <button type="button" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.name}`} aria-expanded={expanded}
-            className="grid size-5 shrink-0 cursor-pointer place-items-center text-ink-faint outline-none hover:text-accent" onClick={onToggleExpanded}>
+            className="grid size-6 shrink-0 cursor-pointer place-items-center text-ink-faint outline-none hover:text-accent" onClick={onToggleExpanded}>
             <CollapseArrow expanded={expanded} />
           </button>
-        ) : <span className="w-5 shrink-0" />}
+        ) : <span className="w-6 shrink-0" />}
         <FieldChangeLabel node={node} change={change} impliedRemoved={impliedRemoved} />
         {!isDiff && (
           <button type="button" className="shrink-0 cursor-pointer rounded-full outline-none disabled:cursor-default disabled:opacity-60"
@@ -1852,9 +1904,11 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
 ```tsx
   const { toast: panelToast, showToast: showPanelToast, dismissToast: dismissPanelToast } = useToast()
 
-  /** One click removes the field and its subtree; Undo puts it back where it was for eight seconds (§6). */
+  /** One click removes the field and its subtree; Undo puts it back where it was for eight seconds (§6). Both commits
+   *  carry an empty label: the controller toasts every non-empty label at the top of the document (`onCommitMessage`,
+   *  wired in `App.tsx`), and the panel's toast is the one notice for delete and undo. */
   function deleteField(node: SchemaNode, parentId: string | null, index: number) {
-    const result = schema.commit((current) => removeSchemaNode(current, node.id)[1], 'Field removed')
+    const result = schema.commit((current) => removeSchemaNode(current, node.id)[1], '')
     if (!result.ok) {
       setMutationError('No schema draft is open.')
       return
@@ -1866,15 +1920,16 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
       action: {
         label: 'Undo',
         onAction: () => {
-          const restored = schema.commit((current) => restoreSchemaNode(current, node, parentId, index) ?? current, 'Field restored')
-          const changed = restored.ok && (schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES).some((root) => root.id === node.id || root.children?.some((child) => child.id === node.id))
-          if (!restored.ok || !changed) showPanelToast('Could not restore the field')
+          // Computed from the live snapshot before anything is committed: an impossible restore commits nothing.
+          const current = schema.snapshot().draft?.schemaNodes
+          const restored = current ? restoreSchemaNode(current, node, parentId, index) : null
+          if (!restored || !schema.commit(() => restored, '').ok) showPanelToast('Could not restore the field')
         },
       },
     })
   }
 ```
-   (A commit that returns the tree unchanged still "succeeds"; the `changed` check tells a vanished parent from a real restore. For nodes deeper than one level, replace the inline `some` with `enumerateFieldPaths(...).some((field) => field.id === node.id)`.) The panel root `div` gains `relative`; render the toast right before the footer:
+   (`restoreSchemaNode` returns null when the parent is gone; the commit gate refuses a duplicate sibling name. Either way nothing changes and the toast says so.) In `currentSchemaRevision.ts:435` the controller skips empty labels: `options.onCommitMessage?.(message)` → `if (message) options.onCommitMessage?.(message)`. The panel root `div` gains `relative`; render the toast right before the footer:
 
 ```tsx
       {panelToast && (
@@ -1886,7 +1941,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
 5. `addField` builds `{ id, name: '', type: 'verbatim-string' as const }` (no `nyt_felt`, no suffix loop); `saveEdit` replaces `|| 'field'` with `if (!name) { setEditingError('Enter a field name.'); return }`; `FieldEditForm`'s Save button gets `disabled={!editing.name.trim()}` and `variant`-like classes stay (it is not a `Button`; convert it to `<Button variant="positive">Save</Button>` while here, and the cancel to `<Button aria-label="Cancel field edit">✗</Button>`).
 6. `DescriptionEditForm` placeholders stay (`Add another note…`, `Describe this field for the extraction model…`).
 
-- [ ] **Step 7: Verify** — `pnpm -C prototypes/studio typecheck && pnpm -C prototypes/studio lint && pnpm -C prototypes/studio exec vitest run src/fieldTypeWords.test.ts src/schemaEditorTree.test.ts src/SchemaPanel.test.tsx src/App.test.tsx src/RightRail.test.tsx src/projectContexts/BatchExtractionsPanel.test.tsx` → pass. `grep -n "selectedIds\|nyt_felt\|Add description\|fieldTypeLabel" prototypes/studio/src/SchemaPanel.tsx` → nothing.
+- [ ] **Step 7: Verify** — `pnpm -C prototypes/studio typecheck && pnpm -C prototypes/studio lint && pnpm -C prototypes/studio exec vitest run src/fieldTypeWords.test.ts src/schemaEditorTree.test.ts src/currentSchemaRevision.test.ts src/SchemaPanel.test.tsx src/App.test.tsx src/RightRail.test.tsx src/projectContexts/BatchExtractionsPanel.test.tsx` → pass. `grep -n "selectedIds\|nyt_felt\|Add description\|fieldTypeLabel" prototypes/studio/src/SchemaPanel.tsx` → nothing.
 
 - [ ] **Step 8: Commit** — `feat(studio): field rows with word pills, hover actions and one-click delete with undo`.
 
@@ -2375,4 +2430,18 @@ and after `await expect(page.getByText('Review saved', { exact: true })).toBeVis
 
 **Type consistency.** `ValueState` (Task 8) matches the spec's six states; `resultsBadgeFor` (Task 4) is the one source for the Results badge and the run button; `recordScope`/`boundaries` props keep the same names from `SchemaPanel` (Task 3) through `RightRail` to `App` (Task 4); `ThumbnailRenderer` (Task 5) is the only thumbnail contract; `ActionItem`/`ActionsMenu` (Task 3) serve the schema header and the project chip (Task 4); `restoreSchemaNode` (Task 6) is the undo primitive.
 
-**Review Focus.** Each line is pinned to a test in its task: saved-method read failure (Task 4, the retry test's sibling: make `saved.refresh` resolve `null` once and assert the toast "Saved advanced settings could not be read. Nothing was started." — add that case beside the `method_changed` test), undo conflicts (Task 6), thumbnail failures (Task 5), the pager's invalid input (Task 4), the collapsed pending proposal (Task 7).
+**Review Focus.** Each line is pinned to a test in its task: saved-method read failure (Task 4 Step 1, the case after the `method_changed` test), undo conflicts (Task 6), thumbnail failures (Task 5), the pager's invalid input (Task 4), the collapsed pending proposal (Task 7).
+
+## Plan review 2026-10-03
+
+Reviewed by the controller session before execution; every fact below was verified at b77fabb7. Patches applied in this revision:
+
+1. Every non-empty commit label is toasted at the top of the document (`currentSchemaRevision.ts:435` through `App.tsx:175`), so Task 6's panel-hosted undo toast would have spoken twice, and an impossible Undo committed the unchanged tree and announced "Field restored". Delete and restore now commit with an empty label, the controller skips empty labels, and the restore is computed from the snapshot before any commit.
+2. pdfjs-dist 6.3.289 requires `canvas` in `RenderParameters`; Task 5 renders to the canvas instead of through a context.
+3. The footer's `SchemaSaveStatus` always renders a `role="status"` span, so Task 6's tests find the toast by text.
+4. Test files the plan changed without naming them, now assigned: Task 3 → `e2e/schema-order-lifecycle.spec.ts:157, 204` and `projectContexts/BatchExtractionsPanel.test.tsx:596`; Task 4 → `e2e/critical-flows.spec.ts:109`, `e2e/interactive-restart.spec.ts:105` and `e2e/project-navigation.spec.ts:1089, 1120`.
+5. Review Focus 1's test is code in Task 4 Step 1, where its implementer sees it.
+6. File structure: `ActionsMenu.tsx` (not `SchemaActionsMenu.tsx`), `PagePager.tsx`, `ui/Pill.tsx` (Task 1) and `currentSchemaRevision.ts` (Task 6) are listed; the code view's three "JSON" messages are renamed (Task 3); `startBlank` surfaces a rejected rename.
+7. Rulings 3 and 5 re-ruled and Ruling 11 added as controller defaults, pending the user's review of the resulting UI.
+
+Left for the final review, not a gate: Task 6's `role="list"` owns generic wrappers (row, note, nested list) rather than listitems directly; no axe check runs in e2e.
