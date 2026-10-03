@@ -5,6 +5,7 @@ Each document's ingest lives in `<ingest_dir>/<doc>/ingest/`; its publication us
 enter here.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
@@ -18,8 +19,12 @@ from kei_exp.transcription.types import ConversionError, Execution
 RUNS_ROOT: Final = Path("runs/kie")
 
 
-def convert(execution: Execution, emit: Emit = print_event) -> str:
-    """Run the same stages for the Markdown CLI and the worker, using PDF pages or cached book pages."""
+def convert(execution: Execution, emit: Emit = print_event, *, seed: Callable[[Path], None] | None = None,
+            adopt: Callable[[str], bool] | None = None, before_ocr: Callable[[], None] | None = None) -> str:
+    """Run the same stages for the Markdown CLI and the worker, using PDF pages or cached book pages.
+
+    The worker's hooks (`kei_exp.reuse`): `seed` may give the document directory an ingest before the ingest
+    decides whether to run; `adopt` and `before_ocr` go to `ocr.run`."""
     book = None
     if execution.page_source == "ingest":
         directory = execution.ingest_dir or RUNS_ROOT / execution.pdf.stem
@@ -27,6 +32,8 @@ def convert(execution: Execution, emit: Emit = print_event) -> str:
         emit({"type": "phase", "name": "ingest", "total": None})
         try:
             doc_dir.mkdir(parents=True, exist_ok=True)
+            if seed is not None:
+                seed(doc_dir)
             step, artifact = ingest_cache.ingest_step(
                 execution.pdf, IngestConfig.model_validate(execution.ingest or {}), doc_dir,
                 lambda spread, spreads: emit({"type": "spread", "spread": spread, "total": spreads}))
@@ -36,4 +43,4 @@ def convert(execution: Execution, emit: Emit = print_event) -> str:
         emit({"type": "log", "text": f"Ingest {did} in {step.seconds:.1f} s: {len(artifact.pages)} book pages from "
                                      f"{artifact.source.spreads} spreads under {doc_dir / 'ingest'}"})
         book = BookPages(ingest_cache.IngestPaths(doc_dir).accepted, artifact.pages, artifact.envelope.digest)
-    return ocr.run(execution, emit, book=book)
+    return ocr.run(execution, emit, book=book, adopt=adopt, before_ocr=before_ocr)
