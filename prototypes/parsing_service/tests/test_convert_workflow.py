@@ -129,6 +129,75 @@ def test_convert_run_publishes_the_manifest_and_writes_no_worker_markdown(roots,
     assert not (directory / "output.md").exists() and not (directory / "tokens.jsonl").exists()
 
 
+@pytest.mark.parametrize("page_source, ingest", [("pdf", None), ("ingest", {"split": "single"})])
+def test_a_second_run_of_the_same_source_and_settings_adopts_without_the_model_server(roots, fake, monkeypatch,
+                                                                                    page_source, ingest):
+    models = {"model": "fake", "layout_model": DEFAULT_LAYOUT_MODEL}
+    first = workflow.prepare_run(WID, staged(roots, model="fake", cut="none", page_source=page_source, ingest=ingest),
+                                 models)
+    done = workflow.convert_run(WID, first)
+    monkeypatch.setattr(runtime, "loaded_model", lambda url: (False, None))
+    request = {**staged(roots, model="fake", cut="none", page_source=page_source, ingest=ingest),
+               "source_name": "renamed.pdf"}
+    second = workflow.prepare_run("kei-convert:ingest:project-2:attempt-1", request, models)
+    output = workflow.convert_run("kei-convert:ingest:project-2:attempt-1", second)
+    contracts.ConvertOk.model_validate(output)
+    manifest = json.loads((runs.RUNS / second["id"] / "result" / "result.json").read_text())
+    assert len(fake.calls) == 1 and output["generation"] != done["generation"]
+    assert manifest["reused_from"] == {"run_id": first["id"], "generation": done["generation"]}
+    assert manifest["source_name"] == "renamed.pdf"
+    if page_source == "ingest":  # the book pages were linked, not cut again
+        assert (runs.RUNS / second["id"] / "input" / "ingest" / "pages" / "001.png").samefile(
+            runs.RUNS / first["id"] / "input" / "ingest" / "pages" / "001.png")
+
+
+def test_a_run_asking_for_a_debug_report_reuses_nothing(roots, fake):
+    models = {"model": "fake", "layout_model": DEFAULT_LAYOUT_MODEL}
+    workflow.convert_run(WID, workflow.prepare_run(WID, staged(roots, model="fake", cut="none"), models))
+    debug = workflow.prepare_run("kei-convert:debug", staged(roots, model="fake", cut="none", debug=True), models)
+    workflow.convert_run("kei-convert:debug", debug)
+    assert len(fake.calls) == 2 and "reused_from" not in json.loads(
+        (runs.RUNS / debug["id"] / "result" / "result.json").read_text())
+
+
+def test_a_cancel_during_resolution_adopts_nothing(roots, fake, monkeypatch):
+    """The check after resolution does not wait for the model server's probe: a hit needs none."""
+    models = {"model": "fake", "layout_model": DEFAULT_LAYOUT_MODEL}
+    workflow.convert_run(WID, workflow.prepare_run(WID, staged(roots, model="fake", cut="none"), models))
+    cancelled = {"now": False}
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(
+        workflow_id=WID, get_workflow_status=lambda wid: SimpleNamespace(
+            status="CANCELLED" if cancelled["now"] else "PENDING")))
+    resolving = runs.execution_for
+
+    def resolved(directory, params):
+        cancelled["now"] = True
+        return resolving(directory, params)
+    monkeypatch.setattr(runs, "execution_for", resolved)
+    second = workflow.prepare_run("kei-convert:second", staged(roots, model="fake", cut="none"), models)
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.convert_run("kei-convert:second", second)
+    assert stopped.value.code == "cancelled" and not (runs.RUNS / second["id"] / "result").exists()
+
+
+def test_a_cancel_during_the_model_servers_probe_transcribes_nothing(roots, fake, monkeypatch):
+    """A whole-page run emits no checked event before its transcription, so the probe ends with a check."""
+    cancelled = {"now": False}
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(
+        workflow_id=WID, get_workflow_status=lambda wid: SimpleNamespace(
+            status="CANCELLED" if cancelled["now"] else "PENDING")))
+
+    def probed(url):
+        cancelled["now"] = True
+        return True, "fake/model"
+    monkeypatch.setattr(runtime, "loaded_model", probed)
+    params = workflow.prepare_run(WID, staged(roots, model="fake", cut="none"),
+                                  {"model": "fake", "layout_model": DEFAULT_LAYOUT_MODEL})
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.convert_run(WID, params)
+    assert stopped.value.code == "cancelled" and fake.calls == []
+
+
 def test_a_cancel_stops_the_conversion_at_its_next_page_event(roots, fake, monkeypatch):
     cancelled = {"now": False}
     monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(
@@ -136,7 +205,7 @@ def test_a_cancel_stops_the_conversion_at_its_next_page_event(roots, fake, monke
             status="CANCELLED" if cancelled["now"] else "PENDING")))
     seen = []
 
-    def cutting(execution, emit):  # stands in for the cut loop: one region event per page, on the step's thread
+    def cutting(execution, emit, **hooks):  # stands in for the cut loop: a region event per page, on the step's thread
         for page in range(1, 2001):
             if page == 3:
                 cancelled["now"] = True
@@ -212,12 +281,12 @@ def test_an_unreadable_status_fails_open_and_the_conversion_publishes(roots, fak
     monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
     original = runner.convert
 
-    def converting(execution, emit):
+    def converting(execution, emit, **hooks):
         emit({"type": "region", "page": 1})
         broken[0] = True  # from the event under test on
         emit(failing)
         emit({"type": "region", "page": 3})
-        return original(execution, emit)
+        return original(execution, emit, **hooks)
     monkeypatch.setattr(runner, "convert", converting)
     params = workflow.prepare_run(WID, staged(roots, model="fake", cut="none"),
                                   {"model": "fake", "layout_model": DEFAULT_LAYOUT_MODEL})
@@ -243,7 +312,7 @@ def test_dboss_own_error_still_stops_the_step_at_its_next_check(roots, fake, mon
     monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
     seen = []
 
-    def cutting(execution, emit):
+    def cutting(execution, emit, **hooks):
         for page in range(1, 11):
             if page == 3:
                 destroyed[0] = True

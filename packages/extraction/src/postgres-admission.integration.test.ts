@@ -94,6 +94,28 @@ it('stores the Catalog recipe chosen for an Extraction on its row and hands it t
     assert.deepEqual(request.request.options, { strategy: 'catalog', catalog: { recipe: 'numbered-catalogue-de@1' } })
   })
 
+it('stores the start page on the row and hands it to kei; it is never part of the admission identity', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const module = scheduler(project.researcherAccountId)
+    kei.holding = true
+    const extractionId = randomUUID()
+    const input = { ...freshInput(project, extractionId), startPage: 6 }
+    assert.equal((await module.runSingle(input)).disposition, 'created')
+    assert.equal((await extractionRow(extractionId))?.startPage, 6)
+    // The same whole-document Extraction whatever page the researcher was reading: a replay, and the row keeps page 6.
+    assert.equal((await module.runSingle({ ...input, startPage: 2 })).disposition, 'replayed')
+    assert.equal((await module.runSingle({ ...input, startPage: null })).disposition, 'replayed')
+    assert.equal((await extractionRow(extractionId))?.startPage, 6)
+    await heldByKei(extractionId)
+    const request = kei.submissions.find((submission) => submission.workflowId === keiExtractWorkflowId(extractionId))!
+      .request as KeiExtractInput
+    assert.deepEqual(request.request.options, { strategy: 'article', start_page: 6 })
+    const unnamed = freshInput(project)
+    await module.runSingle(unnamed)
+    assert.equal((await extractionRow(unnamed.extractionId))?.startPage, null)
+  })
+
 it('keeps the Extraction Model Choice on its row, hands it to kei, and records the model each role ran on', async (t) => {
     t.after(cleanup)
     const project = await seedProject()
@@ -448,6 +470,80 @@ it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults'
       process.env.FREE_CATALOG_METHOD = 'unified'
       t.after(() => { delete process.env.FREE_CATALOG_METHOD })
     }
+
+    for (const backend of ['gliformer', 'instruct', 'nuextract']) it(`${backend}: schema compatibility is enforced before single and batch admission`, async (t) => {
+      t.after(cleanup)
+      enabled(t)
+      const schema = { recordDescription: 'A grave', schemaNodes: [
+        { id: 'leather', name: 'leather_material', type: 'boolean' },
+        { id: 'sex', name: 'sex', type: 'string', allowedValues: ['male', 'female'] },
+      ] }
+      const project = await seedProject(schema, ['a.pdf', 'b.pdf'], undefined, 'records')
+      const models = { fields: backend }
+      await configureAccount(project.researcherAccountId, { extractionModels: models })
+      const saved = await modelConfigurations.read(project.researcherAccountId)
+      const method = { models, settings: { unified: { defaults: 1 } } }
+      const input = catalog(project, method)
+      const module = scheduler(project.researcherAccountId)
+      const batchInput = { projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
+        sourceDocumentIds: project.documents.map(d => d.sourceDocumentId), strategy: 'CATALOG' as const,
+        repetition: 'reuse-equal-selection' as const, method: method as never }
+      if (backend === 'gliformer') {
+        let enqueued = 0
+        const guarded = createExtractionModule(createResearcherExtractionPersistence(project.researcherAccountId,
+          { ...execution, async enqueue() { enqueued++; throw new Error('must not enqueue') } }, { database: db as Database, packages }))
+        const refusal = (error: unknown) => error instanceof ExtractionError && error.code === 'incompatible_extraction_model' &&
+          error.message.includes('leather_material (boolean') && error.message.includes('sex (allowed values')
+        await assert.rejects(guarded.runSingle(input), refusal)
+        await assert.rejects(guarded.scheduleBatch(batchInput), refusal)
+        assert.equal(enqueued, 0)
+        assert.equal(await extractionRow(input.extractionId), null)
+        assert.deepEqual(await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all(), [])
+        assert.deepEqual(await db.orm.public.Extraction.where({ schemaRevisionId: project.schemaRevisionId }).select('id').all(), [])
+        assert.deepEqual(await app.admission.listWorkflows({ workflowIDs: [`extract:${input.extractionId}`] }), [])
+        // A previously admitted incompatible request must still replay, without applying the new admission rule.
+        await db.orm.public.Extraction.create({ id: input.extractionId, sourceDocumentId: project.documents[0]!.sourceDocumentId,
+          sourceRepresentationRevisionId: project.documents[0]!.sourceRepresentationRevisionId,
+          schemaRevisionId: project.schemaRevisionId, strategy: 'CATALOG', catalogRecipe: null, requestedModels: models,
+          requestedSettings: method.settings, batchExtractionId: null, outcome: 'FAILED' })
+        assert.equal((await guarded.runSingle(input)).disposition, 'replayed')
+        assert.equal(enqueued, 0)
+      } else {
+        kei.holding = true
+        assert.equal((await module.runSingle(input)).disposition, 'created')
+        assert.equal((await module.scheduleBatch(batchInput)).disposition, 'created')
+      }
+      assert.deepEqual(await modelConfigurations.read(project.researcherAccountId), saved)
+      assert.deepEqual((await db.orm.public.SchemaRevision.select('schemaTree').first({ id: project.schemaRevisionId }))?.schemaTree, schema)
+    })
+
+    it('admits raw GLiFormer schemas, replays single and batch, and refuses explicit verification', async (t) => {
+      t.after(cleanup)
+      enabled(t)
+      const project = await seedProject({ recordDescription: 'A grave', schemaNodes: [
+        { id: 'id', name: 'grave_id', type: 'string' },
+        { id: 'mentions', name: 'mentions', type: 'array', children: [{ id: 'quote', name: 'quote', type: 'verbatim-string' }] },
+      ] }, ['a.pdf', 'b.pdf'], undefined, 'records')
+      const models = { fields: 'gliformer' }
+      await configureAccount(project.researcherAccountId, { extractionModels: models })
+      const method = { models, settings: { unified: { defaults: 1 } } }
+      const input = catalog(project, method)
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
+      assert.equal((await module.runSingle(input)).disposition, 'created')
+      assert.equal((await module.runSingle(input)).disposition, 'replayed')
+      const batchInput = { projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
+        sourceDocumentIds: project.documents.map(d => d.sourceDocumentId), strategy: 'CATALOG' as const,
+        repetition: 'reuse-equal-selection' as const, method: method as never }
+      assert.equal((await module.scheduleBatch(batchInput)).disposition, 'created')
+      assert.equal((await module.scheduleBatch(batchInput)).disposition, 'replayed')
+      await configureAccount(project.researcherAccountId, { extractionModels: models,
+        extractionSettings: { catalog: { unified: { verification: true } } } })
+      const incompatible = { models, settings: { unified: { defaults: 1, verification: true } } }
+      await assert.rejects(module.runSingle(catalog(project, incompatible)), rejectsWithCode('incompatible_extraction_model'))
+      await assert.rejects(module.scheduleBatch({ ...batchInput, method: incompatible as never }), rejectsWithCode('incompatible_extraction_model'))
+      assert.equal((await module.scheduleBatch(batchInput)).disposition, 'replayed')
+    })
 
     it('pins the unified method, with its defaults version and no recipe, and hands kei options.unified', async (t) => {
       t.after(cleanup)

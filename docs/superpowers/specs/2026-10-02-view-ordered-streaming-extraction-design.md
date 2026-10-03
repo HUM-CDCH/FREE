@@ -1,6 +1,6 @@
 # View-ordered, streamed extraction — design
 
-Date: 2026-10-02 · Status: proposed, awaiting review · Scope:
+Date: 2026-10-02 · Status: Part A (service, package, API) implemented by `docs/superpowers/plans/2026-10-03-view-ordered-streaming-service.md`; Part B (client, `…-client.md`) pending · Scope:
 `prototypes/parsing_service/src/kei_exp` (`kie/extract/unified.py`,
 `kie/extract/article.py`, `kie/extract/run.py`, `api.py`), `packages/extraction/src`,
 `prototypes/studio/api`, `prototypes/studio/shared`, `prototypes/studio/src`,

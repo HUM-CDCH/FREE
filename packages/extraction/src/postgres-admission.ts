@@ -23,6 +23,7 @@ import {
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type { ExtractionExecution } from './dependencies.js'
 import { ExtractionError } from './errors.js'
+import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import { extractWorkflowId } from './kei-handoff.js'
 import {
   accountMethod,
@@ -139,6 +140,7 @@ type AdmissionPins = Readonly<{
   /** The pinned revision's declared record scope; null for a legacy revision that declares none. */
   recordScope: RecordScope | null
   preprocessId: string
+  startPage: number | null
 }>
 
 /** The pins an interactive request names, when every one of them exists and belongs to the researcher's project. */
@@ -183,6 +185,7 @@ async function resolveAdmission(
     schemaTree: schema.schemaTree,
     recordScope: storedRecordScope(schema.recordScope),
     preprocessId: representation.preprocessId,
+    startPage: input.startPage ?? null,
   }
 }
 
@@ -198,7 +201,7 @@ type AdmittedIdentity = Readonly<{
   batchExtractionId: string | null
 }>
 
-/** An identical interactive request: the same pins and choices. A legacy sample row (a page scope) never equals a new request, so reusing its ID is a conflict. A batch member's ID is never an interactive one. */
+/** An identical interactive request: the same pins and choices. A legacy sample row (a page scope) never equals a new request, so reusing its ID is a conflict. A batch member's ID is never an interactive one. The start page is not identity: the same whole-document Extraction, whatever page the researcher was reading (design §4). */
 function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
   return row.batchExtractionId === null &&
     row.sourceDocumentId === pins.sourceDocumentId &&
@@ -265,6 +268,7 @@ export async function admitInteractiveExtraction(
         { models: pins.requestedModels, settings: pins.requestedSettings })))
         return 'method-changed'
       refuseUnusableIdentityFields(pins.requestedSettings, pins.schemaTree)
+      refuseIncompatibleGliformer({ models: pins.requestedModels, settings: pins.requestedSettings }, pins.schemaTree)
       await transaction.orm.public.Extraction.create({
         id: input.extractionId,
         sourceDocumentId: pins.sourceDocumentId,
@@ -275,6 +279,7 @@ export async function admitInteractiveExtraction(
         requestedModels: pins.requestedModels,
         requestedSettings: pins.requestedSettings,
         batchExtractionId: null,
+        startPage: pins.startPage,
       })
       await execution.enqueue(client, {
         workflowName: RUN_EXTRACTION,
@@ -439,6 +444,7 @@ export async function admitBatchExtraction(
       if (!(await savedMethodStillCurrent(client, researcherAccountId, input.strategy, null, method)))
         return 'method-changed' as const
       refuseUnusableIdentityFields(method.settings, schema.schemaTree)
+      refuseIncompatibleGliformer(method, schema.schemaTree)
       await orm.public.BatchExtraction.create({
         id: batchExtractionId,
         projectContextId: input.projectContextId,

@@ -22,6 +22,7 @@ const extraction: ExtractionAttemptSnapshot = {
   sourceDocumentId: documentId,
   sourceRepresentationRevisionId: representationId,
   sourceRepresentationRevisionNumber: 2,
+  preprocessId: 'kei-exp:run-1:g1',
   schemaRevisionId,
   extractionSchemaId,
   schemaRevisionNumber: 2,

@@ -106,7 +106,7 @@ export function reviewAuthority(input: Readonly<{
 }
 
 /**
- * The grounding coverage invariant: each populated reviewable value has exactly one Evidence link or one ungrounded
+ * The grounding coverage invariant: each value subject to grounding has exactly one Evidence link or one ungrounded
  * mark, never both. Returns the Evidence's result path keys when it holds, `null` when it does not.
  */
 function groundedResultPathKeys(
@@ -116,17 +116,24 @@ function groundedResultPathKeys(
   // Neither a source-filename field (filled from the package, never by the model) nor a
   // document-level one (read once for the whole source; kei-exp reports its name under
   // `unverified` and grounds it in no record) carries evidence, so neither is grounded nor
-  // ungrounded in the review's sense: both stay outside the coverage invariant.
+  // ungrounded in the review's sense: both stay outside the coverage invariant. A version 1
+  // result (no `grounded` or `unified` diagnostics) does not ground booleans (kei-exp's
+  // `stages.leaves`), so a boolean it neither grounded nor marked stays outside the invariant and
+  // is reviewed optionally (`reviewAttention` classes it `ungrounded`, so it is in
+  // `optionalResultPathKeys`); versions 2 and 3 account for every accepted value, booleans
+  // included, and are held to the full invariant.
   const partition = partitionSchemaNodes(nodes)
   const unreviewedFields = new Set([...partition.packageNodes, ...partition.documentNodes].map((node) => node.name))
-  const populatedResultPathKeys = new Set(
-    populatedContentPaths(extraction.result)
-      .filter((path) => {
-        const field = path[0] === 'records' && typeof path[1] === 'number' ? path[2] : path[0]
-        return typeof field !== 'string' || !unreviewedFields.has(field)
-      })
-      .map(resultPathKey),
-  )
+  const populatedPaths = populatedContentPaths(extraction.result).filter((path) => {
+    const field = path[0] === 'records' && typeof path[1] === 'number' ? path[2] : path[0]
+    return typeof field !== 'string' || !unreviewedFields.has(field)
+  })
+  const populatedResultPathKeys = new Set(populatedPaths.map(resultPathKey))
+  const versionOne = !extraction.diagnostics.grounded && !extraction.diagnostics.unified
+  const requiredResultPathKeys = populatedPaths.filter((path) => {
+    const node = schemaNodeAtPath(nodes, path)
+    return !versionOne || (node?.type === 'array' && node.itemType ? node.itemType : node?.type) !== 'boolean'
+  }).map(resultPathKey)
   const evidencePathKeys = extraction.evidence.map((link) => resultPathKey(link.resultPath))
   const ungroundedPathKeys = extraction.diagnostics.ungroundedPaths.map(resultPathKey)
   const evidenceResultPathKeys = new Set(evidencePathKeys)
@@ -136,8 +143,8 @@ function groundedResultPathKeys(
     evidenceResultPathKeys.size !== evidencePathKeys.length ||
     ungroundedResultPathKeys.size !== ungroundedPathKeys.length ||
     [...evidenceResultPathKeys].some((key) => ungroundedResultPathKeys.has(key)) ||
-    accountedResultPathKeys.size !== populatedResultPathKeys.size ||
-    [...accountedResultPathKeys].some((key) => !populatedResultPathKeys.has(key))
+    [...accountedResultPathKeys].some((key) => !populatedResultPathKeys.has(key)) ||
+    requiredResultPathKeys.some((key) => !accountedResultPathKeys.has(key))
   )
     return null
   return evidenceResultPathKeys

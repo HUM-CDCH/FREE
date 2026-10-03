@@ -115,7 +115,7 @@ export async function deriveAttempts(
 }
 
 async function pinsOf(orm: DatabaseOrm, row: AttemptRow) {
-  const representation = await orm.public.SourceRepresentationRevision.select('revisionNumber').first({
+  const representation = await orm.public.SourceRepresentationRevision.select('revisionNumber', 'preprocessId').first({
     id: row.sourceRepresentationRevisionId,
     sourceDocumentId: row.sourceDocumentId,
   })
@@ -128,6 +128,7 @@ async function pinsOf(orm: DatabaseOrm, row: AttemptRow) {
     sourceDocumentId: row.sourceDocumentId,
     sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
     sourceRepresentationRevisionNumber: representation.revisionNumber,
+    preprocessId: representation.preprocessId,
     schemaRevisionId: row.schemaRevisionId,
     extractionSchemaId: schema.extractionSchemaId,
     schemaRevisionNumber: schema.revisionNumber,

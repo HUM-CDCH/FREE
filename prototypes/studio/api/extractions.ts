@@ -1,13 +1,16 @@
 /// <reference types="vite/client" />
 
 import type { ResearcherProjectStore } from 'db'
-import { ExtractionError } from 'extraction'
+import { ExtractionError, partialFromProgress, type ExtractionAttemptSnapshot } from 'extraction'
+import { keiRunOf } from 'extraction/kei-handoff'
 import {
   extractionReadResponseSchema,
   extractionRequestSchema,
   finalizeExtractionReviewSchema,
   extractionReviewDraftSchema,
+  partialResultSchema,
   resetExtractionReviewSchema,
+  type PartialResult,
 } from '../shared/extraction.contract.js'
 import {
   ApiError,
@@ -21,6 +24,7 @@ import {
 import {
   createResearcherExtractions,
   extractionAttemptDto,
+  keiExpClient,
 } from './_extractions.js'
 import { methodRefusal } from './_method_refusals.js'
 
@@ -68,6 +72,23 @@ function asTransportError(error: unknown): unknown {
   }
 }
 
+/** The partial view of a running Extraction (design §5): kei's progress document, read under PROGRESS_TIMEOUT_MS,
+ *  converted with the artifact reader's own code and validated against the wire contract, all inside one best-effort
+ *  boundary: no stage file yet, a slow or unreachable kei, or a document outside either contract is null, and the read
+ *  answers as it did before. */
+async function readPartial(extraction: ExtractionAttemptSnapshot): Promise<PartialResult | null> {
+  const run = keiRunOf(extraction.preprocessId)
+  if (run === null) return null
+  try {
+    const progress = await keiExpClient.readExtractionProgress(run.runId, extraction.extractionId)
+    if (progress === null) return null
+    const partial = partialResultSchema.safeParse(partialFromProgress(progress))
+    return partial.success ? partial.data : null
+  } catch {
+    return null
+  }
+}
+
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
 ): Readonly<
@@ -94,6 +115,7 @@ export function createResearcherApiHandlers(
       strategy: parsed.data.strategy,
       ...(parsed.data.catalogRecipe ? { catalogRecipe: parsed.data.catalogRecipe } : {}),
       method: parsed.data.method,
+      startPage: parsed.data.startPage ?? null,
     }
     const completed = await module.runSingle(input).catch(unavailableUnlessDomain)
     return json(extractionAttemptDto(completed.extraction), {
@@ -109,10 +131,12 @@ export function createResearcherApiHandlers(
     const pendingReviewDecisions = extraction.executionStatus === 'COMPLETED'
       ? (await module.prepareReview(extractionId)).reviewDecisions
       : null
+    const partial = extraction.executionStatus === 'RUNNING' ? await readPartial(extraction) : null
     return json(
       extractionReadResponseSchema.parse({
         extraction: extractionAttemptDto(extraction),
         pendingReviewDecisions,
+        partial,
         reviewDraft: extraction.executionStatus === 'COMPLETED' ? await module.readReviewDraft(extractionId) : undefined,
       }),
       { headers: noStore },

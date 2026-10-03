@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
 import { keiExpManifestSchema, keiExpPageSchema, parsedDocumentFromKeiExp } from '../../../prototypes/studio/api/_kei_exp.js'
 import unifiedContract from '../../../prototypes/parsing_service/tests/fixtures/contracts/extract.result.v3.json' with { type: 'json' }
+import nativeContract from '../../../prototypes/parsing_service/tests/fixtures/contracts/extract.gliformer.json' with { type: 'json' }
 import recordScopeContract from '../../../prototypes/parsing_service/tests/fixtures/contracts/record-scope.json' with { type: 'json' }
 import measuredTable from '../../../prototypes/studio/test/fixtures/kei-exp/ellekilde-table-v5.json' with { type: 'json' }
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
@@ -264,6 +265,10 @@ describe('kei artifact acceptance', () => {
       { strategy: 'CATALOG', settings: { record_chars: 30_000 } }))
   })
 
+  it('a start page on the request is an order of work, not an option the artifact must record', () => {
+    assert.equal(accept(artifact(), { settings: { start_page: 6 } }).extraction.outcome, 'SUCCEEDED')
+  })
+
   it('rejects an artifact that does not name the model of each role', () => {
     for (const models of [undefined, null, { fields: 'selected-model' }, { fields: '', reasoning: 'r' }])
       refused(() => accept({ ...artifact(), models }))
@@ -433,7 +438,7 @@ describe('unified Catalog artifacts', () => {
     const accepted = acceptUnified(produced())
     const snapshot: ExtractionSnapshot = {
       extractionId: pins.extractionId, sourceDocumentId: 'source', sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
-      sourceRepresentationRevisionNumber: 1, schemaRevisionId: pins.schemaRevisionId, extractionSchemaId: 'schema',
+      sourceRepresentationRevisionNumber: 1, preprocessId: 'kei-exp:run-1:g1', schemaRevisionId: pins.schemaRevisionId, extractionSchemaId: 'schema',
       schemaRevisionNumber: 1, strategy: 'CATALOG', catalogRecipe: null, requestedSettings: { unified: { defaults: 1 } },
       outcome: 'SUCCEEDED', complete: accepted.complete, modelAttribution: accepted.modelAttribution,
       diagnostics: accepted.diagnostics, result: accepted.result, evidence: accepted.evidence, failure: null,
@@ -456,4 +461,21 @@ describe('unified Catalog artifacts', () => {
     foreign.evidence[0]!.segment = 'p9_s9'
     refused(() => acceptUnified(foreign))
   })
+})
+
+it('accepts the Python native-fields artifact without repairing missing keys, duplicate records or scores', () => {
+  const input = nativeContract.request as unknown as KeiExtractInput
+  const manifest = keiExpManifestSchema.parse(nativeContract.manifest)
+  const document = decodeParsedDocument(parsedDocumentFromKeiExp(input.run_id, manifest,
+    nativeContract.pages.map((page) => keiExpPageSchema.parse(page)),
+    { sha256: manifest.recipe.source_sha256, originalFilename: 'catalogue.pdf', byteSize: 1 }, new Date()).document)
+  const result = acceptKeiArtifact({
+    extractionId: nativeContract.extraction_id, sourceDocumentId: 'source', sourceRepresentationRevisionId: randomUUID(),
+    schemaRevisionId: randomUUID(), strategy: 'CATALOG', batchExtractionId: null,
+  }, document, nativeContract.artifact, input)
+  assert.deepEqual(result.result, { records: nativeContract.artifact.records })
+  assert.deepEqual(result.diagnostics?.unified?.nativeFields, nativeContract.artifact.native_fields)
+  assert.deepEqual(result.diagnostics?.ungroundedPaths, nativeContract.artifact.ungrounded)
+  assert.equal(result.complete, false)
+  assert.deepEqual(result.evidence, [])
 })

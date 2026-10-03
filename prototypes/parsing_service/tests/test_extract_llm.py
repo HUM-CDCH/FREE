@@ -12,10 +12,13 @@ from kei_exp.kie.extract.llm import (
     NuExtractChat,
     OpenAIChat,
     TemplateError,
+    bounded,
+    bounded_grammar,
     nuextract_template,
     parse_json,
 )
 from kei_exp.kie.extract.schema import Node, json_schema
+from tests.helpers.chat import FakeChat
 
 
 def response(status: int, body: dict | None = None, text: str = ""):
@@ -258,3 +261,59 @@ def test_nuextract_preserves_printed_dates_for_grounding():
 def test_a_field_type_nuextract_has_no_name_for_is_refused_like_any_inexpressible_schema():
     with pytest.raises(TemplateError, match="colour"):
         nuextract_template({"type": "object", "properties": {"x": {"type": "string", "x-free-type": "colour"}}})
+
+
+def test_a_bounded_chat_sends_the_schema_as_a_grammar_and_the_rest_of_the_body_unchanged(monkeypatch):
+    sent = []
+    body = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+    monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append(kwargs["json"]) or response(200, body))
+    monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit} {sorted(schema)}")
+    chat = OpenAIChat(url="http://server", model="m")
+    chat.complete(system="S", user="U", schema={"type": "object"}, max_tokens=2048)
+    bounded(chat, 16).complete(system="S", user="U", schema={"type": "object"}, max_tokens=2048)
+    ordinary, grammar = sent
+    assert grammar["structured_outputs"] == {"grammar": "GRAMMAR 16 ['type']"} and "response_format" not in grammar
+    assert {key: value for key, value in grammar.items() if key != "structured_outputs"} == {
+        key: value for key, value in ordinary.items() if key != "response_format"}
+
+
+def test_a_bounded_chat_never_falls_back_to_unconstrained_generation(monkeypatch):
+    sent = []
+    refusal = '{"error": "structured output is not supported by this server"}'
+    monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append(kwargs) or response(400, text=refusal))
+    monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: "GRAMMAR")
+    assert llm.UNSUPPORTED.search(refusal)
+    with pytest.raises(requests.HTTPError):
+        bounded(OpenAIChat(url="http://server", model="m"), 16).complete(system="S", user="U",
+                                                                         schema={"type": "object"})
+    assert len(sent) == 1
+
+
+def test_only_the_production_instruction_chat_is_bounded():
+    class Research(OpenAIChat):
+        def complete(self, **kwargs):
+            raise AssertionError("not called")
+
+    chat = OpenAIChat(url="http://server", model="m", timeout=5.0, headers={"Authorization": "x"})
+    limited = bounded(chat, 16)
+    assert (limited.url, limited.model, limited.timeout, limited.headers, limited.max_whitespace) == (
+        "http://server", "m", 5.0, {"Authorization": "x"}, 16)
+    assert chat.max_whitespace is None
+    for other in (NuExtractChat(url="http://nuextract", model="n"), FakeChat(lambda *_: {}),
+                  Research(url="http://server", model="m")):
+        assert bounded(other, 16) is None
+
+
+def test_the_bounded_grammar_admits_at_most_its_whitespace_between_json_tokens():
+    import xgrammar
+    schema = fields({"id": "f", "name": "finds", "type": "array", "itemType": "string"},
+                    {"id": "s", "name": "site", "type": "string"})
+    grammar = xgrammar.Grammar.from_ebnf(bounded_grammar(llm._plain(schema), 16))
+    compiled = xgrammar.GrammarCompiler(xgrammar.TokenizerInfo([])).compile_grammar(grammar)
+
+    def accepts(text: str) -> bool:
+        return xgrammar.GrammarMatcher(compiled).accept_string(text)
+    complete = xgrammar.GrammarMatcher(compiled, terminate_without_stop_token=True)  # no vocabulary, no stop token
+    assert complete.accept_string('{"finds": [], "site": null}') and complete.is_terminated()
+    assert accepts('{"finds": [' + "\r " * 8)
+    assert not accepts('{"finds": [' + "\r " * 8 + " ")

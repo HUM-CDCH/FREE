@@ -22,7 +22,7 @@ def test_every_article_grounding_choice_and_the_reference_name_a_technique(choic
 def recording(received):
     """A substitute technique: it records what it was given and links each record's year to its first passage."""
     def ground(passages, fields, schema, chat, *, record, budget, counter, record_context, before_call, proofs, skip_paths,
-               projected=False):
+               projected=False, on_batch=None):
         received.append({"record": record, "passages": [p.id for p in passages], "counter": counter,
                          "record_context": record_context, "projected": projected})
         first = passages[0]

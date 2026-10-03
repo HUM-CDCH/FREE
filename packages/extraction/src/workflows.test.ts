@@ -390,6 +390,14 @@ describe('runExtraction', () => {
     assert.equal(failureOf(h).code, 'invalid_schema_revision')
   })
 
+  it('a worker request refusal is readable and remains an invalid_request failure', () => {
+    assert.deepEqual(extractionFailureOf({ ok: false, code: 'invalid_request',
+      reason: "GLiFormer requires strings or arrays of objects; 'leather_material' is boolean", retryable: false }, 'CATALOG'), {
+      code: 'invalid_request', phase: 'extracting',
+      message: "The Parsing Service refused the Extraction request: GLiFormer requires strings or arrays of objects; 'leather_material' is boolean",
+    })
+  })
+
   it('maps kei\'s failures to Studio\'s failure codes', async () => {
     const failed = (code: string, reason: string): KeiPoll => ({ state: 'SUCCESS', output: { ok: false, code, reason, retryable: false } })
     const cases: Array<[KeiPoll, string, string]> = [
@@ -538,6 +546,24 @@ describe('the admitted method', () => {
     await run.run()
     assert.deepEqual((run.submissions[0]!.request as KeiExtractInput).request.options, { strategy: 'article' })
     assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')
+  })
+
+  it('hands the admitted start page to kei as start_page; the artifact, which never records it, is accepted', async () => {
+    const run = harness({ admitted: admittedExtraction({ startPage: 6 }) })
+    await run.run()
+    assert.deepEqual((run.submissions[0]!.request as KeiExtractInput).request.options, { strategy: 'article', start_page: 6 })
+    assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')
+    assert.deepEqual(run.names(), ['loadAdmitted', 'submitToKei', 'pollKei', 'publishResult'])
+  })
+
+  it('a checkpoint written before start pages were stored, or a row that named none, asks kei for its source order', async () => {
+    const { startPage: _absent, ...older } = admittedExtraction()
+    for (const admitted of [older as AdmittedExtraction, admittedExtraction({ startPage: null })]) {
+      const run = harness({ admitted })
+      await run.run()
+      assert.deepEqual((run.submissions[0]!.request as KeiExtractInput).request.options, { strategy: 'article' })
+      assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')
+    }
   })
 
   it('an unreadable admitted method fails the Extraction, not the workflow, and asks kei for nothing', async () => {

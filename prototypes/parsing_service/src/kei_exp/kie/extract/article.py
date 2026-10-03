@@ -15,10 +15,13 @@ import json
 import math
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from functools import partial
+from itertools import count
 from pathlib import Path
 
+from kei_exp.kie.extract import progress
 from kei_exp.kie.extract.assembly import (ARTICLE_VERSION, artifact, document_values, ground_records,
                                           grounding_accounting, unchecked)
 from kei_exp.kie.extract.calls import Call, complete
@@ -33,7 +36,7 @@ from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, conform, json_schema
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.selection import select_contexts
-from kei_exp.kie.extract.stages import (REPLY_TOKENS, Issue, _instruction, _labelled, extract_record, normal,
+from kei_exp.kie.extract.stages import (REPLY_TOKENS, Issue, Link, _instruction, _labelled, extract_record, normal,
                                         record_request, leaves)
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter, counters_for
 from kei_exp.kie.passages import Evidence, Passage, text_of
@@ -62,7 +65,8 @@ class Records:
 
 
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter: dict | None = None,
-            chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+            chunks: int = 1, before_entry: Callable[[], None] | None = None,
+            extraction_id: str | None = None) -> dict:
     """The Article artifact for `request` (the validated `run.ExtractRequest`) over `evidence`.
 
     The result is exactly one record, the document's root (`run.dispatch` holds it to that); when no value context
@@ -70,13 +74,21 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     `counter` is one counter per role, by default the counter of each role's endpoint. `before_entry` is called before
     each context's document-level call, each value context's call, the root's verification and each grounding batch,
     and, with bounded contexts, before each count that sizes a context and the selection; what it raises ends the
-    extraction. `run_dir` and `chunks` are not used: Article reads only the evidence and runs unsplit."""
+    extraction. `chunks` is not used: Article runs unsplit. With `run_dir` and `extraction_id`, the header, each value
+    context's answered fields with the root assembled so far, and each grounding batch's links are published under the
+    extraction directory for the partial view (design §2); each file after a call is written only after `before_entry`
+    again (unthrottled where it has a `strict` form, as the worker's `CancelCheck` does), so a cancel issued during the
+    call writes nothing that would refresh the run's garbage-collection age. `options.start_page` orders bounded value
+    contexts, nearest first."""
     check = before_entry or unchecked
+    strict = getattr(check, "strict", check)  # the worker's check unthrottled (`CancelCheck.strict`); else as is
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     schema = request.schema_
     options = request.options
     method = options.article or REFERENCE
+    directory = run_dir / "extractions" / extraction_id if run_dir is not None and extraction_id else None
+    execution = progress.started(directory, "article", options.start_page) if directory is not None else None
     contexts = [Context(evidence.passages)]
     if counter is None:
         counter = counters_for(chat)
@@ -90,7 +102,10 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         budget=options.record_chars, check=check, counter=counter["fields"],
         structured=method.rendering == "structured")
     extracted = document_root(evidence.passages, schema, chat, counters=counter,
-                              record_chars=options.record_chars, check=check, method=method, contexts=contexts)
+                              record_chars=options.record_chars, check=check, method=method, contexts=contexts,
+                              start_page=options.start_page,
+                              on_context=(partial(_context_stage, directory, execution, strict)
+                                          if directory is not None else None))
     if extracted.calls and not any(call.ok for call in extracted.calls):
         raise RootUnanswered(f"article_root_unanswered: none of the {len(extracted.value_contexts[0])} value "
                              f"context(s) answered the document's root; the last call failed: "
@@ -99,7 +114,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     issues += extracted.issues
     support = ground_records(extracted.slices, schema, chat, check=check, budget=options.record_chars,
         counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,
-        value_contexts=extracted.value_contexts, origins=extracted.origins)
+        value_contexts=extracted.value_contexts, origins=extracted.origins,
+        on_batch=partial(_grounding_stage, directory, execution, strict, count()) if directory is not None else None)
     links = support.links
     calls += support.calls
     issues += support.issues
@@ -152,9 +168,51 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     return result
 
 
+def _context_stage(directory: Path, execution: str, check: Callable[[], None], index: int, total: int, answered: int,
+                   failed: int, group: Context, fields: dict, root: dict, contested: list[dict], ok: bool,
+                   calls: list[Call]) -> None:
+    """One value context's answered fields and the root assembled so far, for the partial view (design §2); read by
+    no path of this module. `ok` is false when this context's call failed; `failed` counts every failed context so far,
+    so the latest file alone says whether unknown fields remain even when an earlier file's write was dropped. `check`
+    runs first: what it raises (a cancel issued during the call) ends the extraction before anything is written."""
+    check()
+    progress.write_stage(directory / progress.context_name(index), {
+        "version": progress.ARTICLE_STAGE_VERSION, "execution": execution, "context": index, "of": total,
+        "answered": answered, "failed": failed, "passages": group.dumped(), "fields": fields, "root": root,
+        "contested": contested, "ok": ok, "calls": [asdict(call) for call in calls]})
+
+
+def _grounding_stage(directory: Path, execution: str, check: Callable[[], None], batches: count,
+                     links: Sequence[Link]) -> None:
+    """The links one grounding batch made, as the artifact writes a link (`assembly.artifact`), after `check`."""
+    check()
+    progress.write_stage(directory / progress.grounding_name(next(batches)), {
+        "version": progress.ARTICLE_STAGE_VERSION, "execution": execution,
+        "links": [{**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)} for link in links]})
+
+
+def _answered(attempts: Sequence[Call]) -> bool:
+    """A value context answered when its final attempt did, as `calls.complete` judges a reply: a structured request the
+    server refused before the attempt that answered stays in the context's calls, never makes it a failed context. A
+    context that made no attempt answered nothing."""
+    return bool(attempts) and attempts[-1].ok
+
+
+def context_order(groups: Sequence[Context], start_page: int | None) -> list[int]:
+    """Value contexts in the order they are called (design §4): nearest `start_page` first (a context's distance is
+    its nearest page's), a context without a page last, ties in source order; without a start page, source order.
+    Answers are assembled in source order whatever this returns."""
+    def distance(index: int) -> tuple[float, int]:
+        pages = [passage.page for passage in groups[index].passages]
+        return (0.0 if start_page is None else min((abs(page - start_page) for page in pages), default=float("inf")),
+                index)
+    return sorted(range(len(groups)), key=distance)
+
+
 def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
                   record_chars: int, check: Callable[[], None], method: ArticleOptions = REFERENCE,
-                  contexts: list[Context] | None = None) -> Records:
+                  contexts: list[Context] | None = None, start_page: int | None = None,
+                  on_context: Callable[..., None] | None = None) -> Records:
     """The document's one root, from each of its value contexts, assembled; grounding belongs to the shared path.
 
     The whole document is the object: no identity is inventoried or bound, and every record field is asked of every
@@ -162,7 +220,10 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
     that request, and `selection` sees every passage as the identity's support. Several contexts' answers are
     assembled by `contexts.assemble_document`: every array item kept in context order, an equal item that contexts
     sharing an overlap passage both returned joined once (an `overlap_items_joined` issue), equal items from other
-    contexts kept and named by a `possible_repeated_items` issue, a disagreeing scalar null with its conflict."""
+    contexts kept and named by a `possible_repeated_items` issue, a disagreeing scalar null with its conflict. With
+    `on_context`, after each value context's call, the root assembled by `assemble_document` and conformed over the
+    contexts answered so far is reported with its scalar conflicts and the number of those contexts whose call failed:
+    the partial view's reading of the document before the last context answers."""
     structured = method.rendering == "structured"
     item = {"identity": {}, "label": DOCUMENT_LABEL, "passages": [p.id for p in passages]}
     issues: list[Issue] = []
@@ -183,14 +244,26 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
         check()
         groups, selection = select_contexts(groups, passages, item["passages"], schema)
         selections.append({"record": 0, **selection})
-    candidates = []
-    for group in groups:
+    candidates: list[dict] = [{} for _ in groups]
+    answered: list[tuple[list[Call], list[Issue]] | None] = [None] * len(groups)
+    for index in context_order(groups, start_page):
+        group = groups[index]
         check()
         fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars, record=0,
             counter=counters["fields"], structured=structured, document=True)
-        calls += attempts
-        issues += problems
-        candidates.append(fields)
+        candidates[index], answered[index] = fields, (attempts, problems)
+        if on_context is not None:
+            done = [number for number, each in enumerate(answered) if each is not None]  # source order
+            so_far, conflicts, _, _ = (assemble_document([candidates[number] for number in done],
+                                                         sharing([groups[number] for number in done]))
+                                       if len(done) != 1 else (candidates[done[0]], [], [], []))
+            failed = sum(not _answered(answered[number][0]) for number in done)  # cumulative
+            on_context(index, len(groups), len(done), failed, group, fields, conform(so_far, schema.record_nodes),
+                       conflicts, _answered(attempts), attempts)
+    for each in answered:  # calls and issues in source order: the artifact is the same whatever the order of work
+        if each is not None:
+            calls += each[0]
+            issues += each[1]
     root, contested, repeats, joined = (assemble_document(candidates, sharing(groups)) if len(candidates) != 1
                                         else (candidates[0], [], [], []))
     root = conform(root, schema.record_nodes)

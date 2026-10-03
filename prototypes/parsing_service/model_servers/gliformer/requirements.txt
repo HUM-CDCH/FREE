@@ -1,0 +1,7 @@
+gliformer @ https://github.com/Knowledgator/GLiFormer/archive/19db82a339e5b5ce35e4ea3dc7db4e3912422d76.tar.gz
+gliner==0.2.29
+transformers==5.16.1
+scipy==1.18.1
+nvidia-nccl-cu13==2.29.7
+fastapi==0.141.1
+uvicorn==0.53.0

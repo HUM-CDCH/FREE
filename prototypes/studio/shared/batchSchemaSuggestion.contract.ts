@@ -110,6 +110,7 @@ export const batchSchemaSuggestionErrorSchema = z
       'record_scope_required',
       'record_scope_mismatch',
       'invalid_identity_fields',
+      'incompatible_extraction_model',
       'invalid_model_config',
     ]),
     message: z.string(),

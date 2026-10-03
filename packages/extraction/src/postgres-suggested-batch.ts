@@ -9,6 +9,7 @@ import {
 import type { ExtractionExecution } from './dependencies.js'
 import { canonicalIntent } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
+import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import {
   METHOD_CHANGED_MESSAGE,
   type AdmitBatchMember,
@@ -153,6 +154,7 @@ export async function persistSuggestedBatch(
       if (!(await helpers.savedMethodStillCurrent(client, researcherAccountId, input.strategy, null, method)))
         return 'method-changed' as const
       helpers.refuseUnusableIdentityFields(method.settings, draft)
+      refuseIncompatibleGliformer(method, draft)
       const extractionSchemaId = stableUuid(
         'confirmed-batch-schema-suggestion',
         `${input.batchSchemaSuggestionId}:${stableJson(

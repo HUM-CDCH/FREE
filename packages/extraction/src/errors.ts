@@ -21,6 +21,7 @@ export type ExtractionErrorCode =
   | 'cancelled'
   | 'method_changed'
   | 'invalid_identity_fields'
+  | 'incompatible_extraction_model'
   | 'invalid_model_config'
   | 'invalid_extraction_method'
   | 'catalog_migration_required'

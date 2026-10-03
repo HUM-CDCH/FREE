@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "strategy": "article",
+  "started_at_page": 2,
+  "discovered": 1,
+  "finished": 0,
+  "entries": [
+    {
+      "index": 0, "label": null, "page": null, "stage": "candidates",
+      "candidates": [
+        {"path": ["entry_no"], "value": "31", "quote": null, "window": 0},
+        {"path": ["finds", 0], "value": "spear", "quote": null, "window": 0},
+        {"path": ["site"], "value": "Hill", "quote": null, "window": 0}
+      ],
+      "record": {"entry_no": "31", "finds": ["spear"], "site": "Hill", "year": null},
+      "evidence": [
+        {"path": ["records", 0, "entry_no"], "segment": "p1_s0", "page": 1, "bbox_pt": [0.0, 0.0, 100.0, 20.0],
+         "verbatim": true, "hits": 1, "cell": null, "precision": "segment", "linked_by": "model"},
+        {"path": ["records", 0, "site"], "segment": "p2_s0", "page": 2, "bbox_pt": [0.0, 0.0, 100.0, 20.0],
+         "verbatim": false, "hits": 2, "cell": null, "precision": "segment", "linked_by": "model"},
+        {"path": ["records", 0, "finds", 0], "segment": "p1_s0", "page": 1, "bbox_pt": [10.0, 20.0, 90.5, 32.25],
+         "verbatim": true, "hits": 1, "cell": null, "precision": "segment", "linked_by": "model"}
+      ],
+      "contested": [], "failed": 0
+    }
+  ],
+  "document": {
+    "contexts": [{"primary": ["p1_s0"], "overlap": []}, {"primary": ["p2_s0"], "overlap": []}],
+    "answered": 2, "of": 2, "failed_contexts": 0,
+    "links": [
+      {"path": ["records", 0, "entry_no"], "segment": "p1_s0", "page": 1, "bbox_pt": [0.0, 0.0, 100.0, 20.0],
+       "verbatim": true, "hits": 1, "cell": null, "precision": "segment", "linked_by": "model"},
+      {"path": ["records", 0, "site"], "segment": "p2_s0", "page": 2, "bbox_pt": [0.0, 0.0, 100.0, 20.0],
+       "verbatim": false, "hits": 2, "cell": null, "precision": "segment", "linked_by": "model"},
+      {"path": ["records", 0, "finds", 0], "segment": "p1_s0", "page": 1, "bbox_pt": [10.0, 20.0, 90.5, 32.25],
+       "verbatim": true, "hits": 1, "cell": null, "precision": "segment", "linked_by": "model"}
+    ],
+    "grounding_batches": 2
+  }
+}

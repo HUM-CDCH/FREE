@@ -28,7 +28,9 @@ test('the record-scope migration backfills legacy revisions and leaves every his
   assert.deepEqual(Object.fromEntries(Object.entries(seeded).map(([table, rows]) => [table, rows.length])),
     { schemaRevision: 6, extraction: 11, batchExtraction: 2, extractionReview: 3, reviewDecision: 9 })
 
-  const forward = await migrate(database.url)
+  // Forward to the release under test: later releases (a start page column, ...) are checked by their own migration
+  // tests, and this history must stay byte-identical as that release left it.
+  const forward = await migrate(database.url, RECORD_SCOPE_MIGRATION)
   assert.deepEqual(forward.applied, [RECORD_SCOPE_MIGRATION])
   assert.equal(await recordScopeColumnExists(client), true)
 
@@ -66,5 +68,5 @@ test('the record-scope migration backfills legacy revisions and leaves every his
   assert.deepEqual(await scopes(), declared)
   assert.deepEqual(await snapshotHistory(client), seeded)
   // The runner itself has nothing left to apply.
-  assert.deepEqual((await migrate(database.url)).applied, [])
+  assert.deepEqual((await migrate(database.url, RECORD_SCOPE_MIGRATION)).applied, [])
 })

@@ -5,6 +5,7 @@ result publication and acceptance; adapters only return their records.
 """
 import logging
 import time
+from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -12,11 +13,12 @@ from datetime import UTC, datetime
 from kei_exp.cut import CutError, artwork_crops, cut_pages, whole_pages
 from kei_exp.kie.ingest_model import IngestConfig
 from kei_exp.models import MODELS
+from kei_exp.pagefile import LoadedResult
 from kei_exp.pages import BookPages, PdfPages
 from kei_exp.progress import Emit, Event, print_event
 from kei_exp.regions import Crop, anchor
 from kei_exp.report import write_report
-from kei_exp.result import Input, Inventory, Source, assemble_pages, page_markdown, write_result
+from kei_exp.result import Input, Inventory, Source, assemble_pages, fingerprint, page_markdown, recipe, write_result
 from kei_exp.transcription import hybrid
 from kei_exp.transcription.native import NativeText, native_regions
 from kei_exp.transcription.surya import SuryaOcr
@@ -187,11 +189,17 @@ def supplement(execution: Execution, inputs: Inventory, emit: Emit) -> Transcrip
         raise
 
 
-def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | None = None) -> str:
+def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | None = None,
+        adopt: Callable[[str, list[int]], LoadedResult | None] | None = None,
+        before_ocr: Callable[[], None] | None = None) -> str:
     """Cut the supplied pages, transcribe them, write the result, and return its Markdown.
 
     The source is hashed before cutting and transcription. The API uses its private input.pdf; the CLI
     reads the file it was given. Ingest, when needed, has already run.
+    The worker's hooks (`kei_exp.reuse`): `adopt` is asked first with the recipe's fingerprint and the PDF pages the
+    result must list, and a result means it published an earlier run's result of that recipe in `result_dir`, whose
+    Markdown is returned with nothing cut or transcribed; otherwise `before_ocr` runs (the model server's probe) and
+    then the work.
     ConversionError: the run produced no trustworthy output; the debug report, when asked for, is written before
     that is decided. The debug report is diagnostic only: a failure writing it (or its images) is logged and
     reported as a `log` event, never raised, and never stops an accepted result or its Markdown from returning.
@@ -202,6 +210,16 @@ def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | Non
         raise ConversionError(f"page range {first}-{last} outside 1-{source.page_count}")
     crops = None
     assert (book is not None) == (execution.page_source == "ingest"), "ingest execution needs book pages"
+    ingest_digest = book.digest if book is not None else None
+    if adopt is not None:
+        pages = (sorted({book.page(n).ingest.spread for n in book.numbers_in(execution.pages)}) if book is not None
+                 else list(range(first, last + 1)))  # as `inventory` lists them
+        adopted = adopt(fingerprint(recipe(execution, source.sha256, ingest_digest)), pages)
+        if adopted is not None:
+            emit({"type": "log", "text": "OCR skipped: adopted an earlier run's result of this source and recipe"})
+            return page_markdown(page.markdown for page in adopted.pages.values())
+    if before_ocr is not None:
+        before_ocr()
     if execution.cut == "auto" or book is not None:
         assert execution.crop_dpi is not None
         crops = []
@@ -243,7 +261,7 @@ def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | Non
     if outcome.incomplete is None and not markdown.strip():
         outcome = replace(outcome, unattributed="the transcriber returned no text")  # judged before the files
     if execution.result_dir is not None:  # accepted results first: they never depend on the debug write
-        write_result(outcome, execution, inputs, source, ingest_digest=book.digest if book is not None else None,
+        write_result(outcome, execution, inputs, source, ingest_digest=ingest_digest,
                      directory=execution.result_dir, started=started, seconds=seconds)
     if execution.debug_dir is not None:
         try:

@@ -5,7 +5,8 @@ document-level values read in each context and reconciled across them, each reco
 technique `grounding.technique` names, the records merged with the document and filename values, and the artifact's
 common fields with its fingerprint. Document-level fields (`valueSource: document`) are extracted but not verified in
 this slice, since grounding them would need the whole source's labels: the artifact names them under `unverified`,
-and `complete` speaks for record values only.
+and `complete` speaks for record values only. A failed call marked `recovered` does not keep it from being complete;
+its recovery call's values, issues and grounding do.
 
 `request` below is the validated `run.ExtractRequest`; this module reads its schema and options and does not import
 `run`.
@@ -127,14 +128,16 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
                    check: Callable[[], None], budget: int, counter=None,
                    method: ArticleOptions | None = None, identities: Sequence[dict] | None = None,
                    contexts: Sequence[Context] = (), value_contexts: Sequence[Sequence[Context]] = (),
-                   origins: Sequence[Sequence[dict]] = (), resume: frozenset = frozenset()) -> GroundingResult:
+                   origins: Sequence[Sequence[dict]] = (), resume: frozenset = frozenset(),
+                   on_batch: Callable[[Sequence[Link]], None] | None = None) -> GroundingResult:
     """Keep input values fixed while evaluating support; hints never create evidence.
 
     Article supplies identities and complete source contexts; each claim is routed to the context its value was read
     from first (`routing.verify_routed`: exhaustive fallback, stopping at support) and shown with its enclosing items'
     fields rather than the whole root (`grounding.verify`'s `projected`). Generic Catalog uses the owned passages in
     each slice. Neither path extracts or reconciles values here. `resume` names paths an earlier grounding of the same
-    values already supported: they are not checked again.
+    values already supported: they are not checked again. `on_batch` runs after each grounding batch with the links it
+    made.
     """
     result = GroundingResult()
     verifier = grounding.technique(method.grounding if method is not None else None)
@@ -154,7 +157,7 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
         verification = dict(record=number, budget=budget, counter=counter,
             record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
                 ensure_ascii=False)) if identities is not None else None,
-            before_call=check, proofs=result.proofs)
+            before_call=check, proofs=result.proofs, on_batch=on_batch)
         if identities is not None:
             links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
                 origins=origins[number], value_contexts=value_contexts[number],
@@ -225,7 +228,7 @@ def artifact(evidence: Evidence, request, chat: Router, *, started: str, clock: 
         "prompt_version": PROMPT_VERSION,
         "schema": schema.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
         "started": started, "seconds": round(time.monotonic() - clock, 3),
-        "complete": all(call.ok for call in calls) and not ungrounded and not issues,
+        "complete": all(call.ok or call.recovered for call in calls) and not ungrounded and not issues,
         "records": records,
         "evidence": [{**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)} for link in links],
         "ungrounded": ungrounded,

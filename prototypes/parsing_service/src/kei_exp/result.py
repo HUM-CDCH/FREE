@@ -8,6 +8,7 @@ fingerprint, the token totals and the status. Nothing here reads the debug repor
 their reader are `kei_exp.pagefile`, a leaf a reader can import without the converter.
 """
 import hashlib
+import os
 import secrets
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
@@ -65,6 +66,9 @@ def recipe(execution: Execution, source_sha256: str, ingest_digest: str | None) 
         "versions": versions(),
         **({"ocr_regions": [{"page": region.page, "bbox": list(region.bbox)} for region in execution.ocr_regions]}
            if execution.ocr_regions else {}),
+        # What the deployment says its model server is: a served model's weights and server can change under the same
+        # repo name, which nothing here can see. Unset, the recipe is as it was.
+        **({"ocr_revision": revision} if execution.model and (revision := os.environ.get("KEI_OCR_REVISION")) else {}),
         # Only a transcriber whose text rules have changed names them, so every other recipe stays as it was.
         **({"text_rules": _text_rules(execution, record.kind if record else None)}
            if execution.transcriber in TEXT_RULES else {}),
@@ -84,7 +88,9 @@ def fingerprint(recipe: dict) -> str:
 
 
 def versions() -> dict[str, str]:
-    return {"docling": version("docling"), "surya-ocr": version("surya-ocr")}
+    """The packages whose behaviour the output depends on: the parsers, and the PDF renderer and image library every
+    crop passes through."""
+    return {name: version(name) for name in ("docling", "surya-ocr", "pypdfium2", "pillow")}
 
 
 def new_generation() -> str:
@@ -185,8 +191,7 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
     effective = outcome.header.get("ocr", outcome.header)  # a hybrid run's image cap and scale are its OCR's
     generation = new_generation()
     records = {record.page: record for record in outcome.pages}  # by ordinal; the converter asserted the shape
-    (directory / "pages").mkdir(parents=True, exist_ok=True)
-    entries: dict[int, pagefile.PageEntry] = {}
+    pages: list[pagefile.PageResult] = []
     for number, inputs, markdown in assemble_pages(
             inventory, ((item, records[item.ordinal]) for item in inventory.inputs)):
         size = source.sizes[number]
@@ -220,14 +225,10 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
             units.append(pagefile.Unit(index=index, kind="pdf_page" if index == 0 else "book_page", bbox_pt=bbox_pt, crops=crops))
         if not inputs:  # only the layout cut leaves a page without an input: it found nothing there
             warnings.append("no content found by the layout cut")
-        complete = all(record.incomplete is None for _, record in inputs)
-        page = pagefile.PageResult(generation=generation, page=number, size_pt=size, units=units, segments=segments,
-                          markdown=markdown, complete=complete,
-                          warnings=warnings)
-        data = (page.model_dump_json(indent=2) + "\n").encode("utf-8")
-        with publish(directory / "pages" / f"{number}.json") as part:
-            part.write_bytes(data)
-        entries[number] = pagefile.PageEntry(sha256=hashlib.sha256(data).hexdigest(), complete=complete)
+        pages.append(pagefile.PageResult(
+            generation=generation, page=number, size_pt=size, units=units, segments=segments, markdown=markdown,
+            complete=all(record.incomplete is None for _, record in inputs), warnings=warnings))
+    entries = publish_pages(directory, pages)
     result = pagefile.Result(
         result_version=pagefile.RESULT_VERSION, generation=generation,
         digest=pagefile.result_digest({number: entry.sha256 for number, entry in entries.items()}),
@@ -239,13 +240,27 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
         tokens={"input": _total(record.input_tokens for record in outcome.pages),
                 "output": _total(record.output_tokens for record in outcome.pages)},
     )
+    with publish(directory / "result.json") as part:
+        part.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    return result
+
+
+def publish_pages(directory: Path, pages: Iterable[pagefile.PageResult]) -> dict[int, pagefile.PageEntry]:
+    """Publish `result/pages/{page}.json` for each page, by rename, and remove any other page file; return the
+    manifest's entries. The manifest is the caller's to write last, so a reader never finds it naming files that
+    are not there yet."""
+    (directory / "pages").mkdir(parents=True, exist_ok=True)
+    entries: dict[int, pagefile.PageEntry] = {}
+    for page in pages:
+        data = (page.model_dump_json(indent=2) + "\n").encode("utf-8")
+        with publish(pagefile.page_path(directory, page.page)) as part:
+            part.write_bytes(data)
+        entries[page.page] = pagefile.PageEntry(sha256=hashlib.sha256(data).hexdigest(), complete=page.complete)
     # A resumed run can select fewer pages; the directory must contain exactly this generation's files.
     for path in (directory / "pages").glob("*.json"):
         if path.stem.isdigit() and int(path.stem) not in entries:
             path.unlink()
-    with publish(directory / "result.json") as part:
-        part.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    return result
+    return entries
 
 
 def _crop_result(ordinal: int, crop: Crop, record: PageRecord,

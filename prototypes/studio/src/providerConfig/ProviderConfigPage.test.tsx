@@ -338,6 +338,23 @@ describe('ProviderConfigPage', () => {
     expect(saved.ingestionModels).toEqual({})
   })
 
+  it('selects GLiFormer for fields only and keeps the reasoning default', async () => {
+    const repo = 'knowledgator/gliformer-large-v1'
+    const server = studio(config(), { extraction: () => jsonResponse({ ...extractionListing,
+      models: [...extractionListing.models, { key: 'gliformer', repo, roles: ['fields'], reachable: true, serving: true }],
+    }) })
+    await renderPage()
+    fireEvent.click(within(step('Extracting data')).getByRole('button', { name: 'Change' }))
+    await choose('Field values', 'Extraction models this deployment runs', repo)
+    expect(screen.getByText(/GLiFormer reads discovered Catalog entries/)).toBeInTheDocument()
+    const reasoning = await pickerGroup('Reasoning', 'Extraction models this deployment runs')
+    expect(reasoning.queryByRole('option', { name: repo })).not.toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('listbox', { name: 'Reasoning' }), { key: 'Escape' })
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].extractionModels).toEqual({ fields: 'gliformer' })
+  })
+
   it('an unset Schema Suggestion route follows the Assistant model, and Use a different model stores an explicit route even when it equals it', async () => {
     const assistant = { connectionId: OLLAMA_ID, modelId: 'llama3.3' }
     const server = studio(config({ connections: [ollama], routes: { schemaSuggestion: null, interaction: assistant } }))

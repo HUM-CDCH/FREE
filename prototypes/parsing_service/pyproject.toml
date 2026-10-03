@@ -23,6 +23,9 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "dbos[otel]==3.1.0",
     "opentelemetry-instrumentation-requests>=0.63b0",
+    # Pinned to the extraction server's xgrammar: the EBNF the worker writes for a whitespace-loop recovery must
+    # parse on the server (kie/extract/llm.py bounded_grammar).
+    "xgrammar==0.2.7",
 ]
 
 [project.scripts]
@@ -51,6 +54,9 @@ dev = [
 line-length = 120
 
 [tool.pytest.ini_options]
+# The sources beside the tests, first on the path: a worktree's tests read its own `src`, not the editable install of
+# another checkout that a shared venv may hold.
+pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
     "slow: spawns real processes or containers",

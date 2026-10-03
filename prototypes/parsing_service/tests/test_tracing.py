@@ -107,3 +107,10 @@ def test_catalog_chunk_threads_stay_on_the_step_s_trace(spans):
         pieces = grounded._in_chunks(prelude, [[(1, None)], [(2, None)]], None,
                                      lambda *_: trace.get_current_span().get_span_context().trace_id)
     assert [found for _, found in pieces] == [[step.get_span_context().trace_id]] * 2
+
+
+def test_a_recovered_record_is_two_spans_the_looped_one_an_error(spans, monkeypatch):
+    from tests.test_extract_stages import READ, recovering
+    recovering(monkeypatch, READ)
+    records = [span for span in spans.get_finished_spans() if span.name == "record"]
+    assert [span.status.status_code for span in records] == [StatusCode.ERROR, StatusCode.UNSET]

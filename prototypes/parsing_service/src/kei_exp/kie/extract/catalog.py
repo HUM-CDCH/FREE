@@ -1,27 +1,32 @@
 """The version 1 Catalog: generic record discovery, then one call per record slice, each grounded in its slice.
 
-Discovery asks which labelled passages open a record and cuts the passages into record slices at those starts;
-only the final chunk may close the records with an `end`, since an earlier chunk cannot know what follows it. Each
+Discovery asks which labelled passages open a record and cuts the passages into record slices at those starts; only
+the final chunk may close the records with an `end`, since an earlier chunk cannot know what follows it. Each
 slice's values are read from the slice alone under the character budget (`record_chars`) and grounded in it by the
 reference technique. Text the budget cuts is named in a `text_truncated` issue, and a discovery window whose call
-fails names the pages it left unsearched; neither is silent. This module owns the discovery prompt and reply schema
-and reads the starts and end off the reply; record values use `stages.extract_record`, and every model call goes
-through `calls.complete`. The artifact is assembled in `assembly.py`, as Article's is. A request that names a recipe
-runs the grounded Catalog (`grounded.py`) instead.
+fails names the pages it left unsearched; neither is silent. A record call that loops on whitespace is asked once
+more under a grammar bounding the whitespace between JSON tokens (`MAX_WHITESPACE`); both calls stay in the
+artifact. This module owns the discovery prompt and reply schema and reads the starts and end off the reply; record
+values use `stages.extract_record`, and every model call goes through `calls.complete`. The artifact is assembled in
+`assembly.py`, as Article's is. A request that names a recipe runs the grounded Catalog (`grounded.py`) instead.
 """
 from __future__ import annotations
 
 import re
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import requests
+
+from kei_exp.failures import should_retry
 from kei_exp.kie.extract.assembly import artifact, document_values, ground_records, unchecked
-from kei_exp.kie.extract.calls import Call, complete
+from kei_exp.kie.extract.calls import Call, complete, looped
 from kei_exp.kie.extract.contexts import Context
-from kei_exp.kie.extract.llm import Chat
+from kei_exp.kie.extract.llm import Chat, bounded
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Issue, _labelled, extract_record, pages_of
@@ -51,6 +56,10 @@ Input: [B1] Part A
 [B7] Entry, 2.
 Output: {"starts":["B2","B4"],"end":"B6"}
 """
+# 3 October 2026 live calls: a looping record read 3/3 under xgrammar's grammar admitting 16 whitespace characters
+# between JSON tokens, where the same schema through response_format looped 2/2. A server-wide limit changed other
+# records' values, so the bound applies only to a call that already looped.
+MAX_WHITESPACE = 16
 
 
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1,
@@ -75,14 +84,40 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     slices = []
     for number, group in enumerate(groups):
         check()
-        fields, record_calls, record_issues = extract_record(group, schema, chat, budget=options.record_chars,
-                                                             record=number)
+        fields, record_calls, record_issues = _record(group, schema, chat, budget=options.record_chars,
+                                                      number=number, check=check)
         calls += record_calls
         issues += record_issues
         slices.append((group, fields))
     support = ground_records(slices, schema, chat, budget=options.record_chars, check=check)
     return artifact(evidence, request, chat, started=started, clock=clock, fields=[fields for _, fields in slices],
                     document=document, links=support.links, calls=calls + support.calls, issues=issues + support.issues)
+
+
+def _record(group: Sequence[Passage], schema: Schema, chat: Router, *, budget: int, number: int,
+            check: Callable[[], None]) -> tuple[dict, list[Call], list[Issue]]:
+    """One record's values. A call that looped on whitespace is asked once more under the bounded grammar: a reply
+    read there replaces the first answer and marks the looped call `recovered`; a refused or failed recovery leaves
+    the first answer and adds its call and failure. A transient refusal is raised for the step's retry."""
+    fields, calls, issues = extract_record(group, schema, chat, budget=budget, record=number)
+    recovery = bounded(chat.fields, MAX_WHITESPACE) if calls and looped(calls[-1]) else None
+    if recovery is None:
+        return fields, calls, issues
+    check()
+    started = time.monotonic()
+    try:
+        again, again_calls, again_issues = extract_record(group, schema, replace(chat, fields=recovery),
+                                                          budget=budget, record=number)
+    except requests.HTTPError as error:
+        if should_retry(error):
+            raise
+        refused = Call("record", number, None, None, time.monotonic() - started, None, False,
+                       f"whitespace-loop recovery refused: HTTP {error.response.status_code}: "
+                       f"{error.response.text[:300]}")
+        return fields, [*calls, refused], issues
+    if again_calls[-1].ok:
+        return again, [*calls[:-1], replace(calls[-1], recovered=True), *again_calls], again_issues
+    return fields, calls + again_calls, issues + [issue for issue in again_issues if issue.code == "call_failed"]
 
 
 def _chunks(passages: Sequence[Passage], budget: int) -> list[tuple[int, int]]:

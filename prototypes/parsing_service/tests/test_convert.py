@@ -33,10 +33,12 @@ from PIL import Image
 
 from kei_exp.convert import main
 from kei_exp.cut import CutError
+from kei_exp.geometry import CropTransform
 from kei_exp.kie.runner import convert
 from kei_exp.kie.stages import ocr
 from kei_exp.kie.stages.ocr import TRANSCRIBERS, resolve
 from kei_exp.models import MODELS
+from kei_exp.pagefile import load_result, read_manifest
 from kei_exp.progress import print_event
 from kei_exp.regions import LAYOUT_MODELS, Region
 from kei_exp.transcription.specs import VLM_SPECS
@@ -59,6 +61,7 @@ from kei_exp.transcription.vlm import (
     vlm_options,
 )
 from tests.helpers.fake import FakeTranscriber, registered
+from tests.helpers.synthetic import crop
 
 OUTPUT = Path("scratch/fake/input.md")  # where main() writes the fake model's Markdown, under the working directory
 PAGE_RECORD = PageRecord(page=1, region=None, image=Image.new("RGBA", (8, 8), "blue"), seconds=0.5, input_tokens=10,
@@ -212,6 +215,37 @@ def test_an_empty_cut_never_reaches_the_transcriber_and_its_report_records_the_r
     report = json.loads(Path("debug-empty/report.json").read_text(encoding="utf-8"))
     assert report["status"] == "incomplete" and report["pages"] == [] and "found no content" in report["incomplete"]
 
+
+
+# --- The worker's hooks: an adopted result is returned with no cut and no transcription; else before_ocr goes first --
+PAGE_CROP = [crop(1, "page", (0.0, 0.0, 100.0, 100.0), 0, CropTransform(0.0, 0.0, 1.0, 1.0, None), (100, 100))]
+
+
+def test_an_adopted_result_skips_the_cut_the_transcriber_and_before_ocr(workspace, fake, scanned):
+    execution = resolve(RunParams(pdf=Path("input.pdf"), model="fake", result_dir=Path("result")))
+    with patch("kei_exp.kie.stages.ocr.cut_pages", return_value=PAGE_CROP):
+        first = ocr.run(execution, lambda event: None)
+    asked, before, events = [], [], []
+    with patch("kei_exp.kie.stages.ocr.cut_pages", side_effect=AssertionError("cut")) as cutter:
+        markdown = ocr.run(execution, events.append,
+                           adopt=lambda fingerprint, pages: asked.append((fingerprint, pages)) or load_result(
+                               Path("result")), before_ocr=lambda: before.append("called"))
+    manifest = read_manifest(Path("result"))
+    assert markdown == first == "complete output" and asked == [(manifest.fingerprint, sorted(manifest.pages))]
+    assert not cutter.called and len(fake.calls) == 1 and before == []
+    assert [event["type"] for event in events] == ["log"]
+
+
+def test_on_a_miss_before_ocr_runs_once_before_the_cut_and_the_transcriber(workspace, fake, scanned):
+    order = []
+    execution = resolve(RunParams(pdf=Path("input.pdf"), model="fake", result_dir=Path("result")))
+    def cut(*args, **kwargs):
+        order.append("cut")
+        return PAGE_CROP
+    with patch("kei_exp.kie.stages.ocr.cut_pages", side_effect=cut):
+        ocr.run(execution, lambda event: None, adopt=lambda fingerprint, pages: None,
+                before_ocr=lambda: order.append(f"before, {len(fake.calls)} transcribed"))
+    assert order == ["before, 0 transcribed", "cut"] and len(fake.calls) == 1
 
 # --- The debug report is written before the outcome is judged --------------------------------------------------------
 def test_the_report_survives_an_incomplete_run(workspace, fake):

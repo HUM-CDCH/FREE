@@ -16,7 +16,9 @@ This module owns only what every call shares:
 - accounting: every attempt, in order, as a `Call`, the artifact's record of a model call. A failed call's `error`
   may quote the start of the server's refusal or of the unreadable reply; it never carries the request.
 
-It makes no retries of its own; the adapter's single output-format fallback is the only second attempt.
+It makes no retries of its own; the adapter's single output-format fallback is its only second attempt. The version 1
+Catalog's one recovery of a record call that looped on whitespace (`looped`) is its caller's (`catalog.py`), made as a
+second `complete`.
 
 Each call is also a trace span (Phoenix, docs/operations/local-development.md) under the extraction's DBOS step, with
 its model, tokens, outcome and refused attempts; each request it sends is a child span when the worker instruments
@@ -27,6 +29,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -52,10 +55,27 @@ class Call:
     counted_input_tokens: int | None = None
     context_tokens: int | None = None
     max_output_tokens: int | None = None
+    recovered: bool = False             # a failed call whose one recovery call was read: it cost tokens, lost no value
 
 
 _TRACER = trace.get_tracer("kei")
+WHITESPACE_LOOP = "the reply ran into a whitespace loop"
 CAPTURE = set(os.environ.get("FREE_TRACE_CAPTURE", "").split(","))
+
+
+def _cut_off(text: str) -> str:
+    """A reply the server cut at max_tokens: a whitespace loop when at least half of it is trailing whitespace (constrained
+    decoding admits unlimited whitespace between JSON tokens, and a looping model spends the whole allowance on it)."""
+    trailing = len(text) - len(text.rstrip())
+    if text and trailing * 2 >= len(text):
+        return (f"{WHITESPACE_LOOP} ({trailing} of {len(text)} characters trailing whitespace; "
+                "finish_reason length)")
+    return "the reply was cut off (finish_reason length)"
+
+
+def looped(call: Call) -> bool:
+    """Whether `call` failed on a whitespace loop."""
+    return not call.ok and (call.error or "").startswith(WHITESPACE_LOOP)
 
 
 def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str, user: str, schema: dict,
@@ -97,6 +117,34 @@ def _trace(span: Span, parsed: Any, calls: list[Call]) -> None:
                              "output.mime_type": "application/json"})
 
 
+def structure(backend, *, record: int, text: str, schema: dict, identity: dict,
+              counted: int, context: int) -> tuple[dict, Call]:
+    """A native encoder call: no generated reply budget, JSON repair or value conversion."""
+    with _TRACER.start_as_current_span("entry", attributes={"openinference.span.kind": "LLM",
+                                                           "llm.model_name": backend.model},
+                                       record_exception=False, set_status_on_exception=False) as span:
+        try:
+            if counted > context:
+                raise ValueError("native fields request exceeds the served input context")
+            if "prompts" in CAPTURE:
+                span.set_attributes({"input.value": json.dumps({"text": text, "schema": schema}, ensure_ascii=False),
+                                     "input.mime_type": "application/json"})
+            started = time.monotonic()
+            reply = backend.structure(text, schema, identity)
+            if reply.get("input_tokens") != counted:
+                raise ValueError("native fields tokenizer and inference counts disagree")
+            call = Call("entry", record, counted, 0, time.monotonic() - started, None, True,
+                        counted_input_tokens=counted, context_tokens=context, max_output_tokens=0)
+            if "responses" in CAPTURE:
+                span.set_attribute("llm.output_messages.0.message.content", json.dumps(reply, ensure_ascii=False))
+            _trace(span, reply, [call])
+            return reply, call
+        except Exception as error:
+            span.add_event("exception", {"exception.type": type(error).__name__})
+            span.set_status(StatusCode.ERROR)
+            raise
+
+
 def _complete(chat: Chat, stage: str, record: int | None, system: str, user: str, schema: dict, max_tokens: int | None,
               counter: TokenCounter | None, span: Span) -> tuple[Any, list[Call]]:
     counted = None
@@ -122,7 +170,7 @@ def _complete(chat: Chat, stage: str, record: int | None, system: str, user: str
     parsed = None
     error = None
     if reply.finish == "length":
-        error = "the reply was cut off (finish_reason length)"
+        error = _cut_off(reply.text)
     else:
         try:
             parsed = parse_json(reply.text)

@@ -13,6 +13,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -21,6 +22,7 @@ from kei_exp import runs
 from kei_exp.files import load_dotenv
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.models import ROLES
+from kei_exp.kie.extract.progress import read_progress
 from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
 from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 from kei_exp.runtime import loaded_model
@@ -54,7 +56,14 @@ def list_extraction_models() -> dict:
     with it now, and the default per role: what a run may choose in `options.models`."""
     models = []
     for key, record in extraction_models.EXTRACT_MODELS.items():
-        reachable, repo = loaded_model(record.url)
+        if record.adapter == "gliformer":
+            try:
+                info = record.chat().info()
+                reachable, repo = True, info["model"]
+            except (requests.RequestException, ValueError, KeyError):
+                reachable, repo = False, None
+        else:
+            reachable, repo = loaded_model(record.url)
         models.append({"key": key, "repo": record.repo, "roles": [role for role in ROLES if role in record.roles],
                        "reachable": reachable, "serving": repo == record.repo})
     return {"defaults": extraction_models.DEFAULTS, "models": models}
@@ -111,3 +120,15 @@ def run_extraction(run_id: str, extraction_id: str) -> FileResponse:
     if not path.is_file():
         raise HTTPException(404, "no such extraction")
     return FileResponse(path, media_type="application/json")
+
+
+@app.get("/api/runs/{run_id}/extractions/{extraction_id}/progress")
+def run_extraction_progress(run_id: str, extraction_id: str) -> dict:
+    """A running extraction's partial view (`kie.extract.progress`): the stage files kei has published so far, never
+    a model call and never the workflow's status. 404 until the first stage of record work exists."""
+    if not runs.COMPONENT.fullmatch(extraction_id):
+        raise HTTPException(404, "no such extraction")
+    document = read_progress(run_dir(run_id), extraction_id)
+    if document is None:
+        raise HTTPException(404, "no progress yet")
+    return document

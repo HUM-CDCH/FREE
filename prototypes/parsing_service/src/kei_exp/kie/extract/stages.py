@@ -43,6 +43,10 @@ DOCUMENT = ("The document is the one object to extract: the source below is all 
             "states: an array lists every item given, in source order, each item with its own fields.")
 # A counted record call's reply allowance, and the least Article's document root is given (`extract_record`).
 REPLY_TOKENS = 4096
+# The generic Catalog record call has no token counter and used the adapter's 8,192 default; a successful record
+# reply here averages ~63 tokens, so 2,048 bounds a runaway (a whitespace loop under constrained decoding) at a
+# quarter of the old cost while leaving thirty-fold headroom.
+GENERIC_RECORD_REPLY_TOKENS = 2048
 
 
 @dataclass(frozen=True)
@@ -148,7 +152,7 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
               text_of(passages) if counter else _clipped(passages, budget, issues, record))
     system, user, reply_schema = record_request(source, schema, identity, record_name, neutral=neutral,
                                                 document=document)
-    max_tokens = REPLY_TOKENS if counter else None
+    max_tokens = REPLY_TOKENS if counter else GENERIC_RECORD_REPLY_TOKENS
     if document and counter is not None:
         counted = counter.request_tokens(system, user, reply_schema)
         max_tokens = max(REPLY_TOKENS, (counter.context_tokens or 0) - counted)
