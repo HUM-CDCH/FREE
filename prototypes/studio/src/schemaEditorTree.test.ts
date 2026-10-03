@@ -150,4 +150,21 @@ describe('moving into a group keeps the group', () => {
     expect(moveSchemaNodes(nodes, { id: 'title', parentId: null, isGroup: false }, { type: 'group', id: 'sex' }, 0, 30))
       .toStrictEqual([{ id: 'sex', name: 'sex', type: 'object', evidencePolicy: 'quoted', children: [field('title')] }])
   })
+  it('a field dropped onto a scalar read from the file name makes a group without that value source', () => {
+    // A scalar's valueSource says where its one value comes from; a new group has no value of its own to read.
+    const nodes: SchemaNode[] = [
+      { id: 'file', name: 'file', type: 'string', valueSource: 'source-filename', description: 'The scan.' },
+      field('title'),
+    ]
+    expect(moveSchemaNodes(nodes, { id: 'title', parentId: null, isGroup: false }, { type: 'group', id: 'file' }, 0, 30))
+      .toStrictEqual([{ id: 'file', name: 'file', type: 'object', description: 'The scan.', children: [field('title')] }])
+  })
+  it('a group that already was one keeps its value source when a field is dropped into it', () => {
+    const nodes: SchemaNode[] = [
+      { id: 'g', name: 'grave', type: 'object', valueSource: 'document', children: [field('depth')] },
+      field('title'),
+    ]
+    expect(moveSchemaNodes(nodes, { id: 'title', parentId: null, isGroup: false }, { type: 'group', id: 'g' }, 0, 30))
+      .toStrictEqual([{ ...nodes[0], children: [field('depth'), field('title')] }])
+  })
 })

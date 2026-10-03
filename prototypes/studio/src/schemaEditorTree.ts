@@ -81,7 +81,8 @@ export function schemaAncestorIds(
 }
 
 /** The node as a group holding `children`. Everything a group carries survives (its description, `valueSource`,
- *  `evidencePolicy`); a scalar made a group loses only what a group may not carry (`itemType`, `allowedValues`). */
+ *  `evidencePolicy`); a scalar made a group loses what a group may not carry (`itemType`, `allowedValues`) and its
+ *  `valueSource`, which named where its own one value came from. */
 function nodeWithChildren(node: SchemaNode, children: SchemaNode[]): SchemaNode {
   const group: Record<string, unknown> = {
     ...node,
@@ -95,6 +96,8 @@ function nodeWithChildren(node: SchemaNode, children: SchemaNode[]): SchemaNode 
   }
   delete group.itemType
   delete group.allowedValues
+  // A conversion, not a restore into (or a drop onto) an existing group.
+  if (node.children === undefined) delete group.valueSource
   return group as SchemaNode
 }
 
