@@ -164,9 +164,10 @@ document-layout process, and the operating system. Spark's system memory is
 shared with its GPU.
 
 The extraction server runs with
-`--structured-outputs-config '{"disable_any_whitespace": true}'`, which vLLM
-validates at startup and which applies to its xgrammar and guidance backends
-only. Without it, constrained decoding admits unlimited whitespace between JSON
+`--structured-outputs-config '{"backend": "xgrammar", "disable_any_whitespace": true}'`.
+vLLM validates it at startup and refuses `disable_any_whitespace` unless the
+backend is pinned to xgrammar or guidance (the `auto` default is rejected, and
+`auto` chose xgrammar for JSON schemas anyway). Without it, constrained decoding admits unlimited whitespace between JSON
 tokens, and a record call can loop on whitespace until it reaches its
 `max_tokens`. Operator overlays kept outside the repository, for example a
 shared NVFP4 server overlay, must carry the same flag, or the loop returns.
