@@ -326,11 +326,15 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    // Run is the screen's positive; Stop is red (decision 02).
+    expect(screen.getByRole('button', { name: '▶ Run extraction' }).className).toMatch(/(^|\s)bg-green(\s|$)/)
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     await waitFor(() => expect(order).toEqual(['refresh', 'post']))
     extractionResponse.resolve(Response.json({ ...runningAttempt('51000000-0000-4000-8006-000000000031') }, { status: 201 }))
     expect(await screen.findByRole('button', { name: /■ Stop extraction/ })).toBeEnabled()
     expect(screen.getByRole('button', { name: /■ Stop extraction/ })).toHaveTextContent('running')
+    expect(screen.getByRole('button', { name: /■ Stop extraction/ }).className).toMatch(/(^|\s)bg-danger(\s|$)/)
+    expect(screen.getByRole('button', { name: /■ Stop extraction/ }).className).not.toMatch(/(^|\s)bg-green(\s|$)/)
   })
 
   it('a method_changed refusal is retried once with a fresh read, a second one ends with a toast', async () => {
@@ -1610,6 +1614,8 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getAllByRole('button', { name: 'Cancellation requested…' })).toHaveLength(2)
     for (const control of screen.getAllByRole('button', { name: 'Cancellation requested…' }))
       expect(control).toBeDisabled()
+    // The tab strip's stays red while the cancellation is requested (decision 02).
+    expect(screen.getByTitle('Waiting for the Extraction to stop').className).toMatch(/(^|\s)bg-danger(\s|$)/)
   })
 
   it('navigates a long document with the keyboard and offers no sample controls', async () => {
@@ -1826,6 +1832,8 @@ describe('reopened Source Document workspace', () => {
       fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
       if (recipe)
         fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
+      expect(screen.getByRole('button', { name: '▶ Run extraction' }))
+        .toHaveAttribute('title', 'Find the catalogue entries and extract one record per entry')
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('CATALOG', recipe))
@@ -3109,7 +3117,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
 
     const run = screen.getByRole('button', { name: '▶ Run extraction' })
     expect(run).toBeEnabled()
-    expect(run).toHaveAttribute('title', 'Run one values extraction across the whole Source Document')
+    expect(run).toHaveAttribute('title', 'Extract one record from the whole document')
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction' }))
     await waitFor(() => expect(runs).toHaveLength(1))

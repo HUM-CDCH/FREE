@@ -847,8 +847,10 @@ export function DocumentWorkspace({
             <span className="shrink-0 text-compact font-medium text-danger" title={docIndex.message}>Indexing failed</span>
           )}
           <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
+          {/* Run is the screen's one positive; while a run is active it is Stop, in danger, also once its cancellation is
+              requested (then disabled). */}
           <Button
-            variant="positive"
+            variant={running ? 'danger' : 'positive'}
             size="md"
             disabled={running ? extraction.cancellationRequested : runExtractionUnavailable}
             title={
@@ -867,8 +869,8 @@ export function DocumentWorkspace({
                           : nextExtractionStrategy === null
                             ? 'Choose Article or Catalog in the schema header'
                             : nextExtractionStrategy === 'CATALOG'
-                              ? 'Find catalogue entries and extract one record per entry'
-                              : 'Run one values extraction across the whole Source Document'
+                              ? 'Find the catalogue entries and extract one record per entry'
+                              : 'Extract one record from the whole document'
             }
             onClick={() => (running ? void extraction.requestCancellation() : void runExtraction())}
           >

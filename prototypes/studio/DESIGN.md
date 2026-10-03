@@ -97,6 +97,7 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 - **Structure**: compact rounded button with border.
 - **Variants**: green positive, danger, surface secondary, rounded pill; disabled is a line fill.
 - **States**: hover brightness or color shift, global dual-color focus indicator.
+- One filled primary per screen. The tab strip's "▶ Run extraction" is positive; while a run is active it reads "■ Stop extraction" in danger, and stays danger (disabled) once its cancellation is requested.
 
 ### Result Card
 - **Structure**: shallow bordered section using `bg-surface` or `bg-canvas`.
