@@ -21,9 +21,9 @@ import re
 import secrets
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 
 from kei_exp.canonical import canonical_json
 from kei_exp.files import publish
@@ -74,7 +74,18 @@ def started(directory: Path, strategy: str, start_page: int | None) -> str:
     return execution
 
 
-_PAGE = re.compile(r"^p(\d+)_s\d+$")  # a passage id names its page
+_PAGE = re.compile(r"p([0-9]+)_s[0-9]+")  # a passage id names its page (`fullmatch`: ASCII digits, as Studio reads it)
+
+# Studio's acceptance (`packages/extraction/src/partial-result.ts` `progressDocumentSchema`, its links `kei-artifact.ts`
+# `evidenceSchema` and `unifiedEvidenceSchema`), mirrored at least as strictly: a stage file the reader serves is one
+# Studio accepts, so a malformed file is skipped here, alone, and never nulls the whole view there. `[0-9]`, not `\d`:
+# the pattern engine's `\d` is Unicode's, JavaScript's ASCII.
+_Count = Annotated[int, Field(ge=0)]
+_PageNumber = Annotated[int, Field(ge=1)]
+_Path = list[str | _Count]
+_Segment = Annotated[str, StringConstraints(pattern=r"^p[0-9]+_s[0-9]+$")]
+_Cell = Annotated[str, StringConstraints(pattern=r"^r[0-9]+_c[0-9]+$")]
+_Precision = Literal["cell", "segment", "input"]
 
 
 class _Stage(BaseModel):
@@ -86,11 +97,11 @@ class _Stage(BaseModel):
 
 class _Header(_Stage):
     strategy: Literal["catalog", "article"]
-    start_page: int | None
+    start_page: _PageNumber | None
 
 
 class _Marker(_Stage):
-    index: int
+    index: _Count
 
 
 class _Competitor(BaseModel):
@@ -101,7 +112,7 @@ class _Competitor(BaseModel):
 class _Arbitration(BaseModel):
     """A `work.contest` row as `_settle` writes it: the path (`records`, n, ...), its outcome and the verified values."""
     model_config = ConfigDict(extra="allow")
-    path: list[str | int]
+    path: _Path
     outcome: str
     candidates: list[_Competitor]
 
@@ -120,46 +131,75 @@ class _FinishedEntry(BaseModel):
 
 class _CandidateRow(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    path: list[str | int]
+    path: _Path
     value: Any
     quote: str | None
-    window: int
+    window: _Count
 
 
 class _Candidates(_Stage):
-    index: int
+    index: _Count
     discovery_sha256: str
     ranges: list[dict[str, Any]]
     candidates: list[_CandidateRow]
     record: dict[str, Any]
-    failed: int
+    failed: _Count
 
 
 class _ContestRow(BaseModel):
     """`assemble_document`'s and `_settle`'s conflict: the path (record-relative) and the values that disagreed."""
     model_config = ConfigDict(extra="forbid")
-    path: list[str | int]
+    path: _Path
     candidates: list[Any]
 
 
-class _LinkRow(BaseModel):
-    """An artifact link as `assembly.artifact` or `unified._link` writes it: the fields every link has; a version's own
-    fields ride along (`extra="allow"`), so the document carries the row as it was written."""
+class _Span(BaseModel):
+    """A code-point span of a passage, as `spans_json` writes it."""
     model_config = ConfigDict(extra="allow")
-    path: list[str | int]
-    segment: str
-    page: int
-    bbox_pt: list[float] | None
+    segment: _Segment
+    start: _Count
+    end: Annotated[int, Field(ge=1)]
+
+
+class _Link(BaseModel):
+    """The fields every artifact link has (`evidenceSchema`); a version's own fields ride along (`extra="allow"`), so
+    the document carries the row as it was written. `cell` and `precision` are required: both writers always write
+    them, so a dump never adds a key the file did not have."""
+    model_config = ConfigDict(extra="allow", allow_inf_nan=False)
+    path: _Path
+    segment: _Segment
+    page: _PageNumber
+    bbox_pt: Annotated[list[float], Field(min_length=4, max_length=4)] | None
     verbatim: bool
-    hits: int
-    linked_by: str
+    hits: _Count
+    cell: _Cell | None
+    precision: _Precision
+
+
+class _ModelLink(_Link):
+    """Article's link as `assembly.artifact` writes it (`stages.Link`)."""
+    linked_by: Literal["lexical", "model"]
+
+
+class _VerifiedLink(_Link):
+    """A Catalog link as `unified._link` writes it (`unifiedEvidenceSchema`): the verified value with its spans."""
+    linked_by: Literal["verification"]
+    support: Literal["literal", "supporting"]
+    spans: Annotated[list[_Span], Field(min_length=1)]
+    alternatives: list[list[_Span]]
+    raw: str
+    item: list[_Span] | None
+
+
+# Studio's `union(unifiedEvidenceSchema, evidenceSchema)`, told apart by `linked_by`.
+_LinkRow = Annotated[_ModelLink | _VerifiedLink, Field(discriminator="linked_by")]
 
 
 class _ContextFile(_Stage):
-    context: int
-    of: int
-    answered: int
-    failed: int
+    context: _Count
+    of: _Count
+    answered: _Count
+    failed: _Count
     passages: dict[str, Any]
     fields: dict[str, Any]
     root: dict[str, Any]
@@ -175,42 +215,61 @@ class _GroundingFile(_Stage):
 class ProgressEntry(BaseModel):
     """One record of the partial view (design §3): where it is in its reading, and what exists of it so far."""
     model_config = ConfigDict(extra="forbid")
-    index: int
+    index: _Count
     label: str | None
-    page: int | None
+    page: _PageNumber | None
     stage: Literal["queued", "reading", "candidates", "finished"]
-    candidates: list[dict[str, Any]] | None  # {path, value, quote, window} rows, in the candidates stage
-    record: dict[str, Any] | None            # the values so far (candidates placed, or the finished entry's record)
-    evidence: list[dict[str, Any]] | None    # the artifact's own link dicts: a finished entry's, or Article's so far
-    contested: list[dict[str, Any]] | None   # {path (record-relative), candidates}: scalars whose verified values disagree
-    failed: int | None                       # values windows (Catalog) or contexts (Article) that failed: their nulls are unknown
+    candidates: list[_CandidateRow] | None  # {path, value, quote, window} rows, in the candidates stage
+    record: dict[str, Any] | None           # the values so far (candidates placed, or the finished entry's record)
+    evidence: list[_LinkRow] | None         # the artifact's own link dicts: a finished entry's, or Article's so far
+    contested: list[_ContestRow] | None     # {path (record-relative), candidates}: scalars whose verified values disagree
+    failed: _Count | None                   # values windows (Catalog) or contexts (Article) that failed: their nulls are unknown
+
+
+class DocumentProgress(BaseModel):
+    """Article's document: the contexts answered so far of all of them, and the links grounding made once complete."""
+    model_config = ConfigDict(extra="forbid")
+    contexts: list[Any]  # each context's passages (`Context.dumped`), in source order
+    answered: _Count
+    of: _Count
+    failed_contexts: _Count
+    links: list[_LinkRow]
+    grounding_batches: _Count
 
 
 class ProgressDocument(BaseModel):
     """What `GET /api/runs/{run}/extractions/{id}/progress` answers; `tests/fixtures/contracts/extract.progress.json`
-    pins it for Studio's `partialFromProgress`."""
+    (Catalog) and `extract.progress.article.json` (Article) pin it for Studio's `partialFromProgress`."""
     model_config = ConfigDict(extra="forbid")
     version: Literal[1]
     strategy: Literal["catalog", "article"]
-    started_at_page: int | None
-    discovered: int
-    finished: int
+    started_at_page: _PageNumber | None
+    discovered: _Count
+    finished: _Count
     entries: list[ProgressEntry]
-    document: dict[str, Any] | None  # Article: {contexts, answered, of, failed_contexts, links, grounding_batches}; Catalog: None
+    document: DocumentProgress | None  # Article's; None for Catalog
 
 
 def read_progress(run_dir: Path, extraction_id: str) -> dict | None:
     """The progress document for `extraction_id` under `run_dir`, or None before the first stage of record work
     (`catalog-discovery.json`, or the first context file of this execution) exists. Files only: a missing, unreadable,
     malformed or other execution's stage file is skipped, and a finished entry is read before any marker beside it, so a
-    stage never regresses."""
+    stage never regresses. The document is checked against `ProgressDocument` before it is served: one outside it (a
+    defect of the reader, the files having been checked one by one) is logged and answered as no progress, never a
+    failure of the route."""
     directory = run_dir / "extractions" / extraction_id
     header = _stage(directory / PROGRESS_NAME, _Header)
     if header is None:
         return None
-    if header.strategy == "article":
-        return _article(directory, header)
-    return _catalog(directory, run_dir, header)
+    document = _article(directory, header) if header.strategy == "article" else _catalog(directory, run_dir, header)
+    if document is None:
+        return None
+    try:
+        ProgressDocument.model_validate(document)
+    except ValidationError as error:
+        _LOG.warning("progress of extraction %s outside its contract, not served: %s", extraction_id, error)
+        return None
+    return document
 
 
 def _stage[M: _Stage](path: Path, model: type[M], execution: str | None = None) -> M | None:
@@ -233,8 +292,10 @@ def _catalog(directory: Path, run_dir: Path, header: _Header) -> dict | None:
     passages = _passages(run_dir)
     entries, finished = [], 0
     for number, entry in enumerate(found["entries"]):
-        row = {"index": number, "label": entry.get("label"), "page": _page_of(entry), "stage": "queued",
-               "candidates": None, "record": None, "evidence": None, "contested": None, "failed": None}
+        label = entry.get("label")  # kei's own record, read as the view needs it: a label that is no text is none
+        row = {"index": number, "label": label if isinstance(label, str) else None, "page": _page_of(entry),
+               "stage": "queued", "candidates": None, "record": None, "evidence": None, "contested": None,
+               "failed": None}
         published = _json(directory / unified.entry_name(number))
         if (settled := _finished(published)) is not None:
             record, contested = settled
@@ -302,12 +363,13 @@ def _article(directory: Path, header: _Header) -> dict | None:
 
 
 def _page_of(entry: dict) -> int | None:
-    """The page of the passage an entry's first range names; None when the entry names none the reader can read."""
+    """The page of the passage an entry's first range names; None when the entry names none the reader can read (no
+    passage id, or a page before the first)."""
     ranges = entry.get("ranges")
     first = ranges[0] if isinstance(ranges, list) and ranges else None
     segment = first.get("segment") if isinstance(first, dict) else None
-    match = _PAGE.match(segment) if isinstance(segment, str) else None
-    return int(match[1]) if match else None
+    match = _PAGE.fullmatch(segment) if isinstance(segment, str) else None
+    return int(match[1]) or None if match else None
 
 
 def _json(path: Path) -> Any:

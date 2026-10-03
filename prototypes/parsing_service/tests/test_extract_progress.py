@@ -1,5 +1,6 @@
 """The stage files a running extraction publishes for Studio's partial view, and the reader that serves them."""
 import json
+import logging
 import re
 
 import pytest
@@ -12,6 +13,7 @@ from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.models import Router, as_router
 from kei_exp.kie.passages import Passage, load
 from tests.helpers import kei as kei_helper
+from tests.helpers.contracts import fixture
 from tests.test_extract_grounded import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_unified_catalog import Model, candidate, section
@@ -19,6 +21,41 @@ from tests.test_unified_catalog import evidence as unified_evidence
 from tests.test_unified_catalog import extract as unified_extract
 from tests.test_unified_catalog import fields as unified_fields
 from tests.test_unified_catalog import request as unified_request
+
+
+def served(run_dir, extraction_id: str) -> dict:
+    """The document the progress route answers, checked against the contract it promises Studio (`ProgressDocument`)."""
+    document = progress.read_progress(run_dir, extraction_id)
+    assert document is not None
+    progress.ProgressDocument.model_validate(document)
+    return document
+
+
+def article_link(path: list, /, **change) -> dict:
+    """An Article link as `assembly.artifact` writes it into a grounding file."""
+    return {"path": ["records", 0, *path], "segment": "p1_s0", "page": 1, "bbox_pt": [0.0, 0.0, 100.0, 20.0],
+            "verbatim": True, "hits": 1, "linked_by": "model", "cell": None, "precision": "segment", **change}
+
+
+def complete_article(directory) -> str:
+    """The stage files of an Article whose two contexts answered (page 2's first, the start page) and whose grounding
+    made two batches: what `extract.progress.article.json` pins. Returns the execution's token."""
+    execution = progress.started(directory, "article", 2)
+
+    def context(index: int, answered: int, primary: list[str], fields: dict, root: dict) -> None:
+        progress.write_stage(directory / progress.context_name(index), {
+            "version": 1, "execution": execution, "context": index, "of": 2, "answered": answered, "failed": 0,
+            "passages": {"primary": primary, "overlap": []}, "fields": fields, "root": root, "contested": [], "ok": True,
+            "calls": []})
+    second = {"entry_no": None, "site": "Hill", "year": None, "finds": None}
+    context(1, 1, ["p2_s0"], second, second)
+    root = {"entry_no": "31", "site": "Hill", "year": None, "finds": ["spear"]}
+    context(0, 2, ["p1_s0"], root, root)
+    progress.write_stage(directory / progress.grounding_name(0), {"version": 1, "execution": execution, "links": [
+        article_link(["entry_no"]), article_link(["site"], segment="p2_s0", page=2, verbatim=False, hits=2)]})
+    progress.write_stage(directory / progress.grounding_name(1), {"version": 1, "execution": execution, "links": [
+        article_link(["finds", 0], bbox_pt=[10.0, 20.0, 90.5, 32.25])]})
+    return execution
 
 
 def page(number: int, text: str | None = None) -> Passage:
@@ -92,8 +129,7 @@ def test_a_context_answered_after_a_refused_structured_request_is_answered_and_i
     assert [(call["stage"], call["ok"]) for call in context["calls"]] == [("record", False), ("record", True)]  # the refusal kept
     assert context["calls"][0]["error"].startswith("HTTP 400")
     assert any(not call["ok"] and call["error"].startswith("HTTP 400") for call in result["calls"])  # and in the artifact's diagnostics
-    document = progress.read_progress(tmp_path, "x4")
-    progress.ProgressDocument.model_validate(document)
+    document = served(tmp_path, "x4")
     [entry] = document["entries"]
     assert entry["record"]["year"] is None and entry["failed"] == 0  # every context answered, none failed: the null is empty
     assert (document["document"]["answered"], document["document"]["of"], document["document"]["failed_contexts"]) == (1, 1, 0)
@@ -180,8 +216,7 @@ def test_the_catalog_progress_names_each_entry_stage_and_the_finished_entries_li
     with pytest.raises(requests.ConnectionError):
         unified.extract(run_dir, source, unified_request(start_page=1), as_router(CountingChat(failing_third_verification)),
                         counter=WordCounter(), extraction_id="x-1")
-    document = progress.read_progress(run_dir, "x-1")
-    progress.ProgressDocument.model_validate(document)
+    document = served(run_dir, "x-1")
     assert (document["strategy"], document["started_at_page"], document["discovered"], document["finished"]) == ("catalog", 1, 5, 2)
     assert [entry["stage"] for entry in document["entries"]] == ["finished", "finished", "candidates", "queued", "queued"]
     first, third, last = document["entries"][0], document["entries"][2], document["entries"][4]
@@ -198,7 +233,7 @@ def test_the_catalog_progress_names_each_entry_stage_and_the_finished_entries_li
     settled = unified.extract(run_dir, source, unified_request(), as_router(CountingChat(model)), counter=WordCounter(),
                               extraction_id="x-2")
     assert first["evidence"] == [link for link in settled["evidence"] if link["path"][1] == 0]
-    assert progress.read_progress(run_dir, "x-2")["finished"] == 5
+    assert served(run_dir, "x-2")["finished"] == 5
 
 
 def test_an_unresolved_arbitration_is_contested_in_the_progress_of_a_finished_entry(tmp_path):
@@ -213,7 +248,7 @@ def test_an_unresolved_arbitration_is_contested_in_the_progress_of_a_finished_en
         return answer
     unified_extract(source, Model(source, entry=last_material, choice="NONE"), run_dir=tmp_path, extraction_id="x1",
                     input_tokens=520, output_tokens=64)
-    document = progress.read_progress(tmp_path, "x1")
+    document = served(tmp_path, "x1")
     [entry] = document["entries"]
     assert entry["stage"] == "finished" and entry["record"]["material"] is None
     assert entry["contested"] == [{"path": ["material"], "candidates": ["Holz", "Stein"]}]
@@ -227,7 +262,7 @@ def test_a_finished_entry_beside_a_stale_candidates_or_reading_file_is_finished(
     progress.write_stage(directory / progress.reading_name(0), {"version": 1, "execution": execution, "index": 0})
     progress.write_stage(directory / progress.candidates_name(0), {"version": 1, "execution": execution, "index": 0,
                          "discovery_sha256": "0" * 64, "ranges": [], "candidates": [], "record": {}, "failed": 0})
-    document = progress.read_progress(tmp_path, "x1")
+    document = served(tmp_path, "x1")
     assert document["entries"][0]["stage"] == "finished" and document["finished"] == 1
     assert document["entries"][0]["evidence"] == []  # no result under this run directory: links are left out, not invented
 
@@ -245,12 +280,11 @@ def test_a_published_entry_outside_its_layout_is_not_finished_and_is_shown_from_
                  {**record["work"], "contest": {}},                                   # contests that are no list
                  {**record["work"], "contest": [{"path": ["records", 0, "material"], "outcome": "unresolved"}]}):  # a row without its values
         published.write_bytes(json.dumps({**record, "work": work}).encode())
-        document = progress.read_progress(tmp_path, "x1")
-        progress.ProgressDocument.model_validate(document)
+        document = served(tmp_path, "x1")
         assert document["finished"] == 0 and document["entries"][0]["stage"] == "candidates"
         assert document["entries"][0]["record"] == {"label": "1"} and document["entries"][0]["evidence"] is None
     published.write_bytes(json.dumps(record).encode())
-    assert progress.read_progress(tmp_path, "x1")["entries"][0]["stage"] == "finished"
+    assert served(tmp_path, "x1")["entries"][0]["stage"] == "finished"
 
 
 def test_links_that_cannot_be_made_leave_a_finished_entry_finished_with_its_record_and_contests(tmp_path, monkeypatch):
@@ -268,8 +302,7 @@ def test_links_that_cannot_be_made_leave_a_finished_entry_finished_with_its_reco
     def missing_passage(record, passages):
         raise KeyError("p1_s0")
     monkeypatch.setattr(unified, "entry_links", missing_passage)
-    document = progress.read_progress(tmp_path, "x1")
-    progress.ProgressDocument.model_validate(document)
+    document = served(tmp_path, "x1")
     [entry] = document["entries"]
     assert document["finished"] == 1 and entry["stage"] == "finished" and entry["evidence"] == []
     assert entry["record"]["site"] == "Adorf" and entry["record"]["material"] is None
@@ -287,36 +320,36 @@ def test_malformed_or_stale_stage_files_are_skipped_never_served(tmp_path):
         return model(system, user, schema)
     with pytest.raises(requests.ConnectionError):
         unified_extract(source, before_entry_1, run_dir=tmp_path, extraction_id="x1")
-    assert [entry["stage"] for entry in progress.read_progress(tmp_path, "x1")["entries"]] == ["finished", "reading"]
+    assert [entry["stage"] for entry in served(tmp_path, "x1")["entries"]] == ["finished", "reading"]
     header = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
     (directory / progress.candidates_name(1)).write_bytes(b"{}")                     # a stage file outside its layout
-    assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "reading"  # skipped: the marker still counts
+    assert served(tmp_path, "x1")["entries"][1]["stage"] == "reading"  # skipped: the marker still counts
     progress.write_stage(directory / progress.candidates_name(1), {"version": 1, "execution": header["execution"], "index": 1,
                          "discovery_sha256": "0" * 64, "ranges": [], "candidates": [{}], "record": {}, "failed": 0})  # a row outside its shape
-    assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "reading"  # the whole file is skipped
+    assert served(tmp_path, "x1")["entries"][1]["stage"] == "reading"  # the whole file is skipped
     (directory / progress.reading_name(1)).write_bytes(b"{not json")                   # half-written
-    assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "queued"
+    assert served(tmp_path, "x1")["entries"][1]["stage"] == "queued"
     progress.write_stage(directory / progress.reading_name(1), {"version": 1, "execution": "other", "index": 1})  # another execution's
-    assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "queued"
+    assert served(tmp_path, "x1")["entries"][1]["stage"] == "queued"
     (directory / progress.PROGRESS_NAME).write_bytes(b"[]")                            # a header that is no header
     assert progress.read_progress(tmp_path, "x1") is None
     progress.write_stage(directory / progress.PROGRESS_NAME, header)
-    assert progress.read_progress(tmp_path, "x1")["finished"] == 1
+    assert served(tmp_path, "x1")["finished"] == 1
     discovery = directory / "catalog-discovery.json"
     kept = discovery.read_bytes()
     discovery.write_bytes(b'{"entries": [null]}')                                       # kei's own record, outside its layout
     assert progress.read_progress(tmp_path, "x1") is None                             # no guess: no progress
     discovery.write_bytes(b'{"entries": [{"ranges": [{}]}, {"ranges": []}, {"ranges": {"segment": "p1_s0"}}, {"ranges": 1}]}')  # ranges that name no segment, or are no list
-    assert [(entry["stage"], entry["page"]) for entry in progress.read_progress(tmp_path, "x1")["entries"]] == \
+    assert [(entry["stage"], entry["page"]) for entry in served(tmp_path, "x1")["entries"]] == \
         [("finished", None), ("queued", None), ("queued", None), ("queued", None)]        # read, with no page to show
     discovery.write_bytes(kept)
     published = directory / unified.entry_name(0)
     record = json.loads(published.read_bytes())
     published.write_bytes(json.dumps({**record, "work": {**record["work"], "contest": [None]}}).encode())  # a contest row that is no row
-    assert progress.read_progress(tmp_path, "x1")["entries"][0]["stage"] == "finished"   # the row is skipped, the entry stays finished
-    assert progress.read_progress(tmp_path, "x1")["entries"][0]["contested"] == []
+    assert served(tmp_path, "x1")["entries"][0]["stage"] == "finished"   # the row is skipped, the entry stays finished
+    assert served(tmp_path, "x1")["entries"][0]["contested"] == []
     published.write_bytes(json.dumps(record).encode())
-    assert progress.read_progress(tmp_path, "x1")["finished"] == 1
+    assert served(tmp_path, "x1")["finished"] == 1
 
 
 def test_the_article_progress_is_one_record_from_the_latest_assembled_root_whose_links_arrive_once_it_is_complete(tmp_path):
@@ -332,8 +365,7 @@ def test_the_article_progress_is_one_record_from_the_latest_assembled_root_whose
     # A grounding file beside an incomplete root (the final context's write was dropped, or this read fell between the two
     # writes): the links verify the final root, so none is attached to the root shown.
     progress.write_stage(directory / progress.grounding_name(0), {"version": 1, "execution": execution, "links": [link]})
-    document = progress.read_progress(tmp_path, "x3")
-    progress.ProgressDocument.model_validate(document)
+    document = served(tmp_path, "x3")
     [entry] = document["entries"]
     assert (document["strategy"], document["started_at_page"], document["discovered"], document["finished"]) == ("article", 2, 1, 0)
     assert entry["stage"] == "candidates" and entry["record"] == {"entry_no": None, "site": "Brook", "year": 1828, "finds": None}
@@ -347,10 +379,58 @@ def test_the_article_progress_is_one_record_from_the_latest_assembled_root_whose
         "contested": [{"path": ["site"], "candidates": ["Hill", "Brook"]}], "ok": False, "calls": []})
     progress.write_stage(directory / progress.grounding_name(1), {"version": 1, "execution": "other", "links": [link, link]})  # a previous execution's
     progress.write_stage(directory / progress.grounding_name(2), {"version": 1, "execution": execution, "links": [{}]})        # a row outside its shape
-    document = progress.read_progress(tmp_path, "x3")
+    document = served(tmp_path, "x3")
     [entry] = document["entries"]
     assert entry["record"] == {"entry_no": "31", "site": None, "year": 1828, "finds": ["spear"]}  # the latest assembled root
     assert entry["contested"] == [{"path": ["site"], "candidates": ["Hill", "Brook"]}] and entry["failed"] == 1  # the latest file's cumulative count
     assert entry["evidence"] == [link] and document["document"]["answered"] == 2 and document["document"]["grounding_batches"] == 1  # complete: links attached; the two other files skipped
     assert document["document"]["failed_contexts"] == 1 and document["document"]["contexts"] == [
         {"primary": ["p1_s0"], "overlap": []}, {"primary": ["p2_s0"], "overlap": []}]
+
+
+def test_a_malformed_article_stage_file_is_skipped_alone_and_the_healthy_progress_is_served(tmp_path):
+    directory = tmp_path / "extractions" / "x5"
+    execution = complete_article(directory)
+    assert served(tmp_path, "x5") == fixture("extract.progress.article")  # the shared fixture is what the reader serves
+    # Rows Studio refuses (`progressDocumentSchema`): each in a grounding file beside a healthy row, so the whole file is
+    # skipped and nothing else; the healthy batches' links stay served and the document stays valid.
+    for change in ({"bbox_pt": [0.0, 0.0, 1.0]}, {"page": 0}, {"linked_by": "x"}, {"segment": "s0"}, {"segment": "p١_s0"},
+                   {"cell": "c1"}, {"precision": None}, {"hits": -1}, {"path": ["records", -1, "year"]},
+                   {"bbox_pt": [0.0, 0.0, 1.0, float("inf")]},
+                   {"linked_by": "verification"},                                     # without a verified link's fields
+                   {"linked_by": "verification", "support": "literal", "spans": [], "alternatives": [], "raw": "x",
+                    "item": None}):                                                    # a verified link without its spans
+        (directory / progress.grounding_name(2)).write_bytes(json.dumps({  # as written, infinity included
+            "version": 1, "execution": execution, "links": [article_link(["entry_no"]), article_link(["year"], **change)]}).encode())
+        assert served(tmp_path, "x5") == fixture("extract.progress.article"), change
+    for change in ({"failed": -1}, {"answered": -1}, {"of": -2}):  # a later context file with a count Studio refuses
+        progress.write_stage(directory / progress.context_name(2), {
+            "version": 1, "execution": execution, "context": 2, "of": 3, "answered": 3, "failed": 0,
+            "passages": {"primary": ["p3_s0"], "overlap": []}, "fields": {}, "root": {}, "contested": [], "ok": True,
+            "calls": [], **change})
+        assert served(tmp_path, "x5") == fixture("extract.progress.article"), change
+    progress.write_stage(directory / progress.PROGRESS_NAME, {"version": 1, "execution": execution, "strategy": "article",
+                                                              "start_page": 0})  # a header Studio refuses
+    assert progress.read_progress(tmp_path, "x5") is None
+
+
+def test_discovery_fields_outside_the_contract_are_read_as_none(tmp_path):
+    source = unified_evidence("1. Adorf. Material: Holz.")
+    unified_extract(source, run_dir=tmp_path, extraction_id="x1")
+    discovery = tmp_path / "extractions" / "x1" / "catalog-discovery.json"
+    discovery.write_bytes(json.dumps({"entries": [{"label": {"text": "1"}, "ranges": [{"segment": "p0_s0"}]},
+                                                  {"label": 2, "ranges": [{"segment": "p1_s0\n"}]},
+                                                  {"label": "3", "ranges": [{"segment": "p2_s0"}]}]}).encode())
+    assert [(entry["label"], entry["page"]) for entry in served(tmp_path, "x1")["entries"]] == \
+        [(None, None), (None, None), ("3", 2)]  # a label that is no text, a page before the first: none, never served
+
+
+def test_a_document_outside_the_contract_is_logged_and_never_served(tmp_path, monkeypatch, caplog):
+    source = unified_evidence("1. Adorf. Material: Holz.")
+    unified_extract(source, run_dir=tmp_path, extraction_id="x1")
+    assert served(tmp_path, "x1")["finished"] == 1
+    monkeypatch.setattr(progress, "_passages", lambda run_dir: {})  # a result that loads
+    monkeypatch.setattr(unified, "entry_links", lambda record, passages: [{"path": ["records", 0, "label"], "page": 0}])
+    with caplog.at_level(logging.WARNING, logger=progress.__name__):
+        assert progress.read_progress(tmp_path, "x1") is None  # the last resort: no progress, never a failure of the route
+    assert "outside its contract" in caplog.text

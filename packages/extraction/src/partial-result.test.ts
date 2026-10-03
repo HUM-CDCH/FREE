@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import progressFixture from '../../../prototypes/parsing_service/tests/fixtures/contracts/extract.progress.json' with { type: 'json' }
+import articleProgressFixture from '../../../prototypes/parsing_service/tests/fixtures/contracts/extract.progress.article.json' with { type: 'json' }
 import { partialFromProgress, progressDocumentSchema, type ProgressDocument } from './partial-result.js'
 import type { VerifiedGrounding } from './types.js'
 
@@ -94,6 +95,19 @@ describe('partialFromProgress', () => {
     complete.entries[0]!.failed = 0
     complete.entries[0]!.contested = [{ path: ['entry_no'], candidates: ['31', '32'] }]
     assert.deepEqual(partialFromProgress(complete)!.records[0]!.values[key('entry_no')], { value: null, state: 'contested', candidates: ['31', '32'] })
+  })
+
+  it('maps the shared Article fixture: every context answered, its links grounded, a field no context answered empty', () => {
+    const partial = partialFromProgress(progressDocumentSchema.parse(structuredClone(articleProgressFixture)))!
+    assert.equal(partial.strategy, 'ARTICLE')
+    assert.deepEqual([partial.startedAtPage, partial.discovered, partial.finished], [2, 1, 0])
+    assert.deepEqual(partial.document, { contextsAnswered: 2, contexts: 2, groundingBatches: 2 })
+    const [record] = partial.records
+    assert.equal(record!.state, 'checking')
+    assert.deepEqual(record!.values[key('site')], { value: 'Hill', state: 'grounded' })
+    assert.deepEqual(record!.values[key('finds', '0')], { value: 'spear', state: 'grounded' })
+    assert.deepEqual(record!.values[key('year')], { value: null, state: 'empty' })
+    assert.deepEqual(record!.evidenceLinks[1], { resultPath: ['records', 0, 'site'], evidenceAnchorId: 'a_p2_s0', precision: 'segment', verbatim: false, lexicalHits: 2 })
   })
 
   it('a document outside the contract is null, never a throw', () => {

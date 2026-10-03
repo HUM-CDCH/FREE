@@ -50,7 +50,21 @@ def test_the_progress_fixture_is_a_valid_progress_document_with_one_entry_per_st
     assert document.model_dump(mode="json") == data
     assert [entry.stage for entry in document.entries] == ["finished", "finished", "candidates", "reading", "queued"]
     assert document.finished == 2 and document.discovered == len(document.entries)
-    assert document.entries[1].contested == [{"path": ["site"], "candidates": ["Bdorf", "Bdorf-Nord"]}]
+    assert [row.model_dump() for row in document.entries[1].contested] == [{"path": ["site"], "candidates": ["Bdorf", "Bdorf-Nord"]}]
+
+
+def test_the_article_progress_fixture_is_a_complete_article_document():
+    from kei_exp.kie.extract.progress import ProgressDocument
+    data = fixture("extract.progress.article")
+    document = ProgressDocument.model_validate(data)
+    assert document.model_dump(mode="json") == data
+    [entry] = document.entries
+    assert (document.strategy, document.discovered, document.finished, entry.stage) == ("article", 1, 0, "candidates")
+    assert document.document is not None and document.document.answered == document.document.of == len(document.document.contexts)
+    assert document.document.failed_contexts == 0 == entry.failed and document.document.grounding_batches == 2
+    assert [link.model_dump() for link in entry.evidence] == [link.model_dump() for link in document.document.links]
+    assert {link.linked_by for link in document.document.links} == {"model"}  # Article's links, not Catalog's verified ones
+    assert entry.record["year"] is None  # a field every context left null: empty once every context answered
 
 
 @pytest.mark.parametrize("name", OUTPUTS)
