@@ -142,6 +142,9 @@ describe('RightRail developer UI visibility', () => {
     }
     render(<Rail />)
     expect(screen.getByText(/Review attention · 1 to check/).closest('details')).toHaveAttribute('open')
+    // The value is its own Evidence link (decision 14), and the Review attention row's "Edit field" stays.
+    expect(screen.getByRole('button', { name: 'View Evidence for title' })).toHaveTextContent('Report')
+    expect(screen.queryByText('Evidence')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit field' }))
     expect(schema.snapshot().historicalPreview).toBeNull()
     expect(schema.snapshot().draft).toEqual(draft)

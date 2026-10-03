@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import pluralize from 'pluralize'
 import type { SchemaNode } from 'extraction/schema'
 import type {
@@ -109,6 +109,35 @@ const candidateTitle = 'Candidate · being verified'
 /** The hollow marker of a candidate value that verification has not settled yet. */
 function CandidateMarker({ className = '' }: { className?: string }) {
   return <span aria-hidden="true" className={`size-2 shrink-0 rounded-full border border-ink-muted ${className}`} />
+}
+
+/** A grounded value with no decision yet (decision 14): the same hollow marker, in accent, before the value. The Results
+ *  badge counts these ("n to check"). */
+function ToCheckMarker({ className = '' }: { className?: string }) {
+  return <span role="img" aria-label="to check" title="To check" className={`size-2 shrink-0 rounded-full border border-accent ${className}`} />
+}
+
+/** A value with Evidence is itself the way to it (decision 14): a link-styled button named for the field, described by
+ *  the value it shows, at least 24px tall. */
+function EvidenceValue({ label, title, valueId, onSelect, children }: {
+  label: string
+  title?: string
+  valueId: string
+  onSelect: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-describedby={valueId}
+      title={title}
+      className="inline-flex min-h-6 min-w-0 max-w-full cursor-pointer items-start text-left text-ink underline decoration-accent/40 underline-offset-2 outline-none transition-colors hover:text-accent hover:decoration-accent"
+      onClick={onSelect}
+    >
+      {children}
+    </button>
+  )
 }
 
 function CollapseArrow({ expanded }: { expanded: boolean }) {
@@ -228,6 +257,17 @@ function PrimitiveRow({
   const evidenceForExtracted = decision?.action === 'EDITED' || decision?.action === 'REJECTED'
   const evidenceLabel = evidenceForExtracted ? `View Evidence for extracted value of ${name}` : `View Evidence for ${name}`
   const evidenceTitle = evidenceForExtracted ? 'Evidence for the extracted value' : undefined
+  const valueId = useId()
+  const evidenceShown = Boolean(evidenceAnchorId && onSelectEvidence)
+  // "To check": a grounded value whose decision the researcher has not made yet. Decided rows show their status dot.
+  const toCheck = Boolean(decision) && !touched
+  const statusDot = toCheck
+    ? <span className="w-3.5 shrink-0" />
+    : <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
+  /** The value text, as the button to its Evidence when it has one. */
+  const valueText = (span: ReactNode) => evidenceShown
+    ? <EvidenceValue label={evidenceLabel} title={evidenceTitle} valueId={valueId} onSelect={() => onSelectEvidence!(evidenceAnchorId!)}>{span}</EvidenceValue>
+    : span
 
   function startEdit() {
     setReviewError(null)
@@ -317,7 +357,7 @@ function PrimitiveRow({
     return (
       <div className="-mx-2 group rounded-[3px] px-2 pb-2 pt-1.5 transition-colors hover:bg-accent-ghost/30">
         <div className="grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)_auto_auto] items-center gap-x-2">
-          <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
+          {statusDot}
           <span className="font-mono text-content font-medium text-ink">{name}</span>
           <span />
           {onChange && (
@@ -330,25 +370,15 @@ function PrimitiveRow({
               <PencilIcon />
             </button>
           )}
-          {evidenceAnchorId && onSelectEvidence && (
-            <button
-              className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-overline font-bold text-accent outline-none hover:border-accent"
-              type="button"
-              aria-label={evidenceLabel}
-              title={evidenceTitle}
-              onClick={() => onSelectEvidence(evidenceAnchorId)}
-            >
-              Evidence
-            </button>
-          )}
           {!evidenceAnchorId && claimStatus && <ClaimBadge status={claimStatus} />}
-          {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         </div>
-        <div className="pl-4 pt-0.5 text-content leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap"
+        <div className="flex items-start gap-1.5 pl-4 pt-0.5 text-content leading-relaxed text-ink-muted"
           title={state === 'checking' ? candidateTitle : undefined}>
-          {state === 'checking' && <CandidateMarker className="mr-1.5 inline-block align-middle" />}
-          {text}
+          {state === 'checking' && <CandidateMarker className="mt-[7px]" />}
+          {toCheck && <ToCheckMarker className="mt-[7px]" />}
+          {valueText(<span id={valueId} className="min-w-0 wrap-anywhere whitespace-pre-wrap">{text}</span>)}
         </div>
+        {evidenceCheck && <EvidenceCheckNote reason={evidenceCheck} />}
         {evidenceDetail && <EvidenceDetail text={evidenceDetail} />}
         {reviewEditable && (
           <ReviewActions
@@ -368,42 +398,35 @@ function PrimitiveRow({
   return (
     <div className="-mx-2 group rounded-[3px] px-2 transition-colors hover:bg-accent-ghost/30">
       <div className="grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)_auto_auto] items-start gap-x-2 gap-y-0.5 py-1.5">
-        <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
+        {statusDot}
         <span className="font-mono text-content font-medium leading-snug text-ink">
           {name}
         </span>
         {missing ? (
-          contested ? <ContestedBadge candidates={contested} /> : <MissingBadge />
+          // A rejected value shows as Missing; it still leads to the extracted value's Evidence.
+          contested ? <ContestedBadge candidates={contested} /> : valueText(<span id={valueId} className="inline-flex"><MissingBadge /></span>)
         ) : state === 'checking' ? (
           <span className={`flex min-w-0 gap-1.5 text-content text-ink-muted ${expanded ? 'items-baseline leading-relaxed' : 'items-center leading-snug'}`} title={candidateTitle}>
             <CandidateMarker />
             <span ref={valueRef} className={expanded ? 'min-w-0 wrap-anywhere whitespace-pre-wrap' : 'min-w-0 line-clamp-2'}>{text}</span>
           </span>
         ) : (
-          <span
-            ref={valueRef}
-            className={
-              expanded
-                ? 'min-w-0 wrap-anywhere whitespace-pre-wrap text-content leading-relaxed text-ink'
-                : 'min-w-0 line-clamp-2 text-content leading-snug text-ink-muted'
-            }
-          >
-            {text}
+          <span className={`flex min-w-0 gap-1.5 ${expanded ? 'items-baseline' : 'items-start'}`}>
+            {toCheck && <ToCheckMarker className={expanded ? '' : 'mt-[5px]'} />}
+            {valueText(
+              <span
+                id={valueId}
+                ref={valueRef}
+                className={`${expanded
+                  ? 'min-w-0 wrap-anywhere whitespace-pre-wrap text-content leading-relaxed'
+                  : 'min-w-0 line-clamp-2 text-content leading-snug'} ${evidenceShown ? '' : expanded ? 'text-ink' : 'text-ink-muted'}`}
+              >
+                {text}
+              </span>,
+            )}
           </span>
         )}
-        {evidenceAnchorId && onSelectEvidence && (
-          <button
-            className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-overline font-bold text-accent outline-none hover:border-accent"
-            type="button"
-            aria-label={evidenceLabel}
-            title={evidenceTitle}
-            onClick={() => onSelectEvidence(evidenceAnchorId)}
-          >
-            Evidence
-          </button>
-        )}
         {!missing && !evidenceAnchorId && claimStatus && <ClaimBadge status={claimStatus} />}
-        {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         {(onChange || reviewEditable) && !reviewEditable && (
           <button
             className="shrink-0 cursor-pointer px-0.5 text-ink-faint opacity-0 outline-none transition-all group-hover:opacity-100 hover:text-accent"
@@ -424,6 +447,7 @@ function PrimitiveRow({
           </button>
         )}
       </div>
+      {evidenceCheck && <EvidenceCheckNote reason={evidenceCheck} />}
       {evidenceDetail && <EvidenceDetail text={evidenceDetail} />}
       {reviewEditable && (
         <ReviewActions
@@ -535,19 +559,10 @@ function ClaimBadge({ status }: { status: ClaimStatusNote }) {
   )
 }
 
-/** Grounding's doubt about a link: the value is not in the passage, or it
- *  also occurs elsewhere. A prompt to look, never a verdict. */
-function CheckBadge({ reason }: { reason: string }) {
-  return (
-    <span
-      className="shrink-0 rounded-full border border-amber-300/60 bg-amber-50/50 px-2 py-0.5 text-overline font-bold text-amber-800"
-      role="note"
-      aria-label={reason}
-      title={reason}
-    >
-      Check
-    </span>
-  )
+/** Grounding's doubt about a link: the value is not in the passage, or it also occurs elsewhere. A prompt to look,
+ *  never a verdict: a quiet line under the value (decision 14: no pill), named by its reason. */
+function EvidenceCheckNote({ reason }: { reason: string }) {
+  return <p role="note" aria-label={reason} className="pb-1 pl-[22px] text-compact leading-snug text-stale-ink">{reason}</p>
 }
 
 // ── ObjectSection ─────────────────────────────────────────────────────────────

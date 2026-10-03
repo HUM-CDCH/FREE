@@ -427,6 +427,11 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
     expect(screen.getAllByRole('note')).toHaveLength(2)
     expect(screen.getByText('To check:')).toBeInTheDocument()
+    // Rows without pills (decision 14): the doubt is a line of words, the value its own Evidence link.
+    expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toHaveTextContent('Value not found in the linked passage')
+    expect(screen.queryByText('Check')).not.toBeInTheDocument()
+    expect(screen.queryByText('Evidence')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View Evidence for place' })).toHaveTextContent('Ravenna')
   })
 
   it.each(['EDITED', 'REJECTED'] as const)('clears original-value warnings for %s decisions and restores them when reversed', (action) => {
@@ -1482,6 +1487,8 @@ describe('ResultsTab extraction status', () => {
     expect(screen.getByText('Previous schema')).toBeInTheDocument()
     expect(screen.getByText('Review applies to Schema Revision 3')).toBeInTheDocument()
     expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
+    // Its one undecided value is marked to check (decision 14).
+    expect(screen.getAllByRole('img', { name: 'to check' })).toHaveLength(1)
     expect(screen.queryByText('Extraction Schema updated')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reject place' }))
     expect(setDecision).toHaveBeenCalledWith(['records', 0, 'place'], 'REJECTED', null)

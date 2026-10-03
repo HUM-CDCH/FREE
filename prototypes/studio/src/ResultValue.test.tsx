@@ -122,3 +122,90 @@ describe('value states (redesign §8)', () => {
     expect(screen.getByText('· page 6')).toBeInTheDocument()
   })
 })
+
+// Decision 14: rows without pills. The value is its own way to its Evidence; "to check" is a marker before it.
+describe('results rows without pills (decision 14)', () => {
+  const grounded = { getValueState: () => 'grounded' as const, getEvidenceAnchorId: () => 'a1' }
+  const decision = (action: 'APPROVED' | 'EDITED' | 'REJECTED' = 'APPROVED') => ({
+    resultPath: ['title'], evidenceAnchorId: 'a1', reviewedOccurrenceIds: [], action,
+    reviewedValue: action === 'EDITED' ? 'Reviewed report' : null,
+  })
+  const review = (touched: boolean, action: 'APPROVED' | 'EDITED' | 'REJECTED' = 'APPROVED') => ({
+    getDecision: () => decision(action), getSchemaNode: () => null, isTouched: () => touched, onDecision: vi.fn(),
+  })
+
+  it.each([
+    ['a row', false],
+    ['an expanded row', true],
+  ])('in %s, a grounded value is the button to its Evidence, named for the field and described by the value', (_label, expandText) => {
+    const onSelectEvidence = vi.fn()
+    render(<ResultValue name="title" value="Report" path={['title']} expandText={expandText} {...grounded} onSelectEvidence={onSelectEvidence} />)
+    const link = screen.getByRole('button', { name: 'View Evidence for title' })
+    expect(link.tagName).toBe('BUTTON')
+    expect(link).toHaveTextContent('Report')
+    expect(link).toHaveAccessibleDescription('Report')
+    expect(screen.queryByText('Evidence')).not.toBeInTheDocument()
+    link.focus()
+    expect(link).toHaveFocus()
+    fireEvent.click(link)
+    expect(onSelectEvidence).toHaveBeenCalledExactlyOnceWith('a1')
+    // At least 24px tall (§10).
+    expect(link.className).toMatch(/(^|\s)min-h-6(\s|$)/)
+  })
+
+  it('after an edit the value still leads to the extracted value\'s Evidence', () => {
+    render(<ResultValue name="title" value="Reviewed report" path={['title']} {...grounded} onSelectEvidence={vi.fn()} review={review(true, 'EDITED')} />)
+    expect(screen.getByRole('button', { name: 'View Evidence for extracted value of title' })).toHaveTextContent('Reviewed report')
+  })
+
+  it('grounding\'s doubt is a quiet note under the value, never a Check pill', () => {
+    render(<ResultValue name="title" value="Report" path={['title']} {...grounded} onSelectEvidence={vi.fn()}
+      getEvidenceCheck={() => 'Value also appears in 2 other passages'} />)
+    const note = screen.getByRole('note', { name: 'Value also appears in 2 other passages' })
+    expect(note).toHaveTextContent('Value also appears in 2 other passages')
+    expect(note.className).not.toMatch(/rounded-full/)
+    expect(screen.queryByText('Check')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['a row', false],
+    ['an expanded row', true],
+  ])('in %s, a value still to check carries an accent marker before it and keeps its decision controls', (_label, expandText) => {
+    render(<ResultValue name="title" value="Report" path={['title']} expandText={expandText} {...grounded} onSelectEvidence={vi.fn()} review={review(false)} />)
+    const marker = screen.getByRole('img', { name: 'to check' })
+    expect(marker).toHaveAttribute('title', 'To check')
+    expect(marker.className).toMatch(/(^|\s)border-accent(\s|$)/)
+    // Before the value: the marker precedes the value's button in the document.
+    expect(marker.compareDocumentPosition(screen.getByRole('button', { name: 'View Evidence for title' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // One marker, not a second hollow "Pending review" ring as well.
+    expect(screen.queryByTitle('Pending review')).not.toBeInTheDocument()
+    for (const name of ['Approve title', 'Edit title', 'Reject title'])
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+  })
+
+  it.each(['APPROVED', 'EDITED', 'REJECTED'] as const)('a decided (%s) row shows no to-check marker', (action) => {
+    render(<ResultValue name="title" value="Report" path={['title']} {...grounded} onSelectEvidence={vi.fn()} review={review(true, action)} />)
+    expect(screen.queryByRole('img', { name: 'to check' })).not.toBeInTheDocument()
+  })
+
+  it('an ungrounded value is plain text with its verifier note, not a button', () => {
+    render(<ResultValue name="place" value="Ravenna" path={['place']} getValueState={() => undefined} onSelectEvidence={vi.fn()}
+      getClaimStatus={() => ({ label: 'Unsupported', detail: 'No passage supports this value.' })} />)
+    expect(screen.queryByRole('button', { name: /View Evidence/ })).not.toBeInTheDocument()
+    expect(screen.getByText('Ravenna').closest('button')).toBeNull()
+    expect(screen.getByRole('note', { name: 'Unsupported: No passage supports this value.' })).toHaveTextContent('Unsupported')
+  })
+})
+
+describe('a rejected value (decision 14)', () => {
+  it('shows Missing, and Missing leads to the extracted value\'s Evidence', () => {
+    const onSelectEvidence = vi.fn()
+    render(<ResultValue name="title" value={null} path={['title']} getValueState={() => 'grounded'} getEvidenceAnchorId={() => 'a1'}
+      onSelectEvidence={onSelectEvidence} review={{ getDecision: () => ({ resultPath: ['title'], evidenceAnchorId: 'a1',
+        reviewedOccurrenceIds: [], action: 'REJECTED', reviewedValue: null }), getSchemaNode: () => null, isTouched: () => true }} />)
+    const link = screen.getByRole('button', { name: 'View Evidence for extracted value of title' })
+    expect(link).toHaveTextContent('Missing')
+    fireEvent.click(link)
+    expect(onSelectEvidence).toHaveBeenCalledExactlyOnceWith('a1')
+  })
+})
