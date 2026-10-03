@@ -225,6 +225,7 @@ export async function startRealService(logFile: string,
     // does; a KEI_NUEXTRACT_URL exported in the shell must never route fields away.
     KEI_NUEXTRACT_URL: (realUrl && process.env.FREE_REAL_NUEXTRACT_URL) || '',
     ...(realUrl && process.env.FREE_REAL_NUEXTRACT_MODEL ? { KEI_NUEXTRACT_MODEL: process.env.FREE_REAL_NUEXTRACT_MODEL } : {}),
+    KEI_GLIFORMER_URL: (realUrl && process.env.FREE_REAL_GLIFORMER_URL) || '',
     CUDA_VISIBLE_DEVICES: '',
     HF_HUB_DISABLE_TELEMETRY: '1',
   }
