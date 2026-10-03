@@ -407,7 +407,7 @@ function SchemaPanel({
     useState<FieldEditing | null>(null)
   const [editingError, setEditingError] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
-  const { toast: panelToast, showToast: showPanelToast, dismissToast: dismissPanelToast } = useToast()
+  const { toast: panelToast, showToast: showPanelToast, dismissToast: dismissPanelToast, holdToast: holdPanelToast } = useToast()
   const [chat, setChat] = useState<ChatMsg[]>([])
   /** The researcher's open or collapse; null keeps the default: open before a schema exists or while a recovered
    *  request runs, collapsed otherwise. */
@@ -672,8 +672,11 @@ function SchemaPanel({
     resetEditorUi(true)
   }
 
-  /** The code view's editor, opened on the current definition. */
+  /** The code view's editor, opened on the current definition, whose version it remembers: a code Save over field edits
+   *  made since (in the Fields view, which a session leaves open) is refused rather than replacing them. */
+  const codeBaseVersionRef = useRef(0)
   function startCodeEdit() {
+    codeBaseVersionRef.current = schema.snapshot().draftVersion
     setJsonDraft(JSON.stringify(schemaDefinitionToTemplate({ recordDescription: recordDescriptionDraft, schemaNodes: nodes }), null, 2))
     setJsonEditMode(true)
     setJsonEditError(null)
@@ -1356,6 +1359,10 @@ function SchemaPanel({
                     <Button
                       variant="positive"
                       onClick={() => {
+                        if (schema.snapshot().draftVersion !== codeBaseVersionRef.current) {
+                          setJsonEditError('The fields changed while you were editing the code. Reopen Edit as code to continue.')
+                          return
+                        }
                         try {
                           const parsed: unknown = JSON.parse(jsonDraft)
                           if (!isRecord(parsed)) throw new Error('The code must describe one object')
@@ -1434,7 +1441,7 @@ function SchemaPanel({
         </div>
         {panelToast && (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
-            <Toast message={panelToast.message} action={panelToast.action} onDismiss={dismissPanelToast} />
+            <Toast message={panelToast.message} action={panelToast.action} onDismiss={dismissPanelToast} onHoldChange={holdPanelToast} />
           </div>
         )}
       </div>

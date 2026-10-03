@@ -34,17 +34,18 @@ export type FieldRowProps = {
 
 // Colours stay off the shared base: two utilities of one property resolve by stylesheet order, not class order. Worded,
 // not icons explained by tooltips (decision 11): 28px tall, at least 28px wide.
-const ACTION = 'inline-flex h-7 min-w-7 shrink-0 cursor-pointer items-center justify-center rounded-[3px] px-2 text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-40'
+const ACTION = 'inline-flex h-7 min-w-7 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-[3px] px-2 text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-40'
 const ACTION_PLAIN = `${ACTION} text-ink-muted hover:bg-surface-muted hover:text-accent`
 const ACTION_DANGER = `${ACTION} text-danger hover:bg-danger-soft`
 /** The type and values pills' buttons: at least 24px tall around the pill. A type longer than its line ellipsizes. */
 const PILL_BUTTON = 'inline-flex min-h-6 min-w-0 max-w-full cursor-pointer items-center rounded-full outline-none disabled:cursor-default disabled:opacity-60'
 const PILL_FIT = 'min-w-0 max-w-full'
-/** The actions overlay the right end of the row's first line, at a constant 140px: "Edit", "Note" and "Delete" measure
- *  37 + 40 + 49px, 4px apart after a 4px lead (138px). Shown, and only then hit by a pointer, on hover and focus within
- *  the row; at rest a tap there reaches the row, never an unseen action. While a pill has keyboard focus the overlay
- *  steps aside as well. */
-const ACTIONS = 'pointer-events-none absolute right-0 top-px flex w-[140px] items-center justify-end gap-1 rounded-[3px] bg-surface pl-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
+/** The actions overlay the right end of the row's first line, at least 140px: "Edit", "Note" and "Delete" measure
+ *  37 + 40 + 49px, 4px apart after a 4px lead (138px). A fallback font or a larger text size widens it to fit its words
+ *  (`w-max`), never wrapping or overflowing them, though then past the pills' 140px reserve. Shown, and only then hit by
+ *  a pointer, on hover and focus within the row; at rest a tap there reaches the row, never an unseen action. While a
+ *  pill has keyboard focus the overlay steps aside as well. */
+const ACTIONS = 'pointer-events-none absolute right-0 top-px flex w-max min-w-[140px] items-center justify-end gap-1 rounded-[3px] bg-surface pl-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
 /** The pills keep clear of the actions, so a pointer on any part of a pill reaches the pill. On a row line of 296px and
  *  more their line keeps the overlay's 140px clear (they wrap before it), which leaves them at least 110px. A narrower
  *  row (the 264px rail, nested rows) would squeeze them under a pill's width: there they start on the line below the

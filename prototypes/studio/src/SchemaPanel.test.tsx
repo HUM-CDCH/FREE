@@ -1867,6 +1867,33 @@ describe('schema header (redesign §5)', () => {
     expect((editor() as HTMLTextAreaElement).value).not.toContain('report_title')
   })
 
+  it('refuses to save a code draft over field edits made since it was opened', () => {
+    const setup = renderPanel()
+    chooseSchemaAction('Edit as code')
+    const editor = () => screen.getByRole('textbox', { name: 'Schema code' }) as HTMLTextAreaElement
+    fireEvent.change(editor(), { target: { value: editor().value.replace('"title"', '"report_title"') } })
+    // Meanwhile, in the Fields view, a field is renamed; the code session stays open (F2).
+    fireEvent.click(screen.getByRole('button', { name: 'Fields' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit gender' }))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'sex' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const afterFieldEdit = setup.edits.length
+    chooseSchemaAction('Edit as code')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByText('The fields changed while you were editing the code. Reopen Edit as code to continue.')).toBeInTheDocument()
+    // Nothing saved over the field edit; the code stays open with its draft.
+    expect(setup.edits).toHaveLength(afterFieldEdit)
+    expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['title', 'sex'])
+    expect(editor().value).toContain('report_title')
+    // Reopened, the session starts from the current fields and saves.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    chooseSchemaAction('Edit as code')
+    expect(editor().value).toContain('"sex"')
+    fireEvent.change(editor(), { target: { value: editor().value.replace('"title"', '"report_title"') } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['report_title', 'sex'])
+  })
+
   it('the workspace commands use the shared buttons: Stop danger, Retry and Edit secondary, Save and Create positive', async () => {
     const button = (name: string) => screen.getByRole('button', { name })
     // Regenerating: Stop is a destructive command.
@@ -2092,7 +2119,10 @@ describe('field rows (redesign §6)', () => {
     expect(actions.className).toMatch(/(^|\s)pointer-events-none(\s|$)/)
     expect(actions.className).toMatch(/(^|\s)group-hover:pointer-events-auto(\s|$)/)
     expect(actions.className).toMatch(/(^|\s)group-focus-within:pointer-events-auto(\s|$)/)
-    expect(actions.className).toMatch(/(^|\s)w-\[140px\](\s|$)/)
+    // At least the 140px the pills keep clear, wider when a fallback font or a larger text size needs it (never wrapping
+    // a word or overflowing leftwards).
+    expect(actions.className).toMatch(/(^|\s)w-max(\s|$)/)
+    expect(actions.className).toMatch(/(^|\s)min-w-\[140px\](\s|$)/)
     // Worded, not icons explained by tooltips (decision 11): Edit, Note, Delete, 28px tall, the names kept.
     const worded = [['Edit sex', 'Edit'], ['Add note to sex', 'Note'], ['Delete sex', 'Delete']] as const
     for (const [label, text] of worded) {
@@ -2103,6 +2133,7 @@ describe('field rows (redesign §6)', () => {
       expect(action.className).toMatch(/(^|\s)min-w-7(\s|$)/)
       expect(action.className).toMatch(/(^|\s)text-compact(\s|$)/)
       expect(action.className).toMatch(/(^|\s)font-semibold(\s|$)/)
+      expect(action.className).toMatch(/(^|\s)whitespace-nowrap(\s|$)/)
       expect(action.querySelector('svg')).toBeNull()
     }
     expect(within(row).getByRole('button', { name: 'Delete sex' }).className).toMatch(/(^|\s)text-danger(\s|$)/)
