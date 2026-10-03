@@ -100,6 +100,22 @@ def test_the_step_publishes_the_artifact_and_names_its_digest(parsed, monkeypatc
     assert json.loads(artifact.read_text())["chunks"] == 3 and output["extraction_id"] == "x-1"
 
 
+def test_invalid_gliformer_request_has_a_readable_reason_without_input_dump(parsed, monkeypatch):
+    from kei_exp.kie.extract import models
+    registry = models.registry({"KEI_GLIFORMER_URL": "http://native.test"})
+    monkeypatch.setattr(models, "EXTRACT_MODELS", registry)
+    monkeypatch.setattr(models, "DEFAULTS", models.defaults(registry))
+    run_id, generation = parsed
+    body = {"schema": {"recordDescription": "PRIVATE DESCRIPTION MUST NOT BE ECHOED", "schemaNodes": [
+        {"id": "material", "name": "leather_material", "type": "boolean"}]},
+        "options": {"models": {"fields": "gliformer"}, "unified": {"defaults": 1}}}
+    with pytest.raises(KeiFailure) as caught:
+        workflow.extract_run(WID, run_id, generation, body)
+    assert caught.value.code == "invalid_request"
+    assert caught.value.reason == "GLiFormer requires strings or arrays of objects; 'leather_material' is boolean"
+    assert not (runs.RUNS / run_id / "extractions" / "x-1" / "result.json").exists()
+
+
 def test_an_unreadable_status_at_a_chunked_catalog_entry_fails_open_and_the_artifact_publishes(parsed, monkeypatch,
                                                                                                caplog):
     """A database restart while chunk threads ask before their entries is not a cancel: every entry is read, the

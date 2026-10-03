@@ -390,6 +390,14 @@ describe('runExtraction', () => {
     assert.equal(failureOf(h).code, 'invalid_schema_revision')
   })
 
+  it('a worker request refusal is readable and remains an invalid_request failure', () => {
+    assert.deepEqual(extractionFailureOf({ ok: false, code: 'invalid_request',
+      reason: "GLiFormer requires strings or arrays of objects; 'leather_material' is boolean", retryable: false }, 'CATALOG'), {
+      code: 'invalid_request', phase: 'extracting',
+      message: "The Parsing Service refused the Extraction request: GLiFormer requires strings or arrays of objects; 'leather_material' is boolean",
+    })
+  })
+
   it('maps kei\'s failures to Studio\'s failure codes', async () => {
     const failed = (code: string, reason: string): KeiPoll => ({ state: 'SUCCESS', output: { ok: false, code, reason, retryable: false } })
     const cases: Array<[KeiPoll, string, string]> = [

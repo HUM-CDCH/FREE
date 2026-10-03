@@ -152,6 +152,7 @@ describe('/api/batch-extractions transport', () => {
     ['record_scope_required', 409],
     ['record_scope_mismatch', 409],
     ['invalid_identity_fields', 422],
+    ['incompatible_extraction_model', 422],
     ['invalid_model_config', 500],
   ] as const)('answers %s with %i', async (code, status) => {
     const module = extractionModule({

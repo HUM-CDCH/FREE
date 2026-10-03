@@ -122,6 +122,7 @@ export function extractionFailureOf(outcome: Extract<KeiOutcome<unknown>, { ok: 
     }
   }
   switch (outcome.code) {
+    case 'invalid_request': return { code: 'invalid_request', message: `The Parsing Service refused the Extraction request: ${outcome.reason}`.slice(0, 512), phase }
     case 'stale_generation': return { code: 'invalid_source_representation', message: outcome.reason.slice(0, 512), phase }
     case 'model_unavailable': return { code: 'model_unavailable', message: outcome.reason.slice(0, 512), phase }
     // The unified Catalog's pinned budgets do not fit what is served now, or no minimum request fits them.

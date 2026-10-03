@@ -58,6 +58,33 @@ test('native GLiFormer survives the authenticated durable Catalog route without 
         ] },
       ],
     }
+    const incompatible = await page.request.post('/api/schema-revisions', { headers, data: {
+      projectContextId: project, ...schema, schemaNodes: [
+        { id: 'leather', name: 'leather_material', type: 'boolean' },
+        { id: 'sex', name: 'sex', type: 'string', allowedValues: ['male', 'female'] },
+        { id: 'age', name: 'age', type: 'string', allowedValues: ['adult', 'unknown'] },
+      ],
+    } })
+    expect(incompatible.status(), await incompatible.text()).toBe(201)
+    const badRevision = (await incompatible.json()).revision.schemaRevisionId
+    const refusedId = randomUUID()
+    const method = { models, settings: { unified: { defaults: 1 } } }
+    for (const [url, data] of [
+      ['/api/extractions', { id: refusedId, sourceRepresentationRevisionId: reopened.sourceRepresentation.sourceRepresentationId }],
+      ['/api/batch-extractions', { projectContextId: project, sourceDocumentIds: [ingestion.sourceDocumentId] }],
+    ] as const) {
+      const refused = await page.request.post(url, { headers, data: {
+        ...data, strategy: 'CATALOG', schemaRevisionId: badRevision, method,
+      } })
+      expect(refused.status(), await refused.text()).toBe(422)
+      const body = await refused.json()
+      expect(body.error.code).toBe('incompatible_extraction_model')
+      for (const name of ['leather_material', 'sex', 'age']) expect(body.error.message).toContain(name)
+      expect(body.error.message).not.toContain('input_value')
+      await save(url.endsWith('/extractions') ? 'single-refusal.json' : 'batch-refusal.json', body)
+    }
+    expect((await page.request.get(`/api/extractions/${refusedId}`)).status()).toBe(404)
+    expect((await (await page.request.get('/api/model_config')).json()).config.extractionModels).toEqual(models)
     const revision = await page.request.post('/api/schema-revisions', { headers, data: { projectContextId: project, ...schema } })
     expect(revision.status(), await revision.text()).toBe(201)
     const id = randomUUID()

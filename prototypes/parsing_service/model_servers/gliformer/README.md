@@ -23,6 +23,14 @@ The pinned library does not automatically encode descriptor descriptions; this
 service supplies them through the native processor's `item.prompt` for both
 counting and inference. The descriptions reach the model, but compliance is not assured.
 
+Studio checks explicitly selected GLiFormer models before admitting new single
+or Batch Extractions. Unsupported fields are named together, and incompatible
+methods or explicit heading/verification settings are refused with HTTP 422
+(`incompatible_extraction_model`), without creating or queueing an Extraction.
+Saved schemas and model choices stay unchanged; already admitted requests replay.
+The Parsing Service revalidates requests as a worker-side backstop. Model
+availability and runtime token budgets are still checked during execution.
+
 Raw records, nulls, empty lists, duplicates and missing fields survive unchanged.
 Each native output window retains its exact input, canonical source ranges,
 model identity, decoder output, and confidence diagnostics. Result records are

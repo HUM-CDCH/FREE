@@ -49,6 +49,15 @@ def catalog_chunks(environ: Mapping[str, str]) -> int:
 CATALOG_CHUNKS = catalog_chunks(os.environ)
 
 
+def request_validation_reason(error: ValidationError) -> str:
+    """Readable worker backstop without Pydantic's input dump, type internals or documentation URL."""
+    return "; ".join(
+        (".".join(map(str, issue["loc"])) + ": " if issue["loc"] else "")
+        + issue["msg"].removeprefix("Value error, ")
+        for issue in error.errors(include_input=False, include_context=False, include_url=False)
+    )
+
+
 @DBOS.step(name="extract_run", **STEP_RETRY)
 def extract_run(workflow_id: str, run_id: str, generation: str, body: dict) -> dict:
     extraction_id = extraction_id_of(workflow_id)
@@ -64,7 +73,7 @@ def extract_run(workflow_id: str, run_id: str, generation: str, body: dict) -> d
     try:
         request = ExtractRequest.model_validate(body)
     except ValidationError as error:
-        raise KeiFailure("invalid_request", str(error)) from error
+        raise KeiFailure("invalid_request", request_validation_reason(error)) from error
     # Built on the step's thread, so it keeps the workflow ID for the Catalog's chunk threads, which carry no DBOS
     # context; its throttle is locked, so several chunks may ask at once.
     check = CancelCheck(workflow_id)
@@ -91,7 +100,7 @@ def extract_workflow(request: dict) -> dict:
     try:
         parsed = ExtractInput.model_validate(request)
     except ValidationError as error:
-        return failure("invalid_request", str(error), retryable=False)
+        return failure("invalid_request", request_validation_reason(error), retryable=False)
     workflow_id = DBOS.workflow_id
     return settled(lambda: extract_run(workflow_id, parsed.run_id, parsed.generation, parsed.request),
                    default="extraction_failed")
