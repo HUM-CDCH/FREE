@@ -69,15 +69,21 @@ export type ResultValueProps = {
   getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined
   onSelectEvidence?: (anchorId: string) => void
   review?: ResultReview
+  /** The value's §8 state, when the caller knows it; reading and queued rows show no value text. */
+  getValueState?: (path: ResultPath) => ValueState | undefined
 }
 
 export type ClaimStatusNote = { label: string; detail: string }
+
+/** The six per-value states of §8: this component styles them; the settled attempt supplies grounded, empty and
+ *  contested, the streaming view later supplies checking, reading and queued. */
+export type ValueState = 'grounded' | 'checking' | 'reading' | 'queued' | 'empty' | 'contested'
 
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
 
 function MissingBadge() {
   return (
-    <span className="rounded-full border border-line-strong bg-surface-muted px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-faint">
+    <span className="rounded-full border border-line-strong bg-surface-muted px-2 py-0.5 text-overline font-bold uppercase tracking-[0.08em] text-ink-faint">
       Missing
     </span>
   )
@@ -90,10 +96,10 @@ function ContestedBadge({ candidates }: { candidates: readonly unknown[] }) {
   const listed = candidates.map(candidateText).join(' · ')
   return (
     <span className="flex min-w-0 items-center gap-1.5" role="note" aria-label={`Contested: sources disagreed (${listed})`} title={`Sources disagreed: ${listed}`}>
-      <span className="shrink-0 rounded-full border border-stale/50 bg-stale-soft px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-stale-ink">
+      <span className="shrink-0 rounded-full border border-stale/50 bg-stale-soft px-2 py-0.5 text-overline font-bold uppercase tracking-[0.08em] text-stale-ink">
         Contested
       </span>
-      <span className="min-w-0 truncate text-[11.5px] text-ink-muted">{listed}</span>
+      <span className="min-w-0 truncate text-compact text-ink-muted">{listed}</span>
     </span>
   )
 }
@@ -115,7 +121,7 @@ function CollapseArrow({ expanded }: { expanded: boolean }) {
 // in place".
 function EnterChevron() {
   return (
-    <span className="shrink-0 text-[15px] font-bold leading-none text-ink-muted">›</span>
+    <span className="shrink-0 text-base font-bold leading-none text-ink-muted">›</span>
   )
 }
 
@@ -164,8 +170,8 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 // ── PrimitiveRow ──────────────────────────────────────────────────────────────
 
 function PrimitiveRow({
-  name, value, path, onChange, expandText, evidenceAnchorId, evidenceCheck, evidenceDetail, contested, claimStatus, onSelectEvidence, review,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; evidenceCheck?: string; evidenceDetail?: string; contested?: readonly unknown[]; claimStatus?: ClaimStatusNote; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, expandText, evidenceAnchorId, evidenceCheck, evidenceDetail, contested, claimStatus, onSelectEvidence, review, state,
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; evidenceCheck?: string; evidenceDetail?: string; contested?: readonly unknown[]; claimStatus?: ClaimStatusNote; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview; state?: ValueState }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
@@ -236,16 +242,28 @@ function PrimitiveRow({
   }
   function cancel() { setReviewError(null); setEditing(false) }
 
+  if (state === 'reading' || state === 'queued') {
+    return (
+      <div className="-mx-2 grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)] items-center gap-x-2 rounded-[3px] px-2 py-1.5">
+        <span className="w-3.5 shrink-0" />
+        <span className={`font-mono text-content font-medium ${state === 'queued' ? 'text-ink-muted' : 'text-ink'}`}>{name}</span>
+        {state === 'reading'
+          ? <span role="img" aria-label="Reading" title="Reading" className="h-3 w-24 animate-pulse rounded-sm border border-dashed border-line-strong" />
+          : <span role="img" aria-label="Queued" title="Queued" className="h-px w-16 bg-line-strong" />}
+      </div>
+    )
+  }
+
   if (editing) {
     return (
       <div className="my-0.5 flex items-center gap-1.5 rounded-[3px] border border-accent bg-accent-ghost px-2.5 py-2"
         onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) save() }}>
         <span className="w-2 shrink-0" />
-        <span className="shrink-0 font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        <span className="shrink-0 font-mono text-content font-medium text-ink">{name}</span>
         {review?.getSchemaNode(path)?.allowedValues ? (
           <select
             aria-label={`Reviewed value for ${name}`}
-            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-content text-ink outline-none focus-visible:border-accent"
             value={draft}
             autoFocus
             onChange={e => setDraft(e.target.value)}
@@ -256,7 +274,7 @@ function PrimitiveRow({
         ) : review?.getSchemaNode(path)?.type === 'boolean' ? (
           <select
             aria-label={`Reviewed value for ${name}`}
-            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-content text-ink outline-none focus-visible:border-accent"
             value={draft}
             autoFocus
             onChange={e => setDraft(e.target.value)}
@@ -268,7 +286,7 @@ function PrimitiveRow({
         ) : (
           <input
             aria-label={`Reviewed value for ${name}`}
-            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-content text-ink outline-none focus-visible:border-accent"
             type={review?.getSchemaNode(path)?.type === 'date' ? 'date' : review?.getSchemaNode(path)?.type === 'number' || review?.getSchemaNode(path)?.type === 'integer' ? 'number' : 'text'}
             step={review?.getSchemaNode(path)?.type === 'integer' ? '1' : undefined}
             value={draft}
@@ -278,12 +296,12 @@ function PrimitiveRow({
           />
         )}
         <button
-          className="shrink-0 cursor-pointer rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
+          className="shrink-0 cursor-pointer rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-compact font-semibold text-ink-muted outline-none hover:text-accent"
           type="button"
           aria-label={`Cancel editing reviewed value for ${name}`}
           onClick={cancel}
         >✗</button>
-        {reviewError && <span role="alert" className="text-[11px] text-danger">{reviewError}</span>}
+        {reviewError && <span role="alert" className="text-compact text-danger">{reviewError}</span>}
       </div>
     )
   }
@@ -293,7 +311,7 @@ function PrimitiveRow({
       <div className="-mx-2 group rounded-[3px] px-2 pb-2 pt-1.5 transition-colors hover:bg-accent-ghost/30">
         <div className="grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)_auto_auto] items-center gap-x-2">
           <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
-          <span className="font-mono text-[13.5px] font-medium text-ink">{name}</span>
+          <span className="font-mono text-content font-medium text-ink">{name}</span>
           <span />
           {onChange && (
             <button
@@ -307,7 +325,7 @@ function PrimitiveRow({
           )}
           {evidenceAnchorId && onSelectEvidence && (
             <button
-              className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-[10.5px] font-bold text-accent outline-none hover:border-accent"
+              className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-overline font-bold text-accent outline-none hover:border-accent"
               type="button"
               aria-label={evidenceLabel}
               title={evidenceTitle}
@@ -319,7 +337,7 @@ function PrimitiveRow({
           {!evidenceAnchorId && claimStatus && <ClaimBadge status={claimStatus} />}
           {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         </div>
-        <div className="pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
+        <div className="pl-4 pt-0.5 text-content leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
           {text}
         </div>
         {evidenceDetail && <EvidenceDetail text={evidenceDetail} />}
@@ -342,18 +360,23 @@ function PrimitiveRow({
     <div className="-mx-2 group rounded-[3px] px-2 transition-colors hover:bg-accent-ghost/30">
       <div className="grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)_auto_auto] items-start gap-x-2 gap-y-0.5 py-1.5">
         <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
-        <span className="font-mono text-[13.5px] font-medium leading-snug text-ink">
+        <span className="font-mono text-content font-medium leading-snug text-ink">
           {name}
         </span>
         {missing ? (
           contested ? <ContestedBadge candidates={contested} /> : <MissingBadge />
+        ) : state === 'checking' && !expanded ? (
+          <span className="flex min-w-0 items-center gap-1.5 text-content leading-snug text-ink-muted" title="Candidate · being verified">
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full border border-ink-muted" />
+            <span ref={valueRef} className="min-w-0 line-clamp-2">{text}</span>
+          </span>
         ) : (
           <span
             ref={valueRef}
             className={
               expanded
-                ? 'min-w-0 wrap-anywhere whitespace-pre-wrap text-[13px] leading-relaxed text-ink'
-                : 'min-w-0 line-clamp-2 text-[13px] leading-snug text-ink-muted'
+                ? 'min-w-0 wrap-anywhere whitespace-pre-wrap text-content leading-relaxed text-ink'
+                : 'min-w-0 line-clamp-2 text-content leading-snug text-ink-muted'
             }
           >
             {text}
@@ -361,7 +384,7 @@ function PrimitiveRow({
         )}
         {evidenceAnchorId && onSelectEvidence && (
           <button
-            className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-[10.5px] font-bold text-accent outline-none hover:border-accent"
+            className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-overline font-bold text-accent outline-none hover:border-accent"
             type="button"
             aria-label={evidenceLabel}
             title={evidenceTitle}
@@ -384,7 +407,7 @@ function PrimitiveRow({
         )}
         {long && !missing && (
           <button
-            className="col-start-3 justify-self-start cursor-pointer text-[11px] font-bold text-accent outline-none hover:underline"
+            className="col-start-3 justify-self-start cursor-pointer text-compact font-bold text-accent outline-none hover:underline"
             type="button"
             onClick={() => setExpanded(v => !v)}
           >
@@ -409,7 +432,7 @@ function PrimitiveRow({
 }
 
 function EvidenceDetail({ text }: { text: string }) {
-  return <p className="pb-1 pl-[22px] text-[11px] leading-snug text-ink-faint">{text}</p>
+  return <p className="pb-1 pl-[22px] text-compact leading-snug text-ink-faint">{text}</p>
 }
 
 // Leading status indicator: a hollow dot for an untouched (default-approved)
@@ -497,7 +520,7 @@ function ReviewActions({ name, action, touched, onApprove, onEdit, onReject, onR
 function ClaimBadge({ status }: { status: ClaimStatusNote }) {
   return (
     <span role="note" aria-label={`${status.label}: ${status.detail}`} title={status.detail}
-      className="shrink-0 rounded-full border border-stale/50 bg-stale-soft px-2 py-0.5 text-[10.5px] font-bold text-stale-ink">
+      className="shrink-0 rounded-full border border-stale/50 bg-stale-soft px-2 py-0.5 text-overline font-bold text-stale-ink">
       {status.label}
     </span>
   )
@@ -508,7 +531,7 @@ function ClaimBadge({ status }: { status: ClaimStatusNote }) {
 function CheckBadge({ reason }: { reason: string }) {
   return (
     <span
-      className="shrink-0 rounded-full border border-amber-300/60 bg-amber-50/50 px-2 py-0.5 text-[10.5px] font-bold text-amber-800"
+      className="shrink-0 rounded-full border border-amber-300/60 bg-amber-50/50 px-2 py-0.5 text-overline font-bold text-amber-800"
       role="note"
       aria-label={reason}
       title={reason}
@@ -521,8 +544,8 @@ function CheckBadge({ reason }: { reason: string }) {
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review, getValueState,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview; getValueState?: (path: ResultPath) => ValueState | undefined }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -536,24 +559,24 @@ function ObjectSection({
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-3.5 shrink-0" /> : <span className="flex w-3.5 shrink-0 items-center text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
-        <span className="font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        <span className="font-mono text-content font-medium text-ink">{name}</span>
         <span className="flex min-w-0 items-center gap-2">
           {onNavigateTo && <EnterChevron />}
           {expanded ? (
-            <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white">
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white">
               {entries.length} field{entries.length !== 1 ? 's' : ''}
             </span>
           ) : entries.length === 0 ? (
             <MissingBadge />
           ) : preview ? (
-            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">{preview}</span>
+            <span className="min-w-0 flex-1 truncate text-content text-ink-muted">{preview}</span>
           ) : null}
         </span>
       </button>
       {expanded && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
           {entries.length === 0 ? (
-            <p className="py-1.5 text-[13px] text-ink-muted">No fields returned.</p>
+            <p className="py-1.5 text-content text-ink-muted">No fields returned.</p>
           ) : (
             entries.map(([key, child]) => (
               <ResultValue
@@ -572,6 +595,7 @@ function ObjectSection({
                 getClaimStatus={getClaimStatus}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
+                getValueState={getValueState}
                 depth={depth + 1}
               />
             ))
@@ -585,8 +609,8 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review, getValueState,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; getContested?: (path: ResultPath) => readonly unknown[] | undefined; getClaimStatus?: (path: ResultPath) => ClaimStatusNote | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview; getValueState?: (path: ResultPath) => ValueState | undefined }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
@@ -598,10 +622,10 @@ function ArraySection({
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-3.5 shrink-0" /> : <span className="flex w-3.5 shrink-0 items-center text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
-        <span className="font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        <span className="font-mono text-content font-medium text-ink">{name}</span>
         <span className="flex min-w-0 items-center gap-2">
           {onNavigateTo && <EnterChevron />}
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 font-sans text-[10.5px] font-semibold text-ink-muted">
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 font-sans text-overline font-semibold text-ink-muted">
             {value.length} item{value.length !== 1 ? 's' : ''}
           </span>
         </span>
@@ -629,6 +653,7 @@ function ArraySection({
                 getClaimStatus={getClaimStatus}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
+                getValueState={getValueState}
               />
             ))
           )}
@@ -640,14 +665,24 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, getContested, getClaimStatus, onSelectEvidence, review, getValueState }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} getValueState={getValueState} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} getContested={getContested} getClaimStatus={getClaimStatus} onSelectEvidence={onSelectEvidence} review={review} getValueState={getValueState} />
   }
-  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} evidenceCheck={getEvidenceCheck?.(path)} evidenceDetail={getEvidenceDetail?.(path)} contested={getContested?.(path)} claimStatus={getClaimStatus?.(path)} onSelectEvidence={onSelectEvidence} review={review} />
+  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} evidenceCheck={getEvidenceCheck?.(path)} evidenceDetail={getEvidenceDetail?.(path)} contested={getContested?.(path)} claimStatus={getClaimStatus?.(path)} onSelectEvidence={onSelectEvidence} review={review} state={getValueState?.(path)} />
+}
+
+/** A record's heading in a Catalog result: its label and the page its first Evidence names. */
+export function RecordHeader({ label, page }: { label: string; page: number | null }) {
+  return (
+    <p className="flex items-baseline gap-2 px-2 pt-2 text-secondary font-semibold text-ink">
+      <span>{label}</span>
+      {page !== null && <span className="text-compact font-medium text-ink-muted">· page {page}</span>}
+    </p>
+  )
 }
 
 export default ResultValue

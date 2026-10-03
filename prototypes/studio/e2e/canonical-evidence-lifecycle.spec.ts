@@ -413,7 +413,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(page.getByText('Reviewed, café', { exact: true })).toBeVisible()
   await expect(reviewProgress).toContainText(`${requiredCount - 1} of ${requiredCount} required decisions remaining`)
   expect(await page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.startsWith('free.review-draft.')))).toEqual([])
-  await page.getByRole('tab', { name: 'Raw JSON' }).click()
+  await page.getByRole('tab', { name: 'Values as code' }).click()
   const rawResult = await page.locator('pre').filter({ hasText: 'Reviewed, café' }).textContent()
   expect(rawResult!.indexOf('"title"')).toBeLessThan(rawResult!.indexOf('"year"'))
   expect(rawResult!.indexOf('"year"')).toBeLessThan(rawResult!.indexOf('"tags"'))
@@ -611,7 +611,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   ).toBeHidden({ timeout: 30_000 })
   await expect(freshPage.getByText('No grounded values')).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toBeEnabled()
-  await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
+  await freshPage.getByRole('tab', { name: 'Values as code' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
   const reopened = documentReopenResponseSchema.parse(
     await (
@@ -692,7 +692,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(freshPage.getByText('Extraction failed', { exact: true })).toBeVisible({ timeout: 20_000 })
-  await expect(freshPage.getByRole('tab', { name: 'Raw JSON' })).toHaveCount(0)
+  await expect(freshPage.getByRole('tab', { name: 'Values as code' })).toHaveCount(0)
 
   kei.incompleteNextResult = true
   // The Record scope is in the Schema tab's header; the journey continues in Results.
@@ -714,7 +714,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     retryCompletionDialog.getByRole('button', { name: 'Dismiss', exact: true }),
   )
   await expect(retryCompletionDialog).toBeHidden()
-  await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
+  await freshPage.getByRole('tab', { name: 'Values as code' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
 
   const blockerId = randomUUID()

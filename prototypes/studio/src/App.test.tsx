@@ -737,7 +737,7 @@ describe('reopened Source Document workspace', () => {
     expect(highlight.dataset.resultPath).toBe('["record","place"]')
     expect(highlight.style.background).toContain('0.28')
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Values as code' }))
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
     )

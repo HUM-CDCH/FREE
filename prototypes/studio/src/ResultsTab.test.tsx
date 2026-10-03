@@ -161,14 +161,14 @@ describe('ResultsTab grounded values', () => {
     const { container, rerender } = render(<ResultsTab {...props} pinnedSchema={{ recordDescription: 'Historical', schemaNodes: [
       { id: 'title', name: 'title', type: 'string' }, { id: 'year', name: 'year', type: 'integer' },
     ] }} />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Values as code' }))
     expect(container.querySelector('pre')!.textContent).toBe(JSON.stringify({ title: 'Corrected', year: null }, null, 2))
     rerender(<ResultsTab {...props} />)
     expect(container.querySelector('pre')!.textContent).toBe(JSON.stringify({ year: null, title: 'Corrected' }, null, 2))
     expect(historical.resultPayload.records[0]).toEqual({ year: 2020, title: 'Grounded' })
   })
 
-  it('uses the pinned schema order in Review and Raw JSON', () => {
+  it('uses the pinned schema order in Review and Values as code', () => {
     const result = { records: [{ year: 2020, title: 'Grounded' }] }
     const { container } = render(<ResultsTab {...defaultRunProps}
       controller={controller({ status: 'ready', result, evidenceLinks: [], ungroundedCount: 0 })}
@@ -178,9 +178,50 @@ describe('ResultsTab grounded values', () => {
         { id: 'year', name: 'year', type: 'integer' },
       ] }} />)
     expect(container.textContent!.indexOf('title')).toBeLessThan(container.textContent!.indexOf('year'))
-    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Values as code' }))
     expect(container.querySelector('pre')!.textContent).toBe(JSON.stringify({ title: 'Grounded', year: 2020 }, null, 2))
     expect(Object.keys(result.records[0])).toEqual(['year', 'title'])
+  })
+
+  it('lists the review attention by record, required decisions first, with a way to each field', () => {
+    const attempt: ExtractionAttempt = { ...articleAttempt, complete: true, resultPayload: { records: [{ title: 'Report' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }] }
+    const onEditField = vi.fn()
+    render(<ResultsTab {...defaultRunProps}
+      controller={controller({ status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0 }, attempt)}
+      schemaReady documentMarkdown="" sourceDocumentName="Source" onEditField={onEditField}
+      pinnedSchema={{ recordDescription: 'One record.', schemaNodes: [
+        { id: 'title', name: 'title', type: 'string' }, { id: 'gender', name: 'gender', type: 'string' },
+      ] }} />)
+    fireEvent.click(screen.getByText('Review attention · 1 to check'))
+    const filter = screen.getByRole('group', { name: 'Review attention' })
+    expect(within(filter).getByRole('button', { name: 'Required' })).toHaveAttribute('aria-pressed', 'true')
+    const rows = () => screen.getByText('Review attention · 1 to check').closest('details')!.querySelectorAll('li')
+    expect(rows()).toHaveLength(1)
+    const row = rows()[0] as HTMLElement
+    expect(within(row).getByRole('button', { name: 'Record 1 · title' })).toBeVisible()
+    expect(within(row).getByText('to check')).toBeVisible()
+    fireEvent.click(within(row).getByRole('button', { name: 'Edit field' }))
+    expect(onEditField).toHaveBeenCalledExactlyOnceWith('title', ['records', 0, 'title'])
+    fireEvent.click(within(filter).getByRole('button', { name: 'All' }))
+    expect(rows()).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Record 1 · gender' })).toBeVisible()
+    expect(within(rows()[1] as HTMLElement).getByText('missing')).toBeVisible()
+  })
+
+  it('opens one record of several on its heading and the page its first Evidence names', () => {
+    const result = { records: [{ place: 'Oslo' }, { place: 'Bergen' }] }
+    render(<ResultsTab {...defaultRunProps}
+      controller={controller({ status: 'ready', result, evidenceLinks: [{ resultPath: ['records', 1, 'place'], evidenceAnchorId: 'anchor-bergen' }], ungroundedCount: 0 })}
+      schemaReady documentMarkdown="" sourceDocumentName="Source" evidencePages={new Map([['anchor-bergen', 6]])} />)
+    expect(screen.queryByText('· page 6')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Item 2\b/ }))
+    expect(screen.getByText('Record 2')).toBeVisible()
+    expect(screen.getByText('· page 6')).toBeVisible()
+    fireEvent.click(screen.getByTitle('Back'))
+    fireEvent.click(screen.getByRole('button', { name: /^Item 1\b/ }))
+    expect(screen.getByText('Record 1')).toBeVisible()
+    expect(screen.queryByText(/· page/)).not.toBeInTheDocument()
   })
 
   it('renders markup-like schema names and extracted values as inert text', () => {
@@ -227,7 +268,7 @@ describe('ResultsTab grounded values', () => {
     // the injected strings became markup: no element carries their handler.
     expect(document.querySelector('[onload]')).toBeNull()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Values as code' }))
     expect(screen.getByText(new RegExp('value-secret'))).toBeVisible()
     expect(document.querySelector('img[src="x"]')).toBeNull()
   })
@@ -475,7 +516,7 @@ describe('ResultsTab grounded values', () => {
     )
     expect(onSelectEvidence).toHaveBeenCalledWith('anchor-1')
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Values as code' }))
     expect(screen.getByText(/"title": "Report"/)).toBeInTheDocument()
     expect(screen.queryByText(/"records"/)).not.toBeInTheDocument()
   })
@@ -989,7 +1030,8 @@ describe('ResultsTab grounded values', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject place' }))
     expect(screen.getByTitle('Rejected')).toBeInTheDocument()
-    expect(screen.getByText('Missing')).toBeInTheDocument()
+    // The value row's badge, not the Review attention filter's "Missing" segment.
+    expect(screen.getByText('Missing', { selector: 'span' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reverse decision for place' }))
     expect(screen.getByTitle('Approved')).toBeInTheDocument()
     expect(screen.getByText('Original')).toBeInTheDocument()
@@ -1866,7 +1908,7 @@ describe('ResultsTab review progress', () => {
     expect(screen.getByRole('button', { name: 'Approve remaining (1)' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Reverse decision for place' }))
     expect(progress).toHaveTextContent('1 of 2 required decisions remaining')
-    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Values as code' }))
     expect(progress).toHaveTextContent('1 of 2 required decisions remaining')
     fireEvent.click(screen.getByRole('tab', { name: 'Review' }))
     fireEvent.click(screen.getByRole('button', { name: 'Edit year' }))

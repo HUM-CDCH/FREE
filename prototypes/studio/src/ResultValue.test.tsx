@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import ResultValue from './ui/ResultValue'
+import ResultValue, { RecordHeader, type ValueState } from './ui/ResultValue'
 
 afterEach(cleanup)
 
@@ -54,5 +54,40 @@ describe('ResultValue', () => {
     expect(html).toContain('1 item')
     expect(html).toContain('Person 1')
     expect(html).toContain('Anna')
+  })
+})
+
+describe('value states (redesign §8)', () => {
+  const states = (state: ValueState) => ({ getValueState: () => state })
+  it('reading shows a placeholder and never text', () => {
+    render(<ResultValue name="title" value="not yet" path={['title']} {...states('reading')} />)
+    expect(screen.queryByText('not yet')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Reading')).toBeInTheDocument()
+  })
+  it('checking shows the candidate muted with a hollow marker', () => {
+    render(<ResultValue name="title" value="Candidate" path={['title']} {...states('checking')} />)
+    const value = screen.getByText('Candidate')
+    expect(value.closest('[title]')!.className).toMatch(/text-ink-muted/)
+    expect(screen.getByTitle('Candidate · being verified')).toBeInTheDocument()
+  })
+  it('queued shows a line marker and the name only', () => {
+    render(<ResultValue name="title" value={null} path={['title']} {...states('queued')} />)
+    expect(screen.getByLabelText('Queued')).toBeInTheDocument()
+    expect(screen.queryByText('Missing')).not.toBeInTheDocument()
+  })
+  it('grounded, empty and contested render as before', () => {
+    render(<ResultValue name="title" value="Report" path={['title']} {...states('grounded')} getEvidenceAnchorId={() => 'a1'} onSelectEvidence={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'View Evidence for title' })).toBeInTheDocument()
+    cleanup()
+    render(<ResultValue name="title" value={null} path={['title']} {...states('empty')} />)
+    expect(screen.getByText('Missing')).toBeInTheDocument()
+    cleanup()
+    render(<ResultValue name="title" value={null} path={['title']} {...states('contested')} getContested={() => ['a', 'b']} />)
+    expect(screen.getByText('Contested')).toBeInTheDocument()
+  })
+  it('a record header names the record and its page', () => {
+    render(<RecordHeader label="Record 3" page={6} />)
+    expect(screen.getByText('Record 3')).toBeInTheDocument()
+    expect(screen.getByText('· page 6')).toBeInTheDocument()
   })
 })

@@ -143,8 +143,8 @@ describe('RightRail developer UI visibility', () => {
         sourceDocumentName="test.pdf" sourceRepresentationId="source-1" onSelectEvidence={() => {}} onResultPathChange={() => {}} />
     }
     render(<Rail />)
-    fireEvent.click(screen.getByText(/1 grounded · 1 required decisions remaining/))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit this field' }))
+    fireEvent.click(screen.getByText(/Review attention · 1 to check/))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit field' }))
     expect(schema.snapshot().historicalPreview).toBeNull()
     expect(schema.snapshot().draft).toEqual(draft)
     expect(screen.getByText(/This field was removed. No replacement was selected/)).toBeVisible()
