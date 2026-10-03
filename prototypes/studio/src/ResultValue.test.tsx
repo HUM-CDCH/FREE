@@ -69,6 +69,12 @@ describe('value states (redesign §8)', () => {
     const value = screen.getByText('Candidate')
     expect(value.closest('[title]')!.className).toMatch(/text-ink-muted/)
     expect(screen.getByTitle('Candidate · being verified')).toBeInTheDocument()
+    cleanup()
+    // Inside a record every leaf renders in full (expandText); a candidate there carries the same marker.
+    render(<ResultValue name="Record 1" value={{ title: 'Nested candidate' }} path={['records', '0']} expandText {...states('checking')} />)
+    const nested = screen.getByText('Nested candidate')
+    expect(nested.closest('[title="Candidate · being verified"]')!.className).toMatch(/text-ink-muted/)
+    expect(screen.getByTitle('Candidate · being verified')).toBeInTheDocument()
   })
   it('queued shows a line marker and the name only', () => {
     render(<ResultValue name="title" value={null} path={['title']} {...states('queued')} />)

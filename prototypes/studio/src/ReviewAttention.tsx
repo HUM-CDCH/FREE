@@ -37,7 +37,7 @@ export function ReviewAttention({ attention, onSelect, onEditField }: {
               onClick={() => onSelect([...cell.resultPath])}>
               {cellLabel(cell.resultPath)}
             </button>
-            <Pill tone={cell.decision ? 'success' : cell.presence === 'grounded' ? 'accent' : 'neutral'}>
+            <Pill tone={cell.decision ? (cell.decision.action === 'REJECTED' ? 'danger' : 'success') : cell.presence === 'grounded' ? 'accent' : 'neutral'}>
               {cell.decision ? cell.decision.action.toLowerCase() : cell.presence === 'grounded' ? 'to check' : cell.presence}
             </Pill>
             {onEditField && <Button className="min-h-6" onClick={() => onEditField(cell.nodeId, [...cell.resultPath])}>Edit field</Button>}

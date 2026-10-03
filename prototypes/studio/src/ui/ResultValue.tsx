@@ -104,6 +104,13 @@ function ContestedBadge({ candidates }: { candidates: readonly unknown[] }) {
   )
 }
 
+const candidateTitle = 'Candidate · being verified'
+
+/** The hollow marker of a candidate value that verification has not settled yet. */
+function CandidateMarker({ className = '' }: { className?: string }) {
+  return <span aria-hidden="true" className={`size-2 shrink-0 rounded-full border border-ink-muted ${className}`} />
+}
+
 function CollapseArrow({ expanded }: { expanded: boolean }) {
   return (
     <svg
@@ -337,7 +344,9 @@ function PrimitiveRow({
           {!evidenceAnchorId && claimStatus && <ClaimBadge status={claimStatus} />}
           {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         </div>
-        <div className="pl-4 pt-0.5 text-content leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
+        <div className="pl-4 pt-0.5 text-content leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap"
+          title={state === 'checking' ? candidateTitle : undefined}>
+          {state === 'checking' && <CandidateMarker className="mr-1.5 inline-block align-middle" />}
           {text}
         </div>
         {evidenceDetail && <EvidenceDetail text={evidenceDetail} />}
@@ -366,8 +375,8 @@ function PrimitiveRow({
         {missing ? (
           contested ? <ContestedBadge candidates={contested} /> : <MissingBadge />
         ) : state === 'checking' && !expanded ? (
-          <span className="flex min-w-0 items-center gap-1.5 text-content leading-snug text-ink-muted" title="Candidate · being verified">
-            <span aria-hidden="true" className="size-2 shrink-0 rounded-full border border-ink-muted" />
+          <span className="flex min-w-0 items-center gap-1.5 text-content leading-snug text-ink-muted" title={candidateTitle}>
+            <CandidateMarker />
             <span ref={valueRef} className="min-w-0 line-clamp-2">{text}</span>
           </span>
         ) : (
