@@ -1593,7 +1593,21 @@ describe('schema header (redesign §5)', () => {
     expect(screen.getByText(/"_description": "One test record\."/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(
-      ['Edit as code', 'History', 'Regenerate from the document…', 'Clear schema'])
+      ['Import from Excel codebook…', 'Edit as code', 'History', 'Regenerate from the document…', 'Clear schema'])
+  })
+
+  it('the actions menu opens the import dialog', () => {
+    renderPanel({ durableScope: true })
+    expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
+    chooseSchemaAction('Import from Excel codebook…')
+    expect(screen.getByRole('dialog', { name: 'Import from Excel codebook' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
+
+    cleanup()
+    renderPanel({ durableScope: true, noSchema: true }, { schemaName: null })
+    fireEvent.click(screen.getByRole('button', { name: 'Import from Excel codebook…' }))
+    expect(screen.getByRole('dialog', { name: 'Import from Excel codebook' })).toBeInTheDocument()
   })
 
   it('says the saved record scope in words and saves a change at once', () => {
@@ -1678,7 +1692,8 @@ describe('schema header (redesign §5)', () => {
     try {
       const onRenameSchema = vi.fn(async () => 'That name is taken.')
       const setup = renderPanel({ durableScope: true, noSchema: true }, { onRenameSchema, schemaName: null, sourceDocumentName: 'Sites.pdf' })
-      fireEvent.change(screen.getByLabelText('Import Excel codebook'), { target: { files: [new File(['bytes'], 'codebook.xlsx')] } })
+      fireEvent.click(screen.getByRole('button', { name: 'Import from Excel codebook…' }))
+      fireEvent.change(screen.getByLabelText('Excel codebook file'), { target: { files: [new File(['bytes'], 'codebook.xlsx')] } })
       await screen.findByRole('option', { name: 'Codebook' })
       fireEvent.change(screen.getByLabelText('Import worksheet'), { target: { value: 'Codebook' } })
       fireEvent.click(screen.getByRole('button', { name: 'Preview worksheet' }))
@@ -1688,6 +1703,7 @@ describe('schema header (redesign §5)', () => {
       await waitFor(() => expect(setup.initialized).toHaveLength(1))
       await waitFor(() => expect(onRenameSchema).toHaveBeenCalledWith('Sites'))
       expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.')
+      expect(screen.queryByRole('dialog', { name: 'Import from Excel codebook' })).not.toBeInTheDocument()
     } finally {
       vi.unstubAllGlobals()
     }

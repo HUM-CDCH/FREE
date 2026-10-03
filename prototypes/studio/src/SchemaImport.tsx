@@ -1,15 +1,18 @@
 import { useRef, useState } from 'react'
 import { SCALAR_FIELD_TYPES, type ScalarFieldType } from 'extraction/allowed-values'
-import { schemaDefinitionToTemplate } from 'extraction/schema'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { IMPORT_LIMITS, importDefinition, type ImportColumn } from '../shared/schemaImport'
 import { authenticatedFetch } from './auth/authenticatedFetch'
-import { Button } from './ui'
+import { fieldTypeWords } from './fieldTypeWords'
+import { Button, ModalDialog } from './ui'
 
-/** `onImported` runs once a confirmed import is the schema's definition. */
-export function SchemaImport({ schema, disabled, onImported }: {
+/** The Excel codebook import, as a dialog: renders nothing while closed. `onImported` runs once a confirmed import is
+ *  the schema's definition; the dialog then closes through `onClose`. */
+export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
   schema: SchemaEditorController
   disabled: boolean
+  open: boolean
+  onClose: () => void
   onImported?: () => void
 }) {
   const [file, setFile] = useState<File | null>(null), [worksheets, setWorksheets] = useState<string[]>([])
@@ -18,8 +21,9 @@ export function SchemaImport({ schema, disabled, onImported }: {
   const [error, setError] = useState<string | null>(null), [busy, setBusy] = useState(false)
   const [groups] = useState(() => new Map<string, string>())
   const base = useRef(0), request = useRef(0)
+  const fileInput = useRef<HTMLInputElement>(null)
   const project = schema.operationScope()?.projectContextId
-  if (!project) return null
+  if (!project || !open) return null
   let definition: ReturnType<typeof importDefinition> | null = null, validation: string | null = null
   if (columns.length) try { definition = importDefinition(columns, description, separator, groups) }
   catch (error) { validation = error instanceof Error ? error.message : 'Invalid schema.' }
@@ -40,47 +44,75 @@ export function SchemaImport({ schema, disabled, onImported }: {
     } catch (error) { if (request.current === id) setError(error instanceof Error ? error.message : 'Workbook could not be read.') }
     finally { if (request.current === id) setBusy(false) }
   }
-  return <div className="border-b border-line p-2 text-xs">
-    <label>Import Excel codebook <input type="file" accept=".xlsx" disabled={disabled || busy} onChange={(event) => {
-      const upload = event.target.files?.[0]; if (!upload) return
-      close(); base.current = schema.snapshot().draftVersion; setFile(upload); void preview(upload, null); event.target.value = ''
-    }} /></label>
-    {file && <>
-      <p>The workbook and column data are transient. Closing or reloading an unconfirmed preview requires re-upload.</p>
-      <label>Worksheet <select aria-label="Import worksheet" value={worksheet} disabled={busy} onChange={(event) => { setWorksheet(event.target.value); setColumns([]) }}>
-        <option value="">Choose a worksheet</option>{worksheets.map((sheet) => <option key={sheet}>{sheet}</option>)}
-      </select></label>
-      <label>Header row <input aria-label="Header row" type="number" min="1" max="5000" value={header} disabled={busy}
-        onChange={(event) => { setHeader(Number(event.target.value)); setColumns([]) }} /></label>
-      <Button disabled={!worksheet || busy} onClick={() => void preview(file, worksheet)}>Preview worksheet</Button>
-      {columns.length > 0 && <fieldset disabled={busy}>
-        <label>Record description <input aria-label="Imported record description" value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-        <label>Nesting separator <input aria-label="Nesting separator" value={separator} placeholder="Blank = flat fields" onChange={(event) => setSeparator(event.target.value)} /></label>
-        <p>Flat mode keeps separators literal. In nested mode rename literal separators into unambiguous paths. Types are hints; enum constraints require choosing each field.</p>
-        {columns.map((column, index) => {
-          const update = (change: Partial<ImportColumn>) => setColumns((current) => current.map((field, at) => at === index ? { ...field, ...change } : field))
-          return <div key={column.id} className="my-1 border border-line p-1">
-            <label><input type="checkbox" checked={column.include} onChange={(event) => update({ include: event.target.checked })} />Column {column.column}</label>
-            <input aria-label={`Column ${column.column} name`} value={column.name} onChange={(event) => update({ name: event.target.value })} />
-            <select aria-label={`Column ${column.column} type`} value={column.type} onChange={(event) => update({ type: event.target.value as ScalarFieldType, enum: false })}>
-              {SCALAR_FIELD_TYPES.map((type) => <option key={type}>{type}</option>)}
-            </select>
-            <p>{column.kinds.join(', ')} · suggested {column.suggestedType} · examples: {column.examples.join(' | ')}</p>
-            <label><input type="checkbox" disabled={column.choices.length < 2} checked={column.enum ?? false} onChange={(event) => update({ enum: event.target.checked, type: 'string' })} />Use these allowed values: {column.choices.join(', ')}</label>
-          </div>
-        })}
-        {validation && <p role="alert">{validation}</p>}
-        {definition && <pre className="max-h-48 overflow-auto">{JSON.stringify(schemaDefinitionToTemplate(definition), null, 2)}</pre>}
-        <Button disabled={!definition || busy || disabled} variant="positive" onClick={async () => {
-          if (!definition) return
-          if (schema.snapshot().draftVersion !== base.current) { setError('The editor changed during preview. Close and re-upload to keep those edits.'); return }
-          setBusy(true); setError(null)
-          try { await schema.confirmDefinition(definition); close(); onImported?.() }
-          catch (error) { setError(error instanceof Error ? error.message : 'Schema could not be confirmed.'); setBusy(false) }
-        }}>{schema.snapshot().extractionSchemaId ? 'Confirm as a new revision of the selected schema' : 'Confirm schema'}</Button>
-      </fieldset>}
-      <Button onClick={close} disabled={busy}>Cancel import</Button>
-    </>}
-    {error && <p role="alert">{error}</p>}
-  </div>
+  const dismiss = () => { close(); onClose() }
+  return (
+    <ModalDialog ariaLabel="Import from Excel codebook" onDismiss={dismiss} dismissDisabled={busy}
+      className="m-auto w-[calc(100%-2rem)] max-w-2xl rounded-card border border-line bg-surface p-4 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]">
+      <h2 className="text-content font-semibold">Import from Excel codebook</h2>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-secondary">
+        <Button onClick={() => fileInput.current?.click()} disabled={disabled || busy}>Choose workbook…</Button>
+        <input ref={fileInput} className="sr-only" type="file" accept=".xlsx" aria-label="Excel codebook file" disabled={disabled || busy}
+          onChange={(event) => {
+            const upload = event.target.files?.[0]; if (!upload) return
+            close(); base.current = schema.snapshot().draftVersion; setFile(upload); void preview(upload, null); event.target.value = ''
+          }} />
+        <span className="min-w-0 truncate text-ink-muted">{file ? file.name : 'An .xlsx workbook of at most 5 MiB'}</span>
+      </div>
+      {file && <>
+        <p className="mt-2 text-compact text-ink-muted">The workbook and column data are transient. Closing or reloading an unconfirmed preview requires re-upload.</p>
+        <div className="mt-2 flex flex-wrap items-end gap-3 text-secondary">
+          <label className="flex items-center gap-1">Worksheet <select aria-label="Import worksheet" className="rounded-[3px] border border-line px-1 py-0.5" value={worksheet} disabled={busy}
+            onChange={(event) => { setWorksheet(event.target.value); setColumns([]) }}>
+            <option value="">Choose a worksheet</option>{worksheets.map((sheet) => <option key={sheet}>{sheet}</option>)}
+          </select></label>
+          <label className="flex items-center gap-1">Header row <input aria-label="Header row" className="w-16 rounded-[3px] border border-line px-1 py-0.5" type="number" min="1" max="5000"
+            value={header} disabled={busy} onChange={(event) => { setHeader(Number(event.target.value)); setColumns([]) }} /></label>
+          <Button disabled={!worksheet || busy} onClick={() => void preview(file, worksheet)}>Preview worksheet</Button>
+        </div>
+        {columns.length > 0 && <fieldset disabled={busy} className="mt-3 flex flex-col gap-2 text-secondary">
+          <label className="flex items-center gap-1">Record description <input aria-label="Imported record description" className="min-w-0 flex-1 rounded-[3px] border border-line px-1 py-0.5"
+            value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+          <label className="flex items-center gap-1">Nesting separator <input aria-label="Nesting separator" className="w-32 rounded-[3px] border border-line px-1 py-0.5"
+            value={separator} placeholder="Blank = flat fields" onChange={(event) => setSeparator(event.target.value)} /></label>
+          <p className="text-compact text-ink-muted">Flat mode keeps separators literal. In nested mode rename literal separators into unambiguous paths. Types are hints; allowed values require choosing each field.</p>
+          <table className="w-full text-compact">
+              <thead><tr className="text-left text-overline font-bold uppercase tracking-[0.12em] text-ink-muted">
+                <th className="py-1">Include</th><th>Name</th><th>Type</th><th>Allowed values</th><th>Examples</th>
+              </tr></thead>
+              <tbody>{columns.map((column, index) => {
+                const update = (change: Partial<ImportColumn>) => setColumns((current) => current.map((field, at) => at === index ? { ...field, ...change } : field))
+                return <tr key={column.id} className="border-t border-line align-top">
+                  <td className="py-1"><input type="checkbox" aria-label={`Include column ${column.column}`} checked={column.include} onChange={(event) => update({ include: event.target.checked })} /></td>
+                  <td><input aria-label={`Column ${column.column} name`} className="w-full rounded-[3px] border border-line px-1 font-mono" value={column.name} onChange={(event) => update({ name: event.target.value })} /></td>
+                  <td><select aria-label={`Column ${column.column} type`} className="rounded-[3px] border border-line px-1" value={column.type}
+                    onChange={(event) => update({ type: event.target.value as ScalarFieldType, enum: false })}>
+                    {SCALAR_FIELD_TYPES.map((type) => <option key={type}>{type}</option>)}
+                  </select></td>
+                  <td><label className="flex items-start gap-1"><input type="checkbox" disabled={column.choices.length < 2} checked={column.enum ?? false}
+                    onChange={(event) => update({ enum: event.target.checked, type: 'string' })} /><span className="min-w-0 truncate" title={column.choices.join(', ')}>{column.choices.length} values</span></label></td>
+                  <td className="text-ink-muted">{column.kinds.join(', ')} · suggested {column.suggestedType} · {column.examples.join(' | ')}</td>
+                </tr>
+              })}</tbody>
+            </table>
+          {validation && <p role="alert" className="text-danger">{validation}</p>}
+          {definition && <ul aria-label="Fields to import" className="rounded-[3px] border border-line bg-canvas p-2 font-mono text-compact">
+            {definition.schemaNodes.map((node) => <li key={node.id}>{node.name} — {fieldTypeWords(node)}</li>)}
+          </ul>}
+        </fieldset>}
+      </>}
+      {error && <p role="alert" className="mt-2 text-compact text-danger">{error}</p>}
+      <div className="mt-4 flex justify-end gap-2">
+        <Button onClick={dismiss} disabled={busy}>Cancel</Button>
+        {file && columns.length > 0 && (
+          <Button variant="positive" disabled={!definition || busy || disabled} onClick={async () => {
+            if (!definition) return
+            if (schema.snapshot().draftVersion !== base.current) { setError('The editor changed during preview. Close and re-upload to keep those edits.'); return }
+            setBusy(true); setError(null)
+            try { await schema.confirmDefinition(definition); onImported?.(); dismiss() }
+            catch (error) { setError(error instanceof Error ? error.message : 'Schema could not be confirmed.'); setBusy(false) }
+          }}>{schema.snapshot().extractionSchemaId ? 'Confirm as a new revision of the selected schema' : 'Confirm schema'}</Button>
+        )}
+      </div>
+    </ModalDialog>
+  )
 }

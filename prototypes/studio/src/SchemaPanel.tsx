@@ -429,6 +429,7 @@ function SchemaPanel({
   const [creatingFromHistory, setCreatingFromHistory] = useState(false)
   const [confirmingDeleteSchema, setConfirmingDeleteSchema] = useState(false)
   const [regenerateOpen, setRegenerateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
 
   // ── refs for event handlers (avoid stale closures) ──
@@ -651,7 +652,9 @@ function SchemaPanel({
     resetEditorUi(true)
   }
 
+  const importDisabled = editorReadOnly || editing !== null || openDescId !== null || snap.generating
   const menuItems: ActionItem[] = [
+    { id: 'import', label: 'Import from Excel codebook…', onSelect: () => setImportOpen(true), disabled: importDisabled },
     { id: 'code', label: 'Edit as code', onSelect: () => setView('code') },
     {
       id: 'history', label: 'History', onSelect: () => setHistoryOpen(true),
@@ -1098,14 +1101,6 @@ function SchemaPanel({
   // ────────────────────────────────────────────────────────────────────────
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <SchemaImport
-        schema={schema}
-        disabled={editorReadOnly || editing !== null || openDescId !== null || snap.generating}
-        onImported={() => {
-          if (!schemaName) void renameNewSchema(defaultSchemaName(sourceDocumentName))
-        }}
-      />
-
       {/* ── Header ── */}
       <header className="flex shrink-0 flex-col gap-1 border-b border-line px-4 pb-2 pt-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -1247,6 +1242,7 @@ function SchemaPanel({
             {onGenerateInstructions && (
               <Button variant="positive" onClick={() => onGenerateInstructions(instructions.text)}>Generate from the document</Button>
             )}
+            {!editorReadOnly && <Button disabled={importDisabled} onClick={() => setImportOpen(true)}>Import from Excel codebook…</Button>}
             {!editorReadOnly && <Button disabled={startingBlank} onClick={() => void startBlank()}>Start blank</Button>}
           </EmptyState>
         )}
@@ -1479,6 +1475,15 @@ function SchemaPanel({
         {ready && <SchemaSaveStatus save={snap.save} showSaved retry={false} onRetry={() => void schema.flush().catch(() => undefined)} />}
       </footer>
 
+      <SchemaImport
+        schema={schema}
+        disabled={importDisabled}
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          if (!schemaName) void renameNewSchema(defaultSchemaName(sourceDocumentName))
+        }}
+      />
       {historyOpen && (
         <ModalDialog className={dialogCls} ariaLabel="Schema history" onDismiss={() => setHistoryOpen(false)}>
           <h3 className="text-secondary font-semibold text-ink">Schema history</h3>
