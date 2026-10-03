@@ -423,7 +423,7 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": 2048
     },
     {
       "stage": "record",
@@ -436,7 +436,7 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": 2048
     },
     {
       "stage": "record",
@@ -449,7 +449,7 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": 2048
     },
     {
       "stage": "record",
@@ -462,7 +462,7 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": 2048
     },
     {
       "stage": "record",
@@ -475,7 +475,7 @@
       "error": null,
       "counted_input_tokens": null,
       "context_tokens": null,
-      "max_output_tokens": null
+      "max_output_tokens": 2048
     },
     {
       "stage": "grounding",

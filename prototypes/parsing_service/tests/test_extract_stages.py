@@ -204,6 +204,19 @@ def test_a_truncated_or_unreadable_answer_is_a_failed_call_with_null_fields():
     assert not call.ok and "length" in (call.error or "") and issues[0].code == "call_failed"
 
 
+def test_a_reply_that_loops_on_whitespace_is_named_as_such():
+    looping = FakeChat(lambda s, u, schema: Reply('{"entry_no": "3", "items": [' + "\r   " * 1000, 5, 8192, "length", 0.1))
+    _, (call,), issues = extract_record(passages()[1:3], SCHEMA, looping, budget=24_000)
+    assert not call.ok and issues[0].code == "call_failed"
+    assert "whitespace loop" in (call.error or "") and "finish_reason length" in (call.error or "")
+
+
+def test_a_generic_record_call_is_capped_at_2048_tokens():
+    chat = FakeChat(lambda s, u, schema: {"entry_no": "31"})
+    extract_record(passages()[1:3], SCHEMA, chat, budget=24_000)
+    assert [call["max_tokens"] for call in chat.calls] == [2048]
+
+
 @pytest.mark.parametrize("budget, unshown", [
     (5, "p1_s0 from code point 7 through p1_s2 (page 1)"),   # inside a passage: offsets count its leading spaces
     (11, "p1_s1 through p1_s2 (page 1)"),                    # inside the blank line between two passages

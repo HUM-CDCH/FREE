@@ -163,6 +163,16 @@ server's weights, the
 document-layout process, and the operating system. Spark's system memory is
 shared with its GPU.
 
+A record call under constrained decoding can loop on whitespace between JSON
+tokens until `max_tokens` (seen in production on 2 October 2026: 8,192 tokens of
+carriage returns inside an array, three runs out of three). The Parsing Service
+bounds that at 2,048 tokens for generic Catalog record calls and reports it as a
+whitespace loop. Do not enable vLLM's `--structured-outputs-config
+'{"disable_any_whitespace": true}'` for the extraction server: on
+`nvidia/Qwen3.8-27B-NVFP4` the compact grammar it forces changes the answers
+(with xgrammar 6 of 197 grave identifiers and 40 of 67 list values were lost on
+the same document; with guidance 153 identifiers), which is worse than the loop.
+
 For direct Compose commands, add `-f compose.gpu.yaml` after the local or
 production overlay. The normal launcher selects it after its GPU probe.
 
