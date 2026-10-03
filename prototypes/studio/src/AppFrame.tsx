@@ -4,7 +4,6 @@ import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
-import FreeMonogram from './FreeMonogram'
 import PanelToggleIcon from './PanelToggleIcon'
 import { useOpenDocumentTabs } from './useOpenDocumentTabs'
 import { useShiftWheelHorizontalScroll } from './useShiftWheelHorizontalScroll'
@@ -445,7 +444,11 @@ export default function AppFrame({
                 className="size-20 shrink-0 -translate-y-1 object-contain"
               />
             ) : (
-              <FreeMonogram />
+              <img
+                src={browserStudioPath('/favicon.png')}
+                alt=""
+                className="size-6 shrink-0 object-contain"
+              />
             )}
           </a>
           {effectiveNavOpen && (
