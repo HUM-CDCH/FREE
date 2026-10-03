@@ -399,6 +399,36 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
   })
 
+  // Review now opens the Results tab even when the researcher collapsed the rail during the run: it opens the rail too.
+  it('Review now opens a rail collapsed during the run on its Results tab', async () => {
+    let extractionId = '51000000-0000-4000-8006-000000000043'
+    const completed = () => ({ ...runningAttempt(extractionId), executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 1, finishReason: 'stop', inputTokens: 1, outputTokens: 1, grounding: null, catalog: null },
+      resultPayload: { records: [{ place: 'Ellekilde' }] }, evidenceLinks: [], reviewable: true })
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        extractionId = (JSON.parse(String(init?.body)) as { id: string }).id
+        return Promise.resolve(Response.json(runningAttempt(extractionId), { status: 201 }))
+      }
+      if (url.endsWith(`/api/extractions/${extractionId}`)) return Promise.resolve(Response.json({ extraction: completed(), pendingReviewDecisions: null }))
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(screen.getByTitle('Collapse panel'))
+    expect(screen.queryByRole('tab', { name: /^Results/ })).not.toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Review now' }, { timeout: 4_000 }))
+    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTitle('Collapse panel')).toBeInTheDocument()
+  })
+
   it('a method_changed refusal is retried once with a fresh read, a second one ends with a toast', async () => {
     const posts: unknown[] = []
     vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {

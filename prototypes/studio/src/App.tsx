@@ -614,11 +614,12 @@ export function DocumentWorkspace({
     onSourceSuperseded?.()
   }
   /** The completion notice (decision 04): one toast, no dialog. With `reviewNow` (a run started here that succeeded) it
-   *  offers "Review now", which opens the Results tab, and stays eight seconds. */
+   *  offers "Review now", which opens the rail (collapsed during the run, say) on the Results tab, and stays eight
+   *  seconds. */
   function showCompletion(isRerun: boolean, reviewNow: boolean) {
     showToast(
       isRerun ? '↻ Re-run complete — review it in the Results tab' : '✓ Extraction complete — review it in the Results tab',
-      reviewNow ? { durationMs: 8000, action: { label: 'Review now', onAction: () => setRailTab('results') } } : undefined,
+      reviewNow ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setRailOpen(true); setRailTab('results') } } } : undefined,
     )
   }
   const extraction = useExtraction({
@@ -945,9 +946,12 @@ export function DocumentWorkspace({
                 </div>
               </div>
               {/* Under the 34px toolbar, over the page: the toast never covers the toolbar's controls. Above the loading
-                  cover (z-20), which a notice outliving a switch of Source Representation shows under. */}
+                  cover (z-20), which a notice outliving a switch of Source Representation shows under, and above the
+                  rail (z-30), which under 860px overlays the page's right side when open: the toast and its action
+                  stay visible and take the pointer there. No ancestor up to the workspace sets a stacking context, so
+                  this z-40 competes with the rail's z-30 directly. */}
               {toast && (
-                <div className="pointer-events-none absolute inset-x-4 top-3 z-30 flex justify-center">
+                <div className="pointer-events-none absolute inset-x-4 top-3 z-40 flex justify-center">
                   <Toast key={toast.id} message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
                 </div>
               )}

@@ -275,15 +275,30 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // The configured Extraction Model Choice goes with the run and stays with its Extraction; the header offers none.
   await expect(page.getByRole('combobox', { name: 'Field model' })).toHaveCount(0)
   await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  // This first run completes in the narrow layout (under 860px), where the open rail overlays the page's right side.
+  const journeyViewport = page.viewportSize()!
+  await page.setViewportSize({ width: 820, height: 900 })
   await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
   // Completion is one toast with Review now, no dialog (decision 04).
-  await expect(page.getByRole('button', { name: 'Review now', exact: true })).toBeVisible({ timeout: 20_000 })
+  const firstReviewNow = page.getByRole('button', { name: 'Review now', exact: true })
+  await expect(firstReviewNow).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
   // It floats over the page under the PDF toolbar, never over the toolbar's controls.
   const pdfToolbar = (await page.getByRole('region', { name: 'PDF document' }).locator('> div').first().boundingBox())!
   const completionToast = (await page.getByRole('status').filter({ hasText: 'Extraction complete' }).boundingBox())!
   expect(completionToast.y, 'the completion toast below the PDF toolbar').toBeGreaterThanOrEqual(pdfToolbar.y + pdfToolbar.height)
   expect(interactivePosts).toBe(1)
+  // The toast and its Review now stay above the rail's overlay: the pointer at Review now reaches it, and an unforced
+  // click (refused by Playwright were anything else to receive it) opens Results.
+  const reviewNowBox = (await firstReviewNow.boundingBox())!
+  const railBox = (await page.getByRole('complementary', { name: 'Evidence, schema and results' }).boundingBox())!
+  expect(railBox.x, '820px: the open rail overlays Review now\'s place').toBeLessThan(reviewNowBox.x + reviewNowBox.width)
+  expect(await firstReviewNow.evaluate((element, [x, y]) => element.contains(document.elementFromPoint(x!, y!)),
+    [reviewNowBox.x + reviewNowBox.width / 2, reviewNowBox.y + reviewNowBox.height / 2]), '820px: Review now is the hit target').toBe(true)
+  await firstReviewNow.click({ timeout: 3_000 })
+  await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(firstReviewNow).toHaveCount(0)
+  await page.setViewportSize(journeyViewport)
   const chosen = await db.orm.public.Extraction.where({ sourceDocumentId })
     .select('requestedModels', 'diagnostics').first()
   expect(chosen?.requestedModels).toEqual({ fields: 'instruct' })
