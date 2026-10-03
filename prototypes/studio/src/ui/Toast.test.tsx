@@ -27,3 +27,13 @@ it('the host shows one toast at a time and clears it after its duration', () => 
   act(() => vi.advanceTimersByTime(7000))
   expect(result.current.toast).toBeNull()
 })
+
+it('a switch-surviving toast keeps its message through one switch, then dismisses like any other', () => {
+  const { result } = renderHook(() => useToast())
+  act(() => result.current.showToast('This document has been reprocessed', { outlivesSwitch: true, durationMs: 6000 }))
+  act(() => result.current.consumeSwitch())
+  expect(result.current.toast?.message).toBe('This document has been reprocessed')
+  expect(result.current.toast?.outlivesSwitch).toBe(false)
+  act(() => result.current.dismissToast())
+  expect(result.current.toast).toBeNull()
+})

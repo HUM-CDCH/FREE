@@ -24,5 +24,9 @@ export function useToast() {
     setToast({ message, ...(action ? { action } : {}), outlivesSwitch })
     timer.current = window.setTimeout(() => setToast(null), durationMs)
   }, [])
-  return { toast, showToast, dismissToast }
+  /** The switch the toast was kept for has happened; the next one clears it. Message and timer stay. */
+  const consumeSwitch = useCallback(() => {
+    setToast((current) => (current?.outlivesSwitch ? { ...current, outlivesSwitch: false } : current))
+  }, [])
+  return { toast, showToast, dismissToast, consumeSwitch }
 }

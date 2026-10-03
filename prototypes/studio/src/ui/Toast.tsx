@@ -21,7 +21,7 @@ function Toast({ message, action, onDismiss, className = '' }: ToastProps) {
       {action && (
         <button
           type="button"
-          className="shrink-0 cursor-pointer rounded-sm px-1 font-bold text-green outline-none hover:underline"
+          className="inline-flex min-h-6 shrink-0 cursor-pointer items-center rounded-sm px-2 font-bold text-green outline-none hover:underline"
           onClick={() => {
             action.onAction()
             onDismiss?.()

@@ -167,7 +167,7 @@ export function DocumentWorkspace({
 
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [zoomPercent, setZoomPercent] = useState(100)
-  const { toast, showToast, dismissToast } = useToast()
+  const { toast, showToast, dismissToast, consumeSwitch } = useToast()
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
     extractionSchema,
@@ -237,7 +237,8 @@ export function DocumentWorkspace({
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setKnownSchemas(reopenedSchemas)
     setResultPath(null)
-    if (!toast?.outlivesSwitch) dismissToast()
+    if (toast?.outlivesSwitch) consumeSwitch()
+    else dismissToast()
     setDocIndex({ status: 'parsing' })
   }
 
