@@ -182,6 +182,13 @@ describe('editor gate', () => {
     expect(controller.snapshot().draft!.schemaNodes).toHaveLength(1)
   })
 
+  it('an empty commit label is not announced: the caller shows its own notice', () => {
+    const setup = setupDurable({ initial: revision(1, 'site') })
+    expect(setup.controller.commit((current) => [...current, node('year')], '')).toEqual({ ok: true })
+    expect(setup.messages).toHaveLength(0)
+    expect(setup.edits).toHaveLength(1)
+  })
+
   it('drops the extractable revision after a valid mutation', () => {
     const setup = setupDurable({ initial: revision(1, 'site') })
     expect(setup.controller.snapshot().extractableSchemaRevisionId).toBe('rev-1')

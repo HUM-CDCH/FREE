@@ -25,16 +25,14 @@ import {
   templateToSchemaDefinition,
 } from 'extraction/schema'
 import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
-import { Button, EmptyState, ModalDialog, SegmentedControl } from './ui'
+import { Button, EmptyState, ModalDialog, SegmentedControl, Toast } from './ui'
+import FieldRow from './FieldRow'
+import { useToast } from './useToast'
 import ActionsMenu, { type ActionItem } from './ActionsMenu'
 import SchemaNameEditor from './SchemaNameEditor'
 import { SchemaSaveStatus } from './SchemaSaveStatus'
 import { defaultSchemaName, UNTITLED_SCHEMA_NAME } from './schemaNames'
-import {
-  deriveSchemaProposal,
-  type Change,
-  type ReplayOutcome,
-} from '../shared/schemaChanges'
+import { deriveSchemaProposal } from '../shared/schemaChanges'
 import {
   SchemaInstructionsChat,
   SchemaInstructionsDrawer,
@@ -46,12 +44,15 @@ import { useModelOperationRecovery } from './useModelOperationRecovery'
 import {
   moveSchemaNodes,
   removeSchemaNode,
+  restoreSchemaNode,
   schemaAncestorIds,
   schemaDragMode,
   updateSchemaNode,
 } from './schemaEditorTree'
 
 const EMPTY_NODES: SchemaNode[] = []
+/** Top-level groups start open; nested groups start closed (§6). */
+const rootGroupIds = (list: readonly SchemaNode[]) => new Set(list.filter((node) => node.children !== undefined).map((node) => node.id))
 
 const scrollIntoViewOnce = (element: HTMLElement | null) => element?.scrollIntoView?.({ block: 'nearest' })
 const focusField = (element: HTMLElement | null) => { scrollIntoViewOnce(element); element?.focus({ preventScroll: true }) }
@@ -145,150 +146,9 @@ function editingOf(node: SchemaNode): FieldEditing {
   }
 }
 
-function AllowedValuesBadge({ node, onEdit, disabled }: { node: SchemaNode; onEdit?: () => void; disabled?: boolean }) {
-  if (!node.allowedValues) return null
-  const title = `Allowed values${onEdit ? ' — click to edit' : ''}: ${node.allowedValues.join(', ')}`
-  if (!onEdit) {
-    return (
-      <span
-        className="min-w-0 shrink truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted"
-        title={title}
-      >
-        {node.allowedValues.join(' | ')}
-      </span>
-    )
-  }
-  return (
-    <button
-      type="button"
-      className="min-w-0 shrink cursor-pointer truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-default disabled:opacity-60 disabled:hover:bg-canvas disabled:hover:text-ink-muted"
-      title={title}
-      disabled={disabled}
-      onClick={onEdit}
-    >
-      {node.allowedValues.join(' | ')}
-    </button>
-  )
-}
-
-function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
-  if (outcome === 'rejected') return (
-    <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 text-[9px] font-semibold text-ink-muted">
-      Rejected
-    </span>
-  )
-  if (outcome === 'unresolved') return (
-    <span
-      className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
-      title={change?.outcome === 'unresolved'
-        ? change.reason
-        : 'This accepted change depends on another review decision that is not currently accepted.'}
-    >
-      Unresolved
-    </span>
-  )
-  if (!change?.reason) {
-    if (outcome !== 'conflict') return null
-    return (
-      <span
-        className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
-        title="This proposal conflicts with a schema invariant."
-      >
-        Conflict
-      </span>
-    )
-  }
-  return (
-    <span
-      className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
-      title={change.reason}
-    >
-      Conflict
-    </span>
-  )
-}
-
-function AcceptanceControl({ id, name, accepted, onChange }: {
-  id: string
-  name: string
-  accepted: boolean
-  onChange: (id: string) => void
-}) {
-  return (
-    <label className="flex shrink-0 cursor-pointer items-center gap-1 text-[10px] font-semibold text-ink-muted">
-      <input
-        type="checkbox"
-        className="cursor-pointer accent-accent"
-        aria-label={`Accept change to ${name}`}
-        checked={accepted}
-        onChange={() => onChange(id)}
-      />
-      Accept
-    </label>
-  )
-}
-
 type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
 
-
-function fieldTypeLabel(node: SchemaNode): string {
-  if (node.type !== 'array') return node.type
-  return node.children === undefined ? `array<${node.itemType}>` : 'array<object>'
-}
-
-function FieldTypeBadge({ node, onEdit, disabled }: { node: SchemaNode; onEdit?: () => void; disabled?: boolean }) {
-  const label = fieldTypeLabel(node)
-  const className = 'shrink-0 rounded bg-canvas px-1.5 py-0.5 font-mono text-[9px] text-ink-muted'
-  if (!onEdit) return <span className={className}>{label}</span>
-  return (
-    <button
-      type="button"
-      className={`${className} cursor-pointer outline-none transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-default disabled:opacity-60`}
-      title={`Type: ${label} — click to edit`}
-      disabled={disabled}
-      onClick={onEdit}
-    >
-      {label}
-    </button>
-  )
-}
-
-function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; change?: Change; impliedRemoved?: boolean }) {
-  if (change?.kind === 'modified' && change.before && change.after) {
-    const nameChanged = change.before.name !== change.after.name
-    const beforeType = fieldTypeLabel(change.before)
-    const afterType = fieldTypeLabel(change.after)
-    return (
-      <>
-        {nameChanged ? (
-          <>
-            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-danger line-through">{change.before.name}</span>
-            <span className="shrink-0 text-[10px] text-ink-faint" aria-hidden="true">→</span>
-            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-green">{change.after.name}</span>
-          </>
-        ) : (
-          <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{change.after.name}</span>
-        )}
-        {beforeType !== afterType && (
-          <>
-            <span className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 font-mono text-[9px] text-danger line-through">{beforeType}</span>
-            <span className="shrink-0 rounded bg-green-soft px-1.5 py-0.5 font-mono text-[9px] text-green">{afterType}</span>
-          </>
-        )}
-      </>
-    )
-  }
-
-  const tone = change?.kind === 'added'
-    ? 'text-green'
-    : change?.kind === 'removed' || impliedRemoved
-      ? 'text-danger line-through'
-      : 'text-ink'
-  return (
-    <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${tone}`}>{node.name}</span>
-  )
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Data model and converters
@@ -301,13 +161,7 @@ function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; 
 // ────────────────────────────────────────────────────────────────────────────
 
 
-function subtreeIdsOf(node: SchemaNode): string[] {
-  const ids = [node.id]
-  for (const child of node.children ?? []) ids.push(...subtreeIdsOf(child))
-  return ids
-}
-
-/** Per-field notes set via the "i" description button, so Regenerate carries them into the instruction. */
+/** Per-field notes set from each row's note action, so Regenerate carries them into the instruction. */
 function fieldDescriptionsInstruction(nodes: readonly SchemaNode[]): string {
   const notes = enumerateFieldPaths(nodes)
     .filter(({ node }) => node.description)
@@ -372,14 +226,14 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
           onChange={e => onChange({ ...editing, name: e.target.value })}
           onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
         />
-        <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
-        <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" aria-label="Cancel field edit" onClick={onCancel}>✗</button>
+        <Button variant="positive" disabled={!editing.name.trim()} onClick={onSave}>Save</Button>
+        <Button aria-label="Cancel field edit" onClick={onCancel}>✗</Button>
       </div>
       <div className="flex items-center gap-1.5">
-        <label className="flex min-w-0 flex-1 items-center gap-2 text-[10px] font-semibold text-ink-muted">
+        <label className="flex min-w-0 flex-1 items-center gap-2 text-overline font-semibold text-ink-muted">
           <span className="shrink-0">Type</span>
           <select
-            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-compact text-ink outline-none focus-visible:border-accent"
             aria-label="Field type"
             value={editing.type}
             onChange={(event) => onChange({ ...editing, type: event.target.value as FieldType })}
@@ -388,10 +242,10 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
           </select>
         </label>
         {editing.type === 'array' && (
-          <label className="flex min-w-0 flex-1 items-center gap-2 text-[10px] font-semibold text-ink-muted">
+          <label className="flex min-w-0 flex-1 items-center gap-2 text-overline font-semibold text-ink-muted">
             <span className="shrink-0">Items</span>
             <select
-              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
+              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-compact text-ink outline-none focus-visible:border-accent"
               aria-label="Array item type"
               value={editing.itemType === null ? 'object' : editing.itemType ?? 'string'}
               onChange={(event) => onChange({
@@ -407,11 +261,11 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
       </div>
       {editing.type === 'string' && (
         <div className="flex flex-col gap-1 border-t border-accent/20 pt-1.5">
-          <span className="text-[10px] font-semibold text-ink-muted">Allowed values (leave empty for free text)</span>
+          <span className="text-overline font-semibold text-ink-muted">Allowed values (leave empty for free text)</span>
           {editing.allowedValues && editing.allowedValues.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {editing.allowedValues.map((value) => (
-                <span key={value} className="flex items-center gap-1 rounded bg-canvas px-1.5 py-0.5 font-mono text-[10.5px] text-ink">
+                <span key={value} className="flex items-center gap-1 rounded bg-canvas px-1.5 py-0.5 font-mono text-overline text-ink">
                   {value}
                   <button
                     type="button"
@@ -425,17 +279,17 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
           )}
           <div className="flex items-center gap-1.5">
             <input
-              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
+              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-compact text-ink outline-none focus-visible:border-accent"
               value={newValue}
               placeholder="add value…"
               onChange={e => setNewValue(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addValue() } }}
             />
-            <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={addValue}>Add</button>
+            <Button onClick={addValue}>Add</Button>
           </div>
         </div>
       )}
-      {error && <span className="text-[10px] font-semibold text-danger" role="alert">{error}</span>}
+      {error && <span className="text-overline font-semibold text-danger" role="alert">{error}</span>}
     </div>
   )
 }
@@ -455,10 +309,10 @@ function DescriptionEditForm({ existing, value, onChange, onAdd, onDelete, onCan
   if (confirmingDelete) {
     return (
       <div className="mt-0.5 mb-0.5 flex items-center justify-between gap-1.5 rounded-md border border-danger/30 bg-danger-soft px-2 py-1">
-        <span className="text-[12px] font-semibold text-danger">Clear all notes on this field?</span>
+        <span className="text-secondary font-semibold text-danger">Clear all notes on this field?</span>
         <div className="flex shrink-0 gap-1.5">
-          <button className="cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-ink" type="button" onClick={() => setConfirmingDelete(false)}>Cancel</button>
-          <button className="cursor-pointer rounded-md bg-danger px-2 py-0.5 text-[11px] font-semibold text-white outline-none hover:brightness-110" type="button" onClick={onDelete}>Clear</button>
+          <Button onClick={() => setConfirmingDelete(false)}>Cancel</Button>
+          <Button variant="danger" onClick={onDelete}>Clear</Button>
         </div>
       </div>
     )
@@ -469,36 +323,26 @@ function DescriptionEditForm({ existing, value, onChange, onAdd, onDelete, onCan
       {notes.length > 0 && (
         <ul className="flex flex-col gap-0.5">
           {notes.map((note, i) => (
-            <li key={i} className="text-[11.5px] leading-snug text-ink">{note}</li>
+            <li key={i} className="text-compact leading-snug text-ink">{note}</li>
           ))}
         </ul>
       )}
       <div className="flex items-center gap-1.5">
         <input
-          className="min-w-0 flex-1 bg-transparent font-sans text-[12px] text-ink outline-none placeholder:text-ink-faint"
+          className="min-w-0 flex-1 bg-transparent font-sans text-secondary text-ink outline-none placeholder:text-ink-faint"
           placeholder={notes.length > 0 ? 'Add another note…' : 'Describe this field for the extraction model…'}
           value={value}
           autoFocus
           onChange={e => onChange(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') onAdd(); if (e.key === 'Escape') onCancel() }}
         />
-        <button
-          className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2 py-0.5 text-[11px] font-bold text-white outline-none transition-[filter] hover:brightness-108 disabled:cursor-default disabled:opacity-50"
-          type="button"
-          disabled={!value.trim()}
-          onClick={onAdd}
-        >
+        <Button variant="positive" disabled={!value.trim()} onClick={onAdd}>
           Add
-        </button>
+        </Button>
         {notes.length > 0 && (
-          <button
-            className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-danger"
-            type="button"
-            title="Clear all notes"
-            onClick={() => setConfirmingDelete(true)}
-          >🗑</button>
+          <Button variant="danger" title="Clear all notes" onClick={() => setConfirmingDelete(true)}>🗑</Button>
         )}
-        <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" title="Close" onClick={onCancel}>✗</button>
+        <Button title="Close" onClick={onCancel}>✗</Button>
       </div>
     </div>
   )
@@ -539,6 +383,7 @@ function SchemaPanel({
     useState<FieldEditing | null>(null)
   const [editingError, setEditingError] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
+  const { toast: panelToast, showToast: showPanelToast, dismissToast: dismissPanelToast } = useToast()
   const [chat, setChat] = useState<ChatMsg[]>([
     { role: 'assistant', text: CHAT_GREETING },
   ])
@@ -566,8 +411,7 @@ function SchemaPanel({
     chatAbortRef.current = null
   }, [])
   const [view, setView] = useState<'fields' | 'code'>('fields')
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => rootGroupIds(nodes))
   const [openDescId, setOpenDescId] = useState<string | null>(null)
   const [descDraft, setDescDraft] = useState('')
   const [jsonEditMode, setJsonEditMode] = useState(false)
@@ -670,13 +514,12 @@ function SchemaPanel({
       setEditingError(null)
       setMutationError(null)
       resetProposal()
-      setSelectedIds(new Set())
       setOpenDescId(null)
       setJsonEditMode(false)
       setJsonDraft('')
       setJsonEditError(null)
       setView('fields')
-      setExpandedIds(new Set())
+      setExpandedIds(rootGroupIds(schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES))
       setDescDraft('')
       setChatInput('')
       setHistoryError(null)
@@ -934,7 +777,11 @@ function SchemaPanel({
       setEditingError('Need at least 2 allowed values, or remove the last one for free text.')
       return
     }
-    const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_') || 'field'
+    const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!name) {
+      setEditingError('Enter a field name.')
+      return
+    }
     const result =
       provisionalField?.id === editing.id
         ? schema.commit(
@@ -978,31 +825,30 @@ function SchemaPanel({
     setEditingError(null)
   }
 
-  function bulkRemoveNodes() {
-    const count = selectedIds.size
-    // Removals cannot create duplicate sibling names; the gate's scan passes.
-    schema.commit((current) => {
-      let next = current
-      for (const id of selectedIds) {
-        const [, after] = removeSchemaNode(next, id)
-        next = after
-      }
-      return next
-    }, `${count} field${count !== 1 ? 's' : ''} removed`)
-    if (editing && selectedIds.has(editing.id)) setEditing(null)
-    setSelectedIds(new Set())
-  }
-
-  function toggleSelected(node: SchemaNode) {
-    const ids = subtreeIdsOf(node)
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      const select = !next.has(node.id)
-      for (const id of ids) {
-        if (select) next.add(id)
-        else next.delete(id)
-      }
-      return next
+  /** One click removes the field and its subtree; Undo puts it back where it was for eight seconds (§6). Both commits
+   *  carry an empty label: the controller toasts every non-empty label at the top of the document (`onCommitMessage`,
+   *  wired in `App.tsx`), and the panel's toast is the one notice for delete and undo. */
+  function deleteField(node: SchemaNode, parentId: string | null, index: number) {
+    const result = schema.commit((current) => removeSchemaNode(current, node.id)[1], '')
+    if (!result.ok) {
+      setMutationError('No schema draft is open.')
+      return
+    }
+    // A form open on the field or anywhere inside it goes with it.
+    const removedIds = new Set(enumerateFieldPaths([node]).map((field) => field.id))
+    if (editing && removedIds.has(editing.id)) cancelEdit()
+    if (openDescId !== null && removedIds.has(openDescId)) setOpenDescId(null)
+    showPanelToast('Field removed', {
+      durationMs: 8_000,
+      action: {
+        label: 'Undo',
+        onAction: () => {
+          // Computed from the live snapshot before anything is committed: an impossible restore commits nothing.
+          const current = schema.snapshot().draft?.schemaNodes
+          const restored = current ? restoreSchemaNode(current, node, parentId, index) : null
+          if (!restored || !schema.commit(() => restored, '').ok) showPanelToast('Could not restore the field')
+        },
+      },
     })
   }
 
@@ -1013,7 +859,7 @@ function SchemaPanel({
     )
   }
 
-  /** Each "i" note appends as a new line rather than replacing the field's existing notes. */
+  /** Each note appends as a new line rather than replacing the field's existing notes. */
   function addNodeDescriptionNote(id: string, existing: string | undefined, draft: string) {
     const note = draft.trim()
     if (!note) return
@@ -1023,12 +869,7 @@ function SchemaPanel({
 
   function addField() {
     if (editing) return
-    const cur = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
-    let name = 'nyt_felt'
-    let suffix = 2
-    while (cur.some(n => n.name === name)) name = `nyt_felt_${suffix++}`
-    const id = mkId()
-    const next = { id, name, type: 'verbatim-string' as const }
+    const next = { id: mkId(), name: '', type: 'verbatim-string' as const }
     setProvisionalField(next)
     setView('fields')
     setEditing(next)
@@ -1147,16 +988,6 @@ function SchemaPanel({
     return `h-1.5 border-t-2 transition-[border-color] duration-100 ${on ? 'border-accent' : 'border-transparent'}`
   }
 
-  function rowCls(_id: string, intoGroup: boolean, isDragging: boolean) {
-    return [
-      '-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5',
-      'border border-solid transition-[background,border,opacity] duration-150',
-      intoGroup || isDragging ? 'border-accent' : 'border-transparent',
-      intoGroup ? 'bg-accent-ghost' : '',
-      isDragging ? 'opacity-40' : '',
-    ].join(' ')
-  }
-
   const msgCls = (role: 'user' | 'assistant') =>
     role === 'user'
       ? 'self-end max-w-[88%] rounded-[11px_11px_3px_11px] bg-accent px-3 py-1.5 text-xs leading-relaxed text-white'
@@ -1169,264 +1000,43 @@ function SchemaPanel({
   // Render helpers for field rows
   // ────────────────────────────────────────────────────────────────────────
 
-  function renderRootField(node: SchemaNode, i: number) {
+  function renderField(node: SchemaNode, parentId: string | null, index: number, ancestorRemoved = false): React.ReactNode {
     const isGroup = node.children !== undefined
     const isDragging = dragging?.id === node.id
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === node.id
-    const isEditing = editing?.id === node.id
+    const isExpanded = expandedIds.has(node.id) || intoGroup
     const change = pending?.changes.find((item) => item.id === node.id)
-    const diffStatus = change?.kind ?? null
-    const isDiff = diffStatus !== null
-    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-amber-100' : ''
-
-    return (
-      <div key={node.id} data-schema-node-id={node.id} tabIndex={-1} ref={fieldContext?.nodeId === node.id ? focusField : undefined}>
-        {/* drop slot before this field */}
-        <div className={slotCls(null, i)} onMouseEnter={() => setSlotTarget(null, i)} />
-
-        {isEditing && editing && !isDiff ? (
-          <FieldEditForm
-            editing={editing}
-            error={editingError}
-            onChange={(next) => { setEditing(next); setEditingError(null) }}
-            onSave={saveEdit}
-            onCancel={cancelEdit}
-          />
-        ) : (
-          <div
-            className={`${rowCls(node.id, intoGroup, isDragging)} ${diffBg}`}
-            onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name)}
-            onMouseLeave={() => !isDiff && clearGroupTarget(node.id)}
-          >
-            {!isDiff && !editorReadOnly && (
-              <span
-                className="shrink-0 cursor-grab select-none px-0.5 text-sm leading-none text-ink-faint"
-                onMouseDown={e => startDrag(e, node.id, null, node.name, isGroup)}
-              >
-                ⠿
-              </span>
-            )}
-            <FieldChangeLabel node={node} change={change} />
-            {!isDiff && (
-              <FieldTypeBadge
-                node={node}
-                disabled={editDisabled}
-                onEdit={!editorReadOnly ? () => { setEditing(editingOf(node)); setEditingError(null) } : undefined}
-              />
-            )}
-            <AllowedValuesBadge
-              node={node}
-              disabled={editDisabled}
-              onEdit={!isDiff && !editorReadOnly ? () => { setEditing(editingOf(node)); setEditingError(null) } : undefined}
-            />
-            <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
-            {intoGroup && !isDiff && (
-              <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
-                into {node.name}
-              </span>
-            )}
-            <span className="min-w-0 flex-1" />
-            {change && <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptedChangeIds.has(change.id)} onChange={proposalReview.toggle} />}
-            {!isDiff && !editorReadOnly && (
-              <button
-                className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
-                type="button"
-                title="Add description"
-                onClick={() => {
-                  const next = openDescId === node.id ? null : node.id
-                  if (next) setDescDraft('')
-                  setOpenDescId(next)
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
-              </button>
-            )}
-            {!isDiff && !editorReadOnly && (
-              <button
-                className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
-                type="button"
-                title={`Edit ${node.name}`}
-                disabled={editDisabled}
-                onClick={() => { setEditing(editingOf(node)); setEditingError(null) }}
-              >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
-              </button>
-            )}
-            {!isDiff && !editorReadOnly && (
-              <input
-                type="checkbox"
-                className="shrink-0 cursor-pointer accent-accent"
-                checked={selectedIds.has(node.id)}
-                onChange={() => toggleSelected(node)}
-                onClick={e => e.stopPropagation()}
-              />
-            )}
-          </div>
-        )}
-
-        {openDescId === node.id && (
-          <DescriptionEditForm
-            existing={node.description ?? ''}
-            value={descDraft}
-            onChange={setDescDraft}
-            onAdd={() => addNodeDescriptionNote(node.id, node.description, descDraft)}
-            onDelete={() => { updateNodeDescription(node.id, undefined); setOpenDescId(null) }}
-            onCancel={() => setOpenDescId(null)}
-          />
-        )}
-
-        {/* Nested children area — shown when there are children or dragging (for drop slot) */}
-        {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (
-          <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j, diffStatus === 'removed'))}
-            <div
-              className={slotCls(node.id, (node.children ?? []).length)}
-              onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)}
-            />
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  function renderChildField(child: SchemaNode, parentId: string, j: number, ancestorRemoved = false): React.ReactNode {
-    const isDragging = dragging?.id === child.id
-    const isEditing = editing?.id === child.id
-    const isGroup = child.children !== undefined
-    const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === child.id
-    const isExpanded = expandedIds.has(child.id) || intoGroup
-    const change = pending?.changes.find((item) => item.id === child.id)
     const diffStatus = change?.kind ?? (ancestorRemoved ? 'removed' : null)
     const isDiff = diffStatus !== null
-    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-amber-100' : ''
-
-    const toggleExpand = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      setExpandedIds(s => {
-        const ns = new Set(s)
-        if (ns.has(child.id)) ns.delete(child.id)
-        else ns.add(child.id)
-        return ns
-      })
-    }
-
+    const isEditing = editing?.id === node.id
     return (
-      <div
-        key={child.id}
-        data-schema-node-id={child.id}
-        tabIndex={-1}
-        ref={fieldContext?.nodeId === child.id ? focusField : undefined}
-        onMouseEnter={() => !isDiff && setGroupTarget(child.id, child.name)}
-        onMouseLeave={() => !isDiff && clearGroupTarget(child.id)}
-      >
-        <div className={slotCls(parentId, j)} onMouseEnter={e => { e.stopPropagation(); setSlotTarget(parentId, j) }} />
+      <div key={node.id} data-schema-node-id={node.id}
+        onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name)}
+        onMouseLeave={() => !isDiff && clearGroupTarget(node.id)}>
+        <div className={slotCls(parentId, index)} onMouseEnter={(event) => { event.stopPropagation(); setSlotTarget(parentId, index) }} />
         {isEditing && editing && !isDiff ? (
-          <FieldEditForm
-            editing={editing}
-            error={editingError}
-            onChange={(next) => { setEditing(next); setEditingError(null) }}
-            onSave={saveEdit}
-            onCancel={cancelEdit}
-          />
+          <FieldEditForm editing={editing} error={editingError} onChange={(next) => { setEditing(next); setEditingError(null) }} onSave={saveEdit} onCancel={cancelEdit} />
         ) : (
-          <div
-            className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup && !isDiff ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''} ${diffBg}`}
-          >
-            {!isDiff && !editorReadOnly && (
-              <span
-                className="shrink-0 cursor-grab select-none px-0.5 text-[13px] leading-none text-ink-faint"
-                onMouseDown={e => startDrag(e, child.id, parentId, child.name, isGroup)}
-              >
-                ⠿
-              </span>
-            )}
-            <FieldChangeLabel node={child} change={change} impliedRemoved={ancestorRemoved} />
-            {!isDiff && (
-              <FieldTypeBadge
-                node={child}
-                disabled={editDisabled}
-                onEdit={!editorReadOnly ? () => { setEditing(editingOf(child)); setEditingError(null) } : undefined}
-              />
-            )}
-            <AllowedValuesBadge
-              node={child}
-              disabled={editDisabled}
-              onEdit={!isDiff && !editorReadOnly ? () => { setEditing(editingOf(child)); setEditingError(null) } : undefined}
-            />
-            <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
-            {isGroup && !isDiff && (
-              <span
-                className="shrink-0 flex items-center text-ink-faint hover:text-accent cursor-pointer transition-colors"
-                onClick={toggleExpand}
-              >
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 120ms' }}>
-                  <polygon points="0,0 8,4 0,8" />
-                </svg>
-              </span>
-            )}
-            {intoGroup && !isDiff && (
-              <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
-                into {child.name}
-              </span>
-            )}
-            <span className="min-w-0 flex-1" />
-            {change && <AcceptanceControl id={change.id} name={change.after?.name ?? child.name} accepted={acceptedChangeIds.has(change.id)} onChange={proposalReview.toggle} />}
-            {!isDiff && !editorReadOnly && (
-              <button
-                className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
-                type="button"
-                title="Add description"
-                onClick={() => {
-                  const next = openDescId === child.id ? null : child.id
-                  if (next) setDescDraft('')
-                  setOpenDescId(next)
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
-              </button>
-            )}
-            {!isDiff && !editorReadOnly && (
-              <button
-                className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
-                type="button"
-                title={`Edit ${child.name}`}
-                disabled={editDisabled}
-                onClick={() => { setEditing(editingOf(child)); setEditingError(null) }}
-              >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
-              </button>
-            )}
-            {!isDiff && !editorReadOnly && (
-              <input
-                type="checkbox"
-                className="shrink-0 cursor-pointer accent-accent"
-                checked={selectedIds.has(child.id)}
-                onChange={() => toggleSelected(child)}
-                onClick={e => e.stopPropagation()}
-              />
-            )}
-          </div>
+          <FieldRow node={node} isGroup={isGroup} expanded={isExpanded}
+            onToggleExpanded={() => setExpandedIds((current) => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next })}
+            change={change} outcome={change && replay?.outcomes.get(change.id)} impliedRemoved={ancestorRemoved}
+            acceptance={change ? { accepted: acceptedChangeIds.has(change.id), onToggle: proposalReview.toggle } : undefined}
+            readOnly={editorReadOnly} editDisabled={editDisabled} dragging={isDragging} intoGroup={intoGroup}
+            onStartDrag={(event) => startDrag(event, node.id, parentId, node.name, isGroup)}
+            onEdit={() => { setEditing(editingOf(node)); setEditingError(null) }}
+            onAddNote={() => { const next = openDescId === node.id ? null : node.id; if (next) setDescDraft(''); setOpenDescId(next) }}
+            onDelete={() => deleteField(node, parentId, index)}
+            nodeRef={fieldContext?.nodeId === node.id ? focusField : undefined} />
         )}
-
-        {openDescId === child.id && (
-          <DescriptionEditForm
-            existing={child.description ?? ''}
-            value={descDraft}
-            onChange={setDescDraft}
-            onAdd={() => addNodeDescriptionNote(child.id, child.description, descDraft)}
-            onDelete={() => { updateNodeDescription(child.id, undefined); setOpenDescId(null) }}
-            onCancel={() => setOpenDescId(null)}
-          />
+        {openDescId === node.id && (
+          <DescriptionEditForm existing={node.description ?? ''} value={descDraft} onChange={setDescDraft}
+            onAdd={() => addNodeDescriptionNote(node.id, node.description, descDraft)}
+            onDelete={() => { updateNodeDescription(node.id, undefined); setOpenDescId(null) }} onCancel={() => setOpenDescId(null)} />
         )}
-
-        {/* Children area — shown when expanded and has children or dragging (for drop slot) */}
-        {isGroup && isExpanded && ((child.children ?? []).length > 0 || !!dragging) && (
-          <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k, ancestorRemoved || diffStatus === 'removed'))}
-            <div
-              className={slotCls(child.id, (child.children ?? []).length)}
-              onMouseEnter={() => setSlotTarget(child.id, (child.children ?? []).length)}
-            />
+        {isGroup && isExpanded && ((node.children ?? []).length > 0 || !!dragging) && (
+          <div role="list" aria-label={`Fields of ${node.name}`} className="ml-4 mt-0.5 border-l border-line pl-3">
+            {(node.children ?? []).map((child, childIndex) => renderField(child, node.id, childIndex, ancestorRemoved || diffStatus === 'removed'))}
+            <div className={slotCls(node.id, (node.children ?? []).length)} onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)} />
           </div>
         )}
       </div>
@@ -1435,7 +1045,7 @@ function SchemaPanel({
 
   // ────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
       <SchemaImport
         schema={schema}
         disabled={editorReadOnly || editing !== null || openDescId !== null || snap.generating}
@@ -1701,36 +1311,13 @@ function SchemaPanel({
               )}
             </label>
             {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
-            {!editorReadOnly && selectedIds.size > 0 && (
-              <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5 shadow-float">
-                <span className="text-[12px] font-semibold text-danger">
-                  {selectedIds.size} field{selectedIds.size !== 1 ? 's' : ''} selected
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    className="cursor-pointer rounded-md px-2 py-1 text-[11.5px] font-semibold text-ink-muted hover:text-ink outline-none"
-                    type="button"
-                    onClick={() => setSelectedIds(new Set())}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="cursor-pointer rounded-md bg-danger px-2.5 py-1 text-[11.5px] font-semibold text-white outline-none hover:brightness-110"
-                    type="button"
-                    onClick={bulkRemoveNodes}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className="flex flex-col">
+            <div role="list" aria-label="Schema fields" className="flex flex-col">
               {fieldContext && <div role="status" className="p-2 text-xs bg-accent-ghost">
                 From Extraction {fieldContext.extractionId} · revision {fieldContext.revisionNumber ?? fieldContext.schemaRevisionId} · {fieldContext.nodeType}
                 {contextNode ? ` → ${contextNode.name} (${contextNode.type}) in the current editor. Unsaved edits are retained.` : ' · This field was removed. No replacement was selected.'}
                 {!contextNode && <Button onClick={() => void schema.previewHistoricalRevision(fieldContext.schemaRevisionId)}>View historical schema</Button>}
               </div>}
-              {(pending ? pending.reviewNodes : nodes).map((node, i) => renderRootField(node, i))}
+              {(pending ? pending.reviewNodes : nodes).map((node, i) => renderField(node, null, i))}
               {provisionalField && editing?.id === provisionalField.id && (
                 <FieldEditForm
                   editing={editing}
@@ -1853,6 +1440,12 @@ function SchemaPanel({
         </div>
       )}
 
+      {panelToast && (
+        <div className="pointer-events-none absolute inset-x-3 bottom-14 z-20 flex justify-center">
+          <Toast message={panelToast.message} action={panelToast.action} onDismiss={dismissPanelToast} />
+        </div>
+      )}
+
       {/* ── Footer ── */}
       <footer className="flex min-h-10 shrink-0 items-center justify-between gap-2 border-t border-line px-4 py-2 text-compact text-ink-faint">
         {snap.view === 'generating' && (
@@ -1928,7 +1521,7 @@ function SchemaPanel({
       {dragging && (
         <div
           style={{ position: 'fixed', left: dragX + 18, top: dragY - 16, pointerEvents: 'none', zIndex: 9999 }}
-          className="flex select-none items-center gap-1.5 rounded-lg border-[1.5px] border-accent bg-surface px-3 py-1.5 font-mono text-[12.5px] font-medium text-ink shadow-[0_4px_20px_rgba(51,48,44,.22)] whitespace-nowrap"
+          className="flex select-none items-center gap-1.5 rounded-lg border-[1.5px] border-accent bg-surface px-3 py-1.5 font-mono text-secondary font-medium text-ink shadow-[0_4px_20px_rgba(51,48,44,.22)] whitespace-nowrap"
         >
           <span className="text-sm">{dragMode === 'indent' ? '→' : dragMode === 'outdent' ? '←' : '⠿'}</span>
           {dragging.name}

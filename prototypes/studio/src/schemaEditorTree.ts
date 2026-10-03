@@ -135,6 +135,18 @@ function insertAtSlot(
   })
 }
 
+/** Puts a removed node back under `parentId` at `index`; null when that parent no longer exists. Sibling names are
+ *  checked by the commit gate, not here. */
+export function restoreSchemaNode(
+  nodes: readonly SchemaNode[],
+  node: SchemaNode,
+  parentId: string | null,
+  index: number,
+): SchemaNode[] | null {
+  if (parentId !== null && !enumerateFieldPaths(nodes).some((field) => field.id === parentId)) return null
+  return insertAtSlot(deepClone(nodes), parentId, index, node)
+}
+
 function sourceIndex(nodes: readonly SchemaNode[], drag: SchemaDrag): number {
   if (drag.parentId === null)
     return nodes.findIndex((node) => node.id === drag.id)

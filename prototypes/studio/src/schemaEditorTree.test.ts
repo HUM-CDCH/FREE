@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SchemaNode } from 'extraction/schema'
-import { moveSchemaNodes, schemaDragMode } from './schemaEditorTree'
+import { moveSchemaNodes, removeSchemaNode, restoreSchemaNode, schemaDragMode } from './schemaEditorTree'
 
 const field = (id: string): SchemaNode => ({ id, name: id, type: 'string' })
 const group = (id: string, children: SchemaNode[]): SchemaNode => ({
@@ -81,5 +81,23 @@ describe('schema editor drag geometry', () => {
       ),
     ).toBeNull()
     expect(nodes).toEqual([group('outer', [group('inner', [field('leaf')])])])
+  })
+})
+
+describe('restoreSchemaNode', () => {
+  const tree: SchemaNode[] = [
+    { id: 'g', name: 'grave', type: 'object', children: [{ id: 'g1', name: 'depth', type: 'number' }, { id: 'g2', name: 'width', type: 'number' }] },
+    { id: 't', name: 'title', type: 'string' },
+  ]
+  it('puts a removed node back under its parent at its index', () => {
+    const [removed, without] = removeSchemaNode(tree, 'g1')
+    expect(restoreSchemaNode(without, removed!, 'g', 0)![0]!.children!.map((node) => node.id)).toEqual(['g1', 'g2'])
+    const [root, rest] = removeSchemaNode(tree, 't')
+    expect(restoreSchemaNode(rest, root!, null, 1)!.map((node) => node.id)).toEqual(['g', 't'])
+  })
+  it('is null when the parent no longer exists', () => {
+    const [removed, without] = removeSchemaNode(tree, 'g1')
+    const [, withoutGroup] = removeSchemaNode(without, 'g')
+    expect(restoreSchemaNode(withoutGroup, removed!, 'g', 0)).toBeNull()
   })
 })

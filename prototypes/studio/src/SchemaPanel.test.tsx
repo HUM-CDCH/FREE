@@ -261,8 +261,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
     )
 
-    const row = screen.getByText('title').parentElement!
-    expect(within(row).queryAllByText('string')).toHaveLength(0)
+    const row = screen.getByText('title').closest('[role="listitem"]')!
+    expect(within(row as HTMLElement).queryAllByText('string')).toHaveLength(0)
     expect(setup.edits).toHaveLength(0)
   })
 
@@ -474,10 +474,11 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
   it('shows the description button for a leaf field and accumulates its notes', () => {
     const setup = renderPanel()
-    const row = screen.getByText('title').parentElement!
-    fireEvent.click(within(row).getByTitle('Add description'))
+    const row = screen.getByRole('listitem', { name: 'title' })
+    fireEvent.click(within(row).getByRole('button', { name: /^Add note to / }))
 
-    expect(screen.getByText('Research rule')).toBeInTheDocument()
+    // The row's note line and the open form's list both show the existing note.
+    expect(screen.getAllByText('Research rule')).toHaveLength(2)
     const input = screen.getByPlaceholderText('Add another note…')
     expect(input).toHaveValue('')
 
@@ -495,8 +496,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
   it('clears every accumulated note on a field in one action', () => {
     const setup = renderPanel()
-    const row = screen.getByText('title').parentElement!
-    fireEvent.click(within(row).getByTitle('Add description'))
+    const row = screen.getByRole('listitem', { name: 'title' })
+    fireEvent.click(within(row).getByRole('button', { name: /^Add note to / }))
     fireEvent.click(screen.getByTitle('Clear all notes'))
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
 
@@ -519,7 +520,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       }],
     }] })
 
-    fireEvent.click(screen.getByText('group').parentElement!.querySelector('polygon')!.closest('span')!)
+    fireEvent.click(screen.getByRole('button', { name: 'Expand group' }))
     fireEvent.click(screen.getByTitle('Edit leaf'))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'renamed leaf' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -534,10 +535,10 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       const setup = renderPanel()
 
       fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
-      expect(screen.getByDisplayValue('nyt_felt')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('field_name')).toHaveValue('')
 
       if (dismissal === 'Escape') {
-        fireEvent.keyDown(screen.getByDisplayValue('nyt_felt'), {
+        fireEvent.keyDown(screen.getByPlaceholderText('field_name'), {
           key: 'Escape',
         })
       } else {
@@ -546,8 +547,9 @@ describe.sequential('SchemaPanel schema proposal review', () => {
         )
       }
 
-      expect(screen.queryByDisplayValue('nyt_felt')).not.toBeInTheDocument()
-      expect(screen.queryByText('nyt_felt')).not.toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('field_name')).not.toBeInTheDocument()
+      expect(within(screen.getByRole('list', { name: 'Schema fields' })).getAllByRole('listitem')
+        .map((row) => row.getAttribute('aria-label'))).toEqual(['title', 'gender'])
       expect(setup.edits).toHaveLength(0)
       expect(setup.schema.snapshot().draft?.schemaNodes).toEqual(nodes)
     },
@@ -557,7 +559,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     const setup = renderPanel()
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
-    fireEvent.change(screen.getByDisplayValue('nyt_felt'), {
+    fireEvent.change(screen.getByPlaceholderText('field_name'), {
       target: { value: 'published field' },
     })
     expect(setup.edits).toHaveLength(0)
@@ -573,7 +575,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     const setup = renderPanel()
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
-    fireEvent.change(screen.getByDisplayValue('nyt_felt'), {
+    fireEvent.change(screen.getByPlaceholderText('field_name'), {
       target: { value: 'entered field' },
     })
     fireEvent.keyDown(screen.getByDisplayValue('entered field'), {
@@ -618,7 +620,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },
     ] })
 
-    fireEvent.click(screen.getByTitle('Type: array<date> — click to edit'))
+    fireEvent.click(screen.getByTitle('Type: list of dates — click to edit'))
     fireEvent.change(screen.getByRole('combobox', { name: 'Array item type' }), { target: { value: 'integer' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -628,7 +630,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       type: 'array',
       itemType: 'integer',
     })
-    expect(screen.getByTitle('Type: array<integer> — click to edit')).toBeInTheDocument()
+    expect(screen.getByTitle('Type: list of integers — click to edit')).toBeInTheDocument()
   })
 
   it('keeps an inline edit open when its name duplicates a sibling field', () => {
@@ -680,6 +682,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   it('opens the field editor when the allowed-values badge is clicked', () => {
     renderPanel()
 
+    expect(screen.getByTitle('Allowed values — click to edit: woman, man')).toHaveTextContent('2 values')
     fireEvent.click(screen.getByTitle('Allowed values — click to edit: woman, man'))
 
     expect(screen.getByDisplayValue('gender')).toBeInTheDocument()
@@ -720,8 +723,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },
       { id: 'title', name: 'title', type: 'string' },
     ] })
-    const titleRow = screen.getByText('title').parentElement!
-    const datesRow = screen.getByText('dates').parentElement!
+    const titleRow = screen.getByText('title').closest<HTMLElement>('[role="listitem"]')!
+    const datesRow = screen.getByText('dates').closest<HTMLElement>('[role="listitem"]')!
 
     fireEvent.mouseDown(titleRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(datesRow)
@@ -746,8 +749,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     ]
     const setup = renderPanel({ panelNodes: original })
 
-    const movedRow = screen.getByText('new_field').parentElement!
-    const skeletonRow = screen.getByText('skeleton').parentElement!
+    const movedRow = screen.getByText('new_field').closest<HTMLElement>('[role="listitem"]')!
+    const skeletonRow = screen.getByText('skeleton').closest<HTMLElement>('[role="listitem"]')!
     fireEvent.mouseDown(movedRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(skeletonRow)
     fireEvent.mouseUp(window)
@@ -773,8 +776,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       { id: 'new-field', name: 'new_field', type: 'verbatim-string' },
     ]
     const setup = renderPanel({ panelNodes: original })
-    const graveRow = screen.getByText('grave').parentElement!
-    const yearRow = screen.getByText('year').parentElement!
+    const graveRow = screen.getByText('grave').closest<HTMLElement>('[role="listitem"]')!
+    const yearRow = screen.getByText('year').closest<HTMLElement>('[role="listitem"]')!
     const nestedSlot = yearRow.parentElement!.firstElementChild!
 
     fireEvent.mouseDown(graveRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
@@ -802,8 +805,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       issues: [],
     })
 
-    expect(screen.getByText('array<date>')).toBeInTheDocument()
-    expect(screen.getByText('array<object>')).toBeInTheDocument()
+    expect(screen.getByText('list of dates')).toBeInTheDocument()
+    expect(screen.getByText('list of objects')).toBeInTheDocument()
   })
 
   it('rejects a drag that would duplicate a sibling field', async () => {
@@ -811,8 +814,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       { id: 'group', name: 'group', type: 'object', children: [{ id: 'nested-title', name: 'title', type: 'string' }] },
       { id: 'root-title', name: 'title', type: 'string' },
     ] })
-    const titleRows = screen.getAllByText('title').map((label) => label.parentElement!)
-    const groupRow = screen.getByText('group').parentElement!
+    const titleRows = screen.getAllByText('title').map((label) => label.closest<HTMLElement>('[role="listitem"]')!)
+    const groupRow = screen.getByText('group').closest<HTMLElement>('[role="listitem"]')!
 
     fireEvent.mouseDown(titleRows.at(-1)!.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(groupRow)
@@ -828,8 +831,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       { id: 'place', name: 'place', type: 'object', children: [{ id: 'nested', name: 'region', type: 'string' }] },
       { id: 'year', name: 'year', type: 'integer' },
     ] })
-    const yearRow = screen.getByText('year').parentElement!
-    const placeRow = screen.getByText('place').parentElement!
+    const yearRow = screen.getByText('year').closest<HTMLElement>('[role="listitem"]')!
+    const placeRow = screen.getByText('place').closest<HTMLElement>('[role="listitem"]')!
 
     fireEvent.mouseDown(yearRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
     fireEvent.mouseEnter(placeRow)
@@ -1718,5 +1721,81 @@ describe('schema header (redesign §5)', () => {
     open('Clear schema')
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Clear current schema' })).getByRole('button', { name: 'Clear schema' }))
     await waitFor(() => expect(onClearDraft).toHaveBeenCalledOnce())
+  })
+})
+
+describe('field rows (redesign §6)', () => {
+  it('shows the name in full beside word pills, keeps actions until hover or focus, and has no selection checkboxes', () => {
+    renderPanel({ panelNodes: [...nodes, { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },
+      { id: 'sex', name: 'sex', type: 'string', allowedValues: ['f', 'm', 'unknown', 'child', 'adult', 'elder'] }] })
+    const row = screen.getByRole('listitem', { name: 'sex' })
+    expect(within(row).getByText('sex').className).toMatch(/shrink-0/)
+    expect(within(row).getByText('sex').className).toMatch(/max-w-\[60%\]/)
+    expect(within(row).getByText('6 values')).toBeInTheDocument()
+    expect(within(row).getByTitle('Type: string — click to edit')).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: 'dates' })).getByTitle('Type: list of dates — click to edit')).toBeInTheDocument()
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    const actions = within(row).getByRole('button', { name: 'Delete sex' }).parentElement!
+    expect(actions.className).toMatch(/group-hover:opacity-100/)
+    expect(actions.className).toMatch(/group-focus-within:opacity-100/)
+    expect(within(row).getByRole('button', { name: 'Delete sex' }).className).toMatch(/size-7/)
+  })
+
+  it('deletes a field in one click and Undo restores it in place', async () => {
+    const setup = renderPanel()
+    fireEvent.click(within(screen.getByRole('listitem', { name: 'title' })).getByRole('button', { name: 'Delete title' }))
+    expect(screen.queryByRole('listitem', { name: 'title' })).not.toBeInTheDocument()
+    expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['gender'])
+    expect(screen.getByText('Field removed')).toBeInTheDocument() // not getByRole('status'): the footer's save status has that role too
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['title', 'gender'])
+    expect(screen.getByRole('listitem', { name: 'title' })).toBeInTheDocument()
+  })
+
+  it('Undo after the parent group was deleted says it could not restore', () => {
+    const setup = renderPanel({ panelNodes: [{ id: 'g', name: 'grave', type: 'object', children: [{ id: 'g1', name: 'depth', type: 'number' }] }] })
+    fireEvent.click(within(screen.getByRole('listitem', { name: 'depth' })).getByRole('button', { name: 'Delete depth' }))
+    // The group goes by another route (the code view, a model edit) so that depth's Undo is still the toast on screen: a
+    // second panel delete would replace it with the group's own Undo.
+    act(() => { setup.schema.commit((current) => current.filter((node) => node.id !== 'g'), '') })
+    expect(screen.queryByRole('listitem', { name: 'grave' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByText('Could not restore the field')).toBeInTheDocument()
+    expect(screen.queryByRole('listitem', { name: 'depth' })).not.toBeInTheDocument()
+  })
+
+  it('a new field opens an empty edit form whose Save waits for a name', () => {
+    const setup = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    const name = screen.getByPlaceholderText('field_name')
+    expect(name).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    fireEvent.change(name, { target: { value: 'Grave goods' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(setup.edits.at(-1)!.schemaNodes.at(-1)!.name).toBe('grave_goods')
+    expect(screen.queryByText('nyt_felt')).not.toBeInTheDocument()
+  })
+
+  it('a note renders in full as a second line and opens the note form', () => {
+    renderPanel()
+    const row = screen.getByRole('listitem', { name: 'title' })
+    expect(within(row).getByText('Research rule')).toBeInTheDocument()
+    fireEvent.click(within(row).getByText('Research rule'))
+    expect(screen.getByPlaceholderText('Add another note…')).toBeInTheDocument()
+  })
+
+  it('keyboard: Enter edits, Delete removes with undo, Space toggles a group', () => {
+    renderPanel({ panelNodes: [{ id: 'g', name: 'grave', type: 'object', children: [{ id: 'g1', name: 'depth', type: 'number' }] }, ...nodes] })
+    const group = screen.getByRole('listitem', { name: 'grave' })
+    expect(screen.getByRole('listitem', { name: 'depth' })).toBeInTheDocument()
+    fireEvent.keyDown(group, { key: ' ' })
+    expect(screen.queryByRole('listitem', { name: 'depth' })).not.toBeInTheDocument()
+    expect(within(group).getByText(/object · 1 field$/)).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('listitem', { name: 'title' }), { key: 'Enter' })
+    expect(screen.getByDisplayValue('title')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByDisplayValue('title'), { key: 'Escape' })
+    fireEvent.keyDown(screen.getByRole('listitem', { name: 'gender' }), { key: 'Delete' })
+    expect(screen.queryByRole('listitem', { name: 'gender' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
   })
 })

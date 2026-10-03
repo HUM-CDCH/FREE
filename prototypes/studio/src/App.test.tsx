@@ -1115,7 +1115,8 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
-    fireEvent.keyDown(screen.getByDisplayValue('nyt_felt'), { key: 'Escape' })
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'unsaved field' } })
+    fireEvent.keyDown(screen.getByPlaceholderText('field_name'), { key: 'Escape' })
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
@@ -1150,7 +1151,8 @@ describe('reopened Source Document workspace', () => {
     })
     expect(screen.getByText('historical_group')).toBeInTheDocument()
     expect(screen.getByText('historical_title')).toBeInTheDocument()
-    expect(screen.queryByText('nyt_felt')).not.toBeInTheDocument()
+    expect(screen.queryByText('unsaved_field')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('field_name')).not.toBeInTheDocument()
   })
 
   it('flushes edits before clearing, then regenerates onto the existing schema', async () => {
@@ -1205,6 +1207,7 @@ describe('reopened Source Document workspace', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'locality' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     fireEvent.click(screen.getByRole('button', { name: 'Schema actions' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Clear schema' }))
