@@ -140,8 +140,17 @@ describe('PATCH /api/extraction-schemas/:id', () => {
       renameExtractionSchema: vi.fn(async () => null),
     })
     expect((await missing(request({ projectContextId: PROJECT, name: '' }))).status).toBe(422)
-    for (const expectedName of ['', '   ', 'x'.repeat(513), 42, null])
-      expect((await missing(request({ projectContextId: PROJECT, name: 'Valid', expectedName }))).status, String(expectedName)).toBe(422)
+    for (const expectedName of ['', '   ', 'x'.repeat(513), 42, null]) {
+      const invalid = await missing(request({ projectContextId: PROJECT, name: 'Valid', expectedName }))
+      expect(invalid.status, String(expectedName)).toBe(422)
+      // The refusal names every field it bounds, the fence included.
+      await expect(invalid.json(), String(expectedName)).resolves.toEqual({
+        error: {
+          code: 'invalid_request',
+          message: 'projectContextId and extractionSchemaId must be canonical lowercase UUIDs, and name, and expectedName when given, must be 1 to 512 characters after trimming.',
+        },
+      })
+    }
     expect((await missing(request({ projectContextId: PROJECT, name: 'Valid' }))).status).toBe(404)
 
     const unavailable = createPatchExtractionSchema({

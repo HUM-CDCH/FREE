@@ -199,9 +199,12 @@ export function DocumentWorkspace({
    *  should this rename fail. With `timeoutMs` the request is given up (aborted, so it fails) once it has waited that
    *  long for its answer, and the queue goes on with the next rename: a stalled automatic name never strands the
    *  researcher's rename behind it. Giving up stops the waiting, not the server's write, but the fence makes that write
-   *  harmless: an abandoned automatic name reaching the database after the researcher's rename finds another name there
-   *  and changes nothing, so it can no longer overwrite a later manual name. The queue keeps the order on screen. A
-   *  researcher's own rename is never fenced. */
+   *  harmless in all but one case: an abandoned automatic name reaching the database after the researcher's rename
+   *  finds another name there and changes nothing, so it does not overwrite a later manual name. The one exception: a
+   *  researcher's own name equal to the creation name ('Extraction Schema') still satisfies the fence, so an abandoned
+   *  automatic write landing after it still applies. The fence is on the name, not a version; a rename version would
+   *  close that case, an accepted residual. The queue keeps the order on screen. A researcher's own rename is never
+   *  fenced. */
   function renameSchema(extractionSchemaId: string, name: string, expectedName?: string, timeoutMs?: number): Promise<string | null> {
     const sequence = ++renameSequenceRef.current
     const request = renameQueueRef.current.then(() => {

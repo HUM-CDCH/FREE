@@ -1880,12 +1880,19 @@ describe('schema header (redesign §5)', () => {
     const afterFieldEdit = setup.edits.length
     chooseSchemaAction('Edit as code')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(screen.getByText('The fields changed while you were editing the code. Reopen Edit as code to continue.')).toBeInTheDocument()
+    const refusal = 'The fields changed while you were editing the code. Copy any code you want to keep, Cancel this code edit, then open Edit as code again to continue from the current fields.'
+    expect(screen.getByText(refusal)).toBeInTheDocument()
     // Nothing saved over the field edit; the code stays open with its draft.
     expect(setup.edits).toHaveLength(afterFieldEdit)
     expect(setup.edits.at(-1)!.schemaNodes.map((node) => node.name)).toEqual(['title', 'sex'])
     expect(editor().value).toContain('report_title')
-    // Reopened, the session starts from the current fields and saves.
+    // Edit as code alone keeps the open session (the same stale draft, still refused): the message names the Cancel.
+    chooseSchemaAction('Edit as code')
+    expect(editor().value).toContain('report_title')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByText(refusal)).toBeInTheDocument()
+    expect(setup.edits).toHaveLength(afterFieldEdit)
+    // As the message says: Cancel, then Edit as code again; the session starts from the current fields and saves.
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     chooseSchemaAction('Edit as code')
     expect(editor().value).toContain('"sex"')

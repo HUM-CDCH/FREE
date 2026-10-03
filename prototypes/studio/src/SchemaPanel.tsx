@@ -1360,7 +1360,7 @@ function SchemaPanel({
                       variant="positive"
                       onClick={() => {
                         if (schema.snapshot().draftVersion !== codeBaseVersionRef.current) {
-                          setJsonEditError('The fields changed while you were editing the code. Reopen Edit as code to continue.')
+                          setJsonEditError('The fields changed while you were editing the code. Copy any code you want to keep, Cancel this code edit, then open Edit as code again to continue from the current fields.')
                           return
                         }
                         try {
