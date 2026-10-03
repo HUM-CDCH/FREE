@@ -71,6 +71,9 @@ export const extractionRequestSchema = z
     /** The saved method the start view showed: the Extraction Model Choice and this strategy's settings. Admission
      *  refuses it when the account's saved method changed since, and pins it otherwise. */
     method: extractionMethodIntentSchema,
+    /** The page the researcher was reading when Run was clicked (one-based): the order kei reads records in, never
+     *  which records. Absent when the view names none. */
+    startPage: z.number().int().positive().optional(),
   })
   .strict()
   .refine((request) => request.catalogRecipe === undefined || request.strategy === 'CATALOG', {
@@ -510,6 +513,54 @@ export const extractionAttemptSchema = z
 
 export type ExtractionAttempt = z.infer<typeof extractionAttemptSchema>
 
+/** One value of a record still being read (design §1): grounded once its link exists, checking while it is a
+ *  candidate, reading while the call that would answer it is in flight or failed, empty when that call succeeded
+ *  without it, contested when verified values disagreed and arbitration chose none (its candidates beside it). */
+export const partialValueStateSchema = z.enum(['grounded', 'checking', 'reading', 'empty', 'contested'])
+export type PartialValueState = z.infer<typeof partialValueStateSchema>
+export const partialValueSchema = z
+  .object({ value: z.json(), state: partialValueStateSchema, candidates: z.array(z.json()).optional() })
+  .strict()
+export type PartialValue = z.infer<typeof partialValueSchema>
+
+export const partialRecordSchema = z
+  .object({
+    index: z.number().int().nonnegative(),
+    label: z.string().nullable(),
+    page: z.number().int().positive().nullable(),
+    /** queued: discovered, not read yet; reading: its values call is in flight; checking: candidates under
+     *  verification; finished: kei published the entry. */
+    state: z.enum(['queued', 'reading', 'checking', 'finished']),
+    /** The values so far, in the artifact's shape; null before the values call returned. */
+    record: z.record(z.string(), z.json()).nullable(),
+    /** Each leaf of `record` by its record-relative path (every step a string, JSON-encoded), with its state. */
+    values: z.record(z.string(), partialValueSchema),
+    evidenceLinks: z.array(evidenceLinkSchema),
+  })
+  .strict()
+export type PartialRecord = z.infer<typeof partialRecordSchema>
+
+/** A running Extraction's partial view (design §5): a view of files kei already wrote, never the record of truth.
+ *  Records are in the order they were read: nearest the start page first, then source order. */
+export const partialResultSchema = z
+  .object({
+    strategy: extractionStrategySchema,
+    startedAtPage: z.number().int().positive().nullable(),
+    discovered: z.number().int().nonnegative(),
+    finished: z.number().int().nonnegative(),
+    records: z.array(partialRecordSchema),
+    document: z
+      .object({
+        contextsAnswered: z.number().int().nonnegative(),
+        contexts: z.number().int().nonnegative(),
+        groundingBatches: z.number().int().nonnegative(),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict()
+export type PartialResult = z.infer<typeof partialResultSchema>
+
 /**
  * One stored Extraction, read back with the Review Decisions its stored
  * Evidence requires. The decisions are derived from the pinned Source
@@ -519,6 +570,8 @@ export const extractionReadResponseSchema = z
   .object({
     extraction: extractionAttemptSchema,
     pendingReviewDecisions: z.array(reviewDecisionInputSchema).nullable(),
+    /** The partial view while the attempt is RUNNING; null otherwise (absent in older stubs: read it as null). */
+    partial: partialResultSchema.nullable().optional(),
     reviewDraft: z.object({
       version: z.number().int().nonnegative(),
       decisions: z.array(reviewDecisionInputSchema),

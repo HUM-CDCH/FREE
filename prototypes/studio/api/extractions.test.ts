@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ResearcherProjectStore } from 'db'
 import {
   ExtractionError,
@@ -8,9 +8,11 @@ import {
 import { createResearcherApiHandlers } from './extractions.js'
 import type * as ExtractionsModule from './_extractions.js'
 import { extractionAttemptSchema, extractionReadResponseSchema } from '../shared/extraction.contract.js'
+import progressFixture from '../../parsing_service/tests/fixtures/contracts/extract.progress.json'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
+  readExtractionProgress: vi.fn<(runId: string, extractionId: string) => Promise<unknown | null>>(),
 }))
 
 vi.mock('./_extractions.js', async (importOriginal) => {
@@ -18,6 +20,7 @@ vi.mock('./_extractions.js', async (importOriginal) => {
   return {
     ...actual,
     createResearcherExtractions: runtime.createResearcherExtractions,
+    keiExpClient: { ...actual.keiExpClient, readExtractionProgress: runtime.readExtractionProgress },
   }
 })
 
@@ -32,6 +35,7 @@ const snapshot: ExtractionSnapshot = {
   sourceDocumentId: DOCUMENT,
   sourceRepresentationRevisionId: REPRESENTATION,
   sourceRepresentationRevisionNumber: 2,
+  preprocessId: 'kei-exp:run-1:g1',
   schemaRevisionId: REVISION,
   extractionSchemaId: '51000000-0000-4000-8003-000000000001',
   schemaRevisionNumber: 4,
@@ -154,6 +158,8 @@ const fresh = {
 }
 
 describe('/api/extractions transport', () => {
+  beforeEach(() => runtime.readExtractionProgress.mockReset())
+
   it('routes versioned resets and rejects malformed versions', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)
@@ -212,6 +218,7 @@ describe('/api/extractions transport', () => {
         schemaRevisionId: REVISION,
         strategy: 'ARTICLE',
         method: { models: null, settings: { article: null } },
+        startPage: null,
       },
     )
     expect(await created.json()).toMatchObject({
@@ -445,6 +452,59 @@ describe('/api/extractions transport', () => {
     expect(await reviewed.json()).toMatchObject({
       reviewedAt: '2026-08-20T10:01:00.000Z',
     })
+  })
+
+  it('passes the page the researcher was reading to admission, null when the request names none, and refuses a bad one', async () => {
+    const module = extractionModule()
+    const handler = handlerFor(module)
+    expect((await handler(request({ ...fresh, startPage: 6 }))).status).toBeLessThan(300)
+    expect(module.runSingle).toHaveBeenLastCalledWith(expect.objectContaining({ startPage: 6 }))
+    expect((await handler(request(fresh))).status).toBeLessThan(300)
+    expect(module.runSingle).toHaveBeenLastCalledWith(expect.objectContaining({ startPage: null }))
+    for (const startPage of [0, 1.5, '6', -1])
+      expect((await handler(request({ ...fresh, startPage }))).status).toBe(422)
+    expect(module.runSingle).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads a running job with kei\'s progress as a partial view, and without one when kei has none, is slow, or answers outside the contract', async () => {
+    const running = { ...attemptSnapshot, executionStatus: 'RUNNING' as const, outcome: null, complete: null, modelAttribution: null,
+      diagnostics: null, result: null, evidence: null, failure: null, reviewable: false, reviewedAt: null, reviewDecisions: [] }
+    const handler = handlerFor(extractionModule({ readExtractionAttempt: vi.fn(async () => running) }))
+    const read = async () => {
+      const response = await handler(new Request(`http://test/api/extractions/${EXTRACTION}`))
+      expect(response.status).toBe(200)
+      return extractionReadResponseSchema.parse(await response.json())
+    }
+    runtime.readExtractionProgress.mockResolvedValueOnce(progressFixture)
+    const shown = await read()
+    expect(runtime.readExtractionProgress).toHaveBeenCalledWith('run-1', EXTRACTION)
+    expect(shown.partial).toMatchObject({ strategy: 'CATALOG', startedAtPage: 1, discovered: 5, finished: 2 })
+    expect(shown.partial!.records.map((record) => record.state)).toEqual(['finished', 'finished', 'checking', 'reading', 'queued'])
+    expect(shown.partial!.records[0]!.values[JSON.stringify(['material'])]).toEqual({ value: 'Holz', state: 'grounded' })
+    expect(shown.partial!.records[1]!.values[JSON.stringify(['site'])]).toEqual({ value: null, state: 'contested', candidates: ['Bdorf', 'Bdorf-Nord'] })
+    runtime.readExtractionProgress.mockResolvedValueOnce(null)
+    expect((await read()).partial).toBeNull()
+    runtime.readExtractionProgress.mockRejectedValueOnce(Object.assign(new Error('timed out'), { transient: true }))
+    expect((await read()).partial).toBeNull()
+    runtime.readExtractionProgress.mockResolvedValueOnce({ version: 2 })
+    expect((await read()).partial).toBeNull()
+    // Inside kei's contract but outside Studio's wire contract (an empty link path): still null, still 200.
+    const emptyPath = structuredClone(progressFixture) as typeof progressFixture
+    ;(emptyPath.entries[0]!.evidence![0] as { path: unknown[] }).path = []
+    runtime.readExtractionProgress.mockResolvedValueOnce(emptyPath)
+    expect((await read()).partial).toBeNull()
+  })
+
+  it('never asks kei for progress unless the attempt is running', async () => {
+    const queued = { ...attemptSnapshot, executionStatus: 'QUEUED' as const, outcome: null, complete: null, modelAttribution: null,
+      diagnostics: null, result: null, evidence: null, failure: null, reviewable: false, reviewedAt: null, reviewDecisions: [] }
+    for (const attempt of [queued, attemptSnapshot]) {
+      const response = await handlerFor(extractionModule({ readExtractionAttempt: vi.fn(async () => attempt) }))(
+        new Request(`http://test/api/extractions/${EXTRACTION}`))
+      expect(response.status).toBe(200)
+      expect(extractionReadResponseSchema.parse(await response.json()).partial).toBeNull()
+    }
+    expect(runtime.readExtractionProgress).not.toHaveBeenCalled()
   })
 
   it('refuses a run that still names sample pages', async () => {

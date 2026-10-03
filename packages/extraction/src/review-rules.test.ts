@@ -39,7 +39,7 @@ const occurrences: Record<string, string[]> = { title: ['o-1', 'o-2'], year: ['o
 function snapshot(overrides: Partial<ExtractionSnapshot> = {}): ExtractionSnapshot {
   return {
     extractionId: 'x-1', sourceDocumentId: 'd-1', sourceRepresentationRevisionId: 'r-1',
-    sourceRepresentationRevisionNumber: 1, schemaRevisionId: 's-1', extractionSchemaId: 'e-1',
+    sourceRepresentationRevisionNumber: 1, preprocessId: 'kei-exp:run-1:g1', schemaRevisionId: 's-1', extractionSchemaId: 'e-1',
     schemaRevisionNumber: 1, strategy: 'ARTICLE', catalogRecipe: null,
     outcome: 'SUCCEEDED', complete: true, modelAttribution: null,
     diagnostics: {

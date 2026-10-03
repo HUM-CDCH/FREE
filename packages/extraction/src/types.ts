@@ -241,6 +241,9 @@ export type ExtractionSnapshot = Readonly<{
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   sourceRepresentationRevisionNumber: number
+  /** The pinned revision's `preprocessId` (`kei-exp:<run>:<generation>`): the kei run a status read asks for progress.
+   *  Server-side only; the DTO never carries it. */
+  preprocessId: string
   schemaRevisionId: string
   extractionSchemaId: string
   schemaRevisionNumber: number
@@ -272,6 +275,9 @@ export type ExtractionAttemptSnapshot = Readonly<{
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   sourceRepresentationRevisionNumber: number
+  /** The pinned revision's `preprocessId` (`kei-exp:<run>:<generation>`): the kei run a status read asks for progress.
+   *  Server-side only; the DTO never carries it. */
+  preprocessId: string
   schemaRevisionId: string
   extractionSchemaId: string
   schemaRevisionNumber: number

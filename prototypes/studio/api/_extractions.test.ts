@@ -136,6 +136,7 @@ const snapshot: ExtractionAttemptSnapshot = {
   sourceDocumentId: '51000000-0000-4000-8001-000000000001',
   sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
   sourceRepresentationRevisionNumber: 2,
+  preprocessId: 'kei-exp:run-1:g1',
   schemaRevisionId: '51000000-0000-4000-8004-000000000001',
   extractionSchemaId: '51000000-0000-4000-8003-000000000001',
   schemaRevisionNumber: 4,

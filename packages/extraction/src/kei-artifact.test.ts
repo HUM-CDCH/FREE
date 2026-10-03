@@ -437,7 +437,7 @@ describe('unified Catalog artifacts', () => {
     const accepted = acceptUnified(produced())
     const snapshot: ExtractionSnapshot = {
       extractionId: pins.extractionId, sourceDocumentId: 'source', sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
-      sourceRepresentationRevisionNumber: 1, schemaRevisionId: pins.schemaRevisionId, extractionSchemaId: 'schema',
+      sourceRepresentationRevisionNumber: 1, preprocessId: 'kei-exp:run-1:g1', schemaRevisionId: pins.schemaRevisionId, extractionSchemaId: 'schema',
       schemaRevisionNumber: 1, strategy: 'CATALOG', catalogRecipe: null, requestedSettings: { unified: { defaults: 1 } },
       outcome: 'SUCCEEDED', complete: accepted.complete, modelAttribution: accepted.modelAttribution,
       diagnostics: accepted.diagnostics, result: accepted.result, evidence: accepted.evidence, failure: null,
