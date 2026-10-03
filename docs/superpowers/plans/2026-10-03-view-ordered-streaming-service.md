@@ -850,9 +850,9 @@ def test_malformed_or_stale_stage_files_are_skipped_never_served(tmp_path):
     kept = discovery.read_bytes()
     discovery.write_bytes(b'{"entries": [null]}')                                       # kei's own record, outside its layout
     assert progress.read_progress(tmp_path, "x1") is None                             # no guess: no progress
-    discovery.write_bytes(b'{"entries": [{"ranges": [{}]}, {"ranges": []}]}')           # entries whose ranges name no segment
+    discovery.write_bytes(b'{"entries": [{"ranges": [{}]}, {"ranges": []}, {"ranges": {"segment": "p1_s0"}}, {"ranges": 1}]}')  # ranges that name no segment, or are no list
     assert [(entry["stage"], entry["page"]) for entry in progress.read_progress(tmp_path, "x1")["entries"]] == \
-        [("finished", None), ("queued", None)]                                           # read, with no page to show
+        [("finished", None), ("queued", None), ("queued", None), ("queued", None)]        # read, with no page to show
     discovery.write_bytes(kept)
     published = directory / unified.entry_name(0)
     record = json.loads(published.read_bytes())
@@ -1118,8 +1118,9 @@ def _article(directory: Path, header: _Header) -> dict | None:
 
 def _page_of(entry: dict) -> int | None:
     """The page of the passage an entry's first range names; None when the entry names none the reader can read."""
-    ranges = entry.get("ranges") or []
-    segment = ranges[0].get("segment") if ranges and isinstance(ranges[0], dict) else None
+    ranges = entry.get("ranges")
+    first = ranges[0] if isinstance(ranges, list) and ranges else None
+    segment = first.get("segment") if isinstance(first, dict) else None
     match = _PAGE.match(segment) if isinstance(segment, str) else None
     return int(match[1]) if match else None
 
@@ -1992,10 +1993,12 @@ Rejected or narrowed: P1-8 — a shared keyed presentation preserving DOM rows a
 
 ## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
 
-## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
-
 Accepted and applied: P0-1 (the stage token is `stage_execution`: `execution` is the execution record assigned a few lines below in `unified.extract`) · P0-2 (`conform` turns an empty list into `None`; the running-root test expects `"finds": None`) · P0-3 (the Article fixture in `partial-result.test.ts` goes through `progressDocumentSchema.parse`, so its nullable members are assignable) · P1-1 (Article links are attached only once the latest context file shows every context answered: grounding verifies the final root; tested with a grounding file beside an incomplete root) · P1-2 (the context file carries the cumulative `failed`, read from the latest file alone; `on_context` gains it; tested with a failed first context) · P1-3 (`_ContestRow`, `_CandidateRow`, `_LinkRow` validate the rows the reader consumes, a file with a row outside its shape is skipped whole, a discovery record with a non-object entry is no progress; tested) · P2 (Part B records the settlement ruling in the spec's §1 sentence; Part B's Ruling 8 narrowed to leaf paths). Part B's P0-4 and P0-5 (a multi-match `Missing` query; test refs recreated per render) are applied in Part B.
 
 ## Review log — Codex gpt-6-astra (reasoning max), round 3, 2026-10-03
 
 Accepted and applied: P0-1 (`tests/test_extraction_grounding.py`'s substitute technique gains `on_batch=None`, listed in Task 3) · P1-1 (`_page_of` reads the segment with `.get` and type checks; a contest row that is no object is skipped and `AttributeError` is caught; both tested) · P2 ("ten arguments"; the Article converter test is split into an incomplete phase without links and a complete phase with them, derived from one parsed document). Part B's P0-2 (the `!attempt` guard) is applied in Part B. Codex confirmed the round-2 fixes (`_LinkRow` against both producers, the contest paths, the completion rule, the garbage-reply path).
+
+## Review log — Codex gpt-6-astra (reasoning max), round 4, 2026-10-03
+
+Accepted and applied: P1 (`_page_of` indexes `ranges` only when it is a non-empty list; `{"ranges": {"segment": …}}` and `{"ranges": 1}` added to the malformed-file test, the finished entry surviving) · P2 (the duplicated round-2 heading removed). No P0; Codex confirmed the round-3 fixes.

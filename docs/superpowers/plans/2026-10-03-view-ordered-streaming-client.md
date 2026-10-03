@@ -742,10 +742,12 @@ Rejected or narrowed: P1-8 — DOM continuity across settlement is out of scope 
 
 ## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
 
-## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
-
 Accepted and applied: P0-4 (the third record has two null fields: `getAllByText('Missing')` has length 2) · P0-5 (the overlay tests hold stable ref objects, as the existing tests do, so a rerender does not run the cleanup that removes the focus) · P2 (the spec's §1 settlement sentence records the chosen swap, Task 4; Ruling 8 narrowed to leaf paths). Codex closed round-1's P1-8 on Ruling 7 as a product decision.
 
 ## Review log — Codex gpt-6-astra (reasoning max), round 3, 2026-10-03
 
 Accepted and applied: P0-2 (the overlay guard includes `!attempt`, keeping the narrowing the removed `outcome` check gave the `reviewDecisions` read). No other Part B finding.
+
+## Review log — Codex gpt-6-astra (reasoning max), round 4, 2026-10-03
+
+P2 only: the duplicated round-2 heading removed. No Part B finding; Codex confirmed the `!attempt` guard.
