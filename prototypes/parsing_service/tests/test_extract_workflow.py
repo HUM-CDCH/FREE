@@ -199,7 +199,8 @@ def test_an_article_whose_root_no_context_answered_fails_the_step_and_publishes_
         workflow.extract_run(WID, run_id, generation, body)
     assert failed.value.code == "extraction_failed"
     assert failed.value.reason.startswith("article_root_unanswered:") and "cut off" in failed.value.reason
-    assert not (runs.RUNS / run_id / "extractions").exists()
+    # Article's stage files (the partial view) may remain for garbage collection (design, Error handling); no result.
+    assert not (runs.RUNS / run_id / "extractions" / "x-1" / "result.json").exists()
 
 
 def test_an_incomplete_parse_has_no_result(parsed):
@@ -482,7 +483,8 @@ def test_a_cancelled_version_1_extraction_stops_before_its_next_call(kei, script
     kei_helper.until(lambda: ended, 10, "the step's extraction returning")
     assert isinstance(ended[0], KeiFailure) and ended[0].code == "cancelled"
     assert events == asked
-    assert not (kei.runs / run_id / "extractions").exists()
+    # Article's stage files (the partial view) may remain for garbage collection (design, Error handling); no result.
+    assert not (kei.runs / run_id / "extractions" / "x-1" / "result.json").exists()
 
 
 @pytest.mark.parametrize("strategy, expected", [("article", ["record", "grounding"]),
@@ -510,4 +512,5 @@ def test_cancellation_during_the_final_model_call_prevents_publication(tmp_path,
         workflow.extract_run(WID, run_id, catalogue.GENERATION, body)
     assert stopped.value.code == "cancelled"
     assert events == expected
-    assert not (runs.RUNS / run_id / "extractions").exists()
+    # Article's stage files (the partial view) may remain for garbage collection (design, Error handling); no result.
+    assert not (runs.RUNS / run_id / "extractions" / "x-1" / "result.json").exists()
