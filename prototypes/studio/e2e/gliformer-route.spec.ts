@@ -66,7 +66,8 @@ test('native GLiFormer survives the authenticated durable Catalog route without 
       ],
     } })
     expect(incompatible.status(), await incompatible.text()).toBe(201)
-    const badRevision = (await incompatible.json()).revision.schemaRevisionId
+    const badSchema = (await incompatible.json()).revision
+    const badRevision = badSchema.schemaRevisionId
     const refusedId = randomUUID()
     const method = { models, settings: { unified: { defaults: 1 } } }
     for (const [url, data] of [
@@ -85,7 +86,10 @@ test('native GLiFormer survives the authenticated durable Catalog route without 
     }
     expect((await page.request.get(`/api/extractions/${refusedId}`)).status()).toBe(404)
     expect((await (await page.request.get('/api/model_config')).json()).config.extractionModels).toEqual(models)
-    const revision = await page.request.post('/api/schema-revisions', { headers, data: { projectContextId: project, ...schema } })
+    const revision = await page.request.post('/api/schema-revisions', { headers, data: {
+      projectContextId: project, extractionSchemaId: badSchema.extractionSchemaId,
+      expectedRevisionNumber: badSchema.revisionNumber, ...schema,
+    } })
     expect(revision.status(), await revision.text()).toBe(201)
     const id = randomUUID()
     const admitted = await page.request.post('/api/extractions', { headers, data: {
