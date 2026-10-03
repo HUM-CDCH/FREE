@@ -18,13 +18,13 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 | Ink faint | `--color-ink-faint` | `#776b60` | n/a | Tertiary labels |
 | Line | `--color-line` | `#eadfd6` | n/a | Hairline borders |
 | Line strong | `--color-line-strong` | `#d9cabc` | n/a | Emphasised borders |
-| Accent | `--color-accent` | `#a34828` | n/a | Primary actions and active states |
+| Accent | `--color-accent` | `#a34828` | n/a | Brand, the active tab, selection and drag states, focus |
 | Accent soft | `--color-accent-soft` | `#f4ddd3` | n/a | Accent fills |
 | Accent ghost | `--color-accent-ghost` | `#fbf1ec` | n/a | Hover wash |
 | Evidence | `--color-ev` | `#4f8aa8` | n/a | Evidence-related marks only |
-| Success | `--color-green` | `#3e7c4f` | n/a | Success state |
+| Success | `--color-green` | `#3e7c4f` | n/a | Positive commands (run, apply, accept, save, finalize) and success state |
 | Warning | `--color-stale` | `#c98a2b` | n/a | Stale state |
-| Error | `--color-danger` | `#b3402a` | n/a | Error state |
+| Error | `--color-danger` | `#b3402a` | n/a | Destructive commands (delete a field, clear the schema, discard a proposal, cancel) and errors |
 
 ### Rules
 
