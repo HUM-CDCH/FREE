@@ -390,7 +390,8 @@ function SchemaPanel({
   const [mutationError, setMutationError] = useState<string | null>(null)
   const { toast: panelToast, showToast: showPanelToast, dismissToast: dismissPanelToast } = useToast()
   const [chat, setChat] = useState<ChatMsg[]>([])
-  /** The researcher's open or collapse; null keeps the default: open before a schema exists, collapsed after. */
+  /** The researcher's open or collapse; null keeps the default: open before a schema exists or while a recovered
+   *  request runs, collapsed otherwise. */
   const [drawerOpen, setDrawerOpen] = useState<boolean | null>(null)
   const appendChatMessage = useCallback(
     (message: string) =>
@@ -484,7 +485,8 @@ function SchemaPanel({
   const creatingFromHistoryRef = useRef(false)
 
   const ready = snap.view === 'editing'
-  const drawerShown = drawerOpen ?? !ready
+  // A recovered running request continues a send made before the reload, and a send opens the conversation.
+  const drawerShown = drawerOpen ?? (!ready || recovery.running.length > 0)
   const dx = dragging ? dragX - dragStartXRef.current : 0
   const dy = dragging ? dragY - dragStartYRef.current : 0
   const dragMode = schemaDragMode(dx, dy)

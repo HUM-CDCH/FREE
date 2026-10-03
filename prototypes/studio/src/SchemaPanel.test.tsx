@@ -1229,8 +1229,6 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     listModelOperations.mockResolvedValueOnce([running])
     renderPanel({ durableScope: true })
 
-    // The running row lives in the conversation, collapsed at rest once a schema exists; the composer's mark opens it.
-    fireEvent.click(await screen.findByRole('button', { name: 'An earlier request is still running' }))
     expect(await screen.findByText('Still working on an earlier request: “Catalog entries”')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Stop earlier request “Catalog entries”' }))
 
@@ -1254,7 +1252,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     await waitFor(() => expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(running.workflowId))
   })
 
-  it('a reloaded panel with a running edit marks the collapsed composer, and the mark opens the conversation', async () => {
+  it('a reloaded panel with a running edit opens the conversation; collapsed, a mark on the composer brings it back', async () => {
     const running: ModelOperation = {
       kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f4', operationId: '51000000-0000-4000-8009-0000000000f4',
       status: 'RUNNING', instruction: 'Rename title to heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
@@ -1263,11 +1261,12 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     listModelOperations.mockResolvedValueOnce([running])
     renderPanel({ durableScope: true })
 
-    const mark = await screen.findByRole('button', { name: 'An earlier request is still running' })
+    const row = 'Still working on an earlier request: “Rename title to heading”'
+    expect(within(await screen.findByRole('region', { name: 'Conversation' })).getByText(row)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversation' }))
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
-    fireEvent.click(mark)
-    const drawer = screen.getByRole('region', { name: 'Conversation' })
-    expect(within(drawer).getByText('Still working on an earlier request: “Rename title to heading”')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'An earlier request is still running' }))
+    expect(within(screen.getByRole('region', { name: 'Conversation' })).getByText(row)).toBeInTheDocument()
   })
 
   it("a restored proposal reopens the review bar and replays onto the base revision's nodes", async () => {
