@@ -937,6 +937,72 @@ describe('reopened Source Document workspace', () => {
     expect(renames).toEqual([{ projectContextId: reopened.projectContextId, name: 'Beretning' }])
   })
 
+  // The first generation names the schema after its Source Document; a rename through the pencil meanwhile waits for
+  // that save and is the name that stays, whatever the automatic save answers (Ruling: renames are serialized).
+  it.each([
+    ['succeeds', 'succeeds', 'Ellekilde graves'],
+    ['fails', 'succeeds', 'Ellekilde graves'],
+    ['fails', 'is refused', 'Extraction Schema'],
+  ] as const)('the automatic first name %s late; a manual rename that %s meanwhile leaves "%s"', async (automatic, manual, expected) => {
+    const schemaRevisionId = '51000000-0000-4000-8005-000000000040'
+    const extractionSchemaId = '51000000-0000-4000-8005-000000000041'
+    const patches: string[] = []
+    let releaseAutomatic: (() => void) | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.endsWith('/api/generate_schema'))
+          return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1 })
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as { schemaNodes: unknown[] }
+          return Response.json({ revision: { schemaRevisionId, extractionSchemaId, revisionNumber: 1, origin: 'suggestion',
+            createdAt: '2026-08-09T10:00:00.000Z', recordDescription: 'One site record.', recordScope: null, schemaNodes: body.schemaNodes } },
+          { status: 201 })
+        }
+        if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+        if (url.startsWith('/api/model-operations?')) return Response.json({ operations: [] })
+        if (url === `/api/extraction-schemas/${extractionSchemaId}` && init?.method === 'PATCH') {
+          const { name } = JSON.parse(String(init.body)) as { name: string }
+          patches.push(name)
+          if (name === 'Beretning') {
+            await new Promise<void>((resolve) => { releaseAutomatic = resolve })
+            if (automatic === 'fails') return Response.json({ error: { code: 'unavailable', message: 'Try again.' } }, { status: 503 })
+          } else if (manual === 'is refused') {
+            return Response.json({ error: { code: 'name_taken', message: 'That name is taken.' } }, { status: 409 })
+          }
+          return renamedSchema(url, init)
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename schema Beretning' }))
+    await waitFor(() => expect(releaseAutomatic).not.toBeNull())
+    fireEvent.change(screen.getByLabelText('Schema name for Beretning'), { target: { value: 'Ellekilde graves' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+    // The manual rename waits for the automatic one: the server applies them in the order they were asked for.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(patches).toEqual(['Beretning'])
+
+    releaseAutomatic!()
+    await waitFor(() => expect(patches).toEqual(['Beretning', 'Ellekilde graves']))
+    if (manual === 'is refused') {
+      expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.')
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel schema rename' }))
+    }
+    expect(await screen.findByRole('heading', { name: expected })).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(screen.getByRole('heading', { name: expected })).toBeInTheDocument()
+  })
+
   it('saves a schema generated from excerpts with its declaration, and the reopened workspace shows it beside that source only', async () => {
     const excerpted = {
       complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }],

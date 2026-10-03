@@ -184,6 +184,32 @@ export function DocumentWorkspace({
   })
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
+  // Renames of the schema run one at a time, in the order they were asked for, so the server keeps the last one asked;
+  // each records the server's answer and shows it unless a later rename has started, which shows its own. A late
+  // first-generation name can then never replace a rename the researcher made meanwhile (on screen or on the server).
+  const renameQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const renameSequenceRef = useRef(0)
+  const durableSchemaNameRef = useRef(extractionSchema?.name ?? null)
+  /** Renames the schema; null on success, else why not. `unchangedName` is the server's name should this rename fail
+   *  (the first generation's, which the server created before naming it). */
+  function renameSchema(extractionSchemaId: string, name: string, unchangedName?: string): Promise<string | null> {
+    const sequence = ++renameSequenceRef.current
+    const request = renameQueueRef.current.then(() => renameExtractionSchema(projectContextId, extractionSchemaId, name))
+    renameQueueRef.current = request.catch(() => undefined)
+    const latest = () => sequence === renameSequenceRef.current
+    return request.then(
+      (renamed) => {
+        durableSchemaNameRef.current = renamed.name
+        if (latest()) setSchemaName(renamed.name)
+        return null
+      },
+      (error: unknown) => {
+        if (unchangedName !== undefined) durableSchemaNameRef.current = unchangedName
+        if (latest()) setSchemaName(durableSchemaNameRef.current)
+        return error instanceof Error ? error.message : 'Schema could not be renamed.'
+      },
+    )
+  }
   const [savingForRun, setSavingForRun] = useState(false)
   // The page the viewer shows (pdf.js `pagechanging`).
   const [currentPage, setCurrentPage] = useState(1)
@@ -492,9 +518,7 @@ export function DocumentWorkspace({
       if (extractionSchemaId) {
         const name = defaultSchemaName(filename)
         setSchemaName(name)
-        renameExtractionSchema(projectContextId, extractionSchemaId, name)
-          .then((renamed) => setSchemaName(renamed.name))
-          .catch(() => setSchemaName('Extraction Schema'))
+        void renameSchema(extractionSchemaId, name, 'Extraction Schema')
       }
     }
   }
@@ -983,19 +1007,7 @@ export function DocumentWorkspace({
                 const extractionSchemaId = schema.snapshot().extractionSchemaId
                 if (!projectContextId || !extractionSchemaId)
                   return 'No durable schema is open.'
-                try {
-                  const renamed = await renameExtractionSchema(
-                    projectContextId,
-                    extractionSchemaId,
-                    name,
-                  )
-                  setSchemaName(renamed.name)
-                  return null
-                } catch (error) {
-                  return error instanceof Error
-                    ? error.message
-                    : 'Schema could not be renamed.'
-                }
+                return renameSchema(extractionSchemaId, name)
               }}
               onSelectEvidence={selectEvidenceAnchor}
               onResultPathChange={setResultPath}
