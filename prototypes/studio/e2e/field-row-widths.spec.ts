@@ -203,11 +203,24 @@ test('field rows fit the rail at 344px and 264px @database', async ({ page }) =>
   for (const action of actionsOf(findings, 'findings')) expectInside(await action.boundingBox(), listBox, '264px: collapsed findings action')
 })
 
-test('the code view scrolls long lines sideways at 264px, reading and editing @database', async ({ page }) => {
+test('the record description grows with its text, and the code view scrolls long lines sideways at 264px @database', async ({ page }) => {
   test.setTimeout(90_000)
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
   await resizeRail(page, 264)
+  // §5: two rows at rest, growing with its wrapped text (not only its line breaks) to six, without hiding any of it.
+  const description = page.getByLabel('What one record is')
+  const fit = () => description.evaluate((element: HTMLTextAreaElement) =>
+    ({ rows: element.rows, hidden: element.scrollHeight > element.clientHeight + 1 }))
+  await description.fill('One grave.')
+  expect(await fit()).toEqual({ rows: 2, hidden: false })
+  await description.fill('One excavation report and what it found, as the report itself describes the site, its layers and its finds, with the dates the excavators gave them.')
+  const grown = await fit()
+  expect(grown.rows).toBeGreaterThan(2)
+  expect(grown.rows).toBeLessThanOrEqual(6)
+  expect(grown.hidden).toBe(false)
+  await description.fill('One grave. '.repeat(60))
+  expect((await fit()).rows).toBe(6)
   await page.getByRole('button', { name: 'Code', exact: true }).click()
   const code = rail(page).locator('pre')
   const reading = await code.evaluate((element) => ({
