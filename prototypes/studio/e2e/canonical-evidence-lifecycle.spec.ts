@@ -988,6 +988,12 @@ test('import → whole source → review → collection review @deterministic', 
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(page.getByRole('listitem', { name: 'title' })).toBeVisible()
   await expect.poll(async () => (await db.orm.public.SchemaRevision.where({ extractionSchemaId }).select('id').all()).length).toBe(4)
+  // The restore saved the imported tree itself, not just a fourth revision: revision 4 is revision 2, field for field
+  // (the imported tree is flat, so there is no group metadata to compare here; the unit tests cover a group's).
+  const restored = (await db.orm.public.SchemaRevision.where({ extractionSchemaId, revisionNumber: 4 }).select('schemaTree').first())!
+  const restoredNodes = (restored.schemaTree as { schemaNodes: Array<{ name: string }> }).schemaNodes
+  expect(restoredNodes.map((node) => node.name)).toContain('title')
+  expect(restored.schemaTree).toEqual(imported.schemaTree)
   await page.goto(e2eStudioPath(`/projects/${projectContextId}/extractions`))
   await page.getByRole('button', { name: 'New Batch Extraction' }).click()
   await page.getByRole('button', { name: 'Run 1 Source Document', exact: true }).click()

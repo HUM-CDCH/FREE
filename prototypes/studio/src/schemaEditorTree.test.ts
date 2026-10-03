@@ -105,4 +105,49 @@ describe('restoreSchemaNode', () => {
     const retyped = without.map((node) => (node.id === 'g' ? { id: 'g', name: 'grave', type: 'string' as const } : node))
     expect(restoreSchemaNode(retyped, removed!, 'g', 0)).toBeNull()
   })
+
+  // A group's valueSource and evidencePolicy decide what the next Extraction reads and how its Evidence is assessed.
+  const withMetadata: SchemaNode[] = [
+    { id: 'g', name: 'grave', type: 'object', description: 'One grave.', valueSource: 'document', evidencePolicy: 'derived',
+      children: [{ id: 'g1', name: 'depth', type: 'number' }, { id: 'g2', name: 'width', type: 'number' }] },
+    { id: 't', name: 'title', type: 'string' },
+  ]
+  it('returns the original tree, the surviving parent group\'s extraction metadata included', () => {
+    const [removed, without] = removeSchemaNode(withMetadata, 'g1')
+    expect(restoreSchemaNode(without, removed!, 'g', 0)).toStrictEqual(withMetadata)
+  })
+  it('keeps fields added meanwhile, in the group and beside it', () => {
+    const [removed, without] = removeSchemaNode(withMetadata, 'g1')
+    const [group, title] = without
+    const edited: SchemaNode[] = [
+      { ...group!, children: [...group!.children!, { id: 'g3', name: 'length', type: 'number' }] } as SchemaNode,
+      title!,
+      { id: 'n', name: 'note', type: 'string' },
+    ]
+    expect(restoreSchemaNode(edited, removed!, 'g', 0)).toStrictEqual([
+      { ...withMetadata[0], children: [{ id: 'g1', name: 'depth', type: 'number' }, { id: 'g2', name: 'width', type: 'number' },
+        { id: 'g3', name: 'length', type: 'number' }] },
+      withMetadata[1],
+      { id: 'n', name: 'note', type: 'string' },
+    ])
+  })
+})
+
+describe('moving into a group keeps the group', () => {
+  it('a field dropped into a group with extraction metadata leaves that metadata in place', () => {
+    const nodes: SchemaNode[] = [
+      { id: 'g', name: 'grave', type: 'object', valueSource: 'document', evidencePolicy: 'quoted', children: [field('depth')] },
+      field('title'),
+    ]
+    expect(moveSchemaNodes(nodes, { id: 'title', parentId: null, isGroup: false }, { type: 'group', id: 'g' }, 0, 30))
+      .toStrictEqual([{ ...nodes[0], children: [field('depth'), field('title')] }])
+  })
+  it('a field dropped onto a scalar with allowed values makes it a group without them', () => {
+    const nodes: SchemaNode[] = [
+      { id: 'sex', name: 'sex', type: 'string', allowedValues: ['f', 'm'], evidencePolicy: 'quoted' },
+      field('title'),
+    ]
+    expect(moveSchemaNodes(nodes, { id: 'title', parentId: null, isGroup: false }, { type: 'group', id: 'sex' }, 0, 30))
+      .toStrictEqual([{ id: 'sex', name: 'sex', type: 'object', evidencePolicy: 'quoted', children: [field('title')] }])
+  })
 })
