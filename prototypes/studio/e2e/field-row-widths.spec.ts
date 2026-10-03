@@ -351,6 +351,72 @@ test('a pointer on a pill\'s right edge reaches the pill, never the actions, at 
   await clickPillEdges(page, 264)
 })
 
+/** On a row line from 240px to under 296px (the nested rows at the 344px rail) the pills start on the line below the
+ *  name while the actions still overlay the first line: the name's line is as tall as the overlay, so each pill's whole
+ *  target sits below it and a pointer at a pill's top edge reaches the pill, never Note or Delete. */
+test('a nested row\'s pills sit below the actions overlay, and a click at a pill\'s top edge reaches the pill, at 344px @deterministic', async ({ page }) => {
+  test.setTimeout(90_000)
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
+  const pills = [
+    { title: /^Type: /, focused: () => page.getByPlaceholder('field_name') },
+    { title: /^Allowed values/, focused: () => page.getByLabel('Add allowed value') },
+  ]
+  for (const name of ['kind', 'deposit', 'layer']) {
+    const row = page.getByRole('listitem', { name, exact: true })
+    await row.scrollIntoViewIfNeeded()
+    const line = (await row.locator('> div').first().boundingBox())!.width
+    expect(line, `344px, ${name}: a row line from 240px to under 296px`).toBeGreaterThanOrEqual(240)
+    expect(line, `344px, ${name}: a row line from 240px to under 296px`).toBeLessThan(296)
+    for (const { title, focused } of pills) {
+      const pill = row.getByTitle(title)
+      if (await pill.count() === 0) continue
+      const what = `344px, ${name}: ${title.source} pill`
+      await row.hover()
+      const actions = row.locator('[data-row-actions]')
+      await expect.poll(() => opacity(actions), `${what}: actions shown on hover`).toBe('1')
+      const actionsBox = (await actions.boundingBox())!
+      const box = (await pill.boundingBox())!
+      expect(box.y, `${what}: its top below the actions' bottom`).toBeGreaterThanOrEqual(actionsBox.y + actionsBox.height - 0.5)
+      for (const action of actionsOf(row, name))
+        expect(overlaps(box, (await action.boundingBox())!), `${what} clear of ${await action.getAttribute('aria-label')}`).toBe(false)
+      // At its top edge (1px down, between its round end caps): under the actions' horizontal reach where the pill
+      // extends there, else at its centre. Unforced and with no hit check of its own, the click lands on whatever is
+      // drawn there.
+      const x = Math.min(box.x + box.width - box.height / 2 - 1, Math.max(box.x + box.width / 2, actionsBox.x + 2))
+      // Edit opens the same form as the type pill, so the point itself is checked too: it is the pill's.
+      expect(await pill.evaluate((element, [x, y]) => element.contains(document.elementFromPoint(x!, y!)), [x, box.y + 1]),
+        `${what}: the point at its top edge is the pill's`).toBe(true)
+      await page.mouse.click(x, box.y + 1)
+      await expect(focused(), `${what}: the edit form's focus`).toBeFocused()
+      await expect(page.getByPlaceholder('field_name'), `${what}: the edit form is this field's`).toHaveValue(name)
+      await expect(page.getByPlaceholder(/^(Describe this field|Add another note)/), `${what}: no note form`).toHaveCount(0)
+      await expect(page.getByText('Field removed'), `${what}: nothing deleted`).toHaveCount(0)
+      await page.getByRole('button', { name: 'Cancel field edit' }).click()
+      await expect(row, `${what}: the row is back`).toBeVisible()
+    }
+  }
+  // The taller name line still ellipsizes a name longer than its line (its full text is its title): a copy of layer's
+  // name, made long, in the same line and with the same classes.
+  const layerName = page.getByRole('listitem', { name: 'layer', exact: true }).getByText('layer', { exact: true })
+  const long = await layerName.evaluate((element) => {
+    const copy = element.cloneNode() as HTMLElement
+    copy.textContent = 'stratigraphic_layer_description_as_the_excavators_recorded_it'
+    element.after(copy)
+    const style = getComputedStyle(copy)
+    const reading = {
+      display: style.display, textOverflow: style.textOverflow, overflowX: style.overflowX, whiteSpace: style.whiteSpace,
+      clipped: copy.scrollWidth > copy.clientWidth,
+      inside: copy.getBoundingClientRect().right <= element.parentElement!.getBoundingClientRect().right + 0.5,
+      height: copy.getBoundingClientRect().height,
+    }
+    copy.remove()
+    return reading
+  })
+  expect(long).toEqual({ display: 'block', textOverflow: 'ellipsis', overflowX: 'hidden', whiteSpace: 'nowrap', clipped: true, inside: true, height: 28 })
+})
+
 test('at rest the hidden row actions take no hits, at 344px and 264px @deterministic', async ({ page }) => {
   test.setTimeout(90_000)
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')

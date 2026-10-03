@@ -2103,6 +2103,11 @@ describe('field rows (redesign §6)', () => {
     expect(name.parentElement!.parentElement!.className).toMatch(/(^|\s)@container(\s|$)/)
     expect(name.className).toMatch(/(^|\s)max-w-\[calc\(100%_\+_140px\)\](\s|$)/)
     expect(name.className).toMatch(/(^|\s)@max-\[296px\]:basis-full(\s|$)/)
+    // From 240px, where the actions still overlay the first line, that line is as tall as the overlay (28px) so the pills
+    // start below it; a line height, never a flex name, which would stop a long name's ellipsis.
+    expect(name.className).toMatch(/(^|\s)@min-\[240px\]:@max-\[296px\]:min-h-7(\s|$)/)
+    expect(name.className).toMatch(/(^|\s)@min-\[240px\]:@max-\[296px\]:leading-7(\s|$)/)
+    expect(name.className).not.toMatch(/(^|\s)(@[^\s]*:)?flex(\s|$)/)
     expect(within(row).getByText('6 values')).toBeInTheDocument()
     expect(within(row).getByTitle('Type: string — click to edit')).toBeInTheDocument()
     expect(within(screen.getByRole('listitem', { name: 'dates' })).getByTitle('Type: list of dates — click to edit')).toBeInTheDocument()

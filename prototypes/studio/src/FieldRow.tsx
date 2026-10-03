@@ -54,10 +54,13 @@ const ACTIONS_IN_FLOW = '@max-[240px]:static @max-[240px]:basis-full @max-[240px
 /** The pills keep clear of the actions, so a pointer on any part of a pill reaches the pill. On a row line of 296px and
  *  more their line keeps the overlay's 140px clear (they wrap before it), which leaves them at least 110px. A narrower
  *  row (the 264px rail, nested rows) would squeeze them under a pill's width: there they start on the line below the
- *  name, at its full width, and the name's line holds the name alone. Either way the name, not a control, may run under
- *  the actions (its full text is its title). The row line is the size container (`@container`). */
+ *  name, at its full width, and the name's line holds the name alone. From 240px, where the actions still overlay the
+ *  first line, that line is as tall as the overlay (28px; a line height, so a long name still ellipsizes), and the
+ *  pills start below it: 3 + 28 + 2 = 33px down, under the overlay's bottom at 29px. Under 240px the actions are in
+ *  the flow instead and the name's line keeps its own height. Either way the name, not a control, may run under the
+ *  actions (its full text is its title). The row line is the size container (`@container`). */
 const CLEAR_OF_ACTIONS = 'pr-[140px] @max-[296px]:pr-0'
-const NAME_UNDER_ACTIONS = 'max-w-[calc(100%_+_140px)] @max-[296px]:max-w-full @max-[296px]:basis-full'
+const NAME_UNDER_ACTIONS = 'max-w-[calc(100%_+_140px)] @max-[296px]:max-w-full @max-[296px]:basis-full @min-[240px]:@max-[296px]:min-h-7 @min-[240px]:@max-[296px]:leading-7'
 const NOTE_INDENT = 'pl-[46px]'
 
 function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
