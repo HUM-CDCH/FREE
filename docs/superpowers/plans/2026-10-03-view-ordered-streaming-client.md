@@ -751,3 +751,7 @@ Accepted and applied: P0-2 (the overlay guard includes `!attempt`, keeping the n
 ## Review log — Codex gpt-6-astra (reasoning max), round 4, 2026-10-03
 
 P2 only: the duplicated round-2 heading removed. No Part B finding; Codex confirmed the `!attempt` guard.
+
+## Review log — Codex gpt-6-astra (reasoning max), round 5, 2026-10-03
+
+Open P0/P1: 0 across both plans. Live-run question for this plan: the browser journey against the merged client on Baratheon.

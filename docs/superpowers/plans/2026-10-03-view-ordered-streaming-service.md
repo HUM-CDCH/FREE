@@ -2002,3 +2002,7 @@ Accepted and applied: P0-1 (`tests/test_extraction_grounding.py`'s substitute te
 ## Review log — Codex gpt-6-astra (reasoning max), round 4, 2026-10-03
 
 Accepted and applied: P1 (`_page_of` indexes `ranges` only when it is a non-empty list; `{"ranges": {"segment": …}}` and `{"ranges": 1}` added to the malformed-file test, the finished entry surviving) · P2 (the duplicated round-2 heading removed). No P0; Codex confirmed the round-3 fixes.
+
+## Review log — Codex gpt-6-astra (reasoning max), round 5, 2026-10-03
+
+Open P0/P1: 0. Codex confirmed the round-4 fix and found nothing new. Its questions for the live run (Baratheon): the cold progress read of a large Catalog against the two-second timeout; execution isolation across a real DBOS retry, Article grounding included; the PostgreSQL tiers and the browser journey on the merged client.
