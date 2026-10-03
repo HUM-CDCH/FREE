@@ -10,23 +10,43 @@ export type ToastOptions = {
 
 export type ToastState = { message: string; action?: ToastAction; outlivesSwitch: boolean }
 
-/** One toast at a time; a new message replaces the current one and restarts the timer. */
+/** One toast at a time; a new message replaces the current one and restarts the timer. While the toast is held (hovered,
+ *  or focus within it: `holdToast`, wired to the Toast's `onHoldChange`) its timer stops; released, the rest runs on. */
 export function useToast() {
   const [toast, setToast] = useState<ToastState | null>(null)
   const timer = useRef<number | undefined>(undefined)
+  /** When the shown toast goes, and, while it is held, the time it has left. */
+  const deadline = useRef(0)
+  const heldRemaining = useRef<number | null>(null)
   useEffect(() => () => window.clearTimeout(timer.current), [])
   const dismissToast = useCallback(() => {
     window.clearTimeout(timer.current)
+    heldRemaining.current = null
     setToast(null)
   }, [])
   const showToast = useCallback((message: string, { durationMs = 2600, action, outlivesSwitch = false }: ToastOptions = {}) => {
     window.clearTimeout(timer.current)
+    heldRemaining.current = null
     setToast({ message, ...(action ? { action } : {}), outlivesSwitch })
+    deadline.current = Date.now() + durationMs
     timer.current = window.setTimeout(() => setToast(null), durationMs)
+  }, [])
+  const holdToast = useCallback((held: boolean) => {
+    if (held) {
+      if (heldRemaining.current !== null) return
+      window.clearTimeout(timer.current)
+      heldRemaining.current = Math.max(0, deadline.current - Date.now())
+      return
+    }
+    if (heldRemaining.current === null) return
+    const remaining = heldRemaining.current
+    heldRemaining.current = null
+    deadline.current = Date.now() + remaining
+    timer.current = window.setTimeout(() => setToast(null), remaining)
   }, [])
   /** The switch the toast was kept for has happened; the next one clears it. Message and timer stay. */
   const consumeSwitch = useCallback(() => {
     setToast((current) => (current?.outlivesSwitch ? { ...current, outlivesSwitch: false } : current))
   }, [])
-  return { toast, showToast, dismissToast, consumeSwitch }
+  return { toast, showToast, dismissToast, holdToast, consumeSwitch }
 }

@@ -30,12 +30,15 @@ type PinnedSchema = SchemaDefinition & {
 }
 
 /** One way to run (decision 03): the tab strip's "▶ Run extraction". The Results tab starts no Extraction itself; its
- *  empty state points at that button. Nowhere else: a view of an earlier Source Representation, whose Run is disabled,
- *  shows the other states too. */
+ *  empty state points at that button, or says why it cannot start (`runUnavailableReason`). Nowhere else: a view of an
+ *  earlier Source Representation, whose Run is disabled, shows the other states too. */
 const RUN_POINTER = 'Press ▶ Run extraction above.'
 
 type ResultsTabProps = {
   controller: ExtractionController
+  /** Why the tab strip's Run cannot start now, in its own words (its title); the empty state says it instead of
+   *  pointing at the button. Null or absent when Run can start. */
+  runUnavailableReason?: string | null
   schemaReady: boolean
   documentMarkdown: string | null
   sourceDocumentName: string
@@ -465,7 +468,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField, headerExtras }: ResultsTabProps) {
+function ResultsTab({ controller, runUnavailableReason = null, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField, headerExtras }: ResultsTabProps) {
   const approvalDescriptionId = useId()
   const attempt = inspectedAttempt ?? controller.attempt
   const state = useMemo(
@@ -713,7 +716,9 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
               {claims && claims.unsupported > 0 && summaryItem('Unsupported', claims.unsupported)}
               {claims && claims.notCompleted > 0 && summaryItem('Not completed', claims.notCompleted)}
               {claims && claims.excluded > 0 && summaryItem('Excluded', claims.excluded)}
-              {checkCount > 0 && summaryItem('To check', checkCount)}
+              {/* Grounding's doubts: a linked value not found in its passage, or found in others too. Not "to check", which
+                  is the badge's and the row marker's word for undecided values. */}
+              {checkCount > 0 && summaryItem('Doubtful links', checkCount)}
               {/* {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)} */}
             </div>
             {(requiredCount > 0 || attempt?.reviewedAt || (!reviewReadOnly && (controller.review.loading || controller.review.error))) && (
@@ -1019,7 +1024,9 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
                       getSchemaNode: (path) => pinnedSchema
                         ? schemaNodeAtResultPath(pinnedSchema.schemaNodes, absoluteReviewPath(path))
                         : null,
-                      isTouched: (path) => controller.review.isTouched(absoluteReviewPath(path)),
+                      // An inspected attempt's decisions are its persisted ones, all made; the live controller's untouched set
+                      // belongs to the current attempt.
+                      isTouched: inspectedAttempt ? () => true : (path) => controller.review.isTouched(absoluteReviewPath(path)),
                       onEditingChange,
                       onDecision: readOnly || inspectedAttempt || attempt?.reviewedAt || controller.review.saving
                         ? undefined
@@ -1090,7 +1097,6 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-content font-semibold text-danger">Extraction failed</p>
           <p className="mt-1 wrap-anywhere text-secondary leading-snug text-ink-muted">{state.message}</p>
-
         </div>
       )}
 
@@ -1102,14 +1108,13 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
               ? 'Run extraction to apply the schema across the source document.'
               : 'Generate a schema in the Schema tab first, then run extraction.'}
           </p>
-          {!readOnly && schemaReady && <p className="mt-1.5 text-compact font-semibold text-ink">{RUN_POINTER}</p>}
+          {!readOnly && schemaReady && <p className="mt-1.5 text-compact font-semibold text-ink">{runUnavailableReason ?? RUN_POINTER}</p>}
         </div>
       )}
 
       {state.status === 'cancelled' && (
         <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
           <p className="text-content font-semibold text-ink">Extraction cancelled</p>
-
         </div>
       )}
     </div>

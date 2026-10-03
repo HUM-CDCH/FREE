@@ -39,3 +39,47 @@ it('a switch-surviving toast keeps its message through one switch, then dismisse
   act(() => result.current.dismissToast())
   expect(result.current.toast).toBeNull()
 })
+
+/** A host as App and the schema panel wire it: the toast holds its timer while it is hovered or has focus within. */
+function Host() {
+  const { toast, showToast, dismissToast, holdToast } = useToast()
+  return (
+    <>
+      <button type="button" onClick={() => showToast('✓ Extraction complete', { durationMs: 8000, action: { label: 'Review now', onAction: () => {} } })}>show</button>
+      {toast && <Toast message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />}
+    </>
+  )
+}
+
+it('holds its timer while hovered, and goes once the pointer leaves and the rest of its time runs out', () => {
+  vi.useFakeTimers()
+  render(<Host />)
+  fireEvent.click(screen.getByRole('button', { name: 'show' }))
+  act(() => vi.advanceTimersByTime(7000))
+  fireEvent.mouseEnter(screen.getByRole('status'))
+  act(() => vi.advanceTimersByTime(5000))
+  expect(screen.getByRole('button', { name: 'Review now' })).toBeInTheDocument()
+  fireEvent.mouseLeave(screen.getByRole('status'))
+  act(() => vi.advanceTimersByTime(900))
+  expect(screen.getByRole('status')).toBeInTheDocument()
+  act(() => vi.advanceTimersByTime(200))
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+it('holds its timer while a keyboard user is on its action, and goes after the focus leaves', () => {
+  vi.useFakeTimers()
+  render(<Host />)
+  fireEvent.click(screen.getByRole('button', { name: 'show' }))
+  act(() => vi.advanceTimersByTime(7000))
+  act(() => screen.getByRole('button', { name: 'Review now' }).focus())
+  act(() => vi.advanceTimersByTime(5000))
+  expect(screen.getByRole('button', { name: 'Review now' })).toBeInTheDocument()
+  // Hovered and focused: leaving with the pointer alone keeps it held.
+  fireEvent.mouseEnter(screen.getByRole('status'))
+  fireEvent.mouseLeave(screen.getByRole('status'))
+  act(() => vi.advanceTimersByTime(5000))
+  expect(screen.getByRole('status')).toBeInTheDocument()
+  act(() => screen.getByRole('button', { name: 'show' }).focus())
+  act(() => vi.advanceTimersByTime(1100))
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})

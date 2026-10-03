@@ -176,7 +176,7 @@ export function DocumentWorkspace({
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [pdfDocument, setPdfDocument] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [zoomPercent, setZoomPercent] = useState(100)
-  const { toast, showToast, dismissToast, consumeSwitch } = useToast()
+  const { toast, showToast, dismissToast, holdToast, consumeSwitch } = useToast()
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
     extractionSchema,
@@ -254,8 +254,11 @@ export function DocumentWorkspace({
     return known
   }, [persistedExtraction, latestReviewedExtraction])
   const [knownSchemas, setKnownSchemas] = useState(reopenedSchemas)
-  // A run started here offers "Review now" once it succeeds; restored or reconnected runs only say they finished.
+  // A run started here offers "Review now" once it succeeds; restored or reconnected runs only say they finished. The
+  // run is "started here" from the request on: `admittingRef` while its admission is awaited (an admission already
+  // finished reaches onTerminal inside that await), then `pendingReportRef` by its identity.
   const pendingReportRef = useRef<string | null>(null)
+  const admittingRef = useRef(false)
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const resizeControllerRef = useRef<AbortController | null>(null)
 
@@ -623,7 +626,9 @@ export function DocumentWorkspace({
     // Completion preserves the rail tab and inspected snapshot; it says so in one toast, whose "Review now" (a run started
     // here that succeeded) opens Results.
     onTerminal: (attempt, isRerun) => {
-      const reported = pendingReportRef.current === attempt.extractionId
+      // While a run started here is being admitted, the only monitor that can finish is that run's own: starting it
+      // stopped any other.
+      const reported = admittingRef.current || pendingReportRef.current === attempt.extractionId
       if (reported) pendingReportRef.current = null
       selectNextRunAfter(attempt)
       if (attempt.failure?.code === 'cancelled')
@@ -764,16 +769,19 @@ export function DocumentWorkspace({
         // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
         const catalogRecipe = savedState.unifiedCatalog ? null : nextCatalogRecipe || null
         refusalRef.current = null
-        // What useExtraction counts as a re-run: one started while an attempt is shown.
-        const isRerun = extraction.attempt !== null
-        const acknowledged = await extraction.runExtraction(savedMethodFor(savedState, strategy, catalogRecipe), target, strategy, catalogRecipe)
+        admittingRef.current = true
+        let acknowledged: Awaited<ReturnType<typeof extraction.runExtraction>>
+        try {
+          acknowledged = await extraction.runExtraction(savedMethodFor(savedState, strategy, catalogRecipe), target, strategy, catalogRecipe)
+        } finally {
+          admittingRef.current = false
+        }
         if (!stillHere()) return
         if (acknowledged) {
           selectNextRunAfter(acknowledged)
-          // Finished when acknowledged: its completion toast has shown already; a success adds "Review now" to it.
-          if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
-            if (acknowledged.outcome === 'SUCCEEDED') showCompletion(isRerun, true)
-          } else pendingReportRef.current = acknowledged.extractionId
+          // Finished when acknowledged, it has had its one completion toast (with "Review now") from onTerminal.
+          if (acknowledged.executionStatus !== 'COMPLETED' && acknowledged.executionStatus !== 'FAILED')
+            pendingReportRef.current = acknowledged.extractionId
           return
         }
         // Set by onMethodChanged during the await above; TypeScript keeps the `null` assignment's narrowing across it.
@@ -808,6 +816,24 @@ export function DocumentWorkspace({
     indexing ||
     schemaSnap.save?.status === 'conflict' ||
     schemaSnap.save?.status === 'error'
+  // Why Run cannot start now, in the words its title uses; Results' empty state says the same. Null while it can (or
+  // while a run is active, when the button is Stop), and for the transient save-before-run, whose title stays the
+  // strategy's.
+  const runUnavailableReason: string | null = running || !runExtractionUnavailable
+    ? null
+    : !sourceRepresentationCurrent
+      ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
+      : schemaSnap.save?.status === 'error'
+        ? 'The schema is not saved. Retry the save first.'
+        : schemaSnap.save?.status === 'conflict'
+          ? 'The schema changed elsewhere. Reload it in the Schema tab first.'
+          : indexing
+            ? 'The document is still being indexed'
+            : !schemaReady
+              ? 'Generate a schema in the Schema tab first'
+              : nextExtractionStrategy === null
+                ? 'Choose Article or Catalog in the schema header'
+                : null
   const badge = resultsBadgeFor(extraction)
   const runLabel = running ? (extraction.cancellationRequested ? 'Cancellation requested…' : '■ Stop extraction') : '▶ Run extraction'
   return (
@@ -838,21 +864,9 @@ export function DocumentWorkspace({
             title={
               running
                 ? extraction.cancellationRequested ? 'Waiting for the Extraction to stop' : 'Cancel the active Extraction'
-                : !sourceRepresentationCurrent
-                  ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
-                  : schemaSnap.save?.status === 'error'
-                    ? 'The schema is not saved. Retry the save first.'
-                    : schemaSnap.save?.status === 'conflict'
-                      ? 'The schema changed elsewhere. Reload it in the Schema tab first.'
-                      : indexing
-                        ? 'The document is still being indexed'
-                        : !schemaReady
-                          ? 'Generate a schema in the Schema tab first'
-                          : nextExtractionStrategy === null
-                            ? 'Choose Article or Catalog in the schema header'
-                            : nextExtractionStrategy === 'CATALOG'
-                              ? 'Find the catalogue entries and extract one record per entry'
-                              : 'Extract one record from the whole document'
+                : runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
+                  ? 'Find the catalogue entries and extract one record per entry'
+                  : 'Extract one record from the whole document')
             }
             onClick={() => (running ? void extraction.requestCancellation() : void runExtraction())}
           >
@@ -935,7 +949,7 @@ export function DocumentWorkspace({
             )}
             {toast && (
               <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
-                <Toast message={toast.message} action={toast.action} onDismiss={dismissToast} />
+                <Toast message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} />
               </div>
             )}
           </section>
@@ -974,6 +988,7 @@ export function DocumentWorkspace({
                 exportSchema: inspectedAttemptSchema,
               }}
               currentSchemaRevision={currentSchemaRevision}
+              runUnavailableReason={runUnavailableReason}
               sourceDocumentName={filename}
               sourceRepresentationId={sourceRepresentationId}
               schemaName={schemaName}

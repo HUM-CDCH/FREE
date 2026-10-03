@@ -426,7 +426,10 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByRole('note', { name: 'Value also appears in 2 other passages' })).toBeInTheDocument()
     expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
     expect(screen.getAllByRole('note')).toHaveLength(2)
-    expect(screen.getByText('To check:')).toBeInTheDocument()
+    // The chip counts grounding's doubts (a linked value not found in, or not unique to, its passage), under its own name:
+    // "to check" is the badge's and the row marker's word for undecided values.
+    expect(screen.getByText('Doubtful links:')).toHaveTextContent('Doubtful links: 2')
+    expect(screen.queryByText(/^To check/)).not.toBeInTheDocument()
     // Rows without pills (decision 14): the doubt is a line of words, the value its own Evidence link.
     expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toHaveTextContent('Value not found in the linked passage')
     expect(screen.queryByText('Check')).not.toBeInTheDocument()
@@ -455,19 +458,19 @@ describe('ResultsTab grounded values', () => {
     )
     const { rerender } = render(<ResultsTab {...props} controller={withDecision(initialDecision)} />)
     expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
-    expect(screen.getByText('To check:')).toHaveTextContent('To check: 1')
+    expect(screen.getByText('Doubtful links:')).toHaveTextContent('Doubtful links: 1')
 
     rerender(<ResultsTab {...props} controller={withDecision({
       ...initialDecision, action, reviewedValue: action === 'EDITED' ? 'bronze' : null,
     })} />)
     if (action === 'EDITED') expect(screen.getByText('bronze')).toBeInTheDocument()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
-    expect(screen.queryByText('To check:')).not.toBeInTheDocument()
+    expect(screen.queryByText('Doubtful links:')).not.toBeInTheDocument()
 
     rerender(<ResultsTab {...props} controller={withDecision(initialDecision)} />)
     expect(screen.getByText('iron')).toBeInTheDocument()
     expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
-    expect(screen.getByText('To check:')).toHaveTextContent('To check: 1')
+    expect(screen.getByText('Doubtful links:')).toHaveTextContent('Doubtful links: 1')
   })
 
   it('reports the persisted ungrounded value count', () => {
@@ -1494,6 +1497,35 @@ describe('ResultsTab extraction status', () => {
     expect(setDecision).toHaveBeenCalledWith(['records', 0, 'place'], 'REJECTED', null)
   })
 
+  // "Open latest reviewed" while a newer attempt is current: the live controller's untouched set belongs to that newer
+  // attempt, so the inspected review's persisted decisions count as made, never "to check".
+  it('an inspected finalized review shows its persisted decisions as made, with no to-check marker', () => {
+    const reviewed: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ place: 'Original' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place' }],
+      reviewedAt: '2026-09-06T00:00:00Z',
+      reviewDecisions: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place', reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null, createdAt: '2026-09-06T00:00:00Z' }],
+    }
+    const newer: ExtractionAttempt = { ...articleAttempt, extractionId: '22222222-2222-4222-8222-222222222222', complete: true }
+    render(
+      <ResultsTab
+        controller={controller({ status: 'ready', result: { records: [{ place: 'Newer' }] }, evidenceLinks: [], ungroundedCount: 0 }, newer, { isTouched: () => false })}
+        inspectedAttempt={reviewed}
+        readOnly
+        schemaReady
+        pinnedSchema={usedSchema}
+        documentMarkdown="# Source"
+        sourceDocumentName="finalized.pdf"
+        onSelectEvidence={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'View Evidence for place' })).toHaveTextContent('Original')
+    expect(screen.queryByRole('img', { name: 'to check' })).not.toBeInTheDocument()
+    expect(screen.getByTitle(/^Approved · /)).toBeInTheDocument()
+  })
+
   it('labels a finalized previous-schema review without offering new decisions', () => {
     const reviewed: ExtractionAttempt = {
       ...articleAttempt,
@@ -1593,6 +1625,17 @@ describe('ResultsTab and the one way to run', () => {
 
     expect(screen.queryAllByRole('button', { name: PANEL_RUN })).toEqual([])
     expect(screen.queryByText(/Press ▶ Run extraction/)).not.toBeInTheDocument()
+  })
+
+  // While Run is disabled the empty state says why, in the Run button's own words, instead of pointing at it.
+  it('the empty state gives Run\'s unavailable reason instead of the pointer while Run cannot start', () => {
+    const { rerender } = render(<ResultsTab controller={controller({ status: 'idle' })} schemaReady documentMarkdown="# Source"
+      sourceDocumentName="Catalog.pdf" runUnavailableReason="Choose Article or Catalog in the schema header" />)
+    expect(screen.getByText('Choose Article or Catalog in the schema header')).toBeInTheDocument()
+    expect(screen.queryByText(/Press ▶ Run extraction/)).not.toBeInTheDocument()
+    rerender(<ResultsTab controller={controller({ status: 'idle' })} schemaReady documentMarkdown="# Source" sourceDocumentName="Catalog.pdf" runUnavailableReason={null} />)
+    expect(screen.getByText('Press ▶ Run extraction above.')).toBeInTheDocument()
+    expect(screen.queryByText('Choose Article or Catalog in the schema header')).not.toBeInTheDocument()
   })
 
   it('before a schema is ready the empty state asks for one and points at no run', () => {

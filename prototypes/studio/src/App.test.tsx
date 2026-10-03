@@ -59,6 +59,25 @@ vi.mock('./savedMethod', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./savedMethod')>()),
   useSavedMethod: () => saved,
 }))
+// Every toast the workspace asks for, in order: one completion must be asked for once (a toast replaced at once is still
+// announced). The wrapper keeps showToast's identity, so the workspace's hooks see the same callback.
+const shownToasts = vi.hoisted(() => [] as string[])
+vi.mock('./useToast', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./useToast')>()
+  const { useCallback } = await import('react')
+  return {
+    ...actual,
+    useToast: () => {
+      const host = actual.useToast()
+      const { showToast } = host
+      const recorded = useCallback<typeof showToast>((message, options) => {
+        shownToasts.push(message)
+        showToast(message, options)
+      }, [showToast])
+      return { ...host, showToast: recorded }
+    },
+  }
+})
 vi.mock('pdfjs-dist/build/pdf.worker.mjs?url', () => ({ default: 'pdf.worker.mjs' }))
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: {},
@@ -232,6 +251,7 @@ const reopened: DocumentWorkspaceProps = {
 
 afterEach(() => {
   cleanup()
+  shownToasts.length = 0
   document.querySelector('base')?.remove()
   vi.unstubAllGlobals()
   getDocument.mockClear()
@@ -328,6 +348,9 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     // Run is the screen's positive; Stop is red (decision 02).
     expect(screen.getByRole('button', { name: '▶ Run extraction' }).className).toMatch(/(^|\s)bg-green(\s|$)/)
+    // While Run can start, Results' empty state points at it.
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByText('Press ▶ Run extraction above.')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     await waitFor(() => expect(order).toEqual(['refresh', 'post']))
     extractionResponse.resolve(Response.json({ ...runningAttempt('51000000-0000-4000-8006-000000000031') }, { status: 201 }))
@@ -450,6 +473,10 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '▶ Run extraction' })).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
     expect(screen.queryByText(/Press Run extraction/)).not.toBeInTheDocument()
+    // Results' empty state says why, in the same words, instead of pointing at a disabled Run.
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByText('Choose Article or Catalog in the schema header')).toBeVisible()
+    expect(screen.queryByText('Press ▶ Run extraction above.')).not.toBeInTheDocument()
   })
 
   it('the toolbar pager navigates on Enter and ignores an invalid page', async () => {
@@ -2843,11 +2870,22 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
 
+    // Every completion toast that reaches the page, as rendered: one, already with its action (never a plain one first).
+    const completions: string[] = []
+    const watcher = new MutationObserver(() => {
+      for (const toast of document.querySelectorAll('[role="status"]'))
+        if (toast.textContent?.includes('Extraction complete') && completions.at(-1) !== toast.textContent)
+          completions.push(toast.textContent)
+    })
+    watcher.observe(document.body, { subtree: true, childList: true, characterData: true })
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     // Completion never switches the rail tab by itself (decision 04): one toast, no dialog, whose "Review now" opens
-    // Results. A terminal admission shows the toast before its awaiting caller adds the action.
+    // Results. The admission was already finished: its one completion toast carries the action from the start.
     expect(await screen.findByText('✓ Extraction complete — review it in the Results tab')).toBeVisible()
     const reviewNow = await screen.findByRole('button', { name: 'Review now' })
+    watcher.disconnect()
+    expect(completions).toEqual(['✓ Extraction complete — review it in the Results tabReview now'])
+    expect(shownToasts.filter((message) => message.includes('Extraction complete'))).toHaveLength(1)
     expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')
     // It outlasts the plain toast's 2.6 s.

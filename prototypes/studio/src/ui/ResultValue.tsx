@@ -259,8 +259,10 @@ function PrimitiveRow({
   const evidenceTitle = evidenceForExtracted ? 'Evidence for the extracted value' : undefined
   const valueId = useId()
   const evidenceShown = Boolean(evidenceAnchorId && onSelectEvidence)
-  // "To check": a grounded value whose decision the researcher has not made yet. Decided rows show their status dot.
-  const toCheck = Boolean(decision) && !touched
+  // "To check": a grounded value whose decision the researcher has not made yet, as the badge and Review attention count
+  // them. An ungrounded or missing value also carries an untouched decision (with no Evidence anchor) the server prepared:
+  // it keeps its status dot, like a decided row.
+  const toCheck = Boolean(decision?.evidenceAnchorId) && !touched
   const statusDot = toCheck
     ? <span className="w-3.5 shrink-0" />
     : <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />

@@ -40,6 +40,8 @@ type RightRailProps = {
   inspection: ExtractionInspection
   /** Acknowledged Current Schema Revision, for the Results panel's comparison. */
   currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
+  /** Why the tab strip's Run cannot start now (its disabled title); Results' empty state says it. */
+  runUnavailableReason?: string | null
   sourceDocumentName: string
   sourceRepresentationId: string
   schemaName?: string | null
@@ -74,6 +76,7 @@ function RightRail({
   extraction,
   inspection,
   currentSchemaRevision,
+  runUnavailableReason = null,
   sourceDocumentName,
   sourceRepresentationId,
   schemaName,
@@ -223,6 +226,7 @@ function RightRail({
           pinnedSchema={inspection.pinnedSchema}
           exportSchema={inspection.exportSchema}
           currentSchemaRevision={currentSchemaRevision}
+          runUnavailableReason={runUnavailableReason}
           sourceDocumentName={sourceDocumentName}
           evidencePages={evidencePages}
           onResultPathChange={onResultPathChange}

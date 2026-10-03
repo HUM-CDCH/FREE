@@ -209,3 +209,25 @@ describe('a rejected value (decision 14)', () => {
     expect(onSelectEvidence).toHaveBeenCalledExactlyOnceWith('a1')
   })
 })
+
+// The server prepares an untouched decision with no Evidence anchor for every ungrounded or missing cell; those are not
+// "to check" (the badge and Review attention count grounded undecided values only), so they keep their status dot.
+describe('the to-check marker counts grounded values only', () => {
+  const nullAnchor = (path: string[]) => ({
+    getDecision: () => ({ resultPath: path, evidenceAnchorId: null, reviewedOccurrenceIds: [], action: 'APPROVED' as const, reviewedValue: null }),
+    getSchemaNode: () => null, isTouched: () => false, onDecision: vi.fn(),
+  })
+  it.each([
+    ['an ungrounded value', 'Ravenna'],
+    ['a missing value', null],
+  ])('%s with its untouched null-anchor decision shows no marker, only its pending status dot', (_label, value) => {
+    render(<ResultValue name="place" value={value} path={['place']} getValueState={() => (value === null ? 'empty' : undefined)} review={nullAnchor(['place'])} />)
+    expect(screen.queryByRole('img', { name: 'to check' })).not.toBeInTheDocument()
+    expect(screen.getByTitle('Pending review')).toBeInTheDocument()
+  })
+  it('a grounded value with its untouched decision does show it', () => {
+    render(<ResultValue name="title" value="Report" path={['title']} getValueState={() => 'grounded'} getEvidenceAnchorId={() => 'a1'} onSelectEvidence={vi.fn()}
+      review={{ ...nullAnchor(['title']), getDecision: () => ({ resultPath: ['title'], evidenceAnchorId: 'a1', reviewedOccurrenceIds: [], action: 'APPROVED' as const, reviewedValue: null }) }} />)
+    expect(screen.getByRole('img', { name: 'to check' })).toBeInTheDocument()
+  })
+})
