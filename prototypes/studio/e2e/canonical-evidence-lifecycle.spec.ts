@@ -265,7 +265,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await loginResearcher(page, researcherObjectId)
   await page.goto(url)
   await expect(page).toHaveURL(url)
-  await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
+  await expect(page.getByText('/ 6', { exact: true })).toBeVisible({
     timeout: 20_000,
   })
   let interactivePosts = 0
@@ -275,9 +275,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   })
   // The configured Extraction Model Choice goes with the run and stays with its Extraction; the header offers none.
   await expect(page.getByRole('combobox', { name: 'Field model' })).toHaveCount(0)
-  await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+  await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
   await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
-  await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Dismiss', exact: true }).click()
   expect(interactivePosts).toBe(1)
   const chosen = await db.orm.public.Extraction.where({ sourceDocumentId })
     .select('requestedModels', 'diagnostics').first()
@@ -315,12 +316,12 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       `/projects/${projectContextId}/documents/${otherSourceDocumentId}`,
     ),
   )
-  await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+  await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
   await activateWithKeyboard(
     page,
     page.getByRole('button', { name: '▶ Run extraction' }),
   )
-  await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(
     page.getByText('Unexpected model key: surprise', { exact: true }),
   ).toHaveCount(0)
@@ -371,17 +372,12 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await expect(responsiveExportDialog).toBeHidden()
     await expect(exportTrigger).toBeFocused()
   }
-  // The start view's saved-method summary opens inside the viewport at every width, including 360 px.
+  // Review progress and Approve remaining stay operable, with no horizontal scroll, at every width, including 360 px.
   for (const viewport of [{ width: 360, height: 800 }, ...REQUIRED_VIEWPORTS]) {
     await page.setViewportSize(viewport)
     await expectOperableInViewport(page, reviewProgress)
     await expectOperableInViewport(page, approveRemaining)
-    const savedSettings = page.locator('summary', { hasText: 'Saved advanced settings' })
-    await expectOperableInViewport(page, savedSettings)
-    await savedSettings.click()
-    await expectOperableInViewport(page, page.getByText('Change them on the Model Configuration page’s Advanced tab.'))
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${viewport.width}px`).toBe(true)
-    await savedSettings.click()
   }
   await emulateBrowserZoom200(page)
   await expectOperableInViewport(
@@ -642,6 +638,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByLabel('Extraction snapshot')).toHaveCount(0)
   const pinnedPdf = freshPage.waitForResponse((response) =>
     new URL(response.url()).pathname.endsWith(`/source-representations/${firstRepresentationId}/pdf`))
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
   await freshPage.getByRole('button', { name: 'Open latest reviewed', exact: true }).click()
   await expect(freshPage).toHaveURL(`${url}?extractionId=${reviewed!.id}`)
   expect((await pinnedPdf).ok()).toBe(true)
@@ -669,8 +666,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   kei.omitGrounding = false
   kei.blockNextResult = true
-  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
-  await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
+  await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   // Running shows only once Studio acknowledged the admission, so leaving now cannot lose the Extraction. kei holding
   // the result keeps it running until the cancel below.
   await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 10_000 })
@@ -685,13 +682,13 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   resultGate.release?.()
 
   kei.failNextValues = true
-  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+  await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(freshPage.getByText('Extraction failed', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(freshPage.getByRole('tab', { name: 'Raw JSON' })).toHaveCount(0)
 
   kei.incompleteNextResult = true
-  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+  await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
   // The failed attempt's Results action names the schema's saved strategy.
   await freshPage.getByRole('button', {
     name: strategy === 'CATALOG' ? 'Run Catalog extraction' : 'Run Article extraction',
@@ -726,8 +723,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // The re-run is admitted QUEUED (its workflow was enqueued with its row); kei then holds it, so the cancel below
   // stops work still in flight rather than racing its completion.
   kei.blockNextResult = true
-  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
-  await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
+  await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(freshPage.getByText('Queued extraction…')).toBeVisible()
   await freshPage.getByTitle('Cancel the active Extraction').click()
   await expect(freshPage.getByText('Extraction cancelled', { exact: true })).toBeVisible({ timeout: 20_000 })
@@ -810,8 +807,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   kei.blockNextResult = true
-  await expect(freshPage.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
-  await freshPage.getByRole('button', { name: /▶ Run extraction|↻ Re-run extraction/ }).click()
+  await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 20_000 })
   const status = freshPage.getByRole('region', { name: 'Extraction status' })
   await expect(status).toContainText('Using Schema Revision 3 · Current revision: 3')
@@ -832,7 +829,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
 
   await freshPage.goto(e2eStudioPath(`/projects/${projectContextId}/documents/${otherSourceDocumentId}`))
-  await expect(freshPage.getByRole('button', { name: /Run extraction|Re-run extraction/ })).toBeVisible()
+  await expect(freshPage.getByRole('button', { name: '▶ Run extraction' })).toBeVisible()
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 20_000 })
@@ -936,7 +933,7 @@ test('import → whole source → review → collection review @deterministic', 
 
   await loginResearcher(page, researcherObjectId)
   await page.goto(e2eStudioPath(`/projects/${projectContextId}/documents/${sourceDocumentId}`))
-  await expect(page.getByText('6 pages', { exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('/ 6', { exact: true })).toBeVisible({ timeout: 20_000 })
   const book = new ExcelJS.Workbook()
   book.addWorksheet('Codebook').addRows([['title', 'year'], ['Report', '0012']])
   await page.getByLabel('Import Excel codebook').setInputFiles({ name: 'codebook.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(await book.xlsx.writeBuffer()) })

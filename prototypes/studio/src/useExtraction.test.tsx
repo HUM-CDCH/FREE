@@ -704,7 +704,7 @@ describe('useExtraction server-owned lifecycle', () => {
 
     await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
 
-    expect(input.onMethodChanged).toHaveBeenCalledExactlyOnceWith(message)
+    expect(input.onMethodChanged).toHaveBeenCalledExactlyOnceWith(message, 'method_changed')
     expect(input.onError).not.toHaveBeenCalled()
     expect(api.requestExtraction).toHaveBeenCalledOnce()
     expect(result.current.attempt).toBe(earlier)

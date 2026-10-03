@@ -1086,7 +1086,7 @@ test.describe('reopening a routed Source Document', () => {
     await expect(
       page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
     ).toBeVisible()
-    await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
+    await expect(page.getByText('/ 6', { exact: true })).toBeVisible({
       timeout: 20_000,
     })
     await expect(page.getByText('Indexing document…')).toBeHidden()
@@ -1117,7 +1117,7 @@ test.describe('reopening a routed Source Document', () => {
     )
 
     await page.reload()
-    await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
+    await expect(page.getByText('/ 6', { exact: true })).toBeVisible({
       timeout: 20_000,
     })
     await expect(

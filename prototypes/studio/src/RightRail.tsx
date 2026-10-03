@@ -1,12 +1,13 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
 import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ResultsTab, { type RunExtractionStrategy } from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
+import { resultsBadgeFor } from './resultsBadge'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import EvidenceTab from './EvidenceTab'
 import type { SchemaDefinition } from 'extraction/schema'
@@ -49,6 +50,8 @@ type RightRailProps = {
   onRenameSchema?: (name: string) => Promise<string | null>
   recordScope?: SchemaPanelProps['recordScope']
   boundaries?: SchemaPanelProps['boundaries']
+  /** Controls the Results header shows beside the attempt details: the snapshot choice, "Open latest reviewed". */
+  resultsHeaderExtras?: ReactNode
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
   onResultPathChange: (path: string[] | null) => void
 }
@@ -59,7 +62,7 @@ function TabBadge({ label, active, done }: { label: string; active: boolean; don
     : `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
   return (
     <span
-      className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-[10px] leading-none tabular-nums ${tone}`}
+      className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-overline leading-none tabular-nums ${tone}`}
     >
       {label}
     </span>
@@ -86,6 +89,7 @@ function RightRail({
   onRenameSchema,
   recordScope,
   boundaries,
+  resultsHeaderExtras,
   onSelectEvidence,
   onResultPathChange,
 }: RightRailProps) {
@@ -115,7 +119,7 @@ function RightRail({
   const schemaFieldCount = schemaReady
     ? countTemplateFields(nodesToTemplate(schemaSnap.draft!.schemaNodes))
     : 0
-  const resultsBadge = extraction.hasResults ? { label: '✓', done: true } : null
+  const resultsBadge = resultsBadgeFor(extraction)
   const tabs: {
     key: RailTab
     label: string
@@ -155,7 +159,7 @@ function RightRail({
         >
           <PanelToggleIcon side="right" />
         </button>
-        <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
+        <span className="mt-0.5 text-overline font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
           {tabs.map(({ label }) => label).join(' · ')}
         </span>
       </div>
@@ -233,6 +237,7 @@ function RightRail({
           sourceDocumentName={sourceDocumentName}
           evidencePages={evidencePages}
           onResultPathChange={onResultPathChange}
+          headerExtras={resultsHeaderExtras}
           onSelectEvidence={(anchorId) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(
               (candidate) => candidate.anchor_id === anchorId,

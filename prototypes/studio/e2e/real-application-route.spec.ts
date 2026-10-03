@@ -213,18 +213,20 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     page.setDefaultTimeout(120_000)
     const workspace = `/projects/${project}/documents/${source.sourceDocumentId}`
     await page.goto(workspace)
-    const selector = page.getByRole('combobox', { name: 'Extraction strategy' })
+    // The schema header's Record scope names Article `document` and Catalog `records`.
+    const recordScope = strategy === 'ARTICLE' ? 'document' : 'records'
+    const selector = page.getByRole('combobox', { name: 'Record scope' })
     await expect(selector).toHaveValue('')
     await expect(page.getByRole('button', { name: /Run extraction/ })).toBeDisabled()
     const saved = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/schema-revisions' &&
       response.request().method() === 'POST')
-    await selector.selectOption(strategy)
+    await selector.selectOption(recordScope)
     const scopeSave = await saved
     expect(scopeSave.status(), await scopeSave.text()).toBe(201)
-    expect((await scopeSave.json()).revision.recordScope).toBe(strategy === 'ARTICLE' ? 'document' : 'records')
+    expect((await scopeSave.json()).revision.recordScope).toBe(recordScope)
     await expect(page.getByText(/Unsaved changes|Saving…/)).toHaveCount(0)
     await page.reload()
-    await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+    await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
 
     const admitted = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/extractions' &&
       response.request().method() === 'POST')
@@ -329,7 +331,7 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
     if (unfinished) await expect(page.getByText(new RegExp(
       `values? without evidence (?:was|were) not reviewed; ${claims.notCompleted} checks? never completed`))).toBeVisible()
-    await expect(page.getByRole('combobox', { name: 'Extraction strategy' })).toHaveValue(strategy)
+    await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(strategy === 'ARTICLE' ? 'document' : 'records')
     await open(page, chosen!.resultPath, records.length)
     await expect(page.getByText(edited, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: `View Evidence for extracted value of ${item}`, exact: true }).click()

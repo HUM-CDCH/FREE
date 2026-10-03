@@ -134,7 +134,7 @@ export async function prepareInteractiveDocument(
     async open(target = page) {
       await target.goto(url)
       await expect(target).toHaveURL(url)
-      await expect(target.getByText('6 pages', { exact: true })).toBeVisible({ timeout: 20_000 })
+      await expect(target.getByText('/ 6', { exact: true })).toBeVisible({ timeout: 20_000 })
       if (extractionSchemaId) await expect(target.getByText('title', { exact: true }).first()).toBeVisible({ timeout: 20_000 })
     },
     async schemaRevisions() {

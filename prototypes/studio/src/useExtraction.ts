@@ -57,8 +57,9 @@ type UseExtractionOptions = {
    * it stops offering runs on the old revision.
    */
   onSuperseded?: () => void
-  /** The account's saved advanced settings changed after the start view showed them: nothing started. */
-  onMethodChanged?: (message: string) => void
+  /** Admission refused the run's method or scope (`code`: a changed saved method, a pending migration, a record-scope
+   *  refusal): nothing started. The caller re-reads the saved method on `METHOD_CHANGED`. */
+  onMethodChanged?: (message: string, code: string) => void
   initialAttempt?: ExtractionAttempt | null
   reviewTarget?: ReviewTarget | null
   /**
@@ -96,7 +97,7 @@ function definiteRejection(error: unknown): error is ApiRequestError {
 
 /** PR #140: a run on a Source Representation that reprocessing replaced is refused before anything starts. */
 const SOURCE_REPRESENTATION_SUPERSEDED = 'source_representation_superseded'
-const METHOD_CHANGED = 'method_changed'
+export const METHOD_CHANGED = 'method_changed'
 /** Legacy Catalog preferences wait for their migration: refreshable, like a changed method. */
 const MIGRATION_REQUIRED = 'catalog_migration_required'
 /** A strategy the schema's saved Article/Catalog scope does not name (or none saved): said like a changed method. */
@@ -464,7 +465,7 @@ export function useExtraction({
         // Nothing started: the previous attempt stays, and the start view refreshes its summary.
         monitorRef.current = null
         setState(extractionStateFromAttempt(attempt))
-        onMethodChanged?.(error.message)
+        onMethodChanged?.(error.message, error.code!)
         return null
       }
       if (definiteRejection(error)) {

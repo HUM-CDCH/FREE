@@ -1074,7 +1074,7 @@ export default function BatchExtractionsPanel({
             </div>
             <div className="mb-3">
               {selectedStrategy !== null && (
-                <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
+                <SavedMethodSummary saved={saved.state} conflict={methodConflict}
                   method={saved.state.status === 'ready' ? savedMethodFor(saved.state, selectedStrategy, null) : null}
                   onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
               )}
@@ -1333,7 +1333,7 @@ export default function BatchExtractionsPanel({
             canRunAgain={saved.state.status === 'ready'}
             runAgainRefusal={runAgainRefusal}
             runAgainMethod={
-              <SavedMethodSummary variant="panel" saved={saved.state} conflict={methodConflict}
+              <SavedMethodSummary saved={saved.state} conflict={methodConflict}
                 method={saved.state.status === 'ready' ? savedMethodFor(saved.state, openBatch.strategy, null) : null}
                 onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
             }

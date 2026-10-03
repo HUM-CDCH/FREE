@@ -2590,7 +2590,10 @@ describe('routed Source Document reopening', () => {
     })
 
     expect(toggle).not.toHaveClass('fixed')
-    expect(tablist.previousElementSibling).toBe(toggle)
+    // The toggle leads the tab-strip row, then the project chip, then the tabs.
+    const chip = tablist.previousElementSibling as HTMLElement
+    expect(toggle.nextElementSibling).toBe(chip)
+    expect(within(chip).getByRole('button', { name: `Open project ${project.name}` })).toBeInTheDocument()
   })
 
   it('closes inactive, active, and final Source Document tabs without losing route intent', async () => {

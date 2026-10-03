@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { exportExtractionResult, type ExtractionProvenance, type ProvenanceClaim } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import { MethodUsed } from './MethodUsed'
@@ -67,6 +67,8 @@ type ResultsTabProps = {
   onEditField?: (nodeId: string, path: (string | number)[]) => void
   /** Each Evidence anchor's first page (anchor id → page), for the export's Evidence sheet. */
   evidencePages?: ReadonlyMap<string, number>
+  /** The workspace's own header controls (snapshot choice, "Open latest reviewed"), before the attempt details. */
+  headerExtras?: ReactNode
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -522,7 +524,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField }: ResultsTabProps) {
+function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField, headerExtras }: ResultsTabProps) {
   const approvalDescriptionId = useId()
   const attempt = inspectedAttempt ?? controller.attempt
   // The header's single "… with current schema" run action replaces the
@@ -733,9 +735,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
 
   return (
     <div className="scrollbar-subtle flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="flex items-center justify-between px-4 py-2.5">
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5">
         <Overline as="h2">Extraction results</Overline>
-        {attempt && <AttemptDetails attempt={attempt} />}
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          {headerExtras}
+          {attempt && <AttemptDetails attempt={attempt} />}
+        </div>
       </div>
       {attention && <ReviewAttention attention={attention} onEditField={onEditField}
         onSelect={(path) => { onResultPathChange?.(path.map(String)); const link = attempt?.evidenceLinks?.find((each) => resultPathKey(each.resultPath) === resultPathKey(path)); if (link) onSelectEvidence?.(link.evidenceAnchorId) }} />}

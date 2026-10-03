@@ -38,7 +38,8 @@ const {
   }
 })
 
-// The account keeps every service default: each run submits `{ models: null, settings: <its slot>: null }`.
+// The account keeps every service default: each run submits `{ models: null, settings: <its slot>: null }`. A run
+// re-reads it (`refresh`), which answers the ready state, or null when it is not ready.
 const saved = vi.hoisted(() => ({
   state: {
     status: 'ready',
@@ -52,6 +53,8 @@ const saved = vi.hoisted(() => ({
   } as import('./savedMethod').SavedMethodState,
   refresh: vi.fn(),
 }))
+const savedRefresh = async () => (saved.state.status === 'ready' ? saved.state : null)
+saved.refresh.mockImplementation(savedRefresh)
 vi.mock('./savedMethod', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./savedMethod')>()),
   useSavedMethod: () => saved,
@@ -234,6 +237,8 @@ afterEach(() => {
   getDocument.mockClear()
   destroyLoadingTask.mockClear()
   scrollPageIntoView.mockClear()
+  saved.refresh.mockReset()
+  saved.refresh.mockImplementation(savedRefresh)
 })
 
 type RevisionWrite = {
@@ -273,8 +278,22 @@ function appendRevision(
   }, { status: 201 })
 }
 
-/** Renders the reopened workspace and waits for indexing to settle. */
-async function renderReopened() {
+/** A RUNNING attempt the stubbed server acknowledges for the reopened document's current revision. */
+function runningAttempt(extractionId: string) {
+  return {
+    extractionId,
+    sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+    sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+    schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+    strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'RUNNING', outcome: null, complete: null,
+    modelAttribution: null, diagnostics: null, failure: null, resultPayload: null,
+    evidenceLinks: null, reviewable: false, batchExtractionId: null,
+    createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+  }
+}
+
+/** Renders the reopened workspace, with any props overridden, and waits for indexing to settle. */
+async function renderReopened(overrides: Partial<DocumentWorkspaceProps> = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn((input: string | URL | Request) =>
@@ -285,7 +304,7 @@ async function renderReopened() {
       ),
     ),
   )
-  const mounted = render(<DocumentWorkspace {...reopened} />)
+  const mounted = render(<DocumentWorkspace {...reopened} {...overrides} />)
   await waitFor(() =>
     expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
   )
@@ -293,6 +312,92 @@ async function renderReopened() {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('a run re-reads the saved method before posting and labels itself Stop while running', async () => {
+    const extractionResponse = Promise.withResolvers<Response>()
+    const order: string[] = []
+    saved.refresh.mockImplementation(async () => { order.push('refresh'); return saved.state.status === 'ready' ? saved.state : null })
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) { order.push('post'); return extractionResponse.promise }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    await waitFor(() => expect(order).toEqual(['refresh', 'post']))
+    extractionResponse.resolve(Response.json({ ...runningAttempt('51000000-0000-4000-8006-000000000031') }, { status: 201 }))
+    expect(await screen.findByRole('button', { name: /■ Stop extraction/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /■ Stop extraction/ })).toHaveTextContent('running')
+  })
+
+  it('a method_changed refusal is retried once with a fresh read, a second one ends with a toast', async () => {
+    const posts: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        posts.push(JSON.parse(String(init?.body)))
+        return Promise.resolve(Response.json({ error: { code: 'method_changed', message: 'Stale.' } }, { status: 409 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    await waitFor(() => expect(posts).toHaveLength(2))
+    expect(saved.refresh).toHaveBeenCalledTimes(2)
+    expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+  })
+
+  it('a failed read of the saved method starts nothing and says so (Review Focus 1)', async () => {
+    saved.refresh.mockResolvedValueOnce(null)
+    const posts: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        posts.push(url)
+        return Promise.resolve(new Response('unexpected', { status: 500 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    expect(await screen.findByText('Saved advanced settings could not be read. Nothing was started.')).toBeInTheDocument()
+    expect(posts).toHaveLength(0)
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+  })
+
+  it('without a saved record scope the run is disabled and points at the schema header', async () => {
+    await renderReopened({ persistedExtraction: null, extractionSchema: { ...reopened.extractionSchema!, recordScope: null } })
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
+    expect(screen.queryByText(/Press Run extraction/)).not.toBeInTheDocument()
+  })
+
+  it('the toolbar pager navigates on Enter and ignores an invalid page', async () => {
+    await renderReopened()
+    expect(screen.getByText('/ 3')).toBeInTheDocument()
+    const input = screen.getByLabelText('Current page')
+    fireEvent.change(input, { target: { value: '3' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.getByRole('button', { name: 'Go to page 3' })).toHaveAttribute('aria-current', 'page')
+    fireEvent.change(screen.getByLabelText('Current page'), { target: { value: '999' } })
+    fireEvent.blur(screen.getByLabelText('Current page'))
+    expect(screen.getByLabelText('Current page')).toHaveValue('3')
+    fireEvent.click(screen.getByRole('button', { name: 'Previous page' }))
+    expect(screen.getByRole('button', { name: 'Go to page 2' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it('clears a resize drag when the workspace unmounts', async () => {
     const mounted = await renderReopened()
     const separator = mounted.container.querySelector<HTMLElement>(
@@ -474,7 +579,7 @@ describe('reopened Source Document workspace', () => {
   it('supports toolbar and keyboard zoom through the documented boundaries', async () => {
     await renderReopened()
 
-    expect(await screen.findByText('3 pages')).toBeInTheDocument()
+    expect(await screen.findByText('/ 3')).toBeInTheDocument()
     const zoomOut = screen.getByRole('button', { name: 'Zoom out' })
     const resetZoom = screen.getByRole('button', {
       name: 'Reset zoom to 100%',
@@ -1095,7 +1200,7 @@ describe('reopened Source Document workspace', () => {
     // The Schema tab's badge is the field count derived from the reopened template.
     expect(screen.getByRole('tab', { name: /^Schema\s*1$/ })).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: '↻ Re-run extraction' }),
+      screen.getByRole('button', { name: '▶ Run extraction' }),
     ).toBeInTheDocument()
   })
 
@@ -1214,7 +1319,7 @@ describe('reopened Source Document workspace', () => {
     if (runSurface === 'results')
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     const run = screen.getByRole('button', {
-      name: runSurface === 'toolbar' ? '↻ Re-run extraction' : 'Run Article extraction',
+      name: runSurface === 'toolbar' ? '▶ Run extraction' : 'Run Article extraction',
     })
     fireEvent.click(run)
     if (runSurface === 'toolbar') {
@@ -1247,7 +1352,7 @@ describe('reopened Source Document workspace', () => {
     }))
     expect(
       await screen.findByText(
-        '↻ Re-run complete — view the JSON in the Results tab',
+        '↻ Re-run complete — review it in the Results tab',
       ),
     ).toBeVisible()
     expect(extractionRequests).toHaveLength(1)
@@ -1337,11 +1442,14 @@ describe('reopened Source Document workspace', () => {
     expect(await screen.findByText('Using Schema Revision 2 · Current revision: 2', undefined, { timeout: 4_000 })).toBeInTheDocument()
     expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
     expect(screen.getByText('You can continue working on other documents.')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Cancel extraction' })).toHaveLength(2)
+    // The Results tab's Cancel and the tab strip's Stop.
+    expect(screen.getByRole('button', { name: 'Cancel extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^■ Stop extraction/ })).toBeEnabled()
     fireEvent.click(screen.getByTitle('Cancel the active Extraction'))
     await waitFor(() => expect(cancellationRequests).toHaveLength(1))
-    expect(screen.getAllByRole('button', { name: 'Cancellation requested…' })).toHaveLength(2)
-    for (const control of screen.getAllByRole('button', { name: 'Cancellation requested…' }))
+    // The Results tab's and the tab strip's, which keeps its progress word.
+    expect(screen.getAllByRole('button', { name: /^Cancellation requested…/ })).toHaveLength(2)
+    for (const control of screen.getAllByRole('button', { name: /^Cancellation requested…/ }))
       expect(control).toBeDisabled()
   })
 
@@ -1409,12 +1517,12 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    const selector = screen.getByLabelText('Extraction strategy')
-    expect(selector).toHaveValue('ARTICLE')
+    const selector = screen.getByLabelText('Record scope')
+    expect(selector).toHaveValue('document')
     // Record boundaries only apply to Catalog; generic model discovery stays the default.
-    expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
-    fireEvent.change(selector, { target: { value: 'CATALOG' } })
-    const boundaries = screen.getByLabelText('Record boundaries')
+    expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
+    fireEvent.change(selector, { target: { value: 'records' } })
+    const boundaries = screen.getByLabelText('Boundaries')
     expect(boundaries).toHaveValue('')
     if (recipe) fireEvent.change(boundaries, { target: { value: recipe } })
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
@@ -1428,8 +1536,8 @@ describe('reopened Source Document workspace', () => {
     if (recipe) expect(extractionRequests[0].catalogRecipe).toBe(recipe)
     else expect(extractionRequests[0]).not.toHaveProperty('catalogRecipe')
     // The schema stays a Catalog; only the boundaries return to model discovery.
-    await waitFor(() => expect(screen.getByLabelText('Record boundaries')).toHaveValue(''))
-    expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+    await waitFor(() => expect(screen.getByLabelText('Boundaries')).toHaveValue(''))
+    expect(screen.getByLabelText('Record scope')).toHaveValue('records')
   })
 
   it('with the unified Catalog enabled, a Catalog start offers no recipe and submits the unified method', async () => {
@@ -1451,14 +1559,16 @@ describe('reopened Source Document workspace', () => {
       }))
       render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
-      expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
-      fireEvent.click(screen.getByText('Saved advanced settings', { exact: false }))
-      expect(screen.getByText('Unified Catalog, defaults version 1')).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
+      expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-      await waitFor(() => expect(extractionRequests).toHaveLength(1))
-      expect(extractionRequests[0]).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 1 } } } })
-      expect(extractionRequests[0]).not.toHaveProperty('catalogRecipe')
+      // The stub refuses every run as method_changed: the click re-reads the saved method and retries once.
+      await waitFor(() => expect(extractionRequests).toHaveLength(2))
+      for (const request of extractionRequests) {
+        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 1 } } } })
+        expect(request).not.toHaveProperty('catalogRecipe')
+      }
+      expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
     } finally {
       saved.state = before
     }
@@ -1551,16 +1661,16 @@ describe('reopened Source Document workspace', () => {
     /** Saves Catalog and starts a run from the toolbar; acknowledging it resets the one-shot boundaries, unless it
      *  failed. The schema stays a Catalog. */
     async function runCatalogFromToolbar(bodies: unknown[], recipe?: string, nextRecipe = '') {
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
       if (recipe)
-        fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+        fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('CATALOG', recipe))
       await waitFor(() =>
-        expect(screen.getByLabelText('Record boundaries')).toHaveValue(nextRecipe),
+        expect(screen.getByLabelText('Boundaries')).toHaveValue(nextRecipe),
       )
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
     }
 
     /** Opens Results and finds its run action by the exact name it must carry. */
@@ -1604,7 +1714,7 @@ describe('reopened Source Document workspace', () => {
         sourceRepresentation: reopened.persistedExtraction!.sourceRepresentation,
         extractionSchema: reopened.persistedExtraction!.extractionSchema,
       })
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('document')
 
       const action = resultsRunAction('Run Article extraction')
       // Results shows the reopened Catalog attempt, not an empty workspace's run action.
@@ -1624,10 +1734,10 @@ describe('reopened Source Document workspace', () => {
       await runCatalogFromToolbar(bodies, 'numbered-catalogue-de@1')
       fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
       // The recipe is one-shot: the schema stays a Catalog, and its next run starts at Model discovery.
-      expect(screen.getByLabelText('Record boundaries')).toHaveValue('')
+      expect(screen.getByLabelText('Boundaries')).toHaveValue('')
       expect(resultsRunAction('Run Catalog extraction')).toHaveAccessibleDescription('Boundaries: Model discovery')
       if (recipe)
-        fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+        fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
 
       const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
       expect(action).toHaveAccessibleDescription(`Boundaries: ${boundaries}`)
@@ -1639,8 +1749,6 @@ describe('reopened Source Document workspace', () => {
   })
 
   describe('the strategy is the schema\'s saved record scope', () => {
-    const help = 'Article: one object for the whole document. Catalog: a collection of records.'
-
     /** A workspace whose fetches answer revision writes (kept) and runs (kept, each refused or queued as given). */
     function stubWorkspace(run: (body: Record<string, unknown>) => Response = (body) => Response.json({
       extractionId: body.id,
@@ -1686,32 +1794,33 @@ describe('reopened Source Document workspace', () => {
       const { writes, runs } = stubWorkspace()
       await renderWith({ ...reopened.extractionSchema!, recordScope: null })
 
-      const selector = screen.getByLabelText('Extraction strategy')
+      const selector = screen.getByLabelText('Record scope')
       expect(selector).toHaveValue('')
-      expect(screen.getByRole('option', { name: 'Choose…' })).toBeDisabled()
-      expect(selector).toHaveAccessibleDescription(help)
+      // The schema header's own choice explains the two scopes; Run points at it.
+      expect(screen.getByRole('option', { name: 'Choose Article or Catalog' })).toBeDisabled()
+      expect(screen.getByRole('option', { name: 'Article · one object for the document' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Catalog · a collection of records' })).toBeInTheDocument()
       const run = screen.getByRole('button', { name: '▶ Run extraction' })
       expect(run).toBeDisabled()
-      expect(run).toHaveAttribute('title', expect.stringContaining(help))
+      expect(run).toHaveAttribute('title', 'Choose Article or Catalog in the schema header')
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(screen.getByRole('button', { name: 'Run extraction' })).toBeDisabled()
 
-      fireEvent.change(selector, { target: { value: 'CATALOG' } })
-      expect(selector).toHaveValue('CATALOG')
-      expect(screen.queryByText(help)).not.toBeInTheDocument()
+      fireEvent.change(selector, { target: { value: 'records' } })
+      expect(selector).toHaveValue('records')
       await waitFor(() => expect(run).toBeEnabled())
       fireEvent.click(run)
 
       await waitFor(() => expect(runs).toHaveLength(1))
       expect(writes).toEqual([expect.objectContaining({ expectedRevisionNumber: 1, recordScope: 'records' })])
       expect(runs[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) })
-      expect(selector).toHaveValue('CATALOG')
+      expect(selector).toHaveValue('records')
     })
 
     it('keeps the scope through a schema edit: the append names none and the server keeps the head\'s', async () => {
       const { writes, runs } = stubWorkspace(undefined, 'records')
       await renderWith({ ...reopened.extractionSchema!, recordScope: 'records' })
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
 
       fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
       fireEvent.click(screen.getByTitle('Edit place'))
@@ -1723,7 +1832,7 @@ describe('reopened Source Document workspace', () => {
       expect(writes).toHaveLength(1)
       expect(writes[0]).not.toHaveProperty('recordScope')
       expect(runs[0]).toMatchObject({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) })
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
     })
 
     /** Renames the `place` field in the Schema tab: a field edit the 1500 ms debounce holds. */
@@ -1742,7 +1851,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getAllByText('Unsaved changes')).toHaveLength(2)
       expect(writes).toHaveLength(0)
 
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
 
       // Well inside the debounce: the scope does not wait for it, and it carries the edit.
       await waitFor(() => expect(writes).toHaveLength(1))
@@ -1753,7 +1862,7 @@ describe('reopened Source Document workspace', () => {
       })
       await waitFor(() => expect(screen.queryAllByText('Unsaved changes')).toHaveLength(0))
       expect(screen.queryAllByText('Saving…')).toHaveLength(0)
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
     })
 
     it('shows a failed scope save, refuses Run until Retry saves it, then runs the saved revision', async () => {
@@ -1773,7 +1882,7 @@ describe('reopened Source Document workspace', () => {
       await renderWith(reopened.extractionSchema)
       const run = screen.getByRole('button', { name: '▶ Run extraction' })
 
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
       // One alert and one Retry, the toolbar's (reachable with the Schema tab hidden); the Schema panel's footer says it
       // as status text.
       const schemaPanel = screen.getByRole('tabpanel', { name: /^Schema/ })
@@ -1787,7 +1896,7 @@ describe('reopened Source Document workspace', () => {
       ).toBe(true)
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute('title', 'The schema is not saved. Retry the save first.')
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
 
       fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
       await waitFor(() => expect(writes).toHaveLength(1))
@@ -1817,17 +1926,20 @@ describe('reopened Source Document workspace', () => {
     it.each([
       ['record_scope_mismatch', 'The schema is saved as a Catalog; refresh to run it.'],
       ['record_scope_required', 'Choose Article or Catalog for this schema before it can run.'],
-    ])('shows a %s refusal with the server\'s message where a changed method is shown', async (code, message) => {
+    ])('shows a %s refusal with the server\'s message as a notice, and starts nothing', async (code, message) => {
       const { runs } = stubWorkspace(() => Response.json({ error: { code, message } }, { status: 409 }))
       await renderWith(reopened.extractionSchema)
 
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
+      // The notice is the refusal as the server words it (`<code>: <message>`).
+      expect(await screen.findByText(message, { exact: false })).toBeInTheDocument()
+      // Only a changed method is retried.
       expect(runs).toHaveLength(1)
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
     })
 
-    it('declares the choice made before the first revision when a suggestion initializes it', async () => {
+    it('a schema a suggestion initializes without a scope waits for the header\'s choice, saved before Run', async () => {
       const written: Array<Record<string, unknown>> = []
       vi.stubGlobal(
         'fetch',
@@ -1843,10 +1955,10 @@ describe('reopened Source Document workspace', () => {
             written.push(body)
             return Response.json({
               revision: {
-                schemaRevisionId: '51000000-0000-4000-8005-000000000040',
+                schemaRevisionId: `51000000-0000-4000-8005-0000000000${40 + written.length * 2}`,
                 extractionSchemaId: '51000000-0000-4000-8005-000000000041',
-                revisionNumber: 1,
-                origin: 'suggestion',
+                revisionNumber: written.length,
+                origin: written.length === 1 ? 'suggestion' : 'researcher-edit',
                 createdAt: '2026-08-09T10:00:00.000Z',
                 recordDescription: body.recordDescription,
                 recordScope: body.recordScope ?? null,
@@ -1861,17 +1973,23 @@ describe('reopened Source Document workspace', () => {
         }),
       )
       await renderWith(null)
-      const selector = screen.getByLabelText('Extraction strategy')
-      expect(selector).toHaveValue('')
-      fireEvent.change(selector, { target: { value: 'ARTICLE' } })
+      // The scope is chosen in the schema header, which exists once there is a schema.
+      expect(screen.queryByLabelText('Record scope')).not.toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
       fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
       await waitFor(() => expect(written).toHaveLength(1))
-      expect(written[0]).toMatchObject({ recordScope: 'document' })
+      expect(written[0]).not.toHaveProperty('recordScope')
       expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
+      const selector = screen.getByLabelText('Record scope')
+      expect(selector).toHaveValue('')
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
+
+      fireEvent.change(selector, { target: { value: 'document' } })
+      await waitFor(() => expect(written).toHaveLength(2))
+      expect(written[1]).toMatchObject({ expectedRevisionNumber: 1, recordScope: 'document' })
       await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
-      expect(selector).toHaveValue('ARTICLE')
+      expect(selector).toHaveValue('document')
     })
   })
 
@@ -1980,8 +2098,8 @@ describe('reopened Source Document workspace', () => {
       await waitFor(() =>
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
-      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
-      fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+      fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
+      fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toMatchObject({ strategy: 'CATALOG', catalogRecipe: recipe })
@@ -1989,8 +2107,8 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(await screen.findByText('Discovery failed.', undefined, { timeout: 4_000 })).toBeVisible()
       // The schema stays a Catalog, and the failed attempt's recipe is the next run's boundaries.
-      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
-      expect(screen.getByLabelText('Record boundaries')).toHaveDisplayValue('Numbered catalogue (German)')
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
+      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Numbered catalogue (German)')
       const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
       expect(action).toHaveAccessibleDescription('Boundaries: Numbered catalogue (German)')
       fireEvent.click(action)
@@ -2038,13 +2156,13 @@ describe('reopened Source Document workspace', () => {
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(screen.getByText('Ellekilde')).toBeVisible()
 
-      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
       expect(posts).toHaveLength(1)
       expect(screen.getByText('This document has been reprocessed — no new Extraction was started')).toBeVisible()
       expect(screen.getByText('Ellekilde')).toBeVisible()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
-      const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+      const run = screen.getByRole('button', { name: '▶ Run extraction' })
       expect(run).toBeDisabled()
       expect(run).toHaveAttribute(
         'title',
@@ -2054,29 +2172,34 @@ describe('reopened Source Document workspace', () => {
     })
 
     it.each([
-      [{ status: 'loading' } as const, 'Loading saved advanced settings…'],
-      [{ status: 'error', message: 'Unavailable.' } as const, 'Nothing can start until they load.'],
-    ])('starts nothing while the saved settings are %o', async (state, shown) => {
+      [{ status: 'loading' } as const],
+      [{ status: 'error', message: 'Unavailable.' } as const],
+    ])('starts nothing when the saved settings read at the click is not ready (%o)', async (state) => {
       const ready = saved.state
       saved.state = state
       try {
+        const posts: string[] = []
         vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
           const url = String(input)
           if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
           if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
           if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions')) posts.push(url)
           return Promise.resolve(new Response('pdf'))
         }))
         render(<DocumentWorkspace {...reopened} />)
         await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-        expect(screen.getByText(shown, { exact: false })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+        // The click reads the saved method itself, so Run does not wait on the mount-time read.
+        fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+        expect(await screen.findByText('Saved advanced settings could not be read. Nothing was started.')).toBeInTheDocument()
+        expect(posts).toHaveLength(0)
+        expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
       } finally {
         saved.state = ready
       }
     })
 
-    it('shows the saved advanced settings it submits; a method_changed refusal opens them with a refresh and no failure', async () => {
+    it('a method_changed refusal re-reads the saved settings and retries once, then says so without a failure', async () => {
       const message = 'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
       const posts: unknown[] = []
       vi.stubGlobal(
@@ -2094,20 +2217,18 @@ describe('reopened Source Document workspace', () => {
           return Promise.resolve(new Response('pdf'))
         }),
       )
-      saved.refresh.mockClear()
       render(<DocumentWorkspace {...reopened} />)
       await waitFor(() =>
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
-      expect(screen.getByText('Saved advanced settings')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
-      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Nothing was started'))
-      expect(posts).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
+      expect(posts).toHaveLength(2)
+      expect(saved.refresh).toHaveBeenCalledTimes(2)
+      expect(screen.queryByText(message)).not.toBeInTheDocument()
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'Refresh summary' }))
-      expect(saved.refresh).toHaveBeenCalledOnce()
-      expect(screen.queryByRole('button', { name: 'Refresh summary' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
     })
 
     it('keeps the superseded notice when the refresh moves a plain route to the reprocessed Source Representation', async () => {
@@ -2155,7 +2276,7 @@ describe('reopened Source Document workspace', () => {
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
       )
 
-      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
       await waitFor(() =>
         expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
@@ -2391,13 +2512,14 @@ describe('reopened Source Document workspace', () => {
     )
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: 'Cancel extraction' }),
+        screen.getByRole('button', { name: /^■ Stop extraction/ }),
       ).toBeInTheDocument(),
     )
     expect(
-      screen.getByRole('button', { name: 'Cancel extraction' }),
+      screen.getByRole('button', { name: /^■ Stop extraction/ }),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+    // The record scope is the schema's own, and is locked while the run is active.
+    expect(screen.getByLabelText('Record scope')).toBeDisabled()
 
     mounted.rerender(
       <StrictMode>
@@ -2410,12 +2532,12 @@ describe('reopened Source Document workspace', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: '↻ Re-run extraction' }),
+        screen.getByRole('button', { name: '▶ Run extraction' }),
       ).toBeInTheDocument(),
     )
     await new Promise((resolve) => window.setTimeout(resolve, 2_100))
     expect(
-      screen.queryByRole('button', { name: 'Cancel extraction' }),
+      screen.queryByRole('button', { name: /^■ Stop extraction/ }),
     ).not.toBeInTheDocument()
   })
 
@@ -2513,7 +2635,7 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     // Completion never switches the rail tab; it reports through the finished
     // dialog and the researcher opens Results themselves.
-    expect(await screen.findByText('✓ Extraction complete — view the JSON in the Results tab')).toBeVisible()
+    expect(await screen.findByText('✓ Extraction complete — review it in the Results tab')).toBeVisible()
     // A terminal admission can show the toast before its awaiting caller opens the dialog.
     expect(await screen.findByRole('heading', { name: 'Extraction finished' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
@@ -2747,10 +2869,9 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     stubWorkspace()
     await renderView(pinnedView(attempt))
 
-    const run = screen.getByRole('button', { name: /^(↻ Re-run|▶ Run) extraction$/ })
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
     expect(run).toBeDisabled()
     expect(run).toHaveAttribute('title', earlierSourceRunTitle)
-    expect(screen.queryByText(/^Press Run extraction/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(screen.getByText(shown, { exact: true })).toBeVisible()
     expect(resultsRunActions()).toEqual([])
@@ -2782,7 +2903,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     )
     expect(screen.getByRole('button', { name: 'Reject place' })).toBeEnabled()
     expect(resultsRunActions()).toEqual([])
-    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
   })
 
   it('still cancels a running Extraction', async () => {
@@ -2795,7 +2916,9 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     await renderView(pinnedView(attempt))
 
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(screen.getAllByRole('button', { name: 'Cancel extraction' })).toHaveLength(2)
+    // The Results tab's Cancel and the tab strip's Stop.
+    expect(screen.getByRole('button', { name: 'Cancel extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^■ Stop extraction/ })).toBeEnabled()
     const cancel = screen.getByTitle('Cancel the active Extraction')
     expect(cancel).toBeEnabled()
     fireEvent.click(cancel)
@@ -2821,7 +2944,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     const { runs } = stubWorkspace()
     await renderView(view)
 
-    const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
     expect(run).toBeEnabled()
     expect(run).toHaveAttribute('title', 'Run one values extraction across the whole Source Document')
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
@@ -2834,7 +2957,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     const reviewed = attemptOn(earlierRepresentationId, { reviewedAt: '2026-08-01T00:00:00.000Z' })
     const { runs } = stubWorkspace()
     const { rerender } = await renderView(pinnedView(reviewed))
-    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
 
     // The plain route: the current Source Representation, its newer unreviewed
     // attempt, and the reviewed one still on the earlier source.
@@ -2854,10 +2977,11 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
-    const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
     expect(run).toBeEnabled()
+    // "Open latest reviewed" sits in the Results header.
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeEnabled()
 
     fireEvent.click(run)
@@ -2880,6 +3004,8 @@ describe('updated latest reviewed extraction', () => {
     const { rerender } = render(<DocumentWorkspace {...reopened} latestReviewedExtraction={first} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     rerender(<DocumentWorkspace {...reopened} latestReviewedExtraction={second} />)
+    // The snapshot choice sits in the Results header.
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(screen.getByRole<HTMLOptionElement>('option', { name: 'Latest reviewed' }).value).toBe(second.extractionId)
   })
 
