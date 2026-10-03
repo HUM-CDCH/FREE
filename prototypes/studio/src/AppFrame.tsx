@@ -334,7 +334,7 @@ export default function AppFrame({
   const activeProjectName =
     projects.find(
       (project) => project.projectContextId === routedProjectContextId,
-    )?.name ?? ''
+    )?.name ?? null
   const backToReviewGridBatchExtractionId =
     route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
   const hasOpenDocumentTabs = Boolean(

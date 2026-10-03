@@ -714,8 +714,14 @@ export function DocumentWorkspace({
       }))
       const target = { sourceRepresentationId: targetSourceRepresentationId, schemaRevisionId: revision.schemaRevisionId }
       for (let round = 0; round < 2; round += 1) {
-        const savedState = await saved.refresh()
+        // An Apply elsewhere aborts a read in flight, which then resolves null although the settings are ready: read
+        // once more before saying they could not be read.
+        let savedState = await saved.refresh()
         if (!stillHere()) return
+        if (!savedState) {
+          savedState = await saved.refresh()
+          if (!stillHere()) return
+        }
         if (!savedState) throw new Error('Saved advanced settings could not be read. Nothing was started.')
         // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
         const catalogRecipe = savedState.unifiedCatalog ? null : nextCatalogRecipe || null
@@ -822,7 +828,7 @@ export function DocumentWorkspace({
             onClick={() => (running ? void extraction.requestCancellation() : void runExtraction())}
           >
             {runLabel}
-            {running && badge && <span className="font-medium opacity-80"> · {badge.label}</span>}
+            {running && !extraction.cancellationRequested && badge && <span className="font-medium opacity-80"> · {badge.label}</span>}
           </Button>
         </>,
         tabBarSlot,
@@ -837,7 +843,7 @@ export function DocumentWorkspace({
                 <span aria-hidden="true">☰</span> Pages
               </Button>
               {loadState.status === 'ready' ? (
-                <PagePager key={currentPage} page={currentPage} pageCount={loadState.pageCount}
+                <PagePager page={currentPage} pageCount={loadState.pageCount}
                   onNavigate={(page) => { if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = page }} />
               ) : (
                 <p role="status" aria-live="polite" className={`text-compact font-medium ${loadState.status === 'error' ? 'text-danger' : 'text-ink-muted'}`}>

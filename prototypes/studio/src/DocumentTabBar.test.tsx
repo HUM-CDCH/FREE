@@ -25,3 +25,11 @@ it('offers Back to review grid in the chip menu when the document came from a re
   fireEvent.click(screen.getByRole('menuitem', { name: 'Back to review grid' }))
   expect(onBackToReviewGrid).toHaveBeenCalledOnce()
 })
+
+it('shows no project chip until the project name is known', () => {
+  render(<DocumentTabBar projectName={null} tabs={tabs} activeSourceDocumentId="doc-1" onActivate={vi.fn()} onClose={vi.fn()}
+    onNavigateProject={vi.fn()} onBackToReviewGrid={vi.fn()} slotRef={() => {}} />)
+  expect(screen.queryByRole('button', { name: /^Open project/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Project actions' })).not.toBeInTheDocument()
+  expect(screen.getByRole('tablist', { name: 'Open Source Documents' })).toBeInTheDocument()
+})

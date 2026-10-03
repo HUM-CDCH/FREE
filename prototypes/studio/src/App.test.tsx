@@ -355,8 +355,8 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
   })
 
-  it('a failed read of the saved method starts nothing and says so (Review Focus 1)', async () => {
-    saved.refresh.mockResolvedValueOnce(null)
+  it('a failed read of the saved method, read again once, starts nothing and says so (Review Focus 1)', async () => {
+    saved.refresh.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
     const posts: string[] = []
     vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
       const url = String(input)
@@ -373,8 +373,33 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     expect(await screen.findByText('Saved advanced settings could not be read. Nothing was started.')).toBeInTheDocument()
+    expect(saved.refresh).toHaveBeenCalledTimes(2)
     expect(posts).toHaveLength(0)
     expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+  })
+
+  it('a read of the saved method that an Apply interrupted is read again, and the run goes ahead', async () => {
+    // An Apply aborts the read in flight, which resolves null although the settings are ready.
+    saved.refresh.mockResolvedValueOnce(null)
+    const posts: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+      if (url.endsWith('/api/extractions')) {
+        posts.push(JSON.parse(String(init?.body)))
+        return Promise.resolve(Response.json(runningAttempt('51000000-0000-4000-8006-000000000032'), { status: 201 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    await waitFor(() => expect(posts).toHaveLength(1))
+    expect(saved.refresh).toHaveBeenCalledTimes(2)
+    expect(await screen.findByRole('button', { name: /■ Stop extraction/ })).toBeEnabled()
+    expect(screen.queryByText('Saved advanced settings could not be read. Nothing was started.')).not.toBeInTheDocument()
   })
 
   it('without a saved record scope the run is disabled and points at the schema header', async () => {
@@ -394,8 +419,13 @@ describe('reopened Source Document workspace', () => {
     fireEvent.change(screen.getByLabelText('Current page'), { target: { value: '999' } })
     fireEvent.blur(screen.getByLabelText('Current page'))
     expect(screen.getByLabelText('Current page')).toHaveValue('3')
-    fireEvent.click(screen.getByRole('button', { name: 'Previous page' }))
+    const previous = screen.getByRole('button', { name: 'Previous page' })
+    previous.focus()
+    fireEvent.click(previous)
     expect(screen.getByRole('button', { name: 'Go to page 2' })).toHaveAttribute('aria-current', 'page')
+    // The pager stays mounted, so the button keeps focus for the next press.
+    expect(previous).toHaveFocus()
+    expect(screen.getByLabelText('Current page')).toHaveValue('2')
   })
 
   it('clears a resize drag when the workspace unmounts', async () => {
@@ -1447,9 +1477,9 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByRole('button', { name: /^■ Stop extraction/ })).toBeEnabled()
     fireEvent.click(screen.getByTitle('Cancel the active Extraction'))
     await waitFor(() => expect(cancellationRequests).toHaveLength(1))
-    // The Results tab's and the tab strip's, which keeps its progress word.
-    expect(screen.getAllByRole('button', { name: /^Cancellation requested…/ })).toHaveLength(2)
-    for (const control of screen.getAllByRole('button', { name: /^Cancellation requested…/ }))
+    // The Results tab's and the tab strip's.
+    expect(screen.getAllByRole('button', { name: 'Cancellation requested…' })).toHaveLength(2)
+    for (const control of screen.getAllByRole('button', { name: 'Cancellation requested…' }))
       expect(control).toBeDisabled()
   })
 
@@ -1519,7 +1549,7 @@ describe('reopened Source Document workspace', () => {
     )
     const selector = screen.getByLabelText('Record scope')
     expect(selector).toHaveValue('document')
-    // Record boundaries only apply to Catalog; generic model discovery stays the default.
+    // The Boundaries choice appears only for a Catalog; generic model discovery stays the default.
     expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
     fireEvent.change(selector, { target: { value: 'records' } })
     const boundaries = screen.getByLabelText('Boundaries')
@@ -1931,8 +1961,9 @@ describe('reopened Source Document workspace', () => {
       await renderWith(reopened.extractionSchema)
 
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-      // The notice is the refusal as the server words it (`<code>: <message>`).
-      expect(await screen.findByText(message, { exact: false })).toBeInTheDocument()
+      // The workspace's toast over the PDF says it in the server's own words, without the code.
+      const notice = await within(screen.getByRole('region', { name: 'PDF document' })).findByText(message)
+      expect(notice.closest('[role="status"]')?.textContent).toBe(message)
       // Only a changed method is retried.
       expect(runs).toHaveLength(1)
       expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()

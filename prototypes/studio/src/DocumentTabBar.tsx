@@ -3,7 +3,8 @@ import type { DocumentTab } from './useOpenDocumentTabs'
 import type { ReactNode } from 'react'
 
 export type DocumentTabBarProps = {
-  projectName: string
+  /** Null until the project's name is known: the chip waits for it. */
+  projectName: string | null
   tabs: DocumentTab[]
   activeSourceDocumentId: string | null
   onActivate: (sourceDocumentId: string) => void
@@ -71,7 +72,9 @@ function DocumentTabBar({
     // divider. On a narrow viewport the row wraps and the slot takes its own line.
     <div className="flex min-h-14 shrink-0 flex-wrap items-end gap-2 border-b border-line bg-surface pl-2 sm:h-14 sm:flex-nowrap">
       {navigationToggle}
-      <ProjectChip name={projectName} onNavigateProject={onNavigateProject} onBackToReviewGrid={onBackToReviewGrid} />
+      {projectName !== null && (
+        <ProjectChip name={projectName} onNavigateProject={onNavigateProject} onBackToReviewGrid={onBackToReviewGrid} />
+      )}
       <div
         role="tablist"
         aria-label="Open Source Documents"

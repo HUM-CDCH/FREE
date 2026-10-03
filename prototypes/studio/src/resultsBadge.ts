@@ -1,6 +1,6 @@
 import type { ExtractionController } from './useExtraction'
 
-export type ResultsBadge = { label: string; done?: boolean }
+export type ResultsBadge = { label: string }
 
 /** The Results tab's badge and the run button's progress word: "running" during a run, "n to check" while required
  *  decisions remain, nothing once the review is saved or no result exists. The streaming spec adds "k of n". */

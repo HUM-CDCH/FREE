@@ -56,10 +56,8 @@ type RightRailProps = {
   onResultPathChange: (path: string[] | null) => void
 }
 
-function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
-  const tone = done
-    ? 'bg-green-soft text-green'
-    : `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
+function TabBadge({ label, active }: { label: string; active: boolean }) {
+  const tone = `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
   return (
     <span
       className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-overline leading-none tabular-nums ${tone}`}
@@ -123,7 +121,7 @@ function RightRail({
   const tabs: {
     key: RailTab
     label: string
-    badge?: { label: string; done?: boolean } | null
+    badge?: { label: string } | null
   }[] = [
     ...(showDeveloperUi
       ? [
@@ -185,7 +183,7 @@ function RightRail({
               onClick={() => onTabChange(key)}
             >
               <span>{label}</span>
-              {badge && <TabBadge label={badge.label} active={active} done={badge.done} />}
+              {badge && <TabBadge label={badge.label} active={active} />}
             </button>
           )
         })}

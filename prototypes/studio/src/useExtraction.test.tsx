@@ -711,6 +711,19 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.state.status).toBe('ready')
   })
 
+  it('reports a refusal in the server\'s own words, without the code the request error prefixes', async () => {
+    const message = 'The schema is saved as a Catalog; refresh to run it.'
+    vi.mocked(api.requestExtraction).mockRejectedValueOnce(
+      new ApiRequestError(`record_scope_mismatch: ${message}`, 409, 'record_scope_mismatch'),
+    )
+    const input = { ...options(attempt()), onMethodChanged: vi.fn() }
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
+
+    expect(input.onMethodChanged).toHaveBeenCalledExactlyOnceWith(message, 'record_scope_mismatch')
+  })
+
   it('offers no cancellation until the server has acknowledged the run', async () => {
     const post = Promise.withResolvers<ExtractionAttempt>()
     vi.mocked(api.requestExtraction).mockReturnValue(post.promise)
