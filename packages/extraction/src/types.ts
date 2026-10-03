@@ -309,6 +309,9 @@ export type FreshExtractionInput = Readonly<{
   catalogRecipe?: string | null
   /** The saved method the researcher saw at start: admission refuses it unless it is still the account's, then pins it. */
   method: ExtractionMethodIntent
+  /** The page the researcher was reading when Run was clicked (one-based): the order kei reads records in, never which
+   *  records. Absent or null when none was named (a Batch Extraction, an API client). Not part of the admission identity. */
+  startPage?: number | null
 }>
 
 export type RunSingleInput = FreshExtractionInput

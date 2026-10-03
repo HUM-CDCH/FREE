@@ -252,7 +252,8 @@ export type KeiExpEvidence = z.infer<typeof evidenceSchema>
 function honorsRequestedOptions(recorded: Readonly<Record<string, unknown>>, requested: Readonly<Record<string, unknown>>): boolean {
   if (!isDeepStrictEqual(recorded.article ?? null, requested.article ?? null) ||
       !isDeepStrictEqual(recorded.pages ?? null, requested.pages ?? null)) return false
-  const { strategy: _strategy, models: _models, article: _article, catalog, ...limits } = requested
+  // The start page orders kei's work and is never recorded (`Options.dumped()` drops it, as it dropped `pages`).
+  const { strategy: _strategy, models: _models, article: _article, start_page: _startPage, catalog, ...limits } = requested
   if (!Object.entries(limits).every(([key, value]) => isDeepStrictEqual(recorded[key], value))) return false
   if (catalog === null || typeof catalog !== 'object') return true
   const recordedCatalog = (recorded.catalog ?? {}) as Record<string, unknown>

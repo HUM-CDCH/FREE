@@ -1,0 +1,44 @@
+[
+  {
+    "id": "column.public.extraction.startPage",
+    "label": "Add column \"startPage\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "startPage",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"startPage\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "startPage"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"startPage\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"startPage\" int4"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"startPage\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "startPage"
+        ]
+      }
+    ]
+  }
+]

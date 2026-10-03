@@ -264,6 +264,10 @@ describe('kei artifact acceptance', () => {
       { strategy: 'CATALOG', settings: { record_chars: 30_000 } }))
   })
 
+  it('a start page on the request is an order of work, not an option the artifact must record', () => {
+    assert.equal(accept(artifact(), { settings: { start_page: 6 } }).extraction.outcome, 'SUCCEEDED')
+  })
+
   it('rejects an artifact that does not name the model of each role', () => {
     for (const models of [undefined, null, { fields: 'selected-model' }, { fields: '', reasoning: 'r' }])
       refused(() => accept({ ...artifact(), models }))
