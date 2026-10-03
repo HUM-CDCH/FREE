@@ -38,7 +38,33 @@ def test_the_extract_fixture_carries_a_request_kei_accepts():
     assert request.record_scope == "records"
     assert [node.name for node in request.schema_.nodes] == [node["name"] for node in SCHEMA["schemaNodes"]]
     assert request.options.strategy == "catalog"
+    assert request.options.start_page == 2  # Studio sends the page the researcher was reading; kei orders its work by it
+    assert "start_page" not in request.options.dumped()
     assert request.options.catalog is not None and request.options.catalog.recipe == "numbered-catalogue-de@1"
+
+
+def test_the_progress_fixture_is_a_valid_progress_document_with_one_entry_per_stage():
+    from kei_exp.kie.extract.progress import ProgressDocument
+    data = fixture("extract.progress")
+    document = ProgressDocument.model_validate(data)
+    assert document.model_dump(mode="json") == data
+    assert [entry.stage for entry in document.entries] == ["finished", "finished", "candidates", "reading", "queued"]
+    assert document.finished == 2 and document.discovered == len(document.entries)
+    assert [row.model_dump() for row in document.entries[1].contested] == [{"path": ["site"], "candidates": ["Bdorf", "Bdorf-Nord"]}]
+
+
+def test_the_article_progress_fixture_is_a_complete_article_document():
+    from kei_exp.kie.extract.progress import ProgressDocument
+    data = fixture("extract.progress.article")
+    document = ProgressDocument.model_validate(data)
+    assert document.model_dump(mode="json") == data
+    [entry] = document.entries
+    assert (document.strategy, document.discovered, document.finished, entry.stage) == ("article", 1, 0, "candidates")
+    assert document.document is not None and document.document.answered == document.document.of == len(document.document.contexts)
+    assert document.document.failed_contexts == 0 == entry.failed and document.document.grounding_batches == 2
+    assert [link.model_dump() for link in entry.evidence] == [link.model_dump() for link in document.document.links]
+    assert {link.linked_by for link in document.document.links} == {"model"}  # Article's links, not Catalog's verified ones
+    assert entry.record["year"] is None  # a field every context left null: empty once every context answered
 
 
 @pytest.mark.parametrize("name", OUTPUTS)

@@ -47,8 +47,7 @@ from kei_exp.canonical import canonical_json
 from kei_exp.failures import TransientBackendError, classify
 from kei_exp.files import publish_once
 from kei_exp.kie.blocks import Span
-from kei_exp.kie.extract import discovery
-from kei_exp.kie.extract import gliformer
+from kei_exp.kie.extract import discovery, gliformer, progress
 from kei_exp.kie.extract.acceptance import Outcome, typed_value
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
@@ -271,6 +270,32 @@ def _entry_reusable(number: int, entry: dict, discovery_sha256: str) -> Callable
     return check
 
 
+def work_order(entries: list[dict], pages: dict[str, int], start_page: int | None) -> list[int]:
+    """Entry indices in the order they are read (design §4): by distance of each entry's first page from `start_page`,
+    an entry whose page is unknown last, ties in source order; without a start page, source order. Assembly keeps
+    source order whatever this returns, so the artifact is the same."""
+    def distance(number: int) -> tuple[float, int]:
+        ranges = entries[number].get("ranges") or []
+        page = pages.get(ranges[0]["segment"]) if ranges else None
+        return (0.0 if start_page is None else abs(page - start_page) if page is not None else float("inf"), number)
+    return sorted(range(len(entries)), key=distance)
+
+
+def _candidates_stage(directory: Path, execution: str, check: Callable[[], None], number: int, entry: dict,
+                      discovery_sha256: str, nodes: list[Node], work: _Work) -> None:
+    """The entry's candidates after its values windows and before verification (design §2): the partial view shows
+    them as candidates, visibly so, and knows from `failed` whether a window left fields unknown. `read` never looks
+    at this file; a retried values call rewrites it. `check` runs first: what it raises (a cancel issued during the
+    entry's last window) ends the extraction before anything is written."""
+    check()
+    progress.write_stage(directory / progress.candidates_name(number), {
+        "version": progress.CANDIDATES_VERSION, "execution": execution, "index": number,
+        "discovery_sha256": discovery_sha256, "ranges": entry["ranges"],
+        "candidates": [{"path": list(each.path), "value": each.value, "quote": each.quote, "window": each.window}
+                       for each in work.found if each.kind == "candidate"],
+        "record": conform(_placed(work.found, "candidate"), nodes), "failed": work.failed})
+
+
 # --- extraction ----------------------------------------------------------------------------------------------------
 
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1,
@@ -278,8 +303,10 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     """The version 3 artifact for `request` (the validated `run.ExtractRequest`) over `evidence`. With an
     `extraction_id` the execution, discovery and entry records are published under `run_dir` and reused on
     re-execution; without one (the CLI) they live only in the artifact. `before_entry` is called before every model
-    call and before returning; what it raises ends the extraction. Entries run `chunks` at a time, assembled in source
-    order."""
+    call and before returning; what it raises ends the extraction. Entries run `chunks` at a time, nearest
+    `options.start_page` first (`work_order`), assembled in source order. An entry's reading marker and candidates
+    file are written only after `before_entry` again, unthrottled where it has a `strict` form, so a cancel issued
+    during a call refreshes no run's age."""
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     schema, options = request.schema_, request.options.unified
     if isinstance(chat.fields, gliformer.GLiFormerFields):
@@ -289,8 +316,12 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     counters = counter if isinstance(counter, dict) else (counters_for(chat) if counter is None
                                                            else dict.fromkeys(("fields", "reasoning"), counter))
     check = before_entry or (lambda: None)
+    strict = getattr(check, "strict", check)  # the worker's check unthrottled (`CancelCheck.strict`); else as is
     check()
     directory = run_dir / "extractions" / extraction_id if run_dir is not None and extraction_id else None
+    # Not `execution`: that name is the execution record, assigned a few lines below.
+    stage_execution = (progress.started(directory, "catalog", request.options.start_page)
+                       if directory is not None else None)
     fresh = _execution(extraction_id, evidence, schema, options, chat, counters)
     execution = _published(directory / "catalog-execution.json" if directory else None, lambda: fresh,
                            _honorable(fresh, counters))
@@ -317,13 +348,19 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
 
     def read(number: int, entry: dict) -> _Work:
         """A published entry's work, or the entry read now: published only when nothing in it failed or stayed
-        undecided, so a retry of the step asks again for an entry a failed call or window left short."""
+        undecided, so a retry of the step asks again for an entry a failed call or window left short. The reading
+        marker and the candidates file are the partial view's (design §2): written here, each after the unthrottled
+        check, read by no resume path."""
         if directory is None:
             return run.entry(number, entry)
         path = directory / entry_name(number)
         if path.exists():
             return _work_of(_published(path, dict, _entry_reusable(number, entry, discovery_sha256)), run.nodes)
-        work = run.entry(number, entry)
+        strict()  # the marker may follow the previous entry's last call: never written once cancelled
+        progress.write_stage(directory / progress.reading_name(number),
+                             {"version": progress.CANDIDATES_VERSION, "execution": stage_execution, "index": number})
+        work = run.entry(number, entry, on_candidates=partial(_candidates_stage, directory, stage_execution, strict,
+                                                              number, entry, discovery_sha256, run.nodes))
         record = _entry_json(number, entry, discovery_sha256, work)
         if work.failed or work.undecided or any(not call.ok for call in work.calls):
             return _work_of(json.loads(canonical_json(record)), run.nodes)  # read as a published one is, unpublished
@@ -337,8 +374,11 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         except BaseException:
             halt.set()
             raise
+    pages = {passage.id: passage.page for passage in (*evidence.passages, *evidence.withheld)}
     with ThreadPoolExecutor(max_workers=max(1, chunks), thread_name_prefix="catalog-entry") as pool:
-        futures = [pool.submit(one, numbered) for numbered in enumerate(found["entries"])]
+        futures: list = [None] * len(found["entries"])
+        for number in work_order(found["entries"], pages, request.options.start_page):
+            futures[number] = pool.submit(one, (number, found["entries"][number]))
     for future in futures:  # the first failure in entry order, once every entry has stopped
         if (error := future.exception()) is not None:
             raise error
@@ -616,17 +656,27 @@ def _entry_json(number: int, entry: dict, discovery_sha256: str, work: _Work) ->
                      **({"native": work.native} if work.native is not None else {})}}
 
 
+def _found_of(rows: list[dict]) -> list[_Found]:
+    return [_Found(tuple(row["path"]), row["value"], row["quote"], row["window"], _spans_from(row["spans"]),
+                   [_spans_from(spans) for spans in row["alternatives"]], row["support"], row["kind"], row["reason"],
+                   None if row["item"] is None else (tuple(row["item"][0]), *row["item"][1:]),
+                   None if row["anchor"] is None else tuple(tuple(place) for place in row["anchor"]))
+            for row in rows]
+
+
 def _work_of(record: dict, nodes: list[Node]) -> _Work:
     work = record["work"]
-    found = [_Found(tuple(row["path"]), row["value"], row["quote"], row["window"], _spans_from(row["spans"]),
-                    [_spans_from(spans) for spans in row["alternatives"]], row["support"], row["kind"], row["reason"],
-                    None if row["item"] is None else (tuple(row["item"][0]), *row["item"][1:]),
-                    None if row["anchor"] is None else tuple(tuple(place) for place in row["anchor"]))
-             for row in work["found"]]
-    return _Work(found, work["record"] if "native" in work else conform(work["record"], nodes),
-                 work["contest"], work["items"], work["omitted"],
-                 [_call_of(call) for call in work["calls"]], [_issue_of(issue) for issue in work["issues"]],
-                 work["windows"], work["failed"], work["undecided"], native=work.get("native"))
+    return _Work(_found_of(work["found"]), work["record"] if "native" in work else conform(work["record"], nodes),
+                 work["contest"], work["items"], work["omitted"], [_call_of(call) for call in work["calls"]],
+                 [_issue_of(issue) for issue in work["issues"]], work["windows"], work["failed"], work["undecided"],
+                 native=work.get("native"))
+
+
+def entry_links(record: dict, passages: dict) -> list[dict]:
+    """The evidence links a published entry record's accepted values make, exactly as `_artifact` writes them, so the
+    partial view converts them with the artifact's own code (design §3). `passages` maps segment ids to passages."""
+    return [_link(each, record["index"], passages) for each in _found_of(record["work"]["found"])
+            if each.kind == "accepted"]
 
 
 class _Run:
@@ -665,7 +715,7 @@ class _Run:
         out.windows += len(replies)
         return replies
 
-    def entry(self, number: int, entry: dict) -> _Work:
+    def entry(self, number: int, entry: dict, on_candidates: Callable[[_Work], None] | None = None) -> _Work:
         out = _Work()
         if isinstance(self.budget.chat.fields, gliformer.GLiFormerFields):
             out.native = []
@@ -695,6 +745,8 @@ class _Run:
                 shown = (_position(units, first.segment, first.start), _position(units, last.segment, last.end))
                 found += _Checker(view, shown, index, self.nodes, self.tables).reply(answer)
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
+        if on_candidates is not None:
+            on_candidates(out)
         self._verify(number, replies, out)
         out.contest = self._settle(number, out, view)
         _renumbered(out.found)

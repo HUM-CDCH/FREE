@@ -44,6 +44,4 @@ it('follows the optional-review-evidence migration directly', () => {
   const migration = JSON.parse(readFileSync(resolve(directory, 'migration.json'), 'utf8')) as { from: string; to: string }
   const previous = JSON.parse(readFileSync(resolve(named('_optional_review_evidence'), 'migration.json'), 'utf8')) as { to: string }
   assert.equal(migration.from, previous.to)
-  const ref = JSON.parse(readFileSync(resolve(migrations, 'refs/db.json'), 'utf8')) as { hash: string }
-  assert.equal(ref.hash, migration.to)
 })

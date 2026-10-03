@@ -265,6 +265,10 @@ describe('kei artifact acceptance', () => {
       { strategy: 'CATALOG', settings: { record_chars: 30_000 } }))
   })
 
+  it('a start page on the request is an order of work, not an option the artifact must record', () => {
+    assert.equal(accept(artifact(), { settings: { start_page: 6 } }).extraction.outcome, 'SUCCEEDED')
+  })
+
   it('rejects an artifact that does not name the model of each role', () => {
     for (const models of [undefined, null, { fields: 'selected-model' }, { fields: '', reasoning: 'r' }])
       refused(() => accept({ ...artifact(), models }))
@@ -434,7 +438,7 @@ describe('unified Catalog artifacts', () => {
     const accepted = acceptUnified(produced())
     const snapshot: ExtractionSnapshot = {
       extractionId: pins.extractionId, sourceDocumentId: 'source', sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
-      sourceRepresentationRevisionNumber: 1, schemaRevisionId: pins.schemaRevisionId, extractionSchemaId: 'schema',
+      sourceRepresentationRevisionNumber: 1, preprocessId: 'kei-exp:run-1:g1', schemaRevisionId: pins.schemaRevisionId, extractionSchemaId: 'schema',
       schemaRevisionNumber: 1, strategy: 'CATALOG', catalogRecipe: null, requestedSettings: { unified: { defaults: 1 } },
       outcome: 'SUCCEEDED', complete: accepted.complete, modelAttribution: accepted.modelAttribution,
       diagnostics: accepted.diagnostics, result: accepted.result, evidence: accepted.evidence, failure: null,

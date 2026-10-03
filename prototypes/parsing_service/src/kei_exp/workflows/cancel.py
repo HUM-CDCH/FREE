@@ -60,6 +60,10 @@ class CancelCheck:
         if status is None or status.status == "CANCELLED":
             raise KeiFailure("cancelled", f"workflow {self._workflow_id} was cancelled")
 
+    def strict(self) -> None:
+        """The unthrottled check, for the moments a write must not follow a cancellation."""
+        self(force=True)
+
     def sink(self, emit: Emit) -> Emit:
         def checked(event: Event) -> None:
             if threading.get_ident() == self._owner and event["type"] in CHECKED:

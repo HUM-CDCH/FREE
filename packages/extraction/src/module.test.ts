@@ -5,7 +5,7 @@ import parsedDocument from '../../../prototypes/studio/src/assets/parsed_documen
 import type { ExtractionPersistence } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import type { ExtractionSnapshot } from './types.js'
-import { createKeiExpClient } from './kei-exp.js'
+import { createKeiExpClient, PROGRESS_TIMEOUT_MS } from './kei-exp.js'
 import { createExtractionModule } from './module.js'
 
 const json = (body: unknown, status = 200, headers?: Record<string, string>) => Response.json(body, { status, headers })
@@ -59,6 +59,65 @@ describe('kei-exp read client', () => {
     const client = createKeiExpClient({ url: 'http://kei-exp:8001', fetch: async (url) => { requests.push(String(url)); return json({}) } })
     for (const [run, extraction] of [['../x', 'x-1'], ['run-1', 'x/1'], ['run-1', 'x-1\n']])
       await assert.rejects(client.readExtractionArtifact(run!, extraction!), { code: 'invalid_model_output' })
+    assert.deepEqual(requests, [])
+  })
+
+  function progressClient(response: Response | Error) {
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const client = createKeiExpClient({
+      url: 'http://kei-exp:8001/',
+      fetch: async (url, init) => {
+        requests.push({ url: String(url), init })
+        if (response instanceof Error) throw response
+        return response
+      },
+    })
+    return { requests, read: (signal?: AbortSignal) => client.readExtractionProgress('run-1', 'x-1', signal) }
+  }
+
+  it('reads the progress document from its route, and null while kei has none', async () => {
+    const { requests, read } = progressClient(json({ version: 1, strategy: 'catalog' }))
+    assert.deepEqual(await read(), { version: 1, strategy: 'catalog' })
+    assert.equal(requests[0]!.url, 'http://kei-exp:8001/api/runs/run-1/extractions/x-1/progress')
+    assert.equal(requests[0]!.init?.method, 'GET')
+    assert.equal(await progressClient(json({ detail: 'no progress yet' }, 404)).read(), null)
+  })
+
+  it('a slow, unreachable or failing kei throws a transient error: the caller shows no partial view', async () => {
+    for (const response of [new DOMException('timed out', 'TimeoutError'), new TypeError('fetch failed'), json({ detail: 'restarting' }, 503)])
+      await assert.rejects(progressClient(response).read(), (error: unknown) => (error as { transient?: unknown }).transient === true)
+  })
+
+  it('a progress body cut off or stalled after its headers is transient; a body that is not JSON is invalid output', async () => {
+    const failing = new Response(new ReadableStream({ start: (controller) => controller.error(new DOMException('timed out', 'TimeoutError')) }))
+    await assert.rejects(progressClient(failing).read(), (error: unknown) => (error as { transient?: unknown }).transient === true)
+    await assert.rejects(progressClient(new Response('not json')).read(),
+      (error: unknown) => error instanceof ExtractionError && error.code === 'invalid_model_output' && !('transient' in error))
+  })
+
+  it('an aborted progress read rejects with the caller\'s reason, not as transient', async () => {
+    const controller = new AbortController()
+    // As fetch does, the body errors once the request's signal aborts mid-body.
+    const cut = new Response(new ReadableStream({ start: (stream) => {
+      controller.abort(new Error('closed'))
+      stream.error(new DOMException('aborted', 'AbortError'))
+    } }))
+    const { read } = progressClient(cut)
+    await assert.rejects(read(controller.signal), (error: unknown) => (error as Error).message === 'closed' && !('transient' in (error as object)))
+  })
+
+  it('every progress read carries a bounded signal: two seconds, the poll interval', async () => {
+    const { requests, read } = progressClient(json({}))
+    await read()
+    assert.equal(PROGRESS_TIMEOUT_MS, 2_000)
+    assert.ok(requests[0]!.init?.signal instanceof AbortSignal)
+  })
+
+  it('a run or extraction outside kei\'s path component is null before any request', async () => {
+    const requests: string[] = []
+    const client = createKeiExpClient({ url: 'http://kei-exp:8001', fetch: async (url) => { requests.push(String(url)); return json({}) } })
+    assert.equal(await client.readExtractionProgress('../x', 'x-1'), null)
+    assert.equal(await client.readExtractionProgress('run-1', 'x-1\n'), null)
     assert.deepEqual(requests, [])
   })
 
@@ -142,7 +201,7 @@ describe('review of an Extraction with document-level schema fields', () => {
   }
   const extraction: ExtractionSnapshot = {
     extractionId, sourceDocumentId: randomUUID(), sourceRepresentationRevisionId: randomUUID(),
-    sourceRepresentationRevisionNumber: 1, schemaRevisionId: randomUUID(),
+    sourceRepresentationRevisionNumber: 1, preprocessId: 'kei-exp:run-1:g1', schemaRevisionId: randomUUID(),
     extractionSchemaId: randomUUID(), schemaRevisionNumber: 1, strategy: 'ARTICLE', catalogRecipe: null,
     outcome: 'SUCCEEDED', complete: true, modelAttribution: { provider: 'kei-exp', modelId: 'm' },
     diagnostics: {

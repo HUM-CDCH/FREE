@@ -9,15 +9,17 @@ budgets are easy to reason about; the chat reports the same count, as an honest 
 import json
 import os
 import re
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
 import requests
+from pydantic import ValidationError
 
 from kei_exp.canonical import canonical_json
-from kei_exp.kie.extract import discovery, run, unified
+from kei_exp.kie.extract import discovery, progress, run, unified
 from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.models import as_router
 from kei_exp.kie.passages import Evidence, Passage, load
@@ -127,15 +129,16 @@ def title(source: str) -> dict:
     return {"title": candidate(found[1], found[0]) if found else None}
 
 
-def request(schema=SCHEMA, **settings) -> run.ExtractRequest:
+def request(schema=SCHEMA, start_page: int | None = None, **settings) -> run.ExtractRequest:
     return run.ExtractRequest.model_validate({"schema": schema, "options": {
-        "strategy": "catalog", "unified": {"defaults": 1, **settings}}})
+        "strategy": "catalog", "unified": {"defaults": 1, **settings},
+        **({"start_page": start_page} if start_page is not None else {})}})
 
 
 def extract(source: Evidence, model=None, *, schema=SCHEMA, counter=None, run_dir=None, extraction_id=None,
-            **settings):
+            start_page: int | None = None, **settings):
     chat = CountingChat(model or Model(source))
-    result = unified.extract(run_dir, source, request(schema, **settings), as_router(chat),
+    result = unified.extract(run_dir, source, request(schema, start_page, **settings), as_router(chat),
                              counter=counter or WordCounter(), extraction_id=extraction_id)
     assert_links_resolve(result)
     return result, chat
@@ -846,6 +849,18 @@ def test_unified_options_refuse_legacy_limits_and_record_no_character_limits():
                                                    "unified": {"defaults": 1, "overlap": 0}}
 
 
+def test_a_start_page_is_a_strict_one_based_integer_that_the_artifact_never_records():
+    """The start page orders the work (design §4); the artifact and its fingerprint are those of the request without it."""
+    with_page = run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 1}, "start_page": 6})
+    assert with_page.start_page == 6
+    assert "start_page" not in with_page.dumped()
+    assert with_page.dumped() == run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 1}}).dumped()
+    assert run.Options.model_validate({"strategy": "article", "start_page": 400}).start_page == 400  # beyond the document: an order from its end
+    for refused in (0, -1, "6", 6.0, True):  # strict, as UnifiedOptions is: a page is an integer, never coerced
+        with pytest.raises(ValidationError):
+            run.Options.model_validate({"strategy": "article", "start_page": refused})
+
+
 def test_the_records_are_published_once_and_reused_on_re_execution(tmp_path):
     source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
     first, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
@@ -937,6 +952,12 @@ def entry_file(number: int) -> str:
     return f"catalog-entry-{number}.v{unified.ENTRY_VERSION}.json"
 
 
+def entry_records(directory) -> list[str]:
+    """The finished entry records: the partial view's stage files (`.reading`, `.candidates`) are not records."""
+    return sorted(path.name for path in directory.glob("catalog-entry-*.json")
+                  if re.fullmatch(r"catalog-entry-\d+\.v\d+\.json", path.name))
+
+
 def comparable(result: dict) -> dict:
     """What a re-execution must reproduce: everything but timings."""
     calls = [{key: value for key, value in call.items() if key != "seconds"} for call in result["calls"]]
@@ -963,7 +984,7 @@ def test_finished_entries_are_published_once_and_reused_after_a_crash(tmp_path, 
     with pytest.raises(requests.ConnectionError):
         extract(source, crashing, run_dir=tmp_path, extraction_id="x1", **settings)
     directory = tmp_path / "extractions" / "x1"
-    assert sorted(path.name for path in directory.glob("catalog-entry-*.json")) == [entry_file(0), entry_file(1)]
+    assert entry_records(directory) == [entry_file(0), entry_file(1)]
     published = json.loads((directory / entry_file(1)).read_bytes())
     found = json.loads((directory / "catalog-discovery.json").read_bytes())
     assert (published["version"], published["index"], published["discovery_sha256"], published["ranges"]) == \
@@ -1039,18 +1060,102 @@ def test_an_entry_with_a_failed_call_or_undecided_verdict_is_never_published_so_
     with pytest.raises(requests.ConnectionError):
         extract(source, failing, run_dir=tmp_path, extraction_id="x1")
     directory = tmp_path / "extractions" / "x1"
-    assert sorted(path.name for path in directory.glob("catalog-entry-*.json")) == [entry_file(0)]
+    assert entry_records(directory) == [entry_file(0)]
     again, chat = extract(source, run_dir=tmp_path, extraction_id="x1")
     asked = [section(call["user"], "RECORD") for call in chat.calls if call["system"].startswith("You extract struct")]
     assert not any("Adorf" in record for record in asked)
     assert any("Bdorf" in record for record in asked) and any("Cdorf" in record for record in asked)
     assert again["complete"] is True and [record["material"] for record in again["records"]] == ["Holz", "Stein", "Gold"]
-    assert sorted(path.name for path in directory.glob("catalog-entry-*.json")) == [entry_file(n) for n in range(3)]
+    assert entry_records(directory) == [entry_file(n) for n in range(3)]
 
     undecided = Model(source, verdict=lambda path, value, record: "maybe" if value == "Stein" else "supported")
     result, _ = extract(source, undecided, run_dir=tmp_path, extraction_id="x2")
     assert result["processing"]["verification"]["undecided"] == 1
     assert not (tmp_path / "extractions" / "x2" / entry_file(1)).exists()
+
+
+def test_entries_are_read_nearest_the_start_page_first_and_assembled_in_source_order():
+    source = evidence("1. Adorf. Material: Holz.", "2. Bdorf. Material: Stein.", "3. Cdorf. Material: Gold.")
+    plain, _ = extract(source)
+    ordered, chat = extract(source, start_page=3)
+    asked = [section(call["user"], "RECORD")[:8] for call in chat.calls
+             if call["system"].startswith("You extract structured data")]
+    assert asked == ["3. Cdorf", "2. Bdorf", "1. Adorf"]  # distance from page 3, then source order
+    assert [record["label"] for record in ordered["records"]] == ["1", "2", "3"]  # assembled in source order
+    assert untimed(ordered) == untimed(plain)  # the same artifact, whatever the order of work
+    assert unified.work_order([{"ranges": [{"segment": "p1_s0"}]}, {"ranges": [{"segment": "p3_s0"}]},
+                               {"ranges": [{"segment": "p2_s0"}]}, {"ranges": []}],
+                              {"p1_s0": 1, "p2_s0": 2, "p3_s0": 3}, 2) == [2, 0, 1, 3]  # unknown page last
+    assert unified.work_order([{"ranges": [{"segment": "p3_s0"}]}, {"ranges": [{"segment": "p1_s0"}]}],
+                              {"p1_s0": 1, "p3_s0": 3}, None) == [0, 1]  # no start page: source order
+
+
+def test_each_entry_publishes_a_reading_marker_and_its_candidates_before_verification_and_a_retry_ignores_both(tmp_path):
+    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
+    directory = tmp_path / "extractions" / "x1"
+    model = Model(source)
+    seen: dict[str, bool] = {}
+
+    def failing_verification(system, user, schema):
+        if system.startswith("You check values") and "Bdorf" in section(user, "RECORD"):
+            seen["reading"] = (directory / progress.reading_name(1)).exists()
+            seen["candidates"] = (directory / progress.candidates_name(1)).exists()
+            raise requests.ConnectionError("connection reset")  # transient: the step is retried
+        return model(system, user, schema)
+    with pytest.raises(requests.ConnectionError):
+        extract(source, failing_verification, run_dir=tmp_path, extraction_id="x1", start_page=1)
+    assert seen == {"reading": True, "candidates": True}
+    header = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
+    assert {key: header[key] for key in ("version", "strategy", "start_page")} == {"version": 1, "strategy": "catalog", "start_page": 1}
+    written = json.loads((directory / progress.candidates_name(1)).read_bytes())
+    assert (written["version"], written["execution"], written["index"], written["failed"]) == (1, header["execution"], 1, 0)
+    assert written["ranges"] == json.loads((directory / "catalog-discovery.json").read_bytes())["entries"][1]["ranges"]
+    assert {tuple(row["path"]) for row in written["candidates"]} == {("label",), ("site",), ("material",)}
+    assert written["record"]["material"] == "Stein" and written["record"]["gilded"] is None  # conform fills every field
+    assert json.loads((directory / progress.reading_name(1)).read_bytes()) == {"version": 1, "execution": header["execution"], "index": 1}
+    assert entry_records(directory) == [entry_file(0)]  # entry 1 is not a record
+    again, chat = extract(source, run_dir=tmp_path, extraction_id="x1")
+    assert any("Bdorf" in section(call["user"], "RECORD") for call in chat.calls)  # asked again, the stage files ignored
+    assert not any("Adorf" in section(call["user"], "RECORD") for call in chat.calls)
+    assert again["records"][1]["material"] == "Stein" and entry_records(directory) == [entry_file(0), entry_file(1)]
+    retried = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
+    assert retried["start_page"] is None and retried["execution"] != header["execution"]  # the retry's own header
+
+
+def test_a_failed_values_window_is_counted_in_the_candidates_file(tmp_path):
+    source = evidence("1. Adorf. Material: Holz.")
+    model = Model(source)
+
+    def refusing(system, user, schema):
+        if system.startswith("You extract structured data"):
+            raise server_error(500)  # the window fails and is halved; a one-unit window fails alone
+        return model(system, user, schema)
+    extract(source, refusing, run_dir=tmp_path, extraction_id="x1")
+    written = json.loads((tmp_path / "extractions" / "x1" / progress.candidates_name(0)).read_bytes())
+    assert written["failed"] >= 1 and written["candidates"] == [] and written["record"]["material"] is None
+
+
+def test_a_stage_file_that_cannot_be_written_never_fails_the_extraction(tmp_path, monkeypatch):
+    source = evidence("1. Adorf. Material: Holz.")
+
+    @contextmanager
+    def full_disk(target):
+        raise OSError(28, "No space left on device", str(target))
+        yield  # pragma: no cover
+    monkeypatch.setattr(progress, "publish", full_disk)
+    result, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
+    assert result["records"][0]["material"] == "Holz" and result["complete"] is True
+    directory = tmp_path / "extractions" / "x1"
+    assert not (directory / progress.PROGRESS_NAME).exists() and not (directory / progress.candidates_name(0)).exists()
+    assert entry_records(directory) == [entry_file(0)]  # the write-once records are not stage files
+
+
+def test_entry_links_are_the_artifacts_links_for_that_entry(tmp_path):
+    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
+    result, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
+    passages = {passage.id: passage for passage in source.passages}
+    published = json.loads((tmp_path / "extractions" / "x1" / entry_file(1)).read_bytes())
+    assert unified.entry_links(published, passages) == [link for link in result["evidence"] if link["path"][1] == 1]
 
 
 def test_a_persistent_server_error_ends_with_its_entry_failed_and_visible(tmp_path):

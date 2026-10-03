@@ -39,6 +39,9 @@ export type AdmittedExtraction = Readonly<{
   /** The pinned revision's declared record scope (`SchemaRevision.recordScope`); null for a legacy revision that
    *  declares none, absent in a `loadAdmitted` checkpoint written before scopes were declared. */
   recordScope?: RecordScope | null
+  /** The start page admission stored (`Extraction.startPage`); null when none was named, absent in a `loadAdmitted`
+   *  checkpoint written before the column existed. Both ask kei for its source order. */
+  startPage?: number | null
 }>
 export type SettledExtraction =
   | { outcome: 'SUCCEEDED'; extraction: TerminalExtraction }
@@ -95,7 +98,11 @@ function keiExtractRequest(admitted: AdmittedExtraction): KeiExtractInput | Extr
     generation: run.generation,
     request: {
       schema,
-      options: keiMethodOptions(method),
+      // The start page orders kei's work and is outside the artifact and its fingerprint (`Options.dumped()`).
+      options: {
+        ...keiMethodOptions(method),
+        ...(typeof admitted.startPage === 'number' ? { start_page: admitted.startPage } : {}),
+      },
     },
   }
 }

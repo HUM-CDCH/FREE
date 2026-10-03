@@ -31,6 +31,8 @@ export type KeiStandInScript = {
   extract?(request: KeiExtractInput, workflowId: string): Promise<StandInDecision<{ artifact: unknown }>>
   /** Replaces the default cleanup (see the module comment). */
   deleteRuns?(request: KeiDeleteRunsInput, workflowId: string): Promise<KeiDeleteRunsOk>
+  /** kei's progress route for a running extraction: the document to serve, or null/undefined for 404 (`no progress yet`). */
+  progress?(runId: string, extractionId: string): unknown
 }
 /** A `deleteRuns` request as the stand-in received it. */
 export type KeiDeleteRunsRequest = { workflowId: string; request: KeiDeleteRunsInput; receivedAtMs: number }
@@ -162,7 +164,8 @@ export async function launchKeiStandIn(options: {
     name: KEI_APPLICATION, systemDatabaseUrl: options.databaseUrl, systemDatabaseSchemaName: options.schema,
     applicationVersion: 'kei@1', executorID: options.executorId ?? 'kei-stand-in', enableOTLP: false, logLevel: 'error',
   })
-  // kei's read routes (M3 Task 10): the model listings, a run's manifest and pages, and a published extraction artifact.
+  // kei's read routes (M3 Task 10): the model listings, a run's manifest and pages, a published extraction artifact, and a
+  // running extraction's progress.
   const server = createServer((request, response) => {
     void route(request, response).catch(() => {
       if (response.headersSent) response.destroy()
@@ -186,6 +189,10 @@ export async function launchKeiStandIn(options: {
     if (kind === 'pages' && item !== undefined && rest.length === 0 && /^[1-9][0-9]*$/.test(item)) {
       const page = results.get(run)?.pages.get(Number(item))
       return page ? sendBytes(response, page) : send(response, 404, { detail: 'no result for this page yet' })
+    }
+    if (kind === 'extractions' && item !== undefined && rest.length === 1 && rest[0] === 'progress' && KEI_RUN_ID.test(item)) {
+      const progress = options.script.progress?.(run, item)
+      return progress == null ? send(response, 404, { detail: 'no progress yet' }) : send(response, 200, progress)
     }
     if (kind === 'extractions' && item !== undefined && rest.length === 0 && KEI_RUN_ID.test(item)) {
       const artifact = artifacts.get(`${run}/${item}`)

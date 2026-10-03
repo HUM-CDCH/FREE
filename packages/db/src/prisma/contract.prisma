@@ -220,6 +220,9 @@ model Extraction {
   // service defaults), frozen at admission with `requestedModels`; execution reads only these. Null: admitted before
   // settings were recorded ("Not recorded"), never inferred from today's account configuration.
   requestedSettings              Json?
+  // The page the researcher was reading when the run started (one-based): the order kei reads records in, never which
+  // records. Not part of the admission identity; null for Batch Extractions and for rows admitted before it existed.
+  startPage                      Int?
   // Retired on 2026-10-02 with the sample workbench. Never written since; read only as a null check (a document's
   // latest attempt and latest reviewed result, the project summary, the recent-activity feed, and sameAdmission,
   // which refuses a reuse of a legacy sample's ID) to keep legacy sample rows out. A later migration disposes of

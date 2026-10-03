@@ -102,7 +102,8 @@ describe('the record-scope release on pre-migration history', { skip: !baseUrl &
     // Today's read code against the previous release's schema: it never selects the new column.
     const before = await read()
 
-    assert.deepEqual((await migrate(database.url)).applied, [RECORD_SCOPE_MIGRATION])
+    // Forward to the release under test only: later releases are checked by their own migration tests.
+    assert.deepEqual((await migrate(database.url, RECORD_SCOPE_MIGRATION)).applied, [RECORD_SCOPE_MIGRATION])
     const scope = async (id: string) =>
       (await client.query('SELECT "recordScope" FROM "schemaRevision" WHERE id = $1', [id])).rows[0].recordScope as string | null
     const backfilled: Array<string | null> = []

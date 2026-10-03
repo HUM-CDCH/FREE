@@ -540,6 +540,24 @@ describe('the admitted method', () => {
     assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')
   })
 
+  it('hands the admitted start page to kei as start_page; the artifact, which never records it, is accepted', async () => {
+    const run = harness({ admitted: admittedExtraction({ startPage: 6 }) })
+    await run.run()
+    assert.deepEqual((run.submissions[0]!.request as KeiExtractInput).request.options, { strategy: 'article', start_page: 6 })
+    assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')
+    assert.deepEqual(run.names(), ['loadAdmitted', 'submitToKei', 'pollKei', 'publishResult'])
+  })
+
+  it('a checkpoint written before start pages were stored, or a row that named none, asks kei for its source order', async () => {
+    const { startPage: _absent, ...older } = admittedExtraction()
+    for (const admitted of [older as AdmittedExtraction, admittedExtraction({ startPage: null })]) {
+      const run = harness({ admitted })
+      await run.run()
+      assert.deepEqual((run.submissions[0]!.request as KeiExtractInput).request.options, { strategy: 'article' })
+      assert.equal(run.row.outcome?.outcome, 'SUCCEEDED')
+    }
+  })
+
   it('an unreadable admitted method fails the Extraction, not the workflow, and asks kei for nothing', async () => {
     // No artifact is ever read: the default one is built from the admitted method, which does not read.
     const run = harness({ admitted: admittedExtraction({ requestedSettings: { generic: null } }), artifact: {} })

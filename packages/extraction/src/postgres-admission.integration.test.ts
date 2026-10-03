@@ -94,6 +94,28 @@ it('stores the Catalog recipe chosen for an Extraction on its row and hands it t
     assert.deepEqual(request.request.options, { strategy: 'catalog', catalog: { recipe: 'numbered-catalogue-de@1' } })
   })
 
+it('stores the start page on the row and hands it to kei; it is never part of the admission identity', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const module = scheduler(project.researcherAccountId)
+    kei.holding = true
+    const extractionId = randomUUID()
+    const input = { ...freshInput(project, extractionId), startPage: 6 }
+    assert.equal((await module.runSingle(input)).disposition, 'created')
+    assert.equal((await extractionRow(extractionId))?.startPage, 6)
+    // The same whole-document Extraction whatever page the researcher was reading: a replay, and the row keeps page 6.
+    assert.equal((await module.runSingle({ ...input, startPage: 2 })).disposition, 'replayed')
+    assert.equal((await module.runSingle({ ...input, startPage: null })).disposition, 'replayed')
+    assert.equal((await extractionRow(extractionId))?.startPage, 6)
+    await heldByKei(extractionId)
+    const request = kei.submissions.find((submission) => submission.workflowId === keiExtractWorkflowId(extractionId))!
+      .request as KeiExtractInput
+    assert.deepEqual(request.request.options, { strategy: 'article', start_page: 6 })
+    const unnamed = freshInput(project)
+    await module.runSingle(unnamed)
+    assert.equal((await extractionRow(unnamed.extractionId))?.startPage, null)
+  })
+
 it('keeps the Extraction Model Choice on its row, hands it to kei, and records the model each role ran on', async (t) => {
     t.after(cleanup)
     const project = await seedProject()

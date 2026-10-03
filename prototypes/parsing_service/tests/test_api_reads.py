@@ -50,6 +50,27 @@ def test_a_published_extraction_is_served_and_an_unpublished_one_is_404(client, 
     assert response.status_code == 200 and response.json() == {"records": []}
 
 
+def test_the_progress_route_serves_the_stage_files_and_is_404_until_the_first_one(client, tmp_path):
+    from kei_exp.kie.extract import progress
+    run_id = kei_helper.converted_run(tmp_path, "kei-convert:ingest:p:r")
+    assert client.get(f"/api/runs/{run_id}/extractions/x-1/progress").status_code == 404
+    assert client.get(f"/api/runs/{run_id}/extractions/x-1/progress").json() == {"detail": "no progress yet"}
+    assert client.get("/api/runs/run-unknown/extractions/x-1/progress").status_code == 404
+    assert client.get(f"/api/runs/{run_id}/extractions/..%2Fx/progress").status_code == 404
+    directory = tmp_path / run_id / "extractions" / "x-1"
+    execution = progress.started(directory, "article", None)
+    assert client.get(f"/api/runs/{run_id}/extractions/x-1/progress").status_code == 404  # the header alone is no progress
+    progress.write_stage(directory / progress.context_name(0), {
+        "version": 1, "execution": execution, "context": 0, "of": 1, "answered": 1, "failed": 0, "passages": {"primary": ["p1_s0"], "overlap": []},
+        "fields": {"site_name": "Hill"}, "root": {"site_name": "Hill"}, "contested": [], "ok": True, "calls": []})
+    response = client.get(f"/api/runs/{run_id}/extractions/x-1/progress")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["strategy"] == "article" and body["started_at_page"] is None
+    assert body["entries"][0]["record"] == {"site_name": "Hill"} and body["entries"][0]["stage"] == "candidates"
+    progress.ProgressDocument.model_validate(body)
+
+
 @pytest.mark.parametrize("path", ["/api/runs/.deleting-r/result", "/api/runs/run-x/extractions/..%2Fresult.json"])
 def test_hidden_runs_and_escaping_ids_are_not_found(client, path):
     assert client.get(path).status_code == 404
