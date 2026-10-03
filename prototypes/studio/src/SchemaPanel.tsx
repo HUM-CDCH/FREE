@@ -1878,9 +1878,7 @@ function SchemaPanel({
       {regenerateOpen && (
         <ModalDialog className={dialogCls} ariaLabel="Regenerate from the document" onDismiss={() => setRegenerateOpen(false)}>
           <h3 className="mb-2 text-secondary font-semibold text-ink">Regenerate from the document</h3>
-          <div className="overflow-hidden rounded-md border border-line">
-            <SchemaInstructionsDrawer instructions={instructions} />
-          </div>
+          <SchemaInstructionsDrawer instructions={instructions} />
           <div className="mt-3 flex justify-end gap-2">
             <Button onClick={() => setRegenerateOpen(false)}>Cancel</Button>
             <Button
