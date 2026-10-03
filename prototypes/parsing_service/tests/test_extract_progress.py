@@ -434,3 +434,39 @@ def test_a_document_outside_the_contract_is_logged_and_never_served(tmp_path, mo
     with caplog.at_level(logging.WARNING, logger=progress.__name__):
         assert progress.read_progress(tmp_path, "x1") is None  # the last resort: no progress, never a failure of the route
     assert "outside its contract" in caplog.text
+
+
+def test_a_published_entry_whose_index_is_not_its_own_is_not_finished_and_no_coerced_value_is_served(tmp_path, monkeypatch):
+    source = unified_evidence("1. Adorf. Material: Holz.")
+    unified_extract(source, run_dir=tmp_path, extraction_id="x1")
+    monkeypatch.setattr(progress, "_passages", lambda run_dir: {passage.id: passage for passage in source.passages})
+    directory = tmp_path / "extractions" / "x1"
+    execution = json.loads((directory / progress.PROGRESS_NAME).read_bytes())["execution"]
+    progress.write_stage(directory / progress.candidates_name(0), {"version": 1, "execution": execution, "index": 0,
+                         "discovery_sha256": "0" * 64, "ranges": [], "record": {"label": "1"}, "failed": 0,
+                         "candidates": [{"path": ["label"], "value": "1", "quote": "1.", "window": 0}]})
+    entry = served(tmp_path, "x1")["entries"][0]
+    assert entry["stage"] == "finished" and entry["evidence"] and entry["evidence"][0]["path"][:2] == ["records", 0]
+    published = directory / unified.entry_name(0)
+    record = json.loads(published.read_bytes())
+    for index in (False, 1, 0.0, "0"):  # a bool `int` would coerce to 0, another entry's number, a float, text
+        published.write_bytes(json.dumps({**record, "index": index}).encode())
+        document = served(tmp_path, "x1")
+        assert (document["finished"], document["entries"][0]["stage"]) == (0, "candidates"), index  # its other files
+        assert document["entries"][0]["candidates"] == [{"path": ["label"], "value": "1", "quote": "1.", "window": 0}]
+        assert not re.search(r'"path": \[[^\]]*(false|true)', json.dumps(document)), index  # no bool reaches a path
+
+
+def test_what_the_reader_validated_is_what_it_serves(tmp_path, monkeypatch):
+    source = unified_evidence("1. Adorf. Material: Holz.")
+    unified_extract(source, run_dir=tmp_path, extraction_id="x1")
+    monkeypatch.setattr(progress, "_passages", lambda run_dir: {})  # a result that loads
+    link = {"path": ["records", 0, "label"], "segment": "p1_s0", "page": 1, "bbox_pt": [0, 0, 1, 1], "cell": None,
+            "precision": "segment", "hits": True, "spans": [{"segment": "p1_s0", "start": 0, "end": 1}],
+            "alternatives": [], "raw": "1", "verbatim": 1, "support": "literal", "linked_by": "verification",
+            "item": None, "note": "kept"}
+    monkeypatch.setattr(unified, "entry_links", lambda record, passages: [link])  # values pydantic accepts by coercion
+    [served_link] = served(tmp_path, "x1")["entries"][0]["evidence"]
+    assert type(served_link["hits"]) is int and served_link["verbatim"] is True  # served as validated, never as written
+    assert all(type(each) is float for each in served_link["bbox_pt"]) and served_link["note"] == "kept"  # extras kept
+    assert set(served_link) == set(link)  # no field renamed, dropped or added

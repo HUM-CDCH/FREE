@@ -23,7 +23,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, ValidationError
 
 from kei_exp.canonical import canonical_json
 from kei_exp.files import publish
@@ -82,7 +82,7 @@ _PAGE = re.compile(r"p([0-9]+)_s[0-9]+")  # a passage id names its page (`fullma
 # the pattern engine's `\d` is Unicode's, JavaScript's ASCII.
 _Count = Annotated[int, Field(ge=0)]
 _PageNumber = Annotated[int, Field(ge=1)]
-_Path = list[str | _Count]
+_Path = list[str | Annotated[StrictInt, Field(ge=0)]]  # an index is a number, never a bool or a float coerced to one
 _Segment = Annotated[str, StringConstraints(pattern=r"^p[0-9]+_s[0-9]+$")]
 _Cell = Annotated[str, StringConstraints(pattern=r"^r[0-9]+_c[0-9]+$")]
 _Precision = Literal["cell", "segment", "input"]
@@ -125,7 +125,10 @@ class _EntryWork(BaseModel):
 
 
 class _FinishedEntry(BaseModel):
+    """A published entry: its `index` is its discovery position (as `_entry_reusable` requires to resume it), strictly
+    a number, since `unified.entry_links` writes it into every link's path."""
     model_config = ConfigDict(extra="allow")
+    index: StrictInt
     work: _EntryWork
 
 
@@ -254,9 +257,9 @@ def read_progress(run_dir: Path, extraction_id: str) -> dict | None:
     """The progress document for `extraction_id` under `run_dir`, or None before the first stage of record work
     (`catalog-discovery.json`, or the first context file of this execution) exists. Files only: a missing, unreadable,
     malformed or other execution's stage file is skipped, and a finished entry is read before any marker beside it, so a
-    stage never regresses. The document is checked against `ProgressDocument` before it is served: one outside it (a
-    defect of the reader, the files having been checked one by one) is logged and answered as no progress, never a
-    failure of the route."""
+    stage never regresses. The document served is `ProgressDocument`'s dump of what was assembled, so what was checked
+    is what Studio receives (a value pydantic coerced is served coerced); one outside it (a defect of the reader, the
+    files having been checked one by one) is logged and answered as no progress, never a failure of the route."""
     directory = run_dir / "extractions" / extraction_id
     header = _stage(directory / PROGRESS_NAME, _Header)
     if header is None:
@@ -265,11 +268,10 @@ def read_progress(run_dir: Path, extraction_id: str) -> dict | None:
     if document is None:
         return None
     try:
-        ProgressDocument.model_validate(document)
+        return ProgressDocument.model_validate(document).model_dump(mode="json")
     except ValidationError as error:
         _LOG.warning("progress of extraction %s outside its contract, not served: %s", extraction_id, error)
         return None
-    return document
 
 
 def _stage[M: _Stage](path: Path, model: type[M], execution: str | None = None) -> M | None:
@@ -297,7 +299,7 @@ def _catalog(directory: Path, run_dir: Path, header: _Header) -> dict | None:
                "stage": "queued", "candidates": None, "record": None, "evidence": None, "contested": None,
                "failed": None}
         published = _json(directory / unified.entry_name(number))
-        if (settled := _finished(published)) is not None:
+        if (settled := _finished(published, number)) is not None:
             record, contested = settled
             row.update(stage="finished", record=record, evidence=_entry_evidence(published, passages),
                        contested=contested)
@@ -314,11 +316,15 @@ def _catalog(directory: Path, run_dir: Path, header: _Header) -> dict | None:
             "discovered": len(entries), "finished": finished, "entries": entries, "document": None}
 
 
-def _finished(published: Any) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+def _finished(published: Any, number: int) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
     """A published entry's record and its unresolved arbitrations (record-relative paths), or None when the fields the
-    view reads are outside their layout: such an entry is shown from its other stage files, as if unpublished."""
+    view reads are outside their layout or the entry is not discovery entry `number`: such an entry is shown from its
+    other stage files, as if unpublished."""
     try:
-        work = _FinishedEntry.model_validate(published).work
+        entry = _FinishedEntry.model_validate(published)
+        if entry.index != number:
+            return None
+        work = entry.work
         arbitrations = [_Arbitration.model_validate(row) for row in work.contest if isinstance(row, dict)]
     except ValidationError:
         return None
