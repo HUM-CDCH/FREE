@@ -180,6 +180,24 @@ def test_a_cancel_during_resolution_adopts_nothing(roots, fake, monkeypatch):
     assert stopped.value.code == "cancelled" and not (runs.RUNS / second["id"] / "result").exists()
 
 
+def test_a_cancel_during_the_model_servers_probe_transcribes_nothing(roots, fake, monkeypatch):
+    """A whole-page run emits no checked event before its transcription, so the probe ends with a check."""
+    cancelled = {"now": False}
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(
+        workflow_id=WID, get_workflow_status=lambda wid: SimpleNamespace(
+            status="CANCELLED" if cancelled["now"] else "PENDING")))
+
+    def probed(url):
+        cancelled["now"] = True
+        return True, "fake/model"
+    monkeypatch.setattr(runtime, "loaded_model", probed)
+    params = workflow.prepare_run(WID, staged(roots, model="fake", cut="none"),
+                                  {"model": "fake", "layout_model": DEFAULT_LAYOUT_MODEL})
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.convert_run(WID, params)
+    assert stopped.value.code == "cancelled" and fake.calls == []
+
+
 def test_a_cancel_stops_the_conversion_at_its_next_page_event(roots, fake, monkeypatch):
     cancelled = {"now": False}
     monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(

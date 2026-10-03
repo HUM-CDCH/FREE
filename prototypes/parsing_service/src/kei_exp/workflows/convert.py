@@ -151,6 +151,7 @@ def convert_run(workflow_id: str, params: dict) -> dict:
 
     def before_ocr() -> None:  # an adopted result needs no model server
         serving(execution)
+        check(force=True)  # the probe may wait; a whole-page run emits no checked event before transcribing
     reusing = {} if execution.debug_dir is not None else {  # a debug report describes work done: it reuses none
         "seed": lambda doc_dir: reuse.seed_ingest(doc_dir, params["source_sha256"],
                                                   IngestConfig.model_validate(execution.ingest or {}), own=directory),
