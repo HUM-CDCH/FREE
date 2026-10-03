@@ -54,6 +54,7 @@ def seed_ingest(doc_dir: Path, pdf_sha256: str, cfg: IngestConfig, *, own: Path)
     if paths.accepted.exists():
         return
     wanted = artifacts.fingerprint(ingest.STAGE_VERSION, cfg, pdf_sha256)
+    shutil.rmtree(paths.staging, ignore_errors=True)  # an interrupted ingest's, which its recovery removes anyway
     for run in candidates(pdf_sha256, own=own):
         donor = IngestPaths(run / doc_dir.relative_to(own)).accepted
         if not donor.is_dir():

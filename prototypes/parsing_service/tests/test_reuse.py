@@ -134,6 +134,7 @@ def document(pdf: Path, root: Path, name: str = "run-own") -> Path:
 def test_a_proven_ingest_of_the_same_recipe_is_seeded_and_the_ingest_skips(scanned, root):
     donated = IngestPaths(ingested("run-a", scanned, root)).accepted
     doc_dir = document(scanned, root)
+    (doc_dir / "ingest.staging" / "pages").mkdir(parents=True)  # left by an ingest of this run that was interrupted
     reuse.seed_ingest(doc_dir, sha256_file(scanned), SINGLE, own=root / "run-own")
     assert (doc_dir / "ingest" / "pages" / "001.png").samefile(donated / "pages" / "001.png")  # linked, not copied
     step, artifact = ingest_step(root / "run-own" / "input.pdf", SINGLE, doc_dir)
