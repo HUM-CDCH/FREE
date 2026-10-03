@@ -6,11 +6,15 @@ import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import { loginResearcher } from './auth.js'
 
 // §6 field rows at the rail's minimum (264px) and default (344px) widths, measured in a real browser: every row's name,
-// pills and three 28px actions sit inside the schema list, nothing scrolls sideways, and Tab reaches the actions.
+// pills and three 28px actions sit inside the schema list, nothing scrolls sideways, Tab reaches the actions, a pointer on
+// a pill reaches the pill, and at rest the hidden actions take no hits. Also the panel's other narrow-rail surfaces: the
+// record description's rows, the history preview banner and the Undo toast.
 
 const SIX = (values: string) => values.split(' ')
 const schemaNodes = [
   { id: 'title', name: 'title', type: 'string', description: 'The report title as printed on its cover page.' },
+  // Short enough that its type pill fits beside it, clear of the actions' zone, even at 264px.
+  { id: 'site', name: 'site', type: 'string' },
   { id: 'context', name: 'archaeological_context', type: 'string', allowedValues: SIX('grave settlement hoard ritual production unknown') },
   { id: 'sex', name: 'sex', type: 'string', allowedValues: SIX('f m unknown child adult elder') },
   { id: 'findings', name: 'findings', type: 'array', children: [
@@ -21,7 +25,7 @@ const schemaNodes = [
   ] },
 ] as const
 /** Every field, root to depth 2; all groups start open. */
-const rows = ['title', 'archaeological_context', 'sex', 'findings', 'kind', 'deposit', 'layer']
+const rows = ['title', 'site', 'archaeological_context', 'sex', 'findings', 'kind', 'deposit', 'layer']
 
 const pdfPath = fileURLToPath(new URL('../../../examples/1790-06-17-1.pdf', import.meta.url))
 const parsedDocumentPath = fileURLToPath(new URL('../src/assets/parsed_document.v2.json', import.meta.url))
@@ -53,8 +57,13 @@ test.beforeAll(async () => {
     parserName: 'fixture', parserVersion: '1',
   })
   await db.orm.public.ExtractionSchema.create({ id: id.schema, projectContextId: id.project, name: 'Excavation report' })
+  // Revision 1 is history to preview; revision 2, the highest, is the Current Schema Revision the rows show.
   await db.orm.public.SchemaRevision.create({
     id: randomUUID(), extractionSchemaId: id.schema, revisionNumber: 1, origin: 'RESEARCHER_EDIT', recordScope: 'document',
+    schemaTree: { recordDescription: 'One excavation report.', schemaNodes: [schemaNodes[0]] },
+  })
+  await db.orm.public.SchemaRevision.create({
+    id: randomUUID(), extractionSchemaId: id.schema, revisionNumber: 2, origin: 'RESEARCHER_EDIT', recordScope: 'document',
     schemaTree: {
       recordDescription: 'One excavation report and what it found, as the report itself describes the site and its finds.',
       schemaNodes,
@@ -110,7 +119,10 @@ const opacity = (locator: Locator) => locator.evaluate((element) => getComputedS
 async function checkRows(page: Page, width: number) {
   const list = page.getByRole('list', { name: 'Schema fields' })
   const listBox = (await list.boundingBox())!
-  expectInside(listBox, (await rail(page).boundingBox())!, `${width}px: the schema list in the rail`)
+  // Sideways only: the list scrolls vertically in the panel, and at 264px its wrapped rows run below the viewport.
+  const railBox = (await rail(page).boundingBox())!
+  expect(listBox.x, `${width}px: the schema list in the rail: left edge`).toBeGreaterThanOrEqual(railBox.x - 0.5)
+  expect(listBox.x + listBox.width, `${width}px: the schema list in the rail: right edge`).toBeLessThanOrEqual(railBox.x + railBox.width + 0.5)
   // Neither the list nor the panel's scroll container scrolls sideways.
   const overflow = await list.evaluate((element) => ({
     list: [element.scrollWidth, element.clientWidth],
@@ -140,9 +152,66 @@ async function checkRows(page: Page, width: number) {
   const longName = page.getByRole('listitem', { name: 'archaeological_context' }).getByText('archaeological_context', { exact: true })
   const truncated = await longName.evaluate((element) => element.scrollWidth > element.clientWidth)
   expect(truncated, `${width}px: archaeological_context shown in full`).toBe(false)
-  // Rows are 30px at rest when their pills fit beside the name.
-  const sexLine = page.getByRole('listitem', { name: 'sex', exact: true }).locator('> div').first()
-  expect((await sexLine.boundingBox())!.height, `${width}px: sex row height`).toBe(30)
+  // Rows are 30px at rest when their pills fit beside the name, clear of the actions' 96px zone: at 344px `sex · string ·
+  // 6 values` does. At 264px the zone leaves 87px of the line, so most rows' pills wrap under the name (`title · string`
+  // misses by 2px); `site · string` still fits.
+  const restingRow = width >= 344 ? 'sex' : 'site'
+  const restingLine = page.getByRole('listitem', { name: restingRow, exact: true }).locator('> div').first()
+  expect((await restingLine.boundingBox())!.height, `${width}px: ${restingRow} row height`).toBe(30)
+  // A note starts where its field's name starts.
+  const title = page.getByRole('listitem', { name: 'title', exact: true })
+  const nameStart = (await title.getByText('title', { exact: true }).boundingBox())!.x
+  const noteStart = await title.getByRole('button', { name: 'The report title as printed on its cover page.' }).evaluate((element) =>
+    element.getBoundingClientRect().left + parseFloat(getComputedStyle(element).paddingLeft))
+  expect(Math.abs(noteStart - nameStart), `${width}px: the note starts under the name (${noteStart} vs ${nameStart})`).toBeLessThanOrEqual(0.5)
+}
+
+/** Every row's type and values pills, clicked at their right edge with the row hovered, as a pointer would: the click
+ *  reaches the pill and opens the edit form focused on the name or the allowed values; never an action (no note form, no
+ *  delete). */
+async function clickPillEdges(page: Page, width: number) {
+  const pills = [
+    { title: /^Type: /, focused: () => page.getByPlaceholder('field_name') },
+    { title: /^Allowed values/, focused: () => page.getByLabel('Add allowed value') },
+  ]
+  for (const name of rows) {
+    const row = page.getByRole('listitem', { name, exact: true })
+    for (const { title, focused } of pills) {
+      const pill = row.getByTitle(title)
+      if (await pill.count() === 0) continue
+      const what = `${width}px, ${name}: ${title.source} pill's right edge`
+      await row.scrollIntoViewIfNeeded()
+      await row.hover()
+      await expect.poll(() => opacity(actionsOf(row, name)[0]!.locator('..')), `${what}: actions shown on hover`).toBe('1')
+      const box = (await pill.boundingBox())!
+      // Playwright refuses a click another element would intercept, naming that element.
+      await pill.click({ position: { x: box.width - 2, y: box.height / 2 }, timeout: 3_000 })
+      await expect(focused(), `${what}: the edit form's focus`).toBeFocused()
+      await expect(page.getByPlaceholder(/^(Describe this field|Add another note)/), `${what}: no note form`).toHaveCount(0)
+      await expect(page.getByText('Field removed'), `${what}: nothing deleted`).toHaveCount(0)
+      await page.getByRole('button', { name: 'Cancel field edit' }).click()
+      await expect(row, `${what}: the row is back`).toBeVisible()
+    }
+  }
+}
+
+/** At rest, with no pointer over the rows and no focus in them, the hidden actions take no hits: a tap where Delete
+ *  sits (the right end of the first line) reaches the row, never Delete. */
+async function checkRestingHits(page: Page, width: number) {
+  for (const name of rows) {
+    const row = page.getByRole('listitem', { name, exact: true })
+    await row.scrollIntoViewIfNeeded()
+    await page.mouse.move(0, 0)
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+    const remove = actionsOf(row, name)[2]!
+    await expect.poll(() => opacity(remove.locator('..')), `${width}px, ${name}: actions hidden at rest`).toBe('0')
+    const box = (await remove.boundingBox())!
+    const hit = await page.evaluate(([x, y]) => {
+      const element = document.elementFromPoint(x!, y!)
+      return element?.closest('[data-row-actions]') ? element.getAttribute('aria-label') ?? element.tagName : null
+    }, [box.x + box.width / 2, box.y + box.height / 2])
+    expect(hit, `${width}px, ${name}: at rest, a tap where Delete sits reaches no action`).toBeNull()
+  }
 }
 
 async function checkKeyboard(page: Page, width: number) {
@@ -168,6 +237,8 @@ async function checkKeyboard(page: Page, width: number) {
       await expect.poll(async () => (await opacity(actions[0]!.locator('..'))) !== '0' &&
         (await Promise.all(actions.map((action) => action.boundingBox()))).some((box) => box !== null && overlaps(box, pillBox)),
       `${width}px: the focused values pill is not covered by the actions`).toBe(false)
+      expect(await actions[0]!.locator('..').evaluate((element) => getComputedStyle(element).pointerEvents),
+        `${width}px: the stepped-aside actions take no hits`).toBe('none')
     }
   }
   expect(reached, `${width}px: Tab order from the row`).toEqual([
@@ -184,7 +255,7 @@ async function checkKeyboard(page: Page, width: number) {
     `${width}px: focused Delete`)
 }
 
-test('field rows fit the rail at 344px and 264px @database', async ({ page }) => {
+test('field rows fit the rail at 344px and 264px @deterministic', async ({ page }) => {
   test.setTimeout(90_000)
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
@@ -203,7 +274,51 @@ test('field rows fit the rail at 344px and 264px @database', async ({ page }) =>
   for (const action of actionsOf(findings, 'findings')) expectInside(await action.boundingBox(), listBox, '264px: collapsed findings action')
 })
 
-test('the record description grows with its text, and the code view scrolls long lines sideways at 264px @database', async ({ page }) => {
+test('a pointer on a pill\'s right edge reaches the pill, never the actions, at 344px and 264px @deterministic', async ({ page }) => {
+  test.setTimeout(120_000)
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
+  await clickPillEdges(page, 344)
+  await resizeRail(page, 264)
+  await clickPillEdges(page, 264)
+})
+
+test('at rest the hidden row actions take no hits, at 344px and 264px @deterministic', async ({ page }) => {
+  test.setTimeout(90_000)
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
+  await checkRestingHits(page, 344)
+  await resizeRail(page, 264)
+  await checkRestingHits(page, 264)
+})
+
+test.describe('on a touch screen', () => {
+  test.use({ hasTouch: true })
+  test('a tap at rest where Delete sits focuses the row and deletes nothing, at 344px and 264px @deterministic', async ({ page }) => {
+    test.setTimeout(90_000)
+    test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+    await openSchema(page)
+    await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
+    for (const width of [344, 264]) {
+      if (width !== 344) await resizeRail(page, width)
+      const row = page.getByRole('listitem', { name: 'sex', exact: true })
+      await row.scrollIntoViewIfNeeded()
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+      const remove = actionsOf(row, 'sex')[2]!
+      await expect.poll(() => opacity(remove.locator('..')), `${width}px: actions hidden at rest`).toBe('0')
+      const box = (await remove.boundingBox())!
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+      // The tap lands on the row, which takes focus and so reveals its actions for a second tap; nothing is deleted.
+      await expect(row, `${width}px: the tap focused the row`).toBeFocused()
+      await expect(page.getByText('Field removed'), `${width}px: nothing deleted`).toHaveCount(0)
+      await expect.poll(() => opacity(remove.locator('..')), `${width}px: the actions shown after the tap`).toBe('1')
+    }
+  })
+})
+
+test('the record description grows with its text, and the code view scrolls long lines sideways at 264px @deterministic', async ({ page }) => {
   test.setTimeout(90_000)
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
@@ -242,4 +357,86 @@ test('the record description grows with its text, and the code view scrolls long
     expect((await rail(page).getByRole('button', { name, exact: true }).boundingBox())!.height, name).toBeGreaterThanOrEqual(24)
   const panel = await rail(page).evaluate((element) => [element.scrollWidth, element.clientWidth])
   expect(panel[0]).toBeLessThanOrEqual(panel[1]!)
+})
+
+test('the record description re-measures its rows when the rail is resized or the Schema tab is shown again @deterministic', async ({ page }) => {
+  test.setTimeout(90_000)
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
+  const description = page.getByLabel('What one record is')
+  const fit = () => description.evaluate((element: HTMLTextAreaElement) =>
+    ({ rows: element.rows, hidden: element.scrollHeight > element.clientHeight + 1 }))
+  // Filled wide; no keystroke after this.
+  await description.fill('One excavation report and what it found, as the report itself describes the site, its layers and its finds.')
+  const wide = (await fit()).rows
+  expect(wide).toBeGreaterThanOrEqual(2)
+  await resizeRail(page, 264)
+  await expect.poll(async () => (await fit()).rows, 'narrowed: more rows').toBeGreaterThan(wide)
+  const narrow = await fit()
+  expect(narrow.rows).toBeLessThanOrEqual(6)
+  expect(narrow.hidden, 'narrowed: no text hidden').toBe(false)
+  await resizeRail(page, 344)
+  await expect.poll(async () => (await fit()).rows, 'widened: back to its rows').toBe(wide)
+  // Narrowed while the Schema tab is hidden: measured once it shows again.
+  await page.getByRole('tab', { name: /^Results/ }).click()
+  await resizeRail(page, 264)
+  await page.getByRole('tab', { name: /^Schema/ }).click()
+  await expect.poll(async () => (await fit()).rows, 'shown again: narrow rows').toBe(narrow.rows)
+  expect((await fit()).hidden).toBe(false)
+})
+
+test('a history preview at 264px reads across the panel, its commands beneath and inside it @deterministic', async ({ page }) => {
+  test.setTimeout(90_000)
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await resizeRail(page, 264)
+  await page.getByRole('button', { name: 'Schema actions' }).click()
+  await page.getByRole('menuitem', { name: 'History' }).click()
+  await page.getByRole('dialog', { name: 'Schema history' }).getByRole('button', { name: /^Revision 1/ }).click()
+  const banner = rail(page).getByRole('status').filter({ hasText: 'Viewing historical Schema Revision 1' })
+  await expect(banner).toBeVisible()
+  const railBox = (await rail(page).boundingBox())!
+  const bannerBox = (await banner.boundingBox())!
+  expectInside(bannerBox, railBox, '264px: the banner in the rail')
+  const text = banner.getByText(/^Viewing historical Schema Revision 1/)
+  const textBox = (await text.boundingBox())!
+  expectInside(textBox, bannerBox, '264px: the banner text')
+  // Its whole width, not a word a line beside the commands.
+  const inner = await banner.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+  })
+  expect(textBox.width, '264px: the banner text spans the banner').toBeGreaterThanOrEqual(inner - 1)
+  for (const name of ['Close preview', 'Create Current Schema Revision']) {
+    const box = (await banner.getByRole('button', { name }).boundingBox())!
+    expectInside(box, bannerBox, `264px: ${name}`)
+    expect(box.y, `264px: ${name} beneath the text`).toBeGreaterThanOrEqual(textBox.y + textBox.height)
+  }
+  const overflow = await rail(page).evaluate((element) => [element.scrollWidth, element.clientWidth])
+  expect(overflow[0]).toBeLessThanOrEqual(overflow[1]!)
+})
+
+test('the Undo toast sits clear of the composer and the footer at 344px and 264px @deterministic', async ({ page }) => {
+  test.setTimeout(90_000)
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  await expect.poll(async () => (await rail(page).boundingBox())!.width).toBe(344)
+  for (const width of [344, 264]) {
+    if (width !== 344) await resizeRail(page, width)
+    const row = page.getByRole('listitem', { name: 'sex', exact: true })
+    await row.hover()
+    await row.getByRole('button', { name: 'Delete sex', exact: true }).click()
+    const toast = page.getByText('Field removed').locator('..')
+    await expect(toast).toBeVisible()
+    const toastBox = (await toast.boundingBox())!
+    const composer = (await page.getByPlaceholder('Describe a change to the schema…').locator('..').boundingBox())!
+    const footer = (await rail(page).locator('footer').boundingBox())!
+    expect(overlaps(toastBox, composer), `${width}px: the toast clear of the composer`).toBe(false)
+    expect(overlaps(toastBox, footer), `${width}px: the toast clear of the footer`).toBe(false)
+    expectInside(toastBox, (await rail(page).boundingBox())!, `${width}px: the toast in the rail`)
+    // The seed is shared with the other tests: put the field back.
+    await page.getByRole('button', { name: 'Undo' }).click()
+    await expect(page.getByRole('listitem', { name: 'sex', exact: true })).toBeVisible()
+  }
 })
