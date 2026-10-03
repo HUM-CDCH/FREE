@@ -350,7 +350,8 @@ def started(directory: Path, strategy: str, start_page: int | None) -> str:
 1. After `directory = run_dir / "extractions" / extraction_id if run_dir is not None and extraction_id else None` (287) add:
 
 ```python
-    execution = progress.started(directory, "catalog", request.options.start_page) if directory is not None else None
+    # Not `execution`: that name is the execution record, assigned a few lines below.
+    stage_execution = progress.started(directory, "catalog", request.options.start_page) if directory is not None else None
 ```
 
 2. `read` (312-324) becomes:
@@ -366,8 +367,8 @@ def started(directory: Path, strategy: str, start_page: int | None) -> str:
         if path.exists():
             return _work_of(_published(path, dict, _entry_reusable(number, entry, discovery_sha256)), run.nodes)
         progress.write_stage(directory / progress.reading_name(number),
-                             {"version": progress.CANDIDATES_VERSION, "execution": execution, "index": number})
-        work = run.entry(number, entry, on_candidates=partial(_candidates_stage, directory, execution, number, entry,
+                             {"version": progress.CANDIDATES_VERSION, "execution": stage_execution, "index": number})
+        work = run.entry(number, entry, on_candidates=partial(_candidates_stage, directory, stage_execution, number, entry,
                                                               discovery_sha256, run.nodes))
         record = _entry_json(number, entry, discovery_sha256, work)
         if work.failed or work.undecided or any(not call.ok for call in work.calls):
@@ -464,8 +465,8 @@ def entry_links(record: dict, passages: dict) -> list[dict]:
 
 **Interfaces:**
 - Consumes: `progress.started`, `progress.write_stage`, `progress.context_name`, `progress.grounding_name`, `progress.ARTICLE_STAGE_VERSION` (Task 2); `article.extract(..., extraction_id=None)` (Task 1).
-- Produces: `article.context_order(groups, start_page) -> list[int]`; `document_root(..., start_page=None, on_context=None)` where `on_context(index, total, answered, group, fields, root, contested, ok, calls)` runs after each value context's call with the root assembled and conformed over the contexts answered so far and its scalar conflicts; `ground_records(..., on_batch=None)`; `grounding.verify(..., on_batch=None)` and the same keyword on `semantic`, `quoted`, `spans`, `off`, where `on_batch(links)` runs after each batch's reply with the links that batch made.
-- The context file: `{"version": 1, "execution", "context", "of", "answered", "passages", "fields", "root", "contested": [{"path", "candidates"}], "ok", "calls"}`. The grounding file: `{"version": 1, "execution", "links": [artifact link dicts]}`.
+- Produces: `article.context_order(groups, start_page) -> list[int]`; `document_root(..., start_page=None, on_context=None)` where `on_context(index, total, answered, failed, group, fields, root, contested, ok, calls)` runs after each value context's call with the root assembled and conformed over the contexts answered so far, its scalar conflicts, and `failed`, the number of those contexts whose call failed (cumulative, so a dropped stage write loses no failure); `ground_records(..., on_batch=None)`; `grounding.verify(..., on_batch=None)` and the same keyword on `semantic`, `quoted`, `spans`, `off`, where `on_batch(links)` runs after each batch's reply with the links that batch made.
+- The context file: `{"version": 1, "execution", "context", "of", "answered", "failed", "passages", "fields", "root", "contested": [{"path", "candidates"}], "ok", "calls"}`. The grounding file: `{"version": 1, "execution", "links": [artifact link dicts]}`.
 
 - [ ] **Step 1: Write the failing tests.** `tests/test_extract_progress.py`:
 
@@ -477,6 +478,7 @@ import pytest
 
 from kei_exp.kie.extract import article, progress, run
 from kei_exp.kie.extract.contexts import Context
+from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.passages import Passage
 from tests.test_extract_grounded import CountingChat, WordCounter
@@ -508,10 +510,11 @@ def test_each_context_publishes_the_root_assembled_so_far_in_the_order_contexts_
                           record_chars=24_000, check=lambda: None, contexts=[Context((first,)), Context((second,))],
                           start_page=2, on_context=lambda *call: told.append(call))
     assert [(index, total, answered) for index, total, answered, *_ in told] == [(1, 2, 1), (0, 2, 2)]  # page 2 first
-    (_, _, _, group, fields_1, root_1, contested_1, ok_1, calls_1), (_, _, _, _, _, root_2, contested_2, ok_2, _) = told
+    (_, _, _, failed_1, group, fields_1, root_1, contested_1, ok_1, calls_1), (_, _, _, failed_2, _, _, root_2, contested_2, ok_2, _) = told
     assert group.passages == (second,) and fields_1["year"] == 1828 and ok_1 and [call.stage for call in calls_1] == ["record"]
-    assert root_1 == {"entry_no": None, "site": "Hill", "year": 1828, "finds": []} and contested_1 == []
+    assert root_1 == {"entry_no": None, "site": "Hill", "year": 1828, "finds": None} and contested_1 == []  # conform: an empty list is None
     assert root_2 == {"entry_no": "31", "site": "Hill", "year": 1828, "finds": ["spear"]} and contested_2 == [] and ok_2
+    assert failed_1 == 0 and failed_2 == 0
 
     def disagreeing(system, user, schema):
         return {"entry_no": None, "site": "Brook" if "Results" in user else "Hill", "year": None, "finds": []}
@@ -519,7 +522,17 @@ def test_each_context_publishes_the_root_assembled_so_far_in_the_order_contexts_
     article.document_root([first, second], SCHEMA, CountingChat(disagreeing), counters={role: WordCounter() for role in ("fields", "reasoning")},
                           record_chars=24_000, check=lambda: None, contexts=[Context((first,)), Context((second,))],
                           start_page=None, on_context=lambda *call: told.append(call))
-    assert told[-1][5]["site"] is None and told[-1][6] == [{"path": ["site"], "candidates": ["Hill", "Brook"]}]
+    assert told[-1][6]["site"] is None and told[-1][7] == [{"path": ["site"], "candidates": ["Hill", "Brook"]}]
+
+    def failing_first(system, user, schema):
+        if "Results" not in user:  # the first context's call fails: a reply that is no JSON is a failed call (`calls.complete`)
+            return Reply(text="{not json", input_tokens=10, output_tokens=1, finish="stop", seconds=0.0)
+        return {"entry_no": None, "site": "Hill", "year": 1828, "finds": []}
+    told.clear()
+    article.document_root([first, second], SCHEMA, CountingChat(failing_first), counters={role: WordCounter() for role in ("fields", "reasoning")},
+                          record_chars=24_000, check=lambda: None, contexts=[Context((first,)), Context((second,))],
+                          start_page=None, on_context=lambda *call: told.append(call))
+    assert [(answered, failed, ok) for _, _, answered, failed, _, _, _, _, ok, _ in told] == [(1, 1, False), (2, 1, True)]  # failed is cumulative
 
 
 def test_article_publishes_the_header_each_context_and_each_grounding_batch_for_the_partial_view(tmp_path):
@@ -540,8 +553,8 @@ def test_article_publishes_the_header_each_context_and_each_grounding_batch_for_
     header = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
     assert {key: header[key] for key in ("version", "strategy", "start_page")} == {"version": 1, "strategy": "article", "start_page": 2}
     context = json.loads((directory / progress.context_name(0)).read_bytes())
-    assert (context["version"], context["execution"], context["context"], context["of"], context["answered"], context["ok"]) == \
-        (1, header["execution"], 0, 1, 1, True)
+    assert (context["version"], context["execution"], context["context"], context["of"], context["answered"], context["failed"], context["ok"]) == \
+        (1, header["execution"], 0, 1, 1, 0, True)
     assert context["fields"]["site"] == "Hill" and context["root"]["finds"] == ["spear"] and context["contested"] == []
     assert context["passages"]["primary"] == ["p1_s0", "p1_s1"] and [call["stage"] for call in context["calls"]] == ["record"]
     batches = sorted(directory.glob("article-grounding-*.v1.json"))
@@ -590,14 +603,15 @@ def test_without_an_extraction_id_article_publishes_nothing(tmp_path):
 5. Add after `extract` (before `document_root`):
 
 ```python
-def _context_stage(directory: Path, execution: str, index: int, total: int, answered: int, group: Context, fields: dict,
-                   root: dict, contested: list[dict], ok: bool, calls: list[Call]) -> None:
+def _context_stage(directory: Path, execution: str, index: int, total: int, answered: int, failed: int, group: Context,
+                   fields: dict, root: dict, contested: list[dict], ok: bool, calls: list[Call]) -> None:
     """One value context's answered fields and the root assembled so far, for the partial view (design §2); read by
-    no path of this module. `ok` is false when the context's call failed: its fields are unknown, not empty."""
+    no path of this module. `ok` is false when this context's call failed; `failed` counts every failed context so far,
+    so the latest file alone says whether unknown fields remain even when an earlier file's write was dropped."""
     progress.write_stage(directory / progress.context_name(index), {
         "version": progress.ARTICLE_STAGE_VERSION, "execution": execution, "context": index, "of": total,
-        "answered": answered, "passages": group.dumped(), "fields": fields, "root": root, "contested": contested,
-        "ok": ok, "calls": [asdict(call) for call in calls]})
+        "answered": answered, "failed": failed, "passages": group.dumped(), "fields": fields, "root": root,
+        "contested": contested, "ok": ok, "calls": [asdict(call) for call in calls]})
 
 
 def _grounding_stage(directory: Path, execution: str, batches: count, links: Sequence[Link]) -> None:
@@ -618,7 +632,7 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
     return sorted(range(len(groups)), key=distance)
 ```
 
-6. `document_root` (155-158) gains `start_page: int | None = None, on_context: Callable[..., None] | None = None` after `contexts: list[Context] | None = None`; its docstring gains `With \`on_context\`, after each value context's call, the root assembled by \`assemble_document\` and conformed over the contexts answered so far is reported with its scalar conflicts: the partial view's reading of the document before the last context answers.` Its loop (186-193) becomes:
+6. `document_root` (155-158) gains `start_page: int | None = None, on_context: Callable[..., None] | None = None` after `contexts: list[Context] | None = None`; its docstring gains `With \`on_context\`, after each value context's call, the root assembled by \`assemble_document\` and conformed over the contexts answered so far is reported with its scalar conflicts and the number of those contexts whose call failed: the partial view's reading of the document before the last context answers.` Its loop (186-193) becomes:
 
 ```python
     candidates: list[dict] = [{} for _ in groups]
@@ -633,7 +647,8 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
             done = [number for number, each in enumerate(answered) if each is not None]  # source order
             so_far, conflicts, _, _ = (assemble_document([candidates[number] for number in done], sharing([groups[number] for number in done]))
                                        if len(done) != 1 else (candidates[done[0]], [], [], []))
-            on_context(index, len(groups), len(done), group, fields, conform(so_far, schema.record_nodes), conflicts,
+            failed = sum(not all(call.ok for call in answered[number][0]) for number in done)  # cumulative
+            on_context(index, len(groups), len(done), failed, group, fields, conform(so_far, schema.record_nodes), conflicts,
                        all(call.ok for call in attempts), attempts)
     for each in answered:  # calls and issues in source order: the artifact is the same whatever the order of work
         if each is not None:
@@ -658,7 +673,7 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
 
 **Interfaces:**
 - Produces: `progress.read_progress(run_dir: Path, extraction_id: str) -> dict | None` and `progress.ProgressDocument` (pydantic); `GET /api/runs/{run_id}/extractions/{extraction_id}/progress` → 404 `no progress yet` / 404 `no such run` / 404 `no such extraction` / 200 the document; the fixture `extract.progress.json` both sides read (Task 6).
-- The document: `{"version": 1, "strategy", "started_at_page", "discovered", "finished", "entries": [{"index", "label", "page", "stage": "queued"|"reading"|"candidates"|"finished", "candidates", "record", "evidence", "contested": [{"path", "candidates"}] | null, "failed": int | null}], "document": {"contexts", "answered", "of", "failed_contexts", "links", "grounding_batches"} | null}`. `contested` paths are record-relative; `failed` is the entry's failed values windows (Catalog, candidates stage) or failed contexts (Article).
+- The document: `{"version": 1, "strategy", "started_at_page", "discovered", "finished", "entries": [{"index", "label", "page", "stage": "queued"|"reading"|"candidates"|"finished", "candidates", "record", "evidence", "contested": [{"path", "candidates"}] | null, "failed": int | null}], "document": {"contexts", "answered", "of", "failed_contexts", "links", "grounding_batches"} | null}`. `contested` paths are record-relative; `failed` is the entry's failed values windows (Catalog, candidates stage) or failed contexts (Article, from the latest context file's cumulative count). Article's `evidence`, `links` and `grounding_batches` are attached only once the latest context file shows every context answered (`answered == of`): grounding verifies the final root (`article.extract` grounds `extracted.slices` after `document_root`), so a link's path belongs to that root alone, and an earlier root must never wear it.
 - Consumes: `unified.entry_name`, `unified.entry_links` (Task 2), the stage files of Tasks 2 and 3.
 
 - [ ] **Step 1: The fixture.** `tests/fixtures/contracts/extract.progress.json`, one entry per stage, as the reader writes it for the `test_unified_catalog` schema (`label`, `site`, `material`, `gilded`, `finds[].name`, `finds[].count`, document `title`) with the work started from page 1; the second entry's site is a contest arbitration left unresolved:
@@ -817,49 +832,61 @@ def test_malformed_or_stale_stage_files_are_skipped_never_served(tmp_path):
     with pytest.raises(requests.ConnectionError):
         unified_extract(source, before_entry_1, run_dir=tmp_path, extraction_id="x1")
     assert [entry["stage"] for entry in progress.read_progress(tmp_path, "x1")["entries"]] == ["finished", "reading"]
+    header = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
     (directory / progress.candidates_name(1)).write_bytes(b"{}")                     # a stage file outside its layout
     assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "reading"  # skipped: the marker still counts
+    progress.write_stage(directory / progress.candidates_name(1), {"version": 1, "execution": header["execution"], "index": 1,
+                         "discovery_sha256": "0" * 64, "ranges": [], "candidates": [{}], "record": {}, "failed": 0})  # a row outside its shape
+    assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "reading"  # the whole file is skipped
     (directory / progress.reading_name(1)).write_bytes(b"{not json")                   # half-written
     assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "queued"
-    header = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
     progress.write_stage(directory / progress.reading_name(1), {"version": 1, "execution": "other", "index": 1})  # another execution's
     assert progress.read_progress(tmp_path, "x1")["entries"][1]["stage"] == "queued"
     (directory / progress.PROGRESS_NAME).write_bytes(b"[]")                            # a header that is no header
     assert progress.read_progress(tmp_path, "x1") is None
     progress.write_stage(directory / progress.PROGRESS_NAME, header)
     assert progress.read_progress(tmp_path, "x1")["finished"] == 1
+    discovery = directory / "catalog-discovery.json"
+    kept = discovery.read_bytes()
+    discovery.write_bytes(b'{"entries": [null]}')                                       # kei's own record, outside its layout
+    assert progress.read_progress(tmp_path, "x1") is None                             # no guess: no progress
+    discovery.write_bytes(kept)
+    assert progress.read_progress(tmp_path, "x1")["finished"] == 1
 
 
-def test_the_article_progress_is_one_record_from_the_latest_assembled_root_whose_links_arrive_by_batch(tmp_path):
+def test_the_article_progress_is_one_record_from_the_latest_assembled_root_whose_links_arrive_once_it_is_complete(tmp_path):
     directory = tmp_path / "extractions" / "x3"
     execution = progress.started(directory, "article", 2)
     assert progress.read_progress(tmp_path, "x3") is None  # no context answered yet
+    link = {"path": ["records", 0, "year"], "segment": "p2_s0", "page": 2, "bbox_pt": [0.0, 0.0, 1.0, 1.0],
+            "verbatim": True, "hits": 1, "linked_by": "model", "cell": None, "precision": "segment"}
     progress.write_stage(directory / progress.context_name(1), {
-        "version": 1, "execution": execution, "context": 1, "of": 2, "answered": 1, "passages": {"primary": ["p2_s0"], "overlap": []},
-        "fields": {"entry_no": None, "site": "Brook", "year": 1828, "finds": []},
-        "root": {"entry_no": None, "site": "Brook", "year": 1828, "finds": []}, "contested": [], "ok": True, "calls": []})
+        "version": 1, "execution": execution, "context": 1, "of": 2, "answered": 1, "failed": 0, "passages": {"primary": ["p2_s0"], "overlap": []},
+        "fields": {"entry_no": None, "site": "Brook", "year": 1828, "finds": None},
+        "root": {"entry_no": None, "site": "Brook", "year": 1828, "finds": None}, "contested": [], "ok": True, "calls": []})
+    # A grounding file beside an incomplete root (the final context's write was dropped, or this read fell between the two
+    # writes): the links verify the final root, so none is attached to the root shown.
+    progress.write_stage(directory / progress.grounding_name(0), {"version": 1, "execution": execution, "links": [link]})
     document = progress.read_progress(tmp_path, "x3")
     progress.ProgressDocument.model_validate(document)
     [entry] = document["entries"]
     assert (document["strategy"], document["started_at_page"], document["discovered"], document["finished"]) == ("article", 2, 1, 0)
-    assert entry["stage"] == "candidates" and entry["record"] == {"entry_no": None, "site": "Brook", "year": 1828, "finds": []}
+    assert entry["stage"] == "candidates" and entry["record"] == {"entry_no": None, "site": "Brook", "year": 1828, "finds": None}
     assert {tuple(row["path"]) for row in entry["candidates"]} == {("site",), ("year",)} and entry["failed"] == 0
-    assert document["document"] == {"contexts": [{"primary": ["p2_s0"], "overlap": []}], "answered": 1, "of": 2,
-                                    "failed_contexts": 0, "links": [], "grounding_batches": 0}
+    assert entry["evidence"] == [] and document["document"] == {"contexts": [{"primary": ["p2_s0"], "overlap": []}], "answered": 1, "of": 2,
+                                                                 "failed_contexts": 0, "links": [], "grounding_batches": 0}
     progress.write_stage(directory / progress.context_name(0), {
-        "version": 1, "execution": execution, "context": 0, "of": 2, "answered": 2, "passages": {"primary": ["p1_s0"], "overlap": []},
+        "version": 1, "execution": execution, "context": 0, "of": 2, "answered": 2, "failed": 1, "passages": {"primary": ["p1_s0"], "overlap": []},
         "fields": {"entry_no": "31", "site": "Hill", "year": None, "finds": ["spear"]},
         "root": {"entry_no": "31", "site": None, "year": 1828, "finds": ["spear"]},
         "contested": [{"path": ["site"], "candidates": ["Hill", "Brook"]}], "ok": False, "calls": []})
-    link = {"path": ["records", 0, "year"], "segment": "p2_s0", "page": 2, "bbox_pt": [0.0, 0.0, 1.0, 1.0],
-            "verbatim": True, "hits": 1, "linked_by": "model", "cell": None, "precision": "segment"}
-    progress.write_stage(directory / progress.grounding_name(0), {"version": 1, "execution": execution, "links": [link]})
     progress.write_stage(directory / progress.grounding_name(1), {"version": 1, "execution": "other", "links": [link, link]})  # a previous execution's
+    progress.write_stage(directory / progress.grounding_name(2), {"version": 1, "execution": execution, "links": [{}]})        # a row outside its shape
     document = progress.read_progress(tmp_path, "x3")
     [entry] = document["entries"]
     assert entry["record"] == {"entry_no": "31", "site": None, "year": 1828, "finds": ["spear"]}  # the latest assembled root
-    assert entry["contested"] == [{"path": ["site"], "candidates": ["Hill", "Brook"]}] and entry["failed"] == 1
-    assert entry["evidence"] == [link] and document["document"]["answered"] == 2 and document["document"]["grounding_batches"] == 1
+    assert entry["contested"] == [{"path": ["site"], "candidates": ["Hill", "Brook"]}] and entry["failed"] == 1  # the latest file's cumulative count
+    assert entry["evidence"] == [link] and document["document"]["answered"] == 2 and document["document"]["grounding_batches"] == 1  # complete: links attached; the two other files skipped
     assert document["document"]["failed_contexts"] == 1 and document["document"]["contexts"] == [
         {"primary": ["p1_s0"], "overlap": []}, {"primary": ["p2_s0"], "overlap": []}]
 ```
@@ -878,7 +905,7 @@ def test_the_progress_route_serves_the_stage_files_and_is_404_until_the_first_on
     execution = progress.started(directory, "article", None)
     assert client.get(f"/api/runs/{run_id}/extractions/x-1/progress").status_code == 404  # the header alone is no progress
     progress.write_stage(directory / progress.context_name(0), {
-        "version": 1, "execution": execution, "context": 0, "of": 1, "answered": 1, "passages": {"primary": ["p1_s0"], "overlap": []},
+        "version": 1, "execution": execution, "context": 0, "of": 1, "answered": 1, "failed": 0, "passages": {"primary": ["p1_s0"], "overlap": []},
         "fields": {"site_name": "Hill"}, "root": {"site_name": "Hill"}, "contested": [], "ok": True, "calls": []})
     response = client.get(f"/api/runs/{run_id}/extractions/x-1/progress")
     assert response.status_code == 200
@@ -916,25 +943,54 @@ class _Candidates(_Stage):
     index: int
     discovery_sha256: str
     ranges: list[dict[str, Any]]
-    candidates: list[dict[str, Any]]
+    candidates: list[_CandidateRow]
     record: dict[str, Any]
     failed: int
+
+
+class _ContestRow(BaseModel):
+    """`assemble_document`'s and `_settle`'s conflict: the path (record-relative) and the values that disagreed."""
+    model_config = ConfigDict(extra="forbid")
+    path: list[str | int]
+    candidates: list[Any]
+
+
+class _CandidateRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    path: list[str | int]
+    value: Any
+    quote: str | None
+    window: int
+
+
+class _LinkRow(BaseModel):
+    """An artifact link as `assembly.artifact` or `unified._link` writes it: the fields every link has; a version's own
+    fields ride along (`extra="allow"`), so the document carries the row as it was written."""
+    model_config = ConfigDict(extra="allow")
+    path: list[str | int]
+    segment: str
+    page: int
+    bbox_pt: list[float] | None
+    verbatim: bool
+    hits: int
+    linked_by: str
 
 
 class _ContextFile(_Stage):
     context: int
     of: int
     answered: int
+    failed: int
     passages: dict[str, Any]
     fields: dict[str, Any]
     root: dict[str, Any]
-    contested: list[dict[str, Any]]
+    contested: list[_ContestRow]
     ok: bool
     calls: list[dict[str, Any]]
 
 
 class _GroundingFile(_Stage):
-    links: list[dict[str, Any]]
+    links: list[_LinkRow]
 
 
 _M = TypeVar("_M", bound=BaseModel)
@@ -982,8 +1038,9 @@ def read_progress(run_dir: Path, extraction_id: str) -> dict | None:
 
 
 def _stage(path: Path, model: type[_M], execution: str | None = None) -> _M | None:
-    """A stage file as `model`, or None when absent, unreadable, outside its layout or (when `execution` is given)
-    written by another execution of the step."""
+    """A stage file as `model`, or None when absent, unreadable, outside its layout (its rows included: a link, a
+    contest or a candidate row outside its shape fails the whole file) or (when `execution` is given) written by
+    another execution of the step. A file skipped leaves the progress of the files that read: never a failure."""
     try:
         record = model.model_validate_json(path.read_bytes())
     except (OSError, ValueError, ValidationError):  # absent, half-written, or not this layout
@@ -994,8 +1051,9 @@ def _stage(path: Path, model: type[_M], execution: str | None = None) -> _M | No
 def _catalog(directory: Path, run_dir: Path, header: _Header) -> dict | None:
     from kei_exp.kie.extract import unified  # unified imports this module's names: imported here, not at load
     found = _json(directory / "catalog-discovery.json")
-    if not isinstance(found, dict) or not isinstance(found.get("entries"), list):
-        return None
+    if not isinstance(found, dict) or not isinstance(found.get("entries"), list) \
+            or not all(isinstance(entry, dict) for entry in found["entries"]):
+        return None  # kei's own write-once record, or nothing: a discovery outside its layout is no progress
     passages = _passages(run_dir)
     entries, finished = [], 0
     for number, entry in enumerate(found["entries"]):
@@ -1004,17 +1062,19 @@ def _catalog(directory: Path, run_dir: Path, header: _Header) -> dict | None:
         published = _json(directory / unified.entry_name(number))
         if isinstance(published, dict):
             try:
+                contests = [_ContestRow(path=contest["path"][2:], candidates=[each["value"] for each in contest["candidates"]])
+                            for contest in published["work"]["contest"] if contest.get("outcome") == "unresolved"]
                 row.update(stage="finished", record=published["work"]["record"],
                            evidence=unified.entry_links(published, passages) if passages is not None else [],
-                           contested=[{"path": contest["path"][2:], "candidates": [each["value"] for each in contest["candidates"]]}
-                                      for contest in published["work"]["contest"] if contest.get("outcome") == "unresolved"])
+                           contested=[contest.model_dump() for contest in contests])
                 finished += 1
                 entries.append(row)
                 continue
-            except (KeyError, TypeError):  # a record outside its own layout: this view does not guess
+            except (KeyError, TypeError, ValidationError):  # a record outside its own layout: this view does not guess
                 row = {**row, "stage": "queued", "record": None, "evidence": None, "contested": None}
         if (candidates := _stage(directory / candidates_name(number), _Candidates, header.execution)) is not None:
-            row.update(stage="candidates", candidates=candidates.candidates, record=candidates.record, failed=candidates.failed)
+            row.update(stage="candidates", candidates=[each.model_dump() for each in candidates.candidates],
+                       record=candidates.record, failed=candidates.failed)
         elif _stage(directory / reading_name(number), _Marker, header.execution) is not None:
             row["stage"] = "reading"
         entries.append(row)
@@ -1027,19 +1087,23 @@ def _article(directory: Path, header: _Header) -> dict | None:
                        if (row := _stage(path, _ContextFile, header.execution)) is not None), key=lambda row: row.context)
     if not contexts:
         return None
-    batches = [row for path in sorted(directory.glob(f"article-grounding-*.v{ARTICLE_STAGE_VERSION}.json"))
-               if (row := _stage(path, _GroundingFile, header.execution)) is not None]
-    links = [link for batch in batches for link in batch.links]
     latest = max(contexts, key=lambda row: row.answered)  # the root assembled over every context answered so far
-    failed = sum(not row.ok for row in contexts)
+    # Grounding verifies the final root (`article.extract` grounds after `document_root`): its links belong to that root
+    # alone, so they are attached only once the latest file shows every context answered. A dropped final context write,
+    # or a read between that write and a grounding file's, shows the root it has, without links that are not its own.
+    complete = latest.answered >= latest.of
+    batches = [row for path in sorted(directory.glob(f"article-grounding-*.v{ARTICLE_STAGE_VERSION}.json"))
+               if (row := _stage(path, _GroundingFile, header.execution)) is not None] if complete else []
+    links = [link.model_dump() for batch in batches for link in batch.links]
     return {"version": PROGRESS_VERSION, "strategy": "article", "started_at_page": header.start_page,
             "discovered": 1, "finished": 0,
             "entries": [{"index": 0, "label": None, "page": None, "stage": "candidates",
                          "candidates": [{"path": list(path), "value": value, "quote": None, "window": 0}
                                         for path, value in leaves(latest.root)],
-                         "record": latest.root, "evidence": links, "contested": latest.contested, "failed": failed}],
+                         "record": latest.root, "evidence": links,
+                         "contested": [contest.model_dump() for contest in latest.contested], "failed": latest.failed}],
             "document": {"contexts": [row.passages for row in contexts], "answered": latest.answered, "of": latest.of,
-                         "failed_contexts": failed, "links": links, "grounding_batches": len(batches)}}
+                         "failed_contexts": latest.failed, "links": links, "grounding_batches": len(batches)}}
 
 
 def _page_of(entry: dict) -> int | None:
@@ -1351,13 +1415,14 @@ describe('partialFromProgress', () => {
   it('maps an Article document: one record, candidates checking, linked grounded, unanswered reading while contexts remain or failed', () => {
     const link = { path: ['records', 0, 'site'], segment: 'p1_s0', page: 1, bbox_pt: [0, 0, 1, 1], verbatim: true, hits: 1,
       linked_by: 'model', cell: null, precision: 'segment' }
-    const article = {
+    // Through the schema, so the document is typed (and its nullable fields assignable) rather than inferred from the literal.
+    const article: ProgressDocument = progressDocumentSchema.parse({
       version: 1, strategy: 'article', started_at_page: 2, discovered: 1, finished: 0,
       entries: [{ index: 0, label: null, page: null, stage: 'candidates', evidence: [link],
         candidates: [{ path: ['site'], value: 'Hill', quote: null, window: 0 }, { path: ['year'], value: 1828, quote: null, window: 0 }],
-        record: { entry_no: null, site: 'Hill', year: 1828, finds: [] }, contested: [], failed: 0 }],
+        record: { entry_no: null, site: 'Hill', year: 1828, finds: null }, contested: [], failed: 0 }],
       document: { contexts: [{ primary: ['p1_s0'], overlap: [] }], answered: 1, of: 2, failed_contexts: 0, links: [link], grounding_batches: 1 },
-    }
+    })
     const partial = partialFromProgress(article)!
     assert.equal(partial.strategy, 'ARTICLE')
     assert.deepEqual(partial.document, { contextsAnswered: 1, contexts: 2, groundingBatches: 1 })
@@ -1367,7 +1432,7 @@ describe('partialFromProgress', () => {
     assert.deepEqual(record!.values[key('year')], { value: 1828, state: 'checking' })
     assert.deepEqual(record!.values[key('entry_no')], { value: null, state: 'reading' })
     assert.deepEqual(record!.evidenceLinks, [{ resultPath: ['records', 0, 'site'], evidenceAnchorId: 'a_p1_s0', precision: 'segment', verbatim: true, lexicalHits: 1 }])
-    article.document.answered = 2
+    article.document!.answered = 2
     assert.deepEqual(partialFromProgress(article)!.records[0]!.values[key('entry_no')], { value: null, state: 'empty' })
     article.entries[0]!.failed = 1
     assert.deepEqual(partialFromProgress(article)!.records[0]!.values[key('entry_no')], { value: null, state: 'reading' })
@@ -1903,3 +1968,7 @@ async function readPartial(extraction: ExtractionAttemptSnapshot): Promise<Parti
 Accepted and applied: P0-1 (`strict=True` on `start_page`; strings, booleans and fractions refused in the test) · P0-2 (package and wire `PartialResult` meet only through `partialResultSchema.safeParse`, in `readPartial` and in Part B's fixtures) · P0-3 (the record-scope migration test loses its ref assertion; the latest migration's test owns it) · P0-4 (`accept(...).extraction.outcome`) · P0-5 (fixtures typed through `progressDocumentSchema.parse`; Part B's badge fixture typed as the wire `PartialResult`) · P0-6 (the exact `runSingle` expectation gains `startPage: null`; `beforeEach` imported) · P0-7 and P0-8 (Part B: scoped candidate assertions; helpers moved out of the component file) · P1-1 (kei assembles the running root with `assemble_document` and `conform` after each context; the reader takes the latest, Ruling 6) · P1-2 (an execution token on the header and every stage file; the reader skips other executions', Ruling 4) · P1-3 (`write_stage` contains `OSError`) · P1-4 (pydantic stage models validate every file; `readPartial` validates the wire DTO inside its catch) · P1-5 and P2-1 (Part B: the partial lives on the monitor across reconnects; a finished record is replaced only by one with at least as many links; the focus overlay survives a poll) · P1-6 (`contested` from `work.contest` and from Article's conflicts, through the contract, the converter and the renderer) · P1-7 (Ruling 7: nulls of a failed window or context stay `reading`) · P1-9 (Part B's browser test puts the current-page record later in source order and asserts the stand-in received `start_page`) · P2-2 (the comment on a page beyond the document) · P2-3 (Part A marks Part B pending; Ruling 13 reads §1's order as §4's).
 
 Rejected or narrowed: P1-8 — a shared keyed presentation preserving DOM rows across settlement would put the settled view's navigation and review controls over partial records; out of this plan's scope. Part B's Ruling 7 now states the swap honestly (two components, one render, the order changing once from reading order to source order) and its test asserts that, not continuity; the human may overrule.
+
+## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
+
+Accepted and applied: P0-1 (the stage token is `stage_execution`: `execution` is the execution record assigned a few lines below in `unified.extract`) · P0-2 (`conform` turns an empty list into `None`; the running-root test expects `"finds": None`) · P0-3 (the Article fixture in `partial-result.test.ts` goes through `progressDocumentSchema.parse`, so its nullable members are assignable) · P1-1 (Article links are attached only once the latest context file shows every context answered: grounding verifies the final root; tested with a grounding file beside an incomplete root) · P1-2 (the context file carries the cumulative `failed`, read from the latest file alone; `on_context` gains it; tested with a failed first context) · P1-3 (`_ContestRow`, `_CandidateRow`, `_LinkRow` validate the rows the reader consumes, a file with a row outside its shape is skipped whole, a discovery record with a non-object entry is no progress; tested) · P2 (Part B records the settlement ruling in the spec's §1 sentence; Part B's Ruling 8 narrowed to leaf paths). Part B's P0-4 and P0-5 (a multi-match `Missing` query; test refs recreated per render) are applied in Part B.

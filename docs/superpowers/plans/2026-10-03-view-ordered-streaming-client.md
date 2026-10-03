@@ -33,7 +33,7 @@
 5. **The badge reads "k of n" once `discovered` is known, "running" before** (§1 "the Results badge shows '7 of 48'"; before discovery there is nothing to count).
 6. **`retainFinished` keeps a finished record until a finished record at least as grounded replaces it.** §5 "an entry once `finished` stays so until the settled result replaces it": a record read as `checking` after `finished` (a retry rewrote its candidates) keeps the finished record, and a finished record whose links came back empty (Part A's passages could not load for that read) keeps the one with links; `discovered` is the latest read's (kei's discovery is write-once). The retained partial lives on the monitor, so a reconnect after a failed read continues from it.
 7. **The partial list and the settled list are two components; the swap is one render.** §1 "the settled result replaces the partial view in place (record index is the React key, so nothing flickers)": a shared keyed tree would put the settled view's navigation and review controls over partial records, out of this plan's scope. At the terminal read the partial is dropped, the partial list unmounts and the settled list mounts in the same scroll container; the records' order changes once, from reading order to source order. No DOM continuity is promised; the human may overrule.
-8. **The client derives no value state of its own:** `grounded`, `checking`, `reading`, `empty` and `contested` come from Part A's `values` (which knows about failed windows and contexts, Part A Ruling 7); a path the record has but `values` lacks cannot occur, and a record without values is `reading` or `queued` as a whole.
+8. **The client derives no value state of its own:** `grounded`, `checking`, `reading`, `empty` and `contested` come from Part A's `values`, keyed by leaf path (the converter enumerates leaves, so a container path has no entry and `ResultValue` renders containers through their leaves); Part A knows about failed windows and contexts (its Ruling 7). A leaf the record has but `values` lacks cannot occur; a record without values is `reading` or `queued` as a whole.
 
 ## Review Focus
 
@@ -367,7 +367,7 @@ describe('PartialResults', () => {
     const candidates = within(third!).getAllByTitle('Candidate · being verified')
     expect(candidates.map((element) => element.textContent)).toEqual(['3', 'Gold'])
     expect(within(third!).queryByRole('button', { name: /View Evidence/ })).not.toBeInTheDocument()
-    expect(within(third!).getByText('Missing')).toBeInTheDocument()          // site: the values call returned without it
+    expect(within(third!).getAllByText('Missing')).toHaveLength(2)          // site and gilded: the values call returned without them
   })
   it('a record being read shows one placeholder per record-level field and never text; a queued one only its header', () => {
     render(<PartialResults partial={partial()} schemaNodes={schemaNodes} />)
@@ -543,22 +543,24 @@ The running branch `{state.status === 'running' && (` (the `Spinner` with "Queue
 
 ```ts
 describe('partial links (design §1)', () => {
+  /** The viewer of one rendered page, with stable ref objects: a ref recreated per render would re-run the hook's effects
+   *  (their dependency lists name the refs), which the existing tests avoid the same way. */
   function viewerWithPage(anchor: ReturnType<typeof decodeParsedDocument>['evidence_index']['anchors'][number]) {
     const container = document.createElement('div')
     container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0].page_number}"></div>`
     container.scrollTo = vi.fn()
     document.body.append(container)
     const viewer = { scrollPageIntoView: vi.fn(), eventBus: { on: vi.fn(), off: vi.fn() } }
-    return { container, viewer }
+    return { container, viewer, containerRef: { current: container }, viewerRef: { current: viewer as never } }
   }
   const running = { extractionId: 'x-1', executionStatus: 'RUNNING' as const, outcome: null, evidenceLinks: null, reviewDecisions: [] }
 
   it('paints a running attempt\'s partial links without moving the page the researcher is reading', () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]
-    const { container, viewer } = viewerWithPage(anchor)
+    const { container, viewer, containerRef, viewerRef } = viewerWithPage(anchor)
     renderHook(() => useEvidenceOverlays({
-      containerRef: { current: container }, viewerRef: { current: viewer as never }, parsedDocument, attempt: running,
+      containerRef, viewerRef, parsedDocument, attempt: running,
       fieldNames: ['title'], resultPath: ['records'], active: true,
       partialEvidenceLinks: [
         { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id },
@@ -572,9 +574,9 @@ describe('partial links (design §1)', () => {
   it('paints nothing for a running attempt without partial links, and a settled attempt as before', () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]
-    const { container, viewer } = viewerWithPage(anchor)
+    const { container, viewer, containerRef, viewerRef } = viewerWithPage(anchor)
     const { rerender } = renderHook(({ attempt, partialEvidenceLinks }) => useEvidenceOverlays({
-      containerRef: { current: container }, viewerRef: { current: viewer as never }, parsedDocument, attempt,
+      containerRef, viewerRef, parsedDocument, attempt,
       fieldNames: ['title'], resultPath: ['records'], active: true, partialEvidenceLinks,
     }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'], partialEvidenceLinks: null as readonly EvidenceLink[] | null } })
     expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(0)
@@ -589,9 +591,9 @@ describe('partial links (design §1)', () => {
   it('a focused Evidence survives a poll of the same Extraction and clears for another one', () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]
-    const { container, viewer } = viewerWithPage(anchor)
+    const { container, containerRef, viewerRef } = viewerWithPage(anchor)
     const { result, rerender } = renderHook(({ attempt }) => useEvidenceOverlays({
-      containerRef: { current: container }, viewerRef: { current: viewer as never }, parsedDocument, attempt,
+      containerRef, viewerRef, parsedDocument, attempt,
       fieldNames: ['title'], resultPath: ['records'], active: true, partialEvidenceLinks: null,
     }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'] } })
     act(() => result.current(anchor))
@@ -714,7 +716,7 @@ The existing `'Extraction finished'` dialog wait and dismissal follow unchanged;
 
 - [ ] **Step 2: Run the journey** — with the disposable database the lifecycle spec requires (`EXTRACTION_TEST_DATABASE_URL` equal to `DATABASE_URL`): `pnpm -C prototypes/studio exec playwright test e2e/canonical-evidence-lifecycle.spec.ts` → both strategies PASS. Where no disposable database is available, record in the ledger that this journey runs at the Baratheon verification (`~/pr-validation/run-tiers.sh`).
 
-- [ ] **Step 3: Documentation.** `DESIGN.md`, in the Results tab section the redesign wrote, add one line: `While an Extraction runs, the tab lists the records in the order kei reads them, each value in its state (reading, checking, grounded, empty, contested), under "Reading records · k of n · started at page p" and a progress bar; the badge and the run button read "k of n"; at settlement the settled list takes the view's place.` The spec's Status (line 3) becomes `Status: implemented by docs/superpowers/plans/2026-10-03-view-ordered-streaming-service.md (Part A) and …-client.md (Part B)`.
+- [ ] **Step 3: Documentation.** `DESIGN.md`, in the Results tab section the redesign wrote, add one line: `While an Extraction runs, the tab lists the records in the order kei reads them, each value in its state (reading, checking, grounded, empty, contested), under "Reading records · k of n · started at page p" and a progress bar; the badge and the run button read "k of n"; at settlement the settled list takes the view's place.` In the spec, §1's sentence `When the attempt settles, the settled result replaces the partial view in place (record index is the React key, so nothing flickers).` becomes `When the attempt settles, the settled list takes the partial list's place in one render, in source order (Part B, Ruling 7: two components, no DOM continuity promised).`, and the Status (line 3) becomes `Status: implemented by docs/superpowers/plans/2026-10-03-view-ordered-streaming-service.md (Part A) and …-client.md (Part B)`.
 
 - [ ] **Step 4: Full gates** — `pnpm -C prototypes/studio typecheck && pnpm -C prototypes/studio lint && pnpm -C prototypes/studio test` → PASS; `pnpm -r typecheck` → PASS; the e2e default suite `pnpm -C prototypes/studio exec playwright test` where the stack is available.
 
@@ -737,3 +739,7 @@ The existing `'Extraction finished'` dialog wait and dismissal follow unchanged;
 Accepted and applied: P0-2 and P0-5 (the wire type is the client's; fixtures go through `partialResultSchema.parse(partialFromProgress(…))`; the badge fixture is typed `PartialResult`) · P0-7 (candidate assertions scoped with `getAllByTitle`; labels asserted through the listitems' `aria-label`) · P0-8 (`partialHeadline` and `partialValueState` live in `partialResult.ts`) · P1-5 (the partial lives on the monitor across reconnects; a finished record is replaced only by a finished record with at least as many links; both tested) · P1-6 (`contested` rendered through `getContested`) · P1-7 (Ruling 8: the client derives no state of its own) · P1-9 (the browser test puts the current-page record later in source order and asserts the stand-in received `start_page`) · P2-1 (the focus overlay survives a poll; Ruling 3).
 
 Rejected or narrowed: P1-8 — DOM continuity across settlement is out of scope (Ruling 7 revised to say what happens; its test asserts the swap, not continuity); the human may overrule.
+
+## Review log — Codex gpt-6-astra (reasoning max), round 2, 2026-10-03
+
+Accepted and applied: P0-4 (the third record has two null fields: `getAllByText('Missing')` has length 2) · P0-5 (the overlay tests hold stable ref objects, as the existing tests do, so a rerender does not run the cleanup that removes the focus) · P2 (the spec's §1 settlement sentence records the chosen swap, Task 4; Ruling 8 narrowed to leaf paths). Codex closed round-1's P1-8 on Ruling 7 as a product decision.
