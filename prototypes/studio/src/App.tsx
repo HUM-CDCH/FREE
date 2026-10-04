@@ -3,6 +3,7 @@ import {
   reportAuthenticationRequired,
 } from './auth/authenticatedFetch.ts'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { anchorOccurrences } from './evidenceNavigation'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
@@ -294,6 +295,11 @@ export function DocumentWorkspace({
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
   const parsedDocument = docIndex.status === 'ready' ? docIndex.document : null
+  // A running Extraction's draft decisions name every occurrence of their anchor (results review redesign §5.1).
+  const occurrenceIdsByAnchor = useMemo(() => parsedDocument
+    ? new Map(parsedDocument.evidence_index.anchors.map((anchor) =>
+        [anchor.anchor_id, anchorOccurrences(anchor).map((occurrence) => occurrence.occurrence_id)]))
+    : null, [parsedDocument])
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
   }, [])
@@ -630,6 +636,7 @@ export function DocumentWorkspace({
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
     reviewTarget,
+    occurrenceIdsByAnchor,
     // Completion preserves the rail tab and inspected snapshot; it says so in one toast, whose "Review now" (a run started
     // here that succeeded) opens Results.
     onTerminal: (attempt, isRerun) => {

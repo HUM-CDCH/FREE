@@ -45,6 +45,7 @@ function controller(
     reconnect: () => {},
     review: {
       available: false,
+      draftAvailable: false, decidedOn: new Map(), changedAfterReview: new Set(), settlement: null, discarded: null, draftRefused: null,
       canAccept: false,
       saving: false,
       loading: false,
