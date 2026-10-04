@@ -7,7 +7,10 @@ import {
   valuesAtColumn,
   decisionMatchesColumn,
   useBatchExtractionReviewGrid,
+  memberIssueScore,
+  sortRowsByIssueScore,
 } from './useBatchExtractionReviewGrid'
+import type { MemberReviewState } from './useBatchExtractionReviewGrid'
 import { resultPathKey } from './reviewDecisions'
 import * as api from './api'
 import Grid from './projectContexts/BatchExtractionReviewGrid'
@@ -1098,4 +1101,86 @@ it('shows unchanged percentages only from finalized decisions', async () => {
   })
   render(<Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />)
   expect(await screen.findByText('50% approved unchanged')).toBeTruthy()
+})
+
+function readyState(attemptOverrides: Partial<ExtractionAttempt> = {}): MemberReviewState {
+  return {
+    status: 'ready',
+    attempt: attempt(attemptOverrides),
+    decisions: [],
+    touched: new Set(),
+    editable: true,
+    saving: false,
+    saveError: null,
+  }
+}
+
+describe('memberIssueScore', () => {
+  it('is zero for a member whose fields are all grounded', () => {
+    const state = readyState({
+      resultPayload: { records: [{ title: 'Grounded', year: 2020 }] },
+      diagnostics: {
+        phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null,
+        inputTokens: null, outputTokens: null, catalog: null,
+        grounding: {
+          groundedPaths: [['records', 0, 'title'], ['records', 0, 'year']],
+          ungroundedPaths: [], issueCodes: [], batches: [], claims: null,
+        },
+      },
+    })
+    expect(memberIssueScore(state, schemaNodes)).toBe(0)
+  })
+
+  it('counts ungrounded-with-value and missing fields together', () => {
+    const state = readyState({
+      resultPayload: { records: [{ title: 'Ungrounded', year: null }] },
+      diagnostics: {
+        phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null,
+        inputTokens: null, outputTokens: null, catalog: null,
+        grounding: { groundedPaths: [], ungroundedPaths: [['records', 0, 'title']], issueCodes: [], batches: [], claims: null },
+      },
+    })
+    // title: has a value, not grounded -> 1. year: null -> missing -> 1. Total 2.
+    expect(memberIssueScore(state, schemaNodes)).toBe(2)
+  })
+
+  it('is zero for loading/error members', () => {
+    expect(memberIssueScore({ status: 'loading' }, schemaNodes)).toBe(0)
+    expect(memberIssueScore({ status: 'error', message: 'x' }, schemaNodes)).toBe(0)
+  })
+})
+
+describe('sortRowsByIssueScore', () => {
+  it('sorts rows by descending issue score, keeping ties in original order', () => {
+    const rows = [
+      { sourceDocumentId: 'clean', label: 1 },
+      { sourceDocumentId: 'worst', label: 2 },
+      { sourceDocumentId: 'mid-a', label: 3 },
+      { sourceDocumentId: 'mid-b', label: 4 },
+    ]
+    const scores = new Map([['clean', 0], ['worst', 5], ['mid-a', 2], ['mid-b', 2]])
+    const sorted = sortRowsByIssueScore(rows, scores)
+    expect(sorted.map((row) => row.sourceDocumentId)).toEqual(['worst', 'mid-a', 'mid-b', 'clean'])
+  })
+
+  it('keeps a member\'s multiple rows contiguous since they share one score', () => {
+    const rows = [
+      { sourceDocumentId: 'a', recordIndex: 0 },
+      { sourceDocumentId: 'b', recordIndex: 0 },
+      { sourceDocumentId: 'a', recordIndex: 1 },
+    ]
+    const scores = new Map([['a', 3], ['b', 1]])
+    const sorted = sortRowsByIssueScore(rows, scores)
+    expect(sorted).toEqual([
+      { sourceDocumentId: 'a', recordIndex: 0 },
+      { sourceDocumentId: 'a', recordIndex: 1 },
+      { sourceDocumentId: 'b', recordIndex: 0 },
+    ])
+  })
+
+  it('treats a row with no scored member as score zero', () => {
+    const rows = [{ sourceDocumentId: 'unscored' }, { sourceDocumentId: 'scored' }]
+    const sorted = sortRowsByIssueScore(rows, new Map([['scored', 1]]))
+    expect(sorted.map((row) => row.sourceDocumentId)).toEqual(['scored', 'unscored'])
+  })
 })

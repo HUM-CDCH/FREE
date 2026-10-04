@@ -15,6 +15,7 @@ const revision = (number: number, name: string): SchemaRevision => ({
   origin: 'researcher-edit',
   createdAt: `2026-08-01T12:0${number}:00.000Z`,
   recordScope: 'document',
+  stabilisedAt: null,
   ...definition(name),
 })
 

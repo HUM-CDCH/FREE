@@ -20,8 +20,8 @@ const definition = (name: string) => ({
   schemaNodes: nodes(name),
 })
 const revisions: SchemaRevisionRecord[] = [
-  { schemaRevisionId: REVISION_2, extractionSchemaId: SCHEMA, revisionNumber: 2, origin: 'researcher-edit', schemaTree: definition('year'), recordScope: 'records', createdAt: new Date('2026-08-01T12:01:00Z') },
-  { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: definition('site'), recordScope: null, createdAt: new Date('2026-08-01T12:00:00Z') },
+  { schemaRevisionId: REVISION_2, extractionSchemaId: SCHEMA, revisionNumber: 2, origin: 'researcher-edit', schemaTree: definition('year'), recordScope: 'records', createdAt: new Date('2026-08-01T12:01:00Z'), stabilisedAt: null },
+  { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: definition('site'), recordScope: null, createdAt: new Date('2026-08-01T12:00:00Z'), stabilisedAt: null },
 ]
 const EXCERPTED = { complete: false as const, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
 

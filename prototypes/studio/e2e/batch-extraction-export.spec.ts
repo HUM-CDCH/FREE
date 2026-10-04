@@ -297,6 +297,7 @@ function batchFixture(nested = false): {
         schemaTree: fixtureSchema,
         recordScope: 'document',
         createdAt: at(4),
+        stabilisedAt: null,
       }]
     },
     async getSchemaRevision(projectContextId, extractionSchemaId, schemaRevisionId) {
@@ -314,6 +315,7 @@ function batchFixture(nested = false): {
         schemaTree: fixtureSchema,
         recordScope: 'document',
         createdAt: at(4),
+        stabilisedAt: null,
       }
     },
     initializeSchemaRevision: unsupported,
@@ -330,6 +332,7 @@ function batchFixture(nested = false): {
     finalizeReview: unsupported,
     readDocumentExtractions: unsupported,
     scheduleSuggestedBatch: unsupported,
+    stabiliseSchemaRevision: unsupported,
     async scheduleBatch() {
       batch = { batchExtractionId: crypto.randomUUID() } as BatchExtractionSnapshot
       readsWhileQueued = 0

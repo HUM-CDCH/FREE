@@ -40,6 +40,7 @@ function revisionDto(revision: SchemaRevisionRecord) {
     revisionNumber: revision.revisionNumber,
     origin: revision.origin,
     createdAt: revision.createdAt.toISOString(),
+    stabilisedAt: revision.stabilisedAt?.toISOString() ?? null,
     ...definition,
   }
 }
@@ -112,6 +113,7 @@ export function createSchemaRevisionHandlers(
               origin: revision.origin,
               createdAt: revision.createdAt.toISOString(),
               recordScope: revision.recordScope,
+              stabilisedAt: revision.stabilisedAt?.toISOString() ?? null,
               summary: summarizeSchemaRevision(
                 previous ? savedSchemaDefinition(previous.schemaTree, previous.recordScope) : null,
                 savedSchemaDefinition(revision.schemaTree, revision.recordScope),

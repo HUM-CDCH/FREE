@@ -19,7 +19,7 @@ const phases = [
   {
     number: '04',
     name: 'Extract',
-    copy: 'Run it across your documents, one or in batch.',
+    copy: 'Pilot it on a few documents, stabilise the schema, then run the full collection.',
   },
   { number: '05', name: 'Validate', copy: 'Review each value against its Evidence.' },
 ]

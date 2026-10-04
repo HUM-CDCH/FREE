@@ -14,6 +14,9 @@ export type DeleteDialogProps = {
   onConfirm: () => Promise<{ message: string } | null>
   onCancel: () => void
   returnFocusRef?: RefObject<HTMLElement | null>
+  /** Overrides the confirm button's idle label — e.g. "Delete anyway" for a
+   *  second, escalated confirmation. Defaults to "Delete permanently". */
+  confirmLabel?: string
 }
 
 /** Permanent deletion is confirmed in a labelled modal, never on one click. */
@@ -23,6 +26,7 @@ export default function DeleteDialog({
   onConfirm,
   onCancel,
   returnFocusRef,
+  confirmLabel = 'Delete permanently',
 }: DeleteDialogProps) {
   const [failure, setFailure] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -77,7 +81,7 @@ export default function DeleteDialog({
             } else onCancel()
           }}
         >
-          {deleting ? 'Deleting…' : 'Delete permanently'}
+          {deleting ? 'Deleting…' : confirmLabel}
         </Button>
       </div>
     </ModalDialog>

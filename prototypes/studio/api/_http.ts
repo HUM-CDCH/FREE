@@ -81,7 +81,14 @@ export function apiErrorResponse(error: unknown): Response {
   const mapped =
     error instanceof ApiError
       ? error
-      : new ApiError(500, 'unexpected_failure', 'An unexpected failure occurred.', { cause: error })
+      : (() => {
+          // Every other status is deliberately thrown as an `ApiError` with
+          // its own sanitized message; a non-`ApiError` reaching here is
+          // always a bug, so log the real cause instead of losing it behind
+          // the generic message the client sees.
+          console.error('unexpected_failure:', error)
+          return new ApiError(500, 'unexpected_failure', 'An unexpected failure occurred.', { cause: error })
+        })()
   const body: { error: { code: string; message: string; details?: unknown } } = {
     error: { code: mapped.code, message: mapped.message },
   }

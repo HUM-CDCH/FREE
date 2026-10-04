@@ -428,6 +428,9 @@ async function setup(disposableDatabaseUrl: string) {
     ownerId?: string,
     /** The revision's declared record scope: Article (`document`) unless a test runs Catalog or a legacy revision. */
     recordScope: RecordScope | null = 'document',
+    /** The revision's stabilisation timestamp. A pilot-sized selection may run against an unstabilised revision;
+     *  a collection-scale one may not, so a test that does runs with a stabilised revision. */
+    stabilisedAt: Date | null = null,
   ): Promise<SeededProject> {
     const researcherAccountId = ownerId ?? randomUUID()
     if (!accounts.has(researcherAccountId)) {
@@ -460,6 +463,7 @@ async function setup(disposableDatabaseUrl: string) {
       origin: 'SUGGESTION',
       schemaTree,
       recordScope,
+      stabilisedAt,
     })
     const documents: SeededDocument[] = []
     for (const filename of filenames) {

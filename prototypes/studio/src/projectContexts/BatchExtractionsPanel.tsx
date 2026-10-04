@@ -11,11 +11,12 @@ import {
   listSchemaRevisions,
 } from '../schemaRevisions'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
-import { Button } from '../ui'
+import { Button, GuidedNextStep } from '../ui'
 import { contestedNotice } from '../ExtractionResultExportControl'
 import { requestModelKeyResend } from '../auth/authenticatedFetch'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
+  PILOT_BATCH_SELECTION_LIMIT,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
 import {
@@ -48,6 +49,7 @@ import {
   listBatchSchemaSuggestions,
   openBatchExtraction,
 } from './batchExtractions'
+import { stabiliseSchemaRevision } from './schemaGovernance'
 import { useBatchSchemaSuggestion } from './useBatchSchemaSuggestion'
 import { sourceCoverageNotice, UNCOMBINED_NOTICE } from '../sourceCoverageNotice'
 import {
@@ -66,7 +68,7 @@ type SourceDocument = {
 }
 
 /** A proposal's identity: every publication increments the draft version, and a retry starts the next attempt. */
-type SuggestionDraftVersion = Pick<
+export type SuggestionDraftVersion = Pick<
   BatchSchemaSuggestion,
   'draftVersion' | 'attempt'
 >
@@ -123,6 +125,43 @@ function newestBatchFirst(left: BatchExtraction, right: BatchExtraction): number
   )
 }
 
+/** The immediately preceding pilot round under the same Schema Revision as
+ *  `current` (design.md D2: a pilot round is a Batch Extraction at or under
+ *  `PILOT_BATCH_SELECTION_LIMIT` members) — the comparison point for the
+ *  soft "ready to stabilise" signal. */
+function priorPilotRound(
+  batches: readonly BatchExtraction[],
+  current: BatchExtraction,
+): BatchExtraction | null {
+  const candidates = batches.filter(
+    (batch) =>
+      batch.batchExtractionId !== current.batchExtractionId &&
+      batch.schemaRevisionId === current.schemaRevisionId &&
+      batch.members.length <= PILOT_BATCH_SELECTION_LIMIT &&
+      Date.parse(batch.createdAt) < Date.parse(current.createdAt),
+  )
+  if (candidates.length === 0) return null
+  return candidates.reduce((newest, batch) =>
+    Date.parse(batch.createdAt) > Date.parse(newest.createdAt) ? batch : newest,
+  )
+}
+
+/** Source Documents already reviewed under this Schema Revision in some
+ *  prior Batch Extraction — what a new batch against the same revision would
+ *  reuse instead of re-extracting (batch-extraction-pilot-reuse). */
+function alreadyReviewedSourceDocumentIds(
+  batches: readonly BatchExtraction[],
+  schemaRevisionId: string,
+): ReadonlySet<string> {
+  const ids = new Set<string>()
+  for (const batch of batches) {
+    if (batch.schemaRevisionId !== schemaRevisionId) continue
+    for (const member of batch.members)
+      if (member.latestExtraction?.reviewedAt) ids.add(member.sourceDocumentId)
+  }
+  return ids
+}
+
 function runnableSuggestionDefinition(value: unknown): boolean {
   try {
     parseBatchSuggestionDefinition(value)
@@ -138,6 +177,7 @@ function suggestionFailureText(failure: { code: string; message: string }): stri
   return failure.code === 'model_key_required' ? 'Model key not available' : failure.message
 }
 
+
 /**
  * The Extractions tab: past Batch Extractions, opening a new one over selected
  * Source Documents, and their persisted member history. Extraction Results and
@@ -148,7 +188,9 @@ export default function BatchExtractionsPanel({
   sourceDocuments,
   openBatchExtractionId,
   openBatchExtractionView,
+  pilotSchemaRevisionId,
   onNavigate,
+  onReviewCommitted,
 }: {
   projectContextId: string
   sourceDocuments: readonly SourceDocument[]
@@ -156,7 +198,15 @@ export default function BatchExtractionsPanel({
   openBatchExtractionId: string | null
   /** The routed sub-view over that Batch Extraction, e.g. the review grid. */
   openBatchExtractionView: 'grid' | null
+  /** Set right after approving a Schema Revision from the document workspace
+   *  — opens straight into "Pilot Extraction" on this exact Revision. */
+  pilotSchemaRevisionId: string | null
   onNavigate: (route: NavigableRoute) => void
+  /** Fired once a grid member's review is finalized (or reverted) — this can
+   *  move the project's workflow phase (extract -> validate), so the
+   *  caller's persisted project summary needs the same refresh cue that
+   *  `onSchemaApproved` gives the document workspace. */
+  onReviewCommitted?: () => void
 }) {
   const sourceDocumentIds = sourceDocuments.map(
     (document) => document.sourceDocumentId,
@@ -192,6 +242,10 @@ export default function BatchExtractionsPanel({
   const [runFailure, setRunFailure] = useState<string | null>(null)
   // A start refused because the saved settings changed after the summary was shown: nothing started.
   const [methodConflict, setMethodConflict] = useState<string | null>(null)
+  // Set when `runFailure` came from a known API error code (e.g.
+  // `schema_not_stabilised`), so the failure area can offer a specific next
+  // step instead of just the message (guided-workflow-phases).
+  const [runFailureCode, setRunFailureCode] = useState<string | null>(null)
   // A replayed selection reopens a Batch Extraction the researcher already has,
   // which is indistinguishable from nothing happening unless it is said.
   const [runNotice, setRunNotice] = useState<string | null>(null)
@@ -216,10 +270,28 @@ export default function BatchExtractionsPanel({
     extractionSchemaId: string
     schemaRevisionId: string
   } | null>(null)
+  const [chosenSchemaReload, setChosenSchemaReload] = useState(0)
   const [exportCoverage, setExportCoverage] = useState<{
     batchExtractionId: string
     message: string
   } | null>(null)
+  // Carries a flagged field's context into the schema editor after "Edit
+  // schema" is chosen from the review grid (schema-issue-flagging) — a
+  // client-side hand-off, not persisted state.
+  const [pendingSchemaEditDraft, setPendingSchemaEditDraft] = useState<string | null>(null)
+  const [stabilisingChosenSchema, setStabilisingChosenSchema] = useState(false)
+  const [stabiliseChosenSchemaError, setStabiliseChosenSchemaError] = useState<string | null>(null)
+  // Guided next-step nudge (guided-pilot-extraction-workflow): fires right
+  // after a Schema Revision is stabilised, from either the preparation
+  // screen's own "Stabilise schema" button or the review grid's. Holds the
+  // just-stabilised `schemaRevisionId` so "Run the full collection" can
+  // preselect it regardless of which screen triggered it.
+  const [stabiliseNudge, setStabiliseNudge] = useState<string | null>(null)
+  // Which of the two `extract` rounds the prepare screen is currently framed
+  // as — set by whichever entry point opened it, not derived from the
+  // selection size, so it stays put while the researcher freely adds or
+  // removes documents (guided-pilot-extraction-workflow).
+  const [preparingKind, setPreparingKind] = useState<'pilot' | 'batch'>('pilot')
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(sourceDocumentIds),
   )
@@ -448,7 +520,7 @@ export default function BatchExtractionsPanel({
       () => {},
     )
     return () => controller.abort()
-  }, [projectContextId, schemaRevisionId, schemas.value])
+  }, [projectContextId, schemaRevisionId, schemas.value, chosenSchemaReload])
 
   useEffect(() => {
     const active = [
@@ -673,6 +745,7 @@ export default function BatchExtractionsPanel({
   const regenerateSuggestedFields = () => {
     if (!activeSuggestion || !suggestionHasMembers || selected.size === 0 || overSelectionLimit) return
     setRunFailure(null)
+    setRunFailureCode(null)
     setRunNotice(null)
     sendSuggestion({ type: 'suggestion.retry' })
   }
@@ -694,6 +767,7 @@ export default function BatchExtractionsPanel({
     setOpeningBatch(true)
     setRunFailure(null)
     setMethodConflict(null)
+    setRunFailureCode(null)
     setRunNotice(null)
     try {
       const savedRevision = await savedSchemaController?.flush()
@@ -713,9 +787,36 @@ export default function BatchExtractionsPanel({
     } catch (error) {
       if (methodChanged(error)) setMethodConflict(error.message)
       else setRunFailure(failureText(error, 'The Batch Extraction could not be opened.'))
+      setRunFailureCode(error instanceof BatchRequestError ? error.code ?? null : null)
     } finally {
       opening.current = false
       setOpeningBatch(false)
+    }
+  }
+
+  /** Stabilises the Schema Revision chosen in the preparation screen,
+   *  unlocking collection-scale Batch Extraction against it
+   *  (guided-workflow-phases). Requires at least one reviewed pilot
+   *  Extraction — enforced server-side. */
+  const stabiliseChosenSchema = async () => {
+    if (!chosenSchema || stabilisingChosenSchema) return
+    setStabilisingChosenSchema(true)
+    setStabiliseChosenSchemaError(null)
+    try {
+      await stabiliseSchemaRevision({
+        projectContextId,
+        schemaRevisionId: chosenSchema.schemaRevisionId,
+      })
+      setRunFailure(null)
+      setRunFailureCode(null)
+      setChosenSchemaReload((value) => value + 1)
+      setStabiliseNudge(chosenSchema.schemaRevisionId)
+    } catch (error) {
+      setStabiliseChosenSchemaError(
+        failureText(error, 'This Schema Revision could not be stabilised.'),
+      )
+    } finally {
+      setStabilisingChosenSchema(false)
     }
   }
 
@@ -732,6 +833,7 @@ export default function BatchExtractionsPanel({
     setOpeningBatch(true)
     setRunFailure(null)
     setMethodConflict(null)
+    setRunFailureCode(null)
     setRunNotice(null)
     try {
       const opened = await openBatchExtraction({
@@ -751,15 +853,53 @@ export default function BatchExtractionsPanel({
     } catch (error) {
       if (methodChanged(error)) setMethodConflict(error.message)
       else setRunFailure(failureText(error, 'The Batch Extraction could not be run again.'))
+      setRunFailureCode(error instanceof BatchRequestError ? error.code ?? null : null)
     } finally {
       opening.current = false
       setOpeningBatch(false)
     }
   }
 
+  // A Schema Revision just approved from the document workspace hands off
+  // here via `pilotSchemaRevisionId` (guided-pilot-extraction-workflow): open
+  // straight into "Pilot Extraction" on that exact Revision — the same
+  // small selection `beginPilotExtraction` picks by hand — instead of making
+  // the researcher re-find it on the history screen.
+  useEffect(() => {
+    if (!pilotSchemaRevisionId || sourceDocumentIds.length === 0) return
+    // A one-shot hand-off from the document workspace's "Approve schema and go
+    // to next step": the preparation screen opens pre-armed on that Revision.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSchemaRevisionId(pilotSchemaRevisionId)
+    setSelected(
+      new Set(sourceDocumentIds.slice(0, Math.min(3, sourceDocumentIds.length))),
+    )
+    setPreparingKind('pilot')
+    setPreparing(true)
+    // Only the hand-off id itself should retrigger this; `sourceDocumentIds`
+    // just needs to be readable once it fires.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pilotSchemaRevisionId])
+
+  /** "Pilot Extraction" entry point: opens the preparation screen with a
+   *  small (2-3) Source Document selection pre-picked, so a researcher can
+   *  start piloting in one click — still free to change it before running
+   *  (guided-pilot-extraction-workflow). The Extraction Schemas list isn't
+   *  loaded yet at this point (it only fetches once `screen === 'prepare'`),
+   *  so the schema field is left to the existing "pick the first schema
+   *  with a current revision" auto-select effect that already runs once
+   *  that happens, rather than duplicating its lookup here against stale
+   *  (empty) data. */
+  const beginPilotExtraction = () => {
+    setSelected(new Set(sourceDocumentIds.slice(0, Math.min(3, sourceDocumentIds.length))))
+    setPreparingKind('pilot')
+    setPreparing(true)
+  }
+
   const openNewBatch = () => {
     setRunFailure(null)
     setMethodConflict(null)
+    setRunFailureCode(null)
     setRunNotice(null)
     if (!canRun || saved.state.status !== 'ready') return
     if (schemaRevisionId === SUGGEST_SCHEMA) {
@@ -793,9 +933,39 @@ export default function BatchExtractionsPanel({
     })
   }
 
+  /**
+   * "Edit schema" from a flagged field in the review grid: jumps to the
+   * preparation screen on the same Schema Revision and the same pilot
+   * documents, with the flag's context seeded into the schema chat draft
+   * (schema-issue-flagging). Committing a new revision there and running
+   * again re-extracts the same documents, satisfying "does not require the
+   * researcher to re-select pilot documents" without bespoke plumbing.
+   */
+  const editSchemaFieldFromGrid = (
+    batch: BatchExtraction,
+    context: { fieldPath: string; fieldLabel: string; note: string | null },
+  ) => {
+    setSelected(new Set(batch.members.map((member) => member.sourceDocumentId)))
+    setSchemaRevisionId(batch.schemaRevisionId)
+    setPreparingKind(
+      batch.members.length <= PILOT_BATCH_SELECTION_LIMIT ? 'pilot' : 'batch',
+    )
+    setPendingSchemaEditDraft(
+      `Fix the "${context.fieldLabel}" field${context.note ? `: ${context.note}` : '.'}`,
+    )
+    setRunFailure(null)
+    setRunFailureCode(null)
+    setPreparing(true)
+  }
+
   const openBatchHasSuccessfulResult =
     openBatch?.members.some((member) => member.latestExtraction !== null) ??
     false
+  const priorRoundBatch = openBatch ? priorPilotRound(batchList, openBatch) : null
+  const alreadyReviewed =
+    schemaRevisionId && schemaRevisionId !== SUGGEST_SCHEMA
+      ? alreadyReviewedSourceDocumentIds(batchList, schemaRevisionId)
+      : new Set<string>()
   const filtered = sourceDocuments.filter((document) =>
     document.name
       .toLocaleLowerCase()
@@ -835,12 +1005,29 @@ export default function BatchExtractionsPanel({
   const preparingSuggestedBatch =
     suggestion.matches('running')
   const openingAnyBatch = openingBatch || preparingSuggestedBatch
+  // Whether there's an approved schema to pilot isn't knowable here — the
+  // Extraction Schemas list only loads once inside the `prepare` screen
+  // (see `beginPilotExtraction`'s note) — so this only guards against the
+  // obviously-empty case; an unapproved-schema state is handled the same
+  // way it already is for "New Batch Extraction".
+  const canPilot = !openingAnyBatch && sourceDocumentIds.length > 0
   const validSelection =
     selected.size > 0 && selected.size <= BATCH_EXTRACTION_SELECTION_LIMIT
+  // Mirrors the server's size-based stabilise gate (guided-workflow-phases):
+  // a pilot-sized selection is always runnable, but a collection-scale one
+  // needs the chosen Schema Revision to already be stabilised — checked
+  // client-side too so Run disables proactively instead of only failing
+  // after a round trip. Not applied to the schema-suggestion flow, which
+  // has no existing Schema Revision to check yet.
+  const collectionScaleNeedsStabilisedSchema =
+    schemaRevisionId !== SUGGEST_SCHEMA &&
+    selected.size > PILOT_BATCH_SELECTION_LIMIT &&
+    !(chosenSchema?.schemaRevisionId === schemaRevisionId && chosenSchema.stabilisedAt)
   const canRun =
     validSelection &&
     !openingAnyBatch &&
     saved.state.status === 'ready' &&
+    !collectionScaleNeedsStabilisedSchema &&
     (schemaRevisionId === SUGGEST_SCHEMA
       ? confirmedSuggestion === null &&
         // Pins cascade with their Source Documents: a draft whose members were all deleted has nothing to run on.
@@ -893,6 +1080,13 @@ export default function BatchExtractionsPanel({
         : openBatch
           ? stamp(openBatch.createdAt)
           : 'Batch Extraction'
+  // The "← Back to history" / "New Batch Extraction" header reads as a
+  // second, conflicting framing on top of the pilot banner below it (which
+  // already explains what's happening and offers its own way out via
+  // "Skip"), so it's left out entirely here — the top tabs above this panel
+  // still get a researcher out if they want to leave without running or
+  // skipping anything.
+  const isPilotPrepare = screen === 'prepare' && preparingKind === 'pilot'
 
   return (
     <div
@@ -902,66 +1096,93 @@ export default function BatchExtractionsPanel({
       className="flex flex-col pt-1"
       tabIndex={0}
     >
-      <div
-        className={`flex shrink-0 min-h-10 justify-between gap-3 ${
-          screen === 'history'
-            ? 'mb-2 items-start pt-4'
-            : 'mb-4 items-center border-b border-line pb-3'
-        }`}
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          {screen !== 'history' && (
-            <button
-              className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-              type="button"
-              disabled={openingAnyBatch}
-              onClick={() => {
-                clearSuggestedFields()
-                showHistory()
-              }}
-            >
-              <span aria-hidden="true">← </span>Back to history
-            </button>
-          )}
-          {screen === 'history' ? (
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-ink">
-                {heading}
+      {!isPilotPrepare && (
+        <div
+          className={`flex shrink-0 min-h-10 justify-between gap-3 ${
+            screen === 'history'
+              ? 'mb-2 items-start pt-4'
+              : 'mb-4 items-center border-b border-line pb-3'
+          }`}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            {screen !== 'history' && (
+              <button
+                className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
+                disabled={openingAnyBatch}
+                onClick={() => {
+                  clearSuggestedFields()
+                  showHistory()
+                }}
+              >
+                <span aria-hidden="true">← </span>Back to history
+              </button>
+            )}
+            {screen === 'history' ? (
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink">
+                  {heading}
+                </span>
+                <span className="mt-0.5 block text-xs text-ink-faint">
+                  View and monitor your Batch Extraction runs.
+                </span>
               </span>
-              <span className="mt-0.5 block text-xs text-ink-faint">
-                View and monitor your Batch Extraction runs.
-              </span>
-            </span>
-          ) : (
-            <p className="truncate text-sm font-semibold text-ink">{heading}</p>
+            ) : (
+              <p className="truncate text-sm font-semibold text-ink">{heading}</p>
+            )}
+          </div>
+          {/* On `prepare` these only reopen the screen already shown. */}
+          {screen !== 'prepare' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="md"
+                disabled={!canPilot}
+                title={canPilot ? undefined : 'Add Source Documents on the Sources tab first.'}
+                onClick={beginPilotExtraction}
+              >
+                <PlusIcon />
+                Pilot Extraction
+              </Button>
+              <Button
+                variant="positive"
+                size="md"
+                disabled={openingAnyBatch}
+                onClick={() => {
+                  setSelected(new Set(sourceDocumentIds))
+                  setPreparingKind('batch')
+                  setPreparing(true)
+                }}
+              >
+                {openingAnyBatch ? (
+                  'Opening Batch Extraction…'
+                ) : (
+                  <>
+                    <PlusIcon />
+                    New Batch Extraction
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </div>
-        {/* On `prepare` this button only reopens the screen already shown. */}
-        {screen !== 'prepare' && (
-          <Button
-            variant="positive"
-            size="md"
-            disabled={openingAnyBatch}
-            onClick={() => {
-              setSelected(new Set(sourceDocumentIds))
-              setPreparing(true)
-            }}
-          >
-            {openingAnyBatch ? (
-              'Opening Batch Extraction…'
-            ) : (
-              <>
-                <PlusIcon />
-                New Batch Extraction
-              </>
-            )}
-          </Button>
-        )}
-      </div>
+      )}
       {runFailure && (
-        <p className="mb-3 shrink-0 text-[11px] leading-snug text-danger" role="alert">
-          {runFailure}
-        </p>
+        <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
+          <p className="text-[11px] leading-snug text-danger" role="alert">
+            {runFailure}
+          </p>
+          {runFailureCode === 'schema_not_stabilised' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={stabilisingChosenSchema}
+              onClick={() => void stabiliseChosenSchema()}
+            >
+              {stabilisingChosenSchema ? 'Approving…' : 'Approve for batch extraction'}
+            </Button>
+          )}
+        </div>
       )}
       {runNotice && (
         <p className="mb-3 shrink-0 text-[11px] leading-snug text-ink-muted" role="status">
@@ -982,6 +1203,115 @@ export default function BatchExtractionsPanel({
           )
         ) : screen === 'prepare' ? (
           <>
+            {preparingKind === 'pilot' && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-muted px-3 py-2">
+                <p className="text-[11px] leading-snug text-ink-muted">
+                  Try your schema on 2-3 documents first — it's faster to
+                  catch a schema issue now than after running the whole
+                  collection.
+                </p>
+                <button
+                  type="button"
+                  className="shrink-0 text-[11px] font-semibold text-accent underline decoration-dotted underline-offset-2 outline-none hover:no-underline"
+                  onClick={() => {
+                    setPreparingKind('batch')
+                    setSelected(new Set(sourceDocumentIds))
+                  }}
+                >
+                  Skip — run the full collection instead
+                </button>
+              </div>
+            )}
+            {/* Chosen before the schema, not after: the pilot banner above
+                already frames "which documents", so seeing them selected
+                (and free to adjust) comes first, then "which schema to try
+                on them" — rather than restating the same 2-3-documents
+                guidance a second time next to a second heading. */}
+            <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-bold text-ink">Source Documents</h3>
+                <p className="text-[11px] text-ink-faint">
+                  {selected.size} selected
+                </p>
+              </div>
+              <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
+                <Button
+                  variant="secondary"
+                  disabled={sourceDocuments.length === 0 || openingAnyBatch}
+                  onClick={toggleAllSourceDocuments}
+                >
+                  {allSourceDocumentsSelected ? 'Unselect all' : 'Select all'}
+                </Button>
+                <input
+                  className={`${control} w-full sm:w-48`}
+                  type="search"
+                  aria-label="Filter Source Documents"
+                  placeholder="Filter Source Documents"
+                  value={filter}
+                  onChange={(event) => setFilter(event.target.value)}
+                />
+              </div>
+            </div>
+            {filtered.length === 0 ? (
+              <p className="py-6 text-center text-xs text-ink-muted">
+                {sourceDocuments.length === 0
+                  ? 'No Source Documents yet. Add Source Documents on the Sources tab.'
+                  : `No Source Documents match “${filter}”.`}
+              </p>
+            ) : (
+              <ul className="mb-5 space-y-1">
+                {filtered.map((document) => (
+                  <li key={document.sourceDocumentId}>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-1 py-3 hover:bg-line/20">
+                      <input
+                        className="size-3.5 accent-accent"
+                        type="checkbox"
+                        checked={selected.has(document.sourceDocumentId)}
+                        disabled={openingAnyBatch}
+                        onChange={() => {
+                          if (schemaRevisionId === SUGGEST_SCHEMA)
+                            clearSuggestedFields()
+                          setSelected((current) => {
+                            const next = new Set(current)
+                            if (next.has(document.sourceDocumentId))
+                              next.delete(document.sourceDocumentId)
+                            else next.add(document.sourceDocumentId)
+                            return next
+                          })
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="block truncate text-xs font-semibold text-ink">
+                            {document.name}
+                          </span>
+                          {alreadyReviewed.has(document.sourceDocumentId) && (
+                            <span
+                              className="shrink-0 rounded-full bg-green-soft px-1.5 py-0.5 text-[10px] font-semibold text-green"
+                              title="Already reviewed under this Schema Revision — this run will reuse that result instead of re-extracting it."
+                            >
+                              Reuses reviewed result
+                            </span>
+                          )}
+                        </span>
+                        {document.pageCount !== null && (
+                          <span className="block text-[11px] text-ink-faint">
+                            {document.pageCount}{' '}
+                            {document.pageCount === 1 ? 'page' : 'pages'}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {overSelectionLimit && (
+              <p className="mb-5 text-[11px] text-danger" role="alert">
+                One Batch Extraction takes at most{' '}
+                {BATCH_EXTRACTION_SELECTION_LIMIT} Source Documents.
+              </p>
+            )}
             <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="text-[11px] font-semibold text-ink-muted">
                 Extraction Schema
@@ -1084,6 +1414,37 @@ export default function BatchExtractionsPanel({
                 {schemas.failure}
               </p>
             )}
+            {/* A small, unstabilised selection needs no banner here — the
+                pilot banner above already covers why, and "Skip" already
+                covers the way out; this only has something to add once the
+                schema is either approved or the selection has outgrown what
+                an unapproved schema is allowed to run. */}
+            {chosenSchema?.schemaRevisionId === schemaRevisionId &&
+              (chosenSchema.stabilisedAt ||
+                selected.size > PILOT_BATCH_SELECTION_LIMIT) && (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-muted px-3 py-2">
+                  <p className="text-[11px] leading-snug text-ink-muted">
+                    {chosenSchema.stabilisedAt
+                      ? 'This schema is approved for batch extraction — the full collection is unlocked.'
+                      : `This schema isn't approved for batch extraction yet: a run over ${PILOT_BATCH_SELECTION_LIMIT} Source Documents needs an approved schema. Pilot it on ${PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results, then approve it.`}
+                  </p>
+                  {!chosenSchema.stabilisedAt && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={stabilisingChosenSchema}
+                      onClick={() => void stabiliseChosenSchema()}
+                    >
+                      {stabilisingChosenSchema ? 'Approving…' : 'Approve for batch extraction'}
+                    </Button>
+                  )}
+                </div>
+              )}
+            {stabiliseChosenSchemaError && (
+              <p className="mb-3 text-[11px] text-danger" role="alert">
+                {stabiliseChosenSchemaError}
+              </p>
+            )}
             {chosenSchema?.schemaRevisionId === schemaRevisionId && (
               <SavedSchemaEditor
                 key={chosenSchema.schemaRevisionId}
@@ -1095,6 +1456,8 @@ export default function BatchExtractionsPanel({
                     : `Schema Revision ${chosenSchema.revisionNumber}`
                 }
                 registerController={setSavedSchemaController}
+                initialChatDraft={pendingSchemaEditDraft}
+                onChatDraftConsumed={() => setPendingSchemaEditDraft(null)}
               />
             )}
             {schemaRevisionId === SUGGEST_SCHEMA && (
@@ -1199,81 +1562,6 @@ export default function BatchExtractionsPanel({
                 )}
               </section>
             )}
-            <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <h3 className="text-xs font-bold text-ink">Source Documents</h3>
-                <p className="text-[11px] text-ink-faint">
-                  {selected.size} selected
-                </p>
-              </div>
-              <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
-                <Button
-                  variant="secondary"
-                  disabled={sourceDocuments.length === 0 || openingAnyBatch}
-                  onClick={toggleAllSourceDocuments}
-                >
-                  {allSourceDocumentsSelected ? 'Unselect all' : 'Select all'}
-                </Button>
-                <input
-                  className={`${control} w-full sm:w-48`}
-                  type="search"
-                  aria-label="Filter Source Documents"
-                  placeholder="Filter Source Documents"
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value)}
-                />
-              </div>
-            </div>
-            {filtered.length === 0 ? (
-              <p className="py-6 text-center text-xs text-ink-muted">
-                {sourceDocuments.length === 0
-                  ? 'No Source Documents yet. Add Source Documents on the Sources tab.'
-                  : `No Source Documents match “${filter}”.`}
-              </p>
-            ) : (
-              <ul className="space-y-1">
-                {filtered.map((document) => (
-                  <li key={document.sourceDocumentId}>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-1 py-3 hover:bg-line/20">
-                      <input
-                        className="size-3.5 accent-accent"
-                        type="checkbox"
-                        checked={selected.has(document.sourceDocumentId)}
-                        disabled={openingAnyBatch}
-                        onChange={() => {
-                          if (schemaRevisionId === SUGGEST_SCHEMA)
-                            clearSuggestedFields()
-                          setSelected((current) => {
-                            const next = new Set(current)
-                            if (next.has(document.sourceDocumentId))
-                              next.delete(document.sourceDocumentId)
-                            else next.add(document.sourceDocumentId)
-                            return next
-                          })
-                        }}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-semibold text-ink">
-                          {document.name}
-                        </span>
-                        {document.pageCount !== null && (
-                          <span className="block text-[11px] text-ink-faint">
-                            {document.pageCount}{' '}
-                            {document.pageCount === 1 ? 'page' : 'pages'}
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {overSelectionLimit && (
-              <p className="mt-4 text-[11px] text-danger" role="alert">
-                One Batch Extraction takes at most{' '}
-                {BATCH_EXTRACTION_SELECTION_LIMIT} Source Documents.
-              </p>
-            )}
             <div className="mt-4 flex justify-end">
               <Button
                 variant="positive"
@@ -1298,6 +1586,9 @@ export default function BatchExtractionsPanel({
             batch={openBatch}
             schemaNodes={currentPinnedBatchSchema?.schemaNodes ?? null}
             documentName={documentName}
+            projectContextId={projectContextId}
+            schemaStabilised={currentPinnedBatchSchema?.stabilisedAt != null}
+            priorRoundBatch={priorRoundBatch}
             onBack={() => openMembers(openBatch)}
             onOpenMember={(sourceDocumentId, extractionId) =>
               onNavigate({
@@ -1308,7 +1599,15 @@ export default function BatchExtractionsPanel({
                 fromBatchExtractionId: openBatch.batchExtractionId,
               })
             }
-            onMemberSaved={() => setReload((value) => value + 1)}
+            onMemberSaved={() => {
+              setReload((value) => value + 1)
+              onReviewCommitted?.()
+            }}
+            onEditSchemaField={(context) => editSchemaFieldFromGrid(openBatch, context)}
+            onStabilised={() => {
+              setPinnedBatchSchemaReload((value) => value + 1)
+              setStabiliseNudge(openBatch.schemaRevisionId)
+            }}
           />
         ) : (
           <BatchExtractionMembers
@@ -1368,6 +1667,23 @@ export default function BatchExtractionsPanel({
           onDismiss={() => setFinishedBatchReport(null)}
         />
       )}
+      {stabiliseNudge && (
+        <GuidedNextStep
+          title="Schema approved"
+          description="Batch Extraction is unlocked. Select all your Source Documents and run the full batch."
+          actionLabel="Run the full collection"
+          onAction={() => {
+            setSchemaRevisionId(stabiliseNudge)
+            setSelected(new Set(sourceDocumentIds))
+            setPreparingKind('batch')
+            clearSuggestedFields()
+            setRunFailure(null)
+            setRunFailureCode(null)
+            setPreparing(true)
+          }}
+          onDismiss={() => setStabiliseNudge(null)}
+        />
+      )}
     </div>
   )
 }
@@ -1382,11 +1698,18 @@ function SavedSchemaEditor({
   chosenSchema,
   sourceDocumentName,
   registerController,
+  initialChatDraft,
+  onChatDraftConsumed,
 }: {
   projectContextId: string
   chosenSchema: SchemaRevision
   sourceDocumentName: string
   registerController: (controller: SchemaEditorController | null) => void
+  /** Seeds the schema chat input with a flagged field's context, so "Edit
+   *  schema" from the review grid arrives with that context already in the
+   *  draft (schema-issue-flagging). */
+  initialChatDraft?: string | null
+  onChatDraftConsumed?(): void
 }) {
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
@@ -1422,6 +1745,8 @@ function SavedSchemaEditor({
           onClearDraft={clearDraft}
           sourceDocumentName={sourceDocumentName}
           showRegenerate={false}
+          initialChatDraft={initialChatDraft}
+          onChatDraftConsumed={onChatDraftConsumed}
         />
       </section>
       {failure && (
@@ -1443,7 +1768,7 @@ function SavedSchemaEditor({
  * every committed edit forwards into the caller-owned suggestion draft
  * machinery, and chat-driven edits stay unavailable exactly as before.
  */
-function SuggestedSchemaEditor({
+export function SuggestedSchemaEditor({
   proposal,
   proposalVersion,
   sourceDocumentName,

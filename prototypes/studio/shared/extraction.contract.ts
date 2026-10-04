@@ -110,6 +110,9 @@ export type ReviewDecisionAction = z.infer<
 
 const reviewDecisionShape = {
   resultPath: resultPathSchema,
+  // Null for a field with no Evidence Link — ungrounded-with-value or
+  // missing, reviewable the same way as a grounded field just without an
+  // anchor behind it.
   evidenceAnchorId: z.string().min(1).nullable(),
   reviewedOccurrenceIds: z.array(z.string().min(1)),
   action: reviewDecisionActionSchema,
@@ -124,6 +127,8 @@ function validateReviewDecision(
   decision: {
     action: ReviewDecisionAction
     reviewedValue: unknown
+    evidenceAnchorId: string | null
+    reviewedOccurrenceIds: readonly string[]
   },
   context: z.RefinementCtx,
 ) {
@@ -138,6 +143,12 @@ function validateReviewDecision(
       code: 'custom',
       path: ['reviewedValue'],
       message: 'Only an edited Review Decision can carry a reviewed value.',
+    })
+  if (decision.evidenceAnchorId === null && decision.reviewedOccurrenceIds.length > 0)
+    context.addIssue({
+      code: 'custom',
+      path: ['reviewedOccurrenceIds'],
+      message: 'A Review Decision with no Evidence Anchor cannot cite reviewed occurrences.',
     })
 }
 
@@ -504,8 +515,12 @@ export const extractionAttemptSchema = z
       (attempt.reviewedAt !== null &&
         (attempt.outcome !== 'SUCCEEDED' ||
           !attempt.reviewable ||
-          cited.size > reviewed.size ||
-          [...cited].some(([path, anchorId]) => reviewed.get(path) !== anchorId)))
+          // Every cited Evidence Link must be reviewed with its exact anchor —
+          // reviewed decisions may also cover further, ungrounded-with-value
+          // or missing fields beyond the cited set, but never claiming an
+          // anchor for one of those.
+          [...cited].some(([path, anchorId]) => reviewed.get(path) !== anchorId) ||
+          [...reviewed].some(([path, anchorId]) => !cited.has(path) && anchorId !== null)))
     )
       context.addIssue({
         code: 'custom',

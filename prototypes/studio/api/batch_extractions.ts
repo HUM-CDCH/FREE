@@ -110,6 +110,13 @@ export function createResearcherApiHandlers(
           'Use the Current Schema Revision and Source Documents in this Project Context with a Source Representation.',
           { cause: error },
         )
+      if (error instanceof ExtractionError && error.code === 'schema_not_stabilised')
+        throw new ApiError(
+          409,
+          'schema_not_stabilised',
+          'Stabilise this Schema Revision before running a Batch Extraction against it.',
+          { cause: error },
+        )
       unavailableUnlessNotFound(error, 'Project Context was not found.')
     }
     return json(

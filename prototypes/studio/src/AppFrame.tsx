@@ -6,6 +6,7 @@ import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
 import PanelToggleIcon from './PanelToggleIcon'
 import { useOpenDocumentTabs } from './useOpenDocumentTabs'
+import { usePilotRoundProgress } from './usePilotRoundProgress'
 import { useShiftWheelHorizontalScroll } from './useShiftWheelHorizontalScroll'
 import type { NavigableRoute, Route } from './projectNavigation'
 import type { DocumentSnapshot } from './projectContexts/transport'
@@ -162,7 +163,7 @@ export default function AppFrame({
         : JSON.stringify(route)
   const previousRouteFocusKey = useRef(routeFocusKey)
   const tabs = useOpenDocumentTabs()
-  const { projects } = useProjectContexts()
+  const { projects, refreshProjects } = useProjectContexts()
   useShiftWheelHorizontalScroll()
 
   useEffect(() => {
@@ -235,10 +236,12 @@ export default function AppFrame({
         }),
         // A run refused as superseded means this snapshot's Source Representation may be stale.
         onSourceSuperseded: onRefreshDocument,
+        fromSchemaBuilder:
+          route.kind === 'document' && route.fromSchemaBuilder === true,
         tabBarSlot,
         tabRingSlot,
       },
-    [openDocument, tabBarSlot, tabRingSlot, onNavigate, onRefreshDocument],
+    [openDocument, route, tabBarSlot, tabRingSlot, onNavigate, onRefreshDocument],
   )
 
   // Keeps open tabs in sync with routes reached other than a tab-strip or
@@ -338,6 +341,11 @@ export default function AppFrame({
     )?.name ?? null
   const backToReviewGridBatchExtractionId =
     route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
+  const pilotRoundProgress = usePilotRoundProgress(
+    route.kind === 'document' ? route.projectContextId : null,
+    backToReviewGridBatchExtractionId,
+    route.kind === 'document' ? route.sourceDocumentId : null,
+  )
   const hasOpenDocumentTabs = Boolean(
     routedProjectContextId && openProjectTabs.length > 0,
   )
@@ -512,10 +520,16 @@ export default function AppFrame({
             onActivate={activateTab}
             onClose={closeTab}
             onNavigateProject={() =>
-                onNavigate({
+              onNavigate({
                 kind: 'project',
                 projectContextId: routedProjectContextId,
-                tab: 'sources',
+                // Opened via the Schemas tab's document picker: back should
+                // return there, so picking a different document stays a
+                // one-click round trip instead of also re-selecting the tab.
+                tab:
+                  route.kind === 'document' && route.fromSchemaBuilder
+                    ? 'schemas'
+                    : 'sources',
               })
             }
             onBackToReviewGrid={
@@ -528,6 +542,27 @@ export default function AppFrame({
                       batchExtractionId: backToReviewGridBatchExtractionId,
                       view: 'grid',
                     })
+                : undefined
+            }
+            pilotRoundProgress={
+              pilotRoundProgress && backToReviewGridBatchExtractionId
+                ? {
+                    reviewed: pilotRoundProgress.reviewed,
+                    total: pilotRoundProgress.total,
+                    onNext: pilotRoundProgress.nextMember
+                      ? () =>
+                          onNavigate({
+                            kind: 'document',
+                            projectContextId: routedProjectContextId,
+                            sourceDocumentId:
+                              pilotRoundProgress.nextMember!.sourceDocumentId,
+                            extractionId:
+                              pilotRoundProgress.nextMember!.extractionId,
+                            fromBatchExtractionId:
+                              backToReviewGridBatchExtractionId,
+                          })
+                      : undefined,
+                  }
                 : undefined
             }
             slotRef={setTabBarSlot}
@@ -564,6 +599,9 @@ export default function AppFrame({
                   key={workspace.projectContextId}
                   {...workspace}
                   onInitialResourceLoadFailure={onInitialResourceLoadFailure}
+                  onNavigate={onNavigate}
+                  onSchemaApproved={refreshProjects}
+                  onReviewFinalized={refreshProjects}
                 />
               </Suspense>
             </RouteLoadBoundary>
