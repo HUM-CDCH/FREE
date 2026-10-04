@@ -1482,3 +1482,33 @@ describe('ResultsTab one by one (§4)', () => {
     expect(screen.getByRole('button', { name: /One by one/ })).toHaveAttribute('title', 'Nothing left to check here')
   })
 })
+
+describe('ResultsTab one by one while the run reads (§4.5)', () => {
+  const record = (index: number, state: 'finished' | 'reading'): PartialResult['records'][number] => ({
+    index, label: `Grav ${index + 8}`, page: 1, state,
+    record: state === 'finished' ? { place: `Place ${index}` } : null,
+    values: state === 'finished' ? { '["place"]': { value: `Place ${index}`, state: 'grounded' } } : {},
+    evidenceLinks: state === 'finished' ? [{ resultPath: ['records', index, 'place'], evidenceAnchorId: `anchor-${index}` }] : [],
+  })
+  const partial = (states: Array<'finished' | 'reading'>): PartialResult => ({
+    strategy: 'CATALOG', startedAtPage: 1, discovered: states.length, finished: states.filter((each) => each === 'finished').length,
+    records: states.map((state, index) => record(index, state)), document: null,
+  })
+  const runningAttempt = { ...articleAttempt, strategy: 'CATALOG' as const, executionStatus: 'RUNNING' as const, outcome: null, resultPayload: null,
+    evidenceLinks: null, reviewable: false, complete: null }
+  const tab = (shown: PartialResult) => <ResultsTab schemaReady sourceDocumentName="run.pdf" pinnedSchema={placeSchema}
+    controller={controller({ status: 'running', step: 'extraction', partial: shown }, runningAttempt, {
+      draftAvailable: true, decisions: [decided(['records', 0, 'place'], 'anchor-0'), decided(['records', 1, 'place'], 'anchor-1')],
+      isTouched: () => false,
+    })} />
+
+  it('once what is read is checked, each record read says its values can be reviewed now', () => {
+    const { rerender } = render(tab(partial(['finished', 'reading', 'reading'])))
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Approve and next/ }))
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Grav 8 is checked')
+    expect(screen.getByText(/still being read, and their values join this queue as each one finishes\.$/)).toBeInTheDocument()
+    rerender(tab(partial(['finished', 'finished', 'reading'])))
+    expect(live()).toHaveTextContent('Grav 9 read: its values can be reviewed now.')
+  })
+})
