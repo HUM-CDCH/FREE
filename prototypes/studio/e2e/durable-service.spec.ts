@@ -168,8 +168,15 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     const requestsBefore=service.modelRequests().length
     const extractionB=await seedNative(page,project,sourceB.sourceDocumentId,'article',{schemaRevisionId:value.schemaRevisionId,articleContext:context})
     await service.reconcileDurable()
-    await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
     const historyUrl=`/api/extractions/${extractionB}/durable/history`
+    await expect.poll(async()=>{
+      const head=await (await page.request.get(`/api/extractions/${extractionB}/durable`)).json()
+      if(head.status==='FAILED') {
+        await writeFile(info.outputPath('failed-guidance-history.json'),JSON.stringify({head,history:await (await page.request.get(historyUrl)).json()},null,2))
+        throw new Error(JSON.stringify(head.failure))
+      }
+      return service.extractionHeld()
+    },{timeout:60_000}).toBe(true)
     const started=await (await page.request.get(historyUrl)).json()
     const capture=started.captures.find((each:{request:unknown})=>each.request)
     const providerRequest=service.modelRequests()[requestsBefore]
