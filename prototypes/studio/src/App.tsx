@@ -19,7 +19,9 @@ import {
   decodeParsedDocument,
   type ParsedDocument,
 } from 'extraction/parsed-document'
-import { useEvidenceOverlays } from './useEvidenceOverlays'
+import { useEvidenceOverlays, type RailMarkState } from './useEvidenceOverlays'
+import MarkPopover from './MarkPopover'
+import DocumentMarkdown from './DocumentMarkdown'
 import { METHOD_CHANGED, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
@@ -136,6 +138,8 @@ export type DocumentWorkspaceProps = {
   /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
       portalled into so the PDF controls share that row instead of a second one. */
   tabBarSlot?: HTMLElement | null
+  /** The active document tab's ring slot (results review redesign §2.4). */
+  tabRingSlot?: HTMLElement | null
   /** How long the first generation's automatic name may wait for its answer before the renames queued behind it go
       ahead (default 20 s; tests shorten it). */
   automaticRenameTimeoutMs?: number
@@ -164,6 +168,7 @@ export function DocumentWorkspace({
   onInitialResourceLoadFailure,
   onSourceSuperseded,
   tabBarSlot = null,
+  tabRingSlot = null,
   automaticRenameTimeoutMs = 20_000,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -244,7 +249,7 @@ export function DocumentWorkspace({
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
-  const [railTab, setRailTab] = useState<RailTab>('schema')
+  const [railTab, setRailTab] = useState<RailTab>(() => new URLSearchParams(window.location.search).has('value') ? 'results' : 'schema')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   // Extraction Schemas keyed by Schema Revision id, so any attempt — active,
@@ -736,11 +741,23 @@ export function DocumentWorkspace({
     return () => controller.abort()
   }, [projectContextId, extractionSchemaId, missingSchemaRevisionId])
 
-  const evidenceFieldNames = useMemo(
-    () =>
-      inspectedAttemptSchema?.schemaNodes.map((node) => node.name) ?? [],
-    [inspectedAttemptSchema],
-  )
+  // The rail's values as marks on the page; a mark selects its value in the rail, several open a popover (§7.2).
+  const [railMarks, setRailMarks] = useState<RailMarkState | null>(null)
+  const selectValueRef = useRef<((key: string) => void) | null>(null)
+  const [markChoice, setMarkChoice] = useState<{ keys: string[]; mark: HTMLElement } | null>(null)
+  const [marksShown, setMarksShown] = useState(true)
+  // A link to a value (`?value={resultPathKey}`) selects it once the attempt's values are listed (§7.2).
+  const linkedValue = useRef(new URLSearchParams(window.location.search).get('value'))
+  useEffect(() => {
+    const key = linkedValue.current
+    if (!key || !railMarks?.selectableKeys.has(key)) return
+    linkedValue.current = null
+    selectValueRef.current?.(key)
+  }, [railMarks])
+  const marks = useMemo(() => railMarks && {
+    ...railMarks,
+    onSelect: (keys: string[], mark: HTMLElement) => keys.length === 1 ? selectValueRef.current?.(keys[0]!) : setMarkChoice({ keys, mark }),
+  }, [railMarks])
   // Partial Evidence links paint as they arrive without moving the page being read.
   const partialEvidenceLinks = useMemo(
     () => extraction.state.status === 'running' && extraction.state.partial
@@ -753,7 +770,7 @@ export function DocumentWorkspace({
     viewerRef: pdfViewerRef,
     parsedDocument,
     attempt: inspectedAttempt,
-    fieldNames: evidenceFieldNames,
+    marks,
     resultPath,
     active: effectiveRailOpen && railTab === 'results',
     partialEvidenceLinks,
@@ -883,6 +900,24 @@ export function DocumentWorkspace({
     >
       {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row, so the open Source Document's run action costs
           no extra vertical space. */}
+      {/* The open document's tab carries the review's progress as a ring, and says it (§2.4). */}
+      {tabRingSlot && (extraction.hasResults || running) && createPortal((() => {
+        const partial = extraction.state.status === 'running' ? extraction.state.partial : null
+        const { requiredCount, untouchedCount, reviewedExtractionId } = extraction.review
+        const saved = Boolean(reviewedExtractionId || extraction.attempt?.reviewedAt)
+        const fraction = saved ? 1 : requiredCount === 0 ? 0 : (requiredCount - untouchedCount) / requiredCount
+        const said = running ? (partial ? `, reading records, ${partial.finished} of ${partial.discovered}` : ', reading records')
+          : saved ? ', review saved' : `, ${untouchedCount} values to check`
+        return (
+          <>
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" className="order-first shrink-0">
+              <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-line" />
+              <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-green" strokeDasharray={`${(fraction * 44).toFixed(1)} 44`} transform="rotate(-90 9 9)" />
+            </svg>
+            <span className="sr-only">{said}</span>
+          </>
+        )
+      })(), tabRingSlot)}
       {tabBarSlot && createPortal(
         <>
           {/* Transient status only (Rulings 2 and 3): the indexing state while it runs, then the save state. A scope choice saves at once; field edits wait out the debounce. Run waits for either, and a failed save
@@ -966,7 +1001,11 @@ export function DocumentWorkspace({
                   </button>
                 </div>
               )}
-              <SegmentedControl aria-label="Document view" className="ml-auto" value={documentView} onChange={setDocumentView}
+              <button type="button" aria-pressed={marksShown} onClick={() => setMarksShown((shown) => !shown)}
+                className="ml-auto inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 text-compact font-semibold text-ink-muted outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent aria-pressed:text-ink">
+                <span aria-hidden="true" className={`h-2.5 w-4.5 rounded-full border border-ev ${marksShown ? 'bg-ev' : 'bg-surface'}`} />Evidence marks
+              </button>
+              <SegmentedControl aria-label="Document view" value={documentView} onChange={setDocumentView}
                 options={[{ value: 'pdf', label: 'PDF' }, { value: 'markdown', label: 'Markdown' }]} />
             </div>
             <div className="relative flex min-h-0 flex-1">
@@ -976,20 +1015,17 @@ export function DocumentWorkspace({
                 onClose={() => { setPagesOpen(false); pagesToggleRef.current?.focus() }}
                 thumbnails={thumbnails} />}
               <div className="relative min-w-0 flex-1">
-                <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
+                <div className={`pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`} ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
+                {markChoice && railMarks && (
+                  <MarkPopover keys={markChoice.keys} describe={railMarks.describe} mark={markChoice.mark}
+                    onChoose={(key) => { setMarkChoice(null); selectValueRef.current?.(key) }} onClose={() => setMarkChoice(null)} />
+                )}
                 {/* Over the PDF, which stays mounted with its marks and position. */}
                 {documentView === 'markdown' && (
-                  <div className="scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8">
-                    {documentMarkdown ? (
-                      <pre aria-label="Parsed Markdown" className="mx-auto m-0 max-w-[816px] bg-surface px-10 py-8 font-mono text-secondary whitespace-pre-wrap text-ink shadow-page">{documentMarkdown}</pre>
-                    ) : (
-                      <div className="mx-auto max-w-[34ch] pt-16 text-center">
-                        <p className="m-0 text-content font-semibold text-ink">Markdown unavailable</p>
-                        <p className="mt-1.5 mb-0 text-compact leading-snug text-ink-muted">Parsed Markdown has not been received for this source document.</p>
-                      </div>
-                    )}
+                  <div className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
+                    <DocumentMarkdown markdown={documentMarkdown} document={parsedDocument} marks={marks} marksShown={marksShown} />
                   </div>
                 )}
               </div>
@@ -1079,6 +1115,8 @@ export function DocumentWorkspace({
               onSelectEvidence={selectEvidenceAnchor}
               onResultPathChange={setResultPath}
               onFocusEvidence={setFocusedEvidence}
+              onMarksChange={setRailMarks}
+              selectValueRef={selectValueRef}
             />
           </aside>
         </div>

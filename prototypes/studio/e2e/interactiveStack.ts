@@ -29,8 +29,9 @@ export async function canonicalPackage(
     anchor.content_sha256 = sourceHash
     anchor.anchor_id = `a_p1_s${index}`
   }
+  // The bundled anchor spans UTF-8 bytes21–27: the quote prefix aligns the retained source text.
   return {
-    bytes: packCanonicalPackage({ pdf, document, markdown: '# Article fixture\n\nGrav 8\n' }),
+    bytes: packCanonicalPackage({ pdf, document, markdown: '# Article fixture\n\n> Grav 8\n' }),
     sourceHash,
   }
 }

@@ -60,8 +60,8 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
             <button type="button" aria-expanded={open} disabled={record.state === 'queued'} onClick={() => onToggle(record)}
               className="flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
               <DisclosureGlyph open={open} />
-              <b className="truncate text-content text-ink">{record.label}</b>
-              <span className="shrink-0 text-secondary text-ink-muted">Record {record.index + 1}{record.page === null ? '' : ` · p.${record.page}`}</span>
+              <b className="min-w-10 truncate text-content text-ink">{record.label}</b>
+              <span className="min-w-0 truncate text-secondary text-ink-muted">Record {record.index + 1}{record.page === null ? '' : ` · p.${record.page}`}</span>
               <span className="flex-1" />
               <span className={`flex shrink-0 items-center gap-1 text-compact tabular-nums ${state.busy || record.state === 'queued' ? 'font-medium text-ink-muted' : 'text-ink'}`}>
                 {state.busy && <SpinnerGlyph className="size-3.5 text-ink" />}{state.done && <ApprovedGlyph />}{state.text}

@@ -17,6 +17,8 @@ export type DocumentTabBarProps = {
       into this node, so they share the tab-strip row instead of costing a
       second one. */
   slotRef: (element: HTMLDivElement | null) => void
+  /** The active tab's review ring slot (results review redesign §2.4), portalled into by DocumentWorkspace. */
+  ringSlotRef?: (element: HTMLSpanElement | null) => void
   navigationToggle?: ReactNode
 }
 
@@ -65,6 +67,7 @@ function DocumentTabBar({
   onNavigateProject,
   onBackToReviewGrid,
   slotRef,
+  ringSlotRef,
   navigationToggle,
 }: DocumentTabBarProps) {
   return (
@@ -109,6 +112,8 @@ function DocumentTabBar({
             >
               {tab.name}
             </span>
+            {/* The ring draws first (order-first); its spoken progress follows the name. */}
+            {active && <span ref={ringSlotRef} className="contents" />}
             <button
               type="button"
               aria-label={`Close ${tab.name}`}

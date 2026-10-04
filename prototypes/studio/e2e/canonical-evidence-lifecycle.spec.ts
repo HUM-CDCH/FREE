@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page, type TestInfo } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import ExcelJS from 'exceljs'
@@ -134,11 +134,135 @@ let standIn: KeiStandIn | undefined
 /** The Results rail (results review redesign §2–§3): its header's status line, review bar and breakdown line, and its
  *  rows, each a button named "{state} {name} {value} {chip}". */
 const resultsPanel = (page: Page) => page.getByRole('tabpanel', { name: /Results/ })
+
+const railPane = (page: Page) => page.getByRole('complementary', { name: 'Evidence, schema and results' })
+
+/** Drags the rail's handle until the rail is `width` wide (its 264–560px clamp holds the minimum). */
+async function setRailWidth(page: Page, width: number) {
+  const current = (await railPane(page).boundingBox())!.width
+  if (current === width) return
+  const handle = (await page.locator('[title="Drag to resize"]:not([role="separator"])').boundingBox())!
+  const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x + (current - width), y, { steps: 4 })
+  await page.mouse.up()
+  await expect.poll(async () => (await railPane(page).boundingBox())!.width).toBe(width)
+}
+
+/** The rail's narrow layouts (results review redesign §9), measured in a real browser: at 344px the chips are one
+ *  row and the list scrolls only vertically; at 264px the chips become a labelled select and the count block's
+ *  actions each take a full-width line. */
+async function expectRailLayouts(page: Page) {
+  const panel = resultsPanel(page)
+  const noSideScroll = () => panel.evaluate((element) => [...element.querySelectorAll<HTMLElement>('*')]
+    .filter((each) => each.scrollWidth > each.clientWidth + 1 && getComputedStyle(each).overflowX === 'auto' && !each.matches('[role="group"]')).length)
+  await setRailWidth(page, 344)
+  const chips = panel.getByRole('group', { name: 'Show values' })
+  await expect(chips).toBeVisible()
+  await expect(panel.getByRole('combobox', { name: 'Show' })).toBeHidden()
+  const tops = await chips.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top))
+  expect(new Set(tops).size).toBe(1)
+  expect(await noSideScroll()).toBe(0)
+  await setRailWidth(page, 264)
+  await expect(chips).toBeHidden()
+  await expect(panel.getByRole('combobox', { name: 'Show' })).toBeVisible()
+  const header = (await panel.getByRole('button', { name: /One by one/ }).boundingBox())!
+  const approve = (await panel.getByRole('button', { name: 'Approve rest…' }).boundingBox())!
+  expect(Math.abs(header.width - approve.width)).toBeLessThanOrEqual(1)
+  expect(approve.y).toBeGreaterThan(header.y + header.height - 1)
+  expect(header.width).toBeGreaterThan(200)
+  expect(await noSideScroll()).toBe(0)
+  await setRailWidth(page, 344)
+}
+
+/** With RAIL_SHOTS=1, the rail at 1280×720 at its 344px default and its 264px minimum, for the visual check against
+ *  the prototype (results review redesign); otherwise nothing. */
+async function railShots(page: Page, testInfo: TestInfo, stage: string) {
+  if (!process.env.RAIL_SHOTS) return
+  const viewport = page.viewportSize()
+  await page.setViewportSize({ width: 1280, height: 720 })
+  for (const width of [344, 264]) {
+    await setRailWidth(page, width)
+    await page.screenshot({ path: testInfo.outputPath(`rail-${stage}-${width}.png`) })
+  }
+  await setRailWidth(page, 344)
+  if (viewport) await page.setViewportSize(viewport)
+}
+async function expectSavedRailHeader(page: Page) {
+  await setRailWidth(page, 264)
+  const word = statusLine(page).locator('b')
+  expect(await word.evaluate((element) => element.getBoundingClientRect().height),
+    'the saved status word stays on one line at the minimum rail width').toBeLessThanOrEqual(
+      await word.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight)) + 1)
+  await expectOperableInViewport(page, resultsPanel(page).getByRole('button', { name: 'Run details', exact: true }))
+  await expectOperableInViewport(page, moreActions(page))
+  const [statusBox, detailsBox, menuBox] = await Promise.all([
+    statusLine(page).boundingBox(),
+    resultsPanel(page).getByRole('button', { name: 'Run details', exact: true }).boundingBox(),
+    moreActions(page).boundingBox(),
+  ])
+  expect(detailsBox!.y).toBeLessThan(statusBox!.y + statusBox!.height)
+  expect(detailsBox!.y + detailsBox!.height).toBeGreaterThan(statusBox!.y)
+  expect(menuBox!.y).toBe(detailsBox!.y)
+  await expectOperableInViewport(page, resultsPanel(page).getByRole('button', { name: 'Export', exact: true }))
+  await setRailWidth(page, 344)
+}
+
+async function expectDocumentMarks(page: Page, testInfo: TestInfo) {
+  const title = valueRow(page, /^To check title /)
+  const viewer = page.locator('.pdf-viewer')
+  const pdfMark = viewer.locator('button.evidence-mark').first()
+  await pdfMark.scrollIntoViewIfNeeded()
+  const position = await viewer.evaluate((element) => [element.scrollTop, element.scrollLeft])
+  await page.screenshot({ path: testInfo.outputPath('document-pdf-marks.png') })
+  await pdfMark.click()
+  const choices = page.getByRole('dialog', { name: 'Values in this passage', exact: true })
+  await expect(choices).toBeVisible()
+  await choices.getByRole('button', { name: /^title · / }).click()
+  await expect(title).toHaveAttribute('aria-expanded', 'true')
+  expect(await viewer.evaluate((element) => [element.scrollTop, element.scrollLeft])).toEqual(position)
+  await title.click()
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click()
+  const markdown = page.getByLabel('Parsed Markdown', { exact: true })
+  const source = await markdown.innerText()
+  await expect(markdown.locator('button.evidence-mark').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Evidence marks', exact: true }).click()
+  expect(await markdown.innerText(), 'switching off marks preserves the complete Markdown source').toBe(source)
+  await expect(markdown.locator('button.evidence-mark')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Evidence marks', exact: true }).click()
+  await markdown.locator('button.evidence-mark').first().click()
+  await expect(choices).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(choices).toHaveCount(0)
+  await expect(markdown.locator('button.evidence-mark').first()).toBeFocused()
+  await markdown.locator('button.evidence-mark').first().click()
+  await choices.getByRole('button', { name: /^title · / }).click()
+  await expect(title).toHaveAttribute('aria-expanded', 'true')
+  await page.screenshot({ path: testInfo.outputPath('document-markdown-marks.png') })
+  await page.getByRole('button', { name: 'Evidence marks', exact: true }).click()
+  expect(await markdown.innerText()).toBe(source)
+  await expect(markdown.locator('button.evidence-mark')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Evidence marks', exact: true }).click()
+  await page.getByRole('button', { name: 'PDF', exact: true }).click()
+
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await moreAction(page, 'Copy link to the selected value')
+  const copied = await page.evaluate(() => navigator.clipboard.readText())
+  expect(new URL(copied).searchParams.get('value')).toBe(JSON.stringify(['records', 0, 'title']))
+  const linked = await page.context().newPage()
+  await linked.goto(copied)
+  await expect(linked.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(valueRow(linked, /^To check title /)).toHaveAttribute('aria-expanded', 'true')
+  await linked.close()
+  await title.click()
+}
+
 const statusLine = (page: Page) => resultsPanel(page).locator('p:has(> b)').first()
 const reviewBar = (page: Page) => resultsPanel(page).getByRole('img', { name: / to check, of \d+$/ })
 const breakdown = (page: Page) => resultsPanel(page).locator('p').filter({ hasText: /^\d+ approved · \d+ edited · \d+ rejected · / })
 const valueRow = (page: Page, name: RegExp) => resultsPanel(page).getByRole('button', { name })
-const decisionFor = (page: Page, name: string, action: 'Approve' | 'Edit' | 'Reject') =>
+const decisionFor = (page: Page, name: string, action: 'Approve' | 'Edit' | 'Reject' | 'Approve and save review' | 'Reject and save review') =>
   resultsPanel(page).getByRole('group', { name: `Decision for ${name}`, exact: true }).getByRole('button', { name: action, exact: true })
 const approveRestButton = (page: Page) => resultsPanel(page).getByRole('button', { name: 'Approve rest…', exact: true })
 const moreActions = (page: Page) => resultsPanel(page).getByRole('button', { name: 'More result actions', exact: true })
@@ -374,11 +498,19 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await expect(first.getByRole('button', { name: /^Approved title First record/ })).toBeVisible()
     await expect(breakdown(page)).toHaveText('1 approved · 0 edited · 0 rejected · draft until the run finishes')
     await expect(first).toHaveAccessibleName('First, all checked')
+    await railShots(page, testInfo, 'review-while-reading')
   } else {
     await expect(resultsPanel(page).getByTitle('Candidate · being checked against the source')).toHaveText('First context')
     await expect(resultsPanel(page).getByRole('button', { name: /^To check / })).toHaveCount(0)
   }
   await expect.poll(() => resultGate.release !== null).toBe(true)
+  // Settlement moves nothing (§5.3): the decided row keeps its place on the screen.
+  if (strategy === 'CATALOG') {
+    // Returning to the list mounts its 200ms entry animation; compare settled layout, not animation frames.
+    await expect.poll(() => valueRow(page, /^Approved title First record/)
+      .evaluate((row) => getComputedStyle(row).transform)).toBe('none')
+  }
+  const beforeSettlement = strategy === 'CATALOG' ? await valueRow(page, /^Approved title First record/).boundingBox() : null
   kei.progress = null
   resultGate.release!()
   // With the rail open on Results its settlement toast is the one notice; App's "Review now" toast stays away (§2.5).
@@ -390,13 +522,21 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
   expect(interactivePosts).toBe(1)
   if (strategy === 'CATALOG') {
-    // Settlement moved nothing: the decided value still reads Approved; Approve rest… saves the rest.
+    // Settlement moved nothing: the decided value still reads Approved, where it was; Approve rest… saves the rest.
     await expect(valueRow(page, /^Approved title First record/)).toBeVisible()
+    await expect.poll(() => valueRow(page, /^Approved title First record/)
+      .evaluate((row) => getComputedStyle(row).transform)).toBe('none')
+    const afterSettlement = await valueRow(page, /^Approved title First record/).boundingBox()
+    expect(Math.abs(afterSettlement!.y - beforeSettlement!.y)).toBeLessThanOrEqual(1)
+    await railShots(page, testInfo, 'settled')
+    await expectRailLayouts(page)
     await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
     // One by one (§4): A approves the current value and moves on, J skips, Z undoes the approval; Escape leaves.
     await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
     const current = resultsPanel(page).getByRole('heading', { level: 2 })
     await expect(current).toBeFocused()
+    await railShots(page, testInfo, 'one-by-one')
+    await current.focus()
     await page.keyboard.press('a')
     await expect(reviewBar(page)).toHaveAccessibleName('2 approved, 0 edited, 0 rejected, 1 to check, of 3')
     await expect(current).toBeFocused()
@@ -412,6 +552,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await focusedEditor.press('Enter')
     await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 1 edited, 0 rejected, 1 to check, of 3')
     await expect(current).toBeFocused()
+    await railShots(page, testInfo, 'last-decision')
     await page.keyboard.press('r')
     await expect(current).toHaveText('Review saved', { timeout: 20_000 })
     await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 1 edited, 1 rejected, 0 to check, of 3')
@@ -419,6 +560,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await expect(resultsPanel(page).getByRole('group', { name: 'Show values' })).toBeVisible()
     await expect(valueRow(page, /^Rejected title /)).toBeFocused()
     await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
+    await railShots(page, testInfo, 'saved')
     await page.reload()
     await page.getByRole('tab', { name: /Results/ }).click()
     await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
@@ -548,6 +690,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expectOperableInViewport(page, titleRow)
   await expectOperableInViewport(page, moreActions(page))
   await page.setViewportSize({ width: 1280, height: 800 })
+  await expectDocumentMarks(page, testInfo)
   // Selecting a value opens its decision (§3.3).
   await activateWithKeyboard(page, titleRow)
   // Native focus must not override the list position restored when leaving One by one (§4.1).
@@ -611,6 +754,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await approveRest(page)
   await expect(resultsPanel(page).getByText('Review saved', { exact: true })).toBeVisible()
   await expect(statusLine(page)).toHaveText(new RegExp(`^Review saved\\s*· ${requiredCount} decisions · read-only$`))
+  await railShots(page, testInfo, 'saved-header')
+  await expectSavedRailHeader(page)
   await page.screenshot({
     path: testInfo.outputPath('canonical-reviewed-results.png'),
     fullPage: true,
@@ -723,6 +868,18 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(reviewBar(page)).toHaveAccessibleName('0 approved, 0 edited, 0 rejected, 2 to check, of 2')
   // The values without evidence are counted apart, as not reviewable (§2.3).
   await expect(resultsPanel(page).getByRole('button', { name: /^Not reviewable\s*6$/ })).toBeVisible()
+  await resultsPanel(page).getByRole('button', { name: /^Not reviewable\s*6$/ }).click()
+  const unlinkedRow = valueRow(page, /^Unsupported tags › 1 æ/)
+  await unlinkedRow.click()
+  await moreAction(page, 'Copy link to the selected value')
+  const unlinkedUrl = await page.evaluate(() => navigator.clipboard.readText())
+  expect(new URL(unlinkedUrl).searchParams.get('value')).toBe(JSON.stringify(['records', 0, 'tags', 0]))
+  const unlinkedPage = await page.context().newPage()
+  await unlinkedPage.goto(unlinkedUrl)
+  await expect(unlinkedPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(valueRow(unlinkedPage, /^Unsupported tags › 1 æ/)).toHaveAttribute('aria-expanded', 'true')
+  await unlinkedPage.close()
+  await resultsPanel(page).getByRole('button', { name: 'To check', exact: true }).click()
   await valueRow(page, /^To check title /).click()
   drafted = draftWritten(page)
   await decisionFor(page, 'title', 'Reject').click()

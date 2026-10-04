@@ -151,6 +151,7 @@ export default function AppFrame({
   const providerTrigger = useRef<HTMLButtonElement>(null)
   const providerInitialFocus = useRef<HTMLButtonElement>(null)
   const [tabBarSlot, setTabBarSlot] = useState<HTMLDivElement | null>(null)
+  const [tabRingSlot, setTabRingSlot] = useState<HTMLSpanElement | null>(null)
   const resizeControllerRef = useRef<AbortController | null>(null)
   const contentRef = useRef<HTMLElement>(null)
   const routeFocusKey =
@@ -235,8 +236,9 @@ export default function AppFrame({
         // A run refused as superseded means this snapshot's Source Representation may be stale.
         onSourceSuperseded: onRefreshDocument,
         tabBarSlot,
+        tabRingSlot,
       },
-    [openDocument, tabBarSlot, onNavigate, onRefreshDocument],
+    [openDocument, tabBarSlot, tabRingSlot, onNavigate, onRefreshDocument],
   )
 
   // Keeps open tabs in sync with routes reached other than a tab-strip or
@@ -529,6 +531,7 @@ export default function AppFrame({
                 : undefined
             }
             slotRef={setTabBarSlot}
+            ringSlotRef={setTabRingSlot}
             navigationToggle={narrowNavToggle}
           />
         )}

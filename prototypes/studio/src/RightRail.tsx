@@ -1,8 +1,9 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { RailMarkState } from './useEvidenceOverlays'
 import PanelToggleIcon from './PanelToggleIcon'
 import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useMemo, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
@@ -50,10 +51,13 @@ type RightRailProps = {
   boundaries?: SchemaPanelProps['boundaries']
   /** Controls the Results header shows beside the attempt details: the snapshot choice, "Open latest reviewed". */
   resultsHeaderExtras?: ReactNode
-  onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
+  onSelectEvidence: (anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => void
   onResultPathChange: (path: string[] | null) => void
   /** The one-by-one value's Evidence link, for the document's dimming (results review redesign §7.3). */
   onFocusEvidence?: (link: EvidenceLink | null) => void
+  /** The rail's values for the document's marks, and the handle a mark selects a value through (§7.2). */
+  onMarksChange?: (marks: RailMarkState | null) => void
+  selectValueRef?: RefObject<((key: string) => void) | null>
 }
 
 /** A tab's count. Under a 300px tab strip (the 264px rail) a worded one ("7 to check") shows its number only, so the
@@ -100,6 +104,8 @@ function RightRail({
   onSelectEvidence,
   onResultPathChange,
   onFocusEvidence,
+  onMarksChange,
+  selectValueRef,
 }: RightRailProps) {
   const [fieldContext, setFieldContext] = useState<FieldContext | null>(null)
   const editField = (nodeId: string, path: (string | number)[]) => {
@@ -246,12 +252,14 @@ function RightRail({
           evidencePages={evidencePages}
           onResultPathChange={onResultPathChange}
           onFocusEvidence={onFocusEvidence}
+          onMarksChange={onMarksChange}
+          selectValueRef={selectValueRef}
           headerExtras={resultsHeaderExtras}
-          onSelectEvidence={(anchorId) => {
+          onSelectEvidence={(anchorId, precision) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(
               (candidate) => candidate.anchor_id === anchorId,
             )
-            if (anchor) onSelectEvidence(anchor)
+            if (anchor) onSelectEvidence(anchor, precision)
           }}
         />
       </div>

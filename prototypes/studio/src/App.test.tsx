@@ -341,6 +341,18 @@ async function renderReopened(overrides: Partial<DocumentWorkspaceProps> = {}) {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('opens a copied link to an unlinked value with that row selected', async () => {
+    const before = window.location.href
+    window.history.replaceState(null, '', `?value=${encodeURIComponent(JSON.stringify(['records', 0, 'place']))}`)
+    try {
+      await renderReopened()
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      const row = await screen.findByRole('button', { name: /place Ellekilde/ })
+      await waitFor(() => expect(row).toHaveAttribute('aria-expanded', 'true'))
+      expect(row).toHaveFocus()
+    } finally { window.history.replaceState(null, '', before) }
+  })
+
   it('restores partial Results and their progress count for a running Extraction', async () => {
     const attempt = {
       ...runningAttempt('51000000-0000-4000-8006-000000000032'),
@@ -914,7 +926,7 @@ describe('reopened Source Document workspace', () => {
     )
   })
 
-  it('reveals the PDF page before painting nested table Evidence', async () => {
+  it('navigates to an unrendered PDF page when nested table Evidence is selected', async () => {
     const tableDocument = {
       ...parsedDocument,
       pages: parsedDocument.pages.map((page) =>
@@ -1014,6 +1026,9 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id="table-anchor"]')).toHaveLength(1),
     )
+    // Painting is passive; selecting a row reveals its page if pdf.js has unloaded it (§7.2).
+    page.remove()
+    fireEvent.click(screen.getByRole('button', { name: /finds › 1 › find_number 26-1/ }))
     expect(scrollPageIntoView).toHaveBeenLastCalledWith({ pageNumber: 4 })
   })
 
