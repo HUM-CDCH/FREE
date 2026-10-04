@@ -152,6 +152,40 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
   } finally {await fixture.close()}
 })
 
+test('One by one waits for its pinned source before navigating retained Model Evidence',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  const release=Promise.withResolvers<void>(),received=Promise.withResolvers<void>()
+  try {
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Grav 8'])
+    const source=decodeParsedDocument(await (await page.request.get(`/api/extractions/${id}/durable/source`)).json().then(value=>value.document))
+    const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
+    const values=(await pool.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=1',[id])).rows[0].values
+    values[0].grounding='grounded'
+    values[0].evidence=[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:values[0].path,
+      segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]
+    await pool.query('UPDATE extraction_runtime.snapshot SET values=$2 WHERE "extractionId"=$1 AND version=1',[id,JSON.stringify(values)])
+    const latestSource=randomUUID()
+    await pool.query(`INSERT INTO public."sourceRepresentationRevision" (id,"sourceDocumentId","revisionNumber","artifactReference","artifactSha256","contractVersion","preprocessId","parserName","parserVersion")
+      SELECT $1,"sourceDocumentId",2,"artifactReference","artifactSha256","contractVersion",$2,'fixture','2' FROM public."sourceRepresentationRevision" WHERE id=$3`,
+      [latestSource,`kei-exp:e2e-${latestSource}:g2`,fixture.sourceRepresentationRevisionId])
+    await page.route(`**/api/extractions/${id}/durable/source`,async route=>{
+      const response=await route.fetch()
+      received.resolve();await release.promise
+      await route.fulfill({response})
+    })
+    await page.goto(`${fixture.url}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    await received.promise
+    await expect(page.getByText('/ 6',{exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'One by one',exact:true}).click()
+    await expect(page.getByRole('heading',{name:'Grav 8',exact:true})).toBeFocused()
+    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
+    release.resolve()
+    await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
+    await expect(page.locator('.parsed-evidence-focus')).toHaveAttribute('data-evidence-anchor-id',anchor.anchor_id)
+  } finally {release.resolve();await fixture.close()}
+})
+
 test('an off-page ungrounded value keeps its source, optional Evidence and target-specific guidance',async({page})=> {
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   const nodes=[{id:'title',name:'title',type:'string' as const}]

@@ -208,7 +208,7 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
   const followRef=useRef({review,onFocusEvidence,onEvidence})
   useEffect(()=>{followRef.current={review,onFocusEvidence,onEvidence}})
   const currentLink=review?.value.links[0]??null
-  const followKey=focus&&review?`${review.version}:${review.value.id}:${currentLink?.evidenceAnchorId??''}:${currentLink?.precision??''}`:null
+  const followKey=focus&&review&&document?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${review.version}:${review.value.id}:${currentLink?.evidenceAnchorId??''}:${currentLink?.precision??''}`:null
   useEffect(()=>{
     const {review,onFocusEvidence,onEvidence}=followRef.current,link=review?.value.links[0]??null
     onFocusEvidence?.(followKey?link:null)

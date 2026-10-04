@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { DurablePage } from 'extraction/durable-types'
+import { decodeParsedDocument } from 'extraction/parsed-document'
+import rawDocument from './assets/parsed_document.v2.json'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { DurableResults } from './DurableResults'
 import { durableRequest, readDurable, readDurableHistory } from './durableExtractionApi'
@@ -116,7 +118,7 @@ it('keeps native document navigation tied to rail selection and preserves mark s
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:2,inFlight:0}},page} as never)
   const onEvidence=vi.fn(),replacement=vi.fn(),onMarksChange=vi.fn(),selectValueRef={current:null as ((key:string)=>void)|null}
-  const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document:null,currentSchema:null,onMarksChange,selectValueRef}
+  const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document:decodeParsedDocument(rawDocument),currentSchema:null,onMarksChange,selectValueRef}
   const view=render(<DurableResults {...props} onEvidence={onEvidence}/>)
   fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
   expect(onEvidence).toHaveBeenCalledExactlyOnceWith('anchor',undefined,'segment')
@@ -128,6 +130,26 @@ it('keeps native document navigation tied to rail selection and preserves mark s
   expect(replacement).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button',{name:'Model Evidence · other · whole page'}))
   expect(replacement).toHaveBeenCalledExactlyOnceWith('second-anchor',undefined,'input')
+})
+
+it('defers native Evidence navigation until its pinned source arrives and follows once',async()=>{
+  const document=decodeParsedDocument(rawDocument),anchor=document.evidence_index.anchors[0]!.anchor_id
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Saved title',evidence:[],links:[{evidenceAnchorId:anchor,resultPath:['records',0,'title'],precision:'segment'}],grounding:'grounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,sourceRevisionId:'pinned',
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  const source=Promise.withResolvers<unknown>()
+  vi.mocked(durableRequest).mockReturnValue(source.promise)
+  const onEvidence=vi.fn(),replacement=vi.fn(),props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,
+    document,documentRevisionId:'newer',currentSchema:null}
+  const view=render(<DurableResults {...props} onEvidence={onEvidence}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  expect(onEvidence).not.toHaveBeenCalled()
+  await act(async()=>source.resolve({sourceRevisionId:'pinned',document,markdown:'# Saved source'}))
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith(anchor,undefined,'segment')
+  view.rerender(<DurableResults {...props} onEvidence={replacement}/>)
+  expect(replacement).not.toHaveBeenCalled()
 })
 
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{
