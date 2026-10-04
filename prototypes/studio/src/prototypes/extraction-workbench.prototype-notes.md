@@ -2,7 +2,7 @@
 
 Date: 2026-10-04. Status: throwaway planning artifact, not production implementation. Baseline `a1ae85b7`. Origin: [Prototype pause, live correction, and parameter-edit interactions](https://github.com/HUM-CDCH/FREE/issues/175).
 
-Open `extraction-workbench.prototype.html` directly in a browser; no install/server/database. The file contains a pure in-memory reducer plus free-play controls and 13 guided scenarios. It answers whether pause/drain, live corrections, saved selections, and partial exports can remain understandable in one workbench. Styling is restrained illustration, not a production design replacement.
+Open `extraction-workbench.prototype.html` directly in a browser; no install/server/database. The file contains a pure in-memory reducer plus free-play controls and 15 guided scenarios. It answers whether pause/drain, live corrections, saved selections, and partial exports can remain understandable in one workbench. Styling is restrained illustration, not a production design replacement.
 
 Verdict: retain one lifecycle/control banner with saved/in-flight/pending state, an always-visible saved-result view, adjacent parameter controls, and simple evidence/compatibility warnings. Keep results and exports accessible during every state. Distinguish a saved selection from one adopted at an idle boundary. Historical producing-revision values and current-schema corrections are visibly separate. Existing calls retain context; subsequent calls in another Extraction use compatible feedback while keeping their selected schema/settings.
 
@@ -29,6 +29,8 @@ Browser interaction checks used local Playwright/Chromium with normal button and
 | Fix after failure | Save/adopt selection at idle Failed boundary; Retry uses revised inputs. |
 | Saved selection restart | Saved selection survives restart while local unsaved typing does not; adoption still requires idle boundary. |
 | Failed restart | Failure during pause remains Failed after restart; Retry remains available. |
+| Resume during drain | Resume remains a pending request; new call admission refused until all outputs save, then linked continuation starts. |
+| Retry captured context | Retry of a call started before a new correction reuses its original feedback revision; fresh work uses new guidance. |
 
 No browser JavaScript errors observed. Desktop inspected at 1200×900; mobile at 390×844 had document width 390, with no horizontal overflow. Keyboard focus remained on the next walkthrough step or selected scenario after re-render; Tab focused the next scenario with a visible outline. Screenshot assets show the incompatible-field state at desktop and mobile widths. These checks verify this interaction model, not PostgreSQL durability, production accessibility, actual model grounding, DBOS recovery, or export file generation.
 
