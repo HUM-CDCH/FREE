@@ -466,7 +466,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await page.keyboard.press('Escape')
     await expect(resultsPanel(page).getByRole('group', { name: 'Show values' })).toBeVisible()
     // The decision that leaves nothing to check saves the review, and says so before it is made (§3.3, §6).
-    await valueRow(page, /^To check title Second record/).click()
+    // Leaving one-by-one left its current value selected (§4.1): that row may already be open.
+    const second = valueRow(page, /^To check title Second record/)
+    if (await second.getAttribute('aria-expanded') !== 'true') await second.click()
     await decisionFor(page, 'title', 'Approve').click()
     await expect(reviewBar(page)).toHaveAccessibleName('2 approved, 0 edited, 0 rejected, 1 to check, of 3')
     await valueRow(page, /^To check title Waiting record/).click()
