@@ -230,11 +230,22 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
         run.refused = True
     pieces: list[list[tuple[int, Block]]] = []
     if not run.refused:
+        from kei_exp.kie.extract.retained import plan_records
+        plan_records(as_router(chat),"recipe-records",[[{"segment":span.segment_id,"start":span.start,"end":span.end}
+                                                       for span in block.primary_spans] for block in segmentation.blocks])
         document = _document(run)  # once for the whole document; every chunk's records merge it
         pieces = _pieces(list(enumerate(segmentation.blocks)), chunks)
-        for part, found in _in_chunks(run, pieces, before_entry,
-                                      lambda part, number, block: _block(part, number, block, headings, bindings,
-                                                                         segmentation)):
+        def retained_block(part, number, block):
+            from kei_exp.kie.extract.retained import saved_record, reuse_record
+            scope = [{"segment": span.segment_id, "start": span.start, "end": span.end}
+                     for span in block.primary_spans]
+            reused = reuse_record(as_router(chat),scope,record=number)
+            if reused is not None:
+                return reused,[],[]
+            result = _block(part, number, block, headings, bindings, segmentation)
+            saved_record(as_router(chat), result[0], scope, record=number, primary=scope)
+            return result
+        for part, found in _in_chunks(run, pieces, before_entry, retained_block):
             run.calls += part.calls        # chunk order is entry order: prelude calls, then each chunk's
             run.issues += part.issues
             run.refused = run.refused or part.refused

@@ -1,12 +1,14 @@
 import { randomUUID, createHash } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
-import { pool as sharedPool, stableJson } from 'db'
+import { pool as sharedPool, stableJson, withPoolClientTransaction } from 'db'
 import { extractionMethod, keiMethodOptions, canonicalIntent } from './extraction-method.js'
 import { parseExtractionSchema } from './schema.js'
 import { keiRunOf } from './kei-handoff.js'
 import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, durableHeadSchema,
   durableSelectionSchema, durableStatus, durableValueSchema, type DurableHead, type DurableValue } from './durable-contract.js'
 import { correctionValueFits, fieldMeaning } from './durable-feedback.js'
+import { refuseUnusableIdentityFields } from './postgres-admission.js'
+import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 
 export class DurableConflict extends Error {
   constructor(message = 'The Extraction changed. Reload to review the saved state.') { super(message) }
@@ -19,14 +21,12 @@ export const DURABLE_RECONCILE = 'reconcileDurableExtractions'
 /** No connection outlives this short transaction. READ COMMITTED plus the
  * locked feedback head gives admission its latest committed publication. */
 export async function runtimeTransaction<T>(source: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await source.connect()
-  try {
-    await client.query('BEGIN ISOLATION LEVEL READ COMMITTED')
+  return withPoolClientTransaction(async (_transaction, client) => {
+    await client.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')
     await client.query("SET LOCAL lock_timeout = '5s'")
     await client.query("SET LOCAL statement_timeout = '10s'")
-    const result = await work(client); await client.query('COMMIT'); return result
-  } catch (error) { await client.query('ROLLBACK'); throw error }
-  finally { client.release() }
+    return work(client)
+  }, source)
 }
 export async function ownedHead(client: PoolClient, owner: string, id: string, lock = false): Promise<DurableHead> {
   const result = await client.query(`SELECT h.* FROM extraction_runtime.head h
@@ -62,7 +62,7 @@ export async function initializeDurableExtraction(client: PoolClient, id: string
   if (!source) throw new DurableInvalid('The pinned source is unavailable.')
   const representation = (await client.query(`SELECT "artifactReference", "artifactSha256" FROM public."sourceRepresentationRevision" WHERE id=$1`,
     [pins.sourceRepresentationRevisionId])).rows[0]
-  const tree = parseExtractionSchema(pins.schemaTree), selection = randomUUID()
+  const tree = {...parseExtractionSchema(pins.schemaTree),recordScope:pins.strategy==='ARTICLE'?'document':'records'}, selection = randomUUID()
   await client.query('INSERT INTO extraction_runtime."feedbackHead" (id,version) VALUES ($1,0) ON CONFLICT DO NOTHING', [pins.projectContextId])
   await client.query(`INSERT INTO extraction_runtime.head (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",
     intent,"controlVersion","pendingResume",acknowledgement,fence,"leaseEpoch",generation,"snapshotVersion",deleted)
@@ -152,11 +152,15 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const prior = (await client.query('SELECT method,resolved FROM extraction_runtime.selection WHERE id=$1', [head.selectionId])).rows[0]
         const method = canonicalIntent(input.method,head.strategy,prior.resolved.catalogRecipe)
         if (!method) throw new DurableInvalid('The Extraction settings are invalid.')
+        refuseUnusableIdentityFields(method.settings,tree)
+        refuseIncompatibleGliformer(method,tree)
         const ordinal = (await client.query('SELECT coalesce(max(ordinal),0)+1 AS n FROM extraction_runtime.selection WHERE "extractionId"=$1', [id])).rows[0].n
         const selectionId = randomUUID()
+        const resolved = {...prior.resolved,options:{...keiMethodOptions(extractionMethod(head.strategy,prior.resolved.catalogRecipe,method.models,method.settings)),
+          ...(prior.resolved.startPage ? {start_page:prior.resolved.startPage} : {})}}
         await client.query(`INSERT INTO extraction_runtime.selection
           (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [selectionId,id,ordinal,input.schemaRevisionId,hash(tree),tree,method,{...prior.resolved,options:keiMethodOptions(extractionMethod(head.strategy,prior.resolved.catalogRecipe,method.models,method.settings))},hash([tree,method,prior.resolved,head.sourcePin])])
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [selectionId,id,ordinal,input.schemaRevisionId,hash(tree),tree,method,resolved,hash([tree,method,resolved,head.sourcePin])])
         await client.query(`UPDATE extraction_runtime.head SET "pendingSelectionId"=$2,intent='PAUSE',
           "pendingResume"=false,"controlVersion"="controlVersion"+1 WHERE id=$1`, [id,selectionId])
         return { selectionId,controlVersion:head.controlVersion+1 }
@@ -166,7 +170,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const input = durableAdoptSchema.parse(raw)
       return owned(id, async (client,head) => {
         version(head,input.expectedVersion)
-        if (!['PAUSED','FAILED','COMPLETED'].includes(head.acknowledgement) || head.intent === 'STOP' || head.pendingSelectionId !== input.selectionId)
+        if (!['PAUSED','FAILED','COMPLETED'].includes(head.acknowledgement) || head.intent === 'STOP' || head.pendingSelectionId !== input.selectionId || input.selectionId === head.selectionId)
           throw new DurableConflict('Apply changes at the saved idle boundary.')
         const historical = (await client.query('SELECT * FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,head.snapshotVersion])).rows[0]
         const values = historical ? durableValueSchema.array().parse(historical.values) : []
@@ -174,9 +178,10 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         await client.query(`UPDATE extraction_runtime.head SET "selectionId"=$2,"pendingSelectionId"=NULL,generation=generation+1,
           "pendingResume"=false,acknowledgement='PAUSED',intent='PAUSE',"controlVersion"="controlVersion"+1 WHERE id=$1`, [id,input.selectionId])
         // The fixed historical snapshot is a planner input. It cannot grow on replay.
-        await client.query(`INSERT INTO extraction_runtime.plan (id,"extractionId",generation,stage,digest,manifest) VALUES ($1,$2,$3,'historical-coverage',$4,$5)`, [randomUUID(),id,head.generation+1,
-          hash([historical?.id ?? null,input.reprocessValueIds]),{plannerVersion:1,selectionId:input.selectionId,sourceGeneration:head.sourcePin.generation,
-            units:[],coverage:{snapshotId:historical?.id ?? null,reprocessValueIds:input.reprocessValueIds}}])
+        const manifest = {plannerVersion:1,selectionId:input.selectionId,sourceGeneration:head.sourcePin.generation,
+          units:[],coverage:{snapshotId:historical?.id ?? null,reprocessValueIds:input.reprocessValueIds}}
+        await client.query(`INSERT INTO extraction_runtime.plan (id,"extractionId",generation,stage,digest,manifest) VALUES ($1,$2,$3,'historical-coverage',$4,$5)`,
+          [randomUUID(),id,head.generation+1,hash(manifest),manifest])
         return { selectionId:input.selectionId,controlVersion:head.controlVersion+1 }
       },true)
     },
@@ -186,13 +191,23 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const snapshot = (await client.query('SELECT * FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,snapshotVersion])).rows[0]
         if (!snapshot && snapshotVersion !== 0) throw new DurableNotFound('That saved result snapshot is unavailable.')
         const feedbackVersion = input.feedbackVersion ?? (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0].version
+        const latestFeedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0].version
+        if (!Number.isInteger(snapshotVersion) || snapshotVersion < 0 || snapshotVersion > head.snapshotVersion ||
+          !Number.isInteger(feedbackVersion) || feedbackVersion < 0 || feedbackVersion > latestFeedback)
+          throw new DurableInvalid('Choose a committed result and review snapshot.')
         const corrections = (await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
           WHERE "extractionId"=$1 AND "feedbackVersion" <= $2 ORDER BY "valueId",revision DESC`, [id,feedbackVersion])).rows
         const values = snapshot ? durableValueSchema.array().parse(snapshot.values) : []
         const offset = input.offset ?? 0, limit = Math.min(input.limit ?? 100,500)
         if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1) throw new DurableInvalid('Invalid result page.')
         return { extractionId:id, snapshotVersion,feedbackVersion, status:durableStatus(head),coverage:snapshot?.coverage ?? null,
-          total:values.length, values:values.slice(offset,offset+limit).map(value => ({...value,correction:corrections.find(c=>c.valueId===value.id) ?? null})),
+          total:values.length, values:values.slice(offset,offset+limit).map(value => {
+            const historicalCorrection = corrections.find(c=>c.valueId===value.id) ?? null
+            const compatible = historicalCorrection === null || historicalCorrection.candidate.meaning === fieldMeaning(value.node) &&
+              (historicalCorrection.decision.action !== 'EDITED' || correctionValueFits(value.node,historicalCorrection.decision.value))
+            return {...value,correction:compatible ? historicalCorrection : null,historicalCorrection:compatible ? null : historicalCorrection,
+              correctionCompatibility:compatible ? 'compatible' : 'incompatible'}
+          }),
           next:offset+limit < values.length ? {snapshotVersion,feedbackVersion,offset:offset+limit,limit} : null }
       })
     },
@@ -231,6 +246,8 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
 /** Reconciliation reads committed handoffs, enqueues deterministic identities,
  * and records the receipt. A crash between these operations re-enqueues safely. */
 export async function reconcileDurableAttempts(enqueue: (attempt: {id:string;extractionId:string;workflowId:string;owner:string;sourcePin:unknown}) => Promise<void>, source: Pool = sharedPool) {
+  const available = await source.query("SELECT to_regclass('extraction_runtime.head') AS head")
+  if (!available.rows[0].head) return
   await runtimeTransaction(source,async client => {
     const heads = (await client.query(`SELECT * FROM extraction_runtime.head WHERE "pendingResume"
       AND acknowledgement IN ('PAUSED','FAILED') AND intent='PAUSE' AND NOT deleted AND "pendingSelectionId" IS NULL FOR UPDATE`)).rows
@@ -240,7 +257,8 @@ export async function reconcileDurableAttempts(enqueue: (attempt: {id:string;ext
     FROM extraction_runtime.dispatch d JOIN extraction_runtime.attempt a ON a.id=d.id
     JOIN extraction_runtime.head h ON h.id=a."extractionId" JOIN public.extraction e ON e.id=h.id
     JOIN public."sourceDocument" s ON s.id=e."sourceDocumentId" JOIN public."projectContext" p ON p.id=s."projectContextId"
-    WHERE NOT d.received AND NOT h.deleted AND h."attemptId"=a.id LIMIT 100`)
+    WHERE NOT d.received AND NOT h.deleted AND h."attemptId"=a.id AND a.outcome IS NULL
+      AND h.acknowledgement NOT IN ('STOPPED','COMPLETED','FAILED','PAUSED') LIMIT 100`)
   for (const row of rows.rows) {
     await enqueue(row)
     await source.query('UPDATE extraction_runtime.dispatch SET received=true WHERE id=$1', [row.id])

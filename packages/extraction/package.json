@@ -23,7 +23,7 @@
   },
   "scripts": {
     "test": "tsx --test src/module.test.ts src/parsed-document.test.ts src/kei-handoff.test.ts src/kei-artifact.test.ts src/partial-result.test.ts src/workflows.test.ts src/review-rules.test.ts src/review-attention.test.ts src/extraction-method.test.ts src/gliformer-compatibility.test.ts src/schema.test.ts src/record-scope.test.ts src/architecture.test.ts src/contested-values.test.ts src/claim-accounting.test.ts src/review-projection.test.ts src/durable-feedback.test.ts",
-    "test:postgres": "tsx --test --test-concurrency=1 src/*.integration.test.ts src/kei-handoff.postgres.test.ts",
+    "test:postgres": "tsx --test --test-concurrency=1 src/*.integration.test.ts src/kei-handoff.postgres.test.ts src/durable-recovery.postgres.check.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

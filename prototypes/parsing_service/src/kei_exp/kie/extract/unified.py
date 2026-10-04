@@ -341,6 +341,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                 "calls": [_call_json(call) for call in body["calls"]]}
     found = _published(directory / "catalog-discovery.json" if directory else None, discover,
                        _discovery_reusable(execution_sha256, evidence))
+    from kei_exp.kie.extract.retained import plan_records
+    plan_records(chat,"unified-records",[entry["ranges"] for entry in found["entries"]])
     run = _Run(schema, budget, {passage.id: passage.text for passage in evidence.passages}, effective,
                {passage.id: passage.table for passage in evidence.passages if passage.table is not None})
     halt = threading.Event()
@@ -370,7 +372,12 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         if halt.is_set():
             return None
         try:
-            return read(*numbered)
+            work = read(*numbered)
+            if not work.failed and not work.undecided:
+                from kei_exp.kie.extract.retained import saved_record
+                number, entry = numbered
+                saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"])
+            return work
         except BaseException:
             halt.set()
             raise

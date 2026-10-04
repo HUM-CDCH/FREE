@@ -23,6 +23,58 @@ CREATE FUNCTION extraction_runtime.content_hash(body jsonb) RETURNS text
 LANGUAGE sql IMMUTABLE SET search_path = pg_catalog
 AS $$ SELECT encode(sha256(convert_to(body::text, 'UTF8')), 'hex') $$;
 
+CREATE FUNCTION extraction_runtime.valid_provider(provider jsonb) RETURNS boolean
+LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
+  SELECT coalesce(jsonb_typeof(provider)='object'
+    AND provider ?& ARRAY['key','model','adapter','adapterVersion','url','timeout','maxTokens']
+    AND provider - ARRAY['key','model','adapter','adapterVersion','url','timeout','maxTokens','nativeInfo']='{}'::jsonb
+    AND provider->>'key' ~ '^[a-zA-Z0-9_.:/-]{1,200}$'
+    AND length(provider->>'model') BETWEEN 1 AND 300
+    AND provider->>'adapter' IN ('instruct','nuextract','gliformer') AND provider->'adapterVersion'='1'::jsonb
+    AND provider->>'url' ~ '^https?://[^@?#[:space:]]+$'
+    AND provider->>'timeout' ~ '^[0-9]+(\.[0-9]+)?$'
+    AND provider->>'maxTokens' ~ '^[0-9]+$'
+    AND jsonb_typeof(provider->'timeout')='number' AND jsonb_typeof(provider->'maxTokens')='number'
+    AND ((provider->>'adapter'<>'gliformer' AND NOT provider ? 'nativeInfo') OR
+      (provider->>'adapter'='gliformer' AND provider->'nativeInfo' ?& ARRAY['protocol','model','identity','max_input_tokens']
+       AND (provider->'nativeInfo')-ARRAY['protocol','model','identity','max_input_tokens']='{}'::jsonb
+       AND provider->'nativeInfo'->'protocol'='1'::jsonb AND provider->'nativeInfo'->'model'=provider->'model'
+       AND jsonb_typeof(provider->'nativeInfo'->'identity')='object'
+       AND provider->'nativeInfo'->>'max_input_tokens' ~ '^[1-9][0-9]*$')),false)
+$$;
+
+CREATE FUNCTION extraction_runtime.valid_value(node jsonb, value jsonb) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE SET search_path = pg_catalog AS $$
+DECLARE child jsonb; item jsonb; kind text := node->>'type';
+BEGIN
+  IF value IS NULL THEN RETURN false; END IF;
+  IF value='null'::jsonb THEN RETURN true; END IF;
+  IF kind IN ('verbatim-string','string','date','number','integer','boolean') THEN
+    IF jsonb_typeof(value) IS DISTINCT FROM (CASE WHEN kind IN ('verbatim-string','date') THEN 'string' WHEN kind='integer' THEN 'number' ELSE kind END) THEN RETURN false; END IF;
+    IF kind='integer' AND (value::text)::numeric <> trunc((value::text)::numeric) THEN RETURN false; END IF;
+    RETURN (NOT node ? 'allowedValues' OR node->'allowedValues'='null'::jsonb
+      OR jsonb_array_length(node->'allowedValues')=0 OR node->'allowedValues' @> jsonb_build_array(value));
+  ELSIF kind='object' THEN
+    IF jsonb_typeof(value)<>'object' OR jsonb_typeof(node->'children')<>'array' THEN RETURN false; END IF;
+    FOR child IN SELECT * FROM jsonb_array_elements(node->'children') LOOP
+      IF NOT extraction_runtime.valid_value(child,value->(child->>'name')) THEN RETURN false; END IF;
+    END LOOP;
+    RETURN NOT EXISTS (SELECT FROM jsonb_object_keys(value) k WHERE NOT EXISTS
+      (SELECT FROM jsonb_array_elements(node->'children') c WHERE c->>'name'=k));
+  ELSIF kind='array' THEN
+    IF jsonb_typeof(value)<>'array' THEN RETURN false; END IF;
+    FOR item IN SELECT * FROM jsonb_array_elements(value) LOOP
+      IF node ? 'itemType' THEN
+        IF NOT extraction_runtime.valid_value(jsonb_build_object('type',node->'itemType'),item) THEN RETURN false; END IF;
+      ELSE
+        IF NOT extraction_runtime.valid_value(jsonb_set(node,'{type}','"object"'::jsonb),item) THEN RETURN false; END IF;
+      END IF;
+    END LOOP;
+    RETURN true;
+  END IF;
+  RETURN false;
+END $$;
+
 -- Internal guard. Not granted to the worker independently.
 CREATE FUNCTION extraction_runtime.authorized(p_extraction uuid, p_attempt uuid, epoch integer)
 RETURNS extraction_runtime.head LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog
@@ -30,7 +82,7 @@ AS $$
 DECLARE h extraction_runtime.head;
 BEGIN
   SELECT * INTO h FROM extraction_runtime.head WHERE id = p_extraction FOR UPDATE;
-  IF NOT FOUND OR h.deleted OR h."attemptId" IS DISTINCT FROM p_attempt OR h."leaseEpoch" <> epoch
+  IF NOT FOUND OR epoch IS NULL OR h.deleted OR h."attemptId" IS DISTINCT FROM p_attempt OR h."leaseEpoch" <> epoch
       OR h."leaseUntil" IS NULL OR h."leaseUntil" <= clock_timestamp()
       OR NOT EXISTS (SELECT FROM extraction_runtime.attempt a WHERE a.id = p_attempt
           AND a."extractionId" = h.id AND a.fence = h.fence AND a."selectionId" = h."selectionId") THEN
@@ -49,7 +101,7 @@ AS $$
 DECLARE h extraction_runtime.head; s extraction_runtime.selection;
 BEGIN
   SELECT * INTO h FROM extraction_runtime.head WHERE id = p_extraction FOR UPDATE;
-  IF NOT FOUND OR h.deleted OR h."attemptId" IS DISTINCT FROM p_attempt
+  IF NOT FOUND OR process IS NULL OR h.deleted OR h."attemptId" IS DISTINCT FROM p_attempt
       OR NOT EXISTS (SELECT FROM extraction_runtime.attempt a WHERE a.id = p_attempt AND a.fence = h.fence
           AND a."selectionId" = h."selectionId" AND a.outcome IS NULL) THEN
     RAISE EXCEPTION 'p_attempt is not current' USING ERRCODE = '40001';
@@ -89,8 +141,8 @@ BEGIN
   h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);
   IF stage IS NULL OR length(stage) NOT BETWEEN 1 AND 128 OR jsonb_typeof(manifest) <> 'object'
      OR NOT (manifest ?& ARRAY['plannerVersion', 'selectionId', 'sourceGeneration', 'units', 'coverage'])
-     OR manifest->>'selectionId' <> h."selectionId"::text
-     OR manifest->>'sourceGeneration' <> h."sourcePin"->>'generation' THEN
+     OR manifest->>'selectionId' IS DISTINCT FROM h."selectionId"::text
+     OR manifest->>'sourceGeneration' IS DISTINCT FROM h."sourcePin"->>'generation' THEN
     RAISE EXCEPTION 'invalid plan manifest' USING ERRCODE = '22023';
   END IF;
   d := extraction_runtime.content_hash(manifest);
@@ -108,7 +160,7 @@ CREATE FUNCTION extraction_runtime.capture_unit(p_extraction uuid, p_attempt uui
   identity uuid, unit_key text, descriptor jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog
 AS $$
-DECLARE h extraction_runtime.head; c extraction_runtime.capture; project uuid; v integer; examples jsonb;
+DECLARE h extraction_runtime.head; c extraction_runtime.capture; project uuid; v integer; examples jsonb; parent extraction_runtime.capture;
 BEGIN
   -- Lock order: project feedback before p_extraction control, including replays.
   SELECT "projectId" INTO project FROM extraction_runtime.head WHERE id = p_extraction;
@@ -117,8 +169,8 @@ BEGIN
   SELECT * INTO c FROM extraction_runtime.capture WHERE "extractionId" = p_extraction
     AND generation = h.generation AND "unitKey" = unit_key;
   IF FOUND THEN
-    IF c.descriptor <> descriptor THEN RAISE EXCEPTION 'unit identity conflict' USING ERRCODE = '23505'; END IF;
-    IF h.intent <> 'RUN' THEN RETURN NULL; END IF;
+    IF c.descriptor IS DISTINCT FROM descriptor THEN RAISE EXCEPTION 'unit identity conflict' USING ERRCODE = '23505'; END IF;
+    IF h.intent <> 'RUN' AND NOT EXISTS (SELECT FROM extraction_runtime.checkpoint WHERE id=c.id) THEN RETURN NULL; END IF;
     UPDATE extraction_runtime.capture SET "reservationAttemptId" = p_attempt, "reservationEpoch" = epoch WHERE id = c.id;
     c."reservationAttemptId" := p_attempt; c."reservationEpoch" := epoch;
     RETURN to_jsonb(c) || jsonb_build_object('input', (SELECT to_jsonb(i) FROM extraction_runtime.input i WHERE i.id = c.id),
@@ -127,7 +179,9 @@ BEGIN
   IF h.intent <> 'RUN' THEN RETURN NULL; END IF;
   IF v IS NULL OR length(unit_key) NOT BETWEEN 1 AND 256 OR jsonb_typeof(descriptor) <> 'object'
      OR NOT (descriptor ?& ARRAY['stage', 'scope', 'ordinal', 'planDigest', 'role'])
-     OR descriptor->>'role' NOT IN ('fields', 'reasoning')
+     OR descriptor-ARRAY['stage','scope','ordinal','planDigest','role','derivedFrom']<>'{}'::jsonb
+     OR descriptor->>'role' IS NULL OR descriptor->>'role' NOT IN ('fields', 'reasoning')
+     OR coalesce(descriptor->>'ordinal','') !~ '^[0-9]+$' OR jsonb_typeof(descriptor->'scope') IS DISTINCT FROM 'string'
      OR NOT EXISTS (SELECT FROM extraction_runtime.plan p WHERE p."extractionId" = p_extraction
        AND p.generation = h.generation AND p.digest = descriptor->>'planDigest'
        AND p.manifest->'units' @> jsonb_build_array(jsonb_build_object('key', unit_key))) THEN
@@ -138,6 +192,13 @@ BEGIN
     WHERE r."projectId" = project AND r."feedbackVersion" <= v
     ORDER BY r."extractionId", r."valueId", r.revision DESC
   ) active WHERE active.included;
+  IF descriptor ? 'derivedFrom' THEN
+    SELECT * INTO parent FROM extraction_runtime.capture origin WHERE origin.id=(descriptor->>'derivedFrom')::uuid
+      AND origin."extractionId"=p_extraction AND origin.generation=h.generation AND origin."selectionId"=h."selectionId"
+      AND EXISTS (SELECT FROM extraction_runtime.checkpoint o WHERE o.id=origin.id AND o.output->>'formatRefused'='true');
+    IF NOT FOUND THEN RAISE EXCEPTION 'invalid fallback dependency' USING ERRCODE='22023'; END IF;
+    v:=parent."feedbackVersion"; examples:=parent.candidates;
+  END IF;
   INSERT INTO extraction_runtime.capture (id,"extractionId",generation,"unitKey","selectionId","originalAttemptId","feedbackVersion",candidates,descriptor,"reservationAttemptId","reservationEpoch","inFlight",invoked) VALUES (identity, p_extraction, h.generation, unit_key, h."selectionId",
     p_attempt, v, examples, descriptor, p_attempt, epoch, false, false) RETURNING * INTO c;
   RETURN to_jsonb(c) || jsonb_build_object('input', NULL, 'checkpoint', NULL);
@@ -155,8 +216,49 @@ BEGIN
     RAISE EXCEPTION 'capture is not reserved' USING ERRCODE = '40001';
   END IF;
   IF jsonb_typeof(request) <> 'object' OR NOT (request ?& ARRAY['provider', 'composer', 'tokenizer', 'budget', 'examples', 'omissions', 'body'])
-    OR (request - ARRAY['provider', 'composer', 'tokenizer', 'budget', 'examples', 'omissions', 'body']) <> '{}'::jsonb THEN
+    OR (request - ARRAY['provider', 'composer', 'tokenizer', 'budget', 'examples', 'omissions', 'body']) <> '{}'::jsonb
+    OR NOT extraction_runtime.valid_provider(request->'provider') OR request->'composer' IS DISTINCT FROM '1'::jsonb
+    OR jsonb_typeof(request->'tokenizer') IS DISTINCT FROM 'object'
+    OR jsonb_typeof(request->'examples') IS DISTINCT FROM 'array' OR jsonb_typeof(request->'omissions') IS DISTINCT FROM 'array'
+    OR jsonb_typeof(request->'body') IS DISTINCT FROM 'object'
+    OR NOT (request->'budget' ?& ARRAY['counted','context','reserve'])
+    OR coalesce(request->'budget'->>'counted','') !~ '^[0-9]+$'
+    OR coalesce(request->'budget'->>'context','') !~ '^[1-9][0-9]*$'
+    OR coalesce(request->'budget'->>'reserve','') !~ '^[0-9]+$' THEN
     RAISE EXCEPTION 'invalid finalized input' USING ERRCODE = '22023';
+  END IF;
+  IF (request->'budget')-ARRAY['counted','context','reserve']<>'{}'::jsonb
+    OR EXISTS (SELECT FROM jsonb_array_elements(request->'examples') example WHERE NOT EXISTS
+      (SELECT FROM jsonb_array_elements(c.candidates) revision WHERE revision->'candidate'=example)) THEN
+    RAISE EXCEPTION 'invalid captured guidance or budget' USING ERRCODE='22023';
+  END IF;
+  IF request->'body'->>'kind'='native' THEN
+    IF NOT (request->'body' ?& ARRAY['kind','record','text','schema','identity','counted','context'])
+      OR (request->'body')-ARRAY['kind','record','text','schema','identity','counted','context']<>'{}'::jsonb
+      OR request->'provider'->>'adapter' IS DISTINCT FROM 'gliformer'
+      OR request->'body'->'identity' IS DISTINCT FROM request->'provider'->'nativeInfo'->'identity' THEN
+      RAISE EXCEPTION 'invalid captured native request' USING ERRCODE='22023';
+    END IF;
+  ELSE
+    IF NOT (request->'body' ?& ARRAY['stage','record','system','user','schema','max_tokens','max_whitespace','httpRequest'])
+      OR (request->'body')-ARRAY['stage','record','system','user','schema','max_tokens','max_whitespace','httpRequest']<>'{}'::jsonb
+      OR jsonb_typeof(request->'body'->'httpRequest') IS DISTINCT FROM 'object'
+      OR request->'body'->>'stage' IS DISTINCT FROM c.descriptor->>'stage'
+      OR jsonb_typeof(request->'body'->'system') IS DISTINCT FROM 'string'
+      OR jsonb_typeof(request->'body'->'user') IS DISTINCT FROM 'string'
+      OR request->'body'->'httpRequest'->'model' IS DISTINCT FROM request->'provider'->'model'
+      OR (request->'body'->'httpRequest')-ARRAY['model','temperature','max_tokens','messages','chat_template_kwargs','response_format','structured_outputs']<>'{}'::jsonb
+      OR request->'body'->'httpRequest'->'max_tokens' IS DISTINCT FROM request->'budget'->'reserve'
+      OR EXISTS (SELECT FROM jsonb_array_elements(request->'body'->'httpRequest'->'messages') message
+        WHERE message-ARRAY['role','content']<>'{}'::jsonb OR message->>'role' NOT IN ('system','user')
+          OR jsonb_typeof(message->'content') IS DISTINCT FROM 'string') THEN
+      RAISE EXCEPTION 'invalid captured chat request' USING ERRCODE='22023';
+    END IF;
+  END IF;
+  IF (request->'budget'->>'counted')::numeric+(request->'budget'->>'reserve')::numeric > (request->'budget'->>'context')::numeric
+    OR NOT EXISTS (SELECT FROM extraction_runtime.effective e WHERE e.id=h."selectionId"
+      AND e.configuration->'models'->(c.descriptor->>'role')=request->'provider') THEN
+    RAISE EXCEPTION 'unresolved provider or exceeded input budget' USING ERRCODE='22023';
   END IF;
   d := extraction_runtime.content_hash(request);
   SELECT * INTO i FROM extraction_runtime.input WHERE id = p_capture;
@@ -228,10 +330,10 @@ CREATE FUNCTION extraction_runtime.publish_snapshot(p_extraction uuid, p_attempt
   identity uuid, selection uuid, body jsonb, coverage jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog
 AS $$
-DECLARE h extraction_runtime.head; s extraction_runtime.snapshot; d text;
+DECLARE h extraction_runtime.head; s extraction_runtime.snapshot; d text; previous_coverage jsonb; retained_value jsonb; node jsonb; selected extraction_runtime.selection;
 BEGIN
   h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);
-  IF selection <> h."selectionId" OR jsonb_typeof(body) <> 'array' OR jsonb_typeof(coverage) <> 'object' THEN
+  IF selection IS DISTINCT FROM h."selectionId" OR jsonb_typeof(body) IS DISTINCT FROM 'array' OR jsonb_typeof(coverage) IS DISTINCT FROM 'object' THEN
     RAISE EXCEPTION 'invalid result snapshot' USING ERRCODE = '22023';
   END IF;
   d := extraction_runtime.content_hash(jsonb_build_object('values', body, 'coverage', coverage));
@@ -244,9 +346,34 @@ BEGIN
   END IF;
   IF EXISTS (SELECT FROM jsonb_array_elements(body) v WHERE jsonb_typeof(v) <> 'object'
     OR NOT (v ?& ARRAY['id','recordId','fieldId','selectionId','schemaRevisionId','node','modelValue','evidence','grounding','processing','lineage','path'])
-    OR v->>'selectionId' <> selection::text) THEN
+    OR v->>'selectionId' IS DISTINCT FROM selection::text) THEN
     RAISE EXCEPTION 'invalid retained values' USING ERRCODE = '22023';
   END IF;
+  SELECT picked.* INTO selected FROM extraction_runtime.selection picked WHERE picked.id=publish_snapshot.selection;
+  FOR retained_value IN SELECT * FROM jsonb_array_elements(body) LOOP
+    SELECT n INTO node FROM jsonb_array_elements(selected."schemaTree"->'schemaNodes') n WHERE n->>'id'=retained_value->>'fieldId';
+    IF node IS NULL OR node IS DISTINCT FROM retained_value->'node' OR retained_value->>'schemaRevisionId' IS DISTINCT FROM selected."schemaRevisionId"::text
+      OR NOT extraction_runtime.valid_value(node,retained_value->'modelValue')
+      OR retained_value->>'grounding' IS NULL OR retained_value->>'grounding' NOT IN ('grounded','ungrounded','provisional')
+      OR retained_value->>'processing' IS NULL OR retained_value->>'processing' NOT IN ('saved','absent','unprocessed','failed')
+      OR jsonb_typeof(retained_value->'id') IS DISTINCT FROM 'string' OR jsonb_typeof(retained_value->'recordId') IS DISTINCT FROM 'string'
+      OR jsonb_typeof(retained_value->'path') IS DISTINCT FROM 'array' OR jsonb_typeof(retained_value->'lineage') IS DISTINCT FROM 'array'
+      OR jsonb_typeof(retained_value->'evidence') IS DISTINCT FROM 'array' THEN
+      RAISE EXCEPTION 'retained value does not fit producing schema' USING ERRCODE='22023';
+    END IF;
+    IF EXISTS (SELECT FROM jsonb_array_elements(retained_value->'path') part WHERE jsonb_typeof(part) NOT IN ('string','number')
+      OR (jsonb_typeof(part)='number' AND (part::text)::numeric<0))
+      OR EXISTS (SELECT FROM jsonb_array_elements(retained_value->'lineage') part WHERE jsonb_typeof(part)<>'string')
+      OR EXISTS (SELECT FROM jsonb_array_elements(retained_value->'evidence') evidence WHERE
+        jsonb_typeof(evidence)<>'object' OR jsonb_typeof(evidence->'anchorId') IS DISTINCT FROM 'string'
+        OR jsonb_typeof(evidence->'occurrenceIds') IS DISTINCT FROM 'array'
+        OR evidence-ARRAY['anchorId','occurrenceIds']<>'{}'::jsonb) THEN
+      RAISE EXCEPTION 'invalid retained identity or evidence' USING ERRCODE='22023';
+    END IF;
+    node := NULL;
+  END LOOP;
+  SELECT previous.coverage INTO previous_coverage FROM extraction_runtime.snapshot previous
+    WHERE previous."extractionId"=p_extraction AND previous.version=h."snapshotVersion";
   SELECT coalesce(jsonb_agg(v ORDER BY v->>'id'),'[]'::jsonb) INTO body FROM (
     SELECT old_value AS v FROM extraction_runtime.snapshot previous,
       jsonb_array_elements(previous.values) old_value
@@ -254,7 +381,8 @@ BEGIN
       AND NOT EXISTS (SELECT FROM jsonb_array_elements(body) fresh WHERE fresh->>'id'=old_value->>'id')
     UNION ALL SELECT fresh FROM jsonb_array_elements(body) fresh
   ) merged;
-  coverage := coverage || jsonb_build_object('publicationDigest',d);
+  coverage := coverage || jsonb_build_object('publicationDigest',d,'completedScopes',
+    coalesce(previous_coverage->'completedScopes','{}'::jsonb)||coalesce(coverage->'completedScopes','{}'::jsonb));
   d := extraction_runtime.content_hash(jsonb_build_object('values',body,'coverage',coverage));
   h."snapshotVersion" := h."snapshotVersion" + 1;
   INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES (identity, p_extraction, h."snapshotVersion", selection, d, body, coverage) RETURNING * INTO s;
@@ -289,8 +417,16 @@ BEGIN
   h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);
   SELECT * INTO e FROM extraction_runtime.effective WHERE id = h."selectionId";
   IF FOUND THEN RETURN to_jsonb(e); END IF;
+  IF configuration IS NULL THEN RETURN NULL; END IF;
   IF jsonb_typeof(configuration) <> 'object' OR NOT (configuration ?& ARRAY['models','options','planner','protocols'])
-    OR (configuration - ARRAY['models','options','planner','protocols']) <> '{}'::jsonb THEN
+    OR (configuration - ARRAY['models','options','planner','protocols']) <> '{}'::jsonb
+    OR configuration->>'planner' IS DISTINCT FROM '1'
+    OR configuration->'protocols'->>'calls' IS DISTINCT FROM '1'
+    OR configuration->'protocols'->>'source' IS NULL OR configuration->'protocols'->>'source' NOT IN ('document','records')
+    OR jsonb_typeof(configuration->'options') IS DISTINCT FROM 'object'
+    OR NOT extraction_runtime.valid_provider(configuration->'models'->'fields')
+    OR NOT extraction_runtime.valid_provider(configuration->'models'->'reasoning')
+    OR (configuration->'models')-ARRAY['fields','reasoning']<>'{}'::jsonb THEN
     RAISE EXCEPTION 'invalid effective configuration' USING ERRCODE = '22023';
   END IF;
   INSERT INTO extraction_runtime.effective (id,configuration,digest) VALUES (h."selectionId",configuration,extraction_runtime.content_hash(configuration)) RETURNING * INTO e;

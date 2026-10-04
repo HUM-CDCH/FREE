@@ -44,10 +44,53 @@ immutable input rejects updates. No provider invocation is involved in this tier
 check. Extraction compatibility and legacy-reader checks: 4 passed. Extraction
 TypeScript checking passed. These are boundary checks, not a full release claim.
 
+## Lifecycle and call boundary
+
+New explicitly named `extractDurableV1` and `extractionCallV1` workflows leave
+the legacy workflow names, versions, and step order intact. A separate bounded
+coordination pool releases every connection before provider work. Every method
+yields at the call seam, publishes an immutable input including the actual HTTP
+body, and replays committed outputs. Format fallback has its own dependent
+capture and retains the original input. Native fields capture the native schema,
+identity and counted input; guidance enters schema instructions rather than the
+target source. Each method publishes structurally validated values from its
+producer boundary, without reading debug progress as authoritative state.
+
+Guarded process-recovery check:
+
+```sh
+EXTRACTION_TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/free_test_durable_implementation \
+  pnpm --filter extraction exec tsx --test src/durable-recovery.postgres.check.ts
+```
+
+Observed: all four faults passed (after capture, after finalized input, after
+checkpoint commit before DBOS acknowledgement, and after retained-result
+publication). Each fault kills a fresh process and starts a replacement. The
+restricted worker role owns only its disposable `kei_dbos`; migrations and
+fixture setup use the guarded administrative target. The fixture removes its
+unique database, role, and temporary credentials. Scripted HTTP providers run
+only in the disposable test container. Provider request count equals the final
+checkpoint count; retained records survive each restart. This tier does not
+establish live-model or browser/service acceptance.
+
+Python targeted checks: 143 passed (8 durable adapter/method checks plus 135
+legacy routing, artifacts, progress, worker boot, and model checks). The fresh
+container uses image `phoenix-tracing-parsing_worker`, with the worktree mounted
+read-only and no runtime database or volume. Node checks: 229 extraction and 85
+database checks passed. Studio registration/schedules: 5 passed. TypeScript
+checking passed for extraction and Studio. Subsequent edits require appropriate
+re-verification before these counts can be used as a final release record.
+
+The independent persistence standards/spec reviews found transaction-disconnect
+handling, malformed snapshot admission, selection/manifest digest mismatches,
+missing schema-dependent settings validation, unsaved-edit adoption, and
+incompatible correction projection defects. These have been corrected; final
+review remains required after all four boundaries.
+
 ## Pending release evidence
 
-The other three end-to-end boundaries, per-method counting/replanning fixtures,
-real DBOS process-recovery faults, live review/export, retention/deletion, and
+The live review/export and retention/deletion boundaries, additional lifecycle
+and concurrent feedback/replanning fixtures, real DBOS drain/stop faults, and
 isolated authenticated service/browser checks remain in progress. No readiness
 or deployment claim is made by this record. Admissions must remain disabled
 until the full [release matrix](../plans/2026-10-04-durable-interactive-extraction-release.md)

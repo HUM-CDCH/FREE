@@ -98,14 +98,23 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     if method.context == "bounded":
         counter = {role: LimitedCounter(each, method.context_tokens) for role, each in counter.items()}
         contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"], check)
+    from kei_exp.kie.extract.retained import plan_records
+    plan_records(chat,"article-contexts",[context.dumped() for context in contexts])
     document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
         budget=options.record_chars, check=check, counter=counter["fields"],
         structured=method.rendering == "structured")
+    def retained_context(*args):
+        if directory is not None:
+            _context_stage(directory, execution, strict, *args)
+        index, total, answered, failed, group, fields, root, contested, ok, context_calls = args
+        if ok:
+            from kei_exp.kie.extract.retained import saved_record
+            saved_record(chat, root, "document", primary=[{"segment": p.id, "start": 0, "end": len(p.text)}
+                                                         for p in group.primary])
     extracted = document_root(evidence.passages, schema, chat, counters=counter,
                               record_chars=options.record_chars, check=check, method=method, contexts=contexts,
                               start_page=options.start_page,
-                              on_context=(partial(_context_stage, directory, execution, strict)
-                                          if directory is not None else None))
+                              on_context=retained_context)
     if extracted.calls and not any(call.ok for call in extracted.calls):
         raise RootUnanswered(f"article_root_unanswered: none of the {len(extracted.value_contexts[0])} value "
                              f"context(s) answered the document's root; the last call failed: "

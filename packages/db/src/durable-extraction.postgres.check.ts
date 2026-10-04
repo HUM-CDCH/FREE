@@ -48,12 +48,13 @@ test('protocol expansion preserves legacy history and exposes only fenced worker
   assert.equal(grants.rows.filter(r => r.allowed).length, EXTRACTION_RUNTIME_ROUTINES.length)
   // Calls admitted before PAUSE drain; newly captured calls are refused.
   const extraction = history.extractions.article.inFlight, selection = randomUUID(), attempt = randomUUID(), process = randomUUID()
+  const flagNode={id:'flag',name:'flag',type:'boolean'},arrayNode={id:'items',name:'items',type:'array',itemType:'integer'}
   await owner.query(`INSERT INTO extraction_runtime.head
     (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"controlVersion","pendingResume",acknowledgement,"attemptId",fence,"leaseEpoch",generation,"snapshotVersion",deleted)
     VALUES ($1,$2,$3,$4,'ARTICLE',$5,'RUN',0,false,'QUEUED',$6,1,0,1,0,false)`,
     [extraction,history.projectContextId,randomUUID(),{runId:'source',generation:'g1'},selection,attempt])
   await owner.query(`INSERT INTO extraction_runtime.selection (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
-    VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`, [selection,extraction,history.revisions.article,'a'.repeat(64),{schemaNodes:[]}])
+    VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`, [selection,extraction,history.revisions.article,'a'.repeat(64),{recordDescription:'document',schemaNodes:[flagNode,arrayNode]}])
   await owner.query(`INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,1,$4)`,
     [attempt,extraction,selection,`test:${attempt}`])
   await owner.query('INSERT INTO extraction_runtime."feedbackHead" (id,version) VALUES ($1,0)', [history.projectContextId])
@@ -64,7 +65,12 @@ test('protocol expansion preserves legacy history and exposes only fenced worker
   const descriptor={stage:'record',scope:'source-anchor',ordinal:0,planDigest:plan.digest,role:'fields'}
   const capture=await invoke('capture_unit',[extraction,attempt,epoch,unit,'record-1',descriptor])
   assert.equal(capture.feedbackVersion,0)
-  const body={provider:{model:'stub'},composer:1,tokenizer:{model:'stub'},budget:{},examples:[],omissions:[],body:{user:'exact original'}}
+  const provider={key:'stub',model:'stub',adapter:'instruct',adapterVersion:1,url:'http://stub/v1/chat/completions',timeout:60,maxTokens:100}
+  await invoke('resolve_selection',[extraction,attempt,epoch,{models:{fields:provider,reasoning:provider},options:{},planner:1,protocols:{calls:1,source:'document'}}])
+  const body={provider,composer:1,tokenizer:{model:'stub'},budget:{counted:10,context:1000,reserve:100},examples:[],omissions:[],
+    body:{stage:'record',record:0,system:'instructions',user:'exact original',schema:{type:'object'},max_tokens:100,max_whitespace:null,
+      httpRequest:{model:'stub',messages:[{role:'user',content:'exact original'}],max_tokens:100}}}
+  await assert.rejects(invoke('finalize_input',[extraction,attempt,epoch,unit,{...body,provider:{...provider,password:'must not persist'}}]),(e:{code?:string})=>e.code==='22023')
   const input=await invoke('finalize_input',[extraction,attempt,epoch,unit,body])
   assert.equal(await invoke('begin_call',[extraction,attempt,epoch,unit]),true)
   await owner.query("UPDATE extraction_runtime.head SET intent='PAUSE' WHERE id=$1",[extraction])
@@ -72,6 +78,19 @@ test('protocol expansion preserves legacy history and exposes only fenced worker
   await assert.rejects(invoke('acknowledge',[extraction,attempt,epoch,false,null]),(e:{code?:string})=>e.code==='55000')
   const output=await invoke('commit_output',[extraction,attempt,epoch,unit,input.digest,{parsed:{title:'saved'}}])
   assert.deepEqual(await invoke('commit_output',[extraction,attempt,epoch,unit,input.digest,{parsed:{title:'saved'}}]),output)
+  const value={id:'value-flag',recordId:'document',fieldId:'flag',path:['records',0,'flag'],selectionId:selection,
+    schemaRevisionId:history.revisions.article,node:flagNode,modelValue:false,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
+  const coverage={sourceGeneration:'g1',completedScopes:{},processingComplete:false}
+  for(const invalid of [{...value,selectionId:null},{...value,grounding:'made-up'},{...value,modelValue:'yes'}])
+    await assert.rejects(invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([invalid]),coverage]),(e:{code?:string})=>e.code==='22023')
+  const snapshotId=randomUUID()
+  const snapshot=await invoke('publish_snapshot',[extraction,attempt,epoch,snapshotId,selection,JSON.stringify([value]),coverage])
+  assert.equal(snapshot.values[0].modelValue,false)
+  assert.deepEqual(await invoke('publish_snapshot',[extraction,attempt,epoch,snapshotId,selection,JSON.stringify([value]),coverage]),snapshot)
+  const arrayValue={...value,id:'value-items',fieldId:'items',node:arrayNode,path:['records',0,'items'],modelValue:[1,2]}
+  const next=await invoke('publish_snapshot',[extraction,attempt,epoch,randomUUID(),selection,JSON.stringify([arrayValue]),coverage])
+  assert.equal(next.values.length,2)
+  await assert.rejects(invoke('heartbeat',[extraction,attempt,null]),(e:{code?:string})=>e.code==='40001')
   assert.equal(await invoke('acknowledge',[extraction,attempt,epoch,false,null]),'PAUSED')
   await assert.rejects(invoke('heartbeat',[extraction,attempt,epoch]),(e:{code?:string})=>e.code==='40001')
   // A takeover changes only lease authorization, leaving the input/origin untouched.

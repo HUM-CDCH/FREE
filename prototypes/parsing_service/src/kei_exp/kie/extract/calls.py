@@ -83,8 +83,12 @@ def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str
     """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer. The calls are the
     attempts in order, the last one the call whose reply this is: a refused earlier attempt is a failed call too.
     A router sends the call to the model serving the stage's role."""
+    runtime = chat.runtime if isinstance(chat, Router) else None
     if isinstance(chat, Router):
         chat = chat.for_stage(stage)
+    if runtime is not None:
+        return runtime.complete(chat, stage=stage, record=record, system=system, user=user,
+                                schema=schema, max_tokens=max_tokens, counter=counter)
     # Errors can quote source text or a provider's credentials. Capture only their type, including exceptions the
     # OTel context manager would otherwise record automatically; raw model replies have their own capture below.
     with _TRACER.start_as_current_span(stage, attributes={"openinference.span.kind": "LLM",
@@ -120,6 +124,9 @@ def _trace(span: Span, parsed: Any, calls: list[Call]) -> None:
 def structure(backend, *, record: int, text: str, schema: dict, identity: dict,
               counted: int, context: int) -> tuple[dict, Call]:
     """A native encoder call: no generated reply budget, JSON repair or value conversion."""
+    if getattr(backend,"runtime",None) is not None:
+        return backend.runtime.structure(backend,record=record,text=text,schema=schema,identity=identity,
+                                         counted=counted,context=context)
     with _TRACER.start_as_current_span("entry", attributes={"openinference.span.kind": "LLM",
                                                            "llm.model_name": backend.model},
                                        record_exception=False, set_status_on_exception=False) as span:
