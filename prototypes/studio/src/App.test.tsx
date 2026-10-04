@@ -355,8 +355,8 @@ describe('reopened Source Document workspace', () => {
     render(<DocumentWorkspace {...reopened} persistedExtraction={{ ...reopened.persistedExtraction!, ...attempt }} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(await screen.findByText('Reading records · 2 of 5 · started at page 1', undefined, { timeout: 4_000 })).toBeVisible()
-    expect(screen.getByRole('button', { name: /■ Stop extraction/ })).toHaveTextContent('2 of 5')
+    expect(await screen.findByText('Reading records · 2 of 5 · from page 1', undefined, { timeout: 4_000 })).toBeVisible()
+    expect(screen.getByRole('button', { name: /■ Stop extraction/ })).toHaveTextContent(/^■ Stop extraction$/)
   })
 
   it.each(['ready', 'loading'] as const)('sends the current page only while the PDF is %s', async (pdfStatus) => {
@@ -413,7 +413,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(order).toEqual(['refresh', 'post']))
     extractionResponse.resolve(Response.json({ ...runningAttempt('51000000-0000-4000-8006-000000000031') }, { status: 201 }))
     expect(await screen.findByRole('button', { name: /■ Stop extraction/ })).toBeEnabled()
-    expect(screen.getByRole('button', { name: /■ Stop extraction/ })).toHaveTextContent('running')
+    expect(screen.getByRole('button', { name: /■ Stop extraction/ })).toHaveTextContent(/^■ Stop extraction$/)
     expect(screen.getByRole('button', { name: /■ Stop extraction/ }).className).toMatch(/(^|\s)bg-danger(\s|$)/)
     expect(screen.getByRole('button', { name: /■ Stop extraction/ }).className).not.toMatch(/(^|\s)bg-green(\s|$)/)
   })
@@ -2970,8 +2970,8 @@ describe('reopened Source Document workspace', () => {
     // The record scope is the schema's own, and is locked while the run is active.
     expect(screen.getByLabelText('Record scope')).toBeDisabled()
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(await screen.findByText('Reading records · 2 of 5 · started at page 1', undefined, { timeout: 4_000 })).toBeVisible()
-    expect(screen.getByRole('button', { name: /^■ Stop extraction/ })).toHaveTextContent('2 of 5')
+    expect(await screen.findByText('Reading records · 2 of 5 · from page 1', undefined, { timeout: 4_000 })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^■ Stop extraction/ })).toHaveTextContent(/^■ Stop extraction$/)
 
     mounted.rerender(
       <StrictMode>

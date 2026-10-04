@@ -19,7 +19,6 @@ import {
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 import { METHOD_CHANGED, useExtraction } from './useExtraction'
-import { resultsBadgeFor } from './resultsBadge'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
@@ -856,7 +855,6 @@ export function DocumentWorkspace({
               : nextExtractionStrategy === null
                 ? 'Choose Article or Catalog in the schema header'
                 : null
-  const badge = resultsBadgeFor(extraction)
   const runLabel = running ? (extraction.cancellationRequested ? 'Cancellation requested…' : '■ Stop extraction') : '▶ Run extraction'
   return (
     <div
@@ -879,9 +877,11 @@ export function DocumentWorkspace({
           <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
           {/* Run is the screen's one positive; while a run is active it is Stop, in danger, also once its cancellation is
               requested (then disabled). */}
+          {/* One fixed width for Run and Stop, so the strip never shifts; progress is the Results badge's, not the button's (§2.4). */}
           <Button
             variant={running ? 'danger' : 'positive'}
             size="md"
+            className="min-w-43 justify-center tabular-nums"
             disabled={running ? extraction.cancellationRequested : runExtractionUnavailable}
             title={
               running
@@ -893,7 +893,6 @@ export function DocumentWorkspace({
             onClick={() => (running ? void extraction.requestCancellation() : void runExtraction())}
           >
             {runLabel}
-            {running && !extraction.cancellationRequested && badge && <span className="font-medium opacity-80"> · {badge.label}</span>}
           </Button>
         </>,
         tabBarSlot,

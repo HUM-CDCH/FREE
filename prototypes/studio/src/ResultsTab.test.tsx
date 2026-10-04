@@ -1382,7 +1382,7 @@ describe('ResultsTab extraction status', () => {
         schemaReady pinnedSchema={usedSchema} documentMarkdown="# Source" sourceDocumentName="running.pdf" onResultPathChange={onResultPathChange} />,
     )
     expect(screen.getByText('Running')).toBeInTheDocument()
-    expect(screen.getByText('Reading records · 2 of 5 · started at page 1')).toBeInTheDocument()
+    expect(screen.getByText('Reading records · 2 of 5 · from page 1')).toBeInTheDocument()
     expect(screen.queryByText('Running extraction…')).not.toBeInTheDocument()
     expect(onResultPathChange).toHaveBeenLastCalledWith(['records'])
     rerender(
