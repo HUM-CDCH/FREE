@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { useCallback, useState, type ComponentProps } from 'react'
+import { useCallback, useLayoutEffect, useState, type ComponentProps } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportExtractionResult } from 'extraction-result-export'
@@ -1555,6 +1555,34 @@ describe('ResultsTab one by one (§4)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close run details' }))
     key('a')
     expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the leave focus request when Escape arrives during the saved render commit', () => {
+    function SavedBoundary({ saved }: { saved: boolean }) {
+      useLayoutEffect(() => {
+        if (saved) screen.getByRole('heading', { level: 2 }).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      }, [saved])
+      const attempt = { ...three, reviewedAt: saved ? '2026-10-04T00:00:00Z' : null,
+        reviewDecisions: saved ? initial.map((decision) => ({ ...decision, createdAt: '2026-10-04T00:00:00Z' })) : [] }
+      return <Reviewing attempt={attempt} initial={initial} spy={vi.fn()} pinnedSchema={schema} />
+    }
+    const { rerender } = render(<SavedBoundary saved={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    key('a')
+    key('a')
+    key('a')
+    rerender(<SavedBoundary saved />)
+    expect(rowOf('year')).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(rowOf('year'))
+  })
+
+  it('keeps heading focus when entry arrives before passive effects from the list', () => {
+    function EnterBoundary() {
+      useLayoutEffect(() => { screen.getByRole('button', { name: /One by one/ }).click() }, [])
+      return <Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} />
+    }
+    render(<EnterBoundary />)
+    expect(document.activeElement).toBe(heading())
   })
 
   it('when the record runs out, says so and offers the list', () => {
