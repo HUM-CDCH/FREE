@@ -4,7 +4,7 @@ import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import type { ExtractionPersistence } from './dependencies.js'
 import { ExtractionError } from './errors.js'
-import type { ExtractionSnapshot } from './types.js'
+import type { ExtractionAttemptSnapshot, ExtractionSnapshot } from './types.js'
 import { createKeiExpClient, PROGRESS_TIMEOUT_MS } from './kei-exp.js'
 import { createExtractionModule } from './module.js'
 
@@ -216,6 +216,7 @@ describe('review of an Extraction with document-level schema fields', () => {
   }
   const persistence = {
     readExtraction: async () => extraction,
+    readExtractionAttempt: async () => ({ ...extraction, executionStatus: 'COMPLETED' as const }),
     readCanonicalParsedDocument: async () => parsedDocument,
     loadExtractionInputs: async () => ({
       sourceDocumentId: extraction.sourceDocumentId, projectContextId: 'project',
@@ -242,3 +243,82 @@ describe('review of an Extraction with document-level schema fields', () => {
 })
 
 
+
+describe('Review Drafts across a running and a settled Extraction (ADR 0016)', () => {
+  const schemaTree = { recordDescription: 'Catalogue records.', schemaNodes: [
+    { id: 'title', name: 'title', type: 'string' as const }, { id: 'year', name: 'year', type: 'integer' as const }] }
+  const approve = (field: string, evidenceAnchorId: string | null = 'bundled-anchor') => ({
+    resultPath: ['records', 0, field], evidenceAnchorId, reviewedOccurrenceIds: evidenceAnchorId ? ['bundled-occurrence'] : [],
+    action: 'APPROVED' as const, reviewedValue: null })
+  const settled: ExtractionSnapshot = {
+    extractionId: 'x-1', sourceDocumentId: 'd-1', sourceRepresentationRevisionId: 'r-1', sourceRepresentationRevisionNumber: 1,
+    preprocessId: 'kei-exp:run-1:g1', schemaRevisionId: 's-1', extractionSchemaId: 'e-1', schemaRevisionNumber: 1,
+    strategy: 'CATALOG', catalogRecipe: null, outcome: 'SUCCEEDED', complete: true, modelAttribution: null,
+    diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null,
+      ungroundedPaths: [['records', 0, 'year']], groundingIssues: [], groundingBatches: [], unverifiedFields: [], catalog: null },
+    result: { records: [{ title: 'Alpha', year: 1900 }] },
+    evidence: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'bundled-anchor' }],
+    failure: null, reviewable: true, batchExtractionId: null, createdAt: new Date(0), reviewedAt: null, reviewDecisions: [],
+  }
+  type Status = ExtractionAttemptSnapshot['executionStatus']
+  function moduleFor(executionStatus: Status, stored: unknown[] = []) {
+    const saved: unknown[] = []
+    const extraction = executionStatus === 'COMPLETED' ? settled : null
+    const attempt: ExtractionAttemptSnapshot = { ...settled, executionStatus, ...(extraction ? {} : {
+      outcome: null, complete: null, diagnostics: null, result: null, evidence: null, reviewable: false }) }
+    const module = createExtractionModule({
+      readExtraction: async () => extraction, // only a published Extraction has a snapshot
+      readExtractionAttempt: async () => attempt,
+      readCanonicalParsedDocument: async () => parsedDocument,
+      loadExtractionInputs: async () => ({ sourceDocumentId: 'd-1', projectContextId: 'p', sourceRepresentationRevisionId: 'r-1',
+        schemaRevisionId: 's-1', schemaTree, parsedDocument }),
+      readReviewDraft: async () => ({ version: 4, decisions: stored }),
+      saveReviewDraft: async (_: string, draft: { version: number }) => { saved.push(draft); return { ...draft, version: draft.version + 1 } },
+      finalizeReview: async () => ({ status: 'reviewed' as const, extraction }),
+    } as unknown as ExtractionPersistence)
+    return { module, saved }
+  }
+  const RUNNING_REFUSAL = { code: 'invalid_review', message: 'Draft decisions do not match the pinned document and schema.' }
+
+  it('saves a running Extraction\'s draft checked against the pinned document only, whatever kei has read', async () => {
+    const { module, saved } = moduleFor('RUNNING')
+    const later = { ...approve('title'), resultPath: ['records', 12, 'title'] }
+    assert.deepEqual(await module.saveReviewDraft('x-1', { version: 0, decisions: [approve('title'), later] }),
+      { version: 1, decisions: [approve('title'), later] })
+    assert.equal(saved.length, 1)
+  })
+
+  it('refuses a running draft with an anchor the document lacks, an optional decision, a duplicate or a bad version', async () => {
+    const { module, saved } = moduleFor('RUNNING')
+    for (const decisions of [[approve('title', 'elsewhere')], [approve('year', null)], [approve('title'), approve('title')]])
+      await assert.rejects(module.saveReviewDraft('x-1', { version: 0, decisions }), RUNNING_REFUSAL)
+    for (const version of [-1, 2 ** 53])
+      await assert.rejects(module.saveReviewDraft('x-1', { version, decisions: [approve('title')] }), RUNNING_REFUSAL)
+    assert.equal(saved.length, 0)
+  })
+
+  it('saves a queued Extraction\'s draft under the same rule, and refuses one on a failed, cancelled or interrupted Extraction', async () => {
+    await moduleFor('QUEUED').module.saveReviewDraft('x-1', { version: 0, decisions: [approve('title')] })
+    for (const status of ['FAILED'] as const)
+      await assert.rejects(moduleFor(status).module.saveReviewDraft('x-1', { version: 0, decisions: [approve('title')] }),
+        { code: 'invalid_review', message: 'This Extraction cannot be reviewed.' })
+  })
+
+  it('reads a running Extraction\'s draft as stored, with nothing dropped and no attention', async () => {
+    assert.deepEqual(await moduleFor('RUNNING', [approve('title')]).module.readReviewDraft('x-1'), { version: 4, decisions: [approve('title')] })
+  })
+
+  it('after settlement keeps a decision whose path and anchor have settled Evidence, and reports the rest dropped', async () => {
+    const moved = { ...approve('title'), resultPath: ['records', 3, 'title'] }
+    const draft = await moduleFor('COMPLETED', [approve('title'), moved, approve('year', null)]).module.readReviewDraft('x-1')
+    assert.deepEqual(draft.decisions, [approve('title'), approve('year', null)])
+    assert.deepEqual(draft.dropped, [{ resultPath: ['records', 3, 'title'], evidenceAnchorId: 'bundled-anchor' }])
+    assert.ok(draft.attention)
+  })
+
+  it('finalization refuses a decision the settled Evidence does not have', async () => {
+    const { module } = moduleFor('COMPLETED')
+    await assert.rejects(module.finalizeReview('x-1', [{ ...approve('title'), resultPath: ['records', 3, 'title'] }, approve('year', null)]),
+      { code: 'invalid_review' })
+  })
+})

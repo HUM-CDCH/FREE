@@ -6,8 +6,52 @@ describe('Extraction reviews on disposable PostgreSQL', { skip: !fixture && 'set
   if (!fixture) return
   const {
     db, kei, deterministicArtifact, seedProject, addRepresentation,
-    createRuntime, freshInput, rejectsWithCode, waitForBatch, cleanup,
+    createRuntime, freshInput, rejectsWithCode, waitForBatch, cleanup, scheduler, heldByKei, waitForAttempt,
   } = fixture
+
+  it('keeps a draft drafted while the Extraction runs, continues its version across settlement and reports what it dropped', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const module = scheduler(project.researcherAccountId)
+    kei.holding = true
+    const input = freshInput(project)
+    await module.runSingle(input)
+    await heldByKei(input.extractionId)
+    const id = input.extractionId
+    const approve = (record: number, anchor: string, occurrence: string) => ({
+      resultPath: ['records', record, 'title'], evidenceAnchorId: anchor, reviewedOccurrenceIds: [occurrence],
+      action: 'APPROVED' as const, reviewedValue: null })
+    const kept = approve(0, 'a_p1_s0', 'occurrence-alpha')
+    const moved = approve(3, 'a_p1_s1', 'occurrence-beta') // kei never links record 3: settlement drops it
+    await assert.rejects(module.saveReviewDraft(id, { version: 0, decisions: [approve(0, 'foreign', 'occurrence-alpha')] }),
+      rejectsWithCode('invalid_review'))
+    assert.deepEqual(await module.saveReviewDraft(id, { version: 0, decisions: [kept, moved] }), { version: 1, decisions: [kept, moved] })
+    assert.deepEqual(await module.readReviewDraft(id), { version: 1, decisions: [kept, moved] })
+    await assert.rejects(module.saveReviewDraft(id, { version: 0, decisions: [] }), rejectsWithCode('review_conflict'))
+    kei.release(id)
+    await waitForAttempt(module, id)
+    const settled = await module.readReviewDraft(id)
+    assert.equal(settled.version, 1)
+    assert.deepEqual(settled.decisions, [kept])
+    assert.deepEqual(settled.dropped, [{ resultPath: ['records', 3, 'title'], evidenceAnchorId: 'a_p1_s1' }])
+    assert.deepEqual(await module.saveReviewDraft(id, { version: 1, decisions: [kept] }), { version: 2, decisions: [kept] })
+    assert.equal((await module.readReviewDraft(id)).dropped, undefined)
+    await assert.rejects(module.finalizeReview(id, [kept, moved], 2), rejectsWithCode('invalid_review'))
+    assert.equal((await module.finalizeReview(id, [kept], 2)).disposition, 'reviewed')
+  })
+
+  it('refuses a draft on an Extraction that settled without a result', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    const module = scheduler(project.researcherAccountId)
+    kei.holding = true
+    const input = freshInput(project)
+    await module.runSingle(input)
+    await heldByKei(input.extractionId)
+    assert.equal(await module.cancelSingle(input.extractionId), 'cancellation-requested')
+    await waitForAttempt(module, input.extractionId)
+    await assert.rejects(module.saveReviewDraft(input.extractionId, { version: 0, decisions: [] }), rejectsWithCode('invalid_review'))
+  })
 
   it('persists drafts independently, rejects invalid and concurrent edits, and clears them atomically on finalization', async (t) => {
     t.after(cleanup)

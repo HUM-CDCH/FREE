@@ -344,6 +344,8 @@ export type ReviewDraft = Readonly<{
   attention?: ReturnType<typeof import('./review-attention.js').reviewAttention>
   version: number
   decisions: readonly ReviewDecisionInput[]
+  /** Drafted while the Extraction ran, not kept at settlement: no settled Evidence links this path to this anchor. */
+  dropped?: readonly Readonly<{ resultPath: ResultPath; evidenceAnchorId: string | null }>[]
 }>
 
 export type BatchExtractionMemberSnapshot = Readonly<{
