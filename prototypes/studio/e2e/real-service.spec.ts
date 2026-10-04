@@ -7,7 +7,7 @@ import { documentReopenResponseSchema } from '../shared/projectContext.contract.
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
 import { batchExtractionResponseSchema } from '../shared/batchExtraction.contract.js'
 import { E2E_ORIGIN, e2eStudioPath, loginResearcher } from './auth.js'
-import { recordHeader, reviewRow } from './resultsReview.js'
+import { openRecord, recordHeader, reviewRow } from './resultsReview.js'
 import { cataloguePdf, numberedCataloguePdf, startRealService, textPdf } from './realService.js'
 import { admit, settle, uploaded } from './sourceIngestion.js'
 
@@ -301,7 +301,8 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
     await page.getByRole('button', { name: 'Close run details' }).click()
     // Evidence navigation lands on the physical page: 32's FA: value on page 2, its inherited Kreis heading on page 1.
     // What tied each value to its field shows under its source line once the value is selected (§3.3).
-    await recordHeader(page, /^Heide, /).click()
+    // Entry 32 is the second record (both are named by their Kreis heading, Heide).
+    await openRecord(page, 1)
     await reviewRow(page, 'fundart').click()
     await expect(page.getByText(/Read after its printed key/)).toBeVisible()
     await expect(page.locator('.page[data-page-number="2"] .parsed-evidence-focus')).not.toHaveCount(0)
