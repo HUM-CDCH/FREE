@@ -10,8 +10,10 @@ import { Client } from 'pg'
 import { migrate,provisionDatabase,seedPreMigrationHistory,CATALOG_TREE } from '../../db/src/record-scope-history-fixture.js'
 import { ensureKeiRole } from '../../db/src/kei-role.js'
 import { initializeDurableExtraction } from './durable-repository.js'
+import { durableTestNetwork } from './durable-test-network.js'
 
 test('real worker processes recover captures, exact inputs and the app-commit/DBOS-ack gap',async t=>{
+  const network=durableTestNetwork()
   const base=process.env.EXTRACTION_TEST_DATABASE_URL
   if(!base) throw new Error('Set EXTRACTION_TEST_DATABASE_URL to an explicit disposable free_test_* target.')
   const suffix=randomBytes(5).toString('hex')
@@ -48,7 +50,7 @@ test('real worker processes recover captures, exact inputs and the app-commit/DB
   }
   await writeFile(resolve(directory,'fixture.json'),JSON.stringify({admin:target.url,worker:workerUrl.toString(),cases}),{mode:0o600})
   const root=resolve(import.meta.dirname,'../../..')
-  const {stdout}=await promisify(execFile)('docker',['run','--rm','--network','host','--entrypoint','sh',
+  const {stdout}=await promisify(execFile)('docker',['run','--rm','--network',network,'--entrypoint','sh',
     '-e','PYTHONDONTWRITEBYTECODE=1','-e','DURABLE_RECOVERY_FIXTURE=/fixture/fixture.json',
     '-v',`${root}/prototypes/parsing_service:/test:ro`,'-v',`${directory}:/fixture:ro`,'-w','/test',
     process.env.DURABLE_TEST_WORKER_IMAGE??'phoenix-tracing-parsing_worker','-c',

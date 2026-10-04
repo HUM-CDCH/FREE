@@ -11,8 +11,10 @@ import { Client,Pool } from 'pg'
 import { migrate,provisionDatabase,seedPreMigrationHistory } from '../../db/src/record-scope-history-fixture.js'
 import { ensureKeiRole } from '../../db/src/kei-role.js'
 import { createDurableRepository,initializeDurableExtraction } from './durable-repository.js'
+import { durableTestNetwork } from './durable-test-network.js'
 
 test('all four real durable methods drain Pause, cancel pending Resume and retain work through Resume or Stop',async t=> {
+  const network=durableTestNetwork()
   const base=process.env.EXTRACTION_TEST_DATABASE_URL
   if(!base)throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')
   const suffix=randomBytes(5).toString('hex'),target=await provisionDatabase(base,`free_test_durable_lifecycle_${suffix}`)
@@ -75,7 +77,7 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
   const port=(server.address() as {port:number}).port
   await writeFile(resolve(directory,'fixture.json'),JSON.stringify({admin:target.url,worker:worker.toString(),cases,bridge:`http://127.0.0.1:${port}`,token}),{mode:0o600})
   const root=resolve(import.meta.dirname,'../../..')
-  const {stdout}=await promisify(execFile)('docker',['run','--rm','--network','host','--entrypoint','sh','-e','PYTHONDONTWRITEBYTECODE=1',
+  const {stdout}=await promisify(execFile)('docker',['run','--rm','--network',network,'--entrypoint','sh','-e','PYTHONDONTWRITEBYTECODE=1',
     '-e','DURABLE_LIFECYCLE_FIXTURE=/fixture/fixture.json','-v',`${root}/prototypes/parsing_service:/test:ro`,'-v',`${directory}:/fixture:ro`,'-w','/test',
     process.env.DURABLE_TEST_WORKER_IMAGE??'phoenix-tracing-parsing_worker','-c',
     'uv pip install --python /app/.venv/bin/python pytest==9.1.1 && /app/.venv/bin/python -m pytest -q --tb=short -o cache_dir=/tmp/pytest_cache tests/test_durable_lifecycle.py'],
