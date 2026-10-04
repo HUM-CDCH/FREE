@@ -24,7 +24,7 @@ import ReviewFocus, { type EndCard } from './ReviewFocus'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
 import { keyAction } from './reviewKeys'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import type { MarkInfo } from './useEvidenceOverlays'
+import type { MarkInfo, RailMarkState } from './useEvidenceOverlays'
 
 type PinnedSchema = SchemaDefinition & {
   revisionNumber?: number
@@ -43,7 +43,7 @@ type ResultsTabProps = {
   sourceDocumentName: string
   /** The pinned document: the quotes of the selected value's Evidence. */
   parsedDocument?: ParsedDocument | null
-  onSelectEvidence?: (anchorId: string) => void
+  onSelectEvidence?: (anchorId: string, precision?: EvidenceLink['precision']) => void
   onResultPathChange?: (path: string[] | null) => void
   /** Extraction Schema the displayed attempt ran with; also the used-schema preview. */
   pinnedSchema?: PinnedSchema | null
@@ -61,7 +61,7 @@ type ResultsTabProps = {
   /** The one-by-one value's Evidence, which the document dims around (§7.3); null outside one-by-one. */
   onFocusEvidence?: (link: EvidenceLink | null) => void
   /** The values the document marks, and the one selected (§7.2); null when the tab has none. */
-  onMarksChange?: (marks: { describe: ReadonlyMap<string, MarkInfo>; selected: string | null } | null) => void
+  onMarksChange?: (marks: RailMarkState | null) => void
   /** Filled with the handle a mark selects its value through: in the list, or as one-by-one's current value. */
   selectValueRef?: RefObject<((key: string) => void) | null>
 }
@@ -235,6 +235,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   useEffect(() => { caughtUpRef.current = oneByOne && !currentItem })
   // The document follows the current value (§4.3, §7.3); the dimming lasts as long as one-by-one.
   const currentLink = currentItem?.row.link ?? null
+  const markFollowKey = useRef<string | null>(null)
   // Once per current value: a re-render (a page the researcher scrolled to, a new callback) never pulls the PDF back.
   const followRef = useRef({ onFocusEvidence, onSelectEvidence, currentLink })
   useEffect(() => { followRef.current = { onFocusEvidence, onSelectEvidence, currentLink } })
@@ -242,7 +243,9 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   useEffect(() => {
     const { onFocusEvidence, onSelectEvidence, currentLink } = followRef.current
     onFocusEvidence?.(followKey ? currentLink : null)
-    if (followKey && currentLink) onSelectEvidence?.(currentLink.evidenceAnchorId)
+    const fromMark = markFollowKey.current === followKey
+    markFollowKey.current = null
+    if (followKey && currentLink && !fromMark) onSelectEvidence?.(currentLink.evidenceAnchorId, currentLink.precision)
   }, [followKey])
   useEffect(() => () => onFocusEvidence?.(null), [onFocusEvidence])
 
@@ -286,13 +289,21 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   // The document's marks show the rail's values and select them (§7.2); a mark's selection scrolls nothing.
   const markInfo = useMemo(() => new Map(rows.filter((row) => row.link).map((row): [string, MarkInfo] => [row.key, {
     name: row.name, value: shownValue(row.value), word: isDecidable(row.kind) && row.kind !== 'to-check' ? stateLabel(row) : null,
-    style: row.chip?.style ?? 'link', anchorId: row.link!.evidenceAnchorId,
+    style: row.chip?.style ?? 'link', anchorId: row.link!.evidenceAnchorId, precision: row.link!.precision,
   }])), [rows])
+  const selectableKeys = useMemo(() => new Set(rowByKey.keys()), [rowByKey])
   const markSelected = oneByOne ? currentKey : selectedKey
-  useEffect(() => { onMarksChange?.(model ? { describe: markInfo, selected: markSelected } : null) }, [model, markInfo, markSelected, onMarksChange])
+  useEffect(() => { onMarksChange?.(model ? { describe: markInfo, selected: markSelected, selectableKeys } : null) }, [model, markInfo, markSelected, selectableKeys, onMarksChange])
   useEffect(() => () => onMarksChange?.(null), [onMarksChange])
   useImperativeHandle(selectValueRef, () => (key: string) => {
-    if (oneByOne) { if (queue.some((item) => item.key === key)) goTo(key); return }
+    if (oneByOne) {
+      if (queue.some((item) => item.key === key)) {
+        const link = rowByKey.get(key)?.link
+        markFollowKey.current = link ? `${key} ${link.evidenceAnchorId}` : null
+        goTo(key)
+      }
+      return
+    }
     const row = rowByKey.get(key)
     if (!row) return
     setCodeView(false)
@@ -350,7 +361,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
     const next = selectedKey === row.key ? null : row.key
     setSelectedKey(next)
     setEditingKey(null)
-    if (next && row.link) onSelectEvidence?.(row.link.evidenceAnchorId)
+    if (next && row.link) onSelectEvidence?.(row.link.evidenceAnchorId, row.link.precision)
   }
 
   function openDrawer(section: DrawerSection) {

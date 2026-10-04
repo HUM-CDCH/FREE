@@ -8,7 +8,7 @@ type Marks = { describe: ReadonlyMap<string, MarkInfo>; selected: string | null;
  * marked at their anchors' Markdown spans (UTF-8 byte offsets), in the marks' style, selecting their values as the
  * page's marks do.
  */
-export default function DocumentMarkdown({ markdown, document, marks }: { markdown: string | null; document: ParsedDocument | null; marks: Marks | null }) {
+export default function DocumentMarkdown({ markdown, document, marks, marksShown = true }: { markdown: string | null; document: ParsedDocument | null; marks: Marks | null; marksShown?: boolean }) {
   if (!markdown) return (
     <div className="mx-auto max-w-[34ch] pt-16 text-center">
       <p className="m-0 text-content font-semibold text-ink">Markdown unavailable</p>
@@ -18,7 +18,9 @@ export default function DocumentMarkdown({ markdown, document, marks }: { markdo
   const bytes = new TextEncoder().encode(markdown)
   const decode = (start: number, end: number) => new TextDecoder().decode(bytes.subarray(start, end))
   const keysByAnchor = new Map<string, string[]>()
-  for (const [key, info] of marks?.describe ?? []) keysByAnchor.set(info.anchorId, [...keysByAnchor.get(info.anchorId) ?? [], key])
+  for (const [key, info] of marks?.describe ?? []) {
+    if (info.precision !== 'input') keysByAnchor.set(info.anchorId, [...keysByAnchor.get(info.anchorId) ?? [], key])
+  }
   const spans = (document?.evidence_index.anchors ?? []).flatMap((anchor) => anchor.kind === 'text' && keysByAnchor.has(anchor.anchor_id)
     ? [{ ...anchor.markdown_span, keys: keysByAnchor.get(anchor.anchor_id)! }] : [])
     .sort((a, b) => a.start - b.start)
@@ -30,11 +32,11 @@ export default function DocumentMarkdown({ markdown, document, marks }: { markdo
     parts.push(decode(at, span.start))
     const infos = span.keys.map((key) => marks!.describe.get(key)!)
     const selected = marks!.selected !== null && span.keys.includes(marks!.selected)
-    parts.push(
+    parts.push(!marksShown && !selected ? decode(span.start, span.end) : (
       <button key={span.start} type="button" className={`evidence-mark ${infos[0]!.style}${infos.every((info) => info.word) ? ' decided' : ''}${selected ? ' selected' : ''} whitespace-pre-wrap text-left font-mono`}
         aria-label={infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; ')} aria-current={selected || undefined}
-        onClick={(event) => marks!.onSelect(span.keys, event.currentTarget)}>{decode(span.start, span.end)}</button>,
-    )
+        onClick={(event) => marks!.onSelect(span.keys, event.currentTarget)}>{decode(span.start, span.end)}</button>
+    ))
     at = span.end
   }
   parts.push(decode(at, bytes.length))

@@ -1,6 +1,6 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import type { MarkInfo } from './useEvidenceOverlays'
+import type { RailMarkState } from './useEvidenceOverlays'
 import PanelToggleIcon from './PanelToggleIcon'
 import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
 import { useMemo, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
@@ -51,12 +51,12 @@ type RightRailProps = {
   boundaries?: SchemaPanelProps['boundaries']
   /** Controls the Results header shows beside the attempt details: the snapshot choice, "Open latest reviewed". */
   resultsHeaderExtras?: ReactNode
-  onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
+  onSelectEvidence: (anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => void
   onResultPathChange: (path: string[] | null) => void
   /** The one-by-one value's Evidence link, for the document's dimming (results review redesign §7.3). */
   onFocusEvidence?: (link: EvidenceLink | null) => void
   /** The rail's values for the document's marks, and the handle a mark selects a value through (§7.2). */
-  onMarksChange?: (marks: { describe: ReadonlyMap<string, MarkInfo>; selected: string | null } | null) => void
+  onMarksChange?: (marks: RailMarkState | null) => void
   selectValueRef?: RefObject<((key: string) => void) | null>
 }
 
@@ -255,11 +255,11 @@ function RightRail({
           onMarksChange={onMarksChange}
           selectValueRef={selectValueRef}
           headerExtras={resultsHeaderExtras}
-          onSelectEvidence={(anchorId) => {
+          onSelectEvidence={(anchorId, precision) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(
               (candidate) => candidate.anchor_id === anchorId,
             )
-            if (anchor) onSelectEvidence(anchor)
+            if (anchor) onSelectEvidence(anchor, precision)
           }}
         />
       </div>

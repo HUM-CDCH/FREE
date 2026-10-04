@@ -74,7 +74,7 @@ export default function ResultsHeader({
   ]
   return (
     <div className="@container flex shrink-0 flex-col gap-2.5 border-b border-line bg-surface px-3 pt-1 pb-2.5">
-      <div className="flex min-h-8 items-center gap-1.5 text-secondary">
+      <div className="flex min-h-8 flex-wrap items-center gap-1.5 text-secondary">
         <Mark mark={status.mark} />
         <p className="m-0 flex min-w-0 flex-wrap items-baseline gap-x-1" title={status.title}>
           <b className="text-content text-ink">{status.word}</b>
@@ -84,10 +84,13 @@ export default function ResultsHeader({
           {status.schemaRevision !== undefined && <button type="button" className={`${linkButton} @max-[344px]:hidden`} onClick={onSchema}>Schema rev {status.schemaRevision}</button>}
           {status.why && <button type="button" className={linkButton} onClick={onWhy}>Why?</button>}
         </p>
-        {schemaNote && <Pill tone="stale" outline>Rev {schemaNote.revision} · current is {schemaNote.current}</Pill>}
         <span className="flex-1" />
-        {extras}
-        {exportButton}
+        {/* Snapshot, export and revision controls take a second row when the status would be squeezed (§9). */}
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 empty:hidden @max-[344px]:order-last @max-[344px]:w-full [&>select]:min-w-0 [&>select]:max-w-full">
+          {schemaNote && <Pill tone="stale" outline>Rev {schemaNote.revision} · current is {schemaNote.current}</Pill>}
+          {extras}
+          {exportButton}
+        </div>
         <button ref={detailsRef} type="button" aria-label="Run details" aria-expanded={detailsOpen} className={iconButton} onClick={onDetails}><InfoGlyph /></button>
         <button ref={menuRef} type="button" aria-label="More result actions" aria-haspopup="menu" aria-expanded={menuOpen} className={iconButton} onClick={onMenu}><MoreGlyph /></button>
       </div>

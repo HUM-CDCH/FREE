@@ -189,6 +189,67 @@ async function railShots(page: Page, testInfo: TestInfo, stage: string) {
   await setRailWidth(page, 344)
   if (viewport) await page.setViewportSize(viewport)
 }
+async function expectSavedRailHeader(page: Page) {
+  await setRailWidth(page, 264)
+  const word = statusLine(page).locator('b')
+  expect(await word.evaluate((element) => element.getBoundingClientRect().height),
+    'the saved status word stays on one line at the minimum rail width').toBeLessThanOrEqual(
+      await word.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight)) + 1)
+  await expectOperableInViewport(page, resultsPanel(page).getByRole('button', { name: 'Run details', exact: true }))
+  await expectOperableInViewport(page, moreActions(page))
+  await expectOperableInViewport(page, resultsPanel(page).getByRole('button', { name: 'Export', exact: true }))
+  await setRailWidth(page, 344)
+}
+
+async function expectDocumentMarks(page: Page, testInfo: TestInfo) {
+  const title = valueRow(page, /^To check title /)
+  const viewer = page.locator('.pdf-viewer')
+  const pdfMark = viewer.locator('button.evidence-mark').first()
+  await pdfMark.scrollIntoViewIfNeeded()
+  const position = await viewer.evaluate((element) => [element.scrollTop, element.scrollLeft])
+  await page.screenshot({ path: testInfo.outputPath('document-pdf-marks.png') })
+  await pdfMark.click()
+  const choices = page.getByRole('dialog', { name: 'Values in this passage', exact: true })
+  await expect(choices).toBeVisible()
+  await choices.getByRole('button', { name: /^title · / }).click()
+  await expect(title).toHaveAttribute('aria-expanded', 'true')
+  expect(await viewer.evaluate((element) => [element.scrollTop, element.scrollLeft])).toEqual(position)
+  await title.click()
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click()
+  const markdown = page.getByLabel('Parsed Markdown', { exact: true })
+  const source = await markdown.innerText()
+  await expect(markdown.locator('button.evidence-mark').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Evidence marks', exact: true }).click()
+  expect(await markdown.innerText(), 'switching off marks preserves the complete Markdown source').toBe(source)
+  await expect(markdown.locator('button.evidence-mark')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Evidence marks', exact: true }).click()
+  await markdown.locator('button.evidence-mark').first().click()
+  await expect(choices).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(choices).toHaveCount(0)
+  await expect(markdown.locator('button.evidence-mark').first()).toBeFocused()
+  await markdown.locator('button.evidence-mark').first().click()
+  await choices.getByRole('button', { name: /^title · / }).click()
+  await expect(title).toHaveAttribute('aria-expanded', 'true')
+  await page.screenshot({ path: testInfo.outputPath('document-markdown-marks.png') })
+  await page.getByRole('button', { name: 'Evidence marks', exact: true }).click()
+  expect(await markdown.innerText()).toBe(source)
+  await expect(markdown.locator('button.evidence-mark')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Evidence marks', exact: true }).click()
+  await page.getByRole('button', { name: 'PDF', exact: true }).click()
+
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await moreAction(page, 'Copy link to the selected value')
+  const copied = await page.evaluate(() => navigator.clipboard.readText())
+  expect(new URL(copied).searchParams.get('value')).toBe(JSON.stringify(['records', 0, 'title']))
+  const linked = await page.context().newPage()
+  await linked.goto(copied)
+  await expect(linked.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(valueRow(linked, /^To check title /)).toHaveAttribute('aria-expanded', 'true')
+  await linked.close()
+  await title.click()
+}
+
 const statusLine = (page: Page) => resultsPanel(page).locator('p:has(> b)').first()
 const reviewBar = (page: Page) => resultsPanel(page).getByRole('img', { name: / to check, of \d+$/ })
 const breakdown = (page: Page) => resultsPanel(page).locator('p').filter({ hasText: /^\d+ approved · \d+ edited · \d+ rejected · / })
@@ -614,6 +675,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expectOperableInViewport(page, titleRow)
   await expectOperableInViewport(page, moreActions(page))
   await page.setViewportSize({ width: 1280, height: 800 })
+  await expectDocumentMarks(page, testInfo)
   // Selecting a value opens its decision (§3.3).
   await activateWithKeyboard(page, titleRow)
   // Native focus must not override the list position restored when leaving One by one (§4.1).
@@ -677,6 +739,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await approveRest(page)
   await expect(resultsPanel(page).getByText('Review saved', { exact: true })).toBeVisible()
   await expect(statusLine(page)).toHaveText(new RegExp(`^Review saved\\s*· ${requiredCount} decisions · read-only$`))
+  await railShots(page, testInfo, 'saved-header')
+  await expectSavedRailHeader(page)
   await page.screenshot({
     path: testInfo.outputPath('canonical-reviewed-results.png'),
     fullPage: true,
@@ -789,6 +853,18 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(reviewBar(page)).toHaveAccessibleName('0 approved, 0 edited, 0 rejected, 2 to check, of 2')
   // The values without evidence are counted apart, as not reviewable (§2.3).
   await expect(resultsPanel(page).getByRole('button', { name: /^Not reviewable\s*6$/ })).toBeVisible()
+  await resultsPanel(page).getByRole('button', { name: /^Not reviewable\s*6$/ }).click()
+  const unlinkedRow = valueRow(page, /^Unsupported tags › 1 æ/)
+  await unlinkedRow.click()
+  await moreAction(page, 'Copy link to the selected value')
+  const unlinkedUrl = await page.evaluate(() => navigator.clipboard.readText())
+  expect(new URL(unlinkedUrl).searchParams.get('value')).toBe(JSON.stringify(['records', 0, 'tags', 0]))
+  const unlinkedPage = await page.context().newPage()
+  await unlinkedPage.goto(unlinkedUrl)
+  await expect(unlinkedPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(valueRow(unlinkedPage, /^Unsupported tags › 1 æ/)).toHaveAttribute('aria-expanded', 'true')
+  await unlinkedPage.close()
+  await resultsPanel(page).getByRole('button', { name: 'To check', exact: true }).click()
   await valueRow(page, /^To check title /).click()
   drafted = draftWritten(page)
   await decisionFor(page, 'title', 'Reject').click()
