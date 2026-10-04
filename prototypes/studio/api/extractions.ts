@@ -137,7 +137,10 @@ export function createResearcherApiHandlers(
         extraction: extractionAttemptDto(extraction),
         pendingReviewDecisions,
         partial,
-        reviewDraft: !extraction.durable && extraction.executionStatus === 'COMPLETED' ? await module.readReviewDraft(extractionId) : undefined,
+        // Durable decisions use retained snapshots and their producing schema.
+        reviewDraft: !extraction.durable && (extraction.executionStatus === 'COMPLETED' || extraction.executionStatus === 'RUNNING')
+          ? await module.readReviewDraft(extractionId)
+          : undefined,
       }),
       { headers: noStore },
     )
