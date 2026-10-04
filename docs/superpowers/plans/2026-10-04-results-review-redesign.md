@@ -241,3 +241,27 @@ Branch `feat/results-review-e-document` on d.
 - Spec coverage: §1 c2; §2 c5/c9; §3 c6/c7; §4 d; §5.1–5.3 b/c6/c7; §5.4 a; §5.5 Ruling 1, b4, c9; §6 a5/c7; §7.1 c3; §7.2 e1–e2; §7.3 d4; §7.4 c8/e3; §8 c8/e4; §9 e5; §10 e6; §11 copy throughout; §12 c1/e7; Error handling b2/c7/e4; Testing per task.
 - Not implemented: CONTEXT.md glossary edits (spec says proposed only); out-of-scope list unchanged.
 - Ruling 17 confirmed; Docker is available (2026-10-04).
+
+## Execution notes (2026-10-04)
+
+Branches, stacked: `feat/results-review-a-server` → `-b-controller` → `-c-rail` → `-d-one-by-one` → `-e-document`.
+
+Rulings taken while implementing (the code forced or the spec did not say):
+
+- a: a running draft is recognised by `executionStatus` (QUEUED/RUNNING) on the attempt snapshot, not by `outcome`: `readExtraction` returns only published Extractions, and the attempt snapshot reports FAILED and CANCELLED as `outcome: null` too. A failed, cancelled or interrupted Extraction is refused with `invalid_review`.
+- a: `accept()` reads the draft ref, not the render's state, so the last decision and its save run in one handler; it answers whether the review was saved.
+- b: the server strips dropped decisions from `reviewDraft.decisions` itself (Ruling 5 as built); the client marks them "changed after you reviewed it".
+- b/c: the controller reports a `settlement` for every run it watched, after the settled review has loaded; the rail's toast waits for it (a run with no draft decisions says "Run finished · {t} to check.").
+- c: §1 gives no detail for a finished record's unlinked value while the run reads (kei marks it `checking`): "No Evidence links this value. Its check is named when the run finishes."
+- c: the breakdown adds three states the spec's Error handling implies: "Loading the review…", "Review not loaded · Reload", "This review was saved elsewhere · Reload"; before any draft exists the state clause is omitted (no "draft saved").
+- c: a recipe or unified Catalog value's grounding description ("Read after its printed key · …") is kept under the source line, and the text-budget notice in the drawer's Extraction section; neither is in §3.3/§8's lists, neither was meant to go.
+- c: rows carry an explicit `aria-label` ("{state} {name} {value} {chip}"): their inline parts otherwise join without spaces in the accessible name.
+- c: `DocumentViewSwitch` is the toolbar's `SegmentedControl` inline in App; the Markdown view is `DocumentMarkdown.tsx`. `useReviewKeys.ts` holds no hook and is `reviewKeys.ts`. `ui/ResultValue.tsx` is deleted (researcher's decision), its icons in `ui/icons.tsx`.
+- c: the overlay path is `[]` (every link paints, whatever the result's shape), not `['records']`.
+- c: "Copy link to the selected value" also toasts "Link copied." on success (the spec names only the failure).
+- e: the tab ring went from c to e: its slot is a second DocumentTabBar slot the workspace portals into; the tab's spoken progress follows its name.
+- e: `?value=` is read from the location on open, not through `projectNavigation.ts` (Ruling 15): the route model drops unknown parameters only on navigation, and the value is needed once.
+
+Verification: Studio unit 171 files / 2131 tests; `pnpm -r typecheck`; Studio lint 0 errors (2 warnings, as on the base); `packages/extraction` 235 unit and the reviews PostgreSQL tier 12/12; Playwright `canonical-evidence-lifecycle` 3/3 (ARTICLE, CATALOG with review while reading, settlement, One by one, the last-decision save; ARTICLE+CATALOG flake on this machine through a Vite "Failed to fetch dynamically imported module App.tsx" after a reload, which the untouched base shows too). Rail screenshots at 1280×720, 344px and 264px: `RAIL_SHOTS=1` on the CATALOG lifecycle.
+
+Not done: the `real-*` Playwright specs had their removed selectors replaced but need a rewrite against a real service run (nested row names, old regions); `CONTEXT.md` glossary changes stay proposals (spec).
