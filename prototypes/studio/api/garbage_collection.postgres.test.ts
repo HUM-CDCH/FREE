@@ -55,7 +55,10 @@ describe('garbage collection on PostgreSQL', () => {
     expect(schedule).toMatchObject({
       scheduleName: 'collectGarbage', schedule: '*/10 * * * *', queueName: 'gc', automaticBackfill: false,
     })
-    expect((await DBOS.listSchedules()).map((entry) => entry.scheduleName)).toEqual(['collectGarbage'])
+    expect(await DBOS.getSchedule('reconcileDurableExtractions')).toMatchObject({
+      scheduleName: 'reconcileDurableExtractions', schedule: '* * * * *', queueName: 'studio', automaticBackfill: false,
+    })
+    expect((await DBOS.listSchedules()).map((entry) => entry.scheduleName).sort()).toEqual(['collectGarbage', 'reconcileDurableExtractions'])
   })
 
   it('returns a summary from a triggered sweep of an empty store', async () => {

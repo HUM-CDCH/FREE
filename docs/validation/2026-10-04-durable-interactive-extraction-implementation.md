@@ -204,3 +204,61 @@ Both read-only review axes have no remaining concrete finding within their
 backend scope after the completion/retention fixes. UI redesign integration,
 all-feature Spark E2E and the complete release matrix are still required. New
 admissions remain disabled by the unconditional release-verification gate.
+
+## Studio candidate and broader local verification
+
+Backend boundary committed as `2f754a3a`. The following local checks additionally
+ran through the real repository entry points, each in its own freshly migrated,
+uniquely named `free_test_durable_*_suite_*` database:
+
+- Full database PostgreSQL tier: **56 passed**.
+- Full Extraction PostgreSQL tier: **111 passed**, including historical readers,
+  admission, ownership, reviews, batches, handoffs and the durable fixtures.
+- Full Studio PostgreSQL tier: **67 passed, 1 failed**. The failure was the old
+  assertion that only the garbage schedule exists. It now verifies the independent
+  minute reconciler's queue/no-backfill settings alongside the unchanged ten-minute
+  garbage schedule. The entire affected file then passed **5 tests** in another
+  freshly provisioned database. The initial failure remains recorded rather than
+  being reported as a passing full-suite run.
+
+The provisional Studio candidate adds retained-value review and input controls,
+project guidance and fixed-snapshot CSV/XLSX helpers. Bounded review found and
+repaired a same-value editor carrying the wrong snapshot, stale consuming-schema
+eligibility, an inclusion POST/reopen race, and XLSX provenance corruption.
+Explicitly selecting another model version now starts its own editor; ordinary
+paging/polling preserves the open draft. Guidance reloads after input/feedback
+changes and after a committed mutation, rejecting older responses. Resource changes
+reset the panel's request lifetime.
+
+XLSX authoritative JSON uses formula-safe prefixed base64 over UTF-8. Chunks fit
+within Excel's cell limit without split-surrogate XML loss or formula-safety
+prefixes modifying the data. Genuine workbook tests reconstruct emoji and
+formula-looking text at the old 30,000-character failure boundaries. Mixed batch
+bundles retain every member's state and denominator, including legacy members
+without a result, and independent producing schemas and snapshot/review cursors.
+Five focused Studio files passed **19 tests**; the latest guidance/editor rerun
+passed **3 tests**. Final Studio TypeScript checking and targeted ESLint passed.
+Both bounded review axes have no remaining finding in the inspected candidate;
+this excludes design integration and complete release acceptance.
+
+The task-owned authenticated Chrome test passed **1 case** using
+`playwright.durable.config.ts` and its own databases, ports, containers, volumes,
+artifact state and source inbox. It verifies saved ungrounded correction/reload,
+an unrelated owner's rejection and fixed-snapshot CSV download. The stack removes
+only its own containers/volumes at teardown. This resolves the earlier local
+network-change attempts; it is neither Spark verification nor all-feature E2E.
+The subsequent private-state guard run hit another `ERR_NETWORK_CHANGED` during
+workspace bootstrap; a fresh unchanged run passed **1 case in 24.3 seconds**.
+This environment flakiness remains recorded. Logs and the inspected screenshots
+are retained outside Playwright's resettable output directory at
+`/tmp/free-durable-extraction-evidence/`.
+
+Desktop/mobile screenshots were inspected. They expose outstanding integration
+work: the workspace's old status badge still presents Paused as Running, and the
+mobile sidebar obscures part of the provisional rail. The new batch IDs and export
+helpers also still need to be connected to the redesigned member-review/export
+controls; legacy success-only controls do not yet expose every durable state.
+The failed-legacy new-protocol Retry flow and complete per-method/control/failure
+release matrix also require completion. These limitations keep the whole plan
+unfinished and admissions OFF. The independent results-review implementation and
+the requested baratheon Spark runs remain pending; no remote testing has started.

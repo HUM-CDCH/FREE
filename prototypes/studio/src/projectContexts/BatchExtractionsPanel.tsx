@@ -593,6 +593,14 @@ export default function BatchExtractionsPanel({
       projectContextId,
       openBatch.batchExtractionId,
     )
+    if(openBatch.members.some(member=>member.durableExtractionId)) {
+      const {downloadDurableBatch}=await import('../durableExport')
+      await downloadDurableBatch(openBatch.batchExtractionId,openBatch.members.map(member=>({sourceDocumentId:member.sourceDocumentId,
+        extractionId:member.durableExtractionId??member.latestExtraction?.extractionId??null,
+        sourceRevisionId:member.sourceRepresentationRevisionId,status:member.executionStatus,failureMessage:member.executionFailureMessage})),format,async()=>snapshot.results)
+      setExportCoverage({batchExtractionId:openBatch.batchExtractionId,message:'Exports retained durable values at fixed member snapshots, with producing schemas, corrections, Evidence and full provenance. Recall is unmeasured.'})
+      return
+    }
     if (snapshot.results.length === 0)
       throw new Error(
         'This Batch Extraction has produced no Extraction Result to export.',

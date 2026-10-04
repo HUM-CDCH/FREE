@@ -17,6 +17,8 @@ import { buildExportTable, ROOT_ROWS, type ExportChoices } from "./table.js";
 import type { SchemaNode } from "extraction/schema";
 
 export type { ExportFormat } from "./filename.js";
+export { createXlsxBlob } from "./xlsx.js";
+export { serializeCsv } from "./csv.js";
 export type { ContestedField } from "./review-notes.js";
 export {
   buildEvidenceTable,

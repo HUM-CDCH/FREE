@@ -6,6 +6,7 @@ import type { SchemaEditorController } from './currentSchemaRevision'
 import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ResultsTab from './ResultsTab'
+import { DurableResults } from './DurableResults'
 import type { ExtractionController } from './useExtraction'
 import { resultsBadgeFor } from './resultsBadge'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -227,7 +228,14 @@ function RightRail({
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>
-        <ResultsTab
+        <DurableResults
+          key={(inspection.attempt ?? extraction.attempt)?.extractionId ?? 'none'}
+          attempt={inspection.attempt ?? extraction.attempt}
+          document={parsedDocument}
+          currentSchema={currentSchemaRevision?.schemaRevisionId ?? null}
+          readOnly={inspection.readOnly}
+          onEvidence={id=> {const anchor=parsedDocument?.evidence_index.anchors.find(a=>a.anchor_id===id);if(anchor)onSelectEvidence(anchor)}}
+          fallback={<ResultsTab
           onEditField={editField}
           key={inspection.attempt?.extractionId ?? 'none'}
           controller={extraction}
@@ -249,7 +257,7 @@ function RightRail({
             )
             if (anchor) onSelectEvidence(anchor)
           }}
-        />
+        />}/>
       </div>
     </div>
   )

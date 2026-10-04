@@ -10,6 +10,7 @@ import { Button, DeleteDialog, EmptyState } from '../ui'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts } from './useProjectContexts'
+import { ProjectFeedback } from '../ProjectFeedback'
 
 export type ProjectContextPageProps = {
   projectContextId: string
@@ -506,6 +507,8 @@ export default function ProjectContextPage({
         }
       >
         {tab === 'extractions' ? (
+          <>
+          <ProjectFeedback projectId={projectContextId}/>
           <BatchExtractionsPanel
             // A different Project Context is different research state, never a
             // continuation of what this panel currently shows.
@@ -524,6 +527,7 @@ export default function ProjectContextPage({
             }
             onNavigate={onNavigate}
           />
+          </>
         ) : tab === 'schemas' ? (
           <div
             id="project-schemas-panel"
