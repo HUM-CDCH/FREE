@@ -156,14 +156,11 @@ test('One by one waits for its pinned source before navigating retained Model Ev
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   const release=Promise.withResolvers<void>(),received=Promise.withResolvers<void>()
   try {
-    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Grav 8'])
-    const source=decodeParsedDocument(await (await page.request.get(`/api/extractions/${id}/durable/source`)).json().then(value=>value.document))
+    const source=decodeParsedDocument(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)).json())
     const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
-    const values=(await pool.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=1',[id])).rows[0].values
-    values[0].grounding='grounded'
-    values[0].evidence=[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:values[0].path,
-      segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]
-    await pool.query('UPDATE extraction_runtime.snapshot SET values=$2 WHERE "extractionId"=$1 AND version=1',[id,JSON.stringify(values)])
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Grav 8'],'PAUSED',
+      {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
+        segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]}})
     const latestSource=randomUUID()
     await pool.query(`INSERT INTO public."sourceRepresentationRevision" (id,"sourceDocumentId","revisionNumber","artifactReference","artifactSha256","contractVersion","preprocessId","parserName","parserVersion")
       SELECT $1,"sourceDocumentId",2,"artifactReference","artifactSha256","contractVersion",$2,'fixture','2' FROM public."sourceRepresentationRevision" WHERE id=$3`,
