@@ -169,7 +169,7 @@ function settledRows(record: unknown, index: number | null, context: Inputs & {
   return leaves(ordered, [], new Set([...context.links.keys(), ...context.decisionMap.keys()]), prefix).map(({ path, value }) => {
     const resultPath = [...prefix, ...path]
     const key = resultPathKey(resultPath)
-    const base = { key, resultPath, name: rowName(path), extracted: value, link: null, changed: context.changed?.has(key) ?? false }
+    const base = { key, resultPath, name: rowName(path), extracted: value, link: null, changed: (context.changed?.has(key) ?? false) && !context.isTouched(resultPath) }
     const link = context.links.get(key)
     const decision = context.decisionMap.get(key)
     if (link) return { ...linkedRow({ ...base, link }, link, decision, context) }

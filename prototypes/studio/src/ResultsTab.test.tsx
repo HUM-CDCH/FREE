@@ -1210,6 +1210,41 @@ describe('ResultsTab verification completeness', () => {
     expect(screen.queryByText(/fully verified|proven|accuracy|confidence/i)).toBeNull()
   })
 
+  it('Show reveals and focuses an unfinished value in a collapsed second Catalog record', () => {
+    const laterPath = ['records', 1, 'publisher']
+    const catalog: ExtractionAttempt = { ...attempt, strategy: 'CATALOG',
+      resultPayload: { records: [{ publisher: 'First' }, { publisher: 'Later' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'publisher'], evidenceAnchorId: 'first' }],
+      diagnostics: { ...attempt.diagnostics!, grounding: { ...attempt.diagnostics!.grounding!,
+        groundedPaths: [['records', 0, 'publisher']], ungroundedPaths: [laterPath],
+        claims: { claims: 2, excluded: 0, eligible: 2, supported: 1, unsupported: 0, notCompleted: 1,
+          reasons: { grounding_exceeds_budget: 1 }, excludedPolicies: {},
+          unfinished: [{ resultPath: laterPath, reasons: ['grounding_exceeds_budget'] }] } } } }
+    render(<ResultsTab schemaReady sourceDocumentName="catalog.pdf"
+      controller={controller(ready(catalog.resultPayload, catalog.evidenceLinks!), catalog,
+        { available: true, decisions: [decided(['records', 0, 'publisher'], 'first')], isTouched: () => false })} />)
+    expect(screen.queryByRole('button', { name: /Not completed publisher Later/ })).toBeNull()
+    openDetails()
+    fireEvent.click(drawer().getByText('Checks not completed (1)'))
+    fireEvent.click(drawer().getByRole('button', { name: 'Show Item 2 · publisher' }))
+    const target = screen.getByRole('button', { name: /Not completed publisher Later/ })
+    expect(target).toHaveAttribute('aria-expanded', 'true')
+    expect(target).toHaveFocus()
+  })
+
+  it('clears the changed-after-review note and accessible warning when the value is decided again', () => {
+    const path = ['records', 0, 'publisher']
+    const linked: ExtractionAttempt = { ...articleAttempt, resultPayload: { records: [{ publisher: 'Changed' }] },
+      evidenceLinks: [{ resultPath: path, evidenceAnchorId: 'publisher' }] }
+    render(<Reviewing attempt={linked} initial={[decided(path, 'publisher')]} spy={vi.fn()}
+      review={{ changedAfterReview: new Set([resultPathKey(path)]) }} />)
+    expect(screen.getByText('changed after you reviewed it')).toBeInTheDocument()
+    fireEvent.click(rowOf('publisher'))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve and save review' }))
+    expect(screen.queryByText('changed after you reviewed it')).toBeNull()
+    expect(rowOf('publisher')).not.toHaveAccessibleName(/changed after you reviewed it/)
+  })
+
   it('lists each check that never completed, with its reason, and Show selects that value', () => {
     renderReady()
     openDetails()
