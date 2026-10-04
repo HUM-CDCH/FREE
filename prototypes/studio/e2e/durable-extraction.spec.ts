@@ -7,12 +7,51 @@ import { packCanonicalPackage } from '../../../packages/db/src/artifact-store.js
 import { initializeDurableExtraction } from 'extraction/durable'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import { prepareInteractiveDocument,INTERACTIVE_SCHEMA_NODES } from './interactiveStack.js'
-import { loginResearcher } from './auth.js'
+import { E2E_ORIGIN,loginResearcher } from './auth.js'
 import { savedBatchSource,savedExtraction } from './durableFixtures.js'
 
 test.beforeEach(({page})=> {
   page.on('pageerror',error=>console.error('durable browser error:',error.message))
   page.on('requestfailed',request=>console.error('durable browser request failed:',request.url(),request.failure()?.errorText))
+})
+
+test('every durable API rejects unauthenticated and foreign owners, wrong origins and oversized writes',async({page,browser})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  const otherContext=await browser.newContext(),anonymous=await browser.newContext()
+  try {
+    const {id,schemaRevisionId}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Private value'])
+    const state=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
+    const root=`/api/extractions/${id}/durable`,feedback=`/api/project-contexts/${fixture.projectContextId}/feedback`
+    const reads=[root,`${root}/source`,`${root}/history`,`${root}/values`,`${root}/values/title`,feedback,`${feedback}?target=${id}`]
+    const writes:[string,object][]=[
+      [`${root}/control`,{id:randomUUID(),expectedVersion:state.controlVersion,action:'pause'}],
+      [`${root}/selection`,{expectedVersion:state.controlVersion,schemaRevisionId,method:{models:null,settings:{article:null}}}],
+      [`${root}/adopt`,{expectedVersion:state.controlVersion,selectionId:state.selection.id,reprocessValueIds:[]}],
+      [`${root}/values/title`,{expectedRevision:0,snapshotVersion:1,action:'EDITED',value:'Refused write',included:true,evidence:[]}],
+      [`${root}/finalize`,{snapshotVersion:1,feedbackVersion:0}],
+      [feedback,{id:randomUUID(),expectedRevision:1,included:false}],
+    ]
+    const other=await otherContext.newPage()
+    await loginResearcher(other,randomUUID())
+    const origin={Origin:E2E_ORIGIN}
+    for(const path of reads) {
+      expect((await anonymous.request.get(new URL(path,E2E_ORIGIN).href)).status(),path).toBe(401)
+      expect((await other.request.get(path)).status(),path).toBe(404)
+    }
+    for(const [path,data] of writes) {
+      expect((await anonymous.request.post(new URL(path,E2E_ORIGIN).href,{headers:origin,data})).status(),path).toBe(401)
+      expect((await other.request.post(path,{headers:origin,data})).status(),path).toBe(404)
+      expect((await page.request.post(path,{headers:{Origin:'https://foreign.invalid'},data})).status(),path).toBe(403)
+      expect((await page.request.post(path,{headers:{...origin,'Content-Type':'application/json'},data:JSON.stringify({payload:'x'.repeat(1024*1024)})})).status(),path).toBe(413)
+    }
+    expect((await page.request.post(`${root}/values/title`,{headers:origin,data:{expectedRevision:0,snapshotVersion:1,action:'EDITED',value:'Refused Evidence',included:true,evidence:[{anchorId:'foreign-anchor',occurrenceIds:['foreign-occurrence']}]}})).status()).toBe(422)
+    const unrelated=await page.request.post('/api/project-contexts',{headers:origin,data:{name:'Unrelated guidance target'}})
+    expect(unrelated.status()).toBe(201)
+    const otherProject=(await unrelated.json()).projectContext.projectContextId
+    expect((await page.request.get(`/api/project-contexts/${otherProject}/feedback?target=${id}`)).status()).toBe(422)
+    expect((await (await page.request.get(root)).json()).controlVersion).toBe(state.controlVersion)
+    expect((await (await page.request.get(`${root}/values/title`)).json()).values[0].correction).toBeNull()
+  } finally {await otherContext.close();await anonymous.close();await fixture.close()}
 })
 
 // Admissions remain disabled. This fixture publishes retained work into this
