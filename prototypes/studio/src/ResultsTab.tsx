@@ -81,6 +81,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence,
   evidencePages, onResultPathChange, onEditField, headerExtras, onFocusEvidence }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
+  const article = attempt?.strategy === 'ARTICLE'
   const state = useMemo(() => inspectedAttempt ? extractionStateFromAttempt(inspectedAttempt) : controller.state,
     [controller.state, inspectedAttempt])
   const review = controller.review
@@ -132,6 +133,8 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   // One by one (§4): the current value, and the record whose queue ran out (its end card's name).
   const [oneByOne, setOneByOne] = useState(false)
   const [currentKey, setCurrentKey] = useState<string | null>(null)
+  // End cards have no current item; leaving still returns to the last value visited.
+  const lastCurrentKey = useRef<string | null>(null)
   const [lastRecord, setLastRecord] = useState<number | null>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const headingFocus = useRef(false)
@@ -226,6 +229,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   const isOpenKey = (key: string | null) => key !== null && queue.find((item) => item.key === key)?.row.kind === 'to-check'
   function goTo(key: string | null) {
     setCurrentKey(key)
+    if (key) lastCurrentKey.current = key
     setEditingKey(null)
     headingFocus.current = true
   }
@@ -235,6 +239,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
     const start = isOpenKey(key) ? key : isOpenKey(selectedKey) ? selectedKey : nextToCheck(queue, null)
     listScroll.current = scrollRef.current?.scrollTop ?? 0
     setOneByOne(true)
+    lastCurrentKey.current = null
     setLastRecord(null)
     setDrawer(null)
     setMenuOpen(false)
@@ -244,10 +249,15 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   }
   /** Back to the list: the value that was current is selected and focused, the list where it was (§4.1). */
   function leave() {
-    const key = currentKey
+    const key = currentKey ?? lastCurrentKey.current
     setOneByOne(false)
     setEditingKey(null)
-    if (key) { setSelectedKey(key); setFocusKey(key) }
+    if (key) {
+      const record = model?.records.find((record) => record.rows.some((row) => row.key === key))
+      if (record) setToggles((current) => new Map(current).set(record.index, true))
+      setSelectedKey(key)
+      setFocusKey(key)
+    }
     if (listScroll.current === null) listScroll.current = 0
   }
   useEffect(() => { oneByOneRef.current = oneByOne; enterRef.current = enter })
@@ -440,7 +450,10 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   // The end cards (§4.5), when the queue has nothing current.
   const nextRecord = model?.records.find((record) => record.state === 'finished' && record.toCheck > 0) ?? null
   const stillReading = model?.records.filter((record) => record.state !== 'finished').length ?? 0
-  const endLine = running
+  const endLine = article
+    ? running ? 'You’re caught up with what is read. Values join this queue as they become available.'
+      : `${plural(counts.toCheck, 'value')} ${counts.toCheck === 1 ? 'is' : 'are'} left to check.`
+    : running
     ? `You’re caught up with what is read. ${counts.toCheck > 0 ? `${plural(counts.toCheck, 'more value')} ${counts.toCheck === 1 ? 'is' : 'are'} read in other records; ` : ''}${plural(stillReading, 'record')} ${stillReading === 1 ? 'is' : 'are'} still being read, and their values join this queue as each one finishes.`
     : `${plural(counts.toCheck, 'value')} ${counts.toCheck === 1 ? 'is' : 'are'} left to check in ${plural((model?.records ?? []).filter((record) => record.toCheck > 0).length, 'more record')}.`
   const end: EndCard | null = !oneByOne || currentItem ? null
@@ -491,7 +504,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
       {/* Contain absolute accessibility labels inside the list so deep rows cannot scroll the workspace. */}
       <div ref={scrollRef} className={`scrollbar-subtle relative min-h-0 flex-1 overflow-y-auto pb-20 ${oneByOne ? 'flex flex-col bg-surface' : 'bg-canvas p-2'}`}>
         {oneByOne ? (
-          <ReviewFocus
+          <ReviewFocus article={article}
             items={currentItem ? queuePosition(queue, currentItem.key)?.items ?? [] : []}
             position={currentItem ? queuePosition(queue, currentItem.key) : null}
             current={currentItem?.row ?? null}
@@ -522,7 +535,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
         ) : state.status === 'cancelled' || state.status === 'error' ? (
           <p className="m-0 py-6 text-center text-secondary text-ink-muted">{state.status === 'cancelled' ? 'Stopped · nothing to review' : `Failed · ${state.message}`}</p>
         ) : (
-          <ReviewList model={model ?? { document: [], records: [], counts }} article={attempt?.strategy === 'ARTICLE'}
+          <ReviewList model={model ?? { document: [], records: [], counts }} article={article}
             finding={running && (!partial || (partial.discovered === 0 && partial.records.length === 0))}
             filter={filter} selectedKey={selectedKey} isOpen={isOpen}
             onToggle={(record) => setToggles((current) => new Map(current).set(record.index, !isOpen(record)))}
