@@ -157,7 +157,8 @@ def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, b
         counted = counter.request_tokens(system, user, reply_schema)
         max_tokens = max(REPLY_TOKENS, (counter.context_tokens or 0) - counted)
     answer, attempts = complete(chat, stage="record", record=record, system=system, user=user,
-                                schema=reply_schema, counter=counter, max_tokens=max_tokens)
+                                schema=reply_schema, counter=counter, max_tokens=max_tokens,
+                                minimum_reply_tokens=REPLY_TOKENS if document and counter is not None else None)
     if not attempts[-1].ok:
         issues.append(Issue("call_failed", attempts[-1].error or "record extraction failed", record))
     return {**(identity or {}), **conform(answer, nodes)}, attempts, issues

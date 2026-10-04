@@ -79,7 +79,8 @@ def looped(call: Call) -> bool:
 
 
 def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str, user: str, schema: dict,
-             max_tokens: int | None = None, counter: TokenCounter | None = None) -> tuple[Any, list[Call]]:
+             max_tokens: int | None = None, counter: TokenCounter | None = None,
+             minimum_reply_tokens: int | None = None) -> tuple[Any, list[Call]]:
     """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer. The calls are the
     attempts in order, the last one the call whose reply this is: a refused earlier attempt is a failed call too.
     A router sends the call to the model serving the stage's role."""
@@ -88,7 +89,8 @@ def complete(chat: Chat | Router, *, stage: str, record: int | None, system: str
         chat = chat.for_stage(stage)
     if runtime is not None:
         return runtime.complete(chat, stage=stage, record=record, system=system, user=user,
-                                schema=schema, max_tokens=max_tokens, counter=counter)
+                                schema=schema, max_tokens=max_tokens, counter=counter,
+                                minimum_reply_tokens=minimum_reply_tokens)
     # Errors can quote source text or a provider's credentials. Capture only their type, including exceptions the
     # OTel context manager would otherwise record automatically; raw model replies have their own capture below.
     with _TRACER.start_as_current_span(stage, attributes={"openinference.span.kind": "LLM",

@@ -180,6 +180,39 @@ def test_capture_freezes_guidance_before_provider_and_pause_refuses_new_units():
         CapturePlanner(lease,{"fields":Counter()}).complete(chat,**{**args,"user":"new source"})
 
 
+@pytest.mark.parametrize("oversized", [False, True])
+def test_article_reply_allocation_protects_its_floor_and_selects_guidance(oversized):
+    from kei_exp.kie.extract.durable import field_meaning
+    from kei_exp.kie.extract.schema import Schema
+    from kei_exp.kie.extract.stages import REPLY_TOKENS, extract_record
+    node={"id":"title","name":"title","type":"string"}
+    tree={"recordDescription":"The whole document","schemaNodes":[node]}
+    lease=MemoryLease(tree)
+    candidate={"id":"correction","fieldId":"title","meaning":field_meaning(node),"node":node,
+               "value":"guidance "*(50000 if oversized else 1),"grounded":False}
+    lease.candidates=[{"id":"correction","candidate":candidate}]
+    counter=Counter()
+    chat=CountingChat(lambda *_:{"title":"target source"})
+    def plan():
+        return extract_record(passages(["target source"]),Schema.model_validate(tree),
+            Router(fields=chat,reasoning=chat,runtime=CapturePlanner(lease,{"fields":counter})),
+            budget=48000,counter=counter,document=True)
+    with pytest.raises(NeedsCall):
+        plan()
+    captured=deepcopy(next(iter(lease.units.values()))["input"])
+    request=captured["request"]
+    assert request["examples"]==([] if oversized else [candidate])
+    assert request["omissions"]==([{"id":"correction","reason":"budget"}] if oversized else [])
+    assert request["budget"]["reserve"]>=REPLY_TOKENS
+    assert request["budget"]["counted"]+request["budget"]["reserve"]==counter.context_tokens
+    assert request["body"]["max_tokens"]==request["budget"]["reserve"]
+    assert "target source" in request["body"]["user"] and not chat.calls
+    lease.candidates=[]
+    with pytest.raises(NeedsCall):
+        plan()
+    assert next(iter(lease.units.values()))["input"]==captured
+
+
 def test_replanning_subtracts_only_fixed_primary_coverage_and_keeps_offsets():
     source=unified_evidence("first entry; second entry")
     lease=MemoryLease({"recordDescription":"entry","schemaNodes":[]})

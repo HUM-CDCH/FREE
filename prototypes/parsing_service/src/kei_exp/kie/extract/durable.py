@@ -112,7 +112,8 @@ class CapturePlanner:
                 passages.append(replace(passage,text=text))
         return replace(evidence,passages=tuple(passages))
 
-    def complete(self, chat, *, stage, record, system, user, schema, max_tokens=None, counter=None):
+    def complete(self, chat, *, stage, record, system, user, schema, max_tokens=None, counter=None,
+                 minimum_reply_tokens=None):
         # The required request identifies the unit BEFORE adding feedback. A
         # replay never reads today's corrections to reconstruct an old input.
         scope = digest({"source": user, "stage": stage, "record": record})
@@ -141,14 +142,21 @@ class CapturePlanner:
         if capture["input"] is None:
             counter = counter or self.counters.get(ROLE[stage]) or counter_for(chat)
             reserve = max_tokens if max_tokens is not None else getattr(chat, "max_tokens", 8192)
+            minimum = reserve if minimum_reply_tokens is None else minimum_reply_tokens
+            if type(minimum) is not int or not 0 < minimum <= reserve:
+                raise ValueError("invalid required reply reserve")
             count = counter.request_tokens(system, user, schema)
             context = counter.context_tokens
-            if type(context) is not int or count + reserve > context:
+            if type(context) is not int or count + minimum > context:
                 raise ValueError("required source and reply budget exceed the served context")
-            examples, omissions = self._feedback(capture["candidates"], system, user, schema, reserve, counter)
+            examples, omissions = self._feedback(capture["candidates"], system, user, schema, minimum, counter)
             if examples:
                 system += self._guidance(examples)
             count = counter.request_tokens(system, user, schema)
+            # Article's reply may use spare capacity; its required floor wins
+            # over examples, then the final reply gets the remaining capacity.
+            if minimum_reply_tokens is not None:
+                reserve = min(reserve, context - count)
             body = {"stage": stage, "record": record, "system": system, "user": user, "schema": schema,
                     "max_tokens": reserve, "max_whitespace": getattr(chat, "max_whitespace", None)}
             if hasattr(chat,"request_body"):
