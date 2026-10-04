@@ -269,7 +269,7 @@ class CapturePlanner:
         snapshot = self.historical.get("snapshot")
         if not snapshot:
             return None
-        record_id = record_identity(self.lease.state["source"].get("sourceRevisionId", self.lease.state["source"].get("artifactSha256")), scope)
+        record_id = record_identity(self.lease.state["source"]["sourceRevisionId"], scope)
         reprocess = set(self.historical["manifest"]["coverage"].get("reprocessValueIds", []))
         values = [v for v in snapshot["values"] if v["recordId"] == record_id and v["processing"] == "saved"]
         complete = any(c.get("scope") == scope for c in snapshot["coverage"].get("completedScopes", {}).values())

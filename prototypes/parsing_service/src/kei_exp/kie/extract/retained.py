@@ -47,7 +47,7 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
     schema = Schema.model_validate(raw)
     produced = set(fields)
     fields = conform(fields, schema.nodes)
-    source_revision = lease.state["source"].get("sourceRevisionId", lease.state["source"].get("artifactSha256"))
+    source_revision = lease.state["source"]["sourceRevisionId"]
     record_id = record_identity(source_revision, scope)
     historical = lease.call("historical_coverage")
     old_snapshot = historical.get("snapshot") or {}
