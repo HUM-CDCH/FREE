@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { useCallback, useState, type ComponentProps } from 'react'
+import { useCallback, useLayoutEffect, useState, type ComponentProps } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportExtractionResult } from 'extraction-result-export'
@@ -1209,6 +1209,41 @@ describe('ResultsTab verification completeness', () => {
     expect(screen.queryByText(/fully verified|proven|accuracy|confidence/i)).toBeNull()
   })
 
+  it('Show reveals and focuses an unfinished value in a collapsed second Catalog record', () => {
+    const laterPath = ['records', 1, 'publisher']
+    const catalog: ExtractionAttempt = { ...attempt, strategy: 'CATALOG',
+      resultPayload: { records: [{ publisher: 'First' }, { publisher: 'Later' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'publisher'], evidenceAnchorId: 'first' }],
+      diagnostics: { ...attempt.diagnostics!, grounding: { ...attempt.diagnostics!.grounding!,
+        groundedPaths: [['records', 0, 'publisher']], ungroundedPaths: [laterPath],
+        claims: { claims: 2, excluded: 0, eligible: 2, supported: 1, unsupported: 0, notCompleted: 1,
+          reasons: { grounding_exceeds_budget: 1 }, excludedPolicies: {},
+          unfinished: [{ resultPath: laterPath, reasons: ['grounding_exceeds_budget'] }] } } } }
+    render(<ResultsTab schemaReady sourceDocumentName="catalog.pdf"
+      controller={controller(ready(catalog.resultPayload, catalog.evidenceLinks!), catalog,
+        { available: true, decisions: [decided(['records', 0, 'publisher'], 'first')], isTouched: () => false })} />)
+    expect(screen.queryByRole('button', { name: /Not completed publisher Later/ })).toBeNull()
+    openDetails()
+    fireEvent.click(drawer().getByText('Checks not completed (1)'))
+    fireEvent.click(drawer().getByRole('button', { name: 'Show Item 2 · publisher' }))
+    const target = screen.getByRole('button', { name: /Not completed publisher Later/ })
+    expect(target).toHaveAttribute('aria-expanded', 'true')
+    expect(target).toHaveFocus()
+  })
+
+  it('clears the changed-after-review note and accessible warning when the value is decided again', () => {
+    const path = ['records', 0, 'publisher']
+    const linked: ExtractionAttempt = { ...articleAttempt, resultPayload: { records: [{ publisher: 'Changed' }] },
+      evidenceLinks: [{ resultPath: path, evidenceAnchorId: 'publisher' }] }
+    render(<Reviewing attempt={linked} initial={[decided(path, 'publisher')]} spy={vi.fn()}
+      review={{ changedAfterReview: new Set([resultPathKey(path)]) }} />)
+    expect(screen.getByText('changed after you reviewed it')).toBeInTheDocument()
+    fireEvent.click(rowOf('publisher'))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve and save review' }))
+    expect(screen.queryByText('changed after you reviewed it')).toBeNull()
+    expect(rowOf('publisher')).not.toHaveAccessibleName(/changed after you reviewed it/)
+  })
+
   it('lists each check that never completed, with its reason, and Show selects that value', () => {
     renderReady()
     openDetails()
@@ -1461,6 +1496,100 @@ describe('ResultsTab one by one (§4)', () => {
     expect(document.activeElement).toBe(rowOf('site'))
   })
 
+  it('leaving after advancing into a collapsed record reveals and focuses the current row', () => {
+    const result = { records: [{ place: 'Oslo' }, { place: 'Bergen' }] }
+    const evidence = [0, 1].map((i) => ({ resultPath: ['records', i, 'place'], evidenceAnchorId: `anchor-${i}` }))
+    render(<Reviewing attempt={withAttempt(result, evidence, { strategy: 'CATALOG' })}
+      initial={evidence.map((link) => decided(link.resultPath, link.evidenceAnchorId))} spy={vi.fn()} pinnedSchema={placeSchema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    key('j')
+    expect(heading()).toHaveTextContent('Bergen')
+    key('Escape')
+    const current = screen.getByRole('button', { name: /^To check place Bergen/ })
+    expect(current).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(current)
+  })
+
+  it('Article shows a flat queue and position without a Catalog record level', () => {
+    render(<Reviewing attempt={{ ...three, strategy: 'ARTICLE' }} initial={initial} spy={vi.fn()} pinnedSchema={schema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(screen.getByRole('list', { name: 'Values in review order' })).toBeInTheDocument()
+    expect(screen.getByText('1 of 3')).toBeInTheDocument()
+    expect(screen.queryByText(/Record 1/)).toBeNull()
+  })
+
+  it('Article end cards keep the flat document scope', () => {
+    const evidence = [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'a' }]
+    render(<Reviewing attempt={withAttempt({ records: [{ place: 'Oslo' }] }, evidence)}
+      initial={[decided(evidence[0]!.resultPath, 'a')]} spy={vi.fn()} pinnedSchema={placeSchema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    key('a')
+    expect(heading()).toHaveTextContent('Document is checked')
+    expect(screen.queryByText(/records?\b/i)).toBeNull()
+  })
+
+  it('the card retains the changed-after-review warning until a new decision is made', () => {
+    render(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema}
+      review={{ changedAfterReview: new Set([resultPathKey(['records', 0, 'site'])]) }} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(screen.getByText('changed after you reviewed it')).toBeInTheDocument()
+    key('a')
+    key('k')
+    expect(screen.queryByText('changed after you reviewed it')).toBeNull()
+  })
+
+  it.each(['input', 'cell'] as const)('the card states %s evidence precision', (precision) => {
+    const evidence = links.map((link) => ({ ...link, precision }))
+    render(<Reviewing attempt={withAttempt(three.resultPayload, evidence, { strategy: 'CATALOG' })}
+      initial={initial} spy={vi.fn()} pinnedSchema={schema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(screen.getByText(precision === 'input' ? /located to the whole page only/ : /a table cell/)).toBeInTheDocument()
+  })
+
+  it('Run details owns keyboard focus and suspends decisions until it closes', () => {
+    const spy = enter()
+    openDetails()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close run details' }), { key: 'a' })
+    expect(spy).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Close run details' }))
+    key('a')
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the leave focus request when Escape arrives during the saved render commit', () => {
+    function SavedBoundary({ saved }: { saved: boolean }) {
+      useLayoutEffect(() => {
+        if (saved) screen.getByRole('heading', { level: 2 }).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      }, [saved])
+      const attempt = { ...three, reviewedAt: saved ? '2026-10-04T00:00:00Z' : null,
+        reviewDecisions: saved ? initial.map((decision) => ({ ...decision, createdAt: '2026-10-04T00:00:00Z' })) : [] }
+      return <Reviewing attempt={attempt} initial={initial} spy={vi.fn()} pinnedSchema={schema} />
+    }
+    const { rerender } = render(<SavedBoundary saved={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    key('a')
+    key('a')
+    key('a')
+    rerender(<SavedBoundary saved />)
+    expect(rowOf('year')).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(rowOf('year'))
+  })
+
+  it('keeps heading focus and the saved scroll position when entry precedes list effects', () => {
+    function EnterBoundary() {
+      useLayoutEffect(() => {
+        const scroller = document.querySelector('.overflow-y-auto')!
+        scroller.scrollTop = 137
+        screen.getByRole('button', { name: /One by one/ }).click()
+      }, [])
+      return <Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} />
+    }
+    render(<EnterBoundary />)
+    expect(document.activeElement).toBe(heading())
+    key('Escape')
+    expect(rowOf('site').closest('.overflow-y-auto')!.scrollTop).toBe(137)
+  })
+
   it('when the record runs out, says so and offers the list', () => {
     enter()
     key('a')
@@ -1470,6 +1599,8 @@ describe('ResultsTab one by one (§4)', () => {
     expect(screen.getByText('0 values are left to check in 0 more records.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Back to list' }))
     expect(screen.getByRole('group', { name: 'Show values' })).toBeInTheDocument()
+    expect(rowOf('year')).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(rowOf('year'))
   })
 
   it('"Review from here" enters at that value; One by one is unavailable with nothing to check', () => {

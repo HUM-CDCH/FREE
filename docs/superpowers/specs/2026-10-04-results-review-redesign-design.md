@@ -467,7 +467,10 @@ the buttons show the keys; they are decoration (`aria-hidden`).
 
 ### 4.5 End cards
 
-Replace the card when the queue is exhausted:
+Replace the card when the queue across all currently readable records is
+exhausted; moving directly into another readable record follows §4.2. A later
+record read or settlement can add values to the exhausted queue, making the
+end card’s Continue action available:
 
 - **Record checked**: check (40px, green), "{label} is checked", a line, and
   `Button variant="outline-positive"` "Continue with record {i}" (the next

@@ -36,7 +36,7 @@ export function keyAction(event: Pick<KeyboardEvent, 'key' | 'repeat' | 'altKey'
     if (context.menu) return 'close-menu'
     return context.oneByOne ? 'leave' : null
   }
-  if (!context.readable || context.saving) return null
+  if (!context.readable || context.saving || context.dialog || context.drawer || context.menu) return null
   const typing = event.target instanceof Element && TYPING.has(event.target.tagName)
   if (typing) return event.key === 'Enter' && context.editing ? 'save-edit' : null
   const key = event.key.toLowerCase()

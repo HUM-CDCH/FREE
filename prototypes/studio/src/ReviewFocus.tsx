@@ -30,8 +30,9 @@ export type EndCard =
  * One by one (results review redesign §4.3): the same rail as a card for the current value, its record's queue,
  * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card (§4.5).
  */
-export default function ReviewFocus({ items, position, current, recordLabel, label, quote, last, editing, node, upNext, end,
+export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, last, editing, node, upNext, end,
   headingRef, onDecide, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack }: {
+  article: boolean
   items: readonly QueueItem[]
   position: { record: number; records: number; at: number; of: number } | null
   current: RailRow | null
@@ -60,14 +61,14 @@ export default function ReviewFocus({ items, position, current, recordLabel, lab
       <div className="flex flex-1 flex-col items-center justify-center gap-2.5 px-4 py-6 text-center">
         <ApprovedGlyph className="size-10! text-green" />
         <h2 ref={headingRef} tabIndex={-1} className="m-0 text-content font-bold text-ink outline-none">
-          {card.kind === 'saved' ? 'Review saved' : card.kind === 'record' ? `${card.label} is checked` : 'You’re caught up'}
+          {card.kind === 'saved' ? 'Review saved' : card.kind === 'record' ? `${article ? 'Document' : card.label} is checked` : 'You’re caught up'}
         </h2>
         {card.line && <p className="m-0 max-w-75 text-secondary text-ink-muted">{card.line}</p>}
         <div className="flex flex-wrap justify-center gap-2">
           {card.kind !== 'saved' && card.next && (
-            <Button variant="outline-positive" size="md" onClick={() => onContinue(card.next!.index)}>Continue with record {card.next.index + 1}</Button>
+            <Button variant="outline-positive" size="md" onClick={() => onContinue(card.next!.index)}>{article ? 'Continue checking' : `Continue with record ${card.next.index + 1}`}</Button>
           )}
-          {card.kind === 'record' && !card.next && <Button variant="outline-positive" size="md" disabled>Continue with record</Button>}
+          {!article && card.kind === 'record' && !card.next && <Button variant="outline-positive" size="md" disabled>Continue with record</Button>}
           <Button size="md" onClick={onBack}>Back to list</Button>
         </div>
       </div>
@@ -75,12 +76,13 @@ export default function ReviewFocus({ items, position, current, recordLabel, lab
   }
   const decided = current.kind !== 'to-check'
   const origin = current.link && linkOrigin(current.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
-  const source = `${current.kind === 'edited' || current.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${current.page === null ? '' : `p.${current.page} · `}${origin}`
+  const precision = current.link?.precision === 'input' ? ' · located to the whole page only' : current.link?.precision === 'cell' ? ' · a table cell' : ''
+  const source = `${current.kind === 'edited' || current.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${current.page === null ? '' : `p.${current.page} · `}${origin}${precision}`
   const style = current.chip?.style === 'rule' ? 'border-dotted' : current.chip?.style === 'doubtful' ? 'border-dashed' : 'border-solid'
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <ol aria-label={`Record ${position?.record ?? 1}, values in review order`} className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+        <ol aria-label={article ? 'Values in review order' : `Record ${position?.record ?? 1}, values in review order`} className="m-0 flex list-none flex-wrap gap-1.5 p-0">
           {items.map((item) => (
             <li key={item.key}>
               <button type="button" aria-current={item.key === current.key ? 'step' : undefined} onClick={() => onGo(item.key)}
@@ -92,16 +94,17 @@ export default function ReviewFocus({ items, position, current, recordLabel, lab
           ))}
         </ol>
         <span className="flex-1" />
-        {position && <span className="text-compact text-ink-muted tabular-nums">Record {position.record} of {position.records} · {position.at} of {position.of} in this record</span>}
+        {position && <span className="text-compact text-ink-muted tabular-nums">{article ? `${position.at} of ${position.of}` : `Record ${position.record} of ${position.records} · ${position.at} of ${position.of} in this record`}</span>}
       </div>
       <div>
-        <p className="m-0 mb-1 font-mono text-secondary text-ink-faint">{label} · {recordLabel} › {current.name}</p>
+        <p className="m-0 mb-1 font-mono text-secondary text-ink-faint">{article ? current.name : `${label} · ${recordLabel} › ${current.name}`}</p>
         {editing ? (
           <ReviewedValueEditor node={node} initial={current.value} tall onCancel={onCancelEdit}
             saveLabel={last ? 'Save edit and save review' : 'Save edit and next'} onSave={(value) => onDecide('EDITED', value)} />
         ) : (
           <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{shownValue(current.value)}</h2>
         )}
+        {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">changed after you reviewed it</p>}
         {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted">Extracted value: <s>{shownValue(current.extracted)}</s></p>}
       </div>
       <figure className="m-0">

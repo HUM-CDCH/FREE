@@ -32,6 +32,11 @@ describe('the rail keyboard model (results review redesign §4.4)', () => {
     expect(press('Escape', { oneByOne: false })).toBeNull()
   })
 
+  it.each(['dialog', 'drawer', 'menu'] as const)('%s suspends review shortcuts while it owns focus', (overlay) => {
+    for (const key of ['a', 'e', 'r', 'j', 'k', 'z']) expect(press(key, { [overlay]: true })).toBeNull()
+    expect(press('Escape', { [overlay]: true })).not.toBeNull()
+  })
+
   it('in the list only Z acts; before a record is read, or while saving, only Escape', () => {
     expect(press('a', { oneByOne: false })).toBeNull()
     expect(press('z', { oneByOne: false })).toBe('undo')

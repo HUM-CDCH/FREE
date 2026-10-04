@@ -419,9 +419,13 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await expect(resultsPanel(page).getByRole('region', { name: 'Waiting, Queued', exact: true })).toBeVisible()
     // Review during the run (§5): a value of the finished record is decided now, a draft until the run finishes.
     await first.getByRole('button', { name: /^To check title First record/ }).click()
+    await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
     const drafted = draftWritten(page)
-    await decisionFor(page, 'title', 'Approve').click()
+    await page.keyboard.press('a')
     await drafted
+    await expect(resultsPanel(page).getByRole('heading', { level: 2 })).toHaveText('First is checked')
+    await resultsPanel(page).getByRole('button', { name: 'Back to list', exact: true }).click()
+    await expect(first.getByRole('button', { name: /^Approved title First record/ })).toBeFocused()
     await expect(first.getByRole('button', { name: /^Approved title First record/ })).toBeVisible()
     await expect(breakdown(page)).toHaveText('1 approved · 0 edited · 0 rejected · draft until the run finishes')
     await expect(first).toHaveAccessibleName('First, all checked')
@@ -463,19 +467,22 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await page.keyboard.press('j')
     await page.keyboard.press('z')
     await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
+    await page.keyboard.press('k')
+    await expect(current).toBeFocused()
+    // Edit/Enter persists the draft, then R on the last value saves the review (§4.4, §6).
+    await page.keyboard.press('e')
+    const focusedEditor = resultsPanel(page).getByRole('textbox', { name: 'Reviewed value', exact: true })
+    await focusedEditor.fill('Second record (reviewed)')
+    await focusedEditor.press('Enter')
+    await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 1 edited, 0 rejected, 1 to check, of 3')
+    await expect(current).toBeFocused()
+    await railShots(page, testInfo, 'last-decision')
+    await page.keyboard.press('r')
+    await expect(current).toHaveText('Review saved', { timeout: 20_000 })
+    await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 1 edited, 1 rejected, 0 to check, of 3')
     await page.keyboard.press('Escape')
     await expect(resultsPanel(page).getByRole('group', { name: 'Show values' })).toBeVisible()
-    // The decision that leaves nothing to check saves the review, and says so before it is made (§3.3, §6).
-    // Leaving one-by-one left its current value selected (§4.1): that row may already be open.
-    const second = valueRow(page, /^To check title Second record/)
-    if (await second.getAttribute('aria-expanded') !== 'true') await second.click()
-    await decisionFor(page, 'title', 'Approve').click()
-    await expect(reviewBar(page)).toHaveAccessibleName('2 approved, 0 edited, 0 rejected, 1 to check, of 3')
-    await valueRow(page, /^To check title Waiting record/).click()
-    await expect(resultsPanel(page).getByText('This is the last value to check. Your decision saves the review, and the review becomes read-only.')).toBeVisible()
-    await expect(decisionFor(page, 'title', 'Reject and save review')).toBeVisible()
-    await railShots(page, testInfo, 'last-decision')
-    await decisionFor(page, 'title', 'Approve and save review').click()
+    await expect(valueRow(page, /^Rejected title /)).toBeFocused()
     await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
     await railShots(page, testInfo, 'saved')
     await page.reload()
@@ -609,6 +616,20 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await page.setViewportSize({ width: 1280, height: 800 })
   // Selecting a value opens its decision (§3.3).
   await activateWithKeyboard(page, titleRow)
+  // Native focus must not override the list position restored when leaving One by one (§4.1).
+  await page.setViewportSize({ width: 1280, height: 480 })
+  const savedListScroll = await titleRow.evaluate((element) => {
+    const scroller = element.closest('.overflow-y-auto')!
+    scroller.scrollTop = scroller.scrollHeight
+    return scroller.scrollTop
+  })
+  expect(savedListScroll).toBeGreaterThan(0)
+  await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
+  await expect(resultsPanel(page).getByRole('heading', { level: 2 })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(titleRow).toBeFocused()
+  expect(await titleRow.evaluate((element) => element.closest('.overflow-y-auto')!.scrollTop)).toBe(savedListScroll)
+  await page.setViewportSize(journeyViewport)
   await activateWithKeyboard(page, decisionFor(page, 'title', 'Edit'))
   const reviewedValue = resultsPanel(page).getByRole('textbox', { name: 'Reviewed value', exact: true })
   await reviewedValue.fill('Reviewed, café')
@@ -660,6 +681,18 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     path: testInfo.outputPath('canonical-reviewed-results.png'),
     fullPage: true,
   })
+
+  // A short workspace exposes deep rows; only the list may scroll, keeping both headers in view.
+  await page.setViewportSize({ width: 1280, height: 480 })
+  await page.reload()
+  await page.getByRole('tab', { name: /Results/ }).click()
+  const deepRow = valueRow(page, /^Approved findings › 2 › detail Second/)
+  await expect.poll(() => deepRow.evaluate((row) => getComputedStyle(row).transform)).toBe('none')
+  await deepRow.click()
+  await expect(page.getByRole('tab', { name: /Results/ })).toBeInViewport()
+  await expect(page.getByRole('group', { name: 'Document view' })).toBeInViewport()
+  expect(await resultsPanel(page).evaluate((panel) => panel.scrollHeight <= panel.clientHeight + 1)).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 800 })
 
   // A real browser download is produced once even when the format action is
   // double-clicked. Inspect both archive structure and the exact CSV bytes.
