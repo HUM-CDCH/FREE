@@ -104,6 +104,7 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
   const original={name:'Book',included:false}
   try {
     const {id}=await savedExtraction(fixture,nodes,['Title',false,original,['Ada','Bob']])
+    const savedValue=async(valueId:string)=>(await (await page.request.get(`/api/extractions/${id}/durable/values/${valueId}`)).json()).values[0].correction?.decision.value
     await fixture.open();await page.locator('#rail-tab-results').click()
     await page.getByRole('button',{name:/To check title Title/}).click()
     await page.getByRole('button',{name:'Edit',exact:true}).click()
@@ -117,12 +118,12 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     await page.getByRole('button',{name:'Edit',exact:true}).click()
     await page.getByRole('textbox',{name:'Reviewed value'}).fill('{"name":"Corrected book","included":false}')
     await page.getByRole('button',{name:'Save edit',exact:true}).click()
-    const values=await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()
-    expect(values.values.find((v:{id:string})=>v.id==='work').correction.decision.value).toEqual({name:'Corrected book',included:false})
+    await expect.poll(()=>savedValue('work')).toEqual({name:'Corrected book',included:false})
     await page.getByRole('button',{name:/To check flag false/}).click()
     await page.getByRole('button',{name:'Edit',exact:true}).click()
     await page.getByRole('combobox',{name:'Reviewed value'}).selectOption('true')
     await page.getByRole('button',{name:'Save edit',exact:true}).click()
+    await expect.poll(()=>savedValue('flag')).toBe(true)
     await page.getByRole('button',{name:/To check names/}).click()
     await page.getByRole('button',{name:'Edit',exact:true}).click()
     await page.getByRole('textbox',{name:'Reviewed value'}).fill('[1]')
@@ -130,6 +131,7 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     await expect(page.getByRole('alert')).toContainText('does not fit its producing field')
     await page.getByRole('textbox',{name:'Reviewed value'}).fill('["Ada","Bea"]')
     await page.getByRole('button',{name:'Save edit',exact:true}).click()
+    await expect.poll(()=>savedValue('names')).toEqual(['Ada','Bea'])
     await page.getByRole('button',{name:'Change inputs',exact:true}).click()
     await page.getByRole('button',{name:'Save pending inputs',exact:true}).click()
     await expect(page.getByText('Guidance for pending inputs',{exact:false})).toBeVisible()
