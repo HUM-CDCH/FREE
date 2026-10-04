@@ -335,6 +335,19 @@ describe('Studio history', () => {
     expect(history([old, young], scopes())).toEqual([old.workflowID])
   })
 
+  it('bounds durable reconciliation history without deleting live or same-boot cancelled steps', () => {
+    const rows = [
+      row('studio:durable-reconcile:old:1', 'SUCCESS', { completedAt: NOW - 25 * HOUR }),
+      row('sched-reconcileDurableExtractions-old', 'ERROR', { completedAt: NOW - 25 * HOUR }),
+      row(`durable-dispatch:${uuid('a')}`, 'SUCCESS', { completedAt: NOW - 25 * HOUR }),
+      row('studio:durable-reconcile:recent:2', 'SUCCESS', { completedAt: NOW - 23 * HOUR }),
+      row('studio:durable-reconcile:live:3', 'PENDING', { completedAt: NOW - 25 * HOUR }),
+      row('studio:durable-reconcile:cancelled:4', 'CANCELLED', { completedAt: NOW - 25 * HOUR, updatedAt: BOOT + 1 }),
+      row('other:durable-reconcile:old', 'SUCCESS', { completedAt: NOW - 25 * HOUR }),
+    ]
+    expect(history(rows, scopes())).toEqual(rows.slice(0, 3).map(entry => entry.workflowID))
+  })
+
   it('never deletes live history or a workflow it does not own', () => {
     expect(
       history(

@@ -56,6 +56,7 @@ export type BatchExtractionRequest = z.infer<typeof batchExtractionRequestSchema
  */
 const batchExtractionMemberSchema = z
   .object({
+    durableExtractionId:canonicalUuidSchema.optional(),
     sourceDocumentId: canonicalUuidSchema,
     sourceRepresentationRevisionId: canonicalUuidSchema,
     executionStatus: projectOperationStatusSchema,

@@ -96,10 +96,16 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
             try:
                 DBOS.destroy()
             finally:  # a second interrupt inside destroy() must not unwind the slot's `with` either
+                if os.environ.get("FREE_DURABLE_EXTRACTION_COORDINATION") == "1":
+                    from kei_exp.workflows.durable_extract import close_coordination
+                    close_coordination()
                 print(stopped(error, database_url), file=sys.stderr)
                 exit_process(1)
             return  # only a test's exit_process returns
         DBOS.destroy()
+        if os.environ.get("FREE_DURABLE_EXTRACTION_COORDINATION") == "1":
+            from kei_exp.workflows.durable_extract import close_coordination
+            close_coordination()
         exit_process(0)
 
 

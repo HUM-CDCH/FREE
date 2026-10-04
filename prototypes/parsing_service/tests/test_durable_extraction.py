@@ -25,7 +25,9 @@ class Counter(WordCounter):
 
 class MemoryLease:
     def __init__(self, tree):
+        self.attempt = str(uuid4())
         self.state = {"selection":{"id":str(uuid4()),"schemaRevisionId":str(uuid4()),"schemaTree":tree},
+                      "generation": 1,
                       "source":{"generation":"g1","sourceRevisionId":str(uuid4())},
                       "effective":{"models":{role:{"model":"fake/extractor"} for role in ("fields","reasoning")}}}
         self.units, self.plans, self.publications = {}, {}, {}
@@ -102,12 +104,12 @@ def test_each_method_uses_call_checkpoints_and_retains_validated_values(tmp_path
         source=unified_evidence("1. Hill. Material: gold. Gilded. Find: bead (2)","2. Valley. Material: flint.")
         request=unified_request()
         chat=CountingChat(Model(source))
-        extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter)
+        extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
     elif method == "recipe":
         directory=catalogue.write("two-in-one-segment",tmp_path)
         request=recipe_request()
         chat=CountingChat(honest)
-        extract=lambda router,counter: run.extract(directory,request,router,counter=counter)
+        extract=lambda router,counter: run.extract(directory,request,router,counter=counter,chunks=2)
     else:
         source=evidence(passages(["1. Hill 1827.","2. Valley 1828."]))
         request=run.ExtractRequest(schema=SCHEMA,options={"strategy":"article" if method=="article" else "catalog"})
@@ -126,8 +128,19 @@ def test_each_method_uses_call_checkpoints_and_retains_validated_values(tmp_path
     count=len(chat.calls)
     assert count>=2 and count==len(lease.units)
     assert lease.publications and all(u["input"] and u["checkpoint"] for u in lease.units.values())
+    final=list(lease.publications.values())[-1]["coverage"]["finalizedAttempt"]
+    assert final=={"attemptId":lease.attempt,"generation":1,"selectionId":lease.state["selection"]["id"],"complete":True}
     assert finish(lease,chat,extract)["records"]==result["records"]
     assert len(chat.calls)==count
+
+
+@pytest.mark.parametrize("complete", [True, False])
+def test_empty_final_publication_saves_completion_proof_without_inventing_values(complete):
+    lease=MemoryLease({"recordDescription":"document","schemaNodes":[]})
+    publish_final(lease,{"records":[],"completeness":{"processing":complete}})
+    final=next(iter(lease.publications.values()))
+    assert final["values"]==[]
+    assert final["coverage"]["finalizedAttempt"]["complete"] is complete
 
 
 def test_capture_freezes_guidance_before_provider_and_pause_refuses_new_units():
@@ -201,3 +214,57 @@ def test_native_input_captures_schema_guidance_without_adding_source_facts(monke
     assert request["body"]["text"]=="target source only"
     assert request["examples"][0]["grounded"] is False
     assert "corrected pattern" in request["body"]["schema"]["record"]["description"]
+
+
+def test_article_adoption_keeps_old_contributions_and_emits_explicit_lineage():
+    from kei_exp.kie.extract.retained import publish_values
+    tree={"recordDescription":"document","schemaNodes":[{"id":"title","name":"title","type":"string"},
+      {"id":"authors","name":"authors","type":"array","itemType":"string"}]}
+    lease=MemoryLease(tree)
+    before=publish_values(lease,{"title":"Saved title","authors":["Alice"]},"document",complete=True)
+    historical={"id":"snapshot-old","values":before["values"],"coverage":{}}
+    lease.historical={"manifest":{"coverage":{"reprocessValueIds":[]}},"snapshot":historical}
+    lease.state["selection"]["id"]=str(uuid4())
+    after=publish_values(lease,{"title":None,"authors":["Bob"]},"document",complete=True)
+    assert [v["fieldId"] for v in after["values"]]==["authors"]
+    assert after["values"][0]["modelValue"]==["Alice","Bob"]
+    assert after["values"][0]["lineage"]==["snapshot-old:"+historical["values"][1]["id"]]
+    assert historical["values"][0]["modelValue"]=="Saved title"
+
+
+def test_failed_primary_record_remains_eligible_for_adoption():
+    from kei_exp.kie.extract.retained import publish_values
+    lease=MemoryLease({"recordDescription":"entry","schemaNodes":[{"id":"name","name":"name","type":"string"}]})
+    saved=publish_values(lease,{"name":"partial"},[{"segment":"p1_s0","start":0,"end":10}],primary=[])
+    assert saved["values"][0]["processing"]=="saved"
+    assert saved["coverage"]["completedScopes"]=={}
+
+
+def test_completed_document_fields_are_carried_without_another_call():
+    from kei_exp.kie.extract.retained import publish_values,document_inputs
+    from kei_exp.kie.extract.schema import Schema
+    node={"id":"doc","name":"title","type":"string","valueSource":"document"}
+    lease=MemoryLease({"recordDescription":"entry","schemaNodes":[node,{"id":"item","name":"name","type":"string"}]})
+    saved=publish_values(lease,{"title":"Document title"},"document-fields",complete=True,field_ids={"doc"})
+    lease.historical={"manifest":{"coverage":{}},"snapshot":{"values":saved["values"],"coverage":saved["coverage"]}}
+    router=Router(CountingChat(lambda *_:{}),CountingChat(lambda *_:{}),CapturePlanner(lease))
+    remaining,carried=document_inputs(router,Schema.model_validate(lease.state["selection"]["schemaTree"]))
+    assert not remaining.document_nodes
+    assert carried=={"title":"Document title"}
+
+
+def test_renamed_composites_carry_typed_children_and_keep_conflicting_proposals():
+    from kei_exp.kie.extract.retained import publish_values
+    from kei_exp.kie.extract.durable import field_meaning
+    old_node={"id":"person","name":"person","type":"object","children":[{"id":"Z","name":"name","type":"string"},{"id":"a","name":"age","type":"integer"}]}
+    lease=MemoryLease({"recordDescription":"entry","schemaNodes":[old_node]})
+    before=publish_values(lease,{"person":{"name":"Alice","age":None}},"document",complete=True)
+    renamed={**old_node,"children":[{**old_node["children"][1],"name":"years"},{**old_node["children"][0],"name":"full_name"}]}
+    assert field_meaning(old_node)==field_meaning(renamed)
+    assert field_meaning(old_node)=="f9283904936a43435df32890e041320ea421d6b269ae281ca876ebc11e659626"
+    lease.state["selection"]["schemaTree"]["schemaNodes"]=[renamed]
+    lease.historical={"manifest":{"coverage":{}},"snapshot":{"id":"earlier","values":before["values"]}}
+    after=publish_values(lease,{"person":{"full_name":"Bob","years":30}},"document",complete=True)
+    assert after["values"][0]["modelValue"]=={"full_name":"Alice","years":30}
+    assert after["coverage"]["historicalProposals"][before["values"][0]["id"]]["conflicts"]==[{"path":["Z"],"historical":"Alice","proposed":"Bob"}]
+    assert before["values"][0]["modelValue"]=={"name":"Alice","age":None}

@@ -32,7 +32,7 @@ test('real worker processes recover captures, exact inputs and the app-commit/DB
   const source=history.documents.d2
   const representation=(await owner.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1',[source.sourceRepresentationRevisionId])).rows[0]
   const cases=[]
-  for(const fault of ['capture_unit','finalize_input','commit_output','saved_result']){
+  for(const fault of ['capture_unit','finalize_input','commit_output','saved_result','acknowledge']){
     const id=randomUUID()
     await owner.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
       VALUES ($1,$2,$3,$4,'CATALOG',$5)`,[id,source.sourceDocumentId,source.sourceRepresentationRevisionId,history.revisions.catalog,{generic:null}])
@@ -57,6 +57,6 @@ test('real worker processes recover captures, exact inputs and the app-commit/DB
       console.info(error.stdout?.split('\n').filter(line=>/^E\s|Error|FAILED|passed|failed/.test(line)).join('\n'))
       throw new Error('Guarded durable process-recovery matrix failed.')
     })
-  assert.match(stdout,/4 passed/)
-  console.info('All four guarded durable process-recovery faults passed.')
+  assert.match(stdout,/5 passed/)
+  console.info('All five guarded durable process-recovery faults passed.')
 })

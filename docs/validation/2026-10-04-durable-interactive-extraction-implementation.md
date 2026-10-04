@@ -95,3 +95,112 @@ isolated authenticated service/browser checks remain in progress. No readiness
 or deployment claim is made by this record. Admissions must remain disabled
 until the full [release matrix](../plans/2026-10-04-durable-interactive-extraction-release.md)
 has passed. Prototype browser evidence is behavioral planning evidence only.
+
+## Incremental retained review/export and retention checks
+
+The current worktree also contains authenticated durable controls/review API,
+immutable correction publication and Project feedback, producing-schema review
+projection, exact model-version binding for approvals/rejections, and fixed
+version pagination. The schema-adoption fixture retains old text and its saved
+text correction while excluding that correction from a new numeric target;
+a newer numeric correction never appears as the old text result. Stale writers
+and two simultaneous correction saves fail explicitly rather than overwriting.
+
+Guarded controls/deletion check: **passed**, one end-to-end PostgreSQL fixture,
+including 503-value fixed pagination, correction conflicts, incomplete review
+refusal, changed-output approval invalidation, pending Resume cancellation by
+editing, dispatch receipt replay, an unclaimed NULL-lease failure, atomic public
+cascade fencing and retained source references. The fixture provisions its own
+unique `free_test_durable_controls_*` database and removes only that database.
+
+Real SIGKILL recovery: **all five faults passed** (capture, finalized input,
+application output commit, retained result publication, terminal acknowledgement).
+The scripted provider count equals committed outputs, and retained values survive
+the replaced process. The candidate runs in fresh read-only-mounted disposable
+containers against its unique guarded test database.
+
+Local fresh test server: task-owned `free-durable-implementation-pg` (PostgreSQL
+17), loopback 5432. No runtime database or another session's container is used.
+The earlier caller test server became unavailable; attempts on an alternate port
+were refused by the existing guard, which was retained unchanged.
+
+Current observed checks:
+
+- Extraction unit tier: **231 passed**.
+- Database unit tier: **85 passed**; forward migration/role/history fixture passed.
+- Studio targeted regressions: **8 files, 218 passed**, covering ownership,
+  legacy cancellation, public browser boundaries, navigation/reopen, garbage
+  workflow, durable review conflict/reload, and exports.
+- CSV/XLSX export checks: **3 passed** within that tier. Typed booleans and
+  composites remain intact; fixed pages ignore later appends/reviews; workbook
+  JSON provenance reconstructs full provider inputs beyond the Excel cell limit.
+- Safety tier: **29 passed**.
+- Initial full Parsing unit run in a fresh container: **1425 passed, 72 skipped,
+  84 deselected, 1 failed** because this older dependency image lacks the locked
+  optional `xgrammar` dependency. A restricted mount without the repository's
+  parent layout first failed collection; the full repository mount corrected it.
+  Installing xgrammar alone exposed its missing `apache-tvm-ffi` dependency;
+  the supported frozen environment and final rerun remain required.
+- Initial full Studio tier: **2104 passed, 15 failed**. Concrete capability,
+  lazy feedback and type-only browser boundary regressions have been repaired
+  and their targeted tier passed. Remaining full-tier timing/worker cases need
+  bounded-concurrency re-verification.
+
+Local authenticated browser verification remains **unpassed**. One early fixture
+attempted its default artifact location and was refused by filesystem permissions;
+the fixture now gives both runner and server their own temporary state directory.
+Subsequent Chrome runs hit repeated `ERR_NETWORK_CHANGED` while other Docker tests
+changed interfaces and did not load the workspace. Rerun this case with the network
+stable; none of these attempts counts as browser acceptance.
+
+The user requires E2E verification for every changed feature on **baratheon Spark**.
+Those runs explicitly wait for the other agent's results-review tests to finish.
+The redesigned review implementation is independently active; further review UI
+work is held for integration, and a read-only third-agent risk prompt is prepared.
+No Spark run, deployment, merge or production feature enablement has occurred.
+This record remains an incremental evidence record, not a completed release claim.
+
+## Latest completion and retention checks
+
+The bounded Standards and Spec reviews found and resolved three additional gaps:
+native cancellation requires the existing Parsing boot boundary before cleanup;
+scheduled, wake and admission reconciliation receipts require bounded Studio
+history retention; and terminal acknowledgement failures need a durable final
+publication proof. The proof is published after all final values, including empty
+results, and matches the attempt, input selection and generation. Reconciliation
+locks and rechecks the current Head/fence before using it. An accepted Stop wins;
+Pause racing committed complete coverage repairs to Completed. A stale proof
+cannot complete a new linked attempt. Legacy cancellation writers refuse the new
+protocol; its authenticated compatibility route uses fenced Stop instead.
+
+Observed after those changes:
+
+- Guarded controls/deletion fixture passed, now also checking stale/invalid final
+  proof, completion repair after Pause, Stop precedence, legacy writer refusal,
+  and narrow deleted-graph reads.
+- Guarded migration/role/history fixture passed on the regenerated migration.
+  This fixture ran beside separately provisioned controls and recovery databases,
+  verifying idempotent cluster-role creation without sharing test rows.
+- All five real SIGKILL recovery faults passed again. The last case additionally
+  executed `deleteDurableHistoryV1` through a real DBOS worker with its restricted
+  role, removed linked execution history, and retained the tombstoned app graph
+  until app cleanup. No SQL transaction spans provider or history-deletion work.
+- Parsing completion, retention and boot tests: **39 passed, 3 deselected**.
+- Studio retention, cancellation and browser-boundary regressions:
+  **4 files, 71 passed**.
+- Extraction TypeScript check and `git diff --check` passed.
+
+The corrected full local Parsing run before the final-completion repair passed
+**1434 tests, 72 skipped, 84 deselected**. It uses the full repository read-only
+mount, pytest 9.1.1 and the lockfile's `xgrammar==0.2.7` plus
+`apache-tvm-ffi==0.1.14.post1` in a fresh disposable container; no heavy CUDA
+environment synchronization is needed. The earlier grammar/environment failure
+is resolved. The corrected full Studio run at two workers passed
+**168 files, 2119 tests**; the latest retention change is covered by the targeted
+71-test rerun above. These checks establish local regression evidence, not Spark
+or complete feature acceptance.
+
+Both read-only review axes have no remaining concrete finding within their
+backend scope after the completion/retention fixes. UI redesign integration,
+all-feature Spark E2E and the complete release matrix are still required. New
+admissions remain disabled by the unconditional release-verification gate.

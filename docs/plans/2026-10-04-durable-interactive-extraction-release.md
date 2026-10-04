@@ -1,6 +1,6 @@
 # Durable interactive Extraction: migration and release
 
-Date: 2026-10-04. Status: implementation-ready release/verification plan; no migrations, runtime services, or database checks executed. Baseline: `a1ae85b7ce500aa57ffd4025453c4703665daca7`. Review: [planning review record](2026-10-04-durable-interactive-extraction-review.md).
+Date: 2026-10-04. Status: candidate implementation and guarded disposable checks in progress; release acceptance incomplete and admissions OFF. Planning baseline: `a1ae85b7ce500aa57ffd4025453c4703665daca7`. Review: [planning review record](2026-10-04-durable-interactive-extraction-review.md). Observed checks and remaining work: [implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md). No runtime database, deployment, merge, or production enablement is authorized by this candidate's checks.
 
 Origin: [Define migration, recovery verification, and release compatibility](https://github.com/HUM-CDCH/FREE/issues/176), child of [Map durable interactive extraction and project-wide feedback](https://github.com/HUM-CDCH/FREE/issues/169). Product decisions remain in their linked resolution comments; this asset defines release mechanics and required evidence.
 

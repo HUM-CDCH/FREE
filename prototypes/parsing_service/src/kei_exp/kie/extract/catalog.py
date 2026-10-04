@@ -91,7 +91,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         calls += record_calls
         issues += record_issues
         saved_record(chat, fields, [{"segment": p.id, "start": 0, "end": len(p.text)} for p in group],
-                     record=number, primary=[{"segment": p.id, "start": 0, "end": len(p.text)} for p in group])
+                     record=number, primary=[{"segment": p.id, "start": 0, "end": len(p.text)} for p in group]
+                     if all(call.ok or call.recovered for call in record_calls) else [])
         slices.append((group, fields))
     support = ground_records(slices, schema, chat, budget=options.record_chars, check=check)
     return artifact(evidence, request, chat, started=started, clock=clock, fields=[fields for _, fields in slices],

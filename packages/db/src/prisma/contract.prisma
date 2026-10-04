@@ -156,6 +156,7 @@ namespace extraction_runtime {
     head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
     input Input?
     checkpoint Checkpoint?
+    failures CallFailure[]
     @@unique([extractionId, generation, unitKey])
   }
 
@@ -172,6 +173,18 @@ namespace extraction_runtime {
     outputDigest String
     output Json
     capture Capture @relation(fields: [id], references: [id], onDelete: Cascade)
+  }
+
+  // Failed returned replies remain diagnostic history. Only the same attempt
+  // replays them; an authorized Retry invokes the existing Input unchanged.
+  model CallFailure {
+    captureId Uuid
+    attemptId Uuid
+    inputDigest String
+    outputDigest String
+    output Json
+    capture Capture @relation(fields: [captureId], references: [id], onDelete: Cascade)
+    @@id([captureId, attemptId])
   }
 
   model Snapshot {

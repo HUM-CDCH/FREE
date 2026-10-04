@@ -2,11 +2,11 @@ import { randomUUID, createHash } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
 import { pool as sharedPool, stableJson, withPoolClientTransaction } from 'db'
 import { extractionMethod, keiMethodOptions, canonicalIntent } from './extraction-method.js'
-import { parseExtractionSchema } from './schema.js'
+import { parseExtractionSchema, type SchemaNode } from './schema.js'
 import { keiRunOf } from './kei-handoff.js'
 import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, durableHeadSchema,
   durableSelectionSchema, durableStatus, durableValueSchema, type DurableHead, type DurableValue } from './durable-contract.js'
-import { correctionValueFits, fieldMeaning } from './durable-feedback.js'
+import { correctionValueFits, fieldMeaning, adaptedCorrection } from './durable-feedback.js'
 import { refuseUnusableIdentityFields } from './postgres-admission.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 
@@ -16,6 +16,20 @@ export class DurableConflict extends Error {
 export class DurableNotFound extends Error {}
 export class DurableInvalid extends Error {}
 const hash = (body: unknown) => createHash('sha256').update(stableJson(body)).digest('hex')
+const modelDigest = (value: DurableValue) => hash([value.selectionId,value.node,value.modelValue])
+function reviewFits(correction: {candidate:{meaning:string;node?:SchemaNode;modelDigest?:string};decision:{action:string;value?:unknown;snapshotVersion?:number}}, value: DurableValue, snapshotVersion: number): boolean {
+  if(correction.candidate.meaning!==fieldMeaning(value.node)) return false
+  if(correction.decision.action==='EDITED') return adaptedCorrection(correction.candidate.node,value.node,correction.decision.value)!==undefined
+  return correction.candidate.modelDigest===modelDigest(value) ||
+    (!correction.candidate.modelDigest && correction.decision.snapshotVersion===snapshotVersion)
+}
+function executionDefinition(raw:unknown) {
+  if(raw && typeof raw==='object' && !Array.isArray(raw)) {
+    const {recordScope: _scope,...definition}=raw as Record<string,unknown>
+    return parseExtractionSchema(definition)
+  }
+  return parseExtractionSchema(raw)
+}
 export const DURABLE_RECONCILE = 'reconcileDurableExtractions'
 
 /** No connection outlives this short transaction. READ COMMITTED plus the
@@ -68,14 +82,14 @@ export async function initializeDurableExtraction(client: PoolClient, id: string
     intent,"controlVersion","pendingResume",acknowledgement,fence,"leaseEpoch",generation,"snapshotVersion",deleted)
     VALUES ($1,$2,$3,$4,$5,$6,'RUN',0,false,'QUEUED',0,0,1,0,false)`,
     [id,pins.projectContextId,pins.sourceRepresentationRevisionId,{...source,...representation,sourceRevisionId:pins.sourceRepresentationRevisionId},pins.strategy,selection])
+  await client.query(`INSERT INTO extraction_runtime."artifactReference" (id,"extractionId",reference,digest,generation,kind)
+    VALUES ($1,$2,$3,$4,$5,'source')`,[randomUUID(),id,representation.artifactReference,representation.artifactSha256,source.generation])
   const method = canonicalIntent({models:pins.requestedModels,settings:pins.requestedSettings}, pins.strategy,pins.catalogRecipe)
   if (!method) throw new DurableInvalid('The Extraction method is invalid.')
   const resolved = { protocol: 1, plannerVersion: 1, promptVersion: 1, catalogRecipe: pins.catalogRecipe, options: {...keiMethodOptions(extractionMethod(pins.strategy,pins.catalogRecipe,pins.requestedModels,pins.requestedSettings)), ...(pins.startPage ? {start_page:pins.startPage} : {})}, startPage: pins.startPage ?? null }
   await client.query(`INSERT INTO extraction_runtime.selection
     (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
     VALUES ($1,$2,1,$3,$4,$5,$6,$7,$8)`, [selection,id,pins.schemaRevisionId,hash(tree),tree,method,resolved,hash([tree,method,resolved,source])])
-  await client.query(`INSERT INTO extraction_runtime."artifactReference" (id,"extractionId",reference,digest,generation,kind) VALUES ($1,$2,$3,$4,$5,'source')`,
-    [randomUUID(),id,representation.artifactReference,representation.artifactSha256,source.generation])
   const manifest = {plannerVersion:1,selectionId:selection,sourceGeneration:source.generation,units:[],coverage:{snapshotId:null,reprocessValueIds:[]}}
   await client.query(`INSERT INTO extraction_runtime.plan (id,"extractionId",generation,stage,digest,manifest) VALUES ($1,$2,1,'historical-coverage',$3,$4)`, [randomUUID(),id,hash(manifest),manifest])
   await createAttempt(client, await readHead(client,id))
@@ -101,7 +115,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         count(*) FILTER (WHERE o.id IS NOT NULL)::int AS saved,
         count(*) FILTER (WHERE o.id IS NULL)::int AS pending FROM extraction_runtime.capture c
         LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=$1`, [id])).rows[0]
-      return { protocol:1 as const, extractionId:id, status:durableStatus(head), controlVersion:head.controlVersion,
+      return { protocol:1 as const, projectId:head.projectId, extractionId:id, status:durableStatus(head), controlVersion:head.controlVersion,
         pendingResume:head.pendingResume, selection,pendingSelection, source:head.sourcePin,
         sourceRevisionId:head.sourceRevisionId,snapshotVersion:head.snapshotVersion,counts }
     }) },
@@ -148,12 +162,12 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           JOIN public."extractionSchema" s ON s.id=r."extractionSchemaId"
           WHERE r.id=$1 AND s."projectContextId"=$2`, [input.schemaRevisionId,head.projectId])).rows[0]
         if (!row || row.recordScope !== (head.strategy === 'ARTICLE' ? 'document' : 'records')) throw new DurableInvalid('Choose a Schema Revision with the same strategy in this Project.')
-        const tree = parseExtractionSchema(row.schemaTree)
+        const tree = {...parseExtractionSchema(row.schemaTree),recordScope:row.recordScope}
         const prior = (await client.query('SELECT method,resolved FROM extraction_runtime.selection WHERE id=$1', [head.selectionId])).rows[0]
         const method = canonicalIntent(input.method,head.strategy,prior.resolved.catalogRecipe)
         if (!method) throw new DurableInvalid('The Extraction settings are invalid.')
         refuseUnusableIdentityFields(method.settings,tree)
-        refuseIncompatibleGliformer(method,tree)
+        refuseIncompatibleGliformer(method,executionDefinition(tree))
         const ordinal = (await client.query('SELECT coalesce(max(ordinal),0)+1 AS n FROM extraction_runtime.selection WHERE "extractionId"=$1', [id])).rows[0].n
         const selectionId = randomUUID()
         const resolved = {...prior.resolved,options:{...keiMethodOptions(extractionMethod(head.strategy,prior.resolved.catalogRecipe,method.models,method.settings)),
@@ -185,7 +199,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         return { selectionId:input.selectionId,controlVersion:head.controlVersion+1 }
       },true)
     },
-    page(id: string, input: { snapshotVersion?: number; feedbackVersion?: number; offset?: number; limit?: number } = {}) {
+    page(id: string, input: { snapshotVersion?: number; feedbackVersion?: number; offset?: number; limit?: number; valueId?: string } = {}) {
       return owned(id,async (client,head) => {
         const snapshotVersion = input.snapshotVersion ?? head.snapshotVersion
         const snapshot = (await client.query('SELECT * FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,snapshotVersion])).rows[0]
@@ -197,35 +211,43 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           throw new DurableInvalid('Choose a committed result and review snapshot.')
         const corrections = (await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
           WHERE "extractionId"=$1 AND "feedbackVersion" <= $2 ORDER BY "valueId",revision DESC`, [id,feedbackVersion])).rows
-        const values = snapshot ? durableValueSchema.array().parse(snapshot.values) : []
+        const allValues = snapshot ? durableValueSchema.array().parse(snapshot.values) : []
+        const values=input.valueId?allValues.filter(v=>v.id===input.valueId):allValues
         const offset = input.offset ?? 0, limit = Math.min(input.limit ?? 100,500)
         if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1) throw new DurableInvalid('Invalid result page.')
         return { extractionId:id, snapshotVersion,feedbackVersion, status:durableStatus(head),coverage:snapshot?.coverage ?? null,
           total:values.length, values:values.slice(offset,offset+limit).map(value => {
             const historicalCorrection = corrections.find(c=>c.valueId===value.id) ?? null
-            const compatible = historicalCorrection === null || historicalCorrection.candidate.meaning === fieldMeaning(value.node) &&
-              (historicalCorrection.decision.action !== 'EDITED' || correctionValueFits(value.node,historicalCorrection.decision.value))
-            return {...value,correction:compatible ? historicalCorrection : null,historicalCorrection:compatible ? null : historicalCorrection,
+            const compatible=historicalCorrection===null || reviewFits(historicalCorrection,value,snapshotVersion)
+            return {...value,correction:compatible && historicalCorrection ? {...historicalCorrection,decision:{...historicalCorrection.decision,...(historicalCorrection.decision.action==='EDITED'?{value:adaptedCorrection(historicalCorrection.candidate.node,value.node,historicalCorrection.decision.value)}:{})}} : null,historicalCorrection:compatible ? null : historicalCorrection,
               correctionCompatibility:compatible ? 'compatible' : 'incompatible'}
           }),
           next:offset+limit < values.length ? {snapshotVersion,feedbackVersion,offset:offset+limit,limit} : null }
       })
     },
-    saveCorrection(id: string, valueId: string, raw: unknown, validateEvidence: (value: DurableValue, evidence: {anchorId:string;occurrenceIds:string[]}[], sourceRevisionId: string) => Promise<void>) {
+    async saveCorrection(id: string, valueId: string, raw: unknown, validateEvidence: (value: DurableValue, evidence: {anchorId:string;occurrenceIds:string[]}[], sourceRevisionId: string) => Promise<void>) {
       const input = durableCorrectionSchema.parse(raw)
+      const validated = await owned(id,async(client,head)=> {
+        const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
+        const value=snapshot?durableValueSchema.array().parse(snapshot.values).find(v=>v.id===valueId):null
+        if(!value) throw new DurableInvalid('Choose a saved value.')
+        return {value,sourceRevisionId:head.sourceRevisionId}
+      })
+      // Artifact reads happen before the short publication transaction. The
+      // source and snapshot pins used here are immutable and rechecked below.
+      await validateEvidence(validated.value,input.evidence,validated.sourceRevisionId)
       return runtimeTransaction(source,async client => {
         const initial = await ownedHead(client,owner,id)
         const feedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1 FOR UPDATE', [initial.projectId])).rows[0]
-        const head = await ownedHead(client,owner,id)
+        const head = await ownedHead(client,owner,id,true)
         const snapshot = (await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,input.snapshotVersion])).rows[0]
         const value = snapshot ? durableValueSchema.array().parse(snapshot.values).find(v=>v.id===valueId) : null
         if (!value || value.processing !== 'saved') throw new DurableInvalid('Choose a structurally valid saved value.')
         if (input.action === 'EDITED' && !correctionValueFits(value.node,input.value)) throw new DurableInvalid('The correction does not fit its producing field.')
-        await validateEvidence(value,input.evidence,head.sourceRevisionId)
         const revision = (await client.query('SELECT coalesce(max(revision),0) AS n FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "valueId"=$2', [id,valueId])).rows[0].n
         if (revision !== input.expectedRevision) throw new DurableConflict('Another view saved a newer correction.')
         const feedbackVersion = feedback.version+1, correctionId = randomUUID()
-        const candidate = {id:correctionId,fieldId:value.fieldId,meaning:fieldMeaning(value.node),value:input.value ?? null,
+        const candidate = {id:correctionId,fieldId:value.fieldId,meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest(value),value:input.value ?? null,
           sourceContext:stableJson({sourceRevisionId:head.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue}),grounded:input.evidence.length>0}
         const included = input.included && input.action === 'EDITED'
         await client.query(`INSERT INTO extraction_runtime.correction
@@ -235,25 +257,94 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         return { id:correctionId,revision:revision+1,feedbackVersion,included }
       })
     },
-    feedback(projectId: string) { return runtimeTransaction(source,async client=> {
+    history(id: string) { return owned(id,async (client)=>({
+      selections:(await client.query('SELECT * FROM extraction_runtime.selection WHERE "extractionId"=$1 ORDER BY ordinal',[id])).rows,
+      snapshots:(await client.query('SELECT * FROM extraction_runtime.snapshot WHERE "extractionId"=$1 ORDER BY version',[id])).rows,
+      corrections:(await client.query('SELECT * FROM extraction_runtime.correction WHERE "extractionId"=$1 ORDER BY "feedbackVersion"',[id])).rows,
+      finalizations:(await client.query('SELECT * FROM extraction_runtime.finalization WHERE "extractionId"=$1 ORDER BY "createdAt"',[id])).rows,
+      effective:(await client.query('SELECT e.* FROM extraction_runtime.effective e JOIN extraction_runtime.selection s ON s.id=e.id WHERE s."extractionId"=$1',[id])).rows,
+      plans:(await client.query('SELECT * FROM extraction_runtime.plan WHERE "extractionId"=$1 ORDER BY generation,stage',[id])).rows,
+      captures:(await client.query(`SELECT c.*,i.digest AS "inputDigest",i.request,o."outputDigest",o.output FROM extraction_runtime.capture c
+        LEFT JOIN extraction_runtime.input i ON i.id=c.id LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=$1 ORDER BY c.generation,c."unitKey"`,[id])).rows,
+      failedCalls:(await client.query('SELECT f.* FROM extraction_runtime."callFailure" f JOIN extraction_runtime.capture c ON c.id=f."captureId" WHERE c."extractionId"=$1',[id])).rows,
+      attempts:(await client.query('SELECT * FROM extraction_runtime.attempt WHERE "extractionId"=$1 ORDER BY fence',[id])).rows,
+    })) },
+    finalize(id: string, input: {snapshotVersion:number;feedbackVersion:number}) { return owned(id,async(client,head)=> {
+      const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
+      const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[head.projectId])).rows[0]
+      if(!snapshot || !Number.isInteger(input.feedbackVersion) || input.feedbackVersion<0 || input.feedbackVersion>feedback.version) throw new DurableInvalid('Choose a committed review snapshot.')
+      const decisions=(await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
+        WHERE "extractionId"=$1 AND "feedbackVersion"<=$2 ORDER BY "valueId",revision DESC`,[id,input.feedbackVersion])).rows
+      const reviewable=durableValueSchema.array().parse(snapshot.values).filter(v=>v.processing==='saved')
+      if(reviewable.some(v=>!decisions.some(c=>c.valueId===v.id && c.decision.action!=='PENDING' && reviewFits(c,v,input.snapshotVersion))))
+        throw new DurableInvalid('Review each saved value in this snapshot before finalizing.')
+      const decisionDigest=hash(decisions)
+      await client.query(`INSERT INTO extraction_runtime.finalization (id,"extractionId","snapshotVersion","feedbackVersion","decisionDigest")
+        VALUES ($1,$2,$3,$4,$5) ON CONFLICT ("extractionId","snapshotVersion","feedbackVersion") DO NOTHING`,[randomUUID(),id,input.snapshotVersion,input.feedbackVersion,decisionDigest])
+      return {...input,decisionDigest}
+    }) },
+    feedback(projectId: string, targetId?: string) { return runtimeTransaction(source,async client=> {
       const owns = await client.query('SELECT id FROM public."projectContext" WHERE id=$1 AND "researcherAccountId"=$2', [projectId,owner])
       if (!owns.rowCount) throw new DurableNotFound('That Project was not found.')
-      return (await client.query('SELECT * FROM extraction_runtime.correction WHERE "projectId"=$1 ORDER BY "feedbackVersion" DESC', [projectId])).rows
+      const rows=(await client.query('SELECT * FROM extraction_runtime.correction WHERE "projectId"=$1 ORDER BY "feedbackVersion" DESC',[projectId])).rows
+      const target=targetId?await ownedHead(client,owner,targetId):null
+      if(target && target.projectId!==projectId) throw new DurableNotFound('That target was not found in this Project.')
+      const selection=target?(await client.query('SELECT "schemaTree" FROM extraction_runtime.selection WHERE id=$1',[target.selectionId])).rows[0]:null
+      const nodes=new Map<string,ReturnType<typeof parseExtractionSchema>['schemaNodes'][number]>()
+      const visit=(items:ReturnType<typeof parseExtractionSchema>['schemaNodes'])=> {for(const node of items){nodes.set(node.id,node);if(node.children)visit(node.children)}}
+      if(selection)visit(executionDefinition(selection.schemaTree).schemaNodes)
+      const seen=new Set<string>()
+      return rows.map(row=> {
+        const key=row.extractionId+':'+row.valueId,active=!seen.has(key);seen.add(key)
+        const node=nodes.get(row.candidate.fieldId)
+        return {...row,active,targetCompatibility:!target?'not_evaluated':node&&fieldMeaning(node)===row.candidate.meaning&&adaptedCorrection(row.candidate.node,node,row.candidate.value)!==undefined?'compatible':'incompatible'}
+      })
     }) },
   }
 }
 
 /** Reconciliation reads committed handoffs, enqueues deterministic identities,
  * and records the receipt. A crash between these operations re-enqueues safely. */
-export async function reconcileDurableAttempts(enqueue: (attempt: {id:string;extractionId:string;workflowId:string;owner:string;sourcePin:unknown}) => Promise<void>, source: Pool = sharedPool) {
+export async function reconcileDurableAttempts(enqueue: (attempt: {id:string;extractionId:string;workflowId:string;owner:string;sourcePin:unknown;batch:boolean;projectContextId:string;sourceDocumentId:string}) => Promise<void>, source: Pool = sharedPool, statuses?: (ids:readonly string[])=>Promise<ReadonlyMap<string,string>>) {
   const available = await source.query("SELECT to_regclass('extraction_runtime.head') AS head")
   if (!available.rows[0].head) return
+  if(statuses) {
+    const stalled=(await source.query(`SELECT h.id,h."attemptId",h.fence,a."workflowId" FROM extraction_runtime.head h
+      JOIN extraction_runtime.attempt a ON a.id=h."attemptId" WHERE a.outcome IS NULL
+      AND (h."leaseUntil" IS NULL OR h."leaseUntil"<clock_timestamp()) AND h.acknowledgement IN ('RUNNING','QUEUED')`)).rows
+    for(const row of stalled) {
+      const captures=(await source.query('SELECT id FROM extraction_runtime.capture WHERE "extractionId"=$1',[row.id])).rows
+      const ids=[row.workflowId,...captures.map(c=>`kei-call:${row.attemptId}:${c.id}`)]
+      const states=await statuses(ids)
+      const live=new Set(['PENDING','ENQUEUED','DELAYED'])
+      if(!states.has(row.workflowId)||live.has(states.get(row.workflowId)!))continue
+      if(ids.slice(1).some(id=>live.has(states.get(id)??'')||['CANCELLED','MAX_RECOVERY_ATTEMPTS_EXCEEDED'].includes(states.get(id)??'')))continue
+      await runtimeTransaction(source,async client=> {
+        const current=(await client.query(`SELECT * FROM extraction_runtime.head WHERE id=$1 AND "attemptId"=$2 AND fence=$3
+          AND ("leaseUntil" IS NULL OR "leaseUntil"<clock_timestamp()) FOR UPDATE`,[row.id,row.attemptId,row.fence])).rows[0]
+        if(!current||!['RUNNING','QUEUED'].includes(current.acknowledgement))return
+        // All native workflow calls have terminated and the database lease has
+        // expired. Unsaved outputs stay unfinished; no completion is fabricated.
+        const snapshot = (await client.query(`SELECT coverage FROM extraction_runtime.snapshot
+          WHERE "extractionId"=$1 AND version=$2`, [row.id, current.snapshotVersion])).rows[0]
+        const completion = snapshot?.coverage?.finalizedAttempt
+        const complete = completion?.complete === true && completion.attemptId === current.attemptId &&
+          completion.generation === current.generation && completion.selectionId === current.selectionId
+        const outcome = current.intent === 'STOP' ? 'STOPPED' : complete ? 'COMPLETED' : 'FAILED'
+        await client.query('UPDATE extraction_runtime.capture SET "inFlight"=false WHERE "extractionId"=$1',[row.id])
+        await client.query('UPDATE extraction_runtime.attempt SET outcome=$2,failure=$3 WHERE id=$1 AND outcome IS NULL',[row.attemptId,outcome,outcome==='FAILED'?{code:'execution_interrupted'}:null])
+        await client.query(`UPDATE extraction_runtime.head SET acknowledgement=$2,"leaseOwner"=NULL,"leaseUntil"=NULL,
+          intent=CASE WHEN intent='STOP' THEN 'STOP' ELSE 'PAUSE' END WHERE id=$1`,[row.id,outcome])
+      })
+    }
+  }
   await runtimeTransaction(source,async client => {
     const heads = (await client.query(`SELECT * FROM extraction_runtime.head WHERE "pendingResume"
       AND acknowledgement IN ('PAUSED','FAILED') AND intent='PAUSE' AND NOT deleted AND "pendingSelectionId" IS NULL FOR UPDATE`)).rows
     for (const raw of heads) await createAttempt(client,durableHeadSchema.parse(raw))
   })
-  const rows = await source.query(`SELECT a.id,a."extractionId",a."workflowId",p."researcherAccountId" AS owner,h."sourcePin"
+  const rows = await source.query(`SELECT a.id,a."extractionId",a."workflowId",p."researcherAccountId" AS owner,h."sourcePin",(e."batchExtractionId" IS NOT NULL) AS batch,
+    p.id AS "projectContextId",s.id AS "sourceDocumentId"
     FROM extraction_runtime.dispatch d JOIN extraction_runtime.attempt a ON a.id=d.id
     JOIN extraction_runtime.head h ON h.id=a."extractionId" JOIN public.extraction e ON e.id=h.id
     JOIN public."sourceDocument" s ON s.id=e."sourceDocumentId" JOIN public."projectContext" p ON p.id=s."projectContextId"
@@ -263,4 +354,52 @@ export async function reconcileDurableAttempts(enqueue: (attempt: {id:string;ext
     await enqueue(row)
     await source.query('UPDATE extraction_runtime.dispatch SET received=true WHERE id=$1', [row.id])
   }
+}
+
+export type DurableRead = Awaited<ReturnType<ReturnType<typeof createDurableRepository>['read']>>
+export type DurablePage = Awaited<ReturnType<ReturnType<typeof createDurableRepository>['page']>>
+export type DurableHistory = Awaited<ReturnType<ReturnType<typeof createDurableRepository>['history']>>
+
+export async function setFeedbackIncluded(owner:string,projectId:string,input:{id:string;expectedRevision:number;included:boolean},source:Pool=sharedPool) {
+  const repository=createDurableRepository(owner,source)
+  const corrections=await repository.feedback(projectId)
+  const selected=corrections.find(c=>c.id===input.id)
+  if(!selected) throw new DurableNotFound('That correction was not found.')
+  return repository.saveCorrection(selected.extractionId,selected.valueId,{...selected.decision,expectedRevision:input.expectedRevision,included:input.included},async()=>{})
+}
+
+/** Tombstones retain their graph until no native writer or recoverable workflow
+ * can reference it. Called by the existing DBOS reconciler, never a new worker. */
+export async function collectDeletedDurableGraphs(statuses:(ids:readonly string[])=>Promise<ReadonlyMap<string,string>>,source:Pool=sharedPool,
+  history?:{remove:(extractionId:string,fence:number)=>Promise<boolean>;cancelQueued:(id:string)=>Promise<void>}) {
+  const rows=(await source.query(`SELECT h.id,h."projectId",h.fence FROM extraction_runtime.head h WHERE h.deleted
+    AND (h."leaseUntil" IS NULL OR h."leaseUntil"<clock_timestamp())`)).rows
+  let removed=0
+  for(const row of rows) {
+    const attempts=(await source.query('SELECT id,"workflowId" FROM extraction_runtime.attempt WHERE "extractionId"=$1',[row.id])).rows
+    const captures=(await source.query('SELECT id,"reservationAttemptId","inFlight" FROM extraction_runtime.capture WHERE "extractionId"=$1',[row.id])).rows
+    // An older attempt can still have native calls after its linked replacement.
+    const ids=[...attempts.map(a=>a.workflowId),...attempts.flatMap(a=>captures.map(c=>`kei-call:${a.id}:${c.id}`))]
+    const states=await statuses(ids),live=new Set(['PENDING','ENQUEUED','DELAYED'])
+    if(history) for(const id of ids) if(states.get(id)==='ENQUEUED') await history.cancelQueued(id)
+    if(ids.some(id=>live.has(states.get(id)??'')))continue
+    if(!history && (ids.some(id=>['CANCELLED','MAX_RECOVERY_ATTEMPTS_EXCEEDED'].includes(states.get(id)??'')) ||
+      captures.some(c=>c.inFlight&&!['SUCCESS','ERROR'].includes(states.get(`kei-call:${c.reservationAttemptId}:${c.id}`)??''))))continue
+    // Delete DBOS inputs, steps and outputs while the tombstoned graph still
+    // retains every identity. A crash can retry this idempotent cleanup.
+    if(history&&!await history.remove(row.id,row.fence))continue
+    removed+=await runtimeTransaction(source,async client=> {
+      const current=(await client.query(`SELECT id FROM extraction_runtime.head WHERE id=$1 AND deleted AND fence=$2
+        AND ("leaseUntil" IS NULL OR "leaseUntil"<clock_timestamp()) FOR UPDATE`,[row.id,row.fence])).rows[0]
+      if(!current)return 0
+      await client.query('DELETE FROM extraction_runtime.correction WHERE "extractionId"=$1',[row.id])
+      await client.query('DELETE FROM extraction_runtime."legacyIdentity" WHERE "extractionId"=$1',[row.id])
+      await client.query('DELETE FROM extraction_runtime.head WHERE id=$1',[row.id])
+      await client.query(`DELETE FROM extraction_runtime."feedbackHead" WHERE id=$1 AND NOT EXISTS (SELECT FROM public."projectContext" WHERE id=$1)
+        AND NOT EXISTS (SELECT FROM extraction_runtime.head WHERE "projectId"=$1)`,[row.projectId])
+      return 1
+    })
+  }
+  await source.query(`DELETE FROM extraction_runtime."legacyIdentity" identity WHERE NOT EXISTS (SELECT FROM public.extraction e WHERE e.id=identity."extractionId")`)
+  return removed
 }

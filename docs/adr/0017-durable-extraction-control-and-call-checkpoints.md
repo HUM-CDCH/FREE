@@ -7,3 +7,27 @@ One researcher-visible Extraction must survive cooperative pause, revised settin
 The Parsing worker retains no access to the application `public` tables or Studio's `dbos` schema. It receives only narrowly granted coordination routines that validate attempt fences and immutable inputs; Studio publishes corrections and eligible guidance revisions in one transaction. Every provider call durably captures inputs/context before invocation and commits its output before acknowledgement. A paused attempt drains and exits, releasing capacity; Resume creates a linked attempt reusing eligible saved work. Stable source anchors and result identities are distinct from schema-dependent work-window boundaries. DBOS rewind or rewriting an old admitted method is rejected because it would corrupt historical attribution.
 
 This direction will amend the Extraction-specific status authority in [0012](0012-one-durable-execution-layer.md) and extend the immutable selection rule in [0015](0015-extraction-method-pinned-at-admission.md) from one admission to each linked execution selection. It does not introduce another job scheduler, permit worker access to researcher account configuration, or weaken source Evidence requirements. Details and release conditions live in the [implementation specification](../plans/2026-10-04-durable-interactive-extraction-specification.md) and [migration/verification plan](../plans/2026-10-04-durable-interactive-extraction-release.md).
+
+## Candidate implementation and integration status
+
+The candidate lives on `feat/durable-interactive-extraction`, based on current
+`dev` (`db6f8b92`), with the planning commit and ADR 0016/redesign artifacts
+preserved. Its `extraction_runtime` namespace adds no mutated historical public
+Extraction pins. Runtime capability is selected by its Head row, not by the
+current admission gate. DBOS attempts and call workflows retain distinct names;
+failed responses are immutable attempt-specific history, while successful
+checkpoints are reusable by unchanged-input retries.
+
+Review projection uses each value's immutable producing schema, independently
+of consuming-target guidance compatibility. Stable child identities permit
+nested renames; approvals/rejections bind to the actual reviewed model version.
+Article aggregation retains historical lineage and explicit scalar proposals.
+The source artifact and preprocessing generation stay referenced through
+terminal states and deletion drain. Deleted graphs are fenced atomically with
+public cascade deletion; native-history cleanup uses the Parsing worker's boot
+boundary so cancellation alone never proves quiescence.
+
+Implementation and release verification remain in progress. Spark E2E runs wait
+for the results-review agent to finish; no shared Spark environment, runtime
+database, deployment or production feature enablement is authorized by this
+candidate. See [implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md).

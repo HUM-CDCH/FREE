@@ -390,6 +390,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         if (error := future.exception()) is not None:
             raise error
     document = run.document(evidence) if schema.document_nodes else None
+    if document is not None:
+        from kei_exp.kie.extract.retained import saved_document
+        saved_document(chat,document.values,complete=not document.failed and all(call.ok or call.recovered for call in document.calls))
     check()
     return _artifact(evidence, request, chat, started, clock, execution, found,
                      [future.result() for future in futures], document)
@@ -843,8 +846,13 @@ class _Run:
         windows' answers are assembled by `contexts.assemble_document`: every list occurrence kept, an equal item two
         windows both returned joined once when the source both were shown prints it (`overlap_items_joined`), equal
         items from other windows named (`possible_repeated_items`), a disagreeing scalar null with its conflict."""
-        nodes = self.schema.document_nodes
+        from kei_exp.kie.extract.retained import document_inputs
+        document_schema,carried=document_inputs(self.budget.chat,self.schema)
+        nodes = document_schema.document_nodes
         out = _Work()
+        if not nodes:
+            out.values=carried
+            return out
         system = DOCUMENT.format(notes=_notes(nodes))
         units = discovery.units_of(evidence.passages)
         replies = self._read("document", None, units, system, candidates_schema(nodes), "SOURCE", (), out)
@@ -868,7 +876,7 @@ class _Run:
         out.issues += [Issue(code, json.dumps(each, ensure_ascii=False), None, tuple(each["path"]))
                        for code, group in (("possible_repeated_items", repeats), ("overlap_items_joined", joined))
                        for each in group]
-        out.values = conform(out.values, nodes)
+        out.values = {**carried,**conform(out.values, nodes)}
         for found in out.found:
             if found.kind == "candidate":
                 found.kind, found.reason = "proposed", "document_unverified"

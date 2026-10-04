@@ -4,6 +4,9 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'free_extraction_runtime') THEN
     CREATE ROLE free_extraction_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
   END IF;
+EXCEPTION WHEN duplicate_object OR unique_violation THEN
+  -- Independent disposable databases can bootstrap this cluster role together.
+  NULL;
 END $bootstrap$;
 REVOKE ALL ON SCHEMA extraction_runtime FROM PUBLIC;
 GRANT USAGE ON SCHEMA extraction_runtime TO free_extraction_runtime;

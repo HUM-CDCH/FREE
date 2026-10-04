@@ -15,7 +15,7 @@ from psycopg.types.json import Jsonb
 
 ROUTINES = frozenset({"capabilities", "claim", "heartbeat", "publish_plan", "capture_unit", "finalize_input",
                      "begin_call", "commit_output", "fail_call", "publish_snapshot", "acknowledge",
-                     "resolve_selection", "read_call", "historical_coverage", "read_latest_snapshot"})
+                     "resolve_selection", "read_call", "historical_coverage", "read_latest_snapshot", "read_attempt_outcome", "read_deleted_graph"})
 
 
 class CoordinationPool:

@@ -14,6 +14,8 @@ const SOURCE_DOCUMENT_REOPEN_ROUTE =
   /^\/api\/project-contexts\/[^/]+\/source-documents\/[^/]+\/reopen$/
 
 const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^\/api\/extractions\/[^/]+\/durable(?:\/[^/]+){0,2}$/, 'durable_extractions'],
+  [/^\/api\/project-contexts\/[^/]+\/feedback$/, 'durable_extractions'],
   [SOURCE_DOCUMENT_ROUTE, 'source_documents'],
   [SOURCE_DOCUMENT_REOPEN_ROUTE, 'document_reopen'],
   [

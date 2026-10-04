@@ -11,5 +11,7 @@ test('the durable expansion preserves the complete public contract and advances 
   const migration=read('migration.json'),ref=JSON.parse(readFileSync(resolve(root,'refs/db.json'),'utf8'))
   assert.equal(migration.from,start.storage.storageHash)
   assert.equal(migration.to,end.storage.storageHash)
-  assert.equal(ref.hash,migration.to)
+  const retry=JSON.parse(readFileSync(resolve(root,'20261004T1351_durable_retry_history/migration.json'),'utf8'))
+  assert.equal(retry.from,migration.to)
+  assert.equal(ref.hash,retry.to)
 })

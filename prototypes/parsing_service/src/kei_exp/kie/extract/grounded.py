@@ -233,7 +233,9 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
         from kei_exp.kie.extract.retained import plan_records
         plan_records(as_router(chat),"recipe-records",[[{"segment":span.segment_id,"start":span.start,"end":span.end}
                                                        for span in block.primary_spans] for block in segmentation.blocks])
+        from kei_exp.kie.extract.retained import saved_document
         document = _document(run)  # once for the whole document; every chunk's records merge it
+        saved_document(as_router(chat),document,complete=all(call.ok or call.recovered for call in run.calls))
         pieces = _pieces(list(enumerate(segmentation.blocks)), chunks)
         def retained_block(part, number, block):
             from kei_exp.kie.extract.retained import saved_record, reuse_record
@@ -242,8 +244,9 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
             reused = reuse_record(as_router(chat),scope,record=number)
             if reused is not None:
                 return reused,[],[]
+            before_calls = len(part.calls)
             result = _block(part, number, block, headings, bindings, segmentation)
-            saved_record(as_router(chat), result[0], scope, record=number, primary=scope)
+            saved_record(as_router(chat), result[0], scope, record=number, primary=scope if not part.refused and all(call.ok or call.recovered for call in part.calls[before_calls:]) else [])
             return result
         for part, found in _in_chunks(run, pieces, before_entry, retained_block):
             run.calls += part.calls        # chunk order is entry order: prelude calls, then each chunk's
@@ -572,9 +575,11 @@ def _arbitrate(run: _Run, number: int, path: tuple, candidates: list[Outcome], t
 def _document(run: _Run) -> dict:
     """The document-level fields from one call over as much of the source as the budget allows;
     unverified, as in version 1, and reported when the source had to be shortened."""
-    nodes = run.schema.document_nodes
+    from kei_exp.kie.extract.retained import document_inputs
+    document_schema,carried=document_inputs(run.chat,run.schema)
+    nodes = document_schema.document_nodes
     if not nodes:
-        return {}
+        return carried
     system = "\n".join([GUARDRAIL.split(". Answer")[0] + ".", f"A record is: {run.schema.record_description}",
                         *notes(nodes)])
     passages = list(run.evidence.passages)
@@ -592,7 +597,7 @@ def _document(run: _Run) -> dict:
         run.issue("text_truncated", f"document fields were read from the first {low} of {count} passages")
     answer = run.call("document", None, system, f"### Source document\n{text_of(passages[:low])}\n\nReturn the JSON "
                       "object now.", json_schema(nodes))
-    return conform(answer, nodes)
+    return {**carried,**conform(answer, nodes)}
 
 
 def _total(values) -> int | None:

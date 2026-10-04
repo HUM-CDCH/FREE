@@ -34,6 +34,13 @@ def configure(url: str):
     _pool = pool
 
 
+def close_coordination():
+    global _pool
+    if _pool is not None:
+        _pool.close()
+        _pool = None
+
+
 def coordinator() -> CoordinationPool:
     if _pool is None:
         raise RuntimeError("Extraction coordination has not been initialized")
@@ -183,7 +190,8 @@ def plan_next(extraction: str, attempt: str) -> dict:
         if not evidence.passages:
             return {"historicalOnly":True}
         try:
-            result = dispatch(directory, evidence, request, router, chunks=1, extraction_id=None)
+            from kei_exp.workflows.extract import CATALOG_CHUNKS
+            result = dispatch(directory, evidence, request, router, chunks=CATALOG_CHUNKS, extraction_id=None)
         except NeedsCall:
             return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key])}
         except Boundary:
@@ -193,6 +201,9 @@ def plan_next(extraction: str, attempt: str) -> dict:
 
 @DBOS.step(name="acknowledgeExtractionV1")
 def acknowledge(extraction: str, attempt: str, complete: bool, failure: dict | None):
+    saved = coordinator().call("read_attempt_outcome", extraction, attempt)
+    if saved is not None:
+        return saved
     with Lease(coordinator(), extraction, attempt) as lease:
         return lease.call("acknowledge", complete, failure)
 
@@ -211,13 +222,14 @@ def extract_workflow(request: dict) -> dict:
         if work.get("boundary"):
             return {"status": acknowledge(extraction, attempt, False, None)}
         if work.get("historicalOnly"):
+            publish_result(extraction, attempt, {"records": [], "completeness": {"processing": True}}, {})
             return {"status": acknowledge(extraction,attempt,True,None)}
         if "result" in work:
             # Result validation/publication is completed by the retained-result
             # producer before a complete acknowledgement (see publish_result).
             publish_result(extraction, attempt, work["result"], work["scopes"])
-            processing = work["result"].get("completeness",{}).get("processing",
-              all(call.get("ok") or call.get("recovered") for call in work["result"].get("calls",[])))
+            from kei_exp.kie.extract.retained import processing_complete
+            processing = processing_complete(work["result"])
             return {"status": acknowledge(extraction, attempt,processing,None if processing else {"code":"incomplete_processing"})}
         handles = []
         for capture in work["pending"]:
@@ -246,3 +258,44 @@ def publish_result(extraction: str, attempt: str, result: dict, scopes: dict):
     with Lease(coordinator(), extraction, attempt) as lease:
         lease.state["recordScopes"] = scopes
         publish_final(lease, result)
+
+
+def delete_quiescent_history(graph, boot_ms, list_statuses, delete_history):
+    from kei_exp.workflows.gc import eligible
+    identities = [attempt["workflowId"] for attempt in graph["attempts"]]
+    identities += [f"kei-call:{attempt['id']}:{capture['id']}" for attempt in graph["attempts"] for capture in graph["captures"]]
+    statuses = {}
+    for index in range(0, len(identities), 100):
+        statuses.update({status.workflow_id: status for status in list_statuses(identities[index:index + 100])})
+    # Cancellation is not native quiescence. The existing worker boot clock and
+    # slot prove that cancelled steps from an earlier process can no longer write.
+    if not all(eligible(statuses.get(identity), boot_ms) for identity in identities):
+        return False
+    for index in range(0, len(identities), 100):
+        delete_history(identities[index:index + 100])
+    return True
+
+
+@DBOS.step(name="collectDeletedDurableHistoryV1")
+def collect_deleted_history(extraction: str, fence: int) -> dict:
+    from kei_exp.workflows import boot
+    graph = coordinator().call("read_deleted_graph", extraction, fence)
+    if graph is None:
+        return {"removed": False}
+    return {"removed": delete_quiescent_history(graph, boot.timestamp_ms(),
+        lambda ids: DBOS.list_workflows(workflow_ids=ids, load_input=False, load_output=False), DBOS.delete_workflows)}
+
+
+@DBOS.workflow(name="deleteDurableHistoryV1", max_recovery_attempts=config.MAX_RECOVERY_ATTEMPTS,
+               serialization_type=WorkflowSerializationFormat.PORTABLE)
+def delete_history_workflow(request: dict) -> dict:
+    from uuid import UUID
+    if set(request) != {"protocol", "extraction_id", "fence"} or request["protocol"] != 1:
+        return {"removed": False}
+    try:
+        UUID(request["extraction_id"])
+        if type(request["fence"]) is not int or request["fence"] < 1:
+            return {"removed": False}
+    except (ValueError, TypeError):
+        return {"removed": False}
+    return collect_deleted_history(request["extraction_id"],request["fence"])

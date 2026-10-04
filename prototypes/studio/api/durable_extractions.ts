@@ -1,0 +1,62 @@
+import { canonicalPackageStore, pool, type ResearcherProjectStore } from 'db'
+import { createDurableRepository, DurableConflict, DurableInvalid, DurableNotFound, setFeedbackIncluded } from 'extraction/durable'
+import { ExtractionError } from 'extraction'
+import { decodeParsedDocument } from 'extraction/parsed-document'
+import { z } from 'zod'
+import { ApiError, json, noStore, noStoreError, parseJsonRequest, persistenceUnavailable } from './_http.js'
+import { requestDurableReconciliation } from '../server/durable-extraction-workflow.js'
+
+/** Session/origin gates in server/app run before this researcher-scoped factory. */
+export function createResearcherApiHandlers(store: ResearcherProjectStore) {
+  const repository=createDurableRepository(store.researcherAccountId)
+  const handle=async(request:Request):Promise<Response>=> {
+    try {
+      const url=new URL(request.url)
+      const feedback=/^\/api\/project-contexts\/([0-9a-f-]+)\/feedback$/.exec(url.pathname)
+      if(feedback && request.method==='POST') return json(await setFeedbackIncluded(store.researcherAccountId,z.uuid().parse(feedback[1]),z.object({id:z.uuid(),expectedRevision:z.number().int().positive(),included:z.boolean()}).strict().parse(await parseJsonRequest(request))),{headers:noStore})
+      if(feedback && request.method==='GET') return json(await repository.feedback(z.uuid().parse(feedback[1]),url.searchParams.has('target')?z.uuid().parse(url.searchParams.get('target')):undefined),{headers:noStore})
+      const match=/^\/api\/extractions\/([0-9a-f-]+)\/durable(?:\/(control|selection|adopt|values|history|finalize))?(?:\/([^/]+))?$/.exec(url.pathname)
+      if(!match) throw new ApiError(404,'not_found','API route not found.')
+      const id=z.uuid().parse(match[1]), action=match[2]
+      if(request.method==='GET') {
+        if(!await repository.capability(id)) return json({protocol:0},{headers:noStore})
+        if(!action) return json(await repository.read(id),{headers:noStore})
+        if(action==='history') return json(await repository.history(id),{headers:noStore})
+        if(action==='values') {
+          const input=z.object({snapshotVersion:z.coerce.number().int().nonnegative().optional(),feedbackVersion:z.coerce.number().int().nonnegative().optional(),offset:z.coerce.number().int().nonnegative().optional(),limit:z.coerce.number().int().min(1).max(500).optional()}).strict().parse(Object.fromEntries(url.searchParams))
+          return json(await repository.page(id,{...input,...(match[3]?{valueId:decodeURIComponent(match[3])}:{})}),{headers:noStore})
+        }
+      }
+      if(request.method==='POST') {
+        const body=await parseJsonRequest(request)
+        if(action==='control') {
+          const result=await repository.command(id,body)
+          await requestDurableReconciliation(`${id}:${result.controlVersion}`)
+          return json(result,{headers:noStore})
+        }
+        if(action==='selection') return json(await repository.saveSelection(id,body),{headers:noStore})
+        if(action==='adopt') return json(await repository.adoptSelection(id,body),{headers:noStore})
+        if(action==='finalize') return json(await repository.finalize(id,z.object({snapshotVersion:z.number().int().positive(),feedbackVersion:z.number().int().nonnegative()}).strict().parse(body)),{headers:noStore})
+        if(action==='values' && match[3]) return json(await repository.saveCorrection(id,decodeURIComponent(match[3]),body,async(_value,evidence,sourceRevisionId)=> {
+          if(!evidence.length) return
+          const revision=(await pool.query('SELECT "artifactReference","artifactSha256" FROM public."sourceRepresentationRevision" WHERE id=$1',[sourceRevisionId])).rows[0]
+          if(!revision) throw new DurableInvalid('The pinned source is unavailable.')
+          const document=decodeParsedDocument(JSON.parse(new TextDecoder().decode((await canonicalPackageStore.read(revision,'source')).bytes)))
+          for(const selected of evidence) {
+            const anchor=document.evidence_index.anchors.find(a=>a.anchor_id===selected.anchorId)
+            if(!anchor || selected.occurrenceIds.some(o=>!anchor.producer_observations.some(observation=>observation.occurrence_id===o)))
+              throw new DurableInvalid('Link Evidence from this Extraction’s pinned source.')
+          }
+        }),{headers:noStore})
+      }
+      throw new ApiError(404,'not_found','API route not found.')
+    } catch(error) {
+      if(error instanceof ExtractionError) return noStoreError(new ApiError(422,error.code,error.message))
+      if(error instanceof DurableNotFound) return noStoreError(new ApiError(404,'not_found',error.message))
+      if(error instanceof DurableConflict) return noStoreError(new ApiError(409,'review_conflict',error.message))
+      if(error instanceof DurableInvalid || error instanceof z.ZodError) return noStoreError(new ApiError(422,'invalid_request',error instanceof DurableInvalid?error.message:'The saved request is invalid.'))
+      return noStoreError(error instanceof ApiError?error:persistenceUnavailable(error))
+    }
+  }
+  return {GET:handle,POST:handle}
+}

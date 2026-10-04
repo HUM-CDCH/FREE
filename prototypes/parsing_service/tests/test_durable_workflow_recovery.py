@@ -30,7 +30,7 @@ from dataclasses import replace
 from pathlib import Path
 from dbos import DBOS
 from kei_exp.kie.extract.models import EXTRACT_MODELS,DEFAULTS
-from kei_exp.workflows import config,durable_extract
+from kei_exp.workflows import boot,config,durable_extract
 from kei_exp.workflows.cli import _redact_dbos_logs
 from kei_exp.workflows.cli import redacted
 from kei_exp.workflows.coordination import CoordinationPool
@@ -46,7 +46,7 @@ def fault(pool,routine,*args):
     counts[routine]=counts.get(routine,0)+1
     wanted=os.environ.get('FAULT')
     boundary='publish_snapshot' if wanted=='saved_result' else wanted
-    occurrence=1 if wanted=='saved_result' else 2
+    occurrence=1 if wanted in ('saved_result','acknowledge') else 2
     if routine==boundary and counts[routine]==occurrence:
         Path(os.environ['CRASHED']).write_text(wanted)
         os.kill(os.getpid(),signal.SIGKILL)
@@ -62,6 +62,7 @@ def diagnosed_plan(*args):
         raise
 durable_extract.plan_next=diagnosed_plan
 DBOS(config=config.dbos_config(url,'durable-proof',log_level='WARNING'))
+boot.set_timestamp(boot.database_clock_ms(url))
 DBOS.launch();config.register_queues(polling_interval_sec=.1)
 Path(os.environ['SERVING']).touch()
 while True:time.sleep(.1)
@@ -76,7 +77,7 @@ def until(predicate,timeout=45):
     raise AssertionError('durable recovery condition timed out')
 
 
-@pytest.mark.parametrize('index',range(4))
+@pytest.mark.parametrize('index',range(5))
 def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
     fixture=json.loads(Path(FIXTURE).read_text())
     fields=checked_conninfo(fixture['admin'])  # before opening an admin connection
@@ -150,9 +151,26 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
             head=admin.execute('SELECT acknowledgement,"leaseEpoch","snapshotVersion" FROM extraction_runtime.head WHERE id=%s',[case['id']]).fetchone()
             captures=admin.execute('SELECT count(*),count(o.id) FROM extraction_runtime.capture c LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=%s',[case['id']]).fetchone()
             snapshot=admin.execute('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=%s ORDER BY version DESC LIMIT 1',[case['id']]).fetchone()[0]
-        assert head[0]=='COMPLETED' and head[1]>=2 and head[2]>0
+        assert head[0]=='COMPLETED' and head[1]>=(1 if case['fault']=='acknowledge' else 2) and head[2]>0
         assert captures[0]==captures[1]==len(requests)
         assert saved<=before and sorted(value['modelValue'] for value in snapshot)==['Hill','Valley']
+        if index==4:
+            # Execute the new worker-owned cleanup against real DBOS history.
+            # The app graph and source references stay until the worker proves
+            # all linked native workflows quiescent and deletes their history.
+            with psycopg.connect(**fields) as admin:
+                admin.execute('DELETE FROM public.extraction WHERE id=%s',[case['id']])
+                fence=admin.execute('SELECT fence FROM extraction_runtime.head WHERE id=%s',[case['id']]).fetchone()[0]
+            gc_id=f"kei-gc:durable:{case['id']}:{fence}:proof"
+            client.enqueue({'workflow_name':'deleteDurableHistoryV1','queue_name':'kei-gc','application_name':'kei',
+                'workflow_id':gc_id,'serialization_type':WorkflowSerializationFormat.PORTABLE},
+                {'protocol':1,'extraction_id':case['id'],'fence':fence})
+            status=until(lambda:(s:=client.retrieve_workflow(gc_id).get_status()).status in {'SUCCESS','ERROR'} and s)
+            assert status.status=='SUCCESS',status.error
+            assert status.output=={'removed':True}
+            assert client.list_workflows(workflow_ids=[case['workflow']],load_input=False,load_output=False)==[]
+            with psycopg.connect(**fields) as admin:
+                assert admin.execute('SELECT count(*) FROM extraction_runtime.head WHERE id=%s AND deleted',[case['id']]).fetchone()[0]==1
     finally:
         for process in workers:
             if process.poll() is None:process.terminate()

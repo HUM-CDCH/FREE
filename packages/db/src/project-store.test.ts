@@ -60,6 +60,8 @@ function fakeDatabase(
   } = {},
 ) {
   const tables: Record<string, Row[]> = {
+    Head: [],
+    ArtifactReference: [],
     ResearcherAccount: [
       { id: RESEARCHER_A, email: 'researcher-a@example.org' },
       { id: RESEARCHER_B, email: 'researcher-b@example.org' },
@@ -454,7 +456,7 @@ function fakeDatabase(
   })
   return {
     tables,
-    orm,
+    orm: {...orm,extraction_runtime:{Head:orm.public.Head,ArtifactReference:orm.public.ArtifactReference}},
     transaction: async <T>(
       run: (tx: {
         orm: typeof orm

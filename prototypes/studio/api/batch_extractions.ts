@@ -45,6 +45,7 @@ function batchDto(batch: BatchExtractionSnapshot) {
       sourceDocumentId: member.sourceDocumentId,
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
+      ...(member.durableExtractionId?{durableExtractionId:member.durableExtractionId}:{}),
       executionFailureMessage: member.failureMessage,
       latestExtraction: member.latestExtraction && {
         extractionId: member.latestExtraction.extractionId,

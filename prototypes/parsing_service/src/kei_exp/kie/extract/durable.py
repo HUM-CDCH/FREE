@@ -25,6 +25,30 @@ def digest(body):
     return hashlib.sha256(canonical(body).encode()).hexdigest()
 
 
+def field_meaning(node):
+    meaning={k:v for k,v in node.items() if k not in ("id","name","children")}
+    if "children" in node:
+        meaning["children"]=sorted([[child["id"],field_meaning(child)] for child in node["children"]])
+    return digest(meaning)
+
+
+def adapt_value(source, target, value):
+    """Presentation renames use stable child identities, including array objects."""
+    if field_meaning(source) != field_meaning(target):
+        raise ValueError("incompatible field")
+    if value is None:
+        return None
+    def object_value(raw):
+        old = {child["id"]: child for child in source.get("children", [])}
+        return {child["name"]: adapt_value(old[child["id"]], child, raw.get(old[child["id"]]["name"]))
+                for child in target.get("children", [])}
+    if source["type"] == "object":
+        return object_value(value)
+    if source["type"] == "array" and source.get("children"):
+        return [object_value(item) for item in value]
+    return value
+
+
 class NeedsCall(BaseException):
     """A planning yield; never mistaken for a failed model response."""
 
@@ -70,6 +94,8 @@ class CapturePlanner:
         ranges = {}
         for completed in snapshot["coverage"].get("completedScopes",{}).values():
             record_id = record_identity(source_revision,completed["scope"])
+            if any(value["recordId"]==record_id and value["grounding"]=="provisional" for value in snapshot["values"]):
+                continue
             if any(value["recordId"]==record_id and value["id"] in reprocess for value in snapshot["values"]):
                 continue
             for primary in completed["primary"]:
@@ -182,7 +208,7 @@ class CapturePlanner:
             examples,omissions=[],[]
             for revision in capture["candidates"]:
                 candidate=revision["candidate"];node=nodes.get(candidate["fieldId"])
-                if node is None or candidate["meaning"]!=digest({k:v for k,v in node.items() if k not in ("id","name")}):
+                if node is None or candidate["meaning"]!=field_meaning(node):
                     omissions.append({"id":revision["id"],"reason":"incompatible"});continue
                 amended=deepcopy(schema)
                 amended["record"]["description"]+=self._guidance([*examples,candidate])
@@ -200,10 +226,17 @@ class CapturePlanner:
         self.pending[capture["id"]]=key
         raise NeedsCall()
 
-    @staticmethod
-    def _guidance(examples):
+    def _guidance(self, examples):
+        nodes = {}
+        def visit(items):
+            for node in items:
+                nodes[node["id"]] = node
+                visit(node.get("children", []))
+        visit(self.selection["schemaTree"]["schemaNodes"])
+        projected = [{**candidate, "value": adapt_value(candidate["node"], nodes[candidate["fieldId"]], candidate["value"])
+                      if candidate.get("node") else candidate["value"]} for candidate in examples]
         return ("\nResearcher correction examples (patterns only). Extract facts and Evidence solely from the target source; "
-                "these examples never supply target facts or anchors.\n" + canonical(examples))
+                "these examples never supply target facts or anchors.\n" + canonical(projected))
 
     def _feedback(self, candidates, system, user, schema, reserve, counter):
         nodes = {}
@@ -216,7 +249,7 @@ class CapturePlanner:
         for revision in candidates:
             candidate = revision["candidate"]
             node = nodes.get(candidate["fieldId"])
-            meaning = digest({k: v for k, v in node.items() if k not in ("id", "name")}) if node else None
+            meaning = field_meaning(node) if node else None
             if not node or candidate["meaning"] != meaning:
                 omissions.append({"id": revision["id"], "reason": "incompatible"})
                 continue
@@ -240,7 +273,8 @@ class CapturePlanner:
         record_id = record_identity(self.lease.state["source"].get("sourceRevisionId", self.lease.state["source"].get("artifactSha256")), scope)
         reprocess = set(self.historical["manifest"]["coverage"].get("reprocessValueIds", []))
         values = [v for v in snapshot["values"] if v["recordId"] == record_id and v["processing"] == "saved"]
-        if not values or any(v["id"] in reprocess for v in values):
+        complete = any(c.get("scope") == scope for c in snapshot["coverage"].get("completedScopes", {}).values())
+        if not complete or not values or any(v["id"] in reprocess for v in values):
             return None
         # Completed values retain their producing selection. Empty fields are
         # carried as historical results; no new schema is attributed to them.

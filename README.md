@@ -227,6 +227,37 @@ registration and rotation:
 
 ## Extraction execution
 
+### Durable interactive extraction candidate
+
+The protocol-1 implementation is an admission-disabled candidate governed by
+[ADR 0017](docs/adr/0017-durable-extraction-control-and-call-checkpoints.md) and
+[its release matrix](docs/plans/2026-10-04-durable-interactive-extraction-release.md).
+`DURABLE_RELEASE_VERIFIED` remains false; environment configuration alone cannot
+admit it. Existing Extractions keep their legacy execution and review semantics.
+
+A protocol-1 Extraction retains one visible identity across Pause, Resume and
+Retry. Pause drains and saves admitted calls before becoming Paused; Stop is
+terminal and retains saved data. Its application-owned coordination state
+expresses control and immutable progress; DBOS still dispatches and recovers
+linked attempts. This is the Extraction-specific amendment to the legacy
+DBOS-derived status contract, not a second scheduler.
+
+Producing schema revisions, methods, exact call inputs, outputs and correction
+history remain immutable. Revised inputs are saved separately and adopted only
+at a drained boundary; a later edit cancels pending Resume. Saved structurally
+valid provisional or ungrounded values support independent researcher decisions.
+Finalization and exports select fixed result/review versions. Compatible active
+Project corrections can guide later admitted calls, with optional Evidence from
+the correction's own source; incompatible corrections remain historical and do
+not enter the consuming target's context. No automatic guidance-conflict
+classification is performed.
+
+The existing schema-pinned admission, running Review Draft and settled-artifact
+contracts below continue to apply to protocol-0 Extractions. New protocol-1
+admissions remain disabled through integration with the review redesign,
+guarded release checks, and required E2E verification on baratheon Spark.
+
+
 FREE sends the pinned schema and the Source Document's run ID to the included
 Parsing Service for Article or Catalog extraction. The service owns extraction
 and grounding; Studio stores the returned records, evidence and diagnostics

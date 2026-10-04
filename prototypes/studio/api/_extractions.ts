@@ -126,6 +126,7 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
     requestedModels: extraction.requestedModels ?? null,
     requestedSettings: extraction.requestedSettings ?? null,
     executionStatus: extraction.executionStatus,
+    ...(extraction.durable ? {durable:true}:{}),
     outcome: extraction.outcome,
     complete: extraction.complete,
     modelAttribution: extraction.modelAttribution,

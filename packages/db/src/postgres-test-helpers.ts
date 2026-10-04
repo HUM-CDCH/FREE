@@ -1,6 +1,16 @@
 import { setTimeout } from 'node:timers/promises'
-import { Client } from 'pg'
+import { Client, type Pool } from 'pg'
+import postgres from '@prisma-next/postgres/runtime'
+import contractJson from './prisma/contract.json' with {type:'json'}
+import type { Contract } from './prisma/contract.d'
 import { validateDisposableTestDatabaseTarget } from './database-url.js'
+
+/** Construct the typed ORM on an already owned, explicitly disposable pool. */
+export function createDisposableRuntime(pg:Pool) {
+  if(!pg.options.connectionString)throw new Error('An explicit disposable database URL is required.')
+  validateDisposableTestDatabaseTarget(pg.options.connectionString)
+  return postgres<Contract>({contractJson,pg})
+}
 
 /** Hold writes after their reads so competing updates reach the same row. */
 export async function withBlockedUpdates<T>(

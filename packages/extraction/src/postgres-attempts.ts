@@ -10,6 +10,7 @@ import {
   type DatabaseOrm,
   type WorkflowStatuses,
 } from 'db'
+import { durableHeadSchema, durableStatus } from './durable-contract.js'
 import { extractWorkflowId } from './kei-handoff.js'
 import { modelChoice, recordedSettings } from './extraction-method.js'
 import type {
@@ -64,6 +65,7 @@ type DerivedAttempt = Readonly<{
   row: AttemptRow
   executionStatus: ProjectOperationStatus
   failure: ExtractionFailure | null
+  durable?: true
 }>
 
 const INTERRUPTED: ExtractionFailure = { ...INTERRUPTED_FAILURE, phase: 'extracting' }
@@ -87,7 +89,8 @@ export async function deriveAttempts(
   statuses: WorkflowStatuses,
   rows: readonly AttemptRow[],
 ): Promise<ReadonlyMap<string, DerivedAttempt>> {
-  const unsettled = rows.filter((row) => row.outcome === null)
+  const heads = await readRuntimeHeads(orm, rows.map(row=>row.id))
+  const unsettled = rows.filter((row) => row.outcome === null && !heads.has(row.id))
   const current = unsettled.length === 0
     ? new Map<string, string>()
     : await statuses(unsettled.map((row) => extractWorkflowId(row.id)))
@@ -101,6 +104,13 @@ export async function deriveAttempts(
   const derived = new Map<string, DerivedAttempt>()
   for (const read of rows) {
     const row = reloaded.get(read.id) ?? read
+    const head = heads.get(row.id)
+    if (head) {
+      const status=durableStatus(head)
+      const executionStatus=status==='COMPLETED'?'COMPLETED':status==='FAILED'||status==='STOPPED'?'FAILED':status==='QUEUED'?'QUEUED':'RUNNING'
+      derived.set(row.id,{row,executionStatus,failure:null,durable:true})
+      continue
+    }
     const settled = settledAttempt(row)
     if (settled) {
       derived.set(row.id, settled)
@@ -112,6 +122,23 @@ export async function deriveAttempts(
       : { row, executionStatus: 'FAILED', failure: INTERRUPTED })
   }
   return derived
+}
+
+export async function readRuntimeHeads(orm: DatabaseOrm, ids: readonly string[]) {
+  if (!ids.length) return new Map()
+  try {
+    const heads=await orm.extraction_runtime.Head.where(row=>row.id.in([...ids])).all()
+    return new Map(heads.filter(h=>!h.deleted).map(h=>[h.id,durableHeadSchema.parse(h)]))
+  } catch (error) {
+    // An older pre-expansion database has only legacy capabilities. All other
+    // errors, including outages, retain normal unavailable semantics.
+    let cause: unknown=error
+    while(cause && typeof cause==='object') {
+      if ('code' in cause && cause.code==='42P01') return new Map()
+      cause='cause' in cause?cause.cause:null
+    }
+    throw error
+  }
 }
 
 async function pinsOf(orm: DatabaseOrm, row: AttemptRow) {
@@ -195,6 +222,7 @@ export async function attemptSnapshot(orm: DatabaseOrm, attempt: DerivedAttempt)
   return {
     ...(await pinsOf(orm, attempt.row)),
     executionStatus: attempt.executionStatus,
+    ...(attempt.durable ? {durable:true as const}:{}),
     outcome: null,
     complete: null,
     modelAttribution: null,
@@ -233,8 +261,9 @@ export async function loadDocumentExtractions(
   // An interactive attempt in any state, or a published result of any kind: a pending or failed batch member is not a
   // result and never displaces one (spec, *One Extraction row*). A legacy sample row (`requestedPages` set) is neither.
   const whole = rows.filter((row) => row.requestedPages === null)
+  const heads=await readRuntimeHeads(orm,whole.map(row=>row.id))
   const candidates = whole
-    .filter((row) => row.batchExtractionId === null || row.outcome === 'SUCCEEDED')
+    .filter((row) => row.batchExtractionId === null || row.outcome === 'SUCCEEDED' || heads.has(row.id))
     .sort((left, right) =>
       right.createdAt.getTime() - left.createdAt.getTime() || right.id.localeCompare(left.id))
   const currentRepresentationId = (await orm.public.SourceRepresentationRevision.where({

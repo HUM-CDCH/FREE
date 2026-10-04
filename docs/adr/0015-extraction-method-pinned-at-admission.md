@@ -57,3 +57,18 @@ admitted with.
   longer parses. Reading them shows "Not recorded", while running on one fails
   only that Extraction.
 - Direct API clients must now send the `method` intent with every start.
+
+## Protocol-1 compatibility (2026-10-04)
+
+[ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md) explicitly
+extends this decision for admission-disabled durable interactive Extractions.
+Legacy Extractions retain this ADR's behavior. The new capability keeps one
+visible Extraction across linked attempts, preserves immutable producing input
+selections and exact captured calls, and reviews saved typed values independently
+of execution completion or grounding. Compatible ungrounded corrections may be
+Project guidance with optional own-source Evidence. Fixed retained snapshots
+support partial/failed/stopped exports and explicit finalization; an approval or
+rejection cannot silently transfer to changed model output. The review redesign
+is reused where compatible; its legacy path/anchor reconciliation is not applied
+to durable correction history. Neither existing DBOS application versions nor
+legacy workflow step sequences change. Release admissions remain disabled.

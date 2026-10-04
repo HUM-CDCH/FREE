@@ -49,7 +49,8 @@ export const EMPTY_SCOPE_IDS: ScopeIds = {
 
 /** Whether any surviving Source Representation Revision pins this package. */
 export async function packageIsReferenced(database: Database, artifactReference: string): Promise<boolean> {
-  return Boolean(await database.orm.public.SourceRepresentationRevision.select('id').first({ artifactReference }))
+  return Boolean(await database.orm.public.SourceRepresentationRevision.select('id').first({ artifactReference })) ||
+    Boolean(await database.orm.extraction_runtime.ArtifactReference.select('id').first({reference:artifactReference}))
 }
 
 export function createGarbageReferences(database: Database = db): GarbageReferences {
@@ -100,7 +101,11 @@ export function createGarbageReferences(database: Database = db): GarbageReferen
     },
     async referencedPreprocessIds() {
       const rows = await orm.SourceRepresentationRevision.select('preprocessId').all()
-      return new Set(rows.map((row) => row.preprocessId))
+      const heads=await database.orm.extraction_runtime.Head.select('sourcePin').all()
+      return new Set([...rows.map(row=>row.preprocessId),...heads.flatMap(head=> {
+        const pin=head.sourcePin as {runId?:string;generation?:string}
+        return pin.runId&&pin.generation?[`kei-exp:${pin.runId}:${pin.generation}`]:[]
+      })])
     },
     async referencedPackages(references) {
       const wanted = [...new Set(references)]
@@ -108,7 +113,8 @@ export function createGarbageReferences(database: Database = db): GarbageReferen
       const rows = await orm.SourceRepresentationRevision.where((row) => row.artifactReference.in(wanted))
         .select('artifactReference')
         .all()
-      return new Set(rows.map((row) => row.artifactReference))
+      const retained=await database.orm.extraction_runtime.ArtifactReference.where(row=>row.reference.in(wanted)).select('reference').all()
+      return new Set([...rows.map(row=>row.artifactReference),...retained.map(row=>row.reference)])
     },
     packageIsReferenced(artifactReference) {
       return packageIsReferenced(database, artifactReference)

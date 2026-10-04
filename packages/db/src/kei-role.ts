@@ -13,7 +13,8 @@ export const EXTRACTION_RUNTIME_ROUTINES = [
   'publish_snapshot(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)',
   'acknowledge(uuid,uuid,integer,boolean,jsonb)',
   'resolve_selection(uuid,uuid,integer,jsonb)', 'read_call(uuid,uuid,integer,uuid)',
-  'historical_coverage(uuid,uuid,integer)', 'read_latest_snapshot(uuid,uuid,integer)',
+  'read_attempt_outcome(uuid,uuid)', 'historical_coverage(uuid,uuid,integer)', 'read_latest_snapshot(uuid,uuid,integer)',
+  'read_deleted_graph(uuid,integer)',
 ] as const
 const IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/
 
