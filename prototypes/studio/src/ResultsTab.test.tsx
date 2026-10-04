@@ -1376,3 +1376,97 @@ describe('ResultsTab verification completeness', () => {
     })
   })
 })
+
+describe('ResultsTab one by one (§4)', () => {
+  const fields = ['place', 'year', 'site'] as const
+  const links: EvidenceLink[] = fields.map((field) => ({ resultPath: ['records', 0, field], evidenceAnchorId: `anchor-${field}`,
+    ...(field === 'site' ? { verbatim: true, lexicalHits: 2 } : {}) }))
+  const three = withAttempt({ records: [{ place: 'Oslo', year: '1900', site: 'Grav 8' }] }, links, { strategy: 'CATALOG' })
+  const initial = fields.map((field) => decided(['records', 0, field], `anchor-${field}`))
+  const schema: SchemaDefinition = { recordDescription: 'Graves.', schemaNodes: fields.map((field) => ({ id: field, name: field, type: 'string' as const })) }
+  const heading = () => screen.getByRole('heading', { level: 2 })
+  const key = (name: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(document.activeElement ?? document.body, { key: name, ...init })
+  function enter() {
+    const spy = vi.fn()
+    render(<Reviewing attempt={three} initial={initial} spy={spy} pinnedSchema={schema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    return spy
+  }
+
+  it('starts at the doubtful link, shows its record queue and position, and focuses the value', () => {
+    enter()
+    expect(heading()).toHaveTextContent('Grav 8')
+    expect(document.activeElement).toBe(heading())
+    expect(screen.getByRole('list', { name: 'Record 1, values in review order' }).querySelectorAll('li')).toHaveLength(3)
+    expect(screen.getByRole('button', { name: 'site, to check, doubtful link' })).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('Record 1 of 1 · 1 of 3 in this record')).toBeInTheDocument()
+    expect(screen.getByText(/Doubtful link\./).closest('div')).toHaveTextContent('Check that this is the right passage.')
+    expect(screen.queryByRole('group', { name: 'Show values' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Leave one-by-one review, back to the list' })).toBeInTheDocument()
+  })
+
+  it('A approves and moves on, saying so; J skips without deciding; K steps back; Z undoes', () => {
+    const spy = enter()
+    key('a')
+    expect(spy).toHaveBeenLastCalledWith(['records', 0, 'site'], 'APPROVED', null, null, true)
+    expect(heading()).toHaveTextContent('Oslo')
+    expect(document.activeElement).toBe(heading())
+    expect(live()).toHaveTextContent('Approved site. 2 to check. Next: place, Oslo.')
+    key('j')
+    expect(heading()).toHaveTextContent('1900')
+    expect(spy).toHaveBeenCalledTimes(1)
+    key('k')
+    expect(heading()).toHaveTextContent('Oslo')
+    key('k')
+    expect(heading()).toHaveTextContent('Grav 8')
+    expect(screen.getByText('Approved', { selector: 'b' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Next to check/ })).toBeInTheDocument()
+    key('z')
+    expect(spy).toHaveBeenLastCalledWith(['records', 0, 'site'], 'APPROVED', null, null, false)
+    expect(heading()).toHaveTextContent('Grav 8')
+  })
+
+  it('ignores keys on repeat, with a modifier and while typing; E edits and Escape cancels the edit first', () => {
+    const spy = enter()
+    key('a', { repeat: true })
+    key('a', { ctrlKey: true })
+    expect(spy).not.toHaveBeenCalled()
+    key('e')
+    const input = screen.getByLabelText('Reviewed value')
+    expect(document.activeElement).toBe(input)
+    fireEvent.keyDown(input, { key: 'a' })
+    expect(spy).not.toHaveBeenCalled()
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByLabelText('Reviewed value')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Leave one-by-one review, back to the list' })).toBeInTheDocument()
+  })
+
+  it('Escape leaves to the list with the current value selected and focused', () => {
+    enter()
+    key('Escape')
+    expect(screen.getByRole('group', { name: 'Show values' })).toBeInTheDocument()
+    expect(rowOf('site')).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(rowOf('site'))
+  })
+
+  it('when the record runs out, says so and offers the list', () => {
+    enter()
+    key('a')
+    key('a')
+    key('a')
+    expect(heading()).toHaveTextContent(/is checked$/)
+    expect(screen.getByText('0 values are left to check in 0 more records.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to list' }))
+    expect(screen.getByRole('group', { name: 'Show values' })).toBeInTheDocument()
+  })
+
+  it('"Review from here" enters at that value; One by one is unavailable with nothing to check', () => {
+    render(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} />)
+    fireEvent.click(rowOf('year'))
+    fireEvent.click(screen.getByRole('button', { name: /Review from here/ }))
+    expect(heading()).toHaveTextContent('1900')
+    cleanup()
+    render(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} review={{ isTouched: () => true }} />)
+    expect(screen.getByRole('button', { name: /One by one/ })).toHaveAttribute('title', 'Nothing left to check here')
+  })
+})
