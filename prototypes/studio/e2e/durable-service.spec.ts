@@ -14,16 +14,20 @@ const methods=['article','generic','recipe','unified'] as const
 type Method=typeof methods[number]
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
-  options:{nodes?:SchemaNode[];models?:{fields:'gliformer';reasoning:'instruct'}}={}) {
+  options:{nodes?:SchemaNode[];schemaRevisionId?:string;models?:{fields:'gliformer';reasoning:'instruct'}}={}) {
   const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
   const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
   const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
     :method==='recipe'?[{id:'entry_no',name:'entry_no',type:'integer' as const},{id:'kreis',name:'kreis',type:'verbatim-string' as const},
       {id:'fundart',name:'fundart',type:'verbatim-string' as const},{id:'site_name',name:'site_name',type:'verbatim-string' as const}]:siteNodes)
   const tree={recordDescription:method==='article'?'All numbered sites in this document.':'One numbered catalogue entry.',schemaNodes:nodes}
-  const revision=await page.request.post('/api/schema-revisions',{headers:{Origin:E2E_ORIGIN},data:{projectContextId:project,...tree,recordScope:method==='article'?'document':'records'}})
-  expect(revision.status(),await revision.text()).toBe(201)
-  const schemaRevisionId=(await revision.json()).revision.schemaRevisionId as string,id=randomUUID()
+  let schemaRevisionId=options.schemaRevisionId
+  if(!schemaRevisionId) {
+    const revision=await page.request.post('/api/schema-revisions',{headers:{Origin:E2E_ORIGIN},data:{projectContextId:project,...tree,recordScope:method==='article'?'document':'records'}})
+    expect(revision.status(),await revision.text()).toBe(201)
+    schemaRevisionId=(await revision.json()).revision.schemaRevisionId as string
+  }
+  const id=randomUUID()
   const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
   const settings={[method]:method==='unified'?{defaults:1}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
@@ -160,7 +164,7 @@ test('an ungrounded UI correction guides a later worker with immutable captured 
     expect(sourceB.sourceDocumentId).not.toBe(sourceA.sourceDocumentId)
     service.holdNextExtraction()
     const requestsBefore=service.modelRequests().length
-    const extractionB=await seedNative(page,project,sourceB.sourceDocumentId,'article')
+    const extractionB=await seedNative(page,project,sourceB.sourceDocumentId,'article',{schemaRevisionId:value.schemaRevisionId})
     await service.reconcileDurable()
     await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
     const historyUrl=`/api/extractions/${extractionB}/durable/history`
