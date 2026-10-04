@@ -550,6 +550,20 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await page.setViewportSize({ width: 1280, height: 800 })
   // Selecting a value opens its decision (§3.3).
   await activateWithKeyboard(page, titleRow)
+  // Native focus must not override the list position restored when leaving One by one (§4.1).
+  await page.setViewportSize({ width: 1280, height: 480 })
+  const savedListScroll = await titleRow.evaluate((element) => {
+    const scroller = element.closest('.overflow-y-auto')!
+    scroller.scrollTop = scroller.scrollHeight
+    return scroller.scrollTop
+  })
+  expect(savedListScroll).toBeGreaterThan(0)
+  await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
+  await expect(resultsPanel(page).getByRole('heading', { level: 2 })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(titleRow).toBeFocused()
+  expect(await titleRow.evaluate((element) => element.closest('.overflow-y-auto')!.scrollTop)).toBe(savedListScroll)
+  await page.setViewportSize(journeyViewport)
   await activateWithKeyboard(page, decisionFor(page, 'title', 'Edit'))
   const reviewedValue = resultsPanel(page).getByRole('textbox', { name: 'Reviewed value', exact: true })
   await reviewedValue.fill('Reviewed, café')

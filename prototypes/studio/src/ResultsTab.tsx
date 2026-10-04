@@ -158,14 +158,15 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
       }
       return
     }
-    if (restoreListScroll.current && scrollRef.current) {
+    const restoringScroll = restoreListScroll.current
+    if (restoringScroll && scrollRef.current) {
       scrollRef.current.scrollTop = listScroll.current ?? 0
       restoreListScroll.current = false
       listScroll.current = null
     }
     const row = focusRef.current === null ? null : rowRefs.current.get(focusRef.current)
     if (row?.isConnected) {
-      row.focus()
+      row.focus({ preventScroll: restoringScroll })
       focusRef.current = null
     }
   })
