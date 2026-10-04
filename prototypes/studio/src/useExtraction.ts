@@ -251,9 +251,11 @@ export function useExtraction({
     setDraftSaving(false)
     setDraftSaved(false)
     setSaving(false)
+    draftAcceptedRef.current = null
     setChangedAfterReview(new Set())
     setSettlement(null)
     setDraftRefused(null)
+    setDiscarded(null)
     if (documentChanged) {
       // Orphaned reads notice the missing monitor and drop their response.
       monitorRef.current = null
@@ -398,6 +400,7 @@ export function useExtraction({
       setDiscarded(null)
       setDraftSaved(runDraft.version > 0)
       draftRef.current = { decisions, touched: restored.touchedPaths }
+      draftAcceptedRef.current = draftRef.current
       setReviewDecisions(decisions)
       setTouchedPaths(restored.touchedPaths)
       return
