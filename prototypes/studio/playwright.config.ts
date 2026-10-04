@@ -29,7 +29,7 @@ export default defineConfig({
   testDir: './e2e',
   // The restart spec runs on the recovery config's restartable Studio (playwright.recovery.config.ts).
   testIgnore: ['real-service.spec.ts', 'real-service-gc.spec.ts', 'real-model-route.spec.ts', 'real-application-route.spec.ts',
-    'interactive-restart.spec.ts', 'source-ingestion-restart.spec.ts', 'durable-extraction.spec.ts'],
+    'interactive-restart.spec.ts', 'source-ingestion-restart.spec.ts', 'durable-extraction.spec.ts', 'durable-service.spec.ts'],
   fullyParallel: true,
   // The mock OIDC and Studio hosts are shared by this suite; 12 default workers on a 24-core host intermittently
   // fail sign-in while many tests start together. Bound browser concurrency for a reproducible full gate.

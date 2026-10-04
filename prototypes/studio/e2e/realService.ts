@@ -319,6 +319,7 @@ export async function startRealService(logFile: string,
     cancelKeiWorkflow: (id: string) => keiClient.cancelWorkflow(id),
     collectGarbage: async (): Promise<GarbageSummary> =>
       (await studioClient.triggerSchedule('collectGarbage')).getResult() as Promise<GarbageSummary>,
+    reconcileDurable: async () => (await studioClient.triggerSchedule('reconcileDurableExtractions')).getResult(),
     ageRun: (runId: string, byMs: number) => ageFile(join(runs, runId), byMs),
     runExists: async (runId: string) => stat(join(runs, runId)).then(() => true, () => false),
     orphanPayloadRows: async (schema: 'dbos' | 'kei_dbos') => {
