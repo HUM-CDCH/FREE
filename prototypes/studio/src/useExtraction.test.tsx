@@ -121,6 +121,47 @@ beforeEach(() => {
 })
 
 describe('useExtraction server-owned lifecycle', () => {
+  it('switches native Extractions on the same source and fences the previous observer', () => {
+    const first = jobAttempt({durable:true,executionStatus:'PAUSING'})
+    const second = jobAttempt({durable:true,extractionId:'55555555-5555-4555-8555-555555555555',executionStatus:'PAUSED'})
+    const {result,rerender}=renderHook(({initialAttempt})=>useExtraction({...options(initialAttempt),documentKey:representationId}),
+      {initialProps:{initialAttempt:first}})
+    act(()=>result.current.acceptDurableStatus(first.extractionId,'PAUSING'))
+    rerender({initialAttempt:second})
+    expect(result.current.attempt?.extractionId).toBe(second.extractionId)
+    expect(result.current.state).toEqual({status:'retained',executionStatus:'PAUSED'})
+    act(()=>result.current.acceptDurableStatus(first.extractionId,'STOPPED'))
+    expect(result.current.state).toEqual({status:'retained',executionStatus:'PAUSED'})
+  })
+
+  it('does not replace locally observed native status when admission metadata catches up', () => {
+    const first = jobAttempt({durable:true,executionStatus:'QUEUED'})
+    const {result,rerender}=renderHook(({initialAttempt})=>useExtraction({...options(initialAttempt),documentKey:representationId}),
+      {initialProps:{initialAttempt:first}})
+    act(()=>result.current.acceptDurableStatus(first.extractionId,'PAUSED'))
+    rerender({initialAttempt:{...first,executionStatus:'RUNNING'}})
+    expect(result.current.state).toEqual({status:'retained',executionStatus:'PAUSED'})
+  })
+
+  it('drops a previous same-source status read after explicit Extraction navigation', async () => {
+    vi.useFakeTimers()
+    try {
+      const first=jobAttempt({durable:true})
+      const second=jobAttempt({durable:true,extractionId:'55555555-5555-4555-8555-555555555555',executionStatus:'PAUSED'})
+      const read=Promise.withResolvers<Awaited<ReturnType<typeof api.readExtraction>>>()
+      vi.mocked(api.readExtraction).mockReturnValueOnce(read.promise)
+      const {result,rerender}=renderHook(({initialAttempt})=>useExtraction({...options(initialAttempt),documentKey:representationId}),
+        {initialProps:{initialAttempt:first}})
+      await act(()=>vi.advanceTimersByTimeAsync(2000))
+      expect(api.readExtraction).toHaveBeenCalledOnce()
+      rerender({initialAttempt:second})
+      expect(vi.mocked(api.readExtraction).mock.calls[0]![1]!.aborted).toBe(true)
+      await act(async()=>read.resolve({extraction:{...first,executionStatus:'COMPLETED'},pendingReviewDecisions:null}))
+      expect(result.current.attempt?.extractionId).toBe(second.extractionId)
+      expect(result.current.state).toEqual({status:'retained',executionStatus:'PAUSED'})
+    } finally {vi.useRealTimers()}
+  })
+
   it('distinguishes a version-zero draft from an acknowledged server draft', async () => {
     const decision: ReviewDecisionInput = {
       resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1',

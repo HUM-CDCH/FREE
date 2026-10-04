@@ -18,20 +18,25 @@ import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './rev
 import { shownValue, stateLabel, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { MarkInfo } from './useEvidenceOverlays'
+import {savedCorrectionHref,savedReviewCut} from './durableReviewLinks'
 
 type Value=DurablePage['values'][number]
 const inputClass='w-full rounded-md border border-line bg-surface px-3 py-2 text-secondary text-ink focus-visible:outline-accent'
-function ValueReview({id,value,snapshotVersion,document,onSaved,onClose,onEvidence,focus,onNext,onPrevious,onGo,onFocus,queue,readOnly=false}:{
+function ValueReview({id,projectId,sourceDocumentId,value,snapshotVersion,document,onSaved,onClose,onEvidence,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,readOnly=false}:{
   id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;onSaved:()=>void;onClose:()=>void;
   onEvidence:(id:string,occurrenceIds?:readonly string[])=>void;focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
   queue:ReturnType<typeof reviewQueue>;readOnly?:boolean;
   onFocus:()=>void;
+  keyboardRoot:RefObject<HTMLDivElement|null>;
+  projectId:string;sourceDocumentId:string;
 }) {
   const [state,send]=useMachine(durableReviewMachine,{input:{extractionId:id,value,snapshotVersion}})
   const [editing,setEditing]=useState(false)
+  const headingRef=useRef<HTMLHeadingElement>(null)
+  useEffect(()=>{if(focus)headingRef.current?.focus({preventScroll:true})},[focus])
   useEffect(()=> {if(state.matches('saved')) onSaved()},[state,onSaved])
   const row=durableRailRow(state.context.value,document)
-  const busy=state.matches('saving')||state.matches('reloading')
+  const busy=state.matches('saving')||state.matches('reloading')||state.matches('undoing')
   const quote=row.link&&document?evidenceQuote(document,row.link.evidenceAnchorId,row.link.grounding?.raw??null,value.modelValue):null
   const position=queuePosition(queue,value.id)
   const decide=(action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING',edited?:unknown)=> {
@@ -39,33 +44,36 @@ function ValueReview({id,value,snapshotVersion,document,onSaved,onClose,onEviden
     send({type:'save',action})
   }
   const common={quote,last:false,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
-    onCancelEdit:()=>setEditing(false),onUndo:()=>decide('PENDING'),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
+    onCancelEdit:()=>setEditing(false),onUndo:()=>send({type:'undo'}),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
   useEffect(()=> {
-    if(!focus||busy||readOnly)return
+    const root=keyboardRoot.current
+    if(!focus||busy||readOnly||!root)return
     const keys=(event:KeyboardEvent)=> {
-      if(event.ctrlKey||event.metaKey||event.altKey||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
+      if(event.defaultPrevented||event.repeat||root.closest('[hidden]')||event.ctrlKey||event.metaKey||event.altKey||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
       const key=event.key.toLowerCase()
-      if(!['a','e','r','j','k','escape'].includes(key))return
+      if(!['a','e','r','j','k','z','escape'].includes(key))return
       event.preventDefault();event.stopPropagation()
       if(key==='j')onNext()
       else if(key==='k')onPrevious()
       else if(key==='escape')onClose()
-      else if(row.kind==='to-check') {
+      else if(key==='z'&&!editing&&row.kind!=='to-check')send({type:'undo'})
+      else if(row.kind==='to-check'&&!editing) {
         if(key==='e')setEditing(true)
         else decide(key==='a'?'APPROVED':'REJECTED')
       }
     }
-    window.addEventListener('keydown',keys)
-    return()=>window.removeEventListener('keydown',keys)
+    root.addEventListener('keydown',keys)
+    return()=>root.removeEventListener('keydown',keys)
   })
   return <section aria-label={`Review ${value.node.name}`} className="space-y-2">
     <fieldset disabled={busy||readOnly} className="m-0 min-w-0 border-0 p-0">
       {focus?<ReviewFocus {...common} current={row} items={position?.items??[]} position={position}
         recordLabel={`Record ${position?.record??1}`} label={`Snapshot ${snapshotVersion}`} upNext={queue.filter(item=>item.key!==value.id&&item.row.kind==='to-check').slice(0,3)}
-        end={null} headingRef={null} onNext={onNext} onPrevious={onPrevious} onGo={onGo} onContinue={()=>onNext()} onBack={onClose}/>
+        end={null} headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo} onContinue={()=>onNext()} onBack={onClose}/>
         :<ReviewRow {...common} row={row} selected pinned={false} onSelect={onClose} canDecide={!busy&&!readOnly&&Boolean(row.retained?.reviewable)}
           saved={readOnly} onReviewFromHere={onFocus}/>}
       {!readOnly&&<div className="space-y-2 border-t border-line px-3 pt-2">
+        {value.correction&&value.correction.decision.action!=='PENDING'&&<Button onClick={()=>decide('PENDING')}>Mark pending</Button>}
         <label className="flex gap-2 text-secondary"><input type="checkbox" checked={state.context.draft.included}
           onChange={event=>send({type:'edit',draft:{...state.context.draft,included:event.target.checked}})}/>Use an edited correction as Project guidance</label>
         <p className="text-compact text-ink-muted">Guidance teaches a pattern; it does not supply another document’s facts. Evidence is optional.</p>
@@ -80,7 +88,13 @@ function ValueReview({id,value,snapshotVersion,document,onSaved,onClose,onEviden
     {value.links.map((link,index)=><Button key={`${link.evidenceAnchorId}:${index}`} onClick={()=>onEvidence(link.evidenceAnchorId)}>
       Model Evidence · {link.resultPath.slice(2).join(' › ')}{link.precision==='input'?' · whole page':''}</Button>)}
     {value.correction?.decision.evidence.map((evidence:{anchorId:string;occurrenceIds:string[]})=><Button key={evidence.anchorId} onClick={()=>onEvidence(evidence.anchorId,evidence.occurrenceIds)}>Correction Evidence</Button>)}
+    {value.historicalCorrection&&<p className="text-secondary">An incompatible correction remains saved. <a className="text-accent underline" href={savedCorrectionHref(projectId,sourceDocumentId,value.historicalCorrection)}>Open historical correction and review · revision {value.historicalCorrection.revision}</a></p>}
     {state.context.error&&<div className="space-y-2"><p role="alert" className="text-secondary text-danger">{state.context.error}</p><Button disabled={busy} onClick={()=>send({type:'refresh'})}>Reload saved decision · keep my draft</Button></div>}
+    {(state.context.error||state.context.comparing)&&<section aria-label="Compare saved value and draft" className="space-y-2 rounded-md border border-line p-3 text-secondary">
+      <p className="text-compact text-ink-muted">Save replaces the whole field. Compare the saved value with your draft before retrying. Reinspect reordered arrays and changed shapes.</p>
+      <dl className="space-y-1"><dt className="font-semibold">Saved value in this view</dt><dd className="m-0 break-words">{JSON.stringify(row.value)}</dd>
+        <dt className="font-semibold">Your whole-value draft</dt><dd className="m-0 break-words">{JSON.stringify(state.context.draft.value)}</dd></dl>
+    </section>}
     {busy&&<p role="status" className="text-secondary">Saving your decision…</p>}
     <Button onClick={onClose}>Close value</Button>
   </section>
@@ -98,6 +112,16 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
         <summary className="cursor-pointer">Input selection {selection.ordinal} · schema {selection.schemaRevisionId.slice(0,8)}</summary>
         <p className="text-compact text-ink-muted">Earlier values retain this schema and these settings.</p>
         <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({schema:selection.schemaTree,method:selection.method,resolved:selection.resolved},null,2)}</pre>
+      </details>)}
+      {history.captures?.map(capture=><details key={capture.id} className="text-secondary">
+        <summary className="cursor-pointer">Call · {capture.descriptor.stage} · input selection {history.selections.find(selection=>selection.id===capture.selectionId)?.ordinal??capture.selectionId.slice(0,8)} · decisions {capture.feedbackVersion}</summary>
+        <p className="text-compact text-ink-muted">This call keeps its captured guidance even when a correction is later excluded or superseded.</p>
+        <p className="text-compact text-ink-muted">{capture.outputDigest?'Saved output':'No saved output'} · capture {capture.id}</p>
+        <details><summary className="cursor-pointer">{capture.invoked?'Consumed guidance and omitted candidates':'Captured guidance and omitted candidates'}</summary>
+          <p className="text-compact text-ink-muted">Omissions are evaluated for this call’s target and budget.</p>
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({examples:capture.request?.examples??[],omissions:capture.request?.omissions??[],budget:capture.request?.budget??null,candidates:capture.candidates},null,2)}</pre>
+        </details>
+        <details><summary className="cursor-pointer">Exact producing request and output</summary><pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({descriptor:capture.descriptor,inputDigest:capture.inputDigest,request:capture.request,outputDigest:capture.outputDigest,output:capture.output},null,2)}</pre></details>
       </details>)}
       {history.snapshots.map(snapshot=><details key={snapshot.id} className="text-secondary">
         <summary className="cursor-pointer">Saved result snapshot {snapshot.version} · {snapshot.values.length} values</summary>
@@ -122,6 +146,7 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void;
 }) {
   const id=attempt?.extractionId
+  const keyboardRoot=useRef<HTMLDivElement>(null)
   const [loaded,setLoaded]=useState<Awaited<ReturnType<typeof readDurable>>|null>(null)
   const [page,setPage]=useState<DurablePage|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
   const [pinnedDocument,setPinnedDocument]=useState<{revision:string;document:ParsedDocument}|null>(null)
@@ -144,6 +169,7 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
   const [focus,setFocus]=useState(false),[detailsOpen,setDetailsOpen]=useState(false),[menuOpen,setMenuOpen]=useState(false)
   const [closedRecords,setClosedRecords]=useState<Set<string>>(()=>new Set())
   const selectedGeneration=useRef(0),linkedValue=useRef(new URLSearchParams(window.location.search).get('value'))
+  const linkedCut=useRef(savedReviewCut(window.location.search))
   const model=useMemo(()=>page?durableRailModel(page,document):null,[page,document])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
   const selectValue=useCallback((key:string)=> {
@@ -193,13 +219,18 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
     let next:Awaited<ReturnType<typeof readDurable>>
     try {next=await readDurable(id,signal)}
     catch(error){if(signal?.aborted||generation!==readGenerations.current.live)return;throw error}
+    let initialPage=next.page
+    if(!acceptedRead.current&&linkedCut.current) {
+      const cut=linkedCut.current
+      initialPage=await durableRequest<DurablePage>(`${durableRoot(id)}/values?snapshotVersion=${cut.snapshotVersion}&feedbackVersion=${cut.feedbackVersion}`,undefined,signal)
+    }
     if(signal?.aborted||generation!==readGenerations.current.live) return
     const previous=acceptedRead.current
     if(previous && (next.state.controlVersion<previous.state.controlVersion ||
       next.state.controlVersion===previous.state.controlVersion && (next.state.snapshotVersion<previous.state.snapshotVersion ||
         next.state.snapshotVersion===previous.state.snapshotVersion && next.page.feedbackVersion<previous.page.feedbackVersion))) return
     acceptedRead.current=next
-    setLoaded(next);setPage(previous=>previous??next.page);setError(null)
+    setLoaded(next);setPage(previous=>previous??initialPage);setError(null)
   },[id])
   useEffect(()=> {
     const generations=readGenerations.current
@@ -238,7 +269,7 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
   const exportSaved=(format:'xlsx'|'csv')=>void readDurableHistory(id).then(history=>import('./durableExport').then(module=>module.downloadDurableExport({state,page,history},format))).catch(error=>setError(error.message))
   const renderValue=(row:RailRow,pinned:boolean)=>row.key===review?.value.id&&review.version===page.snapshotVersion&&review.feedbackVersion===page.feedbackVersion?null:<ReviewRow row={row} selected={false} pinned={pinned} onSelect={()=>selectValue(row.key)} quote={null} canDecide={false} saved={readOnly} last={false}
     editing={false} node={null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
-  return <div className="flex h-full min-h-0 flex-col">
+  return <div ref={keyboardRoot} className="flex h-full min-h-0 flex-col">
     <ResultsHeader status={{mark:['QUEUED','RUNNING','PAUSING','STOPPING'].includes(state.status)?'spinner':state.status==='STOPPED'?'stopped':state.status==='FAILED'?'failed':state.status==='COMPLETED'?'completed':'incomplete',
       word:state.status.charAt(0)+state.status.slice(1).toLowerCase(),rest:`· ${state.counts.saved} calls saved · ${state.counts.inFlight} in flight`,
       failure:state.status==='FAILED'?'Processing did not finish. Saved values and decisions remain available; Retry continues failed or unfinished work.':undefined}}
@@ -279,8 +310,8 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
       {review&&<div className="space-y-2 border-b border-line pb-3">
         {(review.version!==page.snapshotVersion||review.feedbackVersion!==page.feedbackVersion)&&<p role="status" className="text-secondary">Your open review stays on results {review.version} and decisions {review.feedbackVersion}. Select a value below to review its displayed version.</p>}
-        <ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} value={review.value} snapshotVersion={review.version} document={document} onSaved={saved}
-          onClose={()=>{setReview(null);setFocus(false)}} onEvidence={onEvidence} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} readOnly={readOnly}/>
+        <ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} value={review.value} snapshotVersion={review.version} document={document} onSaved={saved}
+          onClose={()=>{setReview(null);setFocus(false)}} onEvidence={onEvidence} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot} readOnly={readOnly}/>
       </div>}
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values on this page. New saved work can be reviewed when it arrives.</p>}
       {!focus&&<ReviewList model={model} article={attempt.strategy==='ARTICLE'} finding={page.total===0&&['QUEUED','RUNNING'].includes(state.status)} filter={filter}

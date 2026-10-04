@@ -245,25 +245,32 @@ export function useExtraction({
   // change, so no frame renders the previous document's state. A change of
   // the Current Schema Revision alone touches nothing here: polling, drafts
   // and decisions stay bound to the Extraction's own revision.
-  const [rendered, setRendered] = useState({ documentKey, extractionId: attempt?.extractionId })
+  const [rendered, setRendered] = useState({ documentKey, extractionId: attempt?.extractionId, initialExtractionId: initialAttempt?.extractionId })
   const documentChanged = rendered.documentKey !== documentKey
-  const nextAttempt = documentChanged ? initialAttempt : attempt
-  if (documentChanged || rendered.extractionId !== nextAttempt?.extractionId) {
-    setRendered({ documentKey, extractionId: nextAttempt?.extractionId })
-    // In-flight saves and draft writes belong to the previous document or attempt.
-    saveScopeRef.current = { saving: false }
-    draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
-    setDraftSaving(false)
-    setDraftSaved(false)
-    setSaving(false)
-    draftAcceptedRef.current = null
-    setChangedAfterReview(new Set())
-    setSettlement(null)
-    setDraftRefused(null)
-    setDiscarded(null)
-    if (documentChanged) {
+  const initialChanged = rendered.initialExtractionId !== initialAttempt?.extractionId
+  // Explicit history navigation can select another Extraction on this same
+  // document. A prop catching up to a run admitted here is not a new scope.
+  const scopeChanged = documentChanged || initialChanged && initialAttempt?.extractionId !== attempt?.extractionId
+  const nextAttempt = scopeChanged ? initialAttempt : attempt
+  const attemptChanged = rendered.extractionId !== nextAttempt?.extractionId
+  if (documentChanged || initialChanged || attemptChanged) {
+    setRendered({ documentKey, extractionId: nextAttempt?.extractionId, initialExtractionId: initialAttempt?.extractionId })
+    if (scopeChanged || attemptChanged) {
+      // In-flight saves and draft writes belong to the previous document or attempt.
+      saveScopeRef.current = { saving: false }
+      draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
+      setDraftSaving(false)
+      setDraftSaved(false)
+      setSaving(false)
+      draftAcceptedRef.current = null
+      setChangedAfterReview(new Set())
+      setSettlement(null)
+      setDraftRefused(null)
+      setDiscarded(null)
+    }
+    if (scopeChanged) {
       // Orphaned reads notice the missing monitor and drop their response.
-      monitorRef.current = null
+      stopMonitor()
       setAttempt(initialAttempt)
       setState(extractionStateFromAttempt(initialAttempt))
       setReviewDecisions([])

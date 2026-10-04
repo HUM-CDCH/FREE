@@ -32,19 +32,19 @@ export default function ReviewedValueEditor({ node, initial, saveLabel, tall = f
   const [error, setError] = useState<string | null>(null)
   const height = tall ? 'h-10' : 'h-8'
   function save() {
+    if (draft.trim() === '') { setError('Enter a value.'); return }
+    const parsed = composite ? null : parseReviewedValue(node, draft)
+    if (parsed?.error) { setError(parsed.error); return }
     if (onTypedSave && node) {
       try {
-        const value = composite ? JSON.parse(draft) : parseReviewedValue(node, draft).value
+        const value = composite ? JSON.parse(draft) : parsed!.value
         if (!schemaNodesToZod([node]).safeParse({[node.name]: value}).success) {
           setError('The value does not fit its producing field.'); return
         }
         onTypedSave(value); return
       } catch { setError('Enter valid JSON for this field.'); return }
     }
-    if (draft.trim() === '') { setError('Enter a value.'); return }
-    const parsed = parseReviewedValue(node, draft)
-    if (parsed.error) { setError(parsed.error); return }
-    onSave(parsed.value)
+    onSave(parsed!.value)
   }
   const keys = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' && !composite) { event.preventDefault(); save() }

@@ -12,7 +12,7 @@ it('refreshes open guidance after selection/review changes and ignores older res
   let oldResolve:(rows:unknown[])=>void=()=>{}
   const request=vi.mocked(durableRequest)
   request.mockImplementationOnce(()=>new Promise(resolve=>{oldResolve=resolve}))
-  const row={id:'correction',valueId:'value',revision:2,feedbackVersion:2,included:true,active:true,selectionId:'producing',
+  const row={id:'correction',extractionId:'producing-extraction',sourceDocumentId:'source',snapshotVersion:1,valueId:'value',revision:2,feedbackVersion:2,included:true,active:true,selectionId:'producing',
     targetCompatibility:'incompatible',candidate:{value:'Saved correction',grounded:false,sourceContext:'source'},decision:{action:'EDITED'}}
   request.mockResolvedValueOnce([row])
   const view=render(<ProjectFeedback projectId="project" target="extraction" revision="text-selection:1"/>)
@@ -21,6 +21,10 @@ it('refreshes open guidance after selection/review changes and ignores older res
   await waitFor(()=>expect(request).toHaveBeenCalledTimes(1))
   view.rerender(<ProjectFeedback projectId="project" target="extraction" revision="numeric-selection:2"/>)
   await screen.findByText(/incompatible for this target/)
+  expect(screen.getByRole('link',{name:'Open saved correction and review · revision 2'})).toHaveAttribute('href',
+    '/projects/project/documents/source?extractionId=producing-extraction&value=value&snapshotVersion=1&feedbackVersion=2')
+  const warning=screen.getByRole('link',{name:'1 saved correction is incompatible'})
+  expect(view.container.querySelector(warning.getAttribute('href')!.replaceAll(':','\\:'))).toHaveTextContent('Saved correction')
   await act(async()=>oldResolve([{...row,revision:1,targetCompatibility:'compatible'}]))
   expect(screen.getByText(/Revision 2 · active/)).toBeVisible()
   expect(screen.queryByText(/Revision 1 · active/)).not.toBeInTheDocument()
@@ -29,7 +33,7 @@ it('refreshes open guidance after selection/review changes and ignores older res
 
 it('reloads committed inclusion even when guidance is reopened during the save',async()=>{
   let commit:()=>void=()=>{}
-  const row={id:'correction',valueId:'value',revision:2,feedbackVersion:2,included:true,active:true,selectionId:'producing',
+  const row={id:'correction',extractionId:'producing-extraction',sourceDocumentId:'source',snapshotVersion:1,valueId:'value',revision:2,feedbackVersion:2,included:true,active:true,selectionId:'producing',
     targetCompatibility:'not_evaluated',candidate:{value:'Saved correction',grounded:false,sourceContext:'source'},decision:{action:'EDITED'}}
   const request=vi.mocked(durableRequest)
   request.mockResolvedValueOnce([row])

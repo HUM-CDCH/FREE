@@ -8,7 +8,29 @@ import { DurableResults } from './DurableResults'
 import { durableRequest, readDurable, readDurableHistory } from './durableExtractionApi'
 
 vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),readDurable:vi.fn(),readDurableHistory:vi.fn(),durableRoot:(id:string)=>`/api/extractions/${id}/durable`}))
-afterEach(()=>{cleanup();vi.resetAllMocks()})
+afterEach(()=>{cleanup();vi.resetAllMocks();window.history.replaceState(null,'','/')})
+
+it('ignores review keys outside Results, while hidden, and on repeat',async()=>{
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Saved title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
+  vi.mocked(durableRequest).mockImplementation(async(_url,body)=>body?{revision:1}:page)
+  const view=render(<><button>Outside</button><div data-testid="results"><DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}}/></div></>)
+  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  const approve=screen.getByRole('button',{name:'Approve and next'})
+  fireEvent.keyDown(screen.getByRole('button',{name:'Outside'}),{key:'a'})
+  fireEvent.keyDown(approve,{key:'a',repeat:true})
+  const panel=screen.getByTestId('results');panel.hidden=true
+  fireEvent.keyDown(approve,{key:'r'})
+  expect(durableRequest).not.toHaveBeenCalled()
+  panel.hidden=false
+  fireEvent.keyDown(approve,{key:'a'})
+  await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/value',expect.objectContaining({action:'APPROVED'})))
+  view.unmount()
+})
 
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{
   const base={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema-one',
@@ -45,6 +67,54 @@ it('shows a durable read failure without rendering a different results implement
   render(<DurableResults attempt={{extractionId:'extraction'} as ExtractionAttempt} document={null}
     currentSchema={null} onEvidence={()=>{}}/>)
   expect(await screen.findByRole('alert')).toHaveTextContent('Saved results are unavailable.')
+})
+
+it('opens a linked historical correction at its exact result and decision cuts',async()=>{
+  window.history.replaceState(null,'','/?value=value&snapshotVersion=1&feedbackVersion=2')
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Original',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],
+    correction:{revision:2,decision:{action:'EDITED',value:'Historical text correction',included:true,evidence:[]}},historicalCorrection:null}
+  const historical={snapshotVersion:1,feedbackVersion:2,reviewCounts:{required:1,toCheck:0,approved:0,edited:1,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  const current={...historical,snapshotVersion:3,feedbackVersion:4,values:[{...value,node:{...value.node,type:'number'},modelValue:42,correction:null,historicalCorrection:{extractionId:'extraction',valueId:'value',revision:2,snapshotVersion:1,feedbackVersion:2}}]}
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:3,selection:{id:'numeric',ordinal:2},counts:{saved:1,inFlight:0}},page:current} as never)
+  vi.mocked(durableRequest).mockResolvedValue(historical)
+  render(<DurableResults attempt={{extractionId:'extraction',sourceDocumentId:'source',strategy:'ARTICLE'} as ExtractionAttempt} document={null}
+    currentSchema={null} onEvidence={()=>{}}/>)
+  await screen.findByRole('region',{name:'Review title'})
+  expect(screen.getAllByText('Historical text correction').length).toBeGreaterThan(0)
+  expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values?snapshotVersion=1&feedbackVersion=2',undefined,expect.any(AbortSignal))
+  expect(screen.getAllByText(/Snapshot 1 · 1 retained values/).every(element=>element.textContent?.includes('Snapshot 1'))).toBe(true)
+  expect(screen.queryByText('42')).toBeNull()
+})
+
+it('keeps the producing call guidance and budget omissions inspectable after exclusion',async()=>{
+  const page={snapshotVersion:1,feedbackVersion:2,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  const row={id:'consumed',extractionId:'extraction',sourceDocumentId:'source',valueId:'value',snapshotVersion:1,feedbackVersion:2,revision:2,
+    included:true,active:true,selectionId:'selection',targetCompatibility:'compatible',candidate:{value:'Captured example',sourceContext:'own-source',grounded:false},decision:{action:'EDITED'}}
+  let excluded=false
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,selection:{id:'selection',ordinal:1},counts:{saved:0,inFlight:0}},page} as never)
+  vi.mocked(durableRequest).mockImplementation(async(url,body)=>{if(body){excluded=true;return {}};return url.includes('feedback')?[{...row,included:!excluded}]:page})
+  vi.mocked(readDurableHistory).mockResolvedValue({selections:[{id:'selection',ordinal:1,schemaRevisionId:'schema',schemaTree:{},method:{},resolved:{}}],snapshots:[],finalizations:[],captures:[{
+    id:'capture',selectionId:'selection',feedbackVersion:1,invoked:true,descriptor:{stage:'article'},inputDigest:'input',outputDigest:'output',output:{parsed:{title:'Result'}},candidates:[],
+    request:{examples:[{id:'consumed',value:'Captured example'}],omissions:[{id:'oversized',reason:'budget'}],budget:{counted:200,context:256,reserve:56}},
+  }]} as never)
+  const view=render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  const history=(await screen.findByText('Saved history and producing inputs')).closest('details')!
+  history.open=true;fireEvent(history,new Event('toggle'))
+  const call=(await screen.findByText('Call · article · input selection 1 · decisions 1')).closest('details')!
+  call.open=true;fireEvent(call,new Event('toggle'))
+  const guidance=screen.getByText('Consumed guidance and omitted candidates').closest('details')!
+  guidance.open=true;fireEvent(guidance,new Event('toggle'))
+  const captured=guidance.querySelector('pre')!
+  expect(captured).toHaveTextContent('Captured example')
+  expect(captured).toHaveTextContent('"reason": "budget"')
+  const project=screen.getByText('Project guidance').closest('details')!
+  project.open=true;fireEvent(project,new Event('toggle'))
+  fireEvent.click(await screen.findByRole('button',{name:'Exclude from guidance'}))
+  await screen.findByRole('button',{name:'Include in guidance'})
+  expect(captured).toHaveTextContent('Captured example')
+  expect(captured).toHaveTextContent('"reason": "budget"')
+  view.unmount()
 })
 
 

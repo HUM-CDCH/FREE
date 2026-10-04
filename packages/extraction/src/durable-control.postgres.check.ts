@@ -60,6 +60,7 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   state=await repository.read(id)
   const pending=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:numeric,method:{models:null,settings:{article:null}}})
   assert.equal((await repository.feedback(fixture.projectContextId,id,pending.selectionId))[0].targetCompatibility,'incompatible')
+  assert.equal((await repository.feedback(fixture.projectContextId,id,pending.selectionId))[0].sourceDocumentId,document.sourceDocumentId)
   assert.equal((await repository.feedback(fixture.projectContextId,id,head.selectionId))[0].targetCompatibility,'compatible')
   await assert.rejects(repository.feedback(fixture.projectContextId,id,randomUUID()),DurableNotFound)
   await assert.rejects(createDurableRepository(randomUUID(),source).feedback(fixture.projectContextId,id,pending.selectionId),DurableNotFound)

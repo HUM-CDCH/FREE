@@ -286,6 +286,13 @@ export function DocumentWorkspace({
   // the effects below tear down its viewer and start the next reads.
   const [renderedSourceRepresentationId, setRenderedSourceRepresentationId] =
     useState(sourceRepresentationId)
+  const [renderedExtractionId, setRenderedExtractionId] = useState(persistedExtraction?.extractionId)
+  if (renderedExtractionId !== persistedExtraction?.extractionId) {
+    setRenderedExtractionId(persistedExtraction?.extractionId)
+    setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
+    setKnownSchemas(known => ({...known, ...reopenedSchemas}))
+    setResultPath(null)
+  }
   if (renderedSourceRepresentationId !== sourceRepresentationId) {
     setRenderedSourceRepresentationId(sourceRepresentationId)
     setLoadState({ status: 'loading' })

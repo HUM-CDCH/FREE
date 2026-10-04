@@ -295,7 +295,8 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
     feedback(projectId: string, targetId?: string, selectionId?:string) { return runtimeTransaction(source,async client=> {
       const owns = await client.query('SELECT id FROM public."projectContext" WHERE id=$1 AND "researcherAccountId"=$2', [projectId,owner])
       if (!owns.rowCount) throw new DurableNotFound('That Project was not found.')
-      const rows=(await client.query('SELECT * FROM extraction_runtime.correction WHERE "projectId"=$1 ORDER BY "feedbackVersion" DESC',[projectId])).rows
+      const rows=(await client.query(`SELECT c.*,e."sourceDocumentId" FROM extraction_runtime.correction c
+        JOIN public.extraction e ON e.id=c."extractionId" WHERE c."projectId"=$1 ORDER BY c."feedbackVersion" DESC`,[projectId])).rows
       const target=targetId?await ownedHead(client,owner,targetId):null
       if(target && target.projectId!==projectId) throw new DurableNotFound('That target was not found in this Project.')
       if(selectionId&&!target)throw new DurableInvalid('Choose an Extraction for this input selection.')

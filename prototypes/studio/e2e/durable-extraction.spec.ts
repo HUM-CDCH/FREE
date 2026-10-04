@@ -1,4 +1,4 @@
-import { expect,test } from '@playwright/test'
+import { expect,test,type Page } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { unzipSync, strFromU8 } from 'fflate'
@@ -104,6 +104,14 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
   try {
     const {id}=await savedExtraction(fixture,nodes,['Title',false,original,['Ada','Bob']])
     await fixture.open();await page.locator('#rail-tab-results').click()
+    await page.getByRole('button',{name:/To check title Title/}).click()
+    await page.getByRole('button',{name:'Edit',exact:true}).click()
+    await page.getByRole('textbox',{name:'Reviewed value'}).fill('  ')
+    await page.getByRole('button',{name:'Save edit',exact:true}).click()
+    await expect(page.getByRole('alert')).toContainText('Enter a value.')
+    expect((await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction).toBeNull()
+    await page.getByRole('button',{name:'Cancel',exact:true}).click()
+    await page.getByRole('button',{name:'Close value',exact:true}).click()
     await page.getByRole('button',{name:/To check work/}).click()
     await page.getByRole('button',{name:'Edit',exact:true}).click()
     await page.getByRole('textbox',{name:'Reviewed value'}).fill('{"name":"Corrected book","included":false}')
@@ -282,8 +290,56 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       await rail.getByRole('button',{name:/^Save.*next$/i}).click()
       await expect.poll(async()=> (await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction?.decision.value).toBe('Running corrected title')
       await page.locator('#rail-tab-schema').click()
+      await page.keyboard.press('a');await page.keyboard.press('r')
       const head=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
       expect(head.status).toBe('RUNNING');expect(head.controlVersion).toBe(0)
+      const decision=(await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction
+      expect(decision.revision).toBe(1);expect(decision.decision.action).toBe('EDITED')
     }
   } finally {await fixture.close()}
+})
+
+test('concurrent whole-value drafts show a conflict and Undo restores the previous saved correction',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  const nodes=[{id:'title',name:'title',type:'string' as const},{id:'work',name:'work',type:'object' as const,children:[{id:'a',name:'a',type:'integer' as const},{id:'b',name:'b',type:'integer' as const}]}]
+  let second:Page|undefined
+  try {
+    const {id}=await savedExtraction(fixture,nodes,['Fixture title',{a:1,b:2}])
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    second=await page.context().newPage();await second.goto(page.url());await second.locator('#rail-tab-results').click()
+    for(const view of [page,second]) {
+      await view.getByRole('button',{name:/To check work/}).click()
+      await view.getByRole('button',{name:'Edit',exact:true}).click()
+    }
+    const read=async()=>(await (await page.request.get(`/api/extractions/${id}/durable/values/work`)).json()).values[0].correction
+    await page.getByRole('textbox',{name:'Reviewed value'}).fill('{"a":10,"b":2}')
+    await page.getByRole('button',{name:'Save edit',exact:true}).click()
+    await expect.poll(async()=>(await read())?.revision).toBe(1)
+    await second.getByRole('textbox',{name:'Reviewed value'}).fill('{"a":1,"b":20}')
+    await second.getByRole('button',{name:'Save edit',exact:true}).click()
+    await expect(second.getByRole('alert')).toContainText('newer correction')
+    await expect(second.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('{"a":1,"b":20}')
+    await second.getByRole('button',{name:'Reload saved decision · keep my draft'}).click()
+    await expect(second.getByRole('region',{name:'Compare saved value and draft'})).toContainText('{"a":10,"b":2}')
+    await expect(second.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('{"a":1,"b":20}')
+    await second.getByRole('textbox',{name:'Reviewed value'}).fill('{"a":10,"b":20}')
+    await second.getByRole('button',{name:'Save edit',exact:true}).click()
+    await expect.poll(async()=>(await read())?.decision.value).toEqual({a:10,b:20})
+    await second.getByRole('button',{name:'All',exact:true}).click()
+    await second.getByRole('button',{name:/Edited work/}).click()
+    await second.getByRole('button',{name:'Undo',exact:true}).click()
+    await expect.poll(async()=>(await read())?.decision.value).toEqual({a:10,b:2})
+    expect((await read()).revision).toBe(3)
+    await second.getByRole('button',{name:/Edited work/}).click()
+    await second.getByRole('button',{name:'Mark pending',exact:true}).click()
+    await expect.poll(async()=>(await read())?.decision.action).toBe('PENDING')
+    const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
+    expect(history.corrections.map((correction:{revision:number})=>correction.revision)).toEqual([1,2,3,4])
+    await second.getByText(/^Project guidance/).click()
+    const historical=await second.getByRole('link',{name:'Open saved correction and review · revision 3'}).getAttribute('href')
+    await page.goto(historical!);await page.locator('#rail-tab-results').click()
+    await expect(page.getByRole('region',{name:'Review work'})).toContainText('{"a":10,"b":2}')
+    await expect(page.getByText(/Your open review stays/)).toHaveCount(0)
+    await expect(page).toHaveURL(/snapshotVersion=1&feedbackVersion=3/)
+  } finally {await second?.close();await fixture.close()}
 })
