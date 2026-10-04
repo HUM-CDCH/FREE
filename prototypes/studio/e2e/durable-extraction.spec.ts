@@ -5,6 +5,7 @@ import { unzipSync, strFromU8 } from 'fflate'
 import { canonicalPackageStore,pool,withPoolClientTransaction } from 'db'
 import { packCanonicalPackage } from '../../../packages/db/src/artifact-store.js'
 import { initializeDurableExtraction } from 'extraction/durable'
+import { decodeParsedDocument } from 'extraction/parsed-document'
 import { prepareInteractiveDocument,INTERACTIVE_SCHEMA_NODES } from './interactiveStack.js'
 import { loginResearcher } from './auth.js'
 import { savedExtraction } from './durableFixtures.js'
@@ -289,7 +290,8 @@ test('every native lifecycle shows retained review and running keyboard edits ke
         await rail.getByRole('button',{name:'Save edit',exact:true}).click()
         await expect.poll(async()=>(await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction?.decision.value).toBe(`Corrected ${status}`)
         await page.reload();await page.locator('#rail-tab-results').click()
-        await expect(rail.getByText(`Corrected ${status}`,{exact:false})).toBeVisible()
+        await rail.getByRole('button',{name:'All',exact:true}).click()
+        await expect(rail.getByRole('button',{name:new RegExp(`Edited title Corrected ${status}`)})).toBeVisible()
         expect((await (await page.request.get(`/api/extractions/${id}/durable`)).json()).controlVersion).toBe(0)
         continue
       }
@@ -333,10 +335,14 @@ test('shared correction Evidence navigates Markdown UTF-8 spans and stable value
   try {
     const source=await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)
     expect(source.status()).toBe(200)
-    const parsed=await source.json(),prefix='# Grav 8\n\nØrsted: ',passage='NØ-SV',markdown=`${prefix}${passage} orienteret.\n`
-    const anchor=parsed.evidence_index.anchors.find((anchor:{kind:string;producer_observations:unknown[]})=>anchor.kind==='text'&&anchor.producer_observations.length)
-    expect(anchor).toBeTruthy()
+    const parsed=decodeParsedDocument(await source.json()),prefix='# Grav 8\n\nØrsted: ',passage='NØ-SV',markdown=`${prefix}${passage} orienteret.\n`
+    const anchor=parsed.evidence_index.anchors.find(anchor=>anchor.kind==='text'&&anchor.producer_observations.length)
+    if(!anchor||anchor.kind!=='text')throw new Error('The Markdown fixture requires text Evidence.')
     anchor.markdown_span={start:Buffer.byteLength(prefix),end:Buffer.byteLength(prefix+passage)}
+    const block=parsed.content_stream.find(block=>block.block_id===anchor.block_id)!
+    block.markdown_span=anchor.markdown_span
+    if('text' in block)block.text=passage
+    decodeParsedDocument(parsed)
     const pdf=await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/pdf`)
     const descriptor=await canonicalPackageStore.save(packCanonicalPackage({pdf:await pdf.body(),document:parsed,markdown}))
     await pool.query('UPDATE public."sourceRepresentationRevision" SET "artifactReference"=$2,"artifactSha256"=$3 WHERE id=$1',
