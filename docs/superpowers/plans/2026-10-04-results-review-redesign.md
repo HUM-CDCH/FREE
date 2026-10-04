@@ -262,9 +262,9 @@ Rulings taken while implementing (the code forced or the spec did not say):
 - e: the tab ring went from c to e: its slot is a second DocumentTabBar slot the workspace portals into; the tab's spoken progress follows its name.
 - e: `?value=` is read from the location on open, not through `projectNavigation.ts` (Ruling 15): the route model drops unknown parameters only on navigation, and the value is needed once.
 
-Verification: Studio unit 171 files / 2131 tests; `pnpm -r typecheck`; Studio lint 0 errors (2 warnings, as on the base); `packages/extraction` 235 unit and the reviews PostgreSQL tier 12/12; Playwright `canonical-evidence-lifecycle` 3/3 (ARTICLE, CATALOG with review while reading, settlement, One by one, the last-decision save; ARTICLE+CATALOG flake on this machine through a Vite "Failed to fetch dynamically imported module App.tsx" after a reload, which the untouched base shows too). Rail screenshots at 1280×720, 344px and 264px: `RAIL_SHOTS=1` on the CATALOG lifecycle.
+Verification: see "Baratheon verification" below (the local machine's Playwright runs flaked on a Vite dev-server dynamic-import failure that the untouched base shows too).
 
-Not done: the `real-*` Playwright specs had their removed selectors replaced but need a rewrite against a real service run (nested row names, old regions); `CONTEXT.md` glossary changes stay proposals (spec).
+Not done: `CONTEXT.md` glossary changes stay proposals (spec); the GLiFormer route was not run (GLiFormer not served on Baratheon). The `real-*` specs were rewritten for the rail and pass there (below).
 
 ### Baratheon verification (2026-10-04)
 
@@ -272,15 +272,38 @@ Isolated checkout `~/Projects/FREE-results-review` (git bundles of the five bran
 main checkout untouched; the Python venv is the main checkout's locked one with `PYTHONPATH` on the clone's sources,
 as PR #164 did; this change touches no Python).
 
-- `e` head (`1f6115a5`): Studio unit 2132; `packages/extraction` unit 235 and `test:postgres` 110; Playwright default
+- `e` head: Studio unit 2132; `packages/extraction` unit 235 and `test:postgres` 110; Playwright default
   77 passed, 5 skipped (conditional), recovery 5/5; `test:service` 17 passed, 3 skipped (real model, GLiFormer) after
   the recipe test opened entry 32 by position; `canonical-evidence-lifecycle` 3/3 with the 344/264px layout assertions,
   the last-decision save and `RAIL_SHOTS=1`.
+- The real-* spec rewrites live on `c` (the branch that changed the UI they drive), so `test:service` passes from `c` on.
 - Each branch head alone: typecheck clean, lint 0 errors, extraction 235; Studio unit a 2119, b 2131, c 2107,
   d 2126; lifecycle 3/3 at c and at d.
 - Real model (`nvidia/Qwen3.8-27B-NVFP4` on the live server, idle at start, GLiFormer not served):
   `real-application-route` (synthetic nested) passed in 36.5 s; `real-model-route` on `Beretning_Ellekilde_8_13.pdf`
-  with a seven-field graves Catalog schema passed in 3.3 min (7 records; edit a list item, approve the rest, reload,
-  export).
+  with this graves Catalog schema passed in 3.3 min (7 records; edit a list item, approve the rest, reload, export):
+
+```json
+{
+  "recordDescription": "One grave (Grav N) described in the excavation report, with its own heading, description, skeleton and find list. Extract each grave once.",
+  "schemaNodes": [
+    { "id": "grave", "name": "grave", "type": "string", "description": "The grave heading, e.g. Grav 8." },
+    { "id": "orientation", "name": "orientation", "type": "string", "description": "The orientation of the grave, e.g. NØ-SV." },
+    { "id": "sex", "name": "sex", "type": "string", "description": "The anthropological sex determination." },
+    { "id": "age", "name": "age", "type": "string", "description": "The anthropological age determination." },
+    { "id": "finds", "name": "finds", "type": "array", "description": "The grave goods in the grave find list.",
+      "children": [
+        { "id": "number", "name": "number", "type": "string", "description": "The find number, e.g. 8-2." },
+        { "id": "description", "name": "description", "type": "string", "description": "What the find is." }
+      ] }
+  ]
+}
+```
+
+  Reproduce from the isolated checkout's `prototypes/studio`: `PYTHONPATH=…/parsing_service/src FREE_CATALOG_METHOD=unified
+  FREE_REAL_EXTRACT_URL=http://127.0.0.1:18080/v1/chat/completions FREE_REAL_EXTRACT_MODEL=nvidia/Qwen3.8-27B-NVFP4
+  FREE_REAL_EXTRACT_TIMEOUT=1800 FREE_REAL_ROUTE_PDF=…/examples/Beretning_Ellekilde_8_13.pdf FREE_REAL_ROUTE_SCHEMA=graves.schema.json
+  FREE_REAL_ROUTE_STRATEGY=CATALOG pnpm exec playwright test --config playwright.service.config.ts real-model-route.spec.ts`;
+  the application route with `FREE_REAL_ROUTE_SYNTHETIC=nested` instead of the PDF and schema.
 - The local Vite "Failed to fetch dynamically imported module" and "Authenticated workspace bootstrap failed"
   failures did not occur on Baratheon.
