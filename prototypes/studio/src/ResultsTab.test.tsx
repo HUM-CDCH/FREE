@@ -1441,6 +1441,18 @@ describe('ResultsTab one by one (§4)', () => {
     expect(screen.getByRole('button', { name: 'Leave one-by-one review, back to the list' })).toBeInTheDocument()
   })
 
+  it('the document follows the current value once per value, never again on a re-render', () => {
+    const first = vi.fn()
+    const { rerender } = render(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} onSelectEvidence={first} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(first.mock.calls).toEqual([['anchor-site']])
+    const second = vi.fn()
+    rerender(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} onSelectEvidence={second} />)
+    expect(second).not.toHaveBeenCalled()
+    key('j')
+    expect(second.mock.calls).toEqual([['anchor-place']])
+  })
+
   it('Escape leaves to the list with the current value selected and focused', () => {
     enter()
     key('Escape')
