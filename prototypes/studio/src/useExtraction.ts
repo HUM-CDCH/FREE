@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, restoreReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import { reconcileAtSettlement } from './reviewReconcile'
@@ -368,6 +368,8 @@ export function useExtraction({
     attempt?.reviewedAt === null
   )
   const canAccept = canSave && everyRequiredTouched(reviewDecisions, touchedPaths)
+  // One function per touched set: the rail's model and the document's marks recompute only when it changes.
+  const isTouched = useCallback((resultPath: ReviewDecisionInput['resultPath']) => touchedPaths.has(resultPathKey(resultPath)), [touchedPaths])
   // A record kei has finished can be decided on while the run goes on, as a draft (ADR 0016; §5.1).
   const runningPartial = state.status === 'running' ? state.partial : null
   const draftAvailable = Boolean(
@@ -783,8 +785,7 @@ export function useExtraction({
       untouchedCount: reviewDecisions.filter(
         (decision) => decision.evidenceAnchorId !== null && !touchedPaths.has(resultPathKey(decision.resultPath)),
       ).length,
-      isTouched: (resultPath: ReviewDecisionInput['resultPath']) =>
-        touchedPaths.has(resultPathKey(resultPath)),
+      isTouched,
       reviewedExtractionId: attempt?.reviewedAt
         ? attempt.extractionId
         : null,

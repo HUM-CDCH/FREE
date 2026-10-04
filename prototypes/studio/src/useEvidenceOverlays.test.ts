@@ -29,7 +29,7 @@ describe('focused Evidence navigation', () => {
     const containerRef = { current: container }, viewerRef = { current: viewer as never }
     const { result, rerender } = renderHook(({ document }) => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument: document, attempt: null,
-      fieldNames: [], resultPath: null, active: false,
+      resultPath: null, active: false,
     }), { initialProps: { document: parsedDocument as typeof parsedDocument | null } })
 
     act(() => result.current(anchor))
@@ -63,7 +63,7 @@ describe('focused Evidence navigation', () => {
       viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
       parsedDocument,
       attempt: null,
-      fieldNames: [],
+     
       resultPath: null,
       active: false,
     }))
@@ -96,7 +96,7 @@ describe('partial links (design §1)', () => {
     const { container, viewer, containerRef, viewerRef } = viewerWithPage(anchor)
     renderHook(() => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument, attempt: running,
-      fieldNames: ['title'], resultPath: ['records'], active: true,
+      resultPath: ['records'], active: true,
       partialEvidenceLinks: [
         { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id },
         { resultPath: ['records', 1, 'title'], evidenceAnchorId: 'a_nowhere' },
@@ -113,7 +113,7 @@ describe('partial links (design §1)', () => {
     const { container, viewer, containerRef, viewerRef } = viewerWithPage(anchor)
     const { rerender } = renderHook(({ attempt, partialEvidenceLinks }) => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument, attempt,
-      fieldNames: ['title'], resultPath: ['records'], active: true, partialEvidenceLinks,
+      resultPath: ['records'], active: true, partialEvidenceLinks,
     }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'], partialEvidenceLinks: null as readonly EvidenceLink[] | null } })
     expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(0)
     rerender({
@@ -138,7 +138,7 @@ describe('partial links (design §1)', () => {
     const { container, containerRef, viewerRef } = viewerWithPage(anchor)
     const { result, rerender } = renderHook(({ attempt }) => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument, attempt,
-      fieldNames: ['title'], resultPath: ['records'], active: true, partialEvidenceLinks: null,
+      resultPath: ['records'], active: true, partialEvidenceLinks: null,
     }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'] } })
     act(() => result.current(anchor))
     expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
@@ -179,7 +179,7 @@ describe('partial links (design §1)', () => {
     ]
     const { result, rerender } = renderHook(({ attempt }) => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument: source, attempt,
-      fieldNames: ['title'], resultPath: ['records'], active: true, partialEvidenceLinks: evidenceLinks,
+      resultPath: ['records'], active: true, partialEvidenceLinks: evidenceLinks,
     }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'] } })
 
     act(() => result.current(secondAnchor))
@@ -210,7 +210,7 @@ describe('dimming in one-by-one (results review redesign §7.3)', () => {
     const dimLink: EvidenceLink = { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, ...(precision ? { precision } : {}) }
     const { rerender } = renderHook(({ link }) => useEvidenceOverlays({
       containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
-      parsedDocument, attempt: null, fieldNames: [], resultPath: null, active: true, dimLink: link,
+      parsedDocument, attempt: null, resultPath: null, active: true, dimLink: link,
     }), { initialProps: { link: dimLink as EvidenceLink | null } })
     const shades = container.querySelectorAll<HTMLElement>('.evidence-dim')
     expect(shades).toHaveLength(rectangles)
@@ -220,5 +220,40 @@ describe('dimming in one-by-one (results review redesign §7.3)', () => {
     })
     rerender({ link: null })
     expect(container.querySelectorAll('.evidence-dim')).toHaveLength(0)
+  })
+})
+
+describe('marks select their values (results review redesign §7.2)', () => {
+  it('paints one button per occurrence, named by its values, current when selected; a click hands over every value of the passage', () => {
+    const parsedDocument = decodeParsedDocument(parsedFixture)
+    const anchor = parsedDocument.evidence_index.anchors[0]
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0].page_number}"></div>`
+    document.body.append(container)
+    const links: EvidenceLink[] = [
+      { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id },
+      { resultPath: ['records', 0, 'subtitle'], evidenceAnchorId: anchor.anchor_id },
+    ]
+    const onSelect = vi.fn()
+    const describe = new Map([
+      [JSON.stringify(['records', 0, 'title']), { name: 'title', value: 'Alpha', word: 'Approved', style: 'rule' as const, anchorId: anchor.anchor_id }],
+      [JSON.stringify(['records', 0, 'subtitle']), { name: 'subtitle', value: 'Beta', word: null, style: 'rule' as const, anchorId: anchor.anchor_id }],
+    ])
+    renderHook(() => useEvidenceOverlays({
+      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
+      attempt: { extractionId: 'x', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', evidenceLinks: links, reviewDecisions: [] },
+      resultPath: [], active: true, marks: { describe, selected: JSON.stringify(['records', 0, 'subtitle']), onSelect },
+    }))
+    const marks = container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')
+    expect(marks).toHaveLength(anchor.producer_observations.length)
+    const mark = marks[0]!
+    expect(mark.getAttribute('aria-label')).toBe('title: Alpha, Approved; subtitle: Beta')
+    expect(mark.getAttribute('aria-current')).toBe('true')
+    expect(mark.className).toMatch(/\brule\b/)
+    expect(mark.className).toMatch(/\bselected\b/)
+    expect(mark.className).not.toMatch(/\bdecided\b/)
+    expect(mark.style.background).toBe('')
+    mark.click()
+    expect(onSelect).toHaveBeenCalledWith([JSON.stringify(['records', 0, 'title']), JSON.stringify(['records', 0, 'subtitle'])], mark)
   })
 })

@@ -48,7 +48,7 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 | Overline | 10.5px | 700 | 1.3 | 0.12em | Panel labels |
 | Code | 11-12.5px | 400-600 | 1.6 | 0 | JSON and field names |
 
-In the right rail only four sizes are used, as the tokens `--text-content` (13), `--text-secondary` (12), `--text-compact` (11) and `--text-overline` (10.5) in `index.css`.
+In the right rail only four sizes are used, as the tokens `--text-content` (13), `--text-secondary` (12), `--text-compact` (11) and `--text-overline` (10.5) in `index.css`, plus one display size, `--text-display` (20px, weight 700, line-height 1.25), for the To check count and the one-by-one value.
 
 ### Font Stack
 
@@ -95,7 +95,7 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 
 ### Action Button
 - **Structure**: compact rounded button with border.
-- **Variants**: green positive, danger, surface secondary, rounded pill; disabled is a line fill.
+- **Variants**: green positive, danger, surface secondary, rounded pill; `outline-positive` (green text and icon, `border-green/40`, `--color-green-soft` on hover) and `outline-danger` (the same in danger) for the rail's positive and destructive actions; `ghost` (muted text, no border, surface-muted on hover) for quiet text actions; disabled is a line fill.
 - **States**: hover brightness or color shift, global dual-color focus indicator.
 - One filled primary per screen. The tab strip's "▶ Run extraction" is positive; while a run is active it reads "■ Stop extraction" in danger, and stays danger (disabled) once its cancellation is requested.
 
@@ -103,7 +103,13 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 - **Structure**: shallow bordered section using `bg-surface` or `bg-canvas`.
 - **Variants**: object section, array item, missing primitive.
 - **States**: expandable where content can be long.
-- While an Extraction runs, Results lists records in the server's reading order, with server-provided value states (reading, checking, grounded, empty, contested). Candidates appear only with "Candidate · being verified"; collapsed object previews use grounded values only. Records awaiting values use placeholders. The header reads "Reading records · k of n · from page p" with a progress bar (Article names answered contexts); the Results badge reads "k of n" and the run button carries no count (one fixed width for Run and Stop). At settlement, the settled list takes the view's place in source order.
+
+### Results rail
+- One header in both phases: the status line (a mark, a bold word, a muted rest, then ⓘ Run details and ⋯ More result actions), the count block (the To check count at the display size, the review bar, "One by one" and "Approve rest…" or "Save review", the breakdown line) and the filter chips (To check · Doubtful · Not reviewable · All; a labelled select at 264px).
+- The list of records with flat value rows (glyph · name over value · chip); the selected row's expansion is one tinted surface with a 2px accent edge, no inner card, with one joined Approve | Edit | Reject group. Colour is never the only signal: every state has a glyph and a text equivalent.
+- One by one is the same rail as a card for one value: its record's queue, its Evidence, 44px actions with their keys, Up next. The rail's own toast docks at its bottom; the Run details drawer covers the rail.
+- While an Extraction runs, the list shows the records in the order kei reads them under "Reading records · k of n · from page p"; a record read is reviewable at once; at settlement the list keeps its place. The Results badge reads "k of n"; Run and Stop share one fixed width and carry no count.
+- Evidence marks on the page use the one Evidence colour: dotted for a rule link, dashed for a doubtful one, a 1px border once decided, an accent outline when selected.
 
 ### Toast
 - Toast — message plus one optional action; float shadow; eight seconds when an action is offered, 2.6 s otherwise. Its timer holds while it is hovered or has focus within, so a researcher reaching its action does not lose it.

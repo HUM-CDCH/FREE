@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useCallback, useState, type ComponentProps } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1510,5 +1510,47 @@ describe('ResultsTab one by one while the run reads (§4.5)', () => {
     expect(screen.getByText(/still being read, and their values join this queue as each one finishes\.$/)).toBeInTheDocument()
     rerender(tab(partial(['finished', 'finished', 'reading'])))
     expect(live()).toHaveTextContent('Grav 9 read: its values can be reviewed now.')
+  })
+})
+
+describe('ResultsTab and the document\'s marks (§7.2)', () => {
+  const links: EvidenceLink[] = [
+    { resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-a' },
+    { resultPath: ['records', 1, 'place'], evidenceAnchorId: 'anchor-b' },
+  ]
+  const two = withAttempt({ records: [{ place: 'Oslo' }, { place: 'Bergen' }] }, links, { strategy: 'CATALOG' })
+  const initial = [decided(['records', 0, 'place'], 'anchor-a'), decided(['records', 1, 'place'], 'anchor-b')]
+
+  it('reports every linked value for the marks, and selects a value a mark names without moving the document', async () => {
+    const onMarksChange = vi.fn()
+    const onSelectEvidence = vi.fn()
+    const selectValueRef = { current: null as ((key: string) => void) | null }
+    render(<Reviewing attempt={two} initial={initial} spy={vi.fn()} pinnedSchema={placeSchema}
+      onMarksChange={onMarksChange} onSelectEvidence={onSelectEvidence} selectValueRef={selectValueRef} />)
+    const marks = onMarksChange.mock.lastCall![0]
+    expect([...marks.describe.values()].map((info: { name: string; value: string; word: string | null }) => [info.name, info.value, info.word]))
+      .toEqual([['place', 'Oslo', null], ['place', 'Bergen', null]])
+    expect(marks.selected).toBeNull()
+    const second = JSON.stringify(['records', 1, 'place'])
+    await act(async () => selectValueRef.current!(second))
+    expect(onMarksChange.mock.lastCall![0].selected).toBe(second)
+    const row = within(screen.getByRole('region', { name: /^Bergen, / })).getByRole('button', { name: /^To check place Bergen/ })
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(row)
+    expect(onSelectEvidence).not.toHaveBeenCalled()
+  })
+
+  it('copies a link to the selected value, and says when the clipboard refuses', async () => {
+    const writeText = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValueOnce(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    render(<Reviewing attempt={two} initial={initial} spy={vi.fn()} pinnedSchema={placeSchema} />)
+    fireEvent.click(screen.getByRole('button', { name: 'More result actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Copy link to the selected value' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'More result actions' }))
+    fireEvent.click(rowOf('place'))
+    fireEvent.click(screen.getByRole('button', { name: 'More result actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link to the selected value' }))
+    expect(await screen.findByText('Could not copy the link')).toBeInTheDocument()
+    expect(new URL(writeText.mock.calls[0]![0]).searchParams.get('value')).toBe(JSON.stringify(['records', 0, 'place']))
   })
 })
