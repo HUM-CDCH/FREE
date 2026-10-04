@@ -257,7 +257,7 @@ export function useExtraction({
     adoptedRunDraftRef.current = null
     decisionsForRef.current = null
     decidedOnRef.current = { extractionId: null, values: new Map() }
-    setRunDraft(null)
+    if (documentChanged || runDraft?.extractionId !== nextAttempt?.extractionId) setRunDraft(null)
     setChangedAfterReview(new Set())
     setSettlement(null)
     setDraftRefused(null)

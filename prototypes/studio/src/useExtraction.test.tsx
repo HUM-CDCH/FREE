@@ -1522,6 +1522,21 @@ describe('review while the run reads (ADR 0016; results review redesign §5)', (
     unmount()
   })
 
+  it('adopts a running draft when polling first acknowledges a run whose start response was lost', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.requestExtraction).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: running(), pendingReviewDecisions: null,
+      partial: reading(['finished']), reviewDraft: { version: 5, decisions: [decision(0, 'REJECTED')] } })
+    const { result, unmount } = renderHook(() => useExtraction({ ...options(), occurrenceIdsByAnchor }))
+    await act(async () => { await result.current.runExtraction(SERVICE_DEFAULTS, undefined, 'CATALOG') })
+    await flush()
+    expect(result.current.review.decisions).toEqual([decision(0, 'REJECTED')])
+    expect(result.current.review.isTouched(decision(0).resultPath)).toBe(true)
+    act(() => { result.current.review.setDecision(decision(0).resultPath, 'APPROVED') })
+    expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(running().extractionId, [decision(0)], 5)
+    unmount()
+  })
+
   it('reverts a decision the server refuses during the run and says why', async () => {
     vi.useFakeTimers()
     vi.mocked(api.readExtraction).mockResolvedValue({ extraction: running(), pendingReviewDecisions: null,
