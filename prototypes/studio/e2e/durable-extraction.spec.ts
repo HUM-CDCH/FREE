@@ -283,7 +283,16 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       await rail.getByRole('button',{name:`To check title Retained ${status}`}).click()
       await expect(rail.getByRole('button',{name:'Edit',exact:true})).toBeEnabled()
       expect((await (await page.request.get(`/api/extractions/${id}/durable`)).json()).controlVersion).toBe(0)
-      if(status!=='RUNNING'||intent!=='RUN')continue
+      if(status!=='RUNNING'||intent!=='RUN') {
+        await rail.getByRole('button',{name:'Edit',exact:true}).click()
+        await rail.getByRole('textbox',{name:'Reviewed value'}).fill(`Corrected ${status}`)
+        await rail.getByRole('button',{name:'Save edit',exact:true}).click()
+        await expect.poll(async()=>(await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction?.decision.value).toBe(`Corrected ${status}`)
+        await page.reload();await page.locator('#rail-tab-results').click()
+        await expect(rail.getByText(`Corrected ${status}`,{exact:false})).toBeVisible()
+        expect((await (await page.request.get(`/api/extractions/${id}/durable`)).json()).controlVersion).toBe(0)
+        continue
+      }
       await rail.getByRole('button',{name:'Review from here',exact:true}).click()
       for(const name of ['More result actions','Run details']) {
         const overlay=rail.getByRole('button',{name});await overlay.click()
@@ -316,6 +325,100 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       const decision=(await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction
       expect(decision.revision).toBe(1);expect(decision.decision.action).toBe('EDITED')
     }
+  } finally {await fixture.close()}
+})
+
+test('shared correction Evidence navigates Markdown UTF-8 spans and stable value links',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const source=await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)
+    expect(source.status()).toBe(200)
+    const parsed=await source.json(),prefix='# Grav 8\n\nØrsted: ',passage='NØ-SV',markdown=`${prefix}${passage} orienteret.\n`
+    const anchor=parsed.evidence_index.anchors.find((anchor:{kind:string;producer_observations:unknown[]})=>anchor.kind==='text'&&anchor.producer_observations.length)
+    expect(anchor).toBeTruthy()
+    anchor.markdown_span={start:Buffer.byteLength(prefix),end:Buffer.byteLength(prefix+passage)}
+    const pdf=await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/pdf`)
+    const descriptor=await canonicalPackageStore.save(packCanonicalPackage({pdf:await pdf.body(),document:parsed,markdown}))
+    await pool.query('UPDATE public."sourceRepresentationRevision" SET "artifactReference"=$2,"artifactSha256"=$3 WHERE id=$1',
+      [fixture.sourceRepresentationRevisionId,descriptor.artifactReference,descriptor.artifactSha256])
+    const nodes=[{id:'title',name:'title',type:'string' as const},{id:'site',name:'site',type:'string' as const}]
+    const {id}=await savedExtraction(fixture,nodes,['Extracted title','Extracted place'])
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    for(const name of ['title','site']) {
+      await page.getByRole('button',{name:new RegExp(`To check ${name} `)}).click()
+      await page.getByRole('combobox',{name:'Link correction Evidence from this source'}).selectOption(JSON.stringify([anchor.anchor_id,anchor.producer_observations[0].occurrence_id]))
+      await page.getByRole('button',{name:'Edit',exact:true}).click()
+      await page.getByRole('textbox',{name:'Reviewed value'}).fill(`Corrected ${name}`)
+      await page.getByRole('button',{name:'Save edit',exact:true}).click()
+      await expect.poll(async()=>(await (await page.request.get(`/api/extractions/${id}/durable/values/${name}`)).json()).values[0].correction?.decision.value).toBe(`Corrected ${name}`)
+    }
+    await page.getByRole('group',{name:'Document view'}).getByRole('button',{name:'Markdown',exact:true}).click()
+    const view=page.getByLabel('Parsed Markdown'),mark=view.getByRole('button')
+    await expect(mark).toHaveCount(1)
+    await expect(mark).toHaveText(passage)
+    await expect(mark).toHaveAccessibleName(/title: Corrected title.*site: Corrected site/)
+    await mark.click()
+    const popover=page.getByRole('dialog',{name:'Values in this passage'})
+    await expect(popover).toBeVisible()
+    await popover.getByRole('button',{name:'site · Corrected site'}).click()
+    await expect(page.getByRole('region',{name:'Review site',exact:true})).toContainText('Corrected site')
+    await expect(mark).toHaveAttribute('aria-current','true')
+    await page.goto(`${fixture.url}?extractionId=${id}&value=site`)
+    await page.locator('#rail-tab-results').click()
+    await expect(page.getByRole('region',{name:'Review site',exact:true})).toContainText('Corrected site')
+    await page.getByRole('group',{name:'Document view'}).getByRole('button',{name:'Markdown',exact:true}).click()
+    await expect(page.getByLabel('Parsed Markdown').getByRole('button')).toHaveText(passage)
+    await expect(page.getByRole('button',{name:'Correction Evidence',exact:true})).toBeVisible()
+    await expect(page.getByRole('button',{name:/Model Evidence/})).toHaveCount(0)
+  } finally {await fixture.close()}
+})
+
+test('retained Catalog review fits actual 344px and 264px rails and a narrow viewport',async({page},testInfo)=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    await savedExtraction(fixture,[{id:'title',name:'title',type:'string'},{id:'flag',name:'flag',type:'boolean'}],[],
+      'FAILED',{records:[['A retained record with a deliberately long source title',false],['Another retained record',true]]})
+    await page.setViewportSize({width:1280,height:720})
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
+    const panel=page.getByRole('tabpanel',{name:/Results/})
+    const assertGeometry=async()=>{
+      expect(await panel.evaluate(element=>element.scrollWidth<=element.clientWidth+1)).toBe(true)
+      const bounds=(await rail.boundingBox())!
+      for(const name of ['Retry','Stop','Change inputs']) {
+        const button=rail.getByRole('button',{name,exact:true});await expect(button).toBeVisible()
+        const box=(await button.boundingBox())!
+        expect(box.x).toBeGreaterThanOrEqual(bounds.x)
+        expect(box.x+box.width).toBeLessThanOrEqual(bounds.x+bounds.width+1)
+      }
+    }
+    for(const width of [344,264]) {
+      const current=(await rail.boundingBox())!.width
+      const handle=(await page.locator('[title="Drag to resize"]:not([role="separator"])').boundingBox())!
+      const x=handle.x+handle.width/2,y=handle.y+handle.height/2
+      await page.mouse.move(x,y);await page.mouse.down()
+      await page.mouse.move(x+current-width,y,{steps:4});await page.mouse.up()
+      await expect.poll(async()=>(await rail.boundingBox())!.width).toBe(width)
+      if(width===344) {
+        await expect(panel.getByRole('group',{name:'Show values'})).toBeVisible()
+        await expect(panel.getByRole('combobox',{name:'Show'})).toBeHidden()
+      } else {
+        await expect(panel.getByRole('group',{name:'Show values'})).toBeHidden()
+        await expect(panel.getByRole('combobox',{name:'Show'})).toBeVisible()
+      }
+      await assertGeometry()
+      await page.screenshot({path:testInfo.outputPath(`durable-rail-${width}.png`)})
+    }
+    await rail.getByRole('button',{name:/To check title A retained record/}).click()
+    await rail.getByRole('button',{name:'Review from here',exact:true}).click()
+    await page.keyboard.press('e')
+    await expect(rail.getByRole('textbox',{name:'Reviewed value'})).toBeVisible()
+    await assertGeometry()
+    await page.screenshot({path:testInfo.outputPath('durable-rail-edit-264.png')})
+    await page.setViewportSize({width:375,height:812})
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth)).toBe(true)
+    await assertGeometry()
+    await page.screenshot({path:testInfo.outputPath('durable-rail-mobile.png')})
   } finally {await fixture.close()}
 })
 
