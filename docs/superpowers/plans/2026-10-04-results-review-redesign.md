@@ -42,7 +42,9 @@
 17. **The count word while a run reads is "to check so far"** (prototype `toCheckWord`), "to check" after settlement. The spec's §2.2 names only "to check"; the prototype is the source of truth for copy and the spec's number is explicitly "the read records so far". *Flagged for the researcher.*
 18. **`useToast` takes a `string` message.** The rail toast is a second `useToast()` instance owned by `ResultsTab`, rendered with `Toast` docked in the rail (§2.5).
 19. **Saving stays researcher-triggered from (a) on.** Removing the effect in (a) without a trigger would ship "reviews never save": (a) wires `last` → `accept()` into today's ResultsTab decision handlers and "Approve remaining" calls `approveAll()` then `accept()`. The e2e's "saves automatically" description on Approve remaining (lifecycle spec) holds until c replaces the control.
-20. **Test tiers this machine cannot run.** No Docker: PostgreSQL integration tests (`pnpm test:postgres`) and Playwright (compose with mock OIDC and Postgres 17) are written and listed, but run only on a Docker host. Coverage that must be verified here sits in `packages/extraction/src/module.test.ts` (mocked persistence), `review-rules.test.ts` and `prototypes/studio/api/extractions.test.ts`.
+20. **The Results tab's key holds across settlement.** `RightRail` keys `ResultsTab` on `inspection.attempt?.extractionId`; `inspectedAttempt` is `pinnedAttempt ?? extraction.attempt`, set from the run's first read, so settlement keeps the key and §3.1's "settlement moves nothing" needs no re-keying. The one remount is `'none'` → id when the first read arrives, before any record exists.
+21. **The server draft is adopted once per attempt while it runs.** `read()` returns `reviewDraft` on every two-second poll (a4); overwriting local decisions with it would revert a decision made between a poll's request and its reply. The controller adopts it on mount and on reconnect; afterwards local state owns the decisions and a poll only adds prepared decisions for newly finished records.
+22. **Test tiers this machine cannot run.** No Docker: PostgreSQL integration tests (`pnpm test:postgres`) and Playwright (compose with mock OIDC and Postgres 17) are written and listed, but run only on a Docker host. Coverage that must be verified here sits in `packages/extraction/src/module.test.ts` (mocked persistence), `review-rules.test.ts` and `prototypes/studio/api/extractions.test.ts`.
 
 ## File structure
 
@@ -84,7 +86,7 @@ export function runningDraftMatchesDocument(owned: ReviewAuthority['occurrenceId
 
 **Files:** Modify `packages/extraction/src/module.ts` (`saveReviewDraft`), `postgres-reviews.ts` (`saveStoredReviewDraft`). Test `module.test.ts` (mocked persistence, runs here), `postgres-reviews.integration.test.ts` (PostgreSQL).
 
-- [ ] **Step 1: failing tests** in `module.test.ts`: on `outcome: null` a draft of a known anchor saves without calling `prepareReview`'s Evidence; refused with `invalid_review` "Draft decisions do not match the pinned document and schema." for an unknown anchor, an optional decision, a duplicate path, a negative or unsafe version; on `outcome: 'FAILED'` refused `invalid_review` "This Extraction cannot be reviewed."; on a settled reviewable row today's rule unchanged (existing tests stay green). In the integration test: a draft saves while `outcome IS NULL`; its version continues across a `settleExtraction` call; a FAILED row is refused; a finalized row conflicts.
+- [ ] **Step 1: failing tests** in `module.test.ts`: on `outcome: null` a draft of a known anchor saves without calling `prepareReview`'s Evidence; refused with `invalid_review` "Draft decisions do not match the pinned document and schema." for an unknown anchor, an optional decision, a duplicate path, a negative or unsafe version; on `outcome: 'FAILED'` refused `invalid_review` "This Extraction cannot be reviewed."; on a settled reviewable row today's rule unchanged (existing tests stay green); finalization with a decision the read reports as `dropped` is refused as today (finalization unchanged). In the integration test: a draft saves while `outcome IS NULL`; its version continues across a `settleExtraction` call; a FAILED row is refused; a finalized row conflicts.
 - [ ] **Step 2:** `saveReviewDraft` reads the extraction first (`persistence.readExtraction`); `reviewedAt` → `review_conflict` as today; `outcome === null` → `loadExtractionInputs`, `occurrenceOwnership(decodePinnedDocument(inputs.parsedDocument))`, `parsePinnedSchema`, then the version/duplicate checks and `runningDraftMatchesDocument` over every decision; `reviewable` → today's body; else `invalid_review`.
 - [ ] **Step 3:** `saveStoredReviewDraft`: the two guarded `updateAll`s of Ruling 3 in its transaction.
 - [ ] **Step 4:** `pnpm -C packages/extraction test` PASS (integration tests skip without a database; run `pnpm -C packages/extraction test:postgres` on a Docker host). Commit.
@@ -112,11 +114,13 @@ dropped: z.array(z.object({ resultPath: resultPathSchema, evidenceAnchorId: z.st
 
 **Files:** Modify `prototypes/studio/src/useExtraction.ts` (`setReviewDecision`, `approveAllRemaining`), `src/ResultsTab.tsx` (the effect beginning `if (!readOnly && !inspectedAttempt && editingPaths.size === 0 &&`; the `review` callbacks handed to `ResultValue`; the "Approve remaining" button). Tests `useExtraction.test.tsx`, `ResultsTab.test.tsx`.
 
+Today's "Save review" button renders only when no decision is anchored or after an error; a5 widens it to `canAccept` (every anchored decision touched, not saved), so a recovered complete draft can still be saved once the effect is gone.
+
 - [ ] **Step 1: failing tests**: `setDecision` returns `{ last: true }` exactly for the decision that touches the last anchored decision, `{ last: false }` otherwise and when it is a no-op; a recovered complete draft on mount does not call `finalizeExtractionReview`; settlement does not either; deciding the last value does; "Approve remaining" saves.
 - [ ] **Step 2:** implement; ResultsTab calls `void review.accept()` when `last && canAccept`; Approve remaining calls `approveAll()` then `accept()` (after the state update: `accept` reads touched decisions from the controller's ref, so check that it sees them; if not, `approveAll` returns the touched set and `accept` takes it).
 - [ ] **Step 3:** typecheck, lint, studio tests PASS; commit.
 
-**PR a gate:** `pnpm -r typecheck`; `pnpm -C packages/extraction test`; studio `typecheck`, `lint`, `test`. Unrun here: `test:postgres`, e2e (Ruling 20).
+**PR a gate:** `pnpm -r typecheck`; `pnpm -C packages/extraction test`; studio `typecheck`, `lint`, `test`. Unrun here: `test:postgres`, e2e (Ruling 22).
 
 ---
 
@@ -136,7 +140,7 @@ Branch `feat/results-review-b-controller` on a. No new UI: the shipped `PartialR
 
 **Interfaces:** option `occurrenceIdsByAnchor?: ReadonlyMap<string, readonly string[]> | null` (App derives it from `parsedDocument` with `anchorOccurrences`, memoised); `review.draftAvailable: boolean` (attempt RUNNING on the current Source Representation and at least one readable record); during a run `review.decisions` = prepared decisions from the partial overlaid with the read response's `reviewDraft.decisions`, `isTouched` = the draft's paths; `canAccept` false while running; `setDecision` allowed when `available || draftAvailable`; draft saves go through today's `updateReview` path (`rememberReviewDraft`, version, conflict).
 
-- [ ] Tests: decisions appear as records finish across polls; a draft returned by the RUNNING read is overlaid; a decision during the run saves a draft (API mock asserts body) and `canAccept` stays false; a refused draft (422 `invalid_review`) reverts the decision to untouched and surfaces the message for the toast "This value can’t be reviewed: its Evidence is not in this document."; a cancelled/failed attempt drops the decisions and reports the count discarded. Implement; PASS; commit.
+- [ ] Tests: decisions appear as records finish across polls; a draft returned by the RUNNING read is overlaid; a decision during the run saves a draft (API mock asserts body) and `canAccept` stays false; a refused draft (422 `invalid_review`) reverts the decision to untouched and surfaces the message for the toast "This value can’t be reviewed: its Evidence is not in this document."; a decision made between two polls survives the second poll (Ruling 21); a cancelled/failed attempt drops the decisions and reports the count discarded. Implement; PASS; commit.
 
 ### Task b3: `decidedOn` and reconciliation at settlement (§5.3; Ruling 5)
 
@@ -236,4 +240,4 @@ Branch `feat/results-review-e-document` on d.
 
 - Spec coverage: §1 c2; §2 c5/c9; §3 c6/c7; §4 d; §5.1–5.3 b/c6/c7; §5.4 a; §5.5 Ruling 1, b4, c9; §6 a5/c7; §7.1 c3; §7.2 e1–e2; §7.3 d4; §7.4 c8/e3; §8 c8/e4; §9 e5; §10 e6; §11 copy throughout; §12 c1/e7; Error handling b2/c7/e4; Testing per task.
 - Not implemented: CONTEXT.md glossary edits (spec says proposed only); out-of-scope list unchanged.
-- Open for the researcher: Ruling 17 (count word during a run); Ruling 20 (a Docker host for PostgreSQL, Playwright and the visual check).
+- Open for the researcher: Ruling 17 (count word during a run); Ruling 22 (a Docker host for PostgreSQL, Playwright and the visual check).
