@@ -13,12 +13,15 @@ import {
   verifiedEvidenceBbox,
 } from './evidenceNavigation'
 
-const HIGHLIGHT_COLORS = [
-  'rgba(148, 203, 236, 0.28)',
-  'rgba(220, 205, 125, 0.28)',
-  'rgba(194, 106, 119, 0.24)',
-  'rgba(93, 168, 153, 0.24)',
-]
+/** What the rail says about one value, for its mark on the page (results review redesign §7.2). */
+export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral'; anchorId: string }
+
+/** The Results rail's values and selection, which the marks show and select. */
+export type RailMarks = {
+  describe: ReadonlyMap<string, MarkInfo>
+  selected: string | null
+  onSelect: (keys: string[], mark: HTMLElement) => void
+}
 
 function reviewedOccurrenceIds(
   attempt: Pick<ExtractionAttempt, 'reviewDecisions'> | null,
@@ -35,10 +38,12 @@ function appendOverlay(
   occurrence: EvidenceOccurrence,
   options: {
     className: string
-    background: string
+    background?: string
     border?: string
     evidenceAnchorId?: string
     resultPath?: readonly (string | number)[]
+    /** A mark the researcher can select: a button with its accessible name. */
+    mark?: { label: string; current: boolean; onClick: (element: HTMLElement) => void }
   },
 ): HTMLElement | null {
   const page = container.querySelector(
@@ -50,9 +55,15 @@ function appendOverlay(
     (candidate) => candidate.page_number === occurrence.page_number,
   )
   if (!bbox || !pageMeta) return null
-  const overlay = window.document.createElement('div')
+  const overlay = window.document.createElement(options.mark ? 'button' : 'div')
   overlay.className = options.className
-  overlay.ariaHidden = 'true'
+  if (options.mark) {
+    const { label, current, onClick } = options.mark
+    ;(overlay as HTMLButtonElement).type = 'button'
+    overlay.setAttribute('aria-label', label)
+    if (current) overlay.setAttribute('aria-current', 'true')
+    overlay.addEventListener('click', () => onClick(overlay))
+  } else overlay.ariaHidden = 'true'
   overlay.dataset.occurrenceId = occurrence.occurrence_id
   if (options.evidenceAnchorId)
     overlay.dataset.evidenceAnchorId = options.evidenceAnchorId
@@ -64,10 +75,8 @@ function appendOverlay(
     top: `${(bbox.y0 / pageMeta.height_pt) * 100}%`,
     width: `${((bbox.x1 - bbox.x0) / pageMeta.width_pt) * 100}%`,
     height: `${((bbox.y1 - bbox.y0) / pageMeta.height_pt) * 100}%`,
-    border: options.border ?? '0',
+    ...(options.mark ? {} : { border: options.border ?? '0', background: options.background, pointerEvents: 'none' }),
     borderRadius: '2px',
-    background: options.background,
-    pointerEvents: 'none',
     zIndex: options.border ? '5' : '4',
   })
   if (getComputedStyle(page).position === 'static')
@@ -138,11 +147,11 @@ export function useEvidenceOverlays({
   viewerRef,
   parsedDocument,
   attempt,
-  fieldNames,
   resultPath,
   active,
   partialEvidenceLinks,
   dimLink = null,
+  marks = null,
 }: {
   containerRef: RefObject<HTMLDivElement | null>
   viewerRef: RefObject<PDFViewer | null>
@@ -151,12 +160,13 @@ export function useEvidenceOverlays({
     ExtractionAttempt,
     'extractionId' | 'executionStatus' | 'outcome' | 'evidenceLinks' | 'reviewDecisions'
   > | null
-  fieldNames: readonly string[]
   resultPath: readonly string[] | null
   active: boolean
   partialEvidenceLinks?: readonly EvidenceLink[] | null
   /** The one-by-one value's link: its page is dimmed around it when it is located to a cell or a segment. */
   dimLink?: EvidenceLink | null
+  /** The rail's values: links paint as marks that select them; without it, as plain highlights. */
+  marks?: RailMarks | null
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
   useEffect(() => {
@@ -205,37 +215,37 @@ export function useEvidenceOverlays({
     )
     const paint = (): EvidenceOccurrence | undefined => {
       let firstOccurrence: EvidenceOccurrence | undefined
-      const paintedOccurrenceIds = new Set<string>()
       removeOverlays(container, 'parsed-evidence-highlight')
-      evidenceLinks.forEach((link, linkIndex) => {
-        if (
-          !resultPath.every(
-            (segment, index) => segment === String(link.resultPath[index]),
-          )
-        )
-          return
+      // One mark per occurrence, carrying every value its passage supports (§7.2: several open a popover).
+      const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[] }>()
+      for (const link of evidenceLinks) {
+        if (!resultPath.every((segment, index) => segment === String(link.resultPath[index]))) continue
         const anchor = anchors.get(link.evidenceAnchorId)
-        if (!anchor) return
-        const fieldName = link.resultPath.find(
-          (segment): segment is string =>
-            typeof segment === 'string' && fieldNames.includes(segment),
-        )
-        const fieldIndex = fieldName ? fieldNames.indexOf(fieldName) : linkIndex
-        const color = HIGHLIGHT_COLORS[fieldIndex % HIGHLIGHT_COLORS.length]!
+        if (!anchor) continue
         const reviewed = reviewedByAnchor.get(anchor.anchor_id)
         for (const occurrence of anchorOccurrences(anchor)) {
           if (reviewed && !reviewed.includes(occurrence.occurrence_id)) continue
-          if (paintedOccurrenceIds.has(occurrence.occurrence_id)) continue
-          paintedOccurrenceIds.add(occurrence.occurrence_id)
-          firstOccurrence ??= occurrence
-          appendOverlay(container, parsedDocument, occurrence, {
-            className: 'parsed-evidence-highlight',
-            background: color,
-            evidenceAnchorId: anchor.anchor_id,
-            resultPath: link.resultPath,
-          })
+          const entry = byOccurrence.get(occurrence.occurrence_id) ?? { occurrence, anchorId: anchor.anchor_id, keys: [] }
+          entry.keys.push(JSON.stringify(link.resultPath))
+          byOccurrence.set(occurrence.occurrence_id, entry)
         }
-      })
+      }
+      for (const { occurrence, anchorId, keys } of byOccurrence.values()) {
+        firstOccurrence ??= occurrence
+        const infos = keys.map((key) => marks?.describe.get(key)).filter((info): info is MarkInfo => Boolean(info))
+        const style = infos[0]?.style ?? 'link'
+        const decided = infos.length > 0 && infos.every((info) => info.word !== null)
+        const current = marks?.selected !== null && marks?.selected !== undefined && keys.includes(marks.selected)
+        appendOverlay(container, parsedDocument, occurrence, {
+          className: `parsed-evidence-highlight evidence-mark ${style}${decided ? ' decided' : ''}${current ? ' selected' : ''}`,
+          evidenceAnchorId: anchorId,
+          resultPath: JSON.parse(keys[0]!) as (string | number)[],
+          ...(marks && infos.length > 0 ? { mark: {
+            label: infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; '),
+            current, onClick: (element: HTMLElement) => marks.onSelect(keys, element),
+          } } : {}),
+        })
+      }
       return firstOccurrence
     }
 
@@ -249,7 +259,7 @@ export function useEvidenceOverlays({
       viewer?.eventBus?.off('pagerendered', paint)
       removeOverlays(container, 'parsed-evidence-highlight')
     }
-  }, [active, attempt, containerRef, fieldNames, parsedDocument, partialEvidenceLinks, resultPath, viewerRef])
+  }, [active, attempt, containerRef, marks, parsedDocument, partialEvidenceLinks, resultPath, viewerRef])
 
   useEffect(
     () => () => {
@@ -282,8 +292,8 @@ export function useEvidenceOverlays({
         for (const occurrence of occurrences) {
           const focus = appendOverlay(container, parsedDocument, occurrence, {
             className: 'parsed-evidence-focus',
-            border: '2px solid #d97706',
-            background: 'rgb(251 191 36 / 0.22)',
+            border: '2px solid var(--color-accent)',
+            background: 'color-mix(in srgb, var(--color-ev-soft) 60%, transparent)',
           })
           if (focus) firstFocus ??= focus
         }

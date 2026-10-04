@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { exportExtractionResult, type ExtractionProvenance, type ProvenanceClaim } from 'extraction-result-export'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import type { SchemaDefinition } from 'extraction/schema'
@@ -10,7 +10,7 @@ import type { ExtractionAttempt, ReviewDecisionAction, ReviewDecisionInput } fro
 import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import { claimStatuses, linkOrigin, type ClaimStatus } from './claimStates'
 import { applyReviewDecisions, orderResultFields, resultPathKey, schemaNodeAtResultPath } from './reviewDecisions'
-import { DECISION_WORD, shownValue, partialRailModel, settledRailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
+import { DECISION_WORD, isDecidable, shownValue, stateLabel, partialRailModel, settledRailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import { breakdownState, statusLine } from './resultsHeaderCopy'
 import { recordDecision, undoLast, type HistoryEntry } from './reviewHistory'
 import { evidenceQuote } from './evidenceQuote'
@@ -24,6 +24,7 @@ import ReviewFocus, { type EndCard } from './ReviewFocus'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
 import { keyAction } from './reviewKeys'
 import type { EvidenceLink } from '../shared/groundedExtraction'
+import type { MarkInfo } from './useEvidenceOverlays'
 
 type PinnedSchema = SchemaDefinition & {
   revisionNumber?: number
@@ -59,6 +60,10 @@ type ResultsTabProps = {
   headerExtras?: ReactNode
   /** The one-by-one value's Evidence, which the document dims around (§7.3); null outside one-by-one. */
   onFocusEvidence?: (link: EvidenceLink | null) => void
+  /** The values the document marks, and the one selected (§7.2); null when the tab has none. */
+  onMarksChange?: (marks: { describe: ReadonlyMap<string, MarkInfo>; selected: string | null } | null) => void
+  /** Filled with the handle a mark selects its value through: in the list, or as one-by-one's current value. */
+  selectValueRef?: RefObject<((key: string) => void) | null>
 }
 
 /** The path prefix the document's overlays filter by: none, so every link paints (§7.2), whatever the result's shape.
@@ -79,7 +84,7 @@ function getAtPath(value: unknown, path: readonly (string | number)[]): unknown 
  */
 function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sourceDocumentName, parsedDocument = null,
   pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence,
-  evidencePages, onResultPathChange, onEditField, headerExtras, onFocusEvidence }: ResultsTabProps) {
+  evidencePages, onResultPathChange, onEditField, headerExtras, onFocusEvidence, onMarksChange, selectValueRef }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
   const state = useMemo(() => inspectedAttempt ? extractionStateFromAttempt(inspectedAttempt) : controller.state,
     [controller.state, inspectedAttempt])
@@ -251,6 +256,26 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
     if (listScroll.current === null) listScroll.current = 0
   }
   useEffect(() => { oneByOneRef.current = oneByOne; enterRef.current = enter })
+
+  // The document's marks show the rail's values and select them (§7.2); a mark's selection scrolls nothing.
+  const markInfo = useMemo(() => new Map(rows.filter((row) => row.link).map((row): [string, MarkInfo] => [row.key, {
+    name: row.name, value: shownValue(row.value), word: isDecidable(row.kind) && row.kind !== 'to-check' ? stateLabel(row) : null,
+    style: row.chip?.style ?? 'link', anchorId: row.link!.evidenceAnchorId,
+  }])), [rows])
+  const markSelected = oneByOne ? currentKey : selectedKey
+  useEffect(() => { onMarksChange?.(model ? { describe: markInfo, selected: markSelected } : null) }, [model, markInfo, markSelected, onMarksChange])
+  useEffect(() => () => onMarksChange?.(null), [onMarksChange])
+  useImperativeHandle(selectValueRef, () => (key: string) => {
+    if (oneByOne) { if (queue.some((item) => item.key === key)) goTo(key); return }
+    const row = rowByKey.get(key)
+    if (!row) return
+    setCodeView(false)
+    setSelectedKey(key)
+    setEditingKey(null)
+    const record = row.resultPath[1]
+    if (typeof record === 'number') setToggles((current) => new Map(current).set(record, true))
+    setFocusKey(key)
+  })
 
   async function save(message: string) {
     if (await review.accept()) { showToast(message); setAnnounce(message) }
@@ -551,6 +576,13 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
         <ResultsMenu items={[
           ...(reviewed ? [] : [{ label: 'Export…', onSelect: () => { setMenuOpen(false); setExportOpen(true) } }]),
           { label: codeView ? 'Back to review' : 'Values as code', onSelect: () => { setMenuOpen(false); setCodeView((shown) => !shown) } },
+          { label: 'Copy link to the selected value', disabled: markSelected ? null : 'Select a value first', onSelect: () => {
+            setMenuOpen(false)
+            const url = new URL(window.location.href)
+            url.searchParams.set('value', markSelected!)
+            Promise.resolve().then(() => navigator.clipboard.writeText(url.toString()))
+              .then(() => showToast('Link copied.'), () => showToast('Could not copy the link'))
+          } },
           { label: selectedRow ? `Edit field ${selectedRow.name} in the schema…` : 'Edit field in the schema…',
             disabled: selectedRow && selectedNode && onEditField ? null : 'Select a value first',
             onSelect: () => { setMenuOpen(false); if (selectedRow && selectedNode) onEditField?.(selectedNode.id, selectedRow.resultPath) } },
