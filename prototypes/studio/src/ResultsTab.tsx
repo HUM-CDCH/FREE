@@ -436,6 +436,8 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
           onShowValue={(resultPath) => {
             setDrawer(null)
             const key = resultPathKey(resultPath)
+            const record = model?.records.find((record) => record.rows.some((row) => row.key === key))
+            if (record) setToggles((current) => new Map(current).set(record.index, true))
             setFilter('all')
             setSelectedKey(key)
             setFocusKey(key)
