@@ -326,6 +326,8 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     await expect(valueRow(page, item)).toHaveAccessibleName(new RegExp(`^Edited ${escaped(item)} ${escaped(edited)}`))
     await valueRow(page, item).click()
     await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
+    await expect(page.getByRole('tab', { name: /^Results/ })).toBeInViewport()
+    await expect(page.getByRole('group', { name: 'Document view' })).toBeInViewport()
     await page.screenshot({ path: join(output, 'reloaded.png') })
     const reviewed = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
     expect(reviewed.extraction.reviewedAt).not.toBeNull()
