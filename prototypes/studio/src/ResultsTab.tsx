@@ -382,7 +382,8 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
         onOneByOne={() => {}} onApproveRest={() => setConfirming(true)}
         onSaveReview={() => void save('Review saved. It is now read-only.')} onList={() => {}}
       />
-      <div className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto bg-canvas p-2 pb-20">
+      {/* Contain absolute accessibility labels inside the list so deep rows cannot scroll the workspace. */}
+      <div className="scrollbar-subtle relative min-h-0 flex-1 overflow-y-auto bg-canvas p-2 pb-20">
         {codeView ? (
           <div>
             <button type="button" className="mb-2 cursor-pointer text-secondary font-semibold text-accent" onClick={() => setCodeView(false)}>Back to review</button>
