@@ -21,7 +21,7 @@ const decision = (field: (string | number)[], action: ReviewDecisionInput['actio
   ({ resultPath: ['records', 0, ...field], evidenceAnchorId: `a-${field.join('.')}`, reviewedOccurrenceIds: ['o'], action, reviewedValue })
 
 const record = { category: 'Grav 8', sheet: '67', skeleton: { sex: 'mand', age: 'over 45 år' }, site: 'Ellekilde', condition: null, certainty: 'reported', archive: 'NM', empty: [] }
-const links = [link(['category']), link(['sheet'], { linkedBy: 'rule' } as Partial<EvidenceLink>), link(['skeleton', 'sex'], { verbatim: true, lexicalHits: 2 }), link(['skeleton', 'age'])]
+const links = [link(['category']), link(['sheet'], { linkedBy: 'lexical' }), link(['skeleton', 'sex'], { verbatim: true, lexicalHits: 2 }), link(['skeleton', 'age'])]
 const statuses = new Map<string, ClaimStatus>([
   [resultPathKey(['records', 0, 'site']), { state: 'excluded', reasons: [], policy: 'unverified' }],
   [resultPathKey(['records', 0, 'certainty']), { state: 'not_completed', reasons: ['verification_failed'] }],
