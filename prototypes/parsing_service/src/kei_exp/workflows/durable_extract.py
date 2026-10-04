@@ -95,7 +95,9 @@ def effective(lease):
         if model.adapter=="gliformer":
             info=client.info()
             models[role]["nativeInfo"]={name:info[name] for name in ("protocol","model","identity","max_input_tokens")}
-    frozen_options = request.options.model_dump(exclude_none=True)
+    # Nested method serializers own optional fields; exclude_none would remove
+    # their keys before Article's serializer can apply its canonical contract.
+    frozen_options = {name: value for name, value in request.options.model_dump().items() if value is not None}
     if request.options.unified is not None:
         frozen_options.pop("discovery_chars",None); frozen_options.pop("record_chars",None)
     pinned = lease.call("resolve_selection", {"models": models, "options": frozen_options, "planner": 1,

@@ -1,11 +1,43 @@
 """Provider failures and persistence failures stop admission before compilation."""
 import inspect
+from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
 
 from kei_exp.kie.extract.calls import Call
 from kei_exp.workflows import durable_extract as worker
+
+
+@pytest.mark.parametrize("context", ["full", "bounded"])
+def test_explicit_article_settings_are_frozen_and_restored_without_serializer_conflicts(monkeypatch,context):
+    from kei_exp.kie.extract.models import ExtractModel
+    monkeypatch.setitem(worker.EXTRACT_MODELS,"instruct",ExtractModel("instruct","fixture/model",
+        "http://127.0.0.1:12345/v1/chat/completions","instruct",frozenset({"fields","reasoning"})))
+    class Lease:
+        state={"selection":{"schemaTree":{"recordDescription":"A document","recordScope":"document",
+            "schemaNodes":[{"id":"title","name":"title","type":"string"}]},
+            "resolved":{"options":{"strategy":"article","models":{"fields":"instruct","reasoning":"instruct"},
+                "article":{"context":context,"context_tokens":8192},"start_page":2}}}}
+        saved=None
+        def call(self,routine,value):
+            assert routine=="resolve_selection"
+            if value is not None:
+                assert self.saved is None
+                self.saved={"configuration":deepcopy(value)}
+            return deepcopy(self.saved)
+    lease=Lease()
+    request,router=worker.effective(lease)
+    captured=deepcopy(lease.saved)
+    assert request.options.article.context==context
+    assert captured["configuration"]["options"]["article"]==request.options.article.model_dump()
+    assert captured["configuration"]["options"]["start_page"]==2
+    monkeypatch.delitem(worker.EXTRACT_MODELS,"instruct")
+    resumed,resumed_router=worker.effective(lease)
+    assert resumed.options.article==request.options.article
+    assert resumed.options.start_page==2
+    assert resumed_router.models==router.models=={"fields":"fixture/model","reasoning":"fixture/model"}
+    assert lease.saved==captured
 
 
 @pytest.mark.parametrize("checkpoint",[False,True])
