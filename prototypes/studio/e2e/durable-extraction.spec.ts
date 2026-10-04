@@ -178,7 +178,7 @@ test('One by one waits for its pinned source before navigating retained Model Ev
     await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
     release.resolve()
     await expect(page.locator('.parsed-evidence-focus')).toHaveCount(1)
-    await expect(page.locator('.parsed-evidence-focus')).toHaveAttribute('data-evidence-anchor-id',anchor.anchor_id)
+    await expect(page.locator('.parsed-evidence-focus')).toHaveAttribute('data-occurrence-id',occurrence.occurrence_id)
   } finally {release.resolve();await fixture.close()}
 })
 
