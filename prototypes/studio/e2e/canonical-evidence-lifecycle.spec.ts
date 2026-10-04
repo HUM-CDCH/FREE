@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page, type TestInfo } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import ExcelJS from 'exceljs'
@@ -134,6 +134,36 @@ let standIn: KeiStandIn | undefined
 /** The Results rail (results review redesign §2–§3): its header's status line, review bar and breakdown line, and its
  *  rows, each a button named "{state} {name} {value} {chip}". */
 const resultsPanel = (page: Page) => page.getByRole('tabpanel', { name: /Results/ })
+
+/** With RAIL_SHOTS=1, the rail at 1280×720 at its 344px default and its 264px minimum, for the visual check against
+ *  the prototype (results review redesign); otherwise nothing. */
+async function railShots(page: Page, testInfo: TestInfo, stage: string) {
+  if (!process.env.RAIL_SHOTS) return
+  const viewport = page.viewportSize()
+  await page.setViewportSize({ width: 1280, height: 720 })
+  for (const width of [344, 264]) {
+    const rail = page.getByRole('complementary', { name: 'Evidence, schema and results' })
+    const handle = await page.locator('[title="Drag to resize"]:not([role="separator"])').boundingBox()
+    const current = (await rail.boundingBox())!.width
+    if (handle && current !== width) {
+      const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x + (current - width), y, { steps: 4 })
+      await page.mouse.up()
+    }
+    await page.screenshot({ path: testInfo.outputPath(`rail-${stage}-${width}.png`) })
+  }
+  const handle = await page.locator('[title="Drag to resize"]:not([role="separator"])').boundingBox()
+  if (handle) {
+    const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x - 80, y, { steps: 4 })
+    await page.mouse.up()
+  }
+  if (viewport) await page.setViewportSize(viewport)
+}
 const statusLine = (page: Page) => resultsPanel(page).locator('p:has(> b)').first()
 const reviewBar = (page: Page) => resultsPanel(page).getByRole('img', { name: / to check, of \d+$/ })
 const breakdown = (page: Page) => resultsPanel(page).locator('p').filter({ hasText: /^\d+ approved · \d+ edited · \d+ rejected · / })
@@ -370,11 +400,14 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await expect(first.getByRole('button', { name: /^Approved title First record/ })).toBeVisible()
     await expect(breakdown(page)).toHaveText('1 approved · 0 edited · 0 rejected · draft until the run finishes')
     await expect(first).toHaveAccessibleName('First, all checked')
+    await railShots(page, testInfo, 'review-while-reading')
   } else {
     await expect(resultsPanel(page).getByTitle('Candidate · being checked against the source')).toHaveText('First context')
     await expect(resultsPanel(page).getByRole('button', { name: /^To check / })).toHaveCount(0)
   }
   await expect.poll(() => resultGate.release !== null).toBe(true)
+  // Settlement moves nothing (§5.3): the decided row keeps its place on the screen.
+  const beforeSettlement = strategy === 'CATALOG' ? await valueRow(page, /^Approved title First record/).boundingBox() : null
   kei.progress = null
   resultGate.release!()
   // With the rail open on Results its settlement toast is the one notice; App's "Review now" toast stays away (§2.5).
@@ -386,13 +419,18 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
   expect(interactivePosts).toBe(1)
   if (strategy === 'CATALOG') {
-    // Settlement moved nothing: the decided value still reads Approved; Approve rest… saves the rest.
+    // Settlement moved nothing: the decided value still reads Approved, where it was; Approve rest… saves the rest.
     await expect(valueRow(page, /^Approved title First record/)).toBeVisible()
+    const afterSettlement = await valueRow(page, /^Approved title First record/).boundingBox()
+    expect(Math.abs(afterSettlement!.y - beforeSettlement!.y)).toBeLessThanOrEqual(1)
+    await railShots(page, testInfo, 'settled')
     await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
     // One by one (§4): A approves the current value and moves on, J skips, Z undoes the approval; Escape leaves.
     await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
     const current = resultsPanel(page).getByRole('heading', { level: 2 })
     await expect(current).toBeFocused()
+    await railShots(page, testInfo, 'one-by-one')
+    await current.focus()
     await page.keyboard.press('a')
     await expect(reviewBar(page)).toHaveAccessibleName('2 approved, 0 edited, 0 rejected, 1 to check, of 3')
     await expect(current).toBeFocused()
@@ -403,6 +441,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await expect(resultsPanel(page).getByRole('group', { name: 'Show values' })).toBeVisible()
     await approveRest(page)
     await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
+    await railShots(page, testInfo, 'saved')
     await page.reload()
     await page.getByRole('tab', { name: /Results/ }).click()
     await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
