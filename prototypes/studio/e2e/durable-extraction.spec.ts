@@ -330,6 +330,40 @@ test('every native lifecycle shows retained review and running keyboard edits ke
   } finally {await fixture.close()}
 })
 
+test('a delayed correction acknowledgement keeps menu Escape usable without duplicate decisions or finalization',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  const release=Promise.withResolvers<void>()
+  let writes=0
+  try {
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Saved title'])
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    const url=`/api/extractions/${id}/durable/values/title`
+    await page.route(`**${url}`,async route=>{
+      if(route.request().method()!=='POST'){await route.continue();return}
+      writes++
+      const response=await route.fetch()
+      await release.promise
+      await route.fulfill({response})
+    })
+    await page.getByRole('button',{name:'One by one',exact:true}).click()
+    await page.keyboard.press('a')
+    await expect(page.getByText('Saving your decision…')).toBeVisible()
+    await page.keyboard.press('r')
+    const menu=page.getByRole('button',{name:'More result actions'});await menu.click()
+    await page.getByRole('menuitem',{name:'Export XLSX'}).focus()
+    await page.keyboard.press('a');await page.keyboard.press('Escape')
+    await expect(menu).toHaveAttribute('aria-expanded','false')
+    await expect(page.getByRole('heading',{name:'Saved title',exact:true})).toBeFocused()
+    expect(writes).toBe(1)
+    release.resolve()
+    await expect(page.getByText('Saving your decision…')).toHaveCount(0)
+    const decision=(await (await page.request.get(url)).json()).values[0].correction
+    expect(decision.revision).toBe(1);expect(decision.decision.action).toBe('APPROVED')
+    expect((await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()).finalizations).toEqual([])
+    expect((await (await page.request.get(`/api/extractions/${id}/durable`)).json()).controlVersion).toBe(0)
+  } finally {release.resolve();await fixture.close()}
+})
+
 test('shared correction Evidence navigates Markdown UTF-8 spans and stable value links',async({page})=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   try {

@@ -49,7 +49,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     onCancelEdit:()=>setEditing(false),onUndo:()=>send({type:'undo'}),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
   useEffect(()=> {
     const root=keyboardRoot.current
-    if(!focus||busy||readOnly||!root)return
+    if(!focus||readOnly||!root)return
     const keys=(event:KeyboardEvent)=> {
       if(event.defaultPrevented||root.closest('[hidden]')||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
       const action=keyAction(event,{readable:true,saving:busy,editing,dialog:false,drawer:detailsOpen,menu:menuOpen,
