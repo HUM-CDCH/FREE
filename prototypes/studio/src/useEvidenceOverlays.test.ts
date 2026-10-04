@@ -197,3 +197,28 @@ describe('partial links (design §1)', () => {
     expect(viewer.scrollPageIntoView).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('dimming in one-by-one (results review redesign §7.3)', () => {
+  it.each([
+    ['segment', 4], ['cell', 4], ['input', 0], [undefined, 0],
+  ] as const)('a %s link dims its page in %i rectangles that take no pointer hits', (precision, rectangles) => {
+    const parsedDocument = decodeParsedDocument(parsedFixture)
+    const anchor = parsedDocument.evidence_index.anchors[0]
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0].page_number}"></div>`
+    document.body.append(container)
+    const dimLink: EvidenceLink = { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, ...(precision ? { precision } : {}) }
+    const { rerender } = renderHook(({ link }) => useEvidenceOverlays({
+      containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
+      parsedDocument, attempt: null, fieldNames: [], resultPath: null, active: true, dimLink: link,
+    }), { initialProps: { link: dimLink as EvidenceLink | null } })
+    const shades = container.querySelectorAll<HTMLElement>('.evidence-dim')
+    expect(shades).toHaveLength(rectangles)
+    shades.forEach((shade) => {
+      expect(shade.style.pointerEvents).toBe('none')
+      expect(shade.style.opacity).toBe('0.45')
+    })
+    rerender({ link: null })
+    expect(container.querySelectorAll('.evidence-dim')).toHaveLength(0)
+  })
+})

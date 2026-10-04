@@ -1,4 +1,5 @@
 import { isDeveloperUiEnabled } from './developerUi'
+import type { EvidenceLink } from '../shared/groundedExtraction'
 import PanelToggleIcon from './PanelToggleIcon'
 import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
@@ -51,6 +52,8 @@ type RightRailProps = {
   resultsHeaderExtras?: ReactNode
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
   onResultPathChange: (path: string[] | null) => void
+  /** The one-by-one value's Evidence link, for the document's dimming (results review redesign §7.3). */
+  onFocusEvidence?: (link: EvidenceLink | null) => void
 }
 
 /** A tab's count. Under a 300px tab strip (the 264px rail) a worded one ("7 to check") shows its number only, so the
@@ -96,6 +99,7 @@ function RightRail({
   resultsHeaderExtras,
   onSelectEvidence,
   onResultPathChange,
+  onFocusEvidence,
 }: RightRailProps) {
   const [fieldContext, setFieldContext] = useState<FieldContext | null>(null)
   const editField = (nodeId: string, path: (string | number)[]) => {
@@ -241,6 +245,7 @@ function RightRail({
           sourceDocumentName={sourceDocumentName}
           evidencePages={evidencePages}
           onResultPathChange={onResultPathChange}
+          onFocusEvidence={onFocusEvidence}
           headerExtras={resultsHeaderExtras}
           onSelectEvidence={(anchorId) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(

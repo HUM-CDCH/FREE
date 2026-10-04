@@ -364,9 +364,13 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await expect(resultsPanel(page).getByRole('region', { name: 'Waiting, Queued', exact: true })).toBeVisible()
     // Review during the run (§5): a value of the finished record is decided now, a draft until the run finishes.
     await first.getByRole('button', { name: /^To check title First record/ }).click()
+    await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
     const drafted = draftWritten(page)
-    await decisionFor(page, 'title', 'Approve').click()
+    await page.keyboard.press('a')
     await drafted
+    await expect(resultsPanel(page).getByRole('heading', { level: 2 })).toHaveText('First is checked')
+    await resultsPanel(page).getByRole('button', { name: 'Back to list', exact: true }).click()
+    await expect(first.getByRole('button', { name: /^Approved title First record/ })).toBeFocused()
     await expect(first.getByRole('button', { name: /^Approved title First record/ })).toBeVisible()
     await expect(breakdown(page)).toHaveText('1 approved · 0 edited · 0 rejected · draft until the run finishes')
     await expect(first).toHaveAccessibleName('First, all checked')
@@ -389,7 +393,31 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     // Settlement moved nothing: the decided value still reads Approved; Approve rest… saves the rest.
     await expect(valueRow(page, /^Approved title First record/)).toBeVisible()
     await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
-    await approveRest(page)
+    // One by one (§4): A approves the current value and moves on, J skips, Z undoes the approval; Escape leaves.
+    await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
+    const current = resultsPanel(page).getByRole('heading', { level: 2 })
+    await expect(current).toBeFocused()
+    await page.keyboard.press('a')
+    await expect(reviewBar(page)).toHaveAccessibleName('2 approved, 0 edited, 0 rejected, 1 to check, of 3')
+    await expect(current).toBeFocused()
+    await page.keyboard.press('j')
+    await page.keyboard.press('z')
+    await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
+    await page.keyboard.press('k')
+    await expect(current).toBeFocused()
+    // Edit/Enter persists the draft, then R on the last value saves the review (§4.4, §6).
+    await page.keyboard.press('e')
+    const focusedEditor = resultsPanel(page).getByRole('textbox', { name: 'Reviewed value', exact: true })
+    await focusedEditor.fill('Second record (reviewed)')
+    await focusedEditor.press('Enter')
+    await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 1 edited, 0 rejected, 1 to check, of 3')
+    await expect(current).toBeFocused()
+    await page.keyboard.press('r')
+    await expect(current).toHaveText('Review saved', { timeout: 20_000 })
+    await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 1 edited, 1 rejected, 0 to check, of 3')
+    await page.keyboard.press('Escape')
+    await expect(resultsPanel(page).getByRole('group', { name: 'Show values' })).toBeVisible()
+    await expect(valueRow(page, /^Rejected title /)).toBeFocused()
     await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
     await page.reload()
     await page.getByRole('tab', { name: /Results/ }).click()
@@ -522,6 +550,20 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await page.setViewportSize({ width: 1280, height: 800 })
   // Selecting a value opens its decision (§3.3).
   await activateWithKeyboard(page, titleRow)
+  // Native focus must not override the list position restored when leaving One by one (§4.1).
+  await page.setViewportSize({ width: 1280, height: 480 })
+  const savedListScroll = await titleRow.evaluate((element) => {
+    const scroller = element.closest('.overflow-y-auto')!
+    scroller.scrollTop = scroller.scrollHeight
+    return scroller.scrollTop
+  })
+  expect(savedListScroll).toBeGreaterThan(0)
+  await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
+  await expect(resultsPanel(page).getByRole('heading', { level: 2 })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(titleRow).toBeFocused()
+  expect(await titleRow.evaluate((element) => element.closest('.overflow-y-auto')!.scrollTop)).toBe(savedListScroll)
+  await page.setViewportSize(journeyViewport)
   await activateWithKeyboard(page, decisionFor(page, 'title', 'Edit'))
   const reviewedValue = resultsPanel(page).getByRole('textbox', { name: 'Reviewed value', exact: true })
   await reviewedValue.fill('Reviewed, café')

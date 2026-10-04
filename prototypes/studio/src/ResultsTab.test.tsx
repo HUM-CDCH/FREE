@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { useCallback, useState, type ComponentProps } from 'react'
+import { useCallback, useLayoutEffect, useState, type ComponentProps } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportExtractionResult } from 'extraction-result-export'
@@ -1409,5 +1409,237 @@ describe('ResultsTab verification completeness', () => {
       const identity = new Map(provenance!.identity)
       expect([identity.get('Verifier-supported'), identity.get('Linked by rule')]).toEqual([1, 1])
     })
+  })
+})
+
+describe('ResultsTab one by one (§4)', () => {
+  const fields = ['place', 'year', 'site'] as const
+  const links: EvidenceLink[] = fields.map((field) => ({ resultPath: ['records', 0, field], evidenceAnchorId: `anchor-${field}`,
+    ...(field === 'site' ? { verbatim: true, lexicalHits: 2 } : {}) }))
+  const three = withAttempt({ records: [{ place: 'Oslo', year: '1900', site: 'Grav 8' }] }, links, { strategy: 'CATALOG' })
+  const initial = fields.map((field) => decided(['records', 0, field], `anchor-${field}`))
+  const schema: SchemaDefinition = { recordDescription: 'Graves.', schemaNodes: fields.map((field) => ({ id: field, name: field, type: 'string' as const })) }
+  const heading = () => screen.getByRole('heading', { level: 2 })
+  const key = (name: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(document.activeElement ?? document.body, { key: name, ...init })
+  function enter() {
+    const spy = vi.fn()
+    render(<Reviewing attempt={three} initial={initial} spy={spy} pinnedSchema={schema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    return spy
+  }
+
+  it('starts at the doubtful link, shows its record queue and position, and focuses the value', () => {
+    enter()
+    expect(heading()).toHaveTextContent('Grav 8')
+    expect(document.activeElement).toBe(heading())
+    expect(screen.getByRole('list', { name: 'Record 1, values in review order' }).querySelectorAll('li')).toHaveLength(3)
+    expect(screen.getByRole('button', { name: 'site, to check, doubtful link' })).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('Record 1 of 1 · 1 of 3 in this record')).toBeInTheDocument()
+    expect(screen.getByText(/Doubtful link\./).closest('div')).toHaveTextContent('Check that this is the right passage.')
+    expect(screen.queryByRole('group', { name: 'Show values' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Leave one-by-one review, back to the list' })).toBeInTheDocument()
+  })
+
+  it('A approves and moves on, saying so; J skips without deciding; K steps back; Z undoes', () => {
+    const spy = enter()
+    key('a')
+    expect(spy).toHaveBeenLastCalledWith(['records', 0, 'site'], 'APPROVED', null, null, true)
+    expect(heading()).toHaveTextContent('Oslo')
+    expect(document.activeElement).toBe(heading())
+    expect(live()).toHaveTextContent('Approved site. 2 to check. Next: place, Oslo.')
+    key('j')
+    expect(heading()).toHaveTextContent('1900')
+    expect(spy).toHaveBeenCalledTimes(1)
+    key('k')
+    expect(heading()).toHaveTextContent('Oslo')
+    key('k')
+    expect(heading()).toHaveTextContent('Grav 8')
+    expect(screen.getByText('Approved', { selector: 'b' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Next to check/ })).toBeInTheDocument()
+    key('z')
+    expect(spy).toHaveBeenLastCalledWith(['records', 0, 'site'], 'APPROVED', null, null, false)
+    expect(heading()).toHaveTextContent('Grav 8')
+  })
+
+  it('ignores keys on repeat, with a modifier and while typing; E edits and Escape cancels the edit first', () => {
+    const spy = enter()
+    key('a', { repeat: true })
+    key('a', { ctrlKey: true })
+    expect(spy).not.toHaveBeenCalled()
+    key('e')
+    const input = screen.getByLabelText('Reviewed value')
+    expect(document.activeElement).toBe(input)
+    fireEvent.keyDown(input, { key: 'a' })
+    expect(spy).not.toHaveBeenCalled()
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByLabelText('Reviewed value')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Leave one-by-one review, back to the list' })).toBeInTheDocument()
+  })
+
+  it('the document follows the current value once per value, never again on a re-render', () => {
+    const first = vi.fn()
+    const { rerender } = render(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} onSelectEvidence={first} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(first.mock.calls).toEqual([['anchor-site']])
+    const second = vi.fn()
+    rerender(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} onSelectEvidence={second} />)
+    expect(second).not.toHaveBeenCalled()
+    key('j')
+    expect(second.mock.calls).toEqual([['anchor-place']])
+  })
+
+  it('Escape leaves to the list with the current value selected and focused', () => {
+    enter()
+    key('Escape')
+    expect(screen.getByRole('group', { name: 'Show values' })).toBeInTheDocument()
+    expect(rowOf('site')).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(rowOf('site'))
+  })
+
+  it('leaving after advancing into a collapsed record reveals and focuses the current row', () => {
+    const result = { records: [{ place: 'Oslo' }, { place: 'Bergen' }] }
+    const evidence = [0, 1].map((i) => ({ resultPath: ['records', i, 'place'], evidenceAnchorId: `anchor-${i}` }))
+    render(<Reviewing attempt={withAttempt(result, evidence, { strategy: 'CATALOG' })}
+      initial={evidence.map((link) => decided(link.resultPath, link.evidenceAnchorId))} spy={vi.fn()} pinnedSchema={placeSchema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    key('j')
+    expect(heading()).toHaveTextContent('Bergen')
+    key('Escape')
+    const current = screen.getByRole('button', { name: /^To check place Bergen/ })
+    expect(current).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(current)
+  })
+
+  it('Article shows a flat queue and position without a Catalog record level', () => {
+    render(<Reviewing attempt={{ ...three, strategy: 'ARTICLE' }} initial={initial} spy={vi.fn()} pinnedSchema={schema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(screen.getByRole('list', { name: 'Values in review order' })).toBeInTheDocument()
+    expect(screen.getByText('1 of 3')).toBeInTheDocument()
+    expect(screen.queryByText(/Record 1/)).toBeNull()
+  })
+
+  it('Article end cards keep the flat document scope', () => {
+    const evidence = [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'a' }]
+    render(<Reviewing attempt={withAttempt({ records: [{ place: 'Oslo' }] }, evidence)}
+      initial={[decided(evidence[0]!.resultPath, 'a')]} spy={vi.fn()} pinnedSchema={placeSchema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    key('a')
+    expect(heading()).toHaveTextContent('Document is checked')
+    expect(screen.queryByText(/records?\b/i)).toBeNull()
+  })
+
+  it('the card retains the changed-after-review warning until a new decision is made', () => {
+    render(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema}
+      review={{ changedAfterReview: new Set([resultPathKey(['records', 0, 'site'])]) }} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(screen.getByText('changed after you reviewed it')).toBeInTheDocument()
+    key('a')
+    key('k')
+    expect(screen.queryByText('changed after you reviewed it')).toBeNull()
+  })
+
+  it.each(['input', 'cell'] as const)('the card states %s evidence precision', (precision) => {
+    const evidence = links.map((link) => ({ ...link, precision }))
+    render(<Reviewing attempt={withAttempt(three.resultPayload, evidence, { strategy: 'CATALOG' })}
+      initial={initial} spy={vi.fn()} pinnedSchema={schema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(screen.getByText(precision === 'input' ? /located to the whole page only/ : /a table cell/)).toBeInTheDocument()
+  })
+
+  it('Run details owns keyboard focus and suspends decisions until it closes', () => {
+    const spy = enter()
+    openDetails()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close run details' }), { key: 'a' })
+    expect(spy).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Close run details' }))
+    key('a')
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the leave focus request when Escape arrives during the saved render commit', () => {
+    function SavedBoundary({ saved }: { saved: boolean }) {
+      useLayoutEffect(() => {
+        if (saved) screen.getByRole('heading', { level: 2 }).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      }, [saved])
+      const attempt = { ...three, reviewedAt: saved ? '2026-10-04T00:00:00Z' : null,
+        reviewDecisions: saved ? initial.map((decision) => ({ ...decision, createdAt: '2026-10-04T00:00:00Z' })) : [] }
+      return <Reviewing attempt={attempt} initial={initial} spy={vi.fn()} pinnedSchema={schema} />
+    }
+    const { rerender } = render(<SavedBoundary saved={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    key('a')
+    key('a')
+    key('a')
+    rerender(<SavedBoundary saved />)
+    expect(rowOf('year')).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(rowOf('year'))
+  })
+
+  it('keeps heading focus and the saved scroll position when entry precedes list effects', () => {
+    function EnterBoundary() {
+      useLayoutEffect(() => {
+        const scroller = document.querySelector('.overflow-y-auto')!
+        scroller.scrollTop = 137
+        screen.getByRole('button', { name: /One by one/ }).click()
+      }, [])
+      return <Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} />
+    }
+    render(<EnterBoundary />)
+    expect(document.activeElement).toBe(heading())
+    key('Escape')
+    expect(rowOf('site').closest('.overflow-y-auto')!.scrollTop).toBe(137)
+  })
+
+  it('when the record runs out, says so and offers the list', () => {
+    enter()
+    key('a')
+    key('a')
+    key('a')
+    expect(heading()).toHaveTextContent(/is checked$/)
+    expect(screen.getByText('0 values are left to check in 0 more records.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to list' }))
+    expect(screen.getByRole('group', { name: 'Show values' })).toBeInTheDocument()
+    expect(rowOf('year')).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(rowOf('year'))
+  })
+
+  it('"Review from here" enters at that value; One by one is unavailable with nothing to check', () => {
+    render(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} />)
+    fireEvent.click(rowOf('year'))
+    fireEvent.click(screen.getByRole('button', { name: /Review from here/ }))
+    expect(heading()).toHaveTextContent('1900')
+    cleanup()
+    render(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} review={{ isTouched: () => true }} />)
+    expect(screen.getByRole('button', { name: /One by one/ })).toHaveAttribute('title', 'Nothing left to check here')
+  })
+})
+
+describe('ResultsTab one by one while the run reads (§4.5)', () => {
+  const record = (index: number, state: 'finished' | 'reading'): PartialResult['records'][number] => ({
+    index, label: `Grav ${index + 8}`, page: 1, state,
+    record: state === 'finished' ? { place: `Place ${index}` } : null,
+    values: state === 'finished' ? { '["place"]': { value: `Place ${index}`, state: 'grounded' } } : {},
+    evidenceLinks: state === 'finished' ? [{ resultPath: ['records', index, 'place'], evidenceAnchorId: `anchor-${index}` }] : [],
+  })
+  const partial = (states: Array<'finished' | 'reading'>): PartialResult => ({
+    strategy: 'CATALOG', startedAtPage: 1, discovered: states.length, finished: states.filter((each) => each === 'finished').length,
+    records: states.map((state, index) => record(index, state)), document: null,
+  })
+  const runningAttempt = { ...articleAttempt, strategy: 'CATALOG' as const, executionStatus: 'RUNNING' as const, outcome: null, resultPayload: null,
+    evidenceLinks: null, reviewable: false, complete: null }
+  const tab = (shown: PartialResult) => <ResultsTab schemaReady sourceDocumentName="run.pdf" pinnedSchema={placeSchema}
+    controller={controller({ status: 'running', step: 'extraction', partial: shown }, runningAttempt, {
+      draftAvailable: true, decisions: [decided(['records', 0, 'place'], 'anchor-0'), decided(['records', 1, 'place'], 'anchor-1')],
+      isTouched: () => false,
+    })} />
+
+  it('once what is read is checked, each record read says its values can be reviewed now', () => {
+    const { rerender } = render(tab(partial(['finished', 'reading', 'reading'])))
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Approve and next/ }))
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Grav 8 is checked')
+    expect(screen.getByText(/still being read, and their values join this queue as each one finishes\.$/)).toBeInTheDocument()
+    rerender(tab(partial(['finished', 'finished', 'reading'])))
+    expect(live()).toHaveTextContent('Grav 9 read: its values can be reviewed now.')
   })
 })
