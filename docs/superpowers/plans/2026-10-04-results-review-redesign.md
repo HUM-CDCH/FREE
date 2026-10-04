@@ -265,3 +265,22 @@ Rulings taken while implementing (the code forced or the spec did not say):
 Verification: Studio unit 171 files / 2131 tests; `pnpm -r typecheck`; Studio lint 0 errors (2 warnings, as on the base); `packages/extraction` 235 unit and the reviews PostgreSQL tier 12/12; Playwright `canonical-evidence-lifecycle` 3/3 (ARTICLE, CATALOG with review while reading, settlement, One by one, the last-decision save; ARTICLE+CATALOG flake on this machine through a Vite "Failed to fetch dynamically imported module App.tsx" after a reload, which the untouched base shows too). Rail screenshots at 1280×720, 344px and 264px: `RAIL_SHOTS=1` on the CATALOG lifecycle.
 
 Not done: the `real-*` Playwright specs had their removed selectors replaced but need a rewrite against a real service run (nested row names, old regions); `CONTEXT.md` glossary changes stay proposals (spec).
+
+### Baratheon verification (2026-10-04)
+
+Isolated checkout `~/Projects/FREE-results-review` (git bundles of the five branches; production containers and the
+main checkout untouched; the Python venv is the main checkout's locked one with `PYTHONPATH` on the clone's sources,
+as PR #164 did; this change touches no Python).
+
+- `e` head (`1f6115a5`): Studio unit 2132; `packages/extraction` unit 235 and `test:postgres` 110; Playwright default
+  77 passed, 5 skipped (conditional), recovery 5/5; `test:service` 17 passed, 3 skipped (real model, GLiFormer) after
+  the recipe test opened entry 32 by position; `canonical-evidence-lifecycle` 3/3 with the 344/264px layout assertions,
+  the last-decision save and `RAIL_SHOTS=1`.
+- Each branch head alone: typecheck clean, lint 0 errors, extraction 235; Studio unit a 2119, b 2131, c 2107,
+  d 2126; lifecycle 3/3 at c and at d.
+- Real model (`nvidia/Qwen3.8-27B-NVFP4` on the live server, idle at start, GLiFormer not served):
+  `real-application-route` (synthetic nested) passed in 36.5 s; `real-model-route` on `Beretning_Ellekilde_8_13.pdf`
+  with a seven-field graves Catalog schema passed in 3.3 min (7 records; edit a list item, approve the rest, reload,
+  export).
+- The local Vite "Failed to fetch dynamically imported module" and "Authenticated workspace bootstrap failed"
+  failures did not occur on Baratheon.
