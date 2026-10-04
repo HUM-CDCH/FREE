@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXTRACTION_UNAVAILABLE, MONITOR_DISCONNECTED, useExtraction, type ReviewTarget } from './useExtraction'
 import * as api from './api'
 import { ApiRequestError } from './api'
+import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import type { ExtractionAttempt, PartialRecord, PartialResult } from '../shared/extraction.contract'
 import {
   clearSessionRecovery,
@@ -1413,6 +1414,152 @@ describe('review while the run reads (ADR 0016; results review redesign §5)', (
     expect(result.current.review.decisions).toEqual([decision(0, 'REJECTED')])
     expect(result.current.review.isTouched(['records', 0, 'title'])).toBe(true)
     expect(result.current.review.draftSaved).toBe(true)
+    unmount()
+  })
+
+  it('restores the running server draft after navigating through a document without an Extraction', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: running(), pendingReviewDecisions: null,
+      partial: reading(['finished']), reviewDraft: { version: 5, decisions: [decision(0, 'REJECTED')] } })
+    const { result, rerender, unmount } = renderHook(({ current, documentKey }) =>
+      useExtraction({ ...options(current), documentKey, occurrenceIdsByAnchor }),
+    { initialProps: { current: running() as ExtractionAttempt | null, documentKey: 'first' } })
+    await poll()
+    rerender({ current: null, documentKey: 'empty' })
+    await flush()
+    expect(result.current.review.decisions).toEqual([])
+    expect(result.current.review.decidedOn.size).toBe(0)
+    rerender({ current: running(), documentKey: 'first' })
+    await poll()
+    expect(result.current.review.decisions).toEqual([decision(0, 'REJECTED')])
+    expect(result.current.review.isTouched(decision(0).resultPath)).toBe(true)
+    act(() => { result.current.review.setDecision(decision(0).resultPath, 'APPROVED') })
+    expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(running().extractionId, [decision(0)], 5)
+    unmount()
+  })
+
+  it('reloads a conflicting running server draft and resumes writes with its version', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.readExtraction)
+      .mockResolvedValueOnce({ extraction: running(), pendingReviewDecisions: null,
+        partial: reading(['finished']), reviewDraft: { version: 2, decisions: [] } })
+      .mockResolvedValue({ extraction: running(), pendingReviewDecisions: null,
+        partial: reading(['finished']), reviewDraft: { version: 5, decisions: [decision(0)] } })
+    vi.mocked(api.saveExtractionReviewDraft).mockRejectedValueOnce(new Error(REVIEW_DRAFT_CONFLICT))
+    const { result, unmount } = hook(running())
+    await poll()
+    act(() => { result.current.review.setDecision(decision(0).resultPath, 'REJECTED') })
+    await flush()
+    expect(result.current.review.draftError).toBe(REVIEW_DRAFT_CONFLICT)
+    act(() => { result.current.review.retryDraft() })
+    await flush()
+    expect(result.current.review.draftError).toBeNull()
+    expect(result.current.review.decisions).toEqual([decision(0)])
+    act(() => { result.current.review.setDecision(decision(0).resultPath, 'REJECTED') })
+    expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(running().extractionId, [decision(0, 'REJECTED')], 5)
+    unmount()
+  })
+
+  it('adopts the changed running server draft on reconnect', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.readExtraction)
+      .mockResolvedValueOnce({ extraction: running(), pendingReviewDecisions: null,
+        partial: reading(['finished']), reviewDraft: { version: 2, decisions: [] } })
+      .mockRejectedValueOnce(new ApiRequestError('Service Unavailable', 503))
+      .mockResolvedValue({ extraction: running(), pendingReviewDecisions: null,
+        partial: reading(['finished']), reviewDraft: { version: 5, decisions: [decision(0, 'REJECTED')] } })
+    const { result, unmount } = hook(running())
+    await poll()
+    await poll()
+    expect(result.current.monitorError).toBe(MONITOR_DISCONNECTED)
+    act(() => { result.current.reconnect() })
+    await flush()
+    expect(result.current.review.decisions).toEqual([decision(0, 'REJECTED')])
+    expect(result.current.review.isTouched(decision(0).resultPath)).toBe(true)
+    act(() => { result.current.review.setDecision(decision(0).resultPath, 'APPROVED') })
+    expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(running().extractionId, [decision(0)], 5)
+    unmount()
+  })
+
+  it.each([2, 5])('preserves a failed local write on reconnect against server version %s', async (version) => {
+    vi.useFakeTimers()
+    vi.mocked(api.readExtraction)
+      .mockResolvedValueOnce({ extraction: running(), pendingReviewDecisions: null,
+        partial: reading(['finished']), reviewDraft: { version: 2, decisions: [] } })
+      .mockRejectedValueOnce(new ApiRequestError('Service Unavailable', 503))
+      .mockResolvedValue({ extraction: running(), pendingReviewDecisions: null,
+        partial: reading(['finished']), reviewDraft: { version, decisions: [decision(0)] } })
+    vi.mocked(api.saveExtractionReviewDraft).mockRejectedValueOnce(new Error('Offline'))
+    const { result, unmount } = hook(running())
+    await poll()
+    act(() => { result.current.review.setDecision(decision(0).resultPath, 'REJECTED') })
+    await flush()
+    expect(result.current.review.draftError).toBe('Offline')
+    await poll()
+    act(() => { result.current.reconnect() })
+    await flush()
+    expect(result.current.review.decisions).toEqual([decision(0, 'REJECTED')])
+    if (version === 2) {
+      expect(api.saveExtractionReviewDraft).toHaveBeenCalledTimes(2)
+      expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(running().extractionId, [decision(0, 'REJECTED')], 2)
+      expect(result.current.review.draftError).toBeNull()
+    } else {
+      expect(api.saveExtractionReviewDraft).toHaveBeenCalledTimes(1)
+      expect(result.current.review.draftError).toBe(REVIEW_DRAFT_CONFLICT)
+    }
+    unmount()
+  })
+
+  it('keeps an explicit running reload alive across a normal monitor poll', async () => {
+    vi.useFakeTimers()
+    const response = { extraction: running(), pendingReviewDecisions: null,
+      partial: reading(['finished']), reviewDraft: { version: 5, decisions: [decision(0)] } }
+    const reload = Promise.withResolvers<Awaited<ReturnType<typeof api.readExtraction>>>()
+    vi.mocked(api.readExtraction).mockResolvedValueOnce({ ...response, reviewDraft: { version: 2, decisions: [] } })
+      .mockReturnValueOnce(reload.promise).mockImplementation(async () => ({ ...response, extraction: running() }))
+    const { result, unmount } = hook(running())
+    await poll()
+    act(() => { result.current.review.reload() })
+    await flush()
+    expect(result.current.review.loading).toBe(true)
+    await poll()
+    expect(result.current.review.loading).toBe(true)
+    await act(async () => { reload.resolve(response) })
+    await flush()
+    expect(result.current.review.loading).toBe(false)
+    expect(result.current.review.decisions).toEqual([decision(0)])
+    act(() => { result.current.review.setDecision(decision(0).resultPath, 'REJECTED') })
+    expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(running().extractionId, [decision(0, 'REJECTED')], 5)
+    unmount()
+  })
+
+  it('keeps a decision made after a reconnect GET began and adopts a fresh draft after its write', async () => {
+    vi.useFakeTimers()
+    const response = { extraction: running(), pendingReviewDecisions: null,
+      partial: reading(['finished']), reviewDraft: { version: 2, decisions: [] } }
+    const read = Promise.withResolvers<Awaited<ReturnType<typeof api.readExtraction>>>()
+    const write = Promise.withResolvers<Awaited<ReturnType<typeof api.saveExtractionReviewDraft>>>()
+    vi.mocked(api.readExtraction).mockResolvedValueOnce(response)
+      .mockRejectedValueOnce(new ApiRequestError('Service Unavailable', 503))
+      .mockReturnValueOnce(read.promise)
+      .mockResolvedValue({ ...response, reviewDraft: { version: 3, decisions: [decision(0, 'REJECTED')] } })
+    vi.mocked(api.saveExtractionReviewDraft).mockReturnValueOnce(write.promise)
+    const { result, unmount } = hook(running())
+    await poll()
+    await poll()
+    act(() => { result.current.reconnect() })
+    await flush()
+    act(() => { result.current.review.setDecision(decision(0).resultPath, 'REJECTED') })
+    await act(async () => { read.resolve(response) })
+    await flush()
+    expect(result.current.review.decisions).toEqual([decision(0, 'REJECTED')])
+    expect(result.current.review.draftSaving).toBe(true)
+    await act(async () => { write.resolve({ version: 3, decisions: [decision(0, 'REJECTED')] }) })
+    await poll()
+    expect(result.current.review.decisions).toEqual([decision(0, 'REJECTED')])
+    expect(result.current.review.draftSaved).toBe(true)
+    act(() => { result.current.review.setDecision(decision(0).resultPath, 'APPROVED') })
+    expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(running().extractionId, [decision(0)], 3)
     unmount()
   })
 
