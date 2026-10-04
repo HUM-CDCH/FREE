@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMachine } from '@xstate/react'
 import type { DurablePage, DurableRead, DurableHistory } from 'extraction/durable-types'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -96,17 +96,27 @@ export function DurableResults({attempt,document,currentSchema,onEvidence,readOn
   const [editing,setEditing]=useState(false),[review,setReview]=useState<{value:Value;version:number}|null>(null)
   const [reprocess,setReprocess]=useState<Set<string>>(()=>new Set()),[notice,setNotice]=useState<string|null>(null)
   const [filter,setFilter]=useState<'all'|'attention'>('all')
+  const readGeneration=useRef(0), pageGeneration=useRef(0)
+  const acceptedRead=useRef<Awaited<ReturnType<typeof readDurable>>|null>(null)
   const refresh=useCallback(async(signal?:AbortSignal)=> {
     if(!id) return
-    const next=await readDurable(id,signal)
-    if(signal?.aborted) return
+    const generation=++readGeneration.current
+    let next:Awaited<ReturnType<typeof readDurable>>
+    try {next=await readDurable(id,signal)}
+    catch(error){if(signal?.aborted||generation!==readGeneration.current)return;throw error}
+    if(signal?.aborted||generation!==readGeneration.current) return
+    const previous=acceptedRead.current
+    if(previous && (next.state.controlVersion<previous.state.controlVersion ||
+      next.state.controlVersion===previous.state.controlVersion && (next.state.snapshotVersion<previous.state.snapshotVersion ||
+        next.state.snapshotVersion===previous.state.snapshotVersion && next.page.feedbackVersion<previous.page.feedbackVersion))) return
+    acceptedRead.current=next
     setLoaded(next);setPage(previous=>previous??next.page);setError(null)
   },[id])
   useEffect(()=> {
     const controller=new AbortController();let timer:ReturnType<typeof setTimeout>
     const poll=async()=> {try{await refresh(controller.signal)}catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Unable to update saved results.')}
       if(!controller.signal.aborted)timer=setTimeout(()=>void poll(),1500)}
-    void poll();return()=> {controller.abort();clearTimeout(timer)}
+    void poll();return()=> {++readGeneration.current;++pageGeneration.current;controller.abort();clearTimeout(timer)}
   },[refresh])
   if(!loaded||!page||!attempt||!id) return <p role={error?'alert':'status'} className="p-3 text-secondary">{error??'Loading saved extraction results…'}</p>
   const state=loaded.state,terminal=state.status==='STOPPED'||state.status==='STOPPING'
@@ -117,7 +127,12 @@ export function DurableResults({attempt,document,currentSchema,onEvidence,readOn
     catch(e){setError(e instanceof Error?e.message:'Unable to save control.')}
     finally{setBusy(false)}
   }
-  const saved=()=> {setReview(null);setEditing(false);setPage(null);void refresh()}
+  const selectPage=async(url:string)=> {
+    const generation=++pageGeneration.current
+    try {const next=await durableRequest<DurablePage>(url);if(generation===pageGeneration.current)setPage(next)}
+    catch(error){if(generation===pageGeneration.current)setError(error instanceof Error?error.message:'Unable to load the saved snapshot.')}
+  }
+  const saved=()=> {++pageGeneration.current;setReview(null);setEditing(false);setPage(null);void refresh()}
   const values=page.values.filter(v=>filter==='all'||v.correction?.decision.action!=='APPROVED')
   return <div className="flex h-full min-h-0 flex-col">
     <div className="shrink-0 space-y-2 border-b border-line p-3">
@@ -138,11 +153,11 @@ export function DurableResults({attempt,document,currentSchema,onEvidence,readOn
       {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}
       <p className="text-compact text-ink-muted">Snapshot {page.snapshotVersion} · {page.total} retained values · saved input selection {state.selection.ordinal}. Recall is unmeasured.</p>
-      {state.snapshotVersion>page.snapshotVersion&&<Button onClick={()=>setPage(loaded.page)}>Show new saved results</Button>}
+      {state.snapshotVersion>page.snapshotVersion&&<Button onClick={()=> {++pageGeneration.current;setPage(loaded.page)}}>Show new saved results</Button>}
     </div>
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
       <ProjectFeedback projectId={state.projectId} target={id} revision={`${state.selection.id}:${loaded.page.feedbackVersion}`}/>
-      <History key={`${id}:${state.snapshotVersion}:${state.selection.id}`} id={id} onSnapshot={version=>void durableRequest<DurablePage>(`${durableRoot(id)}/values?snapshotVersion=${version}`).then(setPage).catch(e=>setError(e.message))}/>
+      <History key={`${id}:${state.snapshotVersion}:${state.selection.id}`} id={id} onSnapshot={version=>void selectPage(`${durableRoot(id)}/values?snapshotVersion=${version}`)}/>
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
       <div className="flex flex-wrap gap-2"><Button aria-pressed={filter==='all'} onClick={()=>setFilter('all')}>All saved</Button><Button aria-pressed={filter==='attention'} onClick={()=>setFilter('attention')}>Needs review</Button>
         <Button onClick={()=>void readDurableHistory(id).then(history=>import('./durableExport').then(module=>module.downloadDurableExport({state,page,history},'xlsx'))).catch(e=>setError(e.message))}>Export XLSX</Button>
@@ -157,7 +172,7 @@ export function DurableResults({attempt,document,currentSchema,onEvidence,readOn
         {!readOnly&&value.processing==='saved'&&<Button onClick={()=>setReview({value,version:page.snapshotVersion})}>{value.correction?'Review saved decision':'Review value'}</Button>}
       </article>)}
       {!values.length&&<p className="text-secondary text-ink-muted">No saved values in this view yet. Completed work will appear here as it is saved.</p>}
-      {page.next&&<Button onClick={()=>void durableRequest<DurablePage>(`${durableRoot(id)}/values?${new URLSearchParams(Object.entries(page.next!).map(([k,v])=>[k,String(v)]))}`).then(setPage).catch(e=>setError(e.message))}>Next saved page</Button>}
+      {page.next&&<Button onClick={()=>void selectPage(`${durableRoot(id)}/values?${new URLSearchParams(Object.entries(page.next!).map(([k,v])=>[k,String(v)]))}`)}>Next saved page</Button>}
       {!readOnly&&page.total>0&&<Button onClick={()=>void durableRequest(`${durableRoot(id)}/finalize`,{snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion}).then(()=>{setError(null);setNotice('This saved review snapshot is finalized.')}).catch(e=>setError(e.message))}>Finalize this snapshot</Button>}
     </div>
   </div>

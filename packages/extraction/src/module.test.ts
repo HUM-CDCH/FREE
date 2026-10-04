@@ -261,10 +261,10 @@ describe('Review Drafts across a running and a settled Extraction (ADR 0016)', (
     failure: null, reviewable: true, batchExtractionId: null, createdAt: new Date(0), reviewedAt: null, reviewDecisions: [],
   }
   type Status = ExtractionAttemptSnapshot['executionStatus']
-  function moduleFor(executionStatus: Status, stored: unknown[] = []) {
+  function moduleFor(executionStatus: Status, stored: unknown[] = [], durable = false) {
     const saved: unknown[] = []
     const extraction = executionStatus === 'COMPLETED' ? settled : null
-    const attempt: ExtractionAttemptSnapshot = { ...settled, executionStatus, ...(extraction ? {} : {
+    const attempt: ExtractionAttemptSnapshot = { ...settled, executionStatus, ...(durable ? {durable:true as const}:{}), ...(extraction ? {} : {
       outcome: null, complete: null, diagnostics: null, result: null, evidence: null, reviewable: false }) }
     const module = createExtractionModule({
       readExtraction: async () => extraction, // only a published Extraction has a snapshot
@@ -278,6 +278,14 @@ describe('Review Drafts across a running and a settled Extraction (ADR 0016)', (
     } as unknown as ExtractionPersistence)
     return { module, saved }
   }
+  it('never writes a second review authority for a durable Extraction', async () => {
+    for (const status of ['QUEUED', 'RUNNING', 'PAUSED', 'STOPPED', 'COMPLETED'] as const) {
+      const {module,saved}=moduleFor(status,[],true)
+      await assert.rejects(module.saveReviewDraft('x-1',{version:0,decisions:[approve('title')]}),{code:'invalid_review'})
+      assert.equal(saved.length,0)
+    }
+  })
+
   const RUNNING_REFUSAL = { code: 'invalid_review', message: 'Draft decisions do not match the pinned document and schema.' }
 
   it('saves a running Extraction\'s draft checked against the pinned document only, whatever kei has read', async () => {

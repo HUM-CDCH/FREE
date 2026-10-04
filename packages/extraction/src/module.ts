@@ -133,6 +133,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
     saveReviewDraft: async (extractionId, draft) => {
       const attempt = await persistence.readExtractionAttempt(extractionId)
       if (!attempt) throw new ExtractionError('not_found', 'That Extraction was not found.')
+      if (attempt.durable) throw new ExtractionError('invalid_review', 'Review this Extraction’s retained values using their saved producing inputs.')
       if (attempt.executionStatus === 'QUEUED' || attempt.executionStatus === 'RUNNING') return saveRunningDraft(attempt, draft)
       if (attempt.executionStatus !== 'COMPLETED') throw new ExtractionError('invalid_review', 'This Extraction cannot be reviewed.')
       const { extraction, reviewDecisions, occurrenceIdsByAnchor } = await prepareReview(extractionId)

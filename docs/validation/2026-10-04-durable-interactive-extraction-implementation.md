@@ -338,3 +338,18 @@ completion evidence satisfies the wait condition. Our own Spark E2E remains
 unrun; integration and guarded all-feature verification remain required.
 No remote Spark action was performed during this removal. Admissions remain
 hard OFF and nothing has been merged, deployed or enabled in production.
+
+### Review redesign integration: authority and read ordering
+
+Imported the completed `feat/results-review-e-document` stack through
+`f56f35bfa280be78e227382245b0a70a5fd7c7a0` as reviewable cherry-picks. The API
+keeps durable decisions in the retained-value authority; public running-review
+draft reads and writes cannot become a second store for a durable Extraction.
+Late lifecycle polls cannot overwrite a newer control acknowledgement, and a
+late historical-page read cannot replace a more recently selected snapshot.
+
+Extraction unit tests passed (241), extraction and Studio typechecks passed,
+and the focused Studio review-read tests passed (42 across three files,
+including four DurableResults DOM cases). Targeted ESLint passed. Logs use the
+`free-durable-review-` prefix in `/tmp`. Shared native review UI and combined
+Spark verification remain in progress. The admission gate remains OFF.

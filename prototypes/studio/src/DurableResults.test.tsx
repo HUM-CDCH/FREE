@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { DurablePage } from 'extraction/durable-types'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -43,4 +43,46 @@ it('shows a durable read failure without rendering a different results implement
   render(<DurableResults attempt={{extractionId:'extraction'} as ExtractionAttempt} document={null}
     currentSchema={null} onEvidence={()=>{}}/>)
   expect(await screen.findByRole('alert')).toHaveTextContent('Saved results are unavailable.')
+})
+
+
+it('keeps a newer control acknowledgement when a pre-command poll arrives late',async()=> {
+  const page={snapshotVersion:1,feedbackVersion:0,values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:0,inFlight:1}}
+  let finishPoll!:(read:Awaited<ReturnType<typeof readDurable>>)=>void
+  vi.mocked(readDurable).mockResolvedValueOnce({state,page} as never)
+    .mockImplementationOnce(()=>new Promise(resolve=>{finishPoll=resolve}))
+    .mockResolvedValue({...{state:{...state,status:'PAUSING',controlVersion:2},page}} as never)
+  vi.mocked(durableRequest).mockResolvedValue({controlVersion:2})
+  const view=render(<DurableResults attempt={{extractionId:'extraction'} as ExtractionAttempt} document={null}
+    currentSchema={null} onEvidence={()=>{}}/>)
+  await screen.findByRole('button',{name:'Pause'})
+  await waitFor(()=>expect(readDurable).toHaveBeenCalledTimes(2),{timeout:3000})
+  fireEvent.click(screen.getByRole('button',{name:'Pause'}))
+  await screen.findByRole('button',{name:'Saving in-flight work…'})
+  await act(async()=>finishPoll({state,page} as never))
+  expect(screen.getByRole('button',{name:'Saving in-flight work…'})).toBeDisabled()
+  view.unmount()
+})
+
+it('keeps the last explicitly selected snapshot when an older selection finishes late',async()=> {
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'New version',evidence:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const latest={snapshotVersion:2,feedbackVersion:0,status:'PAUSED',values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:2,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}}
+  let finishOld!:(page:DurablePage)=>void
+  vi.mocked(readDurable).mockResolvedValue({state,page:latest} as never)
+  vi.mocked(readDurableHistory).mockResolvedValue({selections:[],snapshots:[{id:'one',version:1,values:[value]},{id:'two',version:2,values:[value]}]} as never)
+  vi.mocked(durableRequest).mockImplementation(async url=>url.includes('snapshotVersion=1')?new Promise(resolve=>{finishOld=resolve}):latest)
+  render(<DurableResults attempt={{extractionId:'extraction'} as ExtractionAttempt} document={null}
+    currentSchema={null} onEvidence={()=>{}}/>)
+  const summary=await screen.findByText('Saved history and producing inputs'),details=summary.closest('details')!
+  details.open=true;fireEvent(details,new Event('toggle'))
+  fireEvent.click(await screen.findByRole('button',{name:'Open snapshot 1'}))
+  fireEvent.click(screen.getByRole('button',{name:'Open snapshot 2'}))
+  await act(async()=>finishOld({...latest,snapshotVersion:1,values:[{...latest.values[0],modelValue:'Old version'}]}))
+  expect(screen.getByText('"New version"')).toBeVisible()
+  expect(screen.queryByText('"Old version"')).toBeNull()
 })
