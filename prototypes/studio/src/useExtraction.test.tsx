@@ -1076,6 +1076,52 @@ describe('useExtraction server-owned lifecycle', () => {
     )?.action).toBe('REJECTED')
   })
 
+  it('answers which decision is the last, and saves only when the researcher asks, in the same handler (§6)', async () => {
+    const unreviewed = attempt({
+      resultPayload: { records: [{ title: 'Grounded', author: 'A. Researcher' }] },
+      evidenceLinks: [
+        { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' },
+        { resultPath: ['records', 0, 'author'], evidenceAnchorId: 'anchor-2' },
+      ],
+    })
+    const pending = (['title', 'author'] as const).map((field, index) => ({
+      resultPath: ['records', 0, field], evidenceAnchorId: `anchor-${index + 1}`,
+      reviewedOccurrenceIds: [`occurrence-${index + 1}`], action: 'APPROVED' as const, reviewedValue: null,
+    }))
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: unreviewed, pendingReviewDecisions: pending })
+    vi.mocked(api.finalizeExtractionReview).mockResolvedValue(attempt({ ...unreviewed, reviewedAt: '2026-10-04T00:00:00Z' }))
+    const { result } = renderHook(() => useExtraction(options(unreviewed)))
+    await waitFor(() => expect(result.current.review.decisions).toHaveLength(2))
+
+    expect(result.current.review.setDecision(['records', 9, 'title'], 'APPROVED')).toEqual({ last: false })
+    let answer: { last: boolean } | undefined
+    act(() => { answer = result.current.review.setDecision(['records', 0, 'title'], 'REJECTED') })
+    expect(answer).toEqual({ last: false })
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+    await act(async () => {
+      answer = result.current.review.setDecision(['records', 0, 'author'], 'APPROVED')
+      if (answer.last) await result.current.review.accept()
+    })
+    expect(answer).toEqual({ last: true })
+    expect(api.finalizeExtractionReview).toHaveBeenCalledOnce()
+    expect(vi.mocked(api.finalizeExtractionReview).mock.calls[0]![1]).toHaveLength(2)
+  })
+
+  it('never saves a recovered complete draft by itself; it waits for the researcher (§6)', async () => {
+    const unreviewed = attempt({
+      resultPayload: { records: [{ title: 'Grounded' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }],
+    })
+    const decision = { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1',
+      reviewedOccurrenceIds: ['occurrence-1'], action: 'REJECTED' as const, reviewedValue: null }
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: unreviewed, pendingReviewDecisions: [{ ...decision, action: 'APPROVED' }],
+      reviewDraft: { version: 2, decisions: [decision] } })
+    const { result } = renderHook(() => useExtraction(options(unreviewed)))
+    await waitFor(() => expect(result.current.review.canAccept).toBe(true))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  })
+
   it('restores server-saved draft decisions without browser storage', async () => {
     const unreviewed = attempt({
       resultPayload: { records: [{ title: 'Grounded' }] },

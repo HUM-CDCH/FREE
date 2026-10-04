@@ -58,8 +58,8 @@ function controller(
       draftSaving: false,
       draftSaved: false,
       retryDraft: () => {},
-      setDecision: () => {},
-      undo: () => {},
+      setDecision: () => ({ last: false }),
+      undo: () => ({ last: false }),
       reload: () => {},
       approveAll: () => {},
       accept: async () => {},
@@ -1011,13 +1011,15 @@ describe('ResultsTab grounded values', () => {
               canAccept: true,
               decisions,
               requiredCount: 1,
-              setDecision: (path, action, reviewedValue = null) =>
+              setDecision: (path, action, reviewedValue = null) => {
                 setDecisions((current) => current.map((decision) => ({
                   ...decision,
                   ...(JSON.stringify(decision.resultPath) === JSON.stringify(path)
                     ? { action, reviewedValue }
                     : {}),
-                }))),
+                })))
+                return { last: false }
+              },
             },
           )}
           schemaReady
@@ -1885,6 +1887,21 @@ describe('ResultsTab review progress', () => {
       documentMarkdown="# Source" sourceDocumentName="progress.pdf" />
   }
 
+  it('never saves by itself when every value is already decided; Save review does (§6)', () => {
+    const accept = vi.fn(async () => {})
+    render(scene({ untouchedCount: 0, isTouched: () => true, canAccept: true, accept }))
+    expect(accept).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save review' }))
+    expect(accept).toHaveBeenCalledOnce()
+  })
+
+  it('Approve remaining saves the review in the same click', () => {
+    const calls: string[] = []
+    render(scene({ approveAll: () => { calls.push('approveAll') }, accept: async () => { calls.push('accept') } }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve remaining (2)' }))
+    expect(calls).toEqual(['approveAll', 'accept'])
+  })
+
   it('decrements required progress after reject and edit, independently of ungrounded values and result navigation', () => {
     const accept = vi.fn(async () => {})
     function Fixture() {
@@ -1898,6 +1915,7 @@ describe('ResultsTab review progress', () => {
           setTouched((previous) => new Set([...previous, key]))
           setCurrent((previous) => previous.map((decision) => JSON.stringify(decision.resultPath) === key
             ? { ...decision, action, reviewedValue } : decision))
+          return { last: new Set([...touched, key]).size === 2 }
         },
       })
     }
