@@ -1613,6 +1613,35 @@ describe('review while the run reads (ADR 0016; results review redesign §5)', (
     unmount()
   })
 
+  it('reports settlement when the first poll of a watched run is already terminal', async () => {
+    vi.useFakeTimers()
+    const settled = attempt({ resultPayload: { records: [{ title: 'Record 1' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-0' }] })
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: settled,
+      pendingReviewDecisions: [decision(0)], reviewDraft: { version: 0, decisions: [] } })
+    const { result, unmount } = hook(running())
+    await poll()
+    await flush()
+    await flush()
+    expect(result.current.review.settlement).toEqual({ kept: 0, changed: 0 })
+    unmount()
+  })
+
+  it('reports settlement when a requested run completes before admission is acknowledged', async () => {
+    vi.useFakeTimers()
+    const settled = attempt({ resultPayload: { records: [{ title: 'Record 1' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-0' }] })
+    vi.mocked(api.requestExtraction).mockImplementation(async ({ id }) => ({ ...settled, extractionId: id }))
+    vi.mocked(api.readExtraction).mockImplementation(async (id) => ({ extraction: { ...settled, extractionId: id },
+      pendingReviewDecisions: [decision(0)], reviewDraft: { version: 0, decisions: [] } }))
+    const { result, unmount } = renderHook(() => useExtraction(options()))
+    await act(() => result.current.runExtraction(SERVICE_DEFAULTS))
+    await flush()
+    await flush()
+    expect(result.current.review.settlement).toEqual({ kept: 0, changed: 0 })
+    unmount()
+  })
+
   it('a stopped run discards its draft and says how many decisions went with it', async () => {
     vi.useFakeTimers()
     const stopped = jobAttempt({ strategy: 'CATALOG', executionStatus: 'FAILED',

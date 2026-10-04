@@ -288,6 +288,9 @@ export function useExtraction({
   async function watch(monitor: Monitor, seed: ExtractionAttempt | null, immediate: boolean) {
     const { signal } = monitor.controller
     const live = () => monitorRef.current === monitor && !signal.aborted
+    if (!live()) return
+    // Monitoring starts before the first poll: a fast run may already be terminal when it answers.
+    watchedRunRef.current = monitor.extractionId
     let latest = seed
     try {
       while (latest === null || isActive(latest)) {
@@ -301,7 +304,6 @@ export function useExtraction({
         latest = response.extraction
         monitor.partial = retainFinished(monitor.partial ?? null, response.partial ?? null)
         monitor.unacknowledged = undefined
-        if (isActive(latest)) watchedRunRef.current = latest.extractionId
         if (latest.executionStatus === 'RUNNING' && !monitor.draftSeen &&
           draftSaveRef.current === draftScope && draftScope.writes === 0 && draftScope.pending === pendingAtRead) {
           monitor.draftSeen = true
