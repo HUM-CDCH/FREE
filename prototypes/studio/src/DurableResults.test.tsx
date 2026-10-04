@@ -107,6 +107,29 @@ it('keeps menu Escape available while a correction save is pending and suspends 
   expect(durableRequest).toHaveBeenCalledTimes(1)
 })
 
+it('keeps native document navigation tied to rail selection and preserves mark selection intent',async()=>{
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'First title',evidence:[],links:[{evidenceAnchorId:'anchor',resultPath:['records',0,'title'],precision:'segment'}],grounding:'grounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const other={...value,id:'other',fieldId:'other',path:['records',0,'other'],node:{id:'other',name:'other',type:'string'},modelValue:'Second title',
+    links:[{evidenceAnchorId:'second-anchor',resultPath:['records',0,'other'],precision:'input'}]}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:2,toCheck:2,approved:0,edited:0,rejected:0},values:[value,other],total:2,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:2,inFlight:0}},page} as never)
+  const onEvidence=vi.fn(),replacement=vi.fn(),onMarksChange=vi.fn(),selectValueRef={current:null as ((key:string)=>void)|null}
+  const props={attempt:{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt,document:null,currentSchema:null,onMarksChange,selectValueRef}
+  const view=render(<DurableResults {...props} onEvidence={onEvidence}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  expect(onEvidence).toHaveBeenCalledExactlyOnceWith('anchor',undefined,'segment')
+  expect(onMarksChange.mock.calls.at(-1)![0].selectableKeys).toEqual(new Set(['value','other']))
+  view.rerender(<DurableResults {...props} onEvidence={replacement}/>)
+  expect(replacement).not.toHaveBeenCalled()
+  act(()=>selectValueRef.current?.('other'))
+  expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
+  expect(replacement).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button',{name:'Model Evidence · other · whole page'}))
+  expect(replacement).toHaveBeenCalledExactlyOnceWith('second-anchor',undefined,'input')
+})
+
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{
   const base={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema-one',
     node:{id:'title',name:'title',type:'string'},modelValue:'Original title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}

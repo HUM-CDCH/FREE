@@ -173,10 +173,12 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
   const [focus,setFocus]=useState(false),[detailsOpen,setDetailsOpen]=useState(false),[menuOpen,setMenuOpen]=useState(false)
   const [closedRecords,setClosedRecords]=useState<Set<string>>(()=>new Set())
   const selectedGeneration=useRef(0),linkedValue=useRef(new URLSearchParams(window.location.search).get('value'))
+  const selectionFromMark=useRef<string|null>(null)
   const linkedCut=useRef(savedReviewCut(window.location.search))
   const model=useMemo(()=>page?durableRailModel(page,document):null,[page,document])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
-  const selectValue=useCallback((key:string)=> {
+  const selectValue=useCallback((key:string,fromMark=false)=> {
+    selectionFromMark.current=fromMark&&focus?key:null
     const generation=++selectedGeneration.current
     const value=page?.values.find(each=>each.id===key)
     if(value&&page)setReview(previous=>previous?.value.id===key&&previous.version===page.snapshotVersion&&previous.feedbackVersion===page.feedbackVersion?previous:{value,version:page.snapshotVersion,feedbackVersion:page.feedbackVersion})
@@ -185,10 +187,10 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
       if(result.values[0])setReview({value:result.values[0],version:result.snapshotVersion,feedbackVersion:result.feedbackVersion})
       else setError('That value is not saved in this snapshot.')
     }).catch(error=>{if(generation===selectedGeneration.current)setError(error.message)})
-  },[page,id])
+  },[page,id,focus])
   useEffect(()=>{if(page&&linkedValue.current){const key=linkedValue.current;linkedValue.current=null;selectValue(key)}},[page,selectValue])
   useEffect(()=>()=>{++selectedGeneration.current},[])
-  useEffect(()=>{if(selectValueRef)selectValueRef.current=selectValue;return()=>{if(selectValueRef)selectValueRef.current=null}},[selectValueRef,selectValue])
+  useEffect(()=>{if(selectValueRef)selectValueRef.current=key=>selectValue(key,true);return()=>{if(selectValueRef)selectValueRef.current=null}},[selectValueRef,selectValue])
   useEffect(()=> {
     if(!model||!page)return
     const rows=[...model.document,...model.records.flatMap(record=>record.rows)]
@@ -202,12 +204,18 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
     onMarksChange?.({describe,selected:review?.value.id??null,selectableKeys:new Set(rows.map(row=>row.key)),savedLinks})
   },[model,page,onMarksChange,review,document])
   useEffect(()=>()=>{onMarksChange?.(null);onFocusEvidence?.(null);onResultPathChange?.(null)},[onMarksChange,onFocusEvidence,onResultPathChange])
-  useEffect(()=> {
-    const link=review?.value.links[0]??null
-    onFocusEvidence?.(focus?link:null)
-    onResultPathChange?.(review?review.value.path.map(String):[])
-    if(focus&&link)onEvidence(link.evidenceAnchorId,undefined,link.precision)
-  },[focus,review,onFocusEvidence,onResultPathChange,onEvidence])
+  useEffect(()=>{onResultPathChange?.(review?review.value.path.map(String):[])},[review,onResultPathChange])
+  const followRef=useRef({review,onFocusEvidence,onEvidence})
+  useEffect(()=>{followRef.current={review,onFocusEvidence,onEvidence}})
+  const currentLink=review?.value.links[0]??null
+  const followKey=focus&&review?`${review.version}:${review.value.id}:${currentLink?.evidenceAnchorId??''}:${currentLink?.precision??''}`:null
+  useEffect(()=>{
+    const {review,onFocusEvidence,onEvidence}=followRef.current,link=review?.value.links[0]??null
+    onFocusEvidence?.(followKey?link:null)
+    const fromMark=selectionFromMark.current===review?.value.id
+    selectionFromMark.current=null
+    if(followKey&&link&&!fromMark)onEvidence(link.evidenceAnchorId,undefined,link.precision)
+  },[followKey])
   const executionStatus=loaded?.state.status
   useEffect(()=>{if(id&&executionStatus)onStatusChange?.(id,executionStatus)},[id,executionStatus,onStatusChange])
   useEffect(()=> {
