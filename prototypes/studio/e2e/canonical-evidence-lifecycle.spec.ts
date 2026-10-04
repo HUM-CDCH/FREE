@@ -586,6 +586,18 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     fullPage: true,
   })
 
+  // A short workspace exposes deep rows; only the list may scroll, keeping both headers in view.
+  await page.setViewportSize({ width: 1280, height: 480 })
+  await page.reload()
+  await page.getByRole('tab', { name: /Results/ }).click()
+  const deepRow = valueRow(page, /^Approved findings › 2 › detail Second/)
+  await expect.poll(() => deepRow.evaluate((row) => getComputedStyle(row).transform)).toBe('none')
+  await deepRow.click()
+  await expect(page.getByRole('tab', { name: /Results/ })).toBeInViewport()
+  await expect(page.getByRole('group', { name: 'Document view' })).toBeInViewport()
+  expect(await resultsPanel(page).evaluate((panel) => panel.scrollHeight <= panel.clientHeight + 1)).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 800 })
+
   // A real browser download is produced once even when the format action is
   // double-clicked. Inspect both archive structure and the exact CSV bytes.
   const downloads: import('@playwright/test').Download[] = []

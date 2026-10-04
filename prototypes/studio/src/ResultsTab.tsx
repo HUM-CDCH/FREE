@@ -488,7 +488,8 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
         onOneByOne={() => enter(null)} onApproveRest={() => setConfirming(true)}
         onSaveReview={() => void save('Review saved. It is now read-only.')} onList={leave}
       />
-      <div ref={scrollRef} className={`scrollbar-subtle min-h-0 flex-1 overflow-y-auto pb-20 ${oneByOne ? 'flex flex-col bg-surface' : 'bg-canvas p-2'}`}>
+      {/* Contain absolute accessibility labels inside the list so deep rows cannot scroll the workspace. */}
+      <div ref={scrollRef} className={`scrollbar-subtle relative min-h-0 flex-1 overflow-y-auto pb-20 ${oneByOne ? 'flex flex-col bg-surface' : 'bg-canvas p-2'}`}>
         {oneByOne ? (
           <ReviewFocus
             items={currentItem ? queuePosition(queue, currentItem.key)?.items ?? [] : []}
@@ -566,6 +567,8 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
           onShowValue={(resultPath) => {
             setDrawer(null)
             const key = resultPathKey(resultPath)
+            const record = model?.records.find((record) => record.rows.some((row) => row.key === key))
+            if (record) setToggles((current) => new Map(current).set(record.index, true))
             setFilter('all')
             setSelectedKey(key)
             setFocusKey(key)
