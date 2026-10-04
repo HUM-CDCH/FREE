@@ -61,6 +61,31 @@ it('cancels editing before leaving one-by-one and restores heading keyboard focu
   expect(durableRequest).not.toHaveBeenCalled()
 })
 
+it.each(['More result actions','Run details'])('gives %s keyboard ownership before the native review',async(name)=>{
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'First title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:2,toCheck:2,approved:0,edited:0,rejected:0},values:[value,{...value,id:'next',modelValue:'Next title'}],total:2,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:2,inFlight:0}},page} as never)
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  const overlay=screen.getByRole('button',{name});overlay.focus();fireEvent.click(overlay)
+  expect(overlay).toHaveAttribute('aria-expanded','true')
+  const target=name==='More result actions'?screen.getByRole('menuitem',{name:'Export XLSX'}):overlay
+  target.focus()
+  for(const key of ['a','r','e','j','k','z'])fireEvent.keyDown(target,{key})
+  expect(durableRequest).not.toHaveBeenCalled()
+  expect(screen.queryByRole('textbox',{name:'Reviewed value'})).toBeNull()
+  expect(screen.getByRole('heading',{name:'First title'})).toBeVisible()
+  fireEvent.keyDown(target,{key:'Escape'})
+  expect(overlay).toHaveAttribute('aria-expanded','false')
+  const heading=screen.getByRole('heading',{name:'First title'})
+  expect(heading).toHaveFocus()
+  fireEvent.keyDown(heading,{key:'j'})
+  expect(screen.getByRole('heading',{name:'Next title'})).toHaveFocus()
+})
+
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{
   const base={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema-one',
     node:{id:'title',name:'title',type:'string'},modelValue:'Original title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}

@@ -285,6 +285,17 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       expect((await (await page.request.get(`/api/extractions/${id}/durable`)).json()).controlVersion).toBe(0)
       if(status!=='RUNNING'||intent!=='RUN')continue
       await rail.getByRole('button',{name:'Review from here',exact:true}).click()
+      for(const name of ['More result actions','Run details']) {
+        const overlay=rail.getByRole('button',{name});await overlay.click()
+        const target=name==='More result actions'?rail.getByRole('menuitem',{name:'Export XLSX'}):overlay
+        await target.focus()
+        for(const key of ['a','r','e','j','k','z'])await page.keyboard.press(key)
+        expect((await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction).toBeNull()
+        await expect(rail.getByRole('textbox',{name:'Reviewed value'})).toHaveCount(0)
+        await page.keyboard.press('Escape')
+        await expect(overlay).toHaveAttribute('aria-expanded','false')
+        await expect(rail.getByRole('heading',{name:'Retained RUNNING',exact:true})).toBeFocused()
+      }
       await page.keyboard.press('z')
       expect((await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction).toBeNull()
       await page.keyboard.press('e')

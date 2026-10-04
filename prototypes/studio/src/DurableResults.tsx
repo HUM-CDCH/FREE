@@ -19,21 +19,23 @@ import { shownValue, stateLabel, type RailRow, type ValueFilter } from './review
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { MarkInfo } from './useEvidenceOverlays'
 import {savedCorrectionHref,savedReviewCut} from './durableReviewLinks'
+import { keyAction } from './reviewKeys'
 
 type Value=DurablePage['values'][number]
 const inputClass='w-full rounded-md border border-line bg-surface px-3 py-2 text-secondary text-ink focus-visible:outline-accent'
-function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,onSaved,onClose,onEvidence,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,readOnly=false}:{
+function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,onSaved,onClose,onEvidence,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,onCloseOverlay,readOnly=false}:{
   id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;onSaved:()=>void;onClose:()=>void;
   onEvidence:(id:string,occurrenceIds?:readonly string[])=>void;focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
   queue:ReturnType<typeof reviewQueue>;readOnly?:boolean;
   onFocus:()=>void;
   keyboardRoot:RefObject<HTMLDivElement|null>;
+  menuOpen:boolean;detailsOpen:boolean;onCloseOverlay:(overlay:'menu'|'drawer')=>void;
   projectId:string;sourceDocumentId:string;article:boolean;
 }) {
   const [state,send]=useMachine(durableReviewMachine,{input:{extractionId:id,value,snapshotVersion}})
   const [editing,setEditing]=useState(false)
   const headingRef=useRef<HTMLHeadingElement>(null)
-  useEffect(()=>{if(focus&&!editing)headingRef.current?.focus({preventScroll:true})},[focus,editing])
+  useEffect(()=>{if(focus&&!editing&&!menuOpen&&!detailsOpen)headingRef.current?.focus({preventScroll:true})},[focus,editing,menuOpen,detailsOpen])
   useEffect(()=> {if(state.matches('saved')) onSaved()},[state,onSaved])
   const row=durableRailRow(state.context.value,document)
   const busy=state.matches('saving')||state.matches('reloading')||state.matches('undoing')
@@ -49,22 +51,20 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     const root=keyboardRoot.current
     if(!focus||busy||readOnly||!root)return
     const keys=(event:KeyboardEvent)=> {
-      if(event.defaultPrevented||event.repeat||root.closest('[hidden]')||event.ctrlKey||event.metaKey||event.altKey||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
-      const key=event.key.toLowerCase()
-      if(!['a','e','r','j','k','z','escape'].includes(key))return
-      if(editing) {
-        if(key==='escape'){event.preventDefault();event.stopPropagation();setEditing(false)}
-        return
-      }
+      if(event.defaultPrevented||root.closest('[hidden]')||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
+      const action=keyAction(event,{readable:true,saving:busy,editing,dialog:false,drawer:detailsOpen,menu:menuOpen,
+        oneByOne:focus,canUndo:row.kind!=='to-check',current:row.kind==='to-check'?'open':'decided'})
+      if(!action)return
       event.preventDefault();event.stopPropagation()
-      if(key==='j')onNext()
-      else if(key==='k')onPrevious()
-      else if(key==='escape')onClose()
-      else if(key==='z'&&!editing&&row.kind!=='to-check')send({type:'undo'})
-      else if(row.kind==='to-check'&&!editing) {
-        if(key==='e')setEditing(true)
-        else if(key==='a'||key==='r')decide(key==='a'?'APPROVED':'REJECTED')
-      }
+      if(action==='cancel-edit')setEditing(false)
+      else if(action==='close-drawer')onCloseOverlay('drawer')
+      else if(action==='close-menu')onCloseOverlay('menu')
+      else if(action==='leave')onClose()
+      else if(action==='next')onNext()
+      else if(action==='previous')onPrevious()
+      else if(action==='undo')send({type:'undo'})
+      else if(action==='edit')setEditing(true)
+      else if(action==='approve'||action==='reject')decide(action==='approve'?'APPROVED':'REJECTED')
     }
     root.addEventListener('keydown',keys)
     return()=>root.removeEventListener('keydown',keys)
@@ -315,7 +315,8 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
       {review&&<div className="space-y-2 border-b border-line pb-3">
         {(review.version!==page.snapshotVersion||review.feedbackVersion!==page.feedbackVersion)&&<p role="status" className="text-secondary">Your open review stays on results {review.version} and decisions {review.feedbackVersion}. Select a value below to review its displayed version.</p>}
         <ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={attempt.strategy==='ARTICLE'} value={review.value} snapshotVersion={review.version} document={document} onSaved={saved}
-          onClose={()=>{setReview(null);setFocus(false)}} onEvidence={onEvidence} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot} readOnly={readOnly}/>
+          onClose={()=>{setReview(null);setFocus(false)}} onEvidence={onEvidence} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
+          menuOpen={menuOpen} detailsOpen={detailsOpen} onCloseOverlay={overlay=>overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
       </div>}
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values on this page. New saved work can be reviewed when it arrives.</p>}
       {!focus&&<ReviewList model={model} article={attempt.strategy==='ARTICLE'} finding={page.total===0&&['QUEUED','RUNNING'].includes(state.status)} filter={filter}

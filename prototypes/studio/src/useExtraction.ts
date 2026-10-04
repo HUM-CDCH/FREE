@@ -264,6 +264,7 @@ export function useExtraction({
       setDraftSaving(false)
       setDraftSaved(false)
       setSaving(false)
+      setReviewLoading(false)
       draftAcceptedRef.current = null
       adoptedRunDraftRef.current = null
       decisionsForRef.current = null

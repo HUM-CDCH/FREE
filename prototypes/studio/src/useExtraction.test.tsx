@@ -1396,6 +1396,30 @@ describe('review while the run reads (ADR 0016; results review redesign §5)', (
   const flush = () => act(() => vi.advanceTimersByTimeAsync(0))
   afterEach(() => { vi.useRealTimers() })
 
+  it.each(['QUEUED','RUNNING'] as const)('releases a previous review load when navigating to %s work',async(executionStatus)=>{
+    vi.useFakeTimers()
+    const delayed=Promise.withResolvers<Awaited<ReturnType<typeof api.readExtraction>>>()
+    const previous=attempt({extractionId:'55555555-5555-4555-8555-555555555555'})
+    vi.mocked(api.readExtraction).mockReturnValueOnce(delayed.promise).mockResolvedValue({extraction:running(),
+      pendingReviewDecisions:null,partial:reading(['finished']),reviewDraft:{version:2,decisions:[]}})
+    const {result,rerender,unmount}=renderHook(({current,documentKey})=>useExtraction({...options(current),documentKey,occurrenceIdsByAnchor}),
+      {initialProps:{current:previous,documentKey:'previous'}})
+    try {
+      await flush()
+      expect(result.current.review.loading).toBe(true)
+      rerender({current:jobAttempt({strategy:'CATALOG',executionStatus}),documentKey:'running'})
+      await flush()
+      expect(result.current.review.loading).toBe(false)
+      await poll()
+      expect(result.current.review.draftAvailable).toBe(true)
+      act(()=>{result.current.review.setDecision(decision(0).resultPath,'REJECTED')})
+      expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(running().extractionId,[decision(0,'REJECTED')],2)
+      await act(async()=>delayed.resolve({extraction:previous,pendingReviewDecisions:[]}))
+      expect(result.current.attempt?.extractionId).toBe(running().extractionId)
+      expect(result.current.review.decisions).toEqual([decision(0,'REJECTED')])
+    } finally {unmount()}
+  })
+
   it('drafts a decision on a finished record; a later poll adds new records and never reverts it', async () => {
     vi.useFakeTimers()
     vi.mocked(api.readExtraction)
