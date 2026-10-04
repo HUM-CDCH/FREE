@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Results diagnosis</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#faf6f2}
+*{box-sizing:border-box}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+.num{font-variant-numeric:tabular-nums}
+.over{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#776b60;margin:0}
+.blk{position:relative;border:1px solid #eadfd6;border-radius:6px;background:#fff;padding:6px 10px;font-size:11px;color:#6c6259;display:flex;align-items:center;gap:8px}
+.blk b{color:#33302c;font-weight:600}
+.mk{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:999px;background:#a34828;color:#fff;font-size:11px;font-weight:700;padding:0 5px}
+.mks{margin-left:auto;display:flex;gap:3px}
+.find{display:grid;grid-template-columns:24px 1fr;gap:10px;align-items:start}
+.find h3{margin:0;font-size:13px;font-weight:700;color:#33302c;line-height:1.35}
+.find p{margin:2px 0 0;font-size:12px;color:#6c6259;line-height:1.5}
+.q{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#33302c;background:#f5efe9;border-radius:4px;padding:0 4px}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#776b60;text-align:left;padding:4px 8px;border-bottom:1px solid #d9cabc}
+td{padding:6px 8px;border-bottom:1px solid #eadfd6;vertical-align:top;color:#33302c}
+td.m{color:#6c6259}
+.g{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.ico{width:16px;height:16px;flex:none}
+.metric{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid #eadfd6;border-radius:8px;background:#fff}
+.metric .v{font-size:24px;font-weight:700;color:#33302c;line-height:1.1}
+.metric .v s{color:#776b60;font-weight:500;text-decoration-thickness:1.5px}
+.metric .l{font-size:11px;color:#6c6259}
+.audit li{margin:0 0 5px;font-size:11.5px;color:#6c6259;line-height:1.45}
+.audit code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#33302c}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; padding: 40px 48px; display: flex; gap: 40px; background: #faf6f2; font-family: 'Albert Sans', system-ui, sans-serif; color: #33302c;">
+
+  <section aria-labelledby="today-h" style="width: 380px; flex: none; display: flex; flex-direction: column; gap: 10px;">
+    <p class="over">Today · catalog run, 1280×720</p>
+    <h2 id="today-h" style="margin: 0; font-size: 22px; font-weight: 700; line-height: 1.25;">Ten blocks before the first value</h2>
+    <p style="margin: 0 0 6px; font-size: 12px; color: #6c6259;">The Results rail, top to bottom, drawn at its real height. The first extracted value starts about 580 px down the rail.</p>
+    <div style="display: flex; gap: 10px;">
+      <div style="width: 14px; flex: none; display: flex; flex-direction: column; align-items: center;">
+        <span style="font-size: 10.5px; color: #776b60;" class="num">0</span>
+        <span style="flex: 1; width: 1px; background: #d9cabc;"></span>
+        <span style="font-size: 10.5px; color: #a34828; font-weight: 700;" class="num">580</span>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+        <div class="blk" style="height: 40px;"><b>Schema 6 · Results</b><span class="mono" style="color: #a34828;">72 to check</span><span class="mks"><span class="mk">1</span><span class="mk">4</span></span></div>
+        <div class="blk" style="height: 30px;"><b>Review attention · 72 to check</b><span class="mks"><span class="mk">1</span></span></div>
+        <div class="blk" style="height: 64px; flex-direction: column; align-items: flex-start; gap: 1px;"><b>Completed</b><span>Using Schema Revision 2 · Current revision: 2</span><span style="color: #a34828; font-weight: 600;">View used schema</span></div>
+        <div class="blk" style="height: 62px;"><span>Strategy · Fields 74 · Missing 2 · Verifier-supported 72 · Doubtful links 6</span><span class="mks"><span class="mk">2</span><span class="mk">3</span></span></div>
+        <div class="blk" style="height: 26px;"><span>72 of 72 required decisions remaining</span><span class="mks"><span class="mk">1</span></span></div>
+        <div class="blk" style="height: 56px;"><span>Extraction: complete · Evidence checks: 72 verifier-supported · 0 unsupported… · Review: 0 pending</span><span class="mks"><span class="mk">2</span></span></div>
+        <div class="blk" style="height: 50px;"><span>Export · Approve remaining (72) · Review | Values as code | Markdown</span><span class="mks"><span class="mk">1</span><span class="mk">4</span></span></div>
+        <div class="blk" style="height: 58px;"><span>“Approve only the remaining required decisions. Existing edits and rejections… saves automatically…”</span><span class="mks"><span class="mk">6</span></span></div>
+        <div class="blk" style="height: 74px;"><span>Catalog · 7 entries found. Every nonblank source range was assigned… ▸ 1 entry cut by the end of the supplied source</span><span class="mks"><span class="mk">6</span></span></div>
+        <div class="blk" style="height: 30px;"><span>‹ › Root › Item 1 › grave_goods · Clear</span><span class="mks"><span class="mk">5</span></span></div>
+        <div class="blk" style="height: 34px; border-color: #a34828; background: #fbf1ec;"><b>Grave_good 1 · jernspænde</b><span style="margin-left: auto; color: #a34828; font-weight: 700;">first value</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="find-h" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+    <p class="over">What gets in the way</p>
+    <h2 id="find-h" style="margin: 0 0 4px; font-size: 22px; font-weight: 700;">Six problems</h2>
+    <div class="find"><span class="mk">1</span><div><h3>One number, said four times</h3><p>72 appears as the tab badge, in Review attention, as “72 of 72 remaining” and on “Approve remaining (72)”. Each is a different component with its own wording.</p></div></div>
+    <div class="find"><span class="mk">2</span><div><h3>The same counts, twice</h3><p>Pills and the three Completion lines repeat each other (Verifier-supported 72 is in both). Neither tells you what to do next.</p></div></div>
+    <div class="find"><span class="mk">3</span><div><h3>Seven words for the state of a value</h3><p><span class="q">to check</span> <span class="q">doubtful link</span> <span class="q">unsupported</span> <span class="q">missing</span> <span class="q">ungrounded</span> <span class="q">not completed</span> <span class="q">excluded</span>. Each one is accurate, but they overlap, and nothing says which ones you have to act on.</p></div></div>
+    <div class="find"><span class="mk">4</span><div><h3>Three levels of tabs; Markdown is in the wrong pane</h3><p>Schema/Results, then Review / Values as code / Markdown on the same line as the buttons. Markdown is a view of the <em>document</em>, so it belongs next to the PDF, not under Results.</p></div></div>
+    <div class="find"><span class="mk">5</span><div><h3>Drilling down hides the rest</h3><p>Root › Item 1 › grave_goods shows one level at a time, and its back and forward buttons duplicate the browser’s. You can’t see a record and its children together.</p></div></div>
+    <div class="find"><span class="mk">6</span><div><h3>Every explanation is always on screen</h3><p>Paragraphs about approval rules and catalog coverage are important, but they apply once. They should be one click away, not taking up space on every visit.</p></div></div>
+    <div class="find"><span class="mk" style="background: #4f8aa8;">↔</span><div><h3>The document only follows the rail, never the other way</h3><p>Clicking a value highlights one passage. The page shows no other claims, the thumbnails don’t show where work is left, and clicking a passage doesn’t select its value.</p></div></div>
+  </section>
+
+  <section aria-labelledby="fix-h" style="width: 470px; flex: none; display: flex; flex-direction: column; gap: 14px;">
+    <p class="over">Proposed vocabulary (states as in claimStates.ts)</p>
+    <h2 id="fix-h" style="margin: 0; font-size: 20px; font-weight: 700;">Two questions, two sets of words</h2>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; font-size: 12px;">
+      <div><p class="over" style="margin-bottom: 4px;">Your decision · 4 words</p><ul style="margin: 0; padding: 0; list-style: none;"><li style="padding: 5px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg>To check</span><br><span style="font-size: 11px; color: #6c6259;">the only state that needs you</span></li><li style="padding: 5px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#3e7c4f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg>Approved</span></li><li style="padding: 5px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#33302c" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l2 2L6 12H4v-2z"></path></svg>Edited</span></li><li style="padding: 5px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#b3402a" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"></path></svg>Rejected</span></li></ul></div>
+      <div><p class="over" style="margin-bottom: 4px;">Evidence · words from claimStates.ts</p><ul style="margin: 0; padding: 0; list-style: none;"><li style="padding: 4px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><span style="width: 16px; border-bottom: 2px solid #4f8aa8;"></span>Verifier-supported</span><br><span style="font-size: 11px; color: #6c6259;">the verifier linked a passage</span></li><li style="padding: 4px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><span style="width: 16px; border-bottom: 2px dotted #4f8aa8;"></span>Linked by rule</span><br><span style="font-size: 11px; color: #6c6259;">a key or structure rule linked it; no verifier checked it</span></li><li style="padding: 4px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><span style="width: 16px; border-bottom: 2px dashed #4f8aa8;"></span>+ Doubtful link</span><br><span style="font-size: 11px; color: #6c6259;">a flag on either: “value not found in the linked passage” or “also appears in N other passages”</span></li><li style="padding: 4px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg>Unsupported</span><br><span style="font-size: 11px; color: #6c6259;">every check finished; none found a passage</span></li><li style="padding: 4px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg>Not completed</span><br><span style="font-size: 11px; color: #6c6259;">the check didn’t finish; the reason is shown</span></li><li style="padding: 4px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg>Excluded by policy</span><br><span style="font-size: 11px; color: #6c6259;">the schema asked for no verification; the policy is named</span></li><li style="padding: 4px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg>No evidence</span><br><span style="font-size: 11px; color: #6c6259;">no accounting, so whether checks finished is unknown</span></li><li style="padding: 4px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 6h9M3.5 10h9M10 3.5l-4 9"></path></svg>Contested</span><br><span style="font-size: 11px; color: #6c6259;">sources disagreed; the candidates are shown</span></li><li style="padding: 4px 0; border-bottom: 1px solid #eadfd6;"><span class="g"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4.5 8h7"></path></svg>Missing</span><br><span style="font-size: 11px; color: #6c6259;">no value was extracted</span></li></ul></div>
+    </div>
+    <p style="margin: 0; font-size: 11.5px; color: #6c6259;">Only <b style="color: #33302c;">To check</b> asks for action, and only linked values get there, doubtful links first. Everything below the line is listed with its reason but never blocks saving. The review saves itself, read-only, when the last linked value gets a decision, so the UI says so before that click.</p>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+      <div class="metric"><span class="v num"><s>580</s> ~240</span><span class="l">px from the top of the rail to the first value (A)</span></div>
+      <div class="metric"><span class="v num"><s>4×</s> 1×</span><span class="l">“72 to check” shown as text</span></div>
+      <div class="metric"><span class="v num">1</span><span class="l">state word that asks for action</span></div>
+    </div>
+    <div>
+      <p class="over" style="margin-bottom: 6px;">Web Interface Guidelines check (current code)</p>
+      <ul class="audit" style="margin: 0; padding-left: 16px;">
+        <li><code>ResultsTab.tsx:929–941</code> the ‹ › icon-only buttons have only a <code>title</code>, no <code>aria-label</code></li>
+        <li><code>ResultsTab.tsx:927</code> the sticky breadcrumb can cover a focused row (needs <code>scroll-margin-top</code>)</li>
+        <li><code>ResultsTab.tsx:847</code> the result view and the selected value aren’t in the URL, so they can’t be deep-linked</li>
+        <li><code>ResultsTab.tsx:742–745</code> count lines don’t use <code>tabular-nums</code></li>
+      </ul>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
