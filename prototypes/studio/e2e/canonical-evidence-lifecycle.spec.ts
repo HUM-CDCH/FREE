@@ -389,6 +389,18 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     // Settlement moved nothing: the decided value still reads Approved; Approve rest… saves the rest.
     await expect(valueRow(page, /^Approved title First record/)).toBeVisible()
     await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
+    // One by one (§4): A approves the current value and moves on, J skips, Z undoes the approval; Escape leaves.
+    await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
+    const current = resultsPanel(page).getByRole('heading', { level: 2 })
+    await expect(current).toBeFocused()
+    await page.keyboard.press('a')
+    await expect(reviewBar(page)).toHaveAccessibleName('2 approved, 0 edited, 0 rejected, 1 to check, of 3')
+    await expect(current).toBeFocused()
+    await page.keyboard.press('j')
+    await page.keyboard.press('z')
+    await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
+    await page.keyboard.press('Escape')
+    await expect(resultsPanel(page).getByRole('group', { name: 'Show values' })).toBeVisible()
     await approveRest(page)
     await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
     await page.reload()

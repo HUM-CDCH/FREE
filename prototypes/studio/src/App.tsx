@@ -4,6 +4,7 @@ import {
 } from './auth/authenticatedFetch.ts'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { anchorOccurrences } from './evidenceNavigation'
+import type { EvidenceLink } from '../shared/groundedExtraction'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
@@ -596,6 +597,8 @@ export function DocumentWorkspace({
   //   templateState.inputsKey !== annotationInputsKey(annotationItems, annotationsMode)
 
   const effectiveRailOpen = railOpen
+  // The one-by-one value's link: the page dims around it (results review redesign §7.3).
+  const [focusedEvidence, setFocusedEvidence] = useState<EvidenceLink | null>(null)
   const railOnResultsRef = useRef(false)
   useEffect(() => { railOnResultsRef.current = railOpen && railTab === 'results' }, [railOpen, railTab])
   // The document pane shows the PDF or the parsed Markdown (results review redesign §7.4).
@@ -754,6 +757,7 @@ export function DocumentWorkspace({
     resultPath,
     active: effectiveRailOpen && railTab === 'results',
     partialEvidenceLinks,
+    dimLink: focusedEvidence,
   })
 
   /** Saves pending schema edits as the Current Schema Revision, reads the account's saved method again, then admits the
@@ -1074,6 +1078,7 @@ export function DocumentWorkspace({
               }}
               onSelectEvidence={selectEvidenceAnchor}
               onResultPathChange={setResultPath}
+              onFocusEvidence={setFocusedEvidence}
             />
           </aside>
         </div>
