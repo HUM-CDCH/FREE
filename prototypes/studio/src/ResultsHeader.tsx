@@ -76,7 +76,7 @@ export default function ResultsHeader({
     <div className="@container flex shrink-0 flex-col gap-2.5 border-b border-line bg-surface px-3 pt-1 pb-2.5">
       <div className="flex min-h-8 flex-wrap items-center gap-1.5 text-secondary">
         <Mark mark={status.mark} />
-        <p role="status" aria-atomic="true" className="m-0 flex min-w-0 flex-wrap items-baseline gap-x-1" title={status.title}>
+        <p role="status" aria-atomic="true" className="m-0 flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1" title={status.title}>
           <b className="text-content text-ink">{status.word}</b>
           {status.rest && <span className="text-ink-muted tabular-nums">{status.mark === 'completed'
             ? <><span className="@max-[344px]:hidden">{status.rest}</span><span className="hidden @max-[344px]:inline">{status.rest.replace(/^· Catalog /, '').replace(/ ·$/, '')}</span></>
@@ -84,7 +84,6 @@ export default function ResultsHeader({
           {status.schemaRevision !== undefined && <button type="button" className={`${linkButton} @max-[344px]:hidden`} onClick={onSchema}>Schema rev {status.schemaRevision}</button>}
           {status.why && <button type="button" className={linkButton} onClick={onWhy}>Why?</button>}
         </p>
-        <span className="flex-1" />
         {/* Snapshot, export and revision controls take a second row when the status would be squeezed (§9). */}
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 empty:hidden @max-[344px]:order-last @max-[344px]:w-full [&>select]:min-w-0 [&>select]:max-w-full">
           {schemaNote && <Pill tone="stale" outline>Rev {schemaNote.revision} · current is {schemaNote.current}</Pill>}

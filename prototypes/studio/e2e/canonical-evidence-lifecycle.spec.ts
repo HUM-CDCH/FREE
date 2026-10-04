@@ -197,6 +197,14 @@ async function expectSavedRailHeader(page: Page) {
       await word.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight)) + 1)
   await expectOperableInViewport(page, resultsPanel(page).getByRole('button', { name: 'Run details', exact: true }))
   await expectOperableInViewport(page, moreActions(page))
+  const [statusBox, detailsBox, menuBox] = await Promise.all([
+    statusLine(page).boundingBox(),
+    resultsPanel(page).getByRole('button', { name: 'Run details', exact: true }).boundingBox(),
+    moreActions(page).boundingBox(),
+  ])
+  expect(detailsBox!.y).toBeLessThan(statusBox!.y + statusBox!.height)
+  expect(detailsBox!.y + detailsBox!.height).toBeGreaterThan(statusBox!.y)
+  expect(menuBox!.y).toBe(detailsBox!.y)
   await expectOperableInViewport(page, resultsPanel(page).getByRole('button', { name: 'Export', exact: true }))
   await setRailWidth(page, 344)
 }
