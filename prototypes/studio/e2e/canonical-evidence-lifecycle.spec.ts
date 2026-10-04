@@ -505,6 +505,11 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   }
   await expect.poll(() => resultGate.release !== null).toBe(true)
   // Settlement moves nothing (§5.3): the decided row keeps its place on the screen.
+  if (strategy === 'CATALOG') {
+    // Returning to the list mounts its 200ms entry animation; compare settled layout, not animation frames.
+    await expect.poll(() => valueRow(page, /^Approved title First record/)
+      .evaluate((row) => getComputedStyle(row).transform)).toBe('none')
+  }
   const beforeSettlement = strategy === 'CATALOG' ? await valueRow(page, /^Approved title First record/).boundingBox() : null
   kei.progress = null
   resultGate.release!()
@@ -519,6 +524,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   if (strategy === 'CATALOG') {
     // Settlement moved nothing: the decided value still reads Approved, where it was; Approve rest… saves the rest.
     await expect(valueRow(page, /^Approved title First record/)).toBeVisible()
+    await expect.poll(() => valueRow(page, /^Approved title First record/)
+      .evaluate((row) => getComputedStyle(row).transform)).toBe('none')
     const afterSettlement = await valueRow(page, /^Approved title First record/).boundingBox()
     expect(Math.abs(afterSettlement!.y - beforeSettlement!.y)).toBeLessThanOrEqual(1)
     await railShots(page, testInfo, 'settled')
