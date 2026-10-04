@@ -108,7 +108,23 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
         return { site, finds, year: Number(year) }
       })
       let answer: unknown
-      if (candidates) {
+      if (system.startsWith('You find where records begin')) {
+        // Unified discovery uses line labels and printed record identifiers.
+        const lines = [...prompt.matchAll(/^\[(L\d+)\] (.*)$/gm)]
+        const places = lines.flatMap(([, label, text]) => {
+          const starts = [...text!.matchAll(/(?<!\S)(\d+\.)(?=\s)/g)]
+          return starts.map(start => [label, 'record', start[1], ...(start.index ? [text!.slice(start.index, start.index + 12)] : [])])
+        })
+        if (places.length !== 2) throw new Error(`Unified discovery did not receive both parsed entries: ${prompt}`)
+        answer = { places, begins_inside_record: false, ends_inside_record: false }
+      } else if (system.startsWith('You extract structured data from one record')) {
+        if (records.length !== 1) throw new Error(`Unified fields received ${records.length} records: ${prompt}`)
+        const record = records[0]!
+        answer = Object.fromEntries(Object.keys(properties).map(name => [name,
+          name in record ? { value: record[name as keyof typeof record], quote: String(record[name as keyof typeof record]) } : null]))
+      } else if (system.startsWith('You check values extracted')) {
+        answer = Object.fromEntries(Object.keys(properties).map(name => [name, 'supported']))
+      } else if (candidates) {
         // One recipe entry: answer from the text between the ENTRY markers only, quoting it verbatim.
         const entry = prompt.split('### ENTRY\n')[1]?.split('\n### END ENTRY')[0]
         if (!entry) throw new Error(`Recipe call without an entry: ${prompt}`)

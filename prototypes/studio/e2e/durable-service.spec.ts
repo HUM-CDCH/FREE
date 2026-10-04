@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
-import {readFile} from 'node:fs/promises'
-import {expect,test} from '@playwright/test'
+import {readFile,writeFile} from 'node:fs/promises'
+import {expect,test,type Page} from '@playwright/test'
 import {strFromU8,unzipSync} from 'fflate'
 import {withPoolClientTransaction} from 'db'
 import {initializeDurableExtraction,DURABLE_RELEASE_VERIFIED} from 'extraction/durable'
@@ -11,6 +11,32 @@ import {admit,settle} from './sourceIngestion.js'
 
 const siteNodes:SchemaNode[]=[{id:'site',name:'site',type:'verbatim-string'},{id:'finds',name:'finds',type:'verbatim-string'},{id:'year',name:'year',type:'integer'}]
 const methods=['article','generic','recipe','unified'] as const
+type Method=typeof methods[number]
+
+async function seedNative(page:Page,project:string,sourceId:string,method:Method,
+  options:{nodes?:SchemaNode[];models?:{fields:'gliformer';reasoning:'instruct'}}={}) {
+  const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
+  const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
+  const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
+    :method==='recipe'?[{id:'entry_no',name:'entry_no',type:'integer' as const},{id:'kreis',name:'kreis',type:'verbatim-string' as const},
+      {id:'fundart',name:'fundart',type:'verbatim-string' as const},{id:'site_name',name:'site_name',type:'verbatim-string' as const}]:siteNodes)
+  const tree={recordDescription:method==='article'?'All numbered sites in this document.':'One numbered catalogue entry.',schemaNodes:nodes}
+  const revision=await page.request.post('/api/schema-revisions',{headers:{Origin:E2E_ORIGIN},data:{projectContextId:project,...tree,recordScope:method==='article'?'document':'records'}})
+  expect(revision.status(),await revision.text()).toBe(201)
+  const schemaRevisionId=(await revision.json()).revision.schemaRevisionId as string,id=randomUUID()
+  const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
+  const settings={[method]:method==='unified'?{defaults:1}:null},models=options.models??null
+  // All callers start the service helper, which refuses every database except
+  // its owned guarded stack. Use the normal initializer with admission OFF.
+  await withPoolClientTransaction(async(_tx,client)=>{
+    const representation=(await client.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1',[sourceRevisionId])).rows[0]
+    await client.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"catalogRecipe","requestedModels","requestedSettings") VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [id,sourceId,sourceRevisionId,schemaRevisionId,strategy,recipe,models,settings])
+    await initializeDurableExtraction(client,id,{projectContextId:project,sourceRepresentationRevisionId:sourceRevisionId,schemaRevisionId,schemaTree:tree,
+      strategy,catalogRecipe:recipe,preprocessId:representation.preprocessId,requestedModels:models,requestedSettings:settings})
+  })
+  return id
+}
 
 for(const method of methods) {
   test(`native ${method} controls drain a real worker and retained review survives reload and export`,async({page},testInfo)=>{
@@ -29,27 +55,8 @@ for(const method of methods) {
       expect(ingestion.status,JSON.stringify(ingestion)).toBe('succeeded')
       if(ingestion.status!=='succeeded')throw new Error('The disposable native source was not published.')
       const sourceId=ingestion.sourceDocumentId
-      const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
-      const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
-      const nodes:SchemaNode[]=method==='article'?[{id:'sites',name:'sites',type:'array',children:siteNodes}]
-        :method==='recipe'?[{id:'entry_no',name:'entry_no',type:'integer'},{id:'kreis',name:'kreis',type:'verbatim-string'},
-          {id:'fundart',name:'fundart',type:'verbatim-string'},{id:'site_name',name:'site_name',type:'verbatim-string'}]:siteNodes
-      const tree={recordDescription:method==='article'?'All numbered sites in this document.':'One numbered catalogue entry.',schemaNodes:nodes}
-      const revision=await page.request.post('/api/schema-revisions',{headers,data:{projectContextId:project,...tree,recordScope:method==='article'?'document':'records'}})
-      expect(revision.status(),await revision.text()).toBe(201)
-      const schemaRevisionId=(await revision.json()).revision.schemaRevisionId as string,id=randomUUID()
-      const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
-      const settings={[method]:method==='unified'?{defaults:1}:null}
       service.holdNextExtraction()
-      // startRealService refuses every database except its owned guarded stack.
-      // Seed through the normal initializer; the production admission gate stays OFF.
-      await withPoolClientTransaction(async(_tx,client)=>{
-        const representation=(await client.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1',[sourceRevisionId])).rows[0]
-        await client.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"catalogRecipe","requestedSettings") VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [id,sourceId,sourceRevisionId,schemaRevisionId,strategy,recipe,settings])
-        await initializeDurableExtraction(client,id,{projectContextId:project,sourceRepresentationRevisionId:sourceRevisionId,schemaRevisionId,schemaTree:tree,
-          strategy,catalogRecipe:recipe,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:settings})
-      })
+      const id=await seedNative(page,project,sourceId,method)
       await service.reconcileDurable()
       await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
       const state=async()=>await (await page.request.get(`/api/extractions/${id}/durable`)).json()
@@ -64,7 +71,14 @@ for(const method of methods) {
       const captured=before.captures.filter((capture:{request:unknown})=>capture.request!==null)
       expect(captured.length).toBeGreaterThan(0)
       service.releaseExtraction()
-      await expect.poll(async()=> (await state()).status,{timeout:60_000}).toBe('PAUSED')
+      await expect.poll(async()=>{
+        const head=await state()
+        if(head.status==='FAILED') {
+          await writeFile(testInfo.outputPath('failed-native-history.json'),JSON.stringify(await (await page.request.get(`/api/extractions/${id}/durable/history`)).json(),null,2))
+          throw new Error(JSON.stringify(head.failure))
+        }
+        return head.status
+      },{timeout:60_000}).toBe('PAUSED')
       expect((await state()).counts.inFlight).toBe(0)
       await rail.getByRole('button',{name:'Resume',exact:true}).click()
       await expect.poll(async()=>{
@@ -98,5 +112,97 @@ for(const method of methods) {
       expect(exported.history.captures.some((capture:{outputDigest:unknown})=>capture.outputDigest)).toBe(true)
       await page.screenshot({path:testInfo.outputPath(`native-${method}-retained.png`),fullPage:true})
     } finally {service.releaseExtraction();await service.close()}
+  })
+}
+
+test('deleting a project fences its held native worker and retains another project source',async({page},info)=>{
+  test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'Deletion uses the counted provider hold.')
+  const service=await startRealService(info.outputPath('durable-deletion-worker.log'))
+  try {
+    await loginResearcher(page,randomUUID())
+    const projects:string[]=[],sources:string[]=[]
+    for(const name of ['Delete native work','Keep shared source']) {
+      const created=await page.request.post('/api/project-contexts',{headers:{Origin:E2E_ORIGIN},data:{name}})
+      expect(created.status()).toBe(201)
+      const project=(await created.json()).projectContext.projectContextId as string
+      projects.push(project)
+      const ingested=await settle(page,project,await admit(page,project,cataloguePdf(),'shared-native.pdf'),180_000)
+      expect(ingested.status).toBe('succeeded')
+      if(ingested.status!=='succeeded')throw new Error('Shared source fixture was not published.')
+      sources.push(ingested.sourceDocumentId)
+    }
+    service.holdNextExtraction()
+    const id=await seedNative(page,projects[0]!,sources[0]!,'article')
+    await service.reconcileDurable()
+    await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
+    expect(await service.keiWorkflows(`kei-durable:${id}:`)).toHaveLength(1)
+    await page.goto(`/projects/${projects[0]}/documents/${sources[0]}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    expect((await page.request.delete(`/api/project-contexts/${projects[0]}`,{headers:{Origin:E2E_ORIGIN}})).status()).toBe(204)
+    expect((await page.request.get(`/api/extractions/${id}/durable`)).status()).toBe(404)
+    const tombstone=async()=>withPoolClientTransaction(async(_tx,client)=>(await client.query('SELECT deleted,intent FROM extraction_runtime.head WHERE id=$1',[id])).rows[0])
+    expect(await tombstone()).toEqual({deleted:true,intent:'STOP'})
+    service.releaseExtraction()
+    await expect.poll(async()=> (await service.keiWorkflows(`kei-durable:${id}:`)).every(attempt=>['SUCCESS','ERROR'].includes(attempt.status)),{timeout:60_000}).toBe(true)
+    expect((await page.request.get(`/api/extractions/${id}`)).status()).toBe(404)
+    expect(await tombstone()).toEqual({deleted:true,intent:'STOP'})
+    const published=await withPoolClientTransaction(async(_tx,client)=>(await client.query('SELECT count(*)::int AS n FROM extraction_runtime.snapshot WHERE "extractionId"=$1',[id])).rows[0].n)
+    expect(published).toBe(0)
+    await service.collectGarbage()
+    const retained=await page.request.get(`/api/project-contexts/${projects[1]}/source-documents/${sources[1]}/reopen`)
+    expect(retained.status(),await retained.text()).toBe(200)
+    const canonical=(await retained.json()).sourceRepresentation.resources.parsedDocumentUrl
+    expect((await page.request.get(canonical)).status()).toBe(200)
+    await page.goto(`/projects/${projects[1]}/documents/${sources[1]}`)
+    await expect(page.getByRole('region',{name:'Source Document',exact:true})).toBeVisible()
+    await page.screenshot({path:info.outputPath('shared-source-retained.png'),fullPage:true})
+  } finally {service.releaseExtraction();await service.close()}
+})
+
+for(const method of ['article','unified'] as const) {
+  test(`native ${method} retains real provider requests and saved output`,async({page},info)=>{
+    test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')
+    test.skip(method==='unified'&&!process.env.FREE_REAL_GLIFORMER_URL,'Requires the real native fields server.')
+    expect(DURABLE_RELEASE_VERIFIED).toBe(false)
+    const service=await startRealService(info.outputPath('durable-live-worker.log'))
+    try {
+      await loginResearcher(page,randomUUID())
+      const created=await page.request.post('/api/project-contexts',{headers:{Origin:E2E_ORIGIN},data:{name:`Native live ${method}`}})
+      expect(created.status()).toBe(201)
+      const project=(await created.json()).projectContext.projectContextId as string
+      const ingestion=await settle(page,project,await admit(page,project,cataloguePdf(),'live-native.pdf'),180_000)
+      expect(ingestion.status).toBe('succeeded')
+      if(ingestion.status!=='succeeded')throw new Error('Live source was not published.')
+      const id=await seedNative(page,project,ingestion.sourceDocumentId,method,method==='unified'
+        ?{models:{fields:'gliformer',reasoning:'instruct'},nodes:siteNodes.filter(node=>node.type==='verbatim-string')}: {})
+      await service.reconcileDurable()
+      const state=async()=>await (await page.request.get(`/api/extractions/${id}/durable`)).json()
+      await expect.poll(async()=>{
+        const head=await state()
+        if(head.status==='FAILED')throw new Error(JSON.stringify(head.failure))
+        return head.status
+      },{timeout:300_000}).toBe('COMPLETED')
+      const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
+      const captures=history.captures.filter((capture:{request:unknown})=>capture.request)
+      expect(captures.length).toBeGreaterThan(0)
+      expect(captures.every((capture:{outputDigest:unknown})=>capture.outputDigest)).toBe(true)
+      expect(captures.some((capture:{request:{provider:{model:string}}})=>capture.request.provider.model===process.env.FREE_REAL_EXTRACT_MODEL)).toBe(true)
+      if(method==='unified') {
+        const native=captures.filter((capture:{request:{provider:{adapter:string}}})=>capture.request.provider.adapter==='gliformer')
+        expect(native.length).toBeGreaterThan(0)
+        expect(native.every((capture:{request:{provider:{nativeInfo:{protocol:number}}}})=>capture.request.provider.nativeInfo.protocol===1)).toBe(true)
+      }
+      const saved=await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()
+      expect(saved.values.some((value:{processing:string})=>value.processing==='saved')).toBe(true)
+      await page.goto(`/projects/${project}/documents/${ingestion.sourceDocumentId}?extractionId=${id}`)
+      await page.locator('#rail-tab-results').click()
+      await expect(page.getByText('Completed',{exact:true}).first()).toBeVisible()
+      await page.getByRole('button',{name:'More result actions'}).click()
+      const download=page.waitForEvent('download')
+      await page.getByRole('menuitem',{name:'Export CSV bundle'}).click()
+      const files=unzipSync(new Uint8Array(await readFile((await (await download).path())!)))
+      expect(JSON.parse(strFromU8(files['snapshot.json'])).history.captures).toEqual(history.captures)
+      await page.screenshot({path:info.outputPath(`live-${method}-retained.png`),fullPage:true})
+    } finally {await service.close()}
   })
 }
