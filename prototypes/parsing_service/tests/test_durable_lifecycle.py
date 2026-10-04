@@ -146,3 +146,96 @@ def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
         log.close()
         if client:client.destroy()
         server.shutdown();server.server_close();thread.join(timeout=5)
+
+
+def test_queued_pause_starts_no_provider_call_and_releases_the_attempt_lane(tmp_path):
+    fixture=json.loads(Path(FIXTURE).read_text())
+    fields=checked_conninfo(fixture['admin'])
+    paused,next_case=fixture['cases'][12:14]
+    source=tmp_path/'runs'/next_case['source']['runId']
+    catalogue.write({'transcriber':'native','pages':[{'page':1,'units':[{'index':0,'segments':['Hill. Material: gold.']}]}]},source,
+        generation=next_case['source']['generation'])
+    (source/'params.json').write_text('{}')
+    calls=[]
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self,*_):pass
+        def do_POST(self):
+            body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            if self.path=='/tokenize':output={'count':100,'max_model_len':32768}
+            else:
+                calls.append(body)
+                user=body['messages'][-1]['content'];schema=body['response_format']['json_schema']['schema']
+                parsed={key:{'label':'NONE','attribution':False} for key in schema['properties']} if '### Claims' in user else {'name':'Hill'}
+                output={'choices':[{'message':{'content':json.dumps(parsed)},'finish_reason':'stop'}],
+                    'usage':{'prompt_tokens':100,'completion_tokens':10}}
+            raw=json.dumps(output).encode();self.send_response(200);self.send_header('Content-Type','application/json')
+            self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+    server=ThreadingHTTPServer(('127.0.0.1',0),Provider)
+    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    gate=tmp_path/'gates';gate.mkdir()
+    hold=r'''
+@DBOS.step(name="holdDisposableLaneStep")
+def hold_lane_step(number):
+    gate=Path(os.environ['TEST_QUEUE_GATES'])
+    (gate/f'started-{number}').touch()
+    deadline=time.monotonic()+90
+    while not (gate/f'release-{number}').exists():
+        if time.monotonic()>deadline:raise RuntimeError('disposable lane gate timed out')
+        time.sleep(.05)
+@DBOS.workflow(name="holdDisposableLane",serialization_type=__import__('dbos').WorkflowSerializationFormat.PORTABLE)
+def hold_lane(number):
+    hold_lane_step(number)
+'''
+    child=CHILD.replace("DBOS(config=config.dbos_config",hold+"\nDBOS(config=config.dbos_config")
+    serving=tmp_path/'serving';log=open(tmp_path/'worker.log','w+')
+    env={**os.environ,'PYTHONPATH':'/test/src','KEI_RUNS':str(tmp_path/'runs'),
+        'MODEL_URL':f'http://127.0.0.1:{server.server_port}/v1/chat/completions','TEST_QUEUE_GATES':str(gate),
+        'FAULT':'','CRASHED':str(tmp_path/'crashed'),'SERVING':str(serving),'DURABLE_RECOVERY_FIXTURE':FIXTURE}
+    process=subprocess.Popen([sys.executable,'-c',child],env=env,stdout=log,stderr=log)
+    client=None
+    def control(case,action=None):
+        response=requests.post(fixture['bridge'],json={'id':case['id'],**({'action':action} if action else {})},
+            headers={'Authorization':f"Bearer {fixture['token']}"},timeout=15)
+        assert response.ok,response.text
+        return response.json()
+    def enqueue(name,identity,*args):
+        client.enqueue({'workflow_name':name,'queue_name':'kei-extract','application_name':'kei',
+            'workflow_id':identity,'serialization_type':WorkflowSerializationFormat.PORTABLE},*args)
+    try:
+        until(lambda:serving.exists() or process.poll() is not None)
+        if process.poll() is not None:log.seek(0);raise AssertionError(log.read())
+        client=DBOSClient(system_database_url=fixture['worker'],dbos_system_schema='kei_dbos',application_name='kei')
+        # Occupy both real attempt slots. Release only one, so the following
+        # Extraction can run only if the paused attempt returns its own slot.
+        hold_ids=[f"test-hold:{paused['id']}:{number}" for number in range(2)]
+        for number,identity in enumerate(hold_ids):enqueue('holdDisposableLane',identity,number)
+        until(lambda:all((gate/f'started-{number}').exists() for number in range(2)))
+        enqueue('extractDurableV1',paused['workflow'],{'protocol':1,'extraction_id':paused['id'],'attempt_id':paused['attempt']})
+        until(lambda:client.retrieve_workflow(paused['workflow']).get_status().status=='ENQUEUED')
+        control(paused,'pause')
+        enqueue('extractDurableV1',next_case['workflow'],{'protocol':1,'extraction_id':next_case['id'],'attempt_id':next_case['attempt']})
+        assert not calls
+        (gate/'release-0').touch()
+        ended=until(lambda:(status:=client.retrieve_workflow(paused['workflow']).get_status()).status in {'SUCCESS','ERROR'} and status)
+        assert ended.status=='SUCCESS',ended.error
+        saved=control(paused)
+        assert saved['state']['status']=='PAUSED'
+        assert saved['history']['captures']==[]
+        ended=until(lambda:(status:=client.retrieve_workflow(next_case['workflow']).get_status()).status in {'SUCCESS','ERROR'} and status)
+        assert ended.status=='SUCCESS',ended.error
+        assert control(next_case)['state']['status']=='COMPLETED'
+        assert calls
+        assert client.retrieve_workflow(hold_ids[1]).get_status().status=='PENDING'
+        resumed=control(paused,'resume')
+        assert resumed['state']['extractionId']==paused['id']
+        assert resumed['attempt']['id']!=paused['attempt']
+        with psycopg.connect(**fields) as admin:
+            assert admin.execute('SELECT count(*) FROM extraction_runtime.capture WHERE "extractionId"=%s',[paused['id']]).fetchone()[0]==0
+    finally:
+        for number in range(2):(gate/f'release-{number}').touch()
+        if process.poll() is None:process.terminate()
+        try:process.wait(timeout=10)
+        except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
+        log.close()
+        if client:client.destroy()
+        server.shutdown();server.server_close();thread.join(timeout=5)
