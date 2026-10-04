@@ -159,8 +159,8 @@ test('an ungrounded UI correction guides a later worker with immutable captured 
     if(sourceB.status!=='succeeded')throw new Error('Guidance source B was not published.')
     expect(sourceB.sourceDocumentId).not.toBe(sourceA.sourceDocumentId)
     service.holdNextExtraction()
-    const extractionB=await seedNative(page,project,sourceB.sourceDocumentId,'article')
     const requestsBefore=service.modelRequests().length
+    const extractionB=await seedNative(page,project,sourceB.sourceDocumentId,'article')
     await service.reconcileDurable()
     await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
     const historyUrl=`/api/extractions/${extractionB}/durable/history`
