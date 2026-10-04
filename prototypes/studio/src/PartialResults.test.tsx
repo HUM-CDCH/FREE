@@ -25,7 +25,7 @@ describe('PartialResults', () => {
     const serverPartial = partial()
     serverPartial.records.reverse()
     render(<PartialResults partial={serverPartial} schemaNodes={schemaNodes} />)
-    expect(screen.getByRole('status')).toHaveTextContent('Reading records · 2 of 5 · started at page 1')
+    expect(screen.getByRole('status')).toHaveTextContent('Reading records · 2 of 5 · from page 1')
     expect(screen.getByRole('progressbar', { name: 'Records read' })).toHaveAttribute('aria-valuenow', '40')
     expect(items().map((item) => item.getAttribute('data-record-state'))).toEqual(['queued', 'reading', 'checking', 'finished', 'finished'])
     expect(items().map((item) => item.getAttribute('aria-label'))).toEqual(['Record 5', '4', '3', '2', '1'])
