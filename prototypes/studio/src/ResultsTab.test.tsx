@@ -874,7 +874,7 @@ describe('ResultsTab grounded values', () => {
   })
 
   it('supports type-aware edit, reject, and reverse decisions on nested grounded values', () => {
-    const setDecision = vi.fn()
+    const setDecision = vi.fn(() => ({ last: false }))
     const attempt = {
       ...articleAttempt,
       complete: true,
@@ -940,7 +940,7 @@ describe('ResultsTab grounded values', () => {
   })
 
   it('edits one item of a scalar array as one value of the item type', () => {
-    const setDecision = vi.fn()
+    const setDecision = vi.fn(() => ({ last: false }))
     const path = ['records', 0, 'grave_goods', 2]
     const attempt = {
       ...articleAttempt,
@@ -1231,7 +1231,7 @@ describe('ResultsTab grounded values', () => {
   })
 
   it('stops offering field-level review controls once its own attempt is already saved', () => {
-    const setDecision = vi.fn()
+    const setDecision = vi.fn(() => ({ last: false }))
     const savedAttempt: ExtractionAttempt = {
       ...articleAttempt,
       complete: true,
@@ -1291,7 +1291,7 @@ describe('ResultsTab grounded values', () => {
   })
 
   it('exports reviewed edits and expands the exact used Schema Revision read-only', () => {
-    const setDecision = vi.fn()
+    const setDecision = vi.fn(() => ({ last: false }))
     const schema = {
       schemaRevisionId: articleAttempt.schemaRevisionId,
       revisionNumber: 3,
@@ -1503,7 +1503,7 @@ describe('ResultsTab extraction status', () => {
   })
 
   it('offers no run of its own for a completed previous-schema result and keeps review open', () => {
-    const setDecision = vi.fn()
+    const setDecision = vi.fn(() => ({ last: false }))
     const attempt: ExtractionAttempt = {
       ...articleAttempt,
       complete: true,
