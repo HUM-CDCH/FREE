@@ -23,6 +23,7 @@ it('ignores review keys outside Results, while hidden, and on repeat',async()=>{
   const approve=screen.getByRole('button',{name:'Approve and next'})
   fireEvent.keyDown(screen.getByRole('button',{name:'Outside'}),{key:'a'})
   fireEvent.keyDown(approve,{key:'a',repeat:true})
+  fireEvent.keyDown(approve,{key:'z'})
   const panel=screen.getByTestId('results');panel.hidden=true
   fireEvent.keyDown(approve,{key:'r'})
   expect(durableRequest).not.toHaveBeenCalled()
@@ -30,6 +31,34 @@ it('ignores review keys outside Results, while hidden, and on repeat',async()=>{
   fireEvent.keyDown(approve,{key:'a'})
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/value',expect.objectContaining({action:'APPROVED'})))
   view.unmount()
+})
+
+it('cancels editing before leaving one-by-one and restores heading keyboard focus',async()=>{
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'First title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:2,toCheck:2,approved:0,edited:0,rejected:0},values:[value,{...value,id:'next',modelValue:'Next title'}],total:2,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:2,inFlight:0}},page} as never)
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt}
+    document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  const heading=screen.getByRole('heading',{name:'First title'})
+  expect(heading).toHaveFocus()
+  fireEvent.keyDown(heading,{key:'e'})
+  fireEvent.keyDown(screen.getByRole('textbox',{name:'Reviewed value'}),{key:'Escape'})
+  expect(screen.queryByRole('textbox',{name:'Reviewed value'})).toBeNull()
+  expect(screen.getByRole('heading',{name:'First title'})).toHaveFocus()
+  fireEvent.keyDown(screen.getByRole('heading',{name:'First title'}),{key:'e'})
+  const save=screen.getByRole('button',{name:'Save edit and next'});save.focus()
+  fireEvent.keyDown(save,{key:'j'})
+  expect(screen.getByRole('textbox',{name:'Reviewed value'})).toBeVisible()
+  fireEvent.keyDown(save,{key:'Escape'})
+  expect(screen.queryByRole('textbox',{name:'Reviewed value'})).toBeNull()
+  const restored=screen.getByRole('heading',{name:'First title'})
+  expect(restored).toHaveFocus()
+  fireEvent.keyDown(restored,{key:'j'})
+  expect(screen.getByRole('heading',{name:'Next title'})).toHaveFocus()
+  expect(durableRequest).not.toHaveBeenCalled()
 })
 
 it('keeps an open draft during snapshot changes and starts a new editor for an explicitly selected model version',async()=>{

@@ -33,7 +33,7 @@ function ValueReview({id,projectId,sourceDocumentId,value,snapshotVersion,docume
   const [state,send]=useMachine(durableReviewMachine,{input:{extractionId:id,value,snapshotVersion}})
   const [editing,setEditing]=useState(false)
   const headingRef=useRef<HTMLHeadingElement>(null)
-  useEffect(()=>{if(focus)headingRef.current?.focus({preventScroll:true})},[focus])
+  useEffect(()=>{if(focus&&!editing)headingRef.current?.focus({preventScroll:true})},[focus,editing])
   useEffect(()=> {if(state.matches('saved')) onSaved()},[state,onSaved])
   const row=durableRailRow(state.context.value,document)
   const busy=state.matches('saving')||state.matches('reloading')||state.matches('undoing')
@@ -52,6 +52,10 @@ function ValueReview({id,projectId,sourceDocumentId,value,snapshotVersion,docume
       if(event.defaultPrevented||event.repeat||root.closest('[hidden]')||event.ctrlKey||event.metaKey||event.altKey||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
       const key=event.key.toLowerCase()
       if(!['a','e','r','j','k','z','escape'].includes(key))return
+      if(editing) {
+        if(key==='escape'){event.preventDefault();event.stopPropagation();setEditing(false)}
+        return
+      }
       event.preventDefault();event.stopPropagation()
       if(key==='j')onNext()
       else if(key==='k')onPrevious()
@@ -59,7 +63,7 @@ function ValueReview({id,projectId,sourceDocumentId,value,snapshotVersion,docume
       else if(key==='z'&&!editing&&row.kind!=='to-check')send({type:'undo'})
       else if(row.kind==='to-check'&&!editing) {
         if(key==='e')setEditing(true)
-        else decide(key==='a'?'APPROVED':'REJECTED')
+        else if(key==='a'||key==='r')decide(key==='a'?'APPROVED':'REJECTED')
       }
     }
     root.addEventListener('keydown',keys)
