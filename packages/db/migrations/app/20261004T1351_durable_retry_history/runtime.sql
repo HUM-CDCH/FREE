@@ -132,12 +132,10 @@ REVOKE ALL ON FUNCTION extraction_runtime.read_attempt_outcome(uuid,uuid) FROM P
 
 -- Deletion fences worker writes in the SAME transaction as the public cascade.
 -- The definer uses OLD.id and never reads public or either DBOS schema.
-GRANT DELETE ON extraction_runtime."legacyIdentity" TO free_extraction_runtime;
 CREATE FUNCTION extraction_runtime.fence_deleted_extraction() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog
 AS $$ BEGIN
   UPDATE extraction_runtime.head SET deleted=true,intent='STOP',"pendingResume"=false,"pendingSelectionId"=NULL WHERE id=OLD.id;
-  DELETE FROM extraction_runtime."legacyIdentity" WHERE "extractionId"=OLD.id;
   RETURN OLD;
 END $$;
 ALTER FUNCTION extraction_runtime.fence_deleted_extraction() OWNER TO free_extraction_runtime;

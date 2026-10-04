@@ -10,8 +10,7 @@ export function fieldMeaning(node: SchemaNode): string {
   return createHash('sha256').update(stableJson(meaning)).digest('hex')
 }
 /** Rename object keys by stable child IDs; preserve the original decision. */
-export function adaptedCorrection(source:SchemaNode|undefined,target:SchemaNode,value:unknown):unknown {
-  if(!source) return correctionValueFits(target,value)?value:undefined
+export function adaptedCorrection(source:SchemaNode,target:SchemaNode,value:unknown):unknown {
   if(fieldMeaning(source)!==fieldMeaning(target))return undefined
   if(value===null)return null
   const remap=(original:SchemaNode,destination:SchemaNode,raw:unknown):unknown=> {
@@ -35,7 +34,7 @@ export function correctionValueFits(node: SchemaNode, value: unknown): boolean {
   return value !== undefined && schemaNodesToZod([node]).safeParse({ [node.name]: value }).success
 }
 export type FeedbackExample = {
-  id: string; fieldId: string; meaning: string; value: unknown; sourceContext: string; grounded: boolean; node?: SchemaNode
+  id: string; fieldId: string; meaning: string; value: unknown; sourceContext: string; grounded: boolean; node: SchemaNode
 }
 export function selectFeedback(input: {
   nodes: readonly SchemaNode[]; candidates: readonly FeedbackExample[];
@@ -56,7 +55,4 @@ export function selectFeedback(input: {
     examples.push(candidate)
   }
   return { examples, omissions }
-}
-export function legacyValueId(extractionId: string, artifactDigest: string, path: readonly (string | number)[]): string {
-  return createHash('sha256').update(stableJson(['legacy', extractionId, artifactDigest, path])).digest('hex')
 }

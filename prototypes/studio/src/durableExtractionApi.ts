@@ -9,8 +9,7 @@ export async function durableRequest<T>(url:string,body?:unknown,signal?:AbortSi
 }
 export const durableRoot=(id:string)=>`/api/extractions/${id}/durable`
 export async function readDurable(id:string,signal?:AbortSignal) {
-  const state=await durableRequest<DurableRead|{protocol:0}>(durableRoot(id),undefined,signal)
-  if(state.protocol!==1) return null
+  const state=await durableRequest<DurableRead>(durableRoot(id),undefined,signal)
   const page=await durableRequest<DurablePage>(`${durableRoot(id)}/values`,undefined,signal)
   return {state,page}
 }

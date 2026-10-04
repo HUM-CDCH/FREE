@@ -279,20 +279,6 @@ export default class M extends Migration<Start, End> {
       }),
       this.createTable({
         schema: 'extraction_runtime',
-        table: 'legacyIdentity',
-        columns: [
-          col('artifactDigest', 'text', { notNull: true, codecRef: { codecId: 'pg/text@1' } }),
-          col('extractionId', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('id', 'text', { notNull: true, codecRef: { codecId: 'pg/text@1' } }),
-          col('path', 'jsonb', { notNull: true, codecRef: { codecId: 'pg/jsonb@1' } }),
-        ],
-        constraints: [primaryKey(['id'])],
-      }),
-      this.createTable({
-        schema: 'extraction_runtime',
         table: 'plan',
         columns: [
           col('digest', 'text', { notNull: true, codecRef: { codecId: 'pg/text@1' } }),
@@ -485,12 +471,6 @@ export default class M extends Migration<Start, End> {
         table: 'head',
         index: 'head_projectId_idx',
         columns: ['projectId'],
-      }),
-      this.createIndex({
-        schema: 'extraction_runtime',
-        table: 'legacyIdentity',
-        index: 'legacyIdentity_extractionId_idx',
-        columns: ['extractionId'],
       }),
       this.createIndex({
         schema: 'extraction_runtime',

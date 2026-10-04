@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useMachine } from '@xstate/react'
 import type { DurablePage, DurableRead, DurableHistory } from 'extraction/durable-types'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -87,11 +87,11 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number)=>void}) 
   </details>
 }
 
-/** Protocol-aware live review in the existing results rail. All lifecycle states
+/** Durable live review in the existing results rail. All lifecycle states
  * share the same retained snapshot and independent researcher decisions. */
-export function DurableResults({attempt,document,currentSchema,onEvidence,fallback,readOnly=false}:{attempt:ExtractionAttempt|null;document:ParsedDocument|null;currentSchema:string|null;onEvidence:(id:string)=>void;fallback:ReactNode;readOnly?:boolean}) {
+export function DurableResults({attempt,document,currentSchema,onEvidence,readOnly=false}:{attempt:ExtractionAttempt|null;document:ParsedDocument|null;currentSchema:string|null;onEvidence:(id:string)=>void;readOnly?:boolean}) {
   const id=attempt?.extractionId
-  const [loaded,setLoaded]=useState<Awaited<ReturnType<typeof readDurable>>>(null)
+  const [loaded,setLoaded]=useState<Awaited<ReturnType<typeof readDurable>>|null>(null)
   const [page,setPage]=useState<DurablePage|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
   const [editing,setEditing]=useState(false),[review,setReview]=useState<{value:Value;version:number}|null>(null)
   const [reprocess,setReprocess]=useState<Set<string>>(()=>new Set()),[notice,setNotice]=useState<string|null>(null)
@@ -100,7 +100,7 @@ export function DurableResults({attempt,document,currentSchema,onEvidence,fallba
     if(!id) return
     const next=await readDurable(id,signal)
     if(signal?.aborted) return
-    setLoaded(next);setPage(previous=>previous??next?.page??null);setError(null)
+    setLoaded(next);setPage(previous=>previous??next.page);setError(null)
   },[id])
   useEffect(()=> {
     const controller=new AbortController();let timer:ReturnType<typeof setTimeout>
@@ -108,7 +108,7 @@ export function DurableResults({attempt,document,currentSchema,onEvidence,fallba
       if(!controller.signal.aborted)timer=setTimeout(()=>void poll(),1500)}
     void poll();return()=> {controller.abort();clearTimeout(timer)}
   },[refresh])
-  if(!loaded||!page||!attempt||!id) return <>{fallback}</>
+  if(!loaded||!page||!attempt||!id) return <p role={error?'alert':'status'} className="p-3 text-secondary">{error??'Loading saved extraction results…'}</p>
   const state=loaded.state,terminal=state.status==='STOPPED'||state.status==='STOPPING'
   const idle=['PAUSED','FAILED','COMPLETED'].includes(state.status)
   const command=async(action:string)=> {

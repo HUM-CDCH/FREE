@@ -84,8 +84,8 @@ async function cancelInteractiveExtraction(
   researcherAccountId: string,
   extractionId: string,
 ): Promise<CancellationResult> {
-  // Protocol 1 has its own fenced Stop command. The legacy settlement writer
-  // must not change its public outcome or cancel a native call during drain.
+  // Durable execution accepts only its fenced Stop command; cancellation
+  // through this entrypoint would bypass drain and saved-result protection.
   if ((await readRuntimeHeads(database.orm, [extractionId])).has(extractionId)) return 'not-found'
   const written = await database.transaction(async (transaction) => {
     if (!(await ownsResearcherExtraction(transaction, researcherAccountId, extractionId))) return 'not-found' as const

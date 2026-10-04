@@ -485,45 +485,6 @@
     ]
   },
   {
-    "id": "table.legacyIdentity",
-    "label": "Create table \"legacyIdentity\"",
-    "summary": "Creates table \"legacyIdentity\"",
-    "operationClass": "additive",
-    "target": {
-      "id": "postgres",
-      "details": {
-        "schema": "extraction_runtime",
-        "objectType": "table",
-        "name": "legacyIdentity"
-      }
-    },
-    "precheck": [
-      {
-        "description": "ensure table \"legacyIdentity\" does not exist",
-        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
-        "params": [
-          "\"extraction_runtime\".\"legacyIdentity\""
-        ]
-      }
-    ],
-    "execute": [
-      {
-        "description": "create table \"legacyIdentity\"",
-        "sql": "CREATE TABLE \"extraction_runtime\".\"legacyIdentity\" (\n  \"artifactDigest\" text NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"id\" text NOT NULL,\n  \"path\" jsonb NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
-        "params": []
-      }
-    ],
-    "postcheck": [
-      {
-        "description": "verify table \"legacyIdentity\" exists",
-        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
-        "params": [
-          "\"extraction_runtime\".\"legacyIdentity\""
-        ]
-      }
-    ]
-  },
-  {
     "id": "table.plan",
     "label": "Create table \"plan\"",
     "summary": "Creates table \"plan\"",
@@ -1437,44 +1398,6 @@
         "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
         "params": [
           "\"extraction_runtime\".\"head_projectId_idx\""
-        ]
-      }
-    ]
-  },
-  {
-    "id": "index.legacyIdentity.legacyIdentity_extractionId_idx",
-    "label": "Create index \"legacyIdentity_extractionId_idx\" on \"legacyIdentity\"",
-    "operationClass": "additive",
-    "target": {
-      "id": "postgres",
-      "details": {
-        "schema": "extraction_runtime",
-        "objectType": "index",
-        "name": "legacyIdentity_extractionId_idx",
-        "table": "legacyIdentity"
-      }
-    },
-    "precheck": [
-      {
-        "description": "ensure index \"legacyIdentity_extractionId_idx\" does not exist",
-        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
-        "params": [
-          "\"extraction_runtime\".\"legacyIdentity_extractionId_idx\""
-        ]
-      }
-    ],
-    "execute": [
-      {
-        "description": "create index \"legacyIdentity_extractionId_idx\"",
-        "sql": "CREATE INDEX \"legacyIdentity_extractionId_idx\" ON \"extraction_runtime\".\"legacyIdentity\" (\"extractionId\")"
-      }
-    ],
-    "postcheck": [
-      {
-        "description": "verify index \"legacyIdentity_extractionId_idx\" exists",
-        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
-        "params": [
-          "\"extraction_runtime\".\"legacyIdentity_extractionId_idx\""
         ]
       }
     ]

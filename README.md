@@ -233,14 +233,15 @@ The protocol-1 implementation is an admission-disabled candidate governed by
 [ADR 0017](docs/adr/0017-durable-extraction-control-and-call-checkpoints.md) and
 [its release matrix](docs/plans/2026-10-04-durable-interactive-extraction-release.md).
 `DURABLE_RELEASE_VERIFIED` remains false; environment configuration alone cannot
-admit it. Existing Extractions keep their legacy execution and review semantics.
+admit it. This pre-production feature adds no historical extraction migration or
+compatibility layer.
 
 A protocol-1 Extraction retains one visible identity across Pause, Resume and
 Retry. Pause drains and saves admitted calls before becoming Paused; Stop is
 terminal and retains saved data. Its application-owned coordination state
 expresses control and immutable progress; DBOS still dispatches and recovers
-linked attempts. This is the Extraction-specific amendment to the legacy
-DBOS-derived status contract, not a second scheduler.
+linked attempts. This is the Extraction-specific amendment to the
+DBOS-derived status contract, with DBOS retaining execution and dispatch.
 
 Producing schema revisions, methods, exact call inputs, outputs and correction
 history remain immutable. Revised inputs are saved separately and adopted only
@@ -252,9 +253,9 @@ the correction's own source; incompatible corrections remain historical and do
 not enter the consuming target's context. No automatic guidance-conflict
 classification is performed.
 
-The existing schema-pinned admission, running Review Draft and settled-artifact
-contracts below continue to apply to protocol-0 Extractions. New protocol-1
-admissions remain disabled through integration with the review redesign,
+The existing extraction implementation remains available while this candidate’s
+admissions are disabled. Durable admission stays disabled through integration
+with the review redesign,
 guarded release checks, and required E2E verification on baratheon Spark.
 
 

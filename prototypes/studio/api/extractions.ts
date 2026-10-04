@@ -27,9 +27,6 @@ import {
   keiExpClient,
 } from './_extractions.js'
 import { methodRefusal } from './_method_refusals.js'
-import { randomUUID } from 'node:crypto'
-import { createDurableRepository } from 'extraction/durable'
-import { requestDurableReconciliation } from '../server/durable-extraction-workflow.js'
 
 const COLLECTION_ROUTE = '/api/extractions'
 const ITEM_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)$/
@@ -173,13 +170,6 @@ export function createResearcherApiHandlers(
   }
 
   async function cancel(extractionId: string): Promise<Response> {
-    const durable=createDurableRepository(store.researcherAccountId)
-    if((await module.readExtractionAttempt(extractionId))?.durable) {
-      const state=await durable.read(extractionId)
-      await durable.command(extractionId,{id:randomUUID(),expectedVersion:state.controlVersion,action:'stop'})
-      await requestDurableReconciliation(`${extractionId}:stop:${state.controlVersion}`)
-      return json({extractionId},{status:202,headers:noStore})
-    }
     const outcome = await module.cancelSingle(extractionId)
     if (outcome !== 'cancellation-requested')
       throw new ApiError(

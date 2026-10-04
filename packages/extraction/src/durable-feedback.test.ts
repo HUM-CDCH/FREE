@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { adaptedCorrection, correctionValueFits, fieldMeaning, legacyValueId, selectFeedback } from './durable-feedback.js'
+import { adaptedCorrection, correctionValueFits, fieldMeaning, selectFeedback } from './durable-feedback.js'
 import type { SchemaNode } from './schema.js'
 
 const text: SchemaNode = { id:'field-1', name:'title', type:'string', description:'A work title' }
 test('compatibility preserves renames and excludes changed meaning or type for each target', () => {
-  const candidate = {id:'c1',fieldId:text.id,meaning:fieldMeaning(text),value:'A corrected title',sourceContext:'Own source',grounded:false}
+  const candidate = {id:'c1',fieldId:text.id,meaning:fieldMeaning(text),value:'A corrected title',sourceContext:'Own source',grounded:false,node:text}
   const select = (node:SchemaNode) => selectFeedback({nodes:[node],candidates:[candidate],fits:()=>true})
   assert.deepEqual(select({...text,name:'work_title'}).examples,[candidate])
   assert.equal(select({id:text.id,name:text.name,description:text.description,type:'number'}).examples.length,0)
@@ -26,11 +26,9 @@ test('nested renames and presentation order preserve meaning and adapt typed obj
   assert.deepEqual(adaptedCorrection(original,renamed,[{title:'Book',included:false}]),[{work_title:'Book',selected:false}])
   assert.equal(adaptedCorrection(original,{...renamed,children:[{id:text.id,name:text.name,description:text.description,type:'number'}]},[{title:'Book',included:false}]),undefined)
 })
-test('oversize examples are omitted whole with a reason and stable legacy identities bind to the artifact', () => {
-  const candidate = {id:'c1',fieldId:text.id,meaning:fieldMeaning(text),value:'Long text',sourceContext:'Own source',grounded:false}
+test('oversize examples are omitted whole with a reason', () => {
+  const candidate = {id:'c1',fieldId:text.id,meaning:fieldMeaning(text),value:'Long text',sourceContext:'Own source',grounded:false,node:text}
   assert.deepEqual(selectFeedback({nodes:[text],candidates:[candidate],fits:()=>false}),{examples:[],omissions:[{id:'c1',reason:'budget'}]})
-  assert.equal(legacyValueId('e','digest',['records',0,'title']),legacyValueId('e','digest',['records',0,'title']))
-  assert.notEqual(legacyValueId('e','digest',['records',0,'title']),legacyValueId('e','another',['records',0,'title']))
 })
 
 test('child ordering uses the same UTF-8 order as the Python planner',()=> {

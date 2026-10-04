@@ -147,7 +147,7 @@ def test_capture_freezes_guidance_before_provider_and_pause_refuses_new_units():
     node={"id":"field","name":"title","type":"string"}
     lease=MemoryLease({"recordDescription":"document","schemaNodes":[node]})
     candidate={"id":"correction","fieldId":"field","meaning":digest({"type":"string"}),
-               "value":"corrected without Evidence","grounded":False}
+               "value":"corrected without Evidence","grounded":False,"node":node}
     lease.candidates=[{"id":"revision","candidate":candidate}]
     chat=CountingChat(lambda *_:{"title":"target"});chat.max_tokens=10
     args=dict(stage="record",record=0,system="Read target only",user="source",schema={"type":"object"})
@@ -202,7 +202,7 @@ def test_native_input_captures_schema_guidance_without_adding_source_facts(monke
     node={"id":"field","name":"title","type":"string"}
     lease=MemoryLease({"recordDescription":"document","schemaNodes":[node]})
     lease.candidates=[{"id":"revision","candidate":{"id":"example","fieldId":"field","meaning":digest({"type":"string"}),
-      "value":"corrected pattern","grounded":False}}]
+      "value":"corrected pattern","grounded":False,"node":node}}]
     info={"identity":{"model":"native-v1"},"max_input_tokens":10000}
     backend=GLiFormerFields("http://unused",pinned_info=info)
     monkeypatch.setattr(NativeCounter,"request_tokens",lambda self,s,u,schema:len(u)+len(str(schema)))

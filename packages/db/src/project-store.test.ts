@@ -456,7 +456,7 @@ function fakeDatabase(
   })
   return {
     tables,
-    orm: {...orm,extraction_runtime:{Head:orm.public.Head,ArtifactReference:orm.public.ArtifactReference}},
+    orm: {...orm,extraction_runtime:{Head:collection('Head'),ArtifactReference:collection('ArtifactReference')}},
     transaction: async <T>(
       run: (tx: {
         orm: typeof orm

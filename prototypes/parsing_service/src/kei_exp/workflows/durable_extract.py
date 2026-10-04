@@ -1,4 +1,4 @@
-"""New named workflows; the legacy extract/extract_run sequence is unchanged.
+"""Named durable workflows; existing extract/extract_run steps are unchanged.
 
 A planning step yields immutable captures. One child workflow and step per
 provider request preserves outputs across the coordination/DBOS ack gap.
@@ -181,7 +181,7 @@ def plan_next(extraction: str, attempt: str) -> dict:
         directory = runs.directory_of(source["runId"])
         if directory is None:
             raise ValueError("pinned source is unavailable")
-        # No legacy progress files or cache are read as durable checkpoints.
+        # Only committed durable outputs are reusable checkpoints.
         # Each new-protocol pipeline derives its work from exact call outputs.
         evidence = load(directory)
         if evidence.generation != source["generation"]:

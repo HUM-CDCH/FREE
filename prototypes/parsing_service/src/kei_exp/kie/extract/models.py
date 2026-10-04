@@ -91,7 +91,7 @@ class Router:
     """The backend each role uses. `model` names the fields model that read the values."""
     fields: Chat | GLiFormerFields
     reasoning: Chat
-    runtime: object | None = None  # protocol-specific call adapter; legacy routing has none
+    runtime: object | None = None  # durable call capture adapter
 
     def for_stage(self, stage: str) -> Chat:
         role = ROLE.get(stage)

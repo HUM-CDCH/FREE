@@ -6,6 +6,7 @@ export type ExtractionDisposition = 'created' | 'replayed'
 export type BatchDisposition = 'created' | 'replayed'
 export type BatchRepetition = 'reuse-equal-selection' | 'create-new'
 export type ProjectOperationStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+export type ExtractionExecutionStatus = ProjectOperationStatus | 'PAUSING' | 'PAUSED' | 'STOPPING' | 'STOPPED'
 
 export type ScalarFieldType = SchemaScalarFieldType
 export type ExtractionSchemaNode = SchemaNode
@@ -290,7 +291,7 @@ export type ExtractionAttemptSnapshot = Readonly<{
    *  null or absent when the run predates recorded settings ("Not recorded"). */
   requestedSettings?: ActiveSettings | null
   durable?: true
-  executionStatus: ProjectOperationStatus
+  executionStatus: ExtractionExecutionStatus
   /** SUCCEEDED once published; a failed, cancelled or interrupted attempt is FAILED with its failure instead. */
   outcome: 'SUCCEEDED' | null
   complete: boolean | null
@@ -351,8 +352,7 @@ export type BatchExtractionMemberSnapshot = Readonly<{
   durableExtractionId?:string
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
-  durable?: true
-  executionStatus: ProjectOperationStatus
+  executionStatus: ExtractionExecutionStatus
   /** Why the member failed, was cancelled or was interrupted; null unless its status is FAILED. */
   failureMessage: string | null
   /** The member's published Extraction; a member that failed has none. */
@@ -375,7 +375,6 @@ export type BatchExtractionSnapshot = Readonly<{
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
   /** QUEUED while every member is, COMPLETED once every member has settled, RUNNING otherwise; never FAILED. */
-  durable?: true
   executionStatus: ProjectOperationStatus
   createdAt: Date
   members: readonly BatchExtractionMemberSnapshot[]
@@ -424,7 +423,6 @@ export type BatchExtractionResultItem = Readonly<{
 
 export type BatchExtractionResults = Readonly<{
   batchExtractionId: string
-  durable?: true
   executionStatus: ProjectOperationStatus
   totalMembers: number
   successfulResults: number

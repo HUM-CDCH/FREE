@@ -19,7 +19,7 @@ import type {
   ExtractionFailure,
   ExtractionSnapshot,
   ExtractionStrategy,
-  ProjectOperationStatus,
+  ExtractionExecutionStatus,
   ReadDocumentExtractionsInput,
 } from './types.js'
 
@@ -63,7 +63,7 @@ export type AttemptRow = Awaited<ReturnType<typeof readAttemptRows>>[number]
 /** A row and how its work stands: from its outcome, or else from its workflow's DBOS status. */
 type DerivedAttempt = Readonly<{
   row: AttemptRow
-  executionStatus: ProjectOperationStatus
+  executionStatus: ExtractionExecutionStatus
   failure: ExtractionFailure | null
   durable?: true
 }>
@@ -106,8 +106,7 @@ export async function deriveAttempts(
     const row = reloaded.get(read.id) ?? read
     const head = heads.get(row.id)
     if (head) {
-      const status=durableStatus(head)
-      const executionStatus=status==='COMPLETED'?'COMPLETED':status==='FAILED'||status==='STOPPED'?'FAILED':status==='QUEUED'?'QUEUED':'RUNNING'
+      const executionStatus=durableStatus(head)
       derived.set(row.id,{row,executionStatus,failure:null,durable:true})
       continue
     }
@@ -126,19 +125,8 @@ export async function deriveAttempts(
 
 export async function readRuntimeHeads(orm: DatabaseOrm, ids: readonly string[]) {
   if (!ids.length) return new Map()
-  try {
-    const heads=await orm.extraction_runtime.Head.where(row=>row.id.in([...ids])).all()
-    return new Map(heads.filter(h=>!h.deleted).map(h=>[h.id,durableHeadSchema.parse(h)]))
-  } catch (error) {
-    // An older pre-expansion database has only legacy capabilities. All other
-    // errors, including outages, retain normal unavailable semantics.
-    let cause: unknown=error
-    while(cause && typeof cause==='object') {
-      if ('code' in cause && cause.code==='42P01') return new Map()
-      cause='cause' in cause?cause.cause:null
-    }
-    throw error
-  }
+  const heads=await orm.extraction_runtime.Head.where(row=>row.id.in([...ids])).all()
+  return new Map(heads.filter(h=>!h.deleted).map(h=>[h.id,durableHeadSchema.parse(h)]))
 }
 
 async function pinsOf(orm: DatabaseOrm, row: AttemptRow) {

@@ -59,33 +59,33 @@ describe('durable retained exports',()=> {
    expect(urls).toHaveLength(2)
    expect(urls.every(url=>url.includes('snapshotVersion=1')&&url.includes('feedbackVersion=2'))).toBe(true)
  })
- it('exports mixed batches with all member states and independent producing schemas',async()=> {
+ it('exports durable batches with all member states and independent producing schemas',async()=> {
    const members=[
      {extractionId:'extraction',sourceDocumentId:'one',sourceRevisionId:'source',status:'RUNNING',failureMessage:null},
      {extractionId:'second',sourceDocumentId:'two',sourceRevisionId:'second-source',status:'FAILED',failureMessage:'Provider failed'},
      {extractionId:null,sourceDocumentId:'pending',sourceRevisionId:'pending-source',status:'QUEUED',failureMessage:null},
-     {extractionId:'legacy',sourceDocumentId:'old',sourceRevisionId:'old-source',status:'COMPLETED',failureMessage:null},
    ]
    const second={...fixed,state:{...fixed.state,extractionId:'second',sourceRevisionId:'second-source'},
      page:{...fixed.page,snapshotVersion:4,feedbackVersion:9,status:'FAILED'}} as Fixed
    const secondValues=[{...values[0],selectionId:'numeric-selection',schemaRevisionId:'numeric-revision',modelValue:42}] as unknown as Fixed['page']['values']
-   const legacy=[{extractionId:'legacy',sourceDocumentId:'old',result:{records:[{flag:true}]}}]
    for(const format of ['csv','xlsx'] as const) {
      const blob=await durableBatchExportBlob('batch',members,[{fixed,values:fixed.page.values,member:members[0]},
-       {fixed:second,values:secondValues,member:members[1]}],legacy,format)
+       {fixed:second,values:secondValues,member:members[1]}],format)
      let body:Record<string,unknown>
      if(format==='csv') {
        const files=unzipSync(new Uint8Array(await blob.arrayBuffer()))
        body=JSON.parse(strFromU8(files['snapshot.json']))
        expect(strFromU8(files['processing.csv'])).toContain('pending-source')
+       expect(files['legacy.csv']).toBeUndefined()
        expect(strFromU8(files['results.csv'])).toContain('numeric-revision')
      } else {
        const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await blob.arrayBuffer())
        const chunks:string[]=[];workbook.getWorksheet('Provenance')!.eachRow((row,index)=>{if(index>1)chunks.push(String(row.getCell(2).value))})
        body=decodeProvenance(chunks)
-       expect(workbook.getWorksheet('Processing')!.rowCount).toBe(5)
+       expect(workbook.getWorksheet('Processing')!.rowCount).toBe(4)
+       expect(workbook.getWorksheet('Legacy results')).toBeUndefined()
      }
-     expect(body.totalMembers).toBe(4);expect(body.members).toEqual(members);expect(body.legacy).toEqual(legacy)
+     expect(body.totalMembers).toBe(3);expect(body.members).toEqual(members)
      const saved=body.durable as {manifest:{snapshotVersion:number;feedbackVersion:number};values:typeof values}[]
      expect(saved.map(s=>s.manifest.snapshotVersion)).toEqual([1,4])
      expect(saved.map(s=>s.manifest.feedbackVersion)).toEqual([2,9])

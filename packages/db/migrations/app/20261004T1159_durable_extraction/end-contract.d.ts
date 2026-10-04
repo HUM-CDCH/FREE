@@ -30,7 +30,7 @@ import type {
 } from '@prisma-next/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'sha256:b5299b4307e640e0053c57c024bba7404c72a9849137d5d19d267443afcfc8c4'>;
+  StorageHashBase<'sha256:edce89f0f80d49aaea60cc73d94d891629cf1661d78f3c4851e02e7f3538cd38'>;
 export type ExecutionHash =
   ExecutionHashBase<'sha256:935ac442569cf119b4cc12b4db9bd78853aa51606e8aff919ff4c91af0967818'>;
 export type ProfileHash =
@@ -151,12 +151,6 @@ export type FieldOutputTypes = {
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly digest: CodecTypes['pg/text@1']['output'];
       readonly request: CodecTypes['pg/jsonb@1']['output'];
-    };
-    readonly LegacyIdentity: {
-      readonly id: CodecTypes['pg/text@1']['output'];
-      readonly extractionId: CodecTypes['pg/uuid@1']['output'];
-      readonly artifactDigest: CodecTypes['pg/text@1']['output'];
-      readonly path: CodecTypes['pg/jsonb@1']['output'];
     };
     readonly Plan: {
       readonly id: CodecTypes['pg/uuid@1']['output'];
@@ -446,12 +440,6 @@ export type FieldInputTypes = {
       readonly digest: CodecTypes['pg/text@1']['input'];
       readonly request: CodecTypes['pg/jsonb@1']['input'];
     };
-    readonly LegacyIdentity: {
-      readonly id: CodecTypes['pg/text@1']['input'];
-      readonly extractionId: CodecTypes['pg/uuid@1']['input'];
-      readonly artifactDigest: CodecTypes['pg/text@1']['input'];
-      readonly path: CodecTypes['pg/jsonb@1']['input'];
-    };
     readonly Plan: {
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly extractionId: CodecTypes['pg/uuid@1']['input'];
@@ -740,12 +728,6 @@ export type StorageColumnTypes = {
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly request: CodecTypes['pg/jsonb@1']['output'];
     };
-    readonly legacyIdentity: {
-      readonly artifactDigest: CodecTypes['pg/text@1']['output'];
-      readonly extractionId: CodecTypes['pg/uuid@1']['output'];
-      readonly id: CodecTypes['pg/text@1']['output'];
-      readonly path: CodecTypes['pg/jsonb@1']['output'];
-    };
     readonly plan: {
       readonly digest: CodecTypes['pg/text@1']['output'];
       readonly extractionId: CodecTypes['pg/uuid@1']['output'];
@@ -1033,12 +1015,6 @@ export type StorageColumnInputTypes = {
       readonly digest: CodecTypes['pg/text@1']['input'];
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly request: CodecTypes['pg/jsonb@1']['input'];
-    };
-    readonly legacyIdentity: {
-      readonly artifactDigest: CodecTypes['pg/text@1']['input'];
-      readonly extractionId: CodecTypes['pg/uuid@1']['input'];
-      readonly id: CodecTypes['pg/text@1']['input'];
-      readonly path: CodecTypes['pg/jsonb@1']['input'];
     };
     readonly plan: {
       readonly digest: CodecTypes['pg/text@1']['input'];
@@ -1956,35 +1932,6 @@ type ContractBase = Omit<
                   };
                 },
               ];
-            };
-            readonly legacyIdentity: {
-              columns: {
-                readonly id: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                };
-                readonly extractionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly artifactDigest: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                };
-                readonly path: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: false;
-                };
-              };
-              primaryKey: { readonly columns: readonly ['id'] };
-              uniques: readonly [];
-              indexes: readonly [{ readonly columns: readonly ['extractionId'] }];
-              foreignKeys: readonly [];
             };
             readonly plan: {
               columns: {
@@ -3450,10 +3397,6 @@ type ContractBase = Omit<
       readonly namespace: 'extraction_runtime' & NamespaceId;
       readonly model: 'Finalization';
     };
-    readonly legacyIdentity: {
-      readonly namespace: 'extraction_runtime' & NamespaceId;
-      readonly model: 'LegacyIdentity';
-    };
     readonly attempt: {
       readonly namespace: 'extraction_runtime' & NamespaceId;
       readonly model: 'Attempt';
@@ -4301,37 +4244,6 @@ type ContractBase = Omit<
                 readonly id: { readonly column: 'id' };
                 readonly digest: { readonly column: 'digest' };
                 readonly request: { readonly column: 'request' };
-              };
-            };
-          };
-          readonly LegacyIdentity: {
-            readonly fields: {
-              readonly id: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly extractionId: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly artifactDigest: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly path: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-            };
-            readonly relations: Record<string, never>;
-            readonly storage: {
-              readonly table: 'legacyIdentity';
-              readonly namespaceId: 'extraction_runtime';
-              readonly fields: {
-                readonly id: { readonly column: 'id' };
-                readonly extractionId: { readonly column: 'extractionId' };
-                readonly artifactDigest: { readonly column: 'artifactDigest' };
-                readonly path: { readonly column: 'path' };
               };
             };
           };

@@ -22,8 +22,8 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   const client=await source.connect()
   try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
   const repository=createDurableRepository(fixture.accountId,source)
-  assert.equal(await createDurableRepository(randomUUID(),source).capability(id),false)
   await assert.rejects(createDurableRepository(randomUUID(),source).read(id),DurableNotFound)
+  await assert.rejects(repository.read(fixture.extractions.article.failed),DurableNotFound)
   let state=await repository.read(id),head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
   const pause={id:randomUUID(),expectedVersion:state.controlVersion,action:'pause'}
   assert.deepEqual(await repository.command(id,pause),await repository.command(id,pause))
@@ -82,11 +82,12 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   assert.equal((await repository.page(id)).values[0].correction,null)
   await assert.rejects(repository.finalize(id,{snapshotVersion:4,feedbackVersion:4}),/Review each saved value/)
   const runtime=createDisposableRuntime(source),references=createGarbageReferences(runtime)
-  const legacyPersistence=createResearcherExtractionPersistence(fixture.accountId,{
-    enqueue:async()=>{throw new Error('Unexpected legacy admission')},statuses:async()=>new Map(),
+  const extractionPersistence=createResearcherExtractionPersistence(fixture.accountId,{
+    enqueue:async()=>{throw new Error('Unexpected extraction admission')},statuses:async()=>new Map(),
     cancel:async()=>{throw new Error('A durable native call must drain')},
   },{database:runtime})
-  assert.equal(await legacyPersistence.cancelExtraction(id),'not-found')
+  assert.equal((await extractionPersistence.readExtractionAttempt(id))?.executionStatus,'PAUSED')
+  assert.equal(await extractionPersistence.cancelExtraction(id),'not-found')
   assert.equal((await admin.query('SELECT outcome FROM public.extraction WHERE id=$1',[id])).rows[0].outcome,null)
   state=await repository.read(id)
   await repository.command(id,{id:randomUUID(),expectedVersion:state.controlVersion,action:'resume'})
@@ -135,6 +136,7 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   await repository.command(id,{id:randomUUID(),expectedVersion:state.controlVersion,action:'stop'})
   await reconcileDurableAttempts(async()=>{},source,async ids=>new Map(ids.map(id=>[id,'ERROR'])))
   assert.equal((await repository.read(id)).status,'STOPPED')
+  assert.equal((await extractionPersistence.readExtractionAttempt(id))?.executionStatus,'STOPPED')
   await assert.rejects(repository.command(id,{id:randomUUID(),expectedVersion:(await repository.read(id)).controlVersion,action:'resume'}),DurableConflict)
   const ref=representation.artifactReference
   assert.equal(await references.packageIsReferenced(ref),true)

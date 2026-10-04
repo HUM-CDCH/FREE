@@ -21,6 +21,7 @@ import type {
   ExtractionModelChoice,
   ExtractionStrategy,
   ProjectOperationStatus,
+  ExtractionExecutionStatus,
   ReadBatchInput,
   ResultPath,
   ReviewDecisionAction,
@@ -30,7 +31,7 @@ type BatchMember = Readonly<{
   durableExtractionId?:string
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
-  executionStatus: ProjectOperationStatus
+  executionStatus: ExtractionExecutionStatus
   executionFailure: ExtractionFailure | null
   latestExtraction: BatchExtractionSnapshot['members'][number]['latestExtraction']
   /** The member's Extraction as read, for its result. */
@@ -135,7 +136,7 @@ export async function loadBatches(
     const executionStatus: ProjectOperationStatus =
       members.length > 0 && members.every((member) => member.executionStatus === 'QUEUED')
         ? 'QUEUED'
-        : members.every((member) => member.executionStatus === 'COMPLETED' || member.executionStatus === 'FAILED')
+        : members.every((member) => member.executionStatus === 'COMPLETED' || member.executionStatus === 'FAILED' || member.executionStatus === 'STOPPED')
           ? 'COMPLETED'
           : 'RUNNING'
     loaded.push({

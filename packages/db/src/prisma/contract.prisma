@@ -17,8 +17,7 @@ model ResearcherAccount {
   @@unique([tenantId, objectId])
 }
 
-// Protocol 1 is an additive capability. Absence of a Head means the legacy
-// Extraction and its DBOS outcome remain authoritative. No legacy pins change.
+// Durable control and immutable call/review history belong to each Extraction.
 namespace extraction_runtime {
   model Protocol {
     id Int @id
@@ -89,14 +88,6 @@ namespace extraction_runtime {
     createdAt Timestamptz6 @default(now())
     head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
     @@unique([extractionId, snapshotVersion, feedbackVersion])
-  }
-
-  model LegacyIdentity {
-    id String @id
-    extractionId Uuid
-    artifactDigest String
-    path Json
-    @@index([extractionId])
   }
 
   model Attempt {

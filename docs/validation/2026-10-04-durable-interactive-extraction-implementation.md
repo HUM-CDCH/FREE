@@ -8,6 +8,26 @@ Base: `db6f8b92` (`origin/dev`, includes the view-prioritized streaming client).
 Planning commit applied: `8be4bb805455afe9e64bc0a36b2b3f2fccf93ef6`.
 ADR 0016 and the existing review-redesign specification preserved from `94328e650d4655a6fd3a5fbbad0929b97e99c324`; conflicting status headers retain the implemented streaming work and the newer review decision.
 
+## Current scope: pre-production, no historical compatibility
+
+The user removed legacy/compatibility support on 2026-10-04. Historical-result
+readers and identities, failed-legacy upgrade Retry, protocol-0 fallback reads,
+Cancel-to-Stop translation, missing-schema and missing-candidate fallbacks, and
+mixed legacy exports are removed from the candidate. Durable Retry, immutable
+producing selections/reviews and mechanical target compatibility remain required.
+The two candidate migrations have not been deployed; their authored operations,
+contracts and hashes are regenerated without the historical identity table.
+Migrations preceding this feature remain unchanged.
+
+The observations below retain the record of earlier candidate revisions. Their
+legacy-reader checks and proposed legacy work are superseded by this amendment;
+they are not current release requirements. The removal's current checks are
+recorded in the final section. All-feature Spark E2E and review-design integration
+remain outstanding; the user’s instruction to wait for the other agent remains
+in force. The independent integration-risk assessment is now available at
+`/tmp/free-durable-review-integration-risk.md`; its original compatibility
+recommendations must be reconciled with this later scope amendment.
+
 ## Persistence boundary
 
 The authored forward expansion adds only `extraction_runtime`; it does not
@@ -15,7 +35,7 @@ change public Extraction columns, original pins, artifacts, or review records.
 It stores immutable selections, effective configuration, plans, finalized
 inputs, checkpoints, retained snapshots, correction history, artifact
 references, and dispatch handoffs. Runtime Head rows identify the new capability;
-absence selects legacy readers. Worker privileges use an explicit routine
+durable endpoint reads require an owned Head, with no historical fallback. Worker privileges use an explicit routine
 allowlist. The definer has no application-schema privileges.
 
 Guarded check:
@@ -258,7 +278,63 @@ work: the workspace's old status badge still presents Paused as Running, and the
 mobile sidebar obscures part of the provisional rail. The new batch IDs and export
 helpers also still need to be connected to the redesigned member-review/export
 controls; legacy success-only controls do not yet expose every durable state.
-The failed-legacy new-protocol Retry flow and complete per-method/control/failure
-release matrix also require completion. These limitations keep the whole plan
+The complete per-method/control/failure release matrix also requires completion.
+The user removed failed-legacy upgrade Retry from scope on 2026-10-04. These limitations keep the whole plan
 unfinished and admissions OFF. The independent results-review implementation and
 the requested baratheon Spark runs remain pending; no remote testing has started.
+
+## Removal of historical compatibility (2026-10-04)
+
+Review base: `d5b1e0a9`; review boundary: removal of introduced historical
+compatibility, native lifecycle read contracts, and regenerated candidate
+migrations. The legacy result reader/test/export and its identity model/table
+are deleted. Durable GET requires an owned runtime Head (404 otherwise);
+missing schema is unavailable (503), never a protocol-0 response. Cancel no
+longer translates to Stop. Durable read errors remain in the durable view.
+Guidance and approvals require the current producing-node/model-digest contract.
+Batch exports contain durable snapshots without a legacy results companion.
+Native PAUSED/STOPPED states are exposed directly; STOPPED members are terminal.
+Durable Retry, mechanical target compatibility and all immutable history remain.
+
+Observed checks in the task-owned guarded environments:
+
+| Check | Observed result |
+| --- | --- |
+| Database / extraction unit | 85 / 231 passed |
+| Focused Studio API/review/export/rail | 8 files, 82 passed |
+| Full Studio unit | 171 files passed, 1 skipped; 2128 tests passed, 3 skipped |
+| Database / extraction / Studio typecheck | Passed |
+| Targeted Studio ESLint | Passed |
+| Prisma Next migration graph/artifact check | Passed |
+| Full guarded PostgreSQL: database | 56 passed |
+| Full guarded PostgreSQL: extraction | 110 passed; includes all five real SIGKILL recovery boundaries |
+| Full guarded PostgreSQL: Studio | 68 passed |
+| Python durable capture/retention/recovery unit | 22 passed, 5 PostgreSQL cases deselected |
+| Authenticated Chrome, own guarded disposable stack | 1 passed in 29.2 s |
+
+The PostgreSQL matrix uses `provisionDatabase`/`migrate` with explicit loopback
+`free_test_*` targets on the task-owned PostgreSQL container and private artifact
+state. Its temporary orchestration runners are
+`/tmp/free-durable-no-legacy-pg-matrix.mts` and
+`/tmp/free-durable-no-legacy-pg-recheck.mts`. They drop only their generated test
+databases. No runtime database or another session's stack is used. The first
+extraction run passed 109/110: an existing record-scope fixture invoked current
+readers before the runtime schema existed. The fixture now checks the scoped
+migration's unchanged bytes, completes startup migrations, and checks current
+read/replay preservation. No production schema fallback was restored. The full
+110-case rerun passed. The first local browser run hit the already observed
+Chrome `ERR_NETWORK_CHANGED` at workspace loading; its fresh run passed. That
+case now checks both a different owner's GET and correction POST return 404.
+The seeded Head bypasses no production gate and makes no real Parsing call.
+
+Both bounded read-only review axes have no outstanding removal finding;
+current documentation supersedes the historical compatibility requirements.
+Logs are retained under `/tmp/free-durable-extraction-evidence/` with the
+`free-durable-no-legacy-` prefix, plus the initial browser/PG failure logs.
+
+The results-review agent has now committed its Baratheon verification report on
+`feat/results-review-e-document` (`b4dc2f8f`, clarified in `f56f35bf`). That
+completion evidence satisfies the wait condition. Our own Spark E2E remains
+unrun; integration and guarded all-feature verification remain required.
+No remote Spark action was performed during this removal. Admissions remain
+hard OFF and nothing has been merged, deployed or enabled in production.

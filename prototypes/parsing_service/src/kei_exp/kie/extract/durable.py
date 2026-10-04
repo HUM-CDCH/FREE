@@ -233,8 +233,7 @@ class CapturePlanner:
                 nodes[node["id"]] = node
                 visit(node.get("children", []))
         visit(self.selection["schemaTree"]["schemaNodes"])
-        projected = [{**candidate, "value": adapt_value(candidate["node"], nodes[candidate["fieldId"]], candidate["value"])
-                      if candidate.get("node") else candidate["value"]} for candidate in examples]
+        projected = [{**candidate, "value": adapt_value(candidate["node"], nodes[candidate["fieldId"]], candidate["value"])} for candidate in examples]
         return ("\nResearcher correction examples (patterns only). Extract facts and Evidence solely from the target source; "
                 "these examples never supply target facts or anchors.\n" + canonical(projected))
 

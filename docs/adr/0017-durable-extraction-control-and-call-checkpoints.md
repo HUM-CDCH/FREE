@@ -8,6 +8,17 @@ The Parsing worker retains no access to the application `public` tables or Studi
 
 This direction will amend the Extraction-specific status authority in [0012](0012-one-durable-execution-layer.md) and extend the immutable selection rule in [0015](0015-extraction-method-pinned-at-admission.md) from one admission to each linked execution selection. It does not introduce another job scheduler, permit worker access to researcher account configuration, or weaken source Evidence requirements. Details and release conditions live in the [implementation specification](../plans/2026-10-04-durable-interactive-extraction-specification.md) and [migration/verification plan](../plans/2026-10-04-durable-interactive-extraction-release.md).
 
+## Pre-production scope amendment
+
+Scope amendment, 2026-10-04: the user confirmed this is pre-production and
+removed historical extraction compatibility from this feature. No legacy result
+reader/identity mapping, failed-legacy upgrade Retry, protocol-0 fallback,
+Cancel-to-Stop translation, or mixed-protocol export is required. Retry applies
+to durable attempts in the same Extraction. Immutable producing inputs,
+corrections, source Evidence, restricted coordination, and the admission gate
+remain required. This amendment supersedes the original planning map's legacy
+release requirements; it does not change the settled durable product decisions.
+
 ## Candidate implementation and integration status
 
 The candidate lives on `feat/durable-interactive-extraction`, based on current

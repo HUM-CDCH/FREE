@@ -57,14 +57,13 @@ export async function downloadDurableExport(fixed:Fixed,format:'xlsx'|'csv') {
   const values=await fixedDurableValues(fixed)
   download(await durableExportBlob(fixed,values,format),`extraction-${fixed.state.extractionId}-s${fixed.page.snapshotVersion}.${format==='xlsx'?'xlsx':'zip'}`)
 }
-/** Batch members keep independent snapshot and review cursors and attribution.
- * Legacy finalized results can coexist without pretending to be protocol 1. */
-export async function downloadDurableBatch(batchId:string,members:readonly BatchExportMember[],format:'xlsx'|'csv',legacy:()=>Promise<readonly {extractionId:string;sourceDocumentId:string;result:unknown}[]>):Promise<boolean> {
+/** Batch members keep independent snapshot and review cursors and attribution. */
+export async function downloadDurableBatch(batchId:string,members:readonly BatchExportMember[],format:'xlsx'|'csv'):Promise<boolean> {
   const durable:{state:DurableRead;page:DurablePage;member:BatchExportMember}[]=[]
   for(const member of members) {
     if(!member.extractionId)continue
     const loaded=await readDurable(member.extractionId)
-    if(loaded)durable.push({...loaded,member})
+    durable.push({...loaded,member})
   }
   if(!durable.length)return false
   const snapshots=[]
@@ -72,21 +71,19 @@ export async function downloadDurableBatch(batchId:string,members:readonly Batch
     const fixed={...loaded,history:await readDurableHistory(loaded.state.extractionId)}
     snapshots.push({fixed,values:await fixedDurableValues(fixed),member:loaded.member})
   }
-  const legacyResults=(await legacy()).filter(row=>!durable.some(d=>d.member.extractionId===row.extractionId))
-  download(await durableBatchExportBlob(batchId,members,snapshots,legacyResults,format),`batch-${batchId}.${format==='xlsx'?'xlsx':'zip'}`)
+  download(await durableBatchExportBlob(batchId,members,snapshots,format),`batch-${batchId}.${format==='xlsx'?'xlsx':'zip'}`)
   return true
 }
-export async function durableBatchExportBlob(batchId:string,members:readonly BatchExportMember[],snapshots:readonly BatchExportSnapshot[],legacyResults:readonly {extractionId:string;sourceDocumentId:string;result:unknown}[],format:'xlsx'|'csv'):Promise<Blob> {
+export async function durableBatchExportBlob(batchId:string,members:readonly BatchExportMember[],snapshots:readonly BatchExportSnapshot[],format:'xlsx'|'csv'):Promise<Blob> {
   const tables=snapshots.map(s=>durableExportTables(s.fixed,s.values)),columns=tables[0].results.columns
   const results:Table={columns:['Source Document',...columns],rows:snapshots.flatMap((s,index)=>tables[index].results.rows.map(row=>({'Source Document':s.member.sourceDocumentId,...row})))}
-  const legacyTable:Table={columns:['Extraction','Source Document','Finalized legacy result'],rows:legacyResults.map(row=>({'Extraction':row.extractionId,'Source Document':row.sourceDocumentId,'Finalized legacy result':encoded(row.result)}))}
-  const body={protocol:1,batchId,totalMembers:members.length,members,durable:snapshots.map(s=>({...s.member,...frozen(s.fixed,s.values)})),legacy:legacyResults,recall:'unmeasured'}
+  const body={protocol:1,batchId,totalMembers:members.length,members,durable:snapshots.map(s=>({...s.member,...frozen(s.fixed,s.values)})),recall:'unmeasured'}
   const processing:Table={columns:['Source Document','Extraction','State','Failure','Snapshot','Feedback version','Source revision','Coverage'],rows:members.map(member=>{
     const saved=snapshots.find(snapshot=>snapshot.member.sourceDocumentId===member.sourceDocumentId)
     return {'Source Document':member.sourceDocumentId,'Extraction':member.extractionId,'State':saved?.fixed.page.status??member.status,
       'Failure':member.failureMessage,'Snapshot':saved?.fixed.page.snapshotVersion??null,'Feedback version':saved?.fixed.page.feedbackVersion??null,
       'Source revision':saved?.fixed.state.sourceRevisionId??member.sourceRevisionId,'Coverage':saved?encoded(saved.fixed.page.coverage):null}
   })}
-  const blob=format==='xlsx'?await createXlsxBlob(workbookTable(results),[{sheet:'Legacy results',table:workbookTable(legacyTable)},{sheet:'Processing',table:workbookTable(processing)},{sheet:'Provenance',table:provenanceTable(body)}]):new Blob([new Uint8Array(zipSync({'results.csv':strToU8(serializeCsv(results)),'legacy.csv':strToU8(serializeCsv(legacyTable)),'processing.csv':strToU8(serializeCsv(processing)),'snapshot.json':strToU8(JSON.stringify(body))}))],{type:'application/zip'})
+  const blob=format==='xlsx'?await createXlsxBlob(workbookTable(results),[{sheet:'Processing',table:workbookTable(processing)},{sheet:'Provenance',table:provenanceTable(body)}]):new Blob([new Uint8Array(zipSync({'results.csv':strToU8(serializeCsv(results)),'processing.csv':strToU8(serializeCsv(processing)),'snapshot.json':strToU8(JSON.stringify(body))}))],{type:'application/zip'})
   return blob
 }

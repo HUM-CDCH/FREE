@@ -20,7 +20,7 @@ it('keeps an open draft during snapshot changes and starts a new editor for an e
   vi.mocked(readDurableHistory).mockResolvedValue({selections:[],snapshots:[{id:'one',version:1,values:oldPage.values},{id:'two',version:2,values:newPage.values}]} as never)
   vi.mocked(durableRequest).mockImplementation(async(url,body)=>body?{revision:1}:url.includes('snapshotVersion=1')?oldPage:newPage)
   const view=render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt}
-    document={null} currentSchema={null} onEvidence={()=>{}} fallback={null}/>)
+    document={null} currentSchema={null} onEvidence={()=>{}}/>)
   const summary=await screen.findByText('Saved history and producing inputs')
   const details=summary.closest('details')!;details.open=true;fireEvent(details,new Event('toggle'))
   fireEvent.click(await screen.findByRole('button',{name:'Open snapshot 1'}))
@@ -36,4 +36,11 @@ it('keeps an open draft during snapshot changes and starts a new editor for an e
   fireEvent.click(screen.getByRole('button',{name:'Save correction'}))
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/value',expect.objectContaining({snapshotVersion:2,value:43,action:'EDITED'})))
   view.unmount()
+})
+
+it('shows a durable read failure without rendering a different results implementation',async()=> {
+  vi.mocked(readDurable).mockRejectedValue(new Error('Saved results are unavailable.'))
+  render(<DurableResults attempt={{extractionId:'extraction'} as ExtractionAttempt} document={null}
+    currentSchema={null} onEvidence={()=>{}}/>)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Saved results are unavailable.')
 })

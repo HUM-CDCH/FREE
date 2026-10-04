@@ -45,6 +45,7 @@ test('saved live review survives reload, rejects another owner and exports its f
     const otherContext=await browser.newContext(),other=await otherContext.newPage()
     try {
       await loginResearcher(other,randomUUID())
+      expect((await other.request.get(`/api/extractions/${id}/durable`)).status()).toBe(404)
       const denied=await other.request.post(`/api/extractions/${id}/durable/values/title`,{data:{snapshotVersion:1,expectedRevision:1,action:'EDITED',value:'Another owner' ,included:true,evidence:[]},headers:{Origin:new URL(fixture.url,other.url()).origin}})
       expect(denied.status()).toBe(404)
     } finally {await otherContext.close()}

@@ -59,7 +59,7 @@ const batchExtractionMemberSchema = z
     durableExtractionId:canonicalUuidSchema.optional(),
     sourceDocumentId: canonicalUuidSchema,
     sourceRepresentationRevisionId: canonicalUuidSchema,
-    executionStatus: projectOperationStatusSchema,
+    executionStatus: z.enum(['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'COMPLETED', 'FAILED']),
     /** Why a FAILED member failed, was cancelled or was interrupted. */
     executionFailureMessage: z.string().nullable(),
     latestExtraction: z

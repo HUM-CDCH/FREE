@@ -19,7 +19,6 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
       if(!match) throw new ApiError(404,'not_found','API route not found.')
       const id=z.uuid().parse(match[1]), action=match[2]
       if(request.method==='GET') {
-        if(!await repository.capability(id)) return json({protocol:0},{headers:noStore})
         if(!action) return json(await repository.read(id),{headers:noStore})
         if(action==='history') return json(await repository.history(id),{headers:noStore})
         if(action==='values') {

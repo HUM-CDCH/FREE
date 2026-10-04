@@ -7,7 +7,7 @@ import { ensureKeiRole, EXTRACTION_RUNTIME_ROUTINES } from './kei-role.js'
 
 const baseUrl = process.env.PROJECT_STORE_POSTGRES_URL
 
-test('protocol expansion preserves legacy history and exposes only fenced worker routines', async () => {
+test('protocol expansion preserves existing public rows and exposes only fenced worker routines', async () => {
   if (!baseUrl) throw new Error('Set PROJECT_STORE_POSTGRES_URL to an explicit disposable free_test_* target.')
   const suffix = randomBytes(5).toString('hex')
   const target = await provisionDatabase(baseUrl, `free_test_durable_${suffix}`)

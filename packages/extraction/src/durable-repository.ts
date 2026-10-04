@@ -17,11 +17,10 @@ export class DurableNotFound extends Error {}
 export class DurableInvalid extends Error {}
 const hash = (body: unknown) => createHash('sha256').update(stableJson(body)).digest('hex')
 const modelDigest = (value: DurableValue) => hash([value.selectionId,value.node,value.modelValue])
-function reviewFits(correction: {candidate:{meaning:string;node?:SchemaNode;modelDigest?:string};decision:{action:string;value?:unknown;snapshotVersion?:number}}, value: DurableValue, snapshotVersion: number): boolean {
+function reviewFits(correction: {candidate:{meaning:string;node:SchemaNode;modelDigest:string};decision:{action:string;value?:unknown;snapshotVersion?:number}}, value: DurableValue): boolean {
   if(correction.candidate.meaning!==fieldMeaning(value.node)) return false
   if(correction.decision.action==='EDITED') return adaptedCorrection(correction.candidate.node,value.node,correction.decision.value)!==undefined
-  return correction.candidate.modelDigest===modelDigest(value) ||
-    (!correction.candidate.modelDigest && correction.decision.snapshotVersion===snapshotVersion)
+  return correction.candidate.modelDigest===modelDigest(value)
 }
 function executionDefinition(raw:unknown) {
   if(raw && typeof raw==='object' && !Array.isArray(raw)) {
@@ -99,15 +98,6 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
   const owned = <T>(id: string, work: (client: PoolClient, head: DurableHead) => Promise<T>, lock = false) =>
     runtimeTransaction(source, async client => work(client, await ownedHead(client,owner,id,lock)))
   return {
-    async capability(id: string): Promise<boolean> {
-      return runtimeTransaction(source, async client => {
-        // The public ownership join precedes capability disclosure.
-        const result = await client.query(`SELECT EXISTS (SELECT FROM extraction_runtime.head h WHERE h.id=e.id) AS durable
-          FROM public.extraction e JOIN public."sourceDocument" d ON d.id=e."sourceDocumentId"
-          JOIN public."projectContext" p ON p.id=d."projectContextId" WHERE e.id=$1 AND p."researcherAccountId"=$2`, [id,owner])
-        return result.rows[0]?.durable ?? false
-      })
-    },
     read(id: string) { return owned(id, async (client,head) => {
       const selection = (await client.query('SELECT * FROM extraction_runtime.selection WHERE id=$1', [head.selectionId])).rows[0]
       const pendingSelection = head.pendingSelectionId ? (await client.query('SELECT * FROM extraction_runtime.selection WHERE id=$1', [head.pendingSelectionId])).rows[0] : null
@@ -218,7 +208,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         return { extractionId:id, snapshotVersion,feedbackVersion, status:durableStatus(head),coverage:snapshot?.coverage ?? null,
           total:values.length, values:values.slice(offset,offset+limit).map(value => {
             const historicalCorrection = corrections.find(c=>c.valueId===value.id) ?? null
-            const compatible=historicalCorrection===null || reviewFits(historicalCorrection,value,snapshotVersion)
+            const compatible=historicalCorrection===null || reviewFits(historicalCorrection,value)
             return {...value,correction:compatible && historicalCorrection ? {...historicalCorrection,decision:{...historicalCorrection.decision,...(historicalCorrection.decision.action==='EDITED'?{value:adaptedCorrection(historicalCorrection.candidate.node,value.node,historicalCorrection.decision.value)}:{})}} : null,historicalCorrection:compatible ? null : historicalCorrection,
               correctionCompatibility:compatible ? 'compatible' : 'incompatible'}
           }),
@@ -276,7 +266,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const decisions=(await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
         WHERE "extractionId"=$1 AND "feedbackVersion"<=$2 ORDER BY "valueId",revision DESC`,[id,input.feedbackVersion])).rows
       const reviewable=durableValueSchema.array().parse(snapshot.values).filter(v=>v.processing==='saved')
-      if(reviewable.some(v=>!decisions.some(c=>c.valueId===v.id && c.decision.action!=='PENDING' && reviewFits(c,v,input.snapshotVersion))))
+      if(reviewable.some(v=>!decisions.some(c=>c.valueId===v.id && c.decision.action!=='PENDING' && reviewFits(c,v))))
         throw new DurableInvalid('Review each saved value in this snapshot before finalizing.')
       const decisionDigest=hash(decisions)
       await client.query(`INSERT INTO extraction_runtime.finalization (id,"extractionId","snapshotVersion","feedbackVersion","decisionDigest")
@@ -306,8 +296,6 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
 /** Reconciliation reads committed handoffs, enqueues deterministic identities,
  * and records the receipt. A crash between these operations re-enqueues safely. */
 export async function reconcileDurableAttempts(enqueue: (attempt: {id:string;extractionId:string;workflowId:string;owner:string;sourcePin:unknown;batch:boolean;projectContextId:string;sourceDocumentId:string}) => Promise<void>, source: Pool = sharedPool, statuses?: (ids:readonly string[])=>Promise<ReadonlyMap<string,string>>) {
-  const available = await source.query("SELECT to_regclass('extraction_runtime.head') AS head")
-  if (!available.rows[0].head) return
   if(statuses) {
     const stalled=(await source.query(`SELECT h.id,h."attemptId",h.fence,a."workflowId" FROM extraction_runtime.head h
       JOIN extraction_runtime.attempt a ON a.id=h."attemptId" WHERE a.outcome IS NULL
@@ -393,13 +381,11 @@ export async function collectDeletedDurableGraphs(statuses:(ids:readonly string[
         AND ("leaseUntil" IS NULL OR "leaseUntil"<clock_timestamp()) FOR UPDATE`,[row.id,row.fence])).rows[0]
       if(!current)return 0
       await client.query('DELETE FROM extraction_runtime.correction WHERE "extractionId"=$1',[row.id])
-      await client.query('DELETE FROM extraction_runtime."legacyIdentity" WHERE "extractionId"=$1',[row.id])
       await client.query('DELETE FROM extraction_runtime.head WHERE id=$1',[row.id])
       await client.query(`DELETE FROM extraction_runtime."feedbackHead" WHERE id=$1 AND NOT EXISTS (SELECT FROM public."projectContext" WHERE id=$1)
         AND NOT EXISTS (SELECT FROM extraction_runtime.head WHERE "projectId"=$1)`,[row.projectId])
       return 1
     })
   }
-  await source.query(`DELETE FROM extraction_runtime."legacyIdentity" identity WHERE NOT EXISTS (SELECT FROM public.extraction e WHERE e.id=identity."extractionId")`)
   return removed
 }

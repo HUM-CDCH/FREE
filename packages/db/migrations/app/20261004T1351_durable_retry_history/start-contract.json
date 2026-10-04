@@ -80,10 +80,6 @@
       "model": "Input",
       "namespace": "extraction_runtime"
     },
-    "legacyIdentity": {
-      "model": "LegacyIdentity",
-      "namespace": "extraction_runtime"
-    },
     "modelConfiguration": {
       "model": "ModelConfiguration",
       "namespace": "public"
@@ -1435,57 +1431,6 @@
               },
               "namespaceId": "extraction_runtime",
               "table": "input"
-            }
-          },
-          "LegacyIdentity": {
-            "fields": {
-              "artifactDigest": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
-              "extractionId": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "id": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
-              "path": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/jsonb@1",
-                  "kind": "scalar"
-                }
-              }
-            },
-            "relations": {},
-            "storage": {
-              "fields": {
-                "artifactDigest": {
-                  "column": "artifactDigest"
-                },
-                "extractionId": {
-                  "column": "extractionId"
-                },
-                "id": {
-                  "column": "id"
-                },
-                "path": {
-                  "column": "path"
-                }
-              },
-              "namespaceId": "extraction_runtime",
-              "table": "legacyIdentity"
             }
           },
           "Plan": {
@@ -4694,45 +4639,6 @@
               },
               "uniques": []
             },
-            "legacyIdentity": {
-              "columns": {
-                "artifactDigest": {
-                  "codecId": "pg/text@1",
-                  "nativeType": "text",
-                  "nullable": false
-                },
-                "extractionId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
-                "id": {
-                  "codecId": "pg/text@1",
-                  "nativeType": "text",
-                  "nullable": false
-                },
-                "path": {
-                  "codecId": "pg/jsonb@1",
-                  "nativeType": "jsonb",
-                  "nullable": false
-                }
-              },
-              "foreignKeys": [],
-              "indexes": [
-                {
-                  "columns": [
-                    "extractionId"
-                  ]
-                }
-              ],
-              "primaryKey": {
-                "columns": [
-                  "id"
-                ]
-              },
-              "uniques": []
-            },
             "plan": {
               "columns": {
                 "digest": {
@@ -6571,7 +6477,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "sha256:b5299b4307e640e0053c57c024bba7404c72a9849137d5d19d267443afcfc8c4",
+    "storageHash": "sha256:edce89f0f80d49aaea60cc73d94d891629cf1661d78f3c4851e02e7f3538cd38",
     "types": {
       "Timestamptz6": {
         "codecId": "pg/timestamptz@1",
