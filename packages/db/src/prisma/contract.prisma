@@ -17,6 +17,213 @@ model ResearcherAccount {
   @@unique([tenantId, objectId])
 }
 
+// Protocol 1 is an additive capability. Absence of a Head means the legacy
+// Extraction and its DBOS outcome remain authoritative. No legacy pins change.
+namespace extraction_runtime {
+  model Protocol {
+    id Int @id
+    version Int
+  }
+
+  model Head {
+    id Uuid @id
+    projectId Uuid
+    sourceRevisionId Uuid
+    sourcePin Json
+    strategy String
+    selectionId Uuid
+    pendingSelectionId Uuid?
+    intent String
+    controlVersion Int
+    pendingResume Boolean
+    acknowledgement String
+    attemptId Uuid?
+    fence Int
+    leaseEpoch Int
+    leaseOwner Uuid?
+    leaseUntil Timestamptz6?
+    generation Int
+    snapshotVersion Int
+    deleted Boolean
+    selections Selection[]
+    attempts Attempt[]
+    commands Command[]
+    plans Plan[]
+    captures Capture[]
+    snapshots Snapshot[]
+    references ArtifactReference[]
+    finalizations Finalization[]
+    @@index([projectId])
+  }
+
+  model Selection {
+    id Uuid @id
+    extractionId Uuid
+    ordinal Int
+    schemaRevisionId Uuid
+    schemaHash String
+    schemaTree Json
+    method Json
+    resolved Json
+    digest String
+    createdAt Timestamptz6 @default(now())
+    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    effective Effective?
+    @@unique([extractionId, ordinal])
+    @@unique([id, extractionId])
+  }
+
+  model Effective {
+    id Uuid @id
+    configuration Json
+    digest String
+    selection Selection @relation(fields: [id], references: [id], onDelete: Cascade)
+  }
+
+  model Finalization {
+    id Uuid @id
+    extractionId Uuid
+    snapshotVersion Int
+    feedbackVersion Int
+    decisionDigest String
+    createdAt Timestamptz6 @default(now())
+    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    @@unique([extractionId, snapshotVersion, feedbackVersion])
+  }
+
+  model LegacyIdentity {
+    id String @id
+    extractionId Uuid
+    artifactDigest String
+    path Json
+    @@index([extractionId])
+  }
+
+  model Attempt {
+    id Uuid @id
+    extractionId Uuid
+    selectionId Uuid
+    fence Int
+    workflowId String @unique
+    outcome String?
+    failure Json?
+    createdAt Timestamptz6 @default(now())
+    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    dispatch Dispatch?
+    @@unique([extractionId, fence])
+  }
+
+  model Dispatch {
+    id Uuid @id
+    workflowId String @unique
+    received Boolean
+    attempt Attempt @relation(fields: [id], references: [id], onDelete: Cascade)
+  }
+
+  model Command {
+    id Uuid @id
+    extractionId Uuid
+    payload Json
+    response Json
+    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  }
+
+  model Plan {
+    id Uuid @id
+    extractionId Uuid
+    generation Int
+    stage String
+    digest String
+    manifest Json
+    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    @@unique([extractionId, generation, stage])
+  }
+
+  model Capture {
+    id Uuid @id
+    extractionId Uuid
+    generation Int
+    unitKey String
+    selectionId Uuid
+    originalAttemptId Uuid
+    feedbackVersion Int
+    candidates Json
+    descriptor Json
+    reservationAttemptId Uuid
+    reservationEpoch Int
+    inFlight Boolean
+    invoked Boolean
+    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    input Input?
+    checkpoint Checkpoint?
+    @@unique([extractionId, generation, unitKey])
+  }
+
+  model Input {
+    id Uuid @id
+    digest String
+    request Json
+    capture Capture @relation(fields: [id], references: [id], onDelete: Cascade)
+  }
+
+  model Checkpoint {
+    id Uuid @id
+    inputDigest String
+    outputDigest String
+    output Json
+    capture Capture @relation(fields: [id], references: [id], onDelete: Cascade)
+  }
+
+  model Snapshot {
+    id Uuid @id
+    extractionId Uuid
+    version Int
+    selectionId Uuid
+    digest String
+    values Json
+    coverage Json
+    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    @@unique([extractionId, version])
+  }
+
+  // The row lock on this head orders committed correction publications and
+  // capture admissions. Sequence allocation or timestamps cannot do that.
+  model FeedbackHead {
+    id Uuid @id
+    version Int
+    corrections Correction[]
+  }
+
+  model Correction {
+    id Uuid @id
+    projectId Uuid
+    extractionId Uuid
+    valueId String
+    revision Int
+    feedbackVersion Int
+    snapshotVersion Int
+    selectionId Uuid
+    decision Json
+    candidate Json
+    included Boolean
+    createdAt Timestamptz6 @default(now())
+    feedback FeedbackHead @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    @@unique([extractionId, valueId, revision])
+    @@index([projectId, feedbackVersion])
+  }
+
+  model ArtifactReference {
+    id Uuid @id
+    extractionId Uuid
+    reference String
+    digest String
+    generation String
+    kind String
+    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    @@index([reference])
+  }
+}
+
 // One Researcher Account's Model Configuration: its Model Connections (whether each uses a key, never the key),
 // Capability Routes, Extraction Model Choice and Ingestion Model Choice. Studio validates `document` before every
 // write. A committed row always has a document: null exists only inside the first apply's transaction, which

@@ -3,6 +3,18 @@ import type { ClientBase } from 'pg'
 
 export const KEI_ROLE = 'kei'
 export const KEI_SCHEMA = 'kei_dbos'
+/** Explicit allowlist: internal authorization and hash helpers are never exposed. */
+export const EXTRACTION_RUNTIME_ROUTINES = [
+  'capabilities()', 'claim(uuid,uuid,uuid)', 'heartbeat(uuid,uuid,integer)',
+  'publish_plan(uuid,uuid,integer,uuid,text,jsonb)',
+  'capture_unit(uuid,uuid,integer,uuid,text,jsonb)',
+  'finalize_input(uuid,uuid,integer,uuid,jsonb)', 'begin_call(uuid,uuid,integer,uuid)',
+  'commit_output(uuid,uuid,integer,uuid,text,jsonb)', 'fail_call(uuid,uuid,integer,uuid)',
+  'publish_snapshot(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)',
+  'acknowledge(uuid,uuid,integer,boolean,jsonb)',
+  'resolve_selection(uuid,uuid,integer,jsonb)', 'read_call(uuid,uuid,integer,uuid)',
+  'historical_coverage(uuid,uuid,integer)', 'read_latest_snapshot(uuid,uuid,integer)',
+] as const
 const IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/
 
 /** A SCRAM-SHA-256 verifier, so the plain password never reaches PostgreSQL or its logs. ASCII passwords only. */
@@ -40,6 +52,14 @@ export async function ensureKeiRole(
     await client.query('REVOKE ALL ON SCHEMA public FROM PUBLIC')
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${schema} AUTHORIZATION ${role}`)
     await client.query(`ALTER SCHEMA ${schema} OWNER TO ${role}`)
+    const runtime = await client.query("SELECT 1 FROM pg_namespace WHERE nspname = 'extraction_runtime'")
+    if (runtime.rowCount) {
+      await client.query(`REVOKE ALL ON ALL TABLES IN SCHEMA extraction_runtime FROM ${role}`)
+      await client.query(`REVOKE ALL ON ALL FUNCTIONS IN SCHEMA extraction_runtime FROM ${role}`)
+      await client.query(`GRANT USAGE ON SCHEMA extraction_runtime TO ${role}`)
+      for (const routine of EXTRACTION_RUNTIME_ROUTINES)
+        await client.query(`GRANT EXECUTE ON FUNCTION extraction_runtime.${routine} TO ${role}`)
+    }
     await client.query('COMMIT')
   } catch (error) {
     await client.query('ROLLBACK')
