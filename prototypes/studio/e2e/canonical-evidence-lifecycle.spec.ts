@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import ExcelJS from 'exceljs'
@@ -17,6 +17,7 @@ import {
   loginResearcher,
 } from './auth.js'
 import { canonicalPackage } from './interactiveStack.js'
+import { approveRest } from './resultsReview.js'
 import {
   activateWithKeyboard,
   emulateBrowserZoom200,
@@ -41,6 +42,8 @@ const kei = {
   groundedLimit: null as number | null,
   progress: null as ProgressDocument | null,
   lastStartPage: null as number | null,
+  /** The next result's records in place of the lifecycle record (the Catalog run reviewed while it reads). */
+  records: null as Record<string, unknown>[] | null,
 }
 const resultGate: { release: (() => void) | null } = { release: null }
 const valuesGate: { release: (() => void) | null } = { release: null }
@@ -56,13 +59,14 @@ async function extractFor(request: KeiExtractInput): Promise<StandInDecision<{ a
   }
   const { schema, options } = request.request
   const nodes = (schema as { schemaNodes: Array<{ name: string; type: string }> }).schemaNodes
-  const records = kei.codebook ? [Object.fromEntries(nodes.map((node) => [node.name,
+  const records = kei.records ?? (kei.codebook ? [Object.fromEntries(nodes.map((node) => [node.name,
     node.type === 'integer' ? 1801 : 'Résumé, source\nline']))] : [{
     title: 'Résumé, source\nline',
     [nodes.some((node) => node.name === 'year_of_record') ? 'year_of_record' : 'year']: 1801,
     tags: ['æ', 'quoted "tag"'],
     findings: [{ kind: 'A', detail: 'First,\nline' }, { kind: 'B', detail: 'Second' }],
-  }]
+  }])
+  kei.records = null
   const paths = (value: unknown, path: (string | number)[] = []): (string | number)[][] =>
     Array.isArray(value) ? value.flatMap((item, i) => paths(item, [...path, i])) :
     value !== null && typeof value === 'object' ? Object.entries(value).flatMap(([key, item]) => paths(item, [...path, key])) : [path]
@@ -127,6 +131,27 @@ function progressFor(strategy: 'ARTICLE' | 'CATALOG'): ProgressDocument {
 
 let standIn: KeiStandIn | undefined
 
+/** The Results rail (results review redesign §2–§3): its header's status line, review bar and breakdown line, and its
+ *  rows, each a button named "{state} {name} {value} {chip}". */
+const resultsPanel = (page: Page) => page.getByRole('tabpanel', { name: /Results/ })
+const statusLine = (page: Page) => resultsPanel(page).locator('p:has(> b)').first()
+const reviewBar = (page: Page) => resultsPanel(page).getByRole('img', { name: / to check, of \d+$/ })
+const breakdown = (page: Page) => resultsPanel(page).locator('p').filter({ hasText: /^\d+ approved · \d+ edited · \d+ rejected · / })
+const valueRow = (page: Page, name: RegExp) => resultsPanel(page).getByRole('button', { name })
+const decisionFor = (page: Page, name: string, action: 'Approve' | 'Edit' | 'Reject') =>
+  resultsPanel(page).getByRole('group', { name: `Decision for ${name}`, exact: true }).getByRole('button', { name: action, exact: true })
+const approveRestButton = (page: Page) => resultsPanel(page).getByRole('button', { name: 'Approve rest…', exact: true })
+const moreActions = (page: Page) => resultsPanel(page).getByRole('button', { name: 'More result actions', exact: true })
+const runDetails = (page: Page) => page.getByRole('dialog', { name: 'Run details', exact: true })
+/** The Review Draft's acknowledged write: what "draft saved" stands for (the breakdown's idle default reads the same). */
+const draftWritten = (page: Page) => page.waitForResponse((response) => response.request().method() === 'POST' &&
+  new URL(response.url()).pathname.endsWith('/review/draft') && response.ok())
+
+async function moreAction(page: Page, label: string) {
+  await moreActions(page).click()
+  await page.getByRole('menuitem', { name: label, exact: true }).click()
+}
+
 // kei on DBOS, played by the stand-in (plan Ruling 12): an application named `kei` on the Playwright database's
 // `kei_dbos`, which Studio's kei client enqueues to, serving kei's read routes on the port Studio's KEI_EXP_URL names.
 // It runs in this worker, which runs no other DBOS application: the spec is serial and the only one that starts one.
@@ -188,7 +213,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   browser,
   page,
 }, testInfo) => {
-  test.setTimeout(180_000)
+  test.setTimeout(240_000)
   test.skip(
     !extractionDatabaseReady(),
     'DATABASE_URL must equal the disposable EXTRACTION_TEST_DATABASE_URL',
@@ -196,7 +221,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
 
   Object.assign(kei, {
     omitGrounding: false, blockNextValues: false, blockNextResult: false, failNextValues: false, incompleteNextResult: false, groundedLimit: null,
-    progress: null, lastStartPage: null,
+    progress: null, lastStartPage: null, records: null,
   })
   // Each Playwright config gives the stand-in its own port and points Studio's KEI_EXP_URL at it.
   const keiUrl = new URL(process.env.FREE_PLAYWRIGHT_KEI_EXP_URL!)
@@ -309,65 +334,87 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // The configured Extraction Model Choice goes with the run and stays with its Extraction; the header offers none.
   await expect(page.getByRole('combobox', { name: 'Field model' })).toHaveCount(0)
   await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
-  // This first run completes in the narrow layout (under 860px), where the open rail overlays the page's right side.
   const journeyViewport = page.viewportSize()!
-  await page.setViewportSize({ width: 820, height: 900 })
   await page.getByLabel('Current page').fill('2')
   await page.getByLabel('Current page').press('Enter')
   kei.blockNextResult = true
   kei.progress = progressFor(strategy)
+  // The Catalog result settles with the records the run read, so a decision drafted on one is kept (§5.3).
+  if (strategy === 'CATALOG') kei.records = [{ title: 'Waiting record' }, { title: 'First record' }, { title: 'Second record' }]
   await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
   const stopExtraction = page.getByRole('button', { name: /■ Stop extraction/ })
   await expect(stopExtraction).toBeVisible({ timeout: 20_000 })
   await expect.poll(() => kei.lastStartPage).toBe(2)
   await page.getByRole('tab', { name: /Results/ }).click()
-  const progressStatus = page.getByRole('status').filter({ hasText: /^Reading/ })
-  await expect(progressStatus).toHaveText(strategy === 'CATALOG'
-    ? 'Reading records · 1 of 3 · from page 2' : 'Reading the document · 1 of 2 contexts')
+  await expect(statusLine(page)).toHaveText(strategy === 'CATALOG'
+    ? /^Reading records\s*· 1 of 3 · from page 2$/ : /^Reading the document\s*· 1 of 2 contexts$/)
   await expect(page.getByRole('tab', { name: /Results/ })).toContainText(strategy === 'CATALOG' ? '1 of 3' : '0 of 1')
-  const partialView = page.getByRole('region', { name: 'Extraction in progress' })
-  await expect(partialView.getByRole('group', { name: /^Review / })).toHaveCount(0)
+  // The review cannot be saved while the run reads (§5.1).
+  await expect(approveRestButton(page)).toBeDisabled()
+  await expect(approveRestButton(page)).toHaveAttribute('title', 'Available when the run finishes')
   if (strategy === 'CATALOG') {
-    const listed = page.getByRole('list', { name: 'Records being read' }).getByRole('listitem')
-    await expect(listed).toHaveText([/First/, /Second/, /Waiting/])
-    await expect(listed.nth(0)).toContainText('· page 2')
-    await expect(listed.nth(0)).toContainText('First record')
-    await expect(listed.nth(0).getByRole('button', { name: 'View Evidence for title' })).toBeVisible()
-    await expect(listed.nth(1).getByTitle('Candidate · being verified')).toHaveText('Second record')
-    await expect(listed.nth(1).getByRole('button', { name: /View Evidence/ })).toHaveCount(0)
+    await expect(resultsPanel(page).locator('section[aria-label]')).toHaveText([/First/, /Second/, /Waiting/])
+    await expect(resultsPanel(page).getByRole('region', { name: 'First, 1 to check', exact: true })).toBeVisible()
+    const first = resultsPanel(page).getByRole('region', { name: /^First, / })
+    await expect(first).toContainText('Record 2 · p.2')
+    await expect(first.getByRole('button', { name: /^To check title First record/ })).toBeVisible()
+    const second = resultsPanel(page).getByRole('region', { name: /^Second, Checking/ })
+    await expect(second.getByTitle('Candidate · being checked against the source')).toHaveText('Second record')
+    await expect(second.getByRole('button', { name: /^To check / })).toHaveCount(0)
+    await expect(resultsPanel(page).getByRole('region', { name: 'Waiting, Queued', exact: true })).toBeVisible()
+    // Review during the run (§5): a value of the finished record is decided now, a draft until the run finishes.
+    await first.getByRole('button', { name: /^To check title First record/ }).click()
+    const drafted = draftWritten(page)
+    await decisionFor(page, 'title', 'Approve').click()
+    await drafted
+    await expect(first.getByRole('button', { name: /^Approved title First record/ })).toBeVisible()
+    await expect(breakdown(page)).toHaveText('1 approved · 0 edited · 0 rejected · draft until the run finishes')
+    await expect(first).toHaveAccessibleName('First, all checked')
   } else {
-    await expect(partialView.getByTitle('Candidate · being verified')).toHaveText('First context')
+    await expect(resultsPanel(page).getByTitle('Candidate · being checked against the source')).toHaveText('First context')
+    await expect(resultsPanel(page).getByRole('button', { name: /^To check / })).toHaveCount(0)
   }
   await expect.poll(() => resultGate.release !== null).toBe(true)
   kei.progress = null
   resultGate.release!()
-  // Completion is one toast with Review now, no dialog (decision 04).
-  const firstReviewNow = page.getByRole('button', { name: 'Review now', exact: true })
-  await expect(firstReviewNow).toBeVisible({ timeout: 20_000 })
+  // With the rail open on Results its settlement toast is the one notice; App's "Review now" toast stays away (§2.5).
+  // §5.3: the toast counts after the settled review is read; the Catalog run kept the decision drafted while it read.
+  await expect(resultsPanel(page).getByRole('status').filter({ hasText: /^Run finished · / })).toHaveText(strategy === 'CATALOG'
+    ? /^Run finished · your 1 decision kept · 2 to check\./ : /^Run finished · \d+ to check\./, { timeout: 20_000 })
+  await expect(statusLine(page)).toHaveText(/^Completed/)
+  await expect(page.getByRole('button', { name: 'Review now', exact: true })).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
-  // It floats over the page under the PDF toolbar, never over the toolbar's controls.
-  const pdfToolbar = (await page.getByRole('region', { name: 'PDF document' }).locator('> div').first().boundingBox())!
-  const completionToast = (await page.getByRole('status').filter({ hasText: 'Extraction complete' }).boundingBox())!
-  expect(completionToast.y, 'the completion toast below the PDF toolbar').toBeGreaterThanOrEqual(pdfToolbar.y + pdfToolbar.height)
   expect(interactivePosts).toBe(1)
-  // The toast and its Review now stay above the rail's overlay: the pointer at Review now reaches it, and an unforced
-  // click (refused by Playwright were anything else to receive it) opens Results.
-  const reviewNowBox = (await firstReviewNow.boundingBox())!
-  const railBox = (await page.getByRole('complementary', { name: 'Evidence, schema and results' }).boundingBox())!
-  expect(railBox.x, '820px: the open rail overlays Review now\'s place').toBeLessThan(reviewNowBox.x + reviewNowBox.width)
-  expect(await firstReviewNow.evaluate((element, [x, y]) => element.contains(document.elementFromPoint(x!, y!)),
-    [reviewNowBox.x + reviewNowBox.width / 2, reviewNowBox.y + reviewNowBox.height / 2]), '820px: Review now is the hit target').toBe(true)
-  await page.screenshot({ path: testInfo.outputPath('completion-toast-820px.png') })
-  await firstReviewNow.click({ timeout: 3_000 })
-  await expect(progressStatus).toHaveCount(0)
-  await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
-  await expect(firstReviewNow).toHaveCount(0)
-  await page.setViewportSize(journeyViewport)
+  if (strategy === 'CATALOG') {
+    // Settlement moved nothing: the decided value still reads Approved; Approve rest… saves the rest.
+    await expect(valueRow(page, /^Approved title First record/)).toBeVisible()
+    await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
+    await approveRest(page)
+    await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
+    await page.reload()
+    await page.getByRole('tab', { name: /Results/ }).click()
+    await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
+    await resultsPanel(page).getByRole('button', { name: /^First record/ }).click()
+    await valueRow(page, /^Approved title First record/).click()
+    await expect(resultsPanel(page).getByText('Approved · saved', { exact: true })).toBeVisible()
+    await expect(resultsPanel(page).getByRole('group', { name: /^Decision for / })).toHaveCount(0)
+    await expect(approveRestButton(page)).toHaveCount(0)
+  }
   const chosen = await db.orm.public.Extraction.where({ sourceDocumentId })
     .select('requestedModels', 'diagnostics').first()
   expect(chosen?.requestedModels).toEqual({ fields: 'instruct' })
   expect((chosen?.diagnostics as { models?: unknown } | undefined)?.models)
     .toEqual({ fields: 'fixture/nuextract', reasoning: 'fixture/nuextract' })
+  if (strategy === 'CATALOG') {
+    // The run reviewed above is saved; the journey below reviews a newer, unreviewed Extraction of the same pins.
+    const journeyId = randomUUID()
+    expect((await page.request.post(e2eStudioPath('/api/extractions'), {
+      headers: { Origin: E2E_ORIGIN },
+      data: { id: journeyId, sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: firstSchemaRevisionId,
+        strategy, method: savedMethod },
+    })).status()).toBe(201)
+    await waitForExtraction(page.request, journeyId, (attempt) => attempt.executionStatus === 'COMPLETED')
+  }
 
   const otherPackage = await canonicalPackage(
     'different-document.pdf',
@@ -400,6 +447,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     ),
   )
   await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
+  // This run completes in the narrow layout (under 860px), where the open rail overlays the page's right side.
+  await page.setViewportSize({ width: 820, height: 900 })
   await activateWithKeyboard(
     page,
     page.getByRole('button', { name: '▶ Run extraction' }),
@@ -412,35 +461,43 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   // Completion announces itself in one toast (decision 04) but never switches the rail tab; its Review now does.
   await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'false')
   await expect(page.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
-  await activateWithKeyboard(page, reviewNow)
+  // It floats over the page under the PDF toolbar, never over the toolbar's controls.
+  const pdfToolbar = (await page.getByRole('region', { name: 'PDF document' }).locator('> div').first().boundingBox())!
+  const completionToast = (await page.getByRole('status').filter({ hasText: 'Extraction complete' }).boundingBox())!
+  expect(completionToast.y, 'the completion toast below the PDF toolbar').toBeGreaterThanOrEqual(pdfToolbar.y + pdfToolbar.height)
+  // The toast and its Review now stay above the rail's overlay: the pointer at Review now reaches it, and an unforced
+  // click (refused by Playwright were anything else to receive it) opens Results.
+  const reviewNowBox = (await reviewNow.boundingBox())!
+  const railBox = (await page.getByRole('complementary', { name: 'Evidence, schema and results' }).boundingBox())!
+  expect(railBox.x, '820px: the open rail overlays Review now\'s place').toBeLessThan(reviewNowBox.x + reviewNowBox.width)
+  expect(await reviewNow.evaluate((element, [x, y]) => element.contains(document.elementFromPoint(x!, y!)),
+    [reviewNowBox.x + reviewNowBox.width / 2, reviewNowBox.y + reviewNowBox.height / 2]), '820px: Review now is the hit target').toBe(true)
+  await page.screenshot({ path: testInfo.outputPath('completion-toast-820px.png') })
+  await reviewNow.click({ timeout: 3_000 })
   await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
   await expect(reviewNow).toHaveCount(0)
-  await expect(
-    page.getByRole('button', { name: 'View Evidence for title' }),
-  ).toBeVisible()
+  await page.setViewportSize(journeyViewport)
+  await expect(valueRow(page, /^To check title /)).toBeVisible()
 
   await page.goto(url)
   await activateWithKeyboard(page, page.getByRole('tab', { name: /Results/ }))
-  await expect(
-    page.getByRole('button', { name: 'View Evidence for title' }),
-  ).toBeVisible()
-  const reviewProgress = page.getByRole('region', { name: 'Review progress', exact: true })
-  await expect(reviewProgress).toHaveText(/^(\d+) of \1 required decisions remaining$/)
-  const requiredCount = Number((await reviewProgress.textContent())!.match(/of (\d+)/)![1])
-  const approveRemaining = page.getByRole('button', { name: `Approve remaining (${requiredCount})`, exact: true })
-  await expect(approveRemaining).toHaveAccessibleDescription(/ungrounded values, are unchanged.*saves automatically/)
+  const titleRow = valueRow(page, /^To check title /)
+  await expect(titleRow).toBeVisible()
+  await expect(reviewBar(page)).toHaveAccessibleName(/^0 approved, 0 edited, 0 rejected, (\d+) to check, of \1$/)
+  const requiredCount = Number((await reviewBar(page).getAttribute('aria-label'))!.match(/of (\d+)$/)![1])
+  const counted = (edited: number) =>
+    `0 approved, ${edited} edited, 0 rejected, ${requiredCount - edited} to check, of ${requiredCount}`
+  await expect(approveRestButton(page)).toBeEnabled()
   for (const viewport of REQUIRED_VIEWPORTS) {
     await page.setViewportSize(viewport)
-    await expectOperableInViewport(
-      page,
-      page.getByRole('button', { name: 'View Evidence for title' }),
-    )
-    const exportTrigger = page.getByRole('button', { name: 'Export' })
-    await expectOperableInViewport(page, exportTrigger)
-    await expectOperableInViewport(page, reviewProgress)
-    await expectOperableInViewport(page, approveRemaining)
+    await expectOperableInViewport(page, titleRow)
+    await expectOperableInViewport(page, moreActions(page))
+    await expectOperableInViewport(page, reviewBar(page))
+    await expectOperableInViewport(page, approveRestButton(page))
     if (viewport.width === 390) await page.screenshot({ path: testInfo.outputPath('review-progress-mobile.png'), fullPage: true })
-    await activateWithKeyboard(page, exportTrigger)
+    // Before the review is saved, Export is in ⋯ (§8).
+    await activateWithKeyboard(page, moreActions(page))
+    await activateWithKeyboard(page, page.getByRole('menuitem', { name: 'Export…', exact: true }))
     const responsiveExportDialog = page.getByRole('dialog', {
       name: 'Export options',
     })
@@ -450,67 +507,68 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     )
     await page.keyboard.press('Escape')
     await expect(responsiveExportDialog).toBeHidden()
-    await expect(exportTrigger).toBeFocused()
+    await expect(moreActions(page)).toBeFocused()
   }
-  // Review progress and Approve remaining stay operable, with no horizontal scroll, at every width, including 360 px.
+  // The count and Approve rest… stay operable, with no horizontal scroll, at every width, including 360 px.
   for (const viewport of [{ width: 360, height: 800 }, ...REQUIRED_VIEWPORTS]) {
     await page.setViewportSize(viewport)
-    await expectOperableInViewport(page, reviewProgress)
-    await expectOperableInViewport(page, approveRemaining)
+    await expectOperableInViewport(page, reviewBar(page))
+    await expectOperableInViewport(page, approveRestButton(page))
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${viewport.width}px`).toBe(true)
   }
   await emulateBrowserZoom200(page)
-  await expectOperableInViewport(
-    page,
-    page.getByRole('button', { name: 'View Evidence for title' }),
-  )
-  await expectOperableInViewport(page, page.getByRole('button', { name: 'Export' }))
+  await expectOperableInViewport(page, titleRow)
+  await expectOperableInViewport(page, moreActions(page))
   await page.setViewportSize({ width: 1280, height: 800 })
-  const titleReview = page.getByRole('group', { name: 'Review title' })
-  await activateWithKeyboard(
-    page,
-    titleReview.getByRole('button', { name: 'Edit title' }),
-  )
-  await page.getByRole('textbox', { name: 'Reviewed value for title', exact: true }).fill('Reviewed, café')
-  await page.getByRole('textbox', { name: 'Reviewed value for title', exact: true }).press('Enter')
-  await expect(page.getByText('Reviewed, café', { exact: true })).toBeVisible()
+  // Selecting a value opens its decision (§3.3).
+  await activateWithKeyboard(page, titleRow)
+  await activateWithKeyboard(page, decisionFor(page, 'title', 'Edit'))
+  const reviewedValue = resultsPanel(page).getByRole('textbox', { name: 'Reviewed value', exact: true })
+  await reviewedValue.fill('Reviewed, café')
+  let drafted = draftWritten(page)
+  await reviewedValue.press('Enter')
+  await drafted
+  await expect(valueRow(page, /^Edited title Reviewed, café/)).toBeVisible()
   // Partial decisions survive a real document change and full page reload.
-  await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
-  await expect(reviewProgress).toContainText(`${requiredCount - 1} of ${requiredCount} required decisions remaining`)
-  await expect(page.getByRole('button', { name: `Approve remaining (${requiredCount - 1})`, exact: true })).toBeEnabled()
+  await expect(breakdown(page)).toHaveText('0 approved · 1 edited · 0 rejected · draft saved')
+  await expect(reviewBar(page)).toHaveAccessibleName(counted(1))
+  await expect(approveRestButton(page)).toBeEnabled()
   const draftTab = await page.context().newPage()
   await draftTab.goto(url)
   await draftTab.getByRole('tab', { name: /Results/ }).click()
-  await expect(draftTab.getByText('Reviewed, café', { exact: true })).toBeVisible()
-  await expect(draftTab.getByRole('region', { name: 'Review progress' })).toContainText(`${requiredCount - 1} of ${requiredCount} required decisions remaining`)
+  await expect(valueRow(draftTab, /^Edited title Reviewed, café/)).toBeVisible()
+  await expect(reviewBar(draftTab)).toHaveAccessibleName(counted(1))
   await draftTab.close()
   await page.goto(e2eStudioPath(`/projects/${projectContextId}/documents/${otherSourceDocumentId}`))
   await page.goto(url)
   await page.getByRole('tab', { name: /Results/ }).click()
-  await expect(page.getByText('Reviewed, café', { exact: true })).toBeVisible()
+  await expect(valueRow(page, /^Edited title Reviewed, café/)).toBeVisible()
   await page.reload()
   await page.getByRole('tab', { name: /Results/ }).click()
-  await expect(page.getByText('Reviewed, café', { exact: true })).toBeVisible()
-  await expect(reviewProgress).toContainText(`${requiredCount - 1} of ${requiredCount} required decisions remaining`)
+  await expect(valueRow(page, /^Edited title Reviewed, café/)).toBeVisible()
+  await expect(reviewBar(page)).toHaveAccessibleName(counted(1))
   expect(await page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.startsWith('free.review-draft.')))).toEqual([])
-  await page.getByRole('tab', { name: 'Values as code' }).click()
-  const rawResult = await page.locator('pre').filter({ hasText: 'Reviewed, café' }).textContent()
+  await moreAction(page, 'Values as code')
+  const rawResult = await resultsPanel(page).locator('pre').filter({ hasText: 'Reviewed, café' }).textContent()
   expect(rawResult!.indexOf('"title"')).toBeLessThan(rawResult!.indexOf('"year"'))
   expect(rawResult!.indexOf('"year"')).toBeLessThan(rawResult!.indexOf('"tags"'))
-  await page.getByRole('tab', { name: 'Review', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'View Evidence for extracted value of title', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'tags › 2 items', exact: true }).click()
-  await page.getByRole('button', { name: 'Edit Tag 1', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Reviewed value for Tag 1', exact: true }).fill('æ (reviewed)')
-  await page.getByRole('textbox', { name: 'Reviewed value for Tag 1', exact: true }).press('Enter')
-  await expect(page.getByText('æ (reviewed)', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'View Evidence for extracted value of Tag 1', exact: true })).toBeVisible()
-  await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Clear', exact: true }).click()
-  await expect(page.getByRole('button', { name: /Save/ })).toHaveCount(0)
-  await activateWithKeyboard(page, page.getByRole('button', { name: /Approve remaining/ }))
-  await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
-  await expect(reviewProgress).toHaveText(`Review saved · ${requiredCount} decisions`)
+  await resultsPanel(page).getByRole('button', { name: 'Back to review', exact: true }).click()
+  await expect(valueRow(page, /^Edited title Reviewed, café/)).toBeVisible()
+  await valueRow(page, /^To check tags › 1 /).click()
+  await decisionFor(page, 'tags › 1', 'Edit').click()
+  await reviewedValue.fill('æ (reviewed)')
+  drafted = draftWritten(page)
+  await reviewedValue.press('Enter')
+  await drafted
+  await expect(valueRow(page, /^Edited tags › 1 æ \(reviewed\)/)).toBeVisible()
+  // The Evidence stays the extracted value's, and is labelled so.
+  await expect(resultsPanel(page).getByText(/^Evidence for the extracted value · /)).toBeVisible()
+  await expect(breakdown(page)).toHaveText('0 approved · 2 edited · 0 rejected · draft saved')
+  // Values are left to check, so nothing offers to save yet: the decision that empties the queue saves (§6).
+  await expect(resultsPanel(page).getByRole('button', { name: 'Save review', exact: true })).toHaveCount(0)
+  await approveRest(page)
+  await expect(resultsPanel(page).getByText('Review saved', { exact: true })).toBeVisible()
+  await expect(statusLine(page)).toHaveText(new RegExp(`^Review saved\\s*· ${requiredCount} decisions · read-only$`))
   await page.screenshot({
     path: testInfo.outputPath('canonical-reviewed-results.png'),
     fullPage: true,
@@ -608,17 +666,19 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   expect(mixed.evidenceLinks).toHaveLength(2)
   await page.goto(url)
   await page.getByRole('tab', { name: /Results/ }).click()
-  await expect(reviewProgress).toHaveText('2 of 2 required decisions remaining')
-  // With a claim accounting the Completion section names the values without evidence (not the lumped sentence).
-  await expect(page.getByText(/· 6 values without evidence are not reviewable$/)).toBeVisible()
-  await expect(page.getByText('Draft saved', { exact: true })).toHaveCount(0)
-  await page.getByRole('group', { name: 'Review title' }).getByRole('button', { name: 'Reject title' }).click()
-  await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
-  await expect(reviewProgress).toContainText('1 of 2 required decisions remaining')
-  await expect(page.getByRole('button', { name: 'Approve remaining (1)', exact: true })).toBeEnabled()
+  await expect(reviewBar(page)).toHaveAccessibleName('0 approved, 0 edited, 0 rejected, 2 to check, of 2')
+  // The values without evidence are counted apart, as not reviewable (§2.3).
+  await expect(resultsPanel(page).getByRole('button', { name: /^Not reviewable\s*6$/ })).toBeVisible()
+  await valueRow(page, /^To check title /).click()
+  drafted = draftWritten(page)
+  await decisionFor(page, 'title', 'Reject').click()
+  await drafted
+  await expect(breakdown(page)).toHaveText('0 approved · 0 edited · 1 rejected · draft saved')
+  await expect(reviewBar(page)).toHaveAccessibleName('0 approved, 0 edited, 1 rejected, 1 to check, of 2')
+  await expect(approveRestButton(page)).toBeEnabled()
   await page.reload()
   await page.getByRole('tab', { name: /Results/ }).click()
-  await expect(reviewProgress).toContainText('1 of 2 required decisions remaining')
+  await expect(reviewBar(page)).toHaveAccessibleName('0 approved, 0 edited, 1 rejected, 1 to check, of 2')
   // Leave this partial review unfinalized: latest reviewed still means the earlier complete review.
 
   const secondPackage = await canonicalPackage('newer-unreviewed.pdf')
@@ -671,28 +731,25 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await loginResearcher(freshPage, researcherObjectId)
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
-  await expect(
-    freshPage.getByText('Running extraction…'),
-  ).toBeVisible()
+  await expect(resultsPanel(freshPage).getByText('Finding the records in the source…', { exact: true })).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Export' })).toHaveCount(0)
   await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction/ })).toHaveCount(0)
-  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
+  await expect(freshPage.getByRole('button', { name: 'Save review', exact: true })).toHaveCount(0)
 
   await freshPage.goto(e2eStudioPath('/projects'))
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
-  await expect(
-    freshPage.getByText('Running extraction…'),
-  ).toBeVisible()
+  await expect(resultsPanel(freshPage).getByText('Finding the records in the source…', { exact: true })).toBeVisible()
   if (!resultGate.release) throw new Error('The remote result was not blocked.')
   resultGate.release()
-  await expect(
-    freshPage.getByText('Running extraction…'),
-  ).toBeHidden({ timeout: 30_000 })
-  await expect(freshPage.getByText('No grounded values')).toBeVisible()
-  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toBeEnabled()
-  await freshPage.getByRole('tab', { name: 'Values as code' }).click()
-  await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
+  await expect(resultsPanel(freshPage).getByText('Finding the records in the source…', { exact: true })).toBeHidden({ timeout: 30_000 })
+  // No grounded values: nothing to check, so the review is offered for saving as it is (§6).
+  await expect(statusLine(freshPage)).toHaveText(/^Completed/)
+  await expect(reviewBar(freshPage)).toHaveAccessibleName('0 approved, 0 edited, 0 rejected, 0 to check, of 0')
+  await expect(resultsPanel(freshPage).getByRole('button', { name: 'Save review', exact: true })).toBeEnabled()
+  await moreAction(freshPage, 'Values as code')
+  await expect(resultsPanel(freshPage).locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
+  await resultsPanel(freshPage).getByRole('button', { name: 'Back to review', exact: true }).click()
   const reopened = documentReopenResponseSchema.parse(
     await (
       await freshPage.request.get(
@@ -724,17 +781,19 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   expect((await pinnedPdf).ok()).toBe(true)
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   await expect(freshPage.locator('.pdfViewer .page')).toHaveCount(6)
-  await freshPage.getByRole('button', { name: 'View used schema' }).click()
-  await expect(freshPage.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
-  await expect(freshPage.getByText(firstSchemaRevisionId, { exact: true })).toBeVisible()
-  await expect(freshPage.getByText('Previous schema')).toBeVisible()
-  await expect(freshPage.getByText('Review applies to Schema Revision 1')).toBeVisible()
+  // The used schema is in Run details (§8); the header says the review is of an earlier revision (§2.1).
+  await resultsPanel(freshPage).getByRole('button', { name: 'Run details', exact: true }).click()
+  await expect(runDetails(freshPage).getByText('Revision 1 · current is 2', { exact: true })).toBeVisible()
+  await runDetails(freshPage).getByRole('button', { name: 'View schema used', exact: true }).click()
+  await expect(runDetails(freshPage).locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
+  await runDetails(freshPage).getByRole('button', { name: 'Close run details', exact: true }).click()
+  await expect(resultsPanel(freshPage).getByText('Rev 1 · current is 2', { exact: true })).toBeVisible()
+  await expect(resultsPanel(freshPage).getByText(/^This review applies to Schema revision 1\./)).toBeVisible()
   await expect(freshPage.getByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).toHaveCount(0)
-  await freshPage.getByRole('tab', { name: 'Review' }).click()
-  await expect(
-    freshPage.getByRole('tabpanel', { name: /Results/ }),
-  ).toContainText('Reviewed, café')
-  await expect(freshPage.getByRole('button', { name: /^Edit / })).toHaveCount(0)
+  await expect(statusLine(freshPage)).toHaveText(/^Review saved/)
+  await valueRow(freshPage, /^Edited title Reviewed, café/).click()
+  await expect(resultsPanel(freshPage).getByText('Edited · saved', { exact: true })).toBeVisible()
+  await expect(resultsPanel(freshPage).getByRole('group', { name: /^Decision for / })).toHaveCount(0)
   await freshPage.screenshot({
     path: testInfo.outputPath('canonical-fresh-context-review.png'),
     fullPage: true,
@@ -754,14 +813,14 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   // Running shows only once Studio acknowledged the admission, so leaving now cannot lose the Extraction. kei holding
   // the result keeps it running until the cancel below.
-  await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 10_000 })
+  await expect(statusLine(freshPage)).toHaveText(/^Starting\s*· finding records…$/, { timeout: 10_000 })
   await expect.poll(() => resultGate.release !== null).toBe(true)
   await freshPage.goto(e2eStudioPath('/projects'))
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
-  await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 20_000 })
-  await freshPage.getByRole('region', { name: 'Extraction status' }).getByRole('button', { name: 'Cancel extraction' }).click()
-  await expect(freshPage.getByText('Extraction cancelled', { exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(resultsPanel(freshPage).getByText('Finding the records in the source…', { exact: true })).toBeVisible({ timeout: 20_000 })
+  await freshPage.getByRole('button', { name: '■ Stop extraction', exact: true }).click()
+  await expect(resultsPanel(freshPage).getByText('Stopped · nothing to review', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(freshPage.getByRole('button', { name: 'Export' })).toHaveCount(0)
   resultGate.release?.()
 
@@ -771,8 +830,8 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
-  await expect(freshPage.getByText('Extraction failed', { exact: true })).toBeVisible({ timeout: 20_000 })
-  await expect(freshPage.getByRole('tab', { name: 'Values as code' })).toHaveCount(0)
+  await expect(resultsPanel(freshPage).getByText(/^Failed · (?!nothing to review)/)).toBeVisible({ timeout: 20_000 })
+  await expect(statusLine(freshPage)).toHaveText(/^Failed\s*· nothing to review$/)
 
   kei.incompleteNextResult = true
   // The Record scope is in the Schema tab's header; the journey continues in Results.
@@ -784,14 +843,17 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByRole('button', { name: '▶ Run extraction', exact: true })).toHaveAttribute('title',
     strategy === 'CATALOG' ? 'Find the catalogue entries and extract one record per entry' : 'Extract one record from the whole document')
   await freshPage.getByRole('button', { name: '▶ Run extraction', exact: true }).click()
-  await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible({ timeout: 20_000 })
-  await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
-  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toBeEnabled()
-  // The retry's completion: one toast with Review now, no dialog to dismiss (decision 04).
-  await expect(freshPage.getByRole('button', { name: 'Review now', exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(statusLine(freshPage)).toHaveText(/^Completed, not all of it/, { timeout: 20_000 })
+  await expect(resultsPanel(freshPage).getByRole('button', { name: 'Save review', exact: true })).toBeEnabled()
+  // The retry's completion: with the rail open on Results, App's Review now toast stays away and no dialog shows (§2.5).
+  await expect(resultsPanel(freshPage).getByRole('status').filter({ hasText: /^Run finished · / })).toBeVisible()
+  await expect(freshPage.getByRole('button', { name: 'Review now', exact: true })).toHaveCount(0)
   await expect(freshPage.getByRole('dialog', { name: 'Extraction finished', exact: true })).toHaveCount(0)
-  await freshPage.getByRole('tab', { name: 'Values as code' }).click()
-  await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
+  await moreActions(freshPage).click()
+  await expect(freshPage.getByRole('menuitem', { name: 'Export…', exact: true })).toBeEnabled()
+  await freshPage.getByRole('menuitem', { name: 'Values as code', exact: true }).click()
+  await expect(resultsPanel(freshPage).locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
+  await resultsPanel(freshPage).getByRole('button', { name: 'Back to review', exact: true }).click()
 
   const blockerId = randomUUID()
   kei.blockNextValues = true
@@ -814,9 +876,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
-  await expect(freshPage.getByText('Queued extraction…')).toBeVisible()
+  await expect(statusLine(freshPage)).toHaveText(/^Queued\s*· waiting for the extraction worker$/)
   await freshPage.getByTitle('Cancel the active Extraction').click()
-  await expect(freshPage.getByText('Extraction cancelled', { exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(resultsPanel(freshPage).getByText('Stopped · nothing to review', { exact: true })).toBeVisible({ timeout: 20_000 })
   valuesGate.release?.()
   resultGate.release?.()
   await waitForExtraction(freshPage.request, blockerId)
@@ -901,13 +963,14 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByRole('combobox', { name: 'Record scope' })).toHaveValue(recordScope)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
-  await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 20_000 })
-  const status = freshPage.getByRole('region', { name: 'Extraction status' })
-  await expect(status).toContainText('Using Schema Revision 3 · Current revision: 3')
-  await expect(status.getByText('Previous schema')).toHaveCount(0)
-  await status.getByRole('button', { name: 'View used schema' }).click()
-  await expect(status.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
-  await expect(status.getByText(thirdSchemaRevisionId, { exact: true })).toBeVisible()
+  await expect(statusLine(freshPage)).toHaveText(/^Starting\s*· finding records…$/, { timeout: 20_000 })
+  const previousSchema = resultsPanel(freshPage).getByText('Rev 3 · current is 4', { exact: true })
+  await expect(resultsPanel(freshPage).getByText(/^Rev \d+ · current is/)).toHaveCount(0)
+  await resultsPanel(freshPage).getByRole('button', { name: 'Run details', exact: true }).click()
+  await expect(runDetails(freshPage).getByText('Revision 3 · the current revision', { exact: true })).toBeVisible()
+  await runDetails(freshPage).getByRole('button', { name: 'View schema used', exact: true }).click()
+  await expect(runDetails(freshPage).locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
+  await runDetails(freshPage).getByRole('button', { name: 'Close run details', exact: true }).click()
 
   await freshPage.getByRole('tab', { name: /^Schema/ }).click()
   // A row's actions show, and take the pointer, on hover (§6).
@@ -916,24 +979,24 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await freshPage.getByPlaceholder('field_name').fill('year_of_record')
   await freshPage.getByRole('button', { name: 'Save', exact: true }).click()
   await freshPage.getByRole('tab', { name: /Results/ }).click()
-  await expect(status).toContainText('Using Schema Revision 3 · Current revision: 4', { timeout: 10_000 })
-  await expect(status.getByText('Previous schema')).toBeVisible()
-  await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 20_000 })
-  await expect(status.getByRole('button', { name: 'Cancel extraction' })).toBeEnabled()
+  await expect(previousSchema).toBeVisible({ timeout: 10_000 })
+  await expect(statusLine(freshPage)).toHaveText(/^Starting\s*· finding records…$/, { timeout: 20_000 })
+  await expect(freshPage.getByRole('button', { name: '■ Stop extraction', exact: true })).toBeEnabled()
   await expect(freshPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
 
   await freshPage.goto(e2eStudioPath(`/projects/${projectContextId}/documents/${otherSourceDocumentId}`))
   await expect(freshPage.getByRole('button', { name: '▶ Run extraction' })).toBeVisible()
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
-  await expect(freshPage.getByText('Running extraction…')).toBeVisible({ timeout: 20_000 })
-  await expect(status).toContainText('Using Schema Revision 3 · Current revision: 4')
-  await expect(status.getByText('Previous schema')).toBeVisible()
+  await expect(statusLine(freshPage)).toHaveText(/^Starting\s*· finding records…$/, { timeout: 20_000 })
+  await expect(previousSchema).toBeVisible()
+  await resultsPanel(freshPage).getByRole('button', { name: 'Run details', exact: true }).click()
+  await expect(runDetails(freshPage).getByText('Revision 3 · current is 4', { exact: true })).toBeVisible()
+  await runDetails(freshPage).getByRole('button', { name: 'Close run details', exact: true }).click()
   if (!resultGate.release) throw new Error('The remote result was not blocked.')
   resultGate.release()
-  await expect(freshPage.getByText('Running extraction…')).toBeHidden({ timeout: 30_000 })
-  await expect(status).toContainText('Completed')
-  await expect(status).toContainText('Review applies to Schema Revision 3')
+  await expect(statusLine(freshPage)).toHaveText(/^Completed/, { timeout: 30_000 })
+  await expect(resultsPanel(freshPage).getByText(/^This review applies to Schema revision 3\./)).toBeVisible()
   // Revision 4 was an edit, so it kept the schema's scope: the next run, the tab strip's (the only one, decision 03), is
   // the same strategy (its title, decision 05).
   await expect(freshPage.getByRole('button', { name: /^Run (Article |Catalog )?extraction/ })).toHaveCount(0)
@@ -941,9 +1004,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByRole('button', { name: '▶ Run extraction', exact: true })).toHaveAttribute('title',
     strategy === 'CATALOG' ? 'Find the catalogue entries and extract one record per entry' : 'Extract one record from the whole document')
   await expect(freshPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
-  await activateWithKeyboard(freshPage, freshPage.getByRole('button', { name: /Approve remaining/ }))
-  await expect(freshPage.getByText('Review saved', { exact: true })).toBeVisible()
-  await expect(status.getByText('Previous schema')).toBeVisible()
+  await approveRest(freshPage)
+  await expect(resultsPanel(freshPage).getByText('Review saved', { exact: true })).toBeVisible()
+  await expect(previousSchema).toBeVisible()
   const previousSchemaReview = await db.orm.public.Extraction.where({ sourceDocumentId })
     .select('id', 'schemaRevisionId', 'reviewedAt')
     .orderBy((attempt) => attempt.createdAt.desc())
@@ -1051,10 +1114,9 @@ test('import → whole source → review → collection review @deterministic', 
   await page.getByRole('button', { name: 'Review now', exact: true }).click()
   // The Results badge counts what is left to check and empties once the review is saved (§4).
   await expect(page.getByRole('tab', { name: /^Results \d+ to check$/ })).toBeVisible({ timeout: 20_000 })
-  // The whole-document run waits on its required decisions; the review saves itself once they are all made.
-  const approveRemaining = page.getByRole('button', { name: /^Approve remaining \(\d+\)$/ })
-  await expect(approveRemaining).toBeEnabled({ timeout: 20_000 })
-  await approveRemaining.click()
+  // The whole-document run waits on its required decisions; Approve rest… makes them and saves the review.
+  await expect(approveRestButton(page)).toBeEnabled({ timeout: 20_000 })
+  await approveRest(page)
   await expect(page.getByText('Review saved', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole('tab', { name: 'Results', exact: true })).toBeVisible()
   // One click deletes a field; Undo puts it back (§6).

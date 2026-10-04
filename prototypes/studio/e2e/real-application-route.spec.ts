@@ -8,6 +8,7 @@ import { documentReopenResponseSchema } from '../shared/projectContext.contract.
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
 import { fieldLabel } from '../src/claimStates.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
+import { approveRest, reviewRow } from './resultsReview.js'
 import { cataloguePdf, startRealService, textPdf } from './realService.js'
 import { admit, settle } from './sourceIngestion.js'
 
@@ -295,7 +296,7 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
       const row = valueRow(page, leaf).filter({ has: notCompletedNote })
       await expect(row).toHaveCount(1)
       await expect(row).toBeVisible()
-      await expect(row.getByRole('button', { name: `View Evidence for ${leaf}`, exact: true })).toHaveCount(0)
+      await expect(reviewRow(page, leaf)).toHaveCount(0)
       await page.screenshot({ path: join(output, 'not-completed.png') })
       await page.goto(workspace)
       await page.getByRole('tab', { name: /Results/ }).click()
@@ -311,19 +312,19 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     const chosenRow = valueRow(page, item)
     await expect(chosenRow).toHaveCount(1)
     await expect(chosenRow.getByText(/^Verifier-supported/)).toBeVisible()
-    await page.getByRole('button', { name: `View Evidence for ${item}`, exact: true }).click()
+    await reviewRow(page, item).click()
     await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
     await page.screenshot({ path: join(output, 'evidence.png') })
-    await page.getByRole('group', { name: `Review ${item}` }).getByRole('button', { name: `Edit ${item}` }).click()
-    const box = page.getByRole('textbox', { name: `Reviewed value for ${item}`, exact: true })
+    await page.getByRole('group', { name: `Decision for ${item}`, exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+    const box = page.getByRole('textbox', { name: 'Reviewed value', exact: true })
     await box.fill(edited)
     await box.press('Enter')
     await expect(page.getByText(edited, { exact: true })).toBeVisible()
     await expect(chosenRow.getByText(`Extracted value: ${original}`, { exact: true })).toBeVisible()
     // The evidence now supports the extracted value the edit replaced, and is labelled so.
-    await page.getByRole('button', { name: `View Evidence for extracted value of ${item}`, exact: true }).click()
+    await expect(page.getByText(/^Evidence for the extracted value · /)).toBeVisible()
     await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
-    await page.getByRole('button', { name: /Approve remaining/ }).click()
+    await approveRest(page)
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible({ timeout: 30_000 })
     clock.reviewed = new Date().toISOString()
 
@@ -338,7 +339,7 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     await page.getByRole('tab', { name: /Results/ }).click()
     await open(page, chosen!.resultPath, records.length)
     await expect(page.getByText(edited, { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: `View Evidence for extracted value of ${item}`, exact: true }).click()
+    await reviewRow(page, item).click()
     await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
     await page.screenshot({ path: join(output, 'reloaded.png') })
     const reviewed = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())

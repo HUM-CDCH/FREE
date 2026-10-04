@@ -54,11 +54,13 @@ export function statusLine({ state, attempt, partial, cancellationRequested, sch
 }
 
 /** The breakdown line's state (§2.2), from the review controller's three draft fields and its save. */
-export function breakdownState({ running, saving, saved, error, loading = false, loaded = true, draftSaving, draftError, conflict }: {
+export function breakdownState({ running, saving, saved, error, loading = false, loaded = true, draftSaving, draftSaved = true, draftError, conflict }: {
   running: boolean; saving: boolean; saved: boolean; error: string | null
   /** The review is being read; `loaded` is false until it has decisions (a failed read). */
   loading?: boolean; loaded?: boolean
   draftSaving: boolean; draftError: string | null; conflict: boolean
+  /** A draft exists on the server: before the first decision there is nothing to call saved. */
+  draftSaved?: boolean
 }): { text: string; action?: 'retry-draft' | 'reload' | 'retry' | 'reload-review' } {
   if (saved) return { text: 'saved' }
   if (saving) return { text: 'Saving review…' }
@@ -71,5 +73,5 @@ export function breakdownState({ running, saving, saved, error, loading = false,
   if (draftError) return { text: 'Draft not saved', action: 'retry-draft' }
   if (draftSaving) return { text: 'Saving draft…' }
   if (running) return { text: 'draft until the run finishes' }
-  return { text: 'draft saved' }
+  return { text: draftSaved ? 'draft saved' : '' }
 }

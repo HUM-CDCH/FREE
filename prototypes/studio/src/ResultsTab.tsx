@@ -148,7 +148,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
     (sawRun ? record.state !== 'queued' : record.index === firstOpen || model?.records.length === 1)
 
   // The live region and the rail's notices for the run: discovery, records read, settlement, a stopped run (§5.2, §5.3).
-  const seen = useRef({ discovered: 0, finished: new Set<number>(), settling: false })
+  const seen = useRef({ discovered: 0, finished: new Set<number>() })
   useEffect(() => {
     if (!partial) return
     const was = seen.current
@@ -161,13 +161,14 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
       setAnnounce(was.finished.size === 0 ? `${label} read: its values can be reviewed now.` : `${label} read.`)
       was.finished.add(record.index)
     }
-    was.settling = true
   }, [partial])
+  // Once per settlement the controller reports, after the settled review has loaded, with the settled counts.
+  const settledShown = useRef<unknown>(null)
   useEffect(() => {
-    if (!seen.current.settling || state.status !== 'ready' || review.loading) return
-    seen.current.settling = false
-    const kept = review.settlement?.kept ?? 0
-    const changed = review.settlement?.changed ?? 0
+    const settlement = review.settlement
+    if (!settlement || settledShown.current === settlement || state.status !== 'ready' || review.loading) return
+    settledShown.current = settlement
+    const { kept, changed } = settlement
     const message = counts.toCheck === 0 && kept > 0
       ? `Run finished · your ${plural(kept, 'decision')} kept · nothing left to check.`
       : `Run finished · ${kept > 0 ? `your ${plural(kept, 'decision')} kept · ` : ''}${counts.toCheck} to check.`
@@ -328,7 +329,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   const conflict = review.draftError === REVIEW_DRAFT_CONFLICT
   const breakdown = breakdownState({ running, saving: review.saving, saved: reviewed, error: review.error, loading: review.loading && !viewOnly,
     loaded: review.decisions.length > 0,
-    draftSaving: review.draftSaving, draftError: review.draftError, conflict })
+    draftSaving: review.draftSaving, draftSaved: review.draftSaved, draftError: review.draftError, conflict })
   const breakdownAction = breakdown.action === 'retry-draft' || breakdown.action === 'reload'
     ? <> · <button type="button" className="cursor-pointer text-accent underline" onClick={review.retryDraft}>{breakdown.action === 'reload' ? 'Reload server review' : 'Retry draft'}</button></>
     : breakdown.action === 'reload-review'
@@ -372,7 +373,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
           saveReview: saveAvailable,
           list: false,
         }}
-        breakdown={<span role={breakdown.action ? 'alert' : undefined}>{counts.approved} approved · {counts.edited} edited · {counts.rejected} rejected · {breakdown.text}{breakdownAction}</span>}
+        breakdown={<span role={breakdown.action ? 'alert' : undefined}>{counts.approved} approved · {counts.edited} edited · {counts.rejected} rejected{breakdown.text && ` · ${breakdown.text}`}{breakdownAction}</span>}
         chips={(model !== null || running) && !codeView} filter={filter} onFilter={setFilter}
         detailsOpen={drawer !== null} menuOpen={menuOpen} detailsRef={detailsRef} menuRef={menuRef}
         exportButton={reviewed ? exportControl : null}

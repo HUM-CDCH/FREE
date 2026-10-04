@@ -558,7 +558,8 @@ describe('ResultsTab decisions, undo and saving (§3.3–§3.6, §6)', () => {
     expect(screen.getByRole('button', { name: 'Undo ⌨Z' })).toBeInTheDocument()
     expect(live()).toHaveTextContent('Approved place. 1 to check.')
     expect(screen.getByRole('img', { name: '1 approved, 0 edited, 0 rejected, 1 to check, of 2' })).toBeInTheDocument()
-    expect(breakdown()).toHaveTextContent('1 approved · 0 edited · 0 rejected · draft saved')
+    // The fixture's controller never acknowledges a draft: nothing is called saved yet.
+    expect(breakdown()).toHaveTextContent(/^1 approved · 0 edited · 0 rejected$/)
     expect(document.activeElement).toBe(rowOf('place'))
   })
 
@@ -725,7 +726,7 @@ describe('ResultsTab decisions, undo and saving (§3.3–§3.6, §6)', () => {
 
   it.each([
     { review: { draftSaving: true }, text: 'Saving draft…', action: null },
-    { review: {}, text: 'draft saved', action: null },
+    { review: { draftSaved: true }, text: 'draft saved', action: null },
     { review: { draftError: 'Offline' }, text: 'Draft not saved', action: 'Retry draft' },
     { review: { draftError: REVIEW_DRAFT_CONFLICT }, text: 'The review changed elsewhere', action: 'Reload server review' },
     { review: { saving: true }, text: 'Saving review…', action: null },
