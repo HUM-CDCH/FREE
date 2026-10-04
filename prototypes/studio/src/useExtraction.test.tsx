@@ -1391,6 +1391,21 @@ describe('review while the run reads (ADR 0016; results review redesign §5)', (
     unmount()
   })
 
+  it('a refusal right after adopting a restored run reverts to the adopted draft', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: running(), pendingReviewDecisions: null,
+      partial: reading(['finished', 'finished']), reviewDraft: { version: 3, decisions: [decision(0, 'REJECTED')] } })
+    vi.mocked(api.saveExtractionReviewDraft).mockRejectedValueOnce(new ApiRequestError('invalid_review: refused', 422, 'invalid_review'))
+    const { result, unmount } = hook(running())
+    await poll()
+    act(() => { result.current.review.setDecision(['records', 1, 'title'], 'REJECTED') })
+    await flush()
+    expect(result.current.review.decisions).toEqual([decision(0, 'REJECTED'), decision(1)])
+    expect(result.current.review.isTouched(['records', 0, 'title'])).toBe(true)
+    expect(result.current.review.isTouched(['records', 1, 'title'])).toBe(false)
+    unmount()
+  })
+
   it('at settlement keeps a decision whose value held, returns a changed one to To check, and never saves', async () => {
     vi.useFakeTimers()
     const settled = attempt({ ...running(), executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', reviewable: true, complete: true,
