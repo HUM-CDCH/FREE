@@ -66,6 +66,7 @@ type DerivedAttempt = Readonly<{
   executionStatus: ExtractionExecutionStatus
   failure: ExtractionFailure | null
   durable?: true
+  finalizedReview?: {snapshotVersion:number;feedbackVersion:number;createdAt:Date} | null
 }>
 
 const INTERRUPTED: ExtractionFailure = { ...INTERRUPTED_FAILURE, phase: 'extracting' }
@@ -90,6 +91,8 @@ export async function deriveAttempts(
   rows: readonly AttemptRow[],
 ): Promise<ReadonlyMap<string, DerivedAttempt>> {
   const heads = await readRuntimeHeads(orm, rows.map(row=>row.id))
+  const finalizations = heads.size ? await orm.extraction_runtime.Finalization.where(row=>row.extractionId.in([...heads.keys()]))
+    .select('extractionId','snapshotVersion','feedbackVersion','createdAt').orderBy(row=>row.createdAt.desc()).all() : []
   const unsettled = rows.filter((row) => row.outcome === null && !heads.has(row.id))
   const current = unsettled.length === 0
     ? new Map<string, string>()
@@ -107,7 +110,7 @@ export async function deriveAttempts(
     const head = heads.get(row.id)
     if (head) {
       const executionStatus=durableStatus(head)
-      derived.set(row.id,{row,executionStatus,failure:null,durable:true})
+      derived.set(row.id,{row,executionStatus,failure:null,durable:true,finalizedReview:finalizations.find(item=>item.extractionId===row.id)??null})
       continue
     }
     const settled = settledAttempt(row)
@@ -205,12 +208,12 @@ export async function extractionSnapshot(orm: DatabaseOrm, row: AttemptRow): Pro
 /** An attempt as the wire shows it: the full result once published; otherwise its status, its failure if any, and
  *  no result fields (plan decision 6). */
 export async function attemptSnapshot(orm: DatabaseOrm, attempt: DerivedAttempt): Promise<ExtractionAttemptSnapshot> {
-  if (attempt.row.outcome === 'SUCCEEDED')
+  if (!attempt.durable && attempt.row.outcome === 'SUCCEEDED')
     return { ...(await extractionSnapshot(orm, attempt.row)), executionStatus: 'COMPLETED' }
   return {
     ...(await pinsOf(orm, attempt.row)),
     executionStatus: attempt.executionStatus,
-    ...(attempt.durable ? {durable:true as const}:{}),
+    ...(attempt.durable ? {durable:true as const,finalizedReview:attempt.finalizedReview??null}:{}),
     outcome: null,
     complete: null,
     modelAttribution: null,
@@ -266,10 +269,13 @@ export async function loadDocumentExtractions(
   if (input.extractionId && !selected) return null
   const representationId = selected?.sourceRepresentationRevisionId ?? currentRepresentationId
   if (!representationId) return null
+  const durableReviews=heads.size ? await orm.extraction_runtime.Finalization.where(row=>row.extractionId.in([...heads.keys()]))
+    .select('extractionId','createdAt').orderBy(row=>row.createdAt.desc()).all() : []
+  const reviewedTime=(row:typeof whole[number])=>heads.has(row.id)?durableReviews.find(item=>item.extractionId===row.id)?.createdAt??null:row.reviewedAt
   const latestReviewed = whole
-    .filter((row) => row.outcome === 'SUCCEEDED' && row.reviewedAt !== null)
+    .filter((row) => heads.has(row.id)?reviewedTime(row)!==null:row.outcome === 'SUCCEEDED' && row.reviewedAt !== null)
     .sort((left, right) =>
-      right.reviewedAt!.getTime() - left.reviewedAt!.getTime() ||
+      reviewedTime(right)!.getTime() - reviewedTime(left)!.getTime() ||
       right.createdAt.getTime() - left.createdAt.getTime() ||
       right.id.localeCompare(left.id))[0] ?? null
   const attempts = await loadAttempts(orm, statuses, [

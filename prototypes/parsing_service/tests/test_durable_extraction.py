@@ -12,7 +12,7 @@ import pytest
 from kei_exp.kie.extract import calls, run
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
 from kei_exp.kie.extract.models import Router
-from kei_exp.kie.extract.retained import publish_final
+from kei_exp.kie.extract.retained import publish_final, publish_values
 from tests.test_extract_grounded import CountingChat, WordCounter, honest, request as recipe_request
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_unified_catalog import Model, evidence as unified_evidence, request as unified_request
@@ -21,6 +21,22 @@ from tests.helpers import catalogue
 
 class Counter(WordCounter):
     context_tokens = 40000
+
+
+def test_saved_composite_retains_rule_spans_without_claiming_whole_value_grounded():
+    tree={"recordDescription":"A work", "schemaNodes":[{"id":"work", "name":"work", "type":"object",
+        "children":[{"id":"title", "name":"title", "type":"string"}, {"id":"selected", "name":"selected", "type":"boolean"}]}]}
+    lease=MemoryLease(tree)
+    link={"path":["records",0,"work","title"], "segment":"p1_s1", "page":1,
+          "bbox_pt":None, "verbatim":True, "hits":1, "linked_by":"key", "spans":[{"segment":"p1_s1","start":7,"end":11}],
+          "alternatives":[], "provenance":"token", "key_spans":[{"segment":"p1_s1","start":0,"end":5}],
+          "heading":None, "precision":"segment", "raw":"Book", "normalized":None}
+    saved=publish_values(lease,{"work":{"title":"Book","selected":False}},"document",links=[link],complete=True)
+    value=saved["values"][0]
+    assert value["modelValue"] == {"title":"Book","selected":False}
+    assert value["grounding"] == "ungrounded"
+    assert value["processing"] == "saved"
+    assert value["evidence"] == [{"anchorId":"a_p1_s1","occurrenceIds":[],"producer":link}]
 
 
 class MemoryLease:

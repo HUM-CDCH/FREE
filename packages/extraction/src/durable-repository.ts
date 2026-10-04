@@ -9,6 +9,7 @@ import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, dura
 import { correctionValueFits, fieldMeaning, adaptedCorrection } from './durable-feedback.js'
 import { refuseUnusableIdentityFields } from './postgres-admission.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
+import { groundedEvidenceLink, plainEvidenceLink, unifiedEvidenceLink } from './kei-artifact.js'
 
 export class DurableConflict extends Error {
   constructor(message = 'The Extraction changed. Reload to review the saved state.') { super(message) }
@@ -33,9 +34,9 @@ export const DURABLE_RECONCILE = 'reconcileDurableExtractions'
 
 /** No connection outlives this short transaction. READ COMMITTED plus the
  * locked feedback head gives admission its latest committed publication. */
-export async function runtimeTransaction<T>(source: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function runtimeTransaction<T>(source: Pool, work: (client: PoolClient) => Promise<T>, isolation:'READ COMMITTED'|'REPEATABLE READ'='READ COMMITTED'): Promise<T> {
   return withPoolClientTransaction(async (_transaction, client) => {
-    await client.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')
+    await client.query(`SET TRANSACTION ISOLATION LEVEL ${isolation}`)
     await client.query("SET LOCAL lock_timeout = '5s'")
     await client.query("SET LOCAL statement_timeout = '10s'")
     return work(client)
@@ -101,13 +102,14 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
     read(id: string) { return owned(id, async (client,head) => {
       const selection = (await client.query('SELECT * FROM extraction_runtime.selection WHERE id=$1', [head.selectionId])).rows[0]
       const pendingSelection = head.pendingSelectionId ? (await client.query('SELECT * FROM extraction_runtime.selection WHERE id=$1', [head.pendingSelectionId])).rows[0] : null
+      const failure=head.attemptId?(await client.query('SELECT failure FROM extraction_runtime.attempt WHERE id=$1',[head.attemptId])).rows[0]?.failure??null:null
       const counts = (await client.query(`SELECT count(*) FILTER (WHERE "inFlight")::int AS "inFlight",
         count(*) FILTER (WHERE o.id IS NOT NULL)::int AS saved,
         count(*) FILTER (WHERE o.id IS NULL)::int AS pending FROM extraction_runtime.capture c
         LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=$1`, [id])).rows[0]
       return { protocol:1 as const, projectId:head.projectId, extractionId:id, status:durableStatus(head), controlVersion:head.controlVersion,
         pendingResume:head.pendingResume, selection,pendingSelection, source:head.sourcePin,
-        sourceRevisionId:head.sourceRevisionId,snapshotVersion:head.snapshotVersion,counts }
+        sourceRevisionId:head.sourceRevisionId,snapshotVersion:head.snapshotVersion,counts,failure }
     }) },
     command(id: string, raw: unknown) {
       const command = durableCommandSchema.parse(raw)
@@ -205,13 +207,26 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const values=input.valueId?allValues.filter(v=>v.id===input.valueId):allValues
         const offset = input.offset ?? 0, limit = Math.min(input.limit ?? 100,500)
         if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1) throw new DurableInvalid('Invalid result page.')
-        return { extractionId:id, snapshotVersion,feedbackVersion, status:durableStatus(head),coverage:snapshot?.coverage ?? null,
-          total:values.length, values:values.slice(offset,offset+limit).map(value => {
+        const finalization = (await client.query(`SELECT id,"snapshotVersion","feedbackVersion","createdAt" FROM extraction_runtime.finalization
+          WHERE "extractionId"=$1 AND "snapshotVersion"=$2 AND "feedbackVersion"=$3`, [id,snapshotVersion,feedbackVersion])).rows[0] ?? null
+        const projected = allValues.map(value => {
             const historicalCorrection = corrections.find(c=>c.valueId===value.id) ?? null
             const compatible=historicalCorrection===null || reviewFits(historicalCorrection,value)
-            return {...value,correction:compatible && historicalCorrection ? {...historicalCorrection,decision:{...historicalCorrection.decision,...(historicalCorrection.decision.action==='EDITED'?{value:adaptedCorrection(historicalCorrection.candidate.node,value.node,historicalCorrection.decision.value)}:{})}} : null,historicalCorrection:compatible ? null : historicalCorrection,
+            const links=value.evidence.map(({anchorId,producer}) => {
+              if ('provenance' in producer) return groundedEvidenceLink(producer,anchorId)
+              if ('support' in producer) return unifiedEvidenceLink(producer,anchorId)
+              return plainEvidenceLink(producer,anchorId)
+            })
+            return {...value,links,correction:compatible && historicalCorrection ? {...historicalCorrection,decision:{...historicalCorrection.decision,...(historicalCorrection.decision.action==='EDITED'?{value:adaptedCorrection(historicalCorrection.candidate.node,value.node,historicalCorrection.decision.value)}:{})}} : null,historicalCorrection:compatible ? null : historicalCorrection,
               correctionCompatibility:compatible ? 'compatible' : 'incompatible'}
-          }),
+          })
+        const saved=projected.filter(value=>value.processing==='saved')
+        const count=(action:string)=>saved.filter(value=>value.correction?.decision.action===action).length
+        const reviewCounts={required:saved.length,approved:count('APPROVED'),edited:count('EDITED'),rejected:count('REJECTED'),
+          toCheck:saved.filter(value=>!value.correction||value.correction.decision.action==='PENDING').length}
+        const selected=input.valueId?projected.filter(value=>value.id===input.valueId):projected
+        return { extractionId:id,snapshotVersion,feedbackVersion,finalization,reviewCounts,status:durableStatus(head),coverage:snapshot?.coverage??null,
+          total:values.length,values:selected.slice(offset,offset+limit),
           next:offset+limit < values.length ? {snapshotVersion,feedbackVersion,offset:offset+limit,limit} : null }
       })
     },
@@ -247,7 +262,10 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         return { id:correctionId,revision:revision+1,feedbackVersion,included }
       })
     },
-    history(id: string) { return owned(id,async (client)=>({
+    history(id: string) { return runtimeTransaction(source,async (client)=> {
+      await ownedHead(client,owner,id)
+      return {
+      capturedAt:(await client.query('SELECT transaction_timestamp() AS at')).rows[0].at.toISOString(),
       selections:(await client.query('SELECT * FROM extraction_runtime.selection WHERE "extractionId"=$1 ORDER BY ordinal',[id])).rows,
       snapshots:(await client.query('SELECT * FROM extraction_runtime.snapshot WHERE "extractionId"=$1 ORDER BY version',[id])).rows,
       corrections:(await client.query('SELECT * FROM extraction_runtime.correction WHERE "extractionId"=$1 ORDER BY "feedbackVersion"',[id])).rows,
@@ -258,7 +276,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         LEFT JOIN extraction_runtime.input i ON i.id=c.id LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=$1 ORDER BY c.generation,c."unitKey"`,[id])).rows,
       failedCalls:(await client.query('SELECT f.* FROM extraction_runtime."callFailure" f JOIN extraction_runtime.capture c ON c.id=f."captureId" WHERE c."extractionId"=$1',[id])).rows,
       attempts:(await client.query('SELECT * FROM extraction_runtime.attempt WHERE "extractionId"=$1 ORDER BY fence',[id])).rows,
-    })) },
+    }},'REPEATABLE READ') },
     finalize(id: string, input: {snapshotVersion:number;feedbackVersion:number}) { return owned(id,async(client,head)=> {
       const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
       const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[head.projectId])).rows[0]
@@ -273,13 +291,15 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         VALUES ($1,$2,$3,$4,$5) ON CONFLICT ("extractionId","snapshotVersion","feedbackVersion") DO NOTHING`,[randomUUID(),id,input.snapshotVersion,input.feedbackVersion,decisionDigest])
       return {...input,decisionDigest}
     }) },
-    feedback(projectId: string, targetId?: string) { return runtimeTransaction(source,async client=> {
+    feedback(projectId: string, targetId?: string, selectionId?:string) { return runtimeTransaction(source,async client=> {
       const owns = await client.query('SELECT id FROM public."projectContext" WHERE id=$1 AND "researcherAccountId"=$2', [projectId,owner])
       if (!owns.rowCount) throw new DurableNotFound('That Project was not found.')
       const rows=(await client.query('SELECT * FROM extraction_runtime.correction WHERE "projectId"=$1 ORDER BY "feedbackVersion" DESC',[projectId])).rows
       const target=targetId?await ownedHead(client,owner,targetId):null
       if(target && target.projectId!==projectId) throw new DurableNotFound('That target was not found in this Project.')
-      const selection=target?(await client.query('SELECT "schemaTree" FROM extraction_runtime.selection WHERE id=$1',[target.selectionId])).rows[0]:null
+      if(selectionId&&!target)throw new DurableInvalid('Choose an Extraction for this input selection.')
+      const selection=target?(await client.query('SELECT "schemaTree" FROM extraction_runtime.selection WHERE id=$1 AND "extractionId"=$2',[selectionId??target.selectionId,target.id])).rows[0]:null
+      if(target&&!selection)throw new DurableNotFound('That input selection was not found for this Extraction.')
       const nodes=new Map<string,ReturnType<typeof parseExtractionSchema>['schemaNodes'][number]>()
       const visit=(items:ReturnType<typeof parseExtractionSchema>['schemaNodes'])=> {for(const node of items){nodes.set(node.id,node);if(node.children)visit(node.children)}}
       if(selection)visit(executionDefinition(selection.schemaTree).schemaNodes)

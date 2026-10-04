@@ -112,6 +112,8 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   await invoke('commit_output',[extraction,attempt,second.epoch,failedId,failedInput.digest,failure])
   assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime.checkpoint WHERE id=$1',[failedId])).rows[0].n,0)
   assert.deepEqual((await invoke('read_call',[extraction,attempt,second.epoch,failedId])).checkpoint.output,failure)
+  assert.equal((await owner.query('SELECT intent FROM extraction_runtime.head WHERE id=$1',[extraction])).rows[0].intent,'PAUSE')
+  assert.equal(await invoke('capture_unit',[extraction,attempt,second.epoch,randomUUID(),'after-failure',{...descriptor,ordinal:2}]),null)
   assert.equal(await invoke('acknowledge',[extraction,attempt,second.epoch,false,{code:'incomplete_processing'}]),'FAILED')
   assert.equal(await invoke('read_attempt_outcome',[extraction,attempt]),'FAILED')
   const retry=randomUUID()

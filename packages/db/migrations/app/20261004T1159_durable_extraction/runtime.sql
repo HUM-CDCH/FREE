@@ -370,7 +370,8 @@ BEGIN
       OR EXISTS (SELECT FROM jsonb_array_elements(retained_value->'evidence') evidence WHERE
         jsonb_typeof(evidence)<>'object' OR jsonb_typeof(evidence->'anchorId') IS DISTINCT FROM 'string'
         OR jsonb_typeof(evidence->'occurrenceIds') IS DISTINCT FROM 'array'
-        OR evidence-ARRAY['anchorId','occurrenceIds']<>'{}'::jsonb) THEN
+        OR jsonb_typeof(evidence->'producer') IS DISTINCT FROM 'object'
+        OR evidence-ARRAY['anchorId','occurrenceIds','producer']<>'{}'::jsonb) THEN
       RAISE EXCEPTION 'invalid retained identity or evidence' USING ERRCODE='22023';
     END IF;
     node := NULL;

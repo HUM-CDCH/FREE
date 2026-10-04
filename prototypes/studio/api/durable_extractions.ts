@@ -9,17 +9,32 @@ import { requestDurableReconciliation } from '../server/durable-extraction-workf
 /** Session/origin gates in server/app run before this researcher-scoped factory. */
 export function createResearcherApiHandlers(store: ResearcherProjectStore) {
   const repository=createDurableRepository(store.researcherAccountId)
+  const sourceRevision=async(sourceRevisionId:string)=> {
+    const revision=(await pool.query('SELECT "artifactReference","artifactSha256" FROM public."sourceRepresentationRevision" WHERE id=$1',[sourceRevisionId])).rows[0]
+    if(!revision)throw new DurableInvalid('The pinned source is unavailable.')
+    return revision
+  }
+  const pinnedSource=async(sourceRevisionId:string)=> {
+    const revision=await sourceRevision(sourceRevisionId)
+    return decodeParsedDocument(JSON.parse(new TextDecoder().decode((await canonicalPackageStore.read(revision,'source')).bytes)))
+  }
   const handle=async(request:Request):Promise<Response>=> {
     try {
       const url=new URL(request.url)
       const feedback=/^\/api\/project-contexts\/([0-9a-f-]+)\/feedback$/.exec(url.pathname)
       if(feedback && request.method==='POST') return json(await setFeedbackIncluded(store.researcherAccountId,z.uuid().parse(feedback[1]),z.object({id:z.uuid(),expectedRevision:z.number().int().positive(),included:z.boolean()}).strict().parse(await parseJsonRequest(request))),{headers:noStore})
-      if(feedback && request.method==='GET') return json(await repository.feedback(z.uuid().parse(feedback[1]),url.searchParams.has('target')?z.uuid().parse(url.searchParams.get('target')):undefined),{headers:noStore})
-      const match=/^\/api\/extractions\/([0-9a-f-]+)\/durable(?:\/(control|selection|adopt|values|history|finalize))?(?:\/([^/]+))?$/.exec(url.pathname)
+      if(feedback && request.method==='GET') return json(await repository.feedback(z.uuid().parse(feedback[1]),url.searchParams.has('target')?z.uuid().parse(url.searchParams.get('target')):undefined,url.searchParams.has('selection')?z.uuid().parse(url.searchParams.get('selection')):undefined),{headers:noStore})
+      const match=/^\/api\/extractions\/([0-9a-f-]+)\/durable(?:\/(control|selection|adopt|values|history|finalize|source))?(?:\/([^/]+))?$/.exec(url.pathname)
       if(!match) throw new ApiError(404,'not_found','API route not found.')
       const id=z.uuid().parse(match[1]), action=match[2]
       if(request.method==='GET') {
         if(!action) return json(await repository.read(id),{headers:noStore})
+        if(action==='source') {
+          const head=await repository.read(id)
+          const revision=await sourceRevision(head.sourceRevisionId)
+          const [source,markdown]=await Promise.all([canonicalPackageStore.read(revision,'source'),canonicalPackageStore.read(revision,'markdown')])
+          return json({document:decodeParsedDocument(JSON.parse(new TextDecoder().decode(source.bytes))),markdown:new TextDecoder().decode(markdown.bytes)},{headers:noStore})
+        }
         if(action==='history') return json(await repository.history(id),{headers:noStore})
         if(action==='values') {
           const input=z.object({snapshotVersion:z.coerce.number().int().nonnegative().optional(),feedbackVersion:z.coerce.number().int().nonnegative().optional(),offset:z.coerce.number().int().nonnegative().optional(),limit:z.coerce.number().int().min(1).max(500).optional()}).strict().parse(Object.fromEntries(url.searchParams))
@@ -38,9 +53,7 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
         if(action==='finalize') return json(await repository.finalize(id,z.object({snapshotVersion:z.number().int().positive(),feedbackVersion:z.number().int().nonnegative()}).strict().parse(body)),{headers:noStore})
         if(action==='values' && match[3]) return json(await repository.saveCorrection(id,decodeURIComponent(match[3]),body,async(_value,evidence,sourceRevisionId)=> {
           if(!evidence.length) return
-          const revision=(await pool.query('SELECT "artifactReference","artifactSha256" FROM public."sourceRepresentationRevision" WHERE id=$1',[sourceRevisionId])).rows[0]
-          if(!revision) throw new DurableInvalid('The pinned source is unavailable.')
-          const document=decodeParsedDocument(JSON.parse(new TextDecoder().decode((await canonicalPackageStore.read(revision,'source')).bytes)))
+          const document=await pinnedSource(sourceRevisionId)
           for(const selected of evidence) {
             const anchor=document.evidence_index.anchors.find(a=>a.anchor_id===selected.anchorId)
             if(!anchor || selected.occurrenceIds.some(o=>!anchor.producer_observations.some(observation=>observation.occurrence_id===o)))

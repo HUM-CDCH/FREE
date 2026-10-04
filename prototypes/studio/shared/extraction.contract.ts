@@ -434,6 +434,7 @@ export const extractionAttemptSchema = z
     /** The settings admitted with the run; null when it predates recorded settings ("Not recorded"). */
     requestedSettings: activeSettingsSchema.nullable().optional(),
     durable: z.literal(true).optional(),
+    finalizedReview: z.object({snapshotVersion:z.number().int().positive(),feedbackVersion:z.number().int().nonnegative(),createdAt:z.iso.datetime()}).strict().nullable().optional(),
     executionStatus: z.enum(['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'COMPLETED', 'FAILED']),
     /** SUCCEEDED once COMPLETED; a failed, cancelled or interrupted Extraction is FAILED with its failure instead. */
     outcome: z.literal('SUCCEEDED').nullable(),

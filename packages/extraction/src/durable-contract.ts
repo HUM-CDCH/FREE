@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { schemaNodeSchema } from './schema.js'
+import { evidenceAnchorIdOf, evidenceSchema, groundedEvidenceSchema, unifiedEvidenceSchema } from './kei-artifact.js'
 
 export const DURABLE_EXTRACTION_PROTOCOL = 1 as const
 // Exposure is deliberately OFF. Completing a release matrix is an operator
@@ -23,11 +24,18 @@ export const durableValueSchema = z.object({
   selectionId: z.uuid(), schemaRevisionId: z.uuid(), node: schemaNodeSchema,
   modelValue: z.unknown(), evidence: z.array(z.object({
     anchorId: z.string().min(1), occurrenceIds: z.array(z.string()),
+    producer: z.union([unifiedEvidenceSchema, groundedEvidenceSchema, evidenceSchema]),
   }).strict()),
   grounding: z.enum(['grounded', 'ungrounded', 'provisional']),
   processing: z.enum(['saved', 'absent', 'unprocessed', 'failed']),
   lineage: z.array(z.string()),
-}).strict()
+}).strict().superRefine((value,context)=> {
+  value.evidence.forEach((evidence,index)=> {
+    if(evidence.anchorId!==evidenceAnchorIdOf(evidence.producer) ||
+      !value.path.every((step,at)=>evidence.producer.path[at]===step))
+      context.addIssue({code:'custom',path:['evidence',index],message:'Model Evidence must name this producing value and anchor.'})
+  })
+})
 export type DurableValue = z.infer<typeof durableValueSchema>
 export const durableCorrectionSchema = z.object({
   expectedRevision: z.number().int().nonnegative(), snapshotVersion: z.number().int().positive(),

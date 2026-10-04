@@ -47,6 +47,10 @@ def coordinator() -> CoordinationPool:
     return _pool
 
 
+def failed_output(output):
+    return not output.get("formatRefused") and any(not call.get("ok") and not call.get("recovered") for call in output.get("calls",[]))
+
+
 def chat_for(provider):
     if provider["adapterVersion"] != 1:
         raise ValueError("unsupported captured provider adapter")
@@ -114,7 +118,7 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
     with Lease(coordinator(), extraction, attempt) as lease:
         saved = lease.call("read_call", capture)
         if saved["checkpoint"] is not None:
-            return {"ok": True, "capture": capture}
+            return {"ok": not failed_output(saved["checkpoint"]["output"]), "capture": capture}
         if saved["intent"] != "RUN":
             return {"ok": True, "boundary": True}
         finalized = saved["input"]
@@ -156,9 +160,10 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
                 break
             except Exception:
                 if retry == 2:
+                    lease.call("fail_call", capture)
                     raise RuntimeError("returned output could not be saved") from None
                 sleep(0.1 * (retry + 1))
-        return {"ok": True, "capture": capture}
+        return {"ok": not failed_output(output), "capture": capture}
 
 
 @DBOS.workflow(name="extractionCallV1", max_recovery_attempts=config.MAX_RECOVERY_ATTEMPTS,

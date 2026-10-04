@@ -80,7 +80,7 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
             path = link.get("path", [])
             if path[:3] == ["records", record, node["name"]]:
                 evidence.append({"anchorId": "a_" + link["segment"] + ("_" + link["cell"] if link.get("cell") else ""),
-                                 "occurrenceIds": []})
+                                 "occurrenceIds": [], "producer": link})
         # Composite values need leaf-by-leaf accounting before being called
         # grounded. Partial stage values carry no inferred Evidence.
         grounded = bool(evidence) and node["type"] not in ("object", "array")

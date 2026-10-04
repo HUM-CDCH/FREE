@@ -291,6 +291,8 @@ export type ExtractionAttemptSnapshot = Readonly<{
    *  null or absent when the run predates recorded settings ("Not recorded"). */
   requestedSettings?: ActiveSettings | null
   durable?: true
+  /** A named immutable durable review cut, independent of processing completion. */
+  finalizedReview?: Readonly<{snapshotVersion:number;feedbackVersion:number;createdAt:Date}> | null
   executionStatus: ExtractionExecutionStatus
   /** SUCCEEDED once published; a failed, cancelled or interrupted attempt is FAILED with its failure instead. */
   outcome: 'SUCCEEDED' | null
