@@ -33,7 +33,9 @@ test('every durable API rejects unauthenticated and foreign owners, wrong origin
     ]
     const other=await otherContext.newPage()
     await loginResearcher(other,randomUUID())
-    const origin={Origin:E2E_ORIGIN}
+    // Refused POSTs need not consume their bodies. Use a fresh connection for
+    // each rejection rather than reusing a socket closed by the server.
+    const origin={Origin:E2E_ORIGIN,Connection:'close'}
     for(const path of reads) {
       expect((await anonymous.request.get(new URL(path,E2E_ORIGIN).href)).status(),path).toBe(401)
       expect((await other.request.get(path)).status(),path).toBe(404)
@@ -41,7 +43,7 @@ test('every durable API rejects unauthenticated and foreign owners, wrong origin
     for(const [path,data] of writes) {
       expect((await anonymous.request.post(new URL(path,E2E_ORIGIN).href,{headers:origin,data})).status(),path).toBe(401)
       expect((await other.request.post(path,{headers:origin,data})).status(),path).toBe(404)
-      expect((await page.request.post(path,{headers:{Origin:'https://foreign.invalid'},data})).status(),path).toBe(403)
+      expect((await page.request.post(path,{headers:{...origin,Origin:'https://foreign.invalid'},data})).status(),path).toBe(403)
       expect((await page.request.post(path,{headers:{...origin,'Content-Type':'application/json'},data:JSON.stringify({payload:'x'.repeat(1024*1024)})})).status(),path).toBe(413)
     }
     expect((await page.request.post(`${root}/values/title`,{headers:origin,data:{expectedRevision:0,snapshotVersion:1,action:'EDITED',value:'Refused Evidence',included:true,evidence:[{anchorId:'foreign-anchor',occurrenceIds:['foreign-occurrence']}]}})).status()).toBe(422)
