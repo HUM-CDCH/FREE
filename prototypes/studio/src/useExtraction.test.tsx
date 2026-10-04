@@ -230,7 +230,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const { result, rerender } = renderHook(({ current, documentKey }) => useExtraction({ ...options(current), documentKey }), { initialProps: { current: original, documentKey: 'first' } })
     await waitFor(() => expect(result.current.review.decisions).toHaveLength(1))
     act(() => result.current.review.setDecision(pending[0].resultPath, 'EDITED', 'Submitted'))
-    let request!: Promise<void>
+    let request!: Promise<boolean>
     act(() => {
       request = result.current.review.accept()
       void result.current.review.accept()

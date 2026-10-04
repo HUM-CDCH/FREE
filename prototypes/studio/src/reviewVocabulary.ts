@@ -66,8 +66,18 @@ export function stateLabel(row: Pick<RailRow, 'kind' | 'evidence'>): string {
   }
 }
 
+/** A value as a row shows it: "No value" for a missing or contested one, a list as comma-separated text. */
+export const shownValue = (value: unknown) =>
+  value === null || value === undefined || value === '' ? 'No value' : Array.isArray(value) ? value.map(String).join(', ') : String(value)
+
 export const isDecidable = (kind: RowKind) => kind === 'to-check' || kind === 'approved' || kind === 'edited' || kind === 'rejected'
 export const isNotReviewable = (kind: RowKind) => kind === 'not-reviewable' || kind === 'missing' || kind === 'contested'
+
+/** The rail's value filters (§2.3). */
+export type ValueFilter = 'check' | 'doubt' | 'notrev' | 'all'
+
+export const passesFilter = (row: RailRow, filter: ValueFilter) =>
+  filter === 'all' || (filter === 'check' ? row.kind === 'to-check' : filter === 'doubt' ? row.doubt !== null : isNotReviewable(row.kind))
 
 /** A doubtful link (`evidenceCheck`'s two reasons); checks describe the extracted value, so none after an edit or a
  *  rejection. */
@@ -77,6 +87,22 @@ export function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }
   const others = (link.lexicalHits ?? 1) - 1
   if (link.verbatim && others > 0) return `Value also appears in ${others} other passage${others === 1 ? '' : 's'}`
   return null
+}
+
+/** What tied a recipe or unified Catalog value to its field, in the researcher's words; it describes the extracted
+ *  value, so none after an edit or a rejection. */
+export function groundingDetail(link: EvidenceLink, action?: ReviewDecisionAction): string | null {
+  const grounding = link.grounding
+  if (!grounding || action === 'EDITED' || action === 'REJECTED') return null
+  const parts = [grounding.linkedBy === 'verification'
+    ? (grounding.support === 'literal' ? 'Verifier-supported; the value is printed in the entry' : 'Verifier-supported from a supporting passage; the value is not printed as such')
+    : grounding.linkedBy === 'key' ? 'Read after its printed key'
+      : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
+        : 'Entry number from the segmentation']
+  const others = grounding.alternatives.length
+  if (others > 0) parts.push(`${others} other match${others === 1 ? '' : 'es'} in the entry`)
+  if (grounding.linkedBy !== 'verification' && grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
+  return parts.join(' · ')
 }
 
 const NOT_IN_DOCUMENT = { label: 'Not reviewable', detail: 'Its Evidence is not in this document.' }
@@ -104,7 +130,7 @@ const rowName = (path: Path) => path.map((step) => typeof step === 'number' ? St
 type Inputs = {
   schemaNodes: readonly SchemaNode[]
   decisions: readonly ReviewDecisionInput[]
-  isTouched: (resultPath: readonly (string | number)[]) => boolean
+  isTouched: (resultPath: (string | number)[]) => boolean
   evidencePages?: ReadonlyMap<string, number>
   changed?: ReadonlySet<string>
 }

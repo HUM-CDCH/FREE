@@ -1,7 +1,4 @@
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ExtractionController } from './useExtraction'
 import {
   ApiRequestError,
   decodeSchemaDone,
@@ -35,47 +32,6 @@ function jsonResponse(body: unknown): Response {
 
 afterEach(() => vi.unstubAllGlobals())
 
-function readyController(): ExtractionController {
-  return {
-    state: {
-      status: 'ready',
-      result: { title: 'Report' },
-      evidenceLinks: [],
-      ungroundedCount: 0,
-    },
-    canRun: true,
-    hasResults: true,
-    runExtraction: async () => null,
-    requestCancellation: async () => {},
-    cancellationRequested: false,
-    cancellationError: null,
-    monitorError: null,
-    reconnect: () => {},
-    attempt: null,
-    review: {
-      available: false,
-      draftAvailable: false, decidedOn: new Map(), changedAfterReview: new Set(), settlement: null, discarded: null, draftRefused: null,
-      canAccept: false,
-      saving: false,
-      loading: false,
-      decisions: [],
-      requiredCount: 0,
-      untouchedCount: 0,
-      isTouched: () => false,
-      reviewedExtractionId: null,
-      error: null,
-      draftError: null,
-      draftSaving: false,
-      draftSaved: false,
-      retryDraft: () => {},
-      setDecision: () => ({ last: false }),
-      undo: () => ({ last: false }),
-      reload: () => {},
-      approveAll: () => {},
-      accept: async () => {},
-    },
-  }
-}
 
 describe('Article extraction lifecycle client', () => {
   it('posts only the operation identity and finalizes review by Extraction ID', async () => {
@@ -548,29 +504,3 @@ describe('decoders', () => {
   })
 })
 
-describe('ResultsTab markdown', () => {
-  it('receives parsed document markdown directly', async () => {
-    vi.resetModules()
-    vi.doMock('react', async () => {
-      const actual = await vi.importActual<typeof import('react')>('react')
-      return {
-        ...actual,
-        useState: (initialState: unknown) =>
-          initialState === 'review' ? ['markdown', () => undefined] : actual.useState(initialState),
-      }
-    })
-    const { default: ResultsTab } = await import('./ResultsTab')
-    const html = renderToStaticMarkup(
-      createElement(ResultsTab, {
-        controller: readyController(),
-        schemaReady: true,
-        documentMarkdown: '# Parsed source',
-        sourceDocumentName: 'source.pdf',
-      }),
-    )
-
-    vi.doUnmock('react')
-    expect(html).toContain('Markdown')
-    expect(html).toContain('# Parsed source')
-  })
-})

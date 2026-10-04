@@ -23,7 +23,7 @@ import { METHOD_CHANGED, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
-import { Button, Spinner, Toast } from './ui'
+import { Button, SegmentedControl, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
 import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
@@ -596,6 +596,10 @@ export function DocumentWorkspace({
   //   templateState.inputsKey !== annotationInputsKey(annotationItems, annotationsMode)
 
   const effectiveRailOpen = railOpen
+  const railOnResultsRef = useRef(false)
+  useEffect(() => { railOnResultsRef.current = railOpen && railTab === 'results' }, [railOpen, railTab])
+  // The document pane shows the PDF or the parsed Markdown (results review redesign §7.4).
+  const [documentView, setDocumentView] = useState<'pdf' | 'markdown'>('pdf')
   const effectiveRailWidth = effectiveRailOpen ? railWidth : COLLAPSED_WIDTH
 
   // The account's saved method: a run re-reads it at the click and submits that, and admission refuses it if an Apply
@@ -625,6 +629,8 @@ export function DocumentWorkspace({
    *  offers "Review now", which opens the rail (collapsed during the run, say) on the Results tab, and stays eight
    *  seconds. */
   function showCompletion(isRerun: boolean, reviewNow: boolean) {
+    // With the rail open on Results its own settlement toast is the one notice (results review redesign §2.5).
+    if (railOnResultsRef.current) return
     showToast(
       isRerun ? '↻ Re-run complete — review it in the Results tab' : '✓ Extraction complete — review it in the Results tab',
       reviewNow ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setRailOpen(true); setRailTab('results') } } } : undefined,
@@ -956,6 +962,8 @@ export function DocumentWorkspace({
                   </button>
                 </div>
               )}
+              <SegmentedControl aria-label="Document view" className="ml-auto" value={documentView} onChange={setDocumentView}
+                options={[{ value: 'pdf', label: 'PDF' }, { value: 'markdown', label: 'Markdown' }]} />
             </div>
             <div className="relative flex min-h-0 flex-1">
               {loadState.status === 'ready' && pagesOpen && <PageNavigation
@@ -967,6 +975,19 @@ export function DocumentWorkspace({
                 <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
                   <div className="pdfViewer" ref={setViewerNode} />
                 </div>
+                {/* Over the PDF, which stays mounted with its marks and position. */}
+                {documentView === 'markdown' && (
+                  <div className="scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8">
+                    {documentMarkdown ? (
+                      <pre aria-label="Parsed Markdown" className="mx-auto m-0 max-w-[816px] bg-surface px-10 py-8 font-mono text-secondary whitespace-pre-wrap text-ink shadow-page">{documentMarkdown}</pre>
+                    ) : (
+                      <div className="mx-auto max-w-[34ch] pt-16 text-center">
+                        <p className="m-0 text-content font-semibold text-ink">Markdown unavailable</p>
+                        <p className="mt-1.5 mb-0 text-compact leading-snug text-ink-muted">Parsed Markdown has not been received for this source document.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               {/* Under the 34px toolbar, over the page: the toast never covers the toolbar's controls. Above the loading
                   cover (z-20), which a notice outliving a switch of Source Representation shows under, and above the
@@ -1014,7 +1035,6 @@ export function DocumentWorkspace({
               inspection={{
                 attempt: inspectedAttempt,
                 readOnly: inspectionReadOnly,
-                documentMarkdown,
                 parsedDocument,
                 reviewDecisions: inspectedAttempt?.reviewDecisions ?? [],
                 pinnedSchema: inspectedAttemptSchema,

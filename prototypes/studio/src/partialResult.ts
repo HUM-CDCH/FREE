@@ -1,5 +1,4 @@
-import type { PartialRecord, PartialResult, ReviewDecisionInput } from '../shared/extraction.contract'
-import type { ValueState } from './ui'
+import type { PartialResult, ReviewDecisionInput } from '../shared/extraction.contract'
 
 /** Retain whole finished server snapshots through missing or regressed progress reads; settlement replaces them. */
 export function retainFinished(previous: PartialResult | null, next: PartialResult | null): PartialResult | null {
@@ -42,13 +41,6 @@ export function retainFinished(previous: PartialResult | null, next: PartialResu
     finished: Math.max(previous.finished, next.finished),
     discovered: Math.max(previous.discovered, next.discovered),
   }
-}
-
-/** Part A owns leaf states. Missing metadata uses only Ruling 8's explicit placeholder mapping. */
-export function partialValueState(record: PartialRecord, path: readonly string[]): ValueState {
-  const value = record.values[JSON.stringify(path)]
-  if (value) return value.state
-  return record.state === 'reading' ? 'reading' : 'queued'
 }
 
 /** The Results header reports server progress and the page from which the Extraction started. */

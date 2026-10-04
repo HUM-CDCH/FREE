@@ -255,15 +255,19 @@ describe('useBatchExtractionReviewGrid', () => {
       const controller = useExtraction({ schemaReady: true, indexing: false, initialAttempt: original,
         reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId }, onTerminal: vi.fn(), onError: vi.fn() })
       return <ResultsTab controller={controller} schemaReady
-        pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
+        pinnedSchema={{ recordDescription: 'Source', schemaNodes }} sourceDocumentName="Source" />
     }
     render(view === 'grid' ? <Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} /> : <DocumentReview />)
-    await screen.findByText(`Draft not saved: ${REVIEW_DRAFT_CONFLICT}`)
+    // The grid says the server's words; the Results rail says the state, with its one action (redesign §2.2).
+    const conflictShown = () => view === 'grid'
+      ? screen.queryByText(`Draft not saved: ${REVIEW_DRAFT_CONFLICT}`)
+      : screen.queryByText((_, element) => element?.getAttribute('role') === 'alert' && /The review changed elsewhere · Reload server review/.test(element.textContent ?? ''))
+    await waitFor(() => expect(conflictShown()).not.toBeNull())
     expect(api.saveExtractionReviewDraft).not.toHaveBeenCalled()
     expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Reload server review' }))
     await waitFor(() => expect(api.readExtraction).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(screen.queryByText(`Draft not saved: ${REVIEW_DRAFT_CONFLICT}`)).toBeNull())
+    await waitFor(() => expect(conflictShown()).toBeNull())
     expect(api.saveExtractionReviewDraft).not.toHaveBeenCalled()
     expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
   })
@@ -393,7 +397,7 @@ describe('useBatchExtractionReviewGrid', () => {
       const controller = useExtraction({ schemaReady: true, indexing: false, initialAttempt: original,
         reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId }, onTerminal: vi.fn(), onError: vi.fn() })
       return <ResultsTab controller={controller} schemaReady
-        pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
+        pinnedSchema={{ recordDescription: 'Source', schemaNodes }} sourceDocumentName="Source" />
     }
     {
       render(view === 'grid' ? <Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} /> : <DocumentReview />)
@@ -401,9 +405,11 @@ describe('useBatchExtractionReviewGrid', () => {
         fireEvent.click(await screen.findByText('Grounded'))
         fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
       } else {
-        fireEvent.click(await screen.findByRole('button', { name: 'Reject title' }))
+        fireEvent.click(await screen.findByRole('button', { name: /^To check title / }))
+        fireEvent.click(within(screen.getByRole('group', { name: 'Decision for title' })).getByRole('button', { name: /Reject/ }))
       }
-      expect((await screen.findByText(/Draft not saved: offline/)).getAttribute('role')).toBe('alert')
+      if (view === 'grid') expect((await screen.findByText(/Draft not saved: offline/)).getAttribute('role')).toBe('alert')
+      else expect((await screen.findByRole('alert')).textContent).toMatch(/Draft not saved · Retry draft/)
       expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
     }
   })
@@ -872,7 +878,7 @@ it.each(['grid', 'document'] as const)('automatically saves a complete %s review
       onTerminal: () => {}, onError: () => {},
     })
     return <ResultsTab controller={controller}
-      schemaReady pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
+      schemaReady pinnedSchema={{ recordDescription: 'Source', schemaNodes }} sourceDocumentName="Source" />
   }
   const scene = view === 'grid'
     ? <Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />
@@ -881,17 +887,25 @@ it.each(['grid', 'document'] as const)('automatically saves a complete %s review
   await screen.findByText('Grounded')
   expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
   if (view === 'grid') fireEvent.click(screen.getByRole('button', { name: 'Grounded' }))
-  fireEvent.click(await screen.findByRole('button', { name: view === 'grid' ? 'Edit' : 'Edit title' }))
+  else fireEvent.click(screen.getByRole('button', { name: /^To check title / }))
+  fireEvent.click(await screen.findByRole('button', { name: view === 'grid' ? 'Edit' : /^Edit$/ }))
   const editor = screen.getByRole('textbox')
   fireEvent.change(editor, { target: { value: 'Corrected' } })
   expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
-  expect(screen.queryByRole('button', { name: /Save/ })).toBeNull()
-  fireEvent.blur(editor)
+  if (view === 'grid') {
+    expect(screen.queryByRole('button', { name: /Save/ })).toBeNull()
+    fireEvent.blur(editor)
+  } else {
+    // The rail never saves on blur (redesign §3.5); its last decision says it saves the review.
+    fireEvent.blur(editor)
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save edit and save review' }))
+  }
   await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1))
   expect(api.finalizeExtractionReview).toHaveBeenLastCalledWith(extractionId, [{ ...pendingDecisions[0], action: 'EDITED', reviewedValue: 'Corrected' }], 1)
-  expect(screen.getByRole('button', { name: /Approve remaining/ }).hasAttribute('disabled')).toBe(true)
+  if (view === 'grid') expect(screen.getByRole('button', { name: /Approve remaining/ }).hasAttribute('disabled')).toBe(true)
   await act(async () => saving.reject(new Error('Offline')))
-  await screen.findByText('Review not saved')
+  await screen.findByText(/Review not saved/)
   rerender(scene)
   await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1))
   expect(screen.getByText('Corrected')).toBeTruthy()

@@ -1,28 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { PartialRecord, PartialResult, PartialValueState } from '../shared/extraction.contract'
+import type { PartialRecord, PartialResult } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import { draftDecisionsFromPartial, partialHeadline, partialValueAt, partialValueState, retainFinished } from './partialResult'
+import { draftDecisionsFromPartial, partialHeadline, partialValueAt, retainFinished } from './partialResult'
 
 const link = (index: number, field = 'site'): EvidenceLink => ({
   resultPath: ['records', index, field], evidenceAnchorId: 'a_p1_s0',
-})
-
-describe('partialValueState', () => {
-  it.each<PartialValueState>(['grounded', 'checking', 'reading', 'empty', 'contested'])('passes the server leaf state %s through unchanged', (state) => {
-    const shown = {
-      ...record(0, 'finished', [link(0)]),
-      values: { '["site"]': { value: 'Unverified candidate', state } },
-    }
-    expect(partialValueState(shown, ['site'])).toBe(state)
-  })
-
-  it.each([
-    ['queued', 'queued'], ['reading', 'reading'], ['checking', 'queued'], ['finished', 'queued'],
-  ] as const)('maps record %s without leaf metadata to the explicit %s placeholder', (state, presentation) => {
-    const shown = { ...record(0, state, [link(0)]), record: { site: 'Must not become a value' }, values: {} }
-    expect(partialValueState(shown, ['site'])).toBe(presentation)
-    expect(partialValueState(shown, ['container'])).toBe(presentation)
-  })
 })
 
 function record(index: number, state: PartialRecord['state'], links: EvidenceLink[] = []): PartialRecord {
