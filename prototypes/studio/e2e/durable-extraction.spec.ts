@@ -8,7 +8,7 @@ import { initializeDurableExtraction } from 'extraction/durable'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import { prepareInteractiveDocument,INTERACTIVE_SCHEMA_NODES } from './interactiveStack.js'
 import { loginResearcher } from './auth.js'
-import { savedExtraction } from './durableFixtures.js'
+import { savedBatchSource,savedExtraction } from './durableFixtures.js'
 
 test.beforeEach(({page})=> {
   page.on('pageerror',error=>console.error('durable browser error:',error.message))
@@ -254,21 +254,10 @@ for(const status of ['PAUSED','FAILED','STOPPED'] as const) {
     try {
       const nodes=[{id:'title',name:'title',type:'string' as const}]
       const first=await savedExtraction(fixture,nodes,['First saved title'],status)
-      const documentId=randomUUID(),representationId=randomUUID(),batchId=randomUUID()
-      // Distinct valid PDF bytes, while retaining the real parsed-document package.
-      const parsed=(await (await page.request.get(`/api/extractions/${first.id}/durable/source`)).json()).document
-      const originalPdf=await readFile(new URL('../../../examples/Beretning_Ellekilde_8_13.pdf',import.meta.url))
-      const pdf=new Uint8Array([...originalPdf,...new TextEncoder().encode('\n% Durable batch fixture second document\n')])
-      const {createHash}=await import('node:crypto')
-      const hash=createHash('sha256').update(pdf).digest('hex')
-      parsed.document.content_sha256=hash;parsed.document.source.original_filename='second.pdf';parsed.document.source.byte_size=pdf.length
-      for(const anchor of parsed.evidence_index.anchors)anchor.content_sha256=hash
-      const descriptor=await canonicalPackageStore.save(packCanonicalPackage({pdf,document:parsed,markdown:'# Second batch source\n'}))
-      await pool.query(`INSERT INTO public."sourceDocument" (id,"projectContextId","contentSha256","mediaType","originalName") VALUES ($1,$2,$3,'application/pdf','second.pdf')`,[documentId,fixture.projectContextId,hash])
-      await pool.query(`INSERT INTO public."sourceRepresentationRevision" (id,"sourceDocumentId","revisionNumber","artifactReference","artifactSha256","contractVersion","preprocessId","parserName","parserVersion")
-        VALUES ($1,$2,1,$3,$4,'parsed_document.v2',$5,'fixture','1')`,
-        [representationId,documentId,descriptor.artifactReference,descriptor.artifactSha256,`kei-exp:e2e-${representationId}:g1`])
-      const second=await savedExtraction({...fixture,sourceDocumentId:documentId,sourceRepresentationRevisionId:representationId},nodes,['Second saved title'],status,{schemaRevisionId:first.schemaRevisionId})
+      const batchId=randomUUID()
+      const parsed=decodeParsedDocument((await (await page.request.get(`/api/extractions/${first.id}/durable/source`)).json()).document)
+      const secondSource=await savedBatchSource(fixture,parsed,'second.pdf')
+      const second=await savedExtraction(secondSource,nodes,['Second saved title'],status,{schemaRevisionId:first.schemaRevisionId})
       await pool.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,[batchId,fixture.projectContextId,first.schemaRevisionId,{article:null}])
       await pool.query(`UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])`,[batchId,[first.id,second.id]])
       // Even a direct grid link keeps native typed decisions on member routes.
@@ -288,12 +277,47 @@ for(const status of ['PAUSED','FAILED','STOPPED'] as const) {
       expect(exported.durable.every((member:{manifest:{status:string}})=>member.manifest.status===status)).toBe(true)
       expect(exported.durable.flatMap((member:{values:{modelValue:string}[]})=>member.values.map(value=>value.modelValue)).sort()).toEqual(['First saved title','Second saved title'])
       await members.getByRole('button',{name:/second.pdf/}).click()
-      await expect(page).toHaveURL(new RegExp(`documents/${documentId}.*extractionId=${second.id}`))
+      await expect(page).toHaveURL(new RegExp(`documents/${secondSource.sourceDocumentId}.*extractionId=${second.id}`))
       await page.locator('#rail-tab-results').click()
       await expect(page.getByText('Second saved title',{exact:false})).toBeVisible()
     } finally {await fixture.close()}
   })
 }
+
+test('a mixed retained batch counts an empty failed member and exports its fixed cut',async({page})=>{
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const nodes=[{id:'title',name:'title',type:'string' as const}],batchId=randomUUID()
+    const first=await savedExtraction(fixture,nodes,['Paused retained title'])
+    const source=decodeParsedDocument((await (await page.request.get(`/api/extractions/${first.id}/durable/source`)).json()).document)
+    const emptySource=await savedBatchSource(fixture,source,'empty.pdf'),stoppedSource=await savedBatchSource(fixture,source,'stopped.pdf')
+    const empty=await savedExtraction(emptySource,nodes,[],'FAILED',{schemaRevisionId:first.schemaRevisionId,empty:true})
+    const stopped=await savedExtraction(stoppedSource,nodes,['Stopped retained title'],'STOPPED',{schemaRevisionId:first.schemaRevisionId})
+    await pool.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,[batchId,fixture.projectContextId,first.schemaRevisionId,{article:null}])
+    await pool.query(`UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])`,[batchId,[first.id,empty.id,stopped.id]])
+    await page.goto(`/projects/${fixture.projectContextId}/extractions/${batchId}/review`)
+    const summary=page.getByText(/1 paused/)
+    await expect(summary).toContainText('1 failed');await expect(summary).toContainText('1 stopped')
+    const members=page.getByRole('list',{name:'Batch Extraction members'})
+    await expect(members.getByRole('button')).toHaveCount(3)
+    await expect(page.getByRole('button',{name:'Review grid',exact:true})).toBeDisabled()
+    await page.getByRole('button',{name:'Export',exact:true}).click()
+    const downloading=page.waitForEvent('download')
+    await page.getByRole('menuitem',{name:'Export CSV bundle',exact:true}).click()
+    const files=unzipSync(new Uint8Array(await readFile((await (await downloading).path())!)))
+    const exported=JSON.parse(strFromU8(files['snapshot.json']))
+    expect(exported.totalMembers).toBe(3);expect(exported.durable).toHaveLength(3)
+    expect(exported.durable.map((member:{manifest:{status:string};values:unknown[]})=>[member.manifest.status,member.values.length]).sort()).toEqual([['FAILED',0],['PAUSED',1],['STOPPED',1]])
+    await members.getByRole('button',{name:/empty.pdf/}).click()
+    await expect(page).toHaveURL(new RegExp(`documents/${emptySource.sourceDocumentId}.*extractionId=${empty.id}`))
+    await page.locator('#rail-tab-results').click()
+    const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
+    await expect(rail.getByText('Failed',{exact:true})).toBeVisible()
+    await expect(rail.getByRole('button',{name:'One by one',exact:true})).toBeDisabled()
+    expect((await (await page.request.get(`/api/extractions/${empty.id}/durable/values`)).json()).values).toEqual([])
+    expect((await (await page.request.get(`/api/extractions/${empty.id}/durable`)).json()).controlVersion).toBe(0)
+  } finally {await fixture.close()}
+})
 
 test('every native lifecycle shows retained review and running keyboard edits keep processing independent',async({page})=> {
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})

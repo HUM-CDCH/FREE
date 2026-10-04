@@ -1,12 +1,15 @@
-import { randomUUID } from 'node:crypto'
-import { withPoolClientTransaction } from 'db'
+import { createHash,randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import { canonicalPackageStore,pool,withPoolClientTransaction } from 'db'
+import { packCanonicalPackage } from '../../../packages/db/src/artifact-store.js'
 import { initializeDurableExtraction } from 'extraction/durable'
 import type { DurableValue } from 'extraction/durable-contract'
+import { decodeParsedDocument,type ParsedDocument } from 'extraction/parsed-document'
 import type { SchemaNode } from 'extraction/schema'
 import type { InteractiveDocument } from './interactiveStack.js'
 
 /** Saved producer data in the guarded browser database; admissions stay OFF. */
-export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNode[],modelValues:unknown[],status:'QUEUED'|'RUNNING'|'PAUSED'|'FAILED'|'STOPPED'|'COMPLETED'='PAUSED',options:{records?:unknown[][];schemaRevisionId?:string;intent?:'RUN'|'PAUSE'|'STOP';modelEvidence?:Readonly<Record<string,DurableValue['evidence']>>}={}) {
+export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNode[],modelValues:unknown[],status:'QUEUED'|'RUNNING'|'PAUSED'|'FAILED'|'STOPPED'|'COMPLETED'='PAUSED',options:{records?:unknown[][];schemaRevisionId?:string;intent?:'RUN'|'PAUSE'|'STOP';modelEvidence?:Readonly<Record<string,DurableValue['evidence']>>;empty?:boolean}={}) {
   const strategy=options.records?'CATALOG':'ARTICLE',settings=options.records?{generic:null}:{article:null}
   const id=randomUUID(),schemaRevisionId=options.schemaRevisionId??randomUUID(),tree={recordDescription:'One interactive record.',schemaNodes:nodes}
   await withPoolClientTransaction(async(_transaction,client)=> {
@@ -18,7 +21,7 @@ export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNo
     await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,
       schemaRevisionId,schemaTree:tree,strategy,catalogRecipe:null,preprocessId:`kei-exp:e2e-${fixture.sourceRepresentationRevisionId}:g1`,requestedModels:null,requestedSettings:settings})
     const head=(await client.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
-    const values=(options.records??[modelValues]).flatMap((record,recordIndex)=>nodes.map((node,index)=>{
+    const values=(options.empty?[]:options.records??[modelValues]).flatMap((record,recordIndex)=>nodes.map((node,index)=>{
       const valueId=options.records?`record-${recordIndex}:${node.id}`:node.id,evidence=options.modelEvidence?.[valueId]??[]
       return {id:valueId,recordId:options.records?`record-${recordIndex}`:'document',fieldId:node.id,
       path:['records',recordIndex,node.name],selectionId:head.selectionId,schemaRevisionId,node,
@@ -30,4 +33,20 @@ export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNo
     await client.query('UPDATE extraction_runtime.dispatch SET received=true WHERE id=$1',[head.attemptId])
   })
   return {id,schemaRevisionId}
+}
+
+/** Distinct valid source bytes for another member of this fixture's project. */
+export async function savedBatchSource(fixture:InteractiveDocument,source:ParsedDocument,name:string) {
+  const documentId=randomUUID(),representationId=randomUUID(),parsed=structuredClone(source)
+  const original=await readFile(new URL('../../../examples/Beretning_Ellekilde_8_13.pdf',import.meta.url))
+  const pdf=new Uint8Array([...original,...new TextEncoder().encode(`\n% Durable batch fixture ${name}\n`)])
+  const hash=createHash('sha256').update(pdf).digest('hex')
+  parsed.document.content_sha256=hash;parsed.document.source.original_filename=name;parsed.document.source.byte_size=pdf.length
+  for(const anchor of parsed.evidence_index.anchors)anchor.content_sha256=hash
+  const descriptor=await canonicalPackageStore.save(packCanonicalPackage({pdf,document:decodeParsedDocument(parsed),markdown:'# Article fixture\n\n> Grav 8\n'}))
+  await pool.query(`INSERT INTO public."sourceDocument" (id,"projectContextId","contentSha256","mediaType","originalName") VALUES ($1,$2,$3,'application/pdf',$4)`,[documentId,fixture.projectContextId,hash,name])
+  await pool.query(`INSERT INTO public."sourceRepresentationRevision" (id,"sourceDocumentId","revisionNumber","artifactReference","artifactSha256","contractVersion","preprocessId","parserName","parserVersion")
+    VALUES ($1,$2,1,$3,$4,'parsed_document.v2',$5,'fixture','1')`,
+    [representationId,documentId,descriptor.artifactReference,descriptor.artifactSha256,`kei-exp:e2e-${representationId}:g1`])
+  return {...fixture,sourceDocumentId:documentId,sourceRepresentationRevisionId:representationId}
 }
