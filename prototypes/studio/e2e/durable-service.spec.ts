@@ -14,7 +14,7 @@ const methods=['article','generic','recipe','unified'] as const
 type Method=typeof methods[number]
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
-  options:{nodes?:SchemaNode[];schemaRevisionId?:string;models?:{fields:'gliformer';reasoning:'instruct'}}={}) {
+  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer';reasoning:'instruct'}}={}) {
   const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
   const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
   const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
@@ -29,7 +29,8 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
   }
   const id=randomUUID()
   const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
-  const settings={[method]:method==='unified'?{defaults:1}:null},models=options.models??null
+  const settings={[method]:method==='unified'?{defaults:1}:method==='article'&&options.articleContext==='bounded'
+    ?{context:'bounded',context_tokens:8192}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
   // its owned guarded stack. Use the normal initializer with admission OFF.
   await withPoolClientTransaction(async(_tx,client)=>{
@@ -119,7 +120,8 @@ for(const method of methods) {
   })
 }
 
-test('an ungrounded UI correction guides a later worker with immutable captured attribution',async({page},info)=>{
+for(const context of ['full','bounded'] as const) {
+test(`native ${context} Article: an ungrounded UI correction guides a later worker with immutable captured attribution`,async({page},info)=>{
   test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'Guidance attribution uses the counted provider hold.')
   const service=await startRealService(info.outputPath('durable-guidance-worker.log'))
   try {
@@ -164,7 +166,7 @@ test('an ungrounded UI correction guides a later worker with immutable captured 
     expect(sourceB.sourceDocumentId).not.toBe(sourceA.sourceDocumentId)
     service.holdNextExtraction()
     const requestsBefore=service.modelRequests().length
-    const extractionB=await seedNative(page,project,sourceB.sourceDocumentId,'article',{schemaRevisionId:value.schemaRevisionId})
+    const extractionB=await seedNative(page,project,sourceB.sourceDocumentId,'article',{schemaRevisionId:value.schemaRevisionId,articleContext:context})
     await service.reconcileDurable()
     await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
     const historyUrl=`/api/extractions/${extractionB}/durable/history`
@@ -174,6 +176,8 @@ test('an ungrounded UI correction guides a later worker with immutable captured 
     await writeFile(info.outputPath('guidance-started-request.json'),JSON.stringify({correction,capture,providerRequest},null,2))
     expect(capture.feedbackVersion).toBe(correction.feedbackVersion)
     expect(capture.request.examples).toContainEqual(correction.candidate)
+    expect(capture.request.budget.context).toBe(context==='bounded'?8192:16384)
+    expect(capture.request.budget.reserve).toBeGreaterThanOrEqual(4096)
     expect(capture.request.body.system).toContain('Researcher guidance sentinel')
     expect(capture.request.body.user).not.toContain('Researcher guidance sentinel')
     expect(providerRequest).toEqual(capture.request.body.httpRequest)
@@ -209,6 +213,7 @@ test('an ungrounded UI correction guides a later worker with immutable captured 
     await page.screenshot({path:info.outputPath('native-guidance-attribution.png'),fullPage:true})
   } finally {service.releaseExtraction();await service.close()}
 })
+}
 
 test('deleting a project fences its held native worker and retains another project source',async({page},info)=>{
   test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'Deletion uses the counted provider hold.')

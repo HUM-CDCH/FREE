@@ -217,7 +217,7 @@ def test_article_reply_allocation_protects_its_floor_and_selects_guidance(oversi
 def test_article_guidance_preserves_bounded_root_input_sized_reply_floor(bounded):
     from kei_exp.kie.extract.article import document_root
     from kei_exp.kie.extract.durable import field_meaning
-    from kei_exp.kie.extract.method import ArticleOptions
+    from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
     from kei_exp.kie.extract.schema import Schema
     from kei_exp.kie.extract.stages import REPLY_TOKENS
     node={"id":"title","name":"title","type":"string"}
@@ -226,7 +226,7 @@ def test_article_guidance_preserves_bounded_root_input_sized_reply_floor(bounded
     candidate={"id":"correction","fieldId":"title","meaning":field_meaning(node),"node":node,
                "value":"guidance "*3000,"grounded":False}
     lease.candidates=[{"id":"correction","candidate":candidate}]
-    counter=Counter();counter.context_tokens=16000
+    counter=LimitedCounter(Counter(),16000)
     chat=CountingChat(lambda *_:{"title":"target"})
     with pytest.raises(NeedsCall):
         document_root(passages(["source "*7000]),Schema.model_validate(tree),
