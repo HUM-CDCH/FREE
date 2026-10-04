@@ -117,6 +117,11 @@ function serverMessage(error: ApiRequestError): string {
 
 export type ExtractionController = ReturnType<typeof useExtraction>
 
+/** Every decision with Evidence has the researcher's decision: the review may be saved. */
+function everyRequiredTouched(decisions: readonly ReviewDecisionInput[], touched: ReadonlySet<string>) {
+  return decisions.every((decision) => decision.evidenceAnchorId === null || touched.has(resultPathKey(decision.resultPath)))
+}
+
 export function extractionStateFromAttempt(attempt: ExtractionAttempt | null, partial: PartialResult | null = null): ExtractionState {
   if (!attempt) return { status: 'idle' }
   const active = isActive(attempt)
@@ -324,15 +329,15 @@ export function useExtraction({
     attempt.reviewable &&
     attempt.sourceRepresentationRevisionId === reviewTarget?.sourceRepresentationId,
   )
-  const canAccept = Boolean(
+  const canSave = Boolean(
     !saving &&
     !draftError &&
     !reviewLoading &&
     reviewAvailable &&
     reviewReadFor === attempt?.extractionId &&
-    attempt?.reviewedAt === null &&
-    reviewDecisions.filter((decision) => decision.evidenceAnchorId !== null).every((decision) => touchedPaths.has(resultPathKey(decision.resultPath)))
+    attempt?.reviewedAt === null
   )
+  const canAccept = canSave && everyRequiredTouched(reviewDecisions, touchedPaths)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -521,7 +526,9 @@ export function useExtraction({
 
   async function acceptResult() {
     const scope = saveScopeRef.current
-    if (!attempt || !canAccept || scope.saving) return
+    // The draft ref, not this render's state: a researcher's last decision and its save happen in one handler.
+    const { decisions, touched } = draftRef.current
+    if (!attempt || !canSave || !everyRequiredTouched(decisions, touched) || scope.saving) return
     scope.saving = true
     setSaving(true)
     setReviewError(null)
@@ -530,7 +537,7 @@ export function useExtraction({
       await draft.pending
       const finalized = await finalizeExtractionReview(
         attempt.extractionId,
-        reviewDecisions.filter((decision) => touchedPaths.has(resultPathKey(decision.resultPath))),
+        decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))),
         draft.version,
       )
       if (saveScopeRef.current !== scope) return
@@ -588,20 +595,23 @@ export function useExtraction({
     reviewedValue: ReviewDecisionInput['reviewedValue'] = null,
     reviewedEvidence: ReviewDecisionInput['reviewedEvidence'] = null,
     touch = true,
-  ) {
-    if (saveScopeRef.current.saving || !reviewAvailable || reviewLoading || attempt?.reviewedAt) return
+  ): { last: boolean } {
+    if (saveScopeRef.current.saving || !reviewAvailable || reviewLoading || attempt?.reviewedAt) return { last: false }
     const key = resultPathKey(resultPath)
-    if (!reviewDecisions.some((decision) => resultPathKey(decision.resultPath) === key)) return
+    if (!reviewDecisions.some((decision) => resultPathKey(decision.resultPath) === key)) return { last: false }
     const touched = new Set(draftRef.current.touched)
     if (touch) touched.add(key)
     else touched.delete(key)
-    updateReview(draftRef.current.decisions.map((decision) => {
+    const decisions = draftRef.current.decisions.map((decision) => {
       if (resultPathKey(decision.resultPath) !== key) return decision
       const next = { ...decision, action, reviewedValue: action === 'EDITED' ? reviewedValue : null }
       if (action === 'EDITED' && reviewedEvidence) return { ...next, reviewedEvidence }
       delete (next as { reviewedEvidence?: unknown }).reviewedEvidence
       return next
-    }), touched)
+    })
+    updateReview(decisions, touched)
+    // The decision that leaves nothing to check saves the review; the tab says so before it and calls accept (§6).
+    return { last: touch && everyRequiredTouched(decisions, touched) }
   }
 
   // Marks every field the researcher hasn't explicitly acted on as touched,

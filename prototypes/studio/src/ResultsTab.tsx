@@ -10,7 +10,7 @@ import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/sc
 import { resultStats } from './resultStats'
 import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
 import type { ExtractionState } from './extraction'
-import type { ExtractionAttempt, ReviewDecisionAction } from '../shared/extraction.contract'
+import type { ExtractionAttempt, ReviewDecisionAction, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import { reviewAttention } from 'extraction/review-attention'
 import { ReviewAttention } from './ReviewAttention'
@@ -498,12 +498,13 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, docu
   }, [])
   const attention = attempt?.resultPayload && pinnedSchema ? reviewAttention(attempt.resultPayload, pinnedSchema.schemaNodes, attempt.evidenceLinks ?? [],
     attempt.reviewedAt ? attempt.reviewDecisions : controller.review.decisions.filter((decision) => controller.review.isTouched(decision.resultPath))) : null
-  useEffect(() => {
-    if (!readOnly && !inspectedAttempt && editingPaths.size === 0 &&
-      controller.review.canAccept && !controller.review.error &&
-      controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null))
-      void controller.review.accept()
-  })
+  // Saving is a researcher's act (§6): the decision that leaves nothing to check saves the review, once no other
+  // edit is open; settlement, a recovered draft or a reconnect never save by themselves.
+  const decide = (path: string[], action: ReviewDecisionAction, reviewedValue?: ReviewDecisionInput['reviewedValue']) => {
+    const { last } = controller.review.setDecision(absoluteReviewPath(path), action, reviewedValue)
+    const otherEdits = [...editingPaths].filter((key) => key !== JSON.stringify(path))
+    if (last && otherEdits.length === 0) void controller.review.accept()
+  }
   const articleRecords =
     state.status === 'ready' &&
     isRecord(reviewedResult) &&
@@ -829,7 +830,10 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, docu
                     size="sm"
                     disabled={controller.review.loading || controller.review.saving || editingPaths.size > 0 || controller.review.untouchedCount === 0}
                     aria-describedby={approvalDescriptionId}
-                    onClick={() => controller.review.approveAll()}
+                    onClick={() => {
+                      controller.review.approveAll()
+                      void controller.review.accept()
+                    }}
                   >
                     {controller.review.untouchedCount > 0 ? `Approve remaining (${controller.review.untouchedCount})` : 'Approve remaining'}
                   </Button>
@@ -839,7 +843,8 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, docu
                     {controller.review.error && !controller.review.loading && requiredCount === 0 && (
                       <Button size="sm" variant="secondary" onClick={controller.review.reload}>Retry</Button>
                     )}
-                    {(controller.review.error || !controller.review.decisions.some((decision) => decision.evidenceAnchorId !== null)) && controller.review.canAccept && (
+                    {/* Also after a reload with every value decided: nothing saves the review by itself (§6). */}
+                    {controller.review.canAccept && (
                       <Button size="sm" variant={controller.review.error ? 'secondary' : 'positive'} disabled={editingPaths.size > 0}
                         onClick={() => void controller.review.accept()}>{controller.review.error ? 'Retry' : 'Save review'}</Button>
                     )}
@@ -1032,11 +1037,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, docu
                       onEditingChange,
                       onDecision: readOnly || inspectedAttempt || attempt?.reviewedAt || controller.review.saving
                         ? undefined
-                        : (path, action, reviewedValue) => controller.review.setDecision(
-                            absoluteReviewPath(path),
-                            action,
-                            reviewedValue,
-                          ),
+                        : decide,
                       readOnly: readOnly || Boolean(inspectedAttempt) || Boolean(attempt?.reviewedAt) || controller.review.saving,
                     }}
                   />
