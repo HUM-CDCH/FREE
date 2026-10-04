@@ -213,6 +213,35 @@ def test_article_reply_allocation_protects_its_floor_and_selects_guidance(oversi
     assert next(iter(lease.units.values()))["input"]==captured
 
 
+@pytest.mark.parametrize("bounded", [False, True])
+def test_article_guidance_preserves_bounded_root_input_sized_reply_floor(bounded):
+    from kei_exp.kie.extract.article import document_root
+    from kei_exp.kie.extract.durable import field_meaning
+    from kei_exp.kie.extract.method import ArticleOptions
+    from kei_exp.kie.extract.schema import Schema
+    from kei_exp.kie.extract.stages import REPLY_TOKENS
+    node={"id":"title","name":"title","type":"string"}
+    tree={"recordDescription":"The whole document","schemaNodes":[node]}
+    lease=MemoryLease(tree)
+    candidate={"id":"correction","fieldId":"title","meaning":field_meaning(node),"node":node,
+               "value":"guidance "*3000,"grounded":False}
+    lease.candidates=[{"id":"correction","candidate":candidate}]
+    counter=Counter();counter.context_tokens=16000
+    chat=CountingChat(lambda *_:{"title":"target"})
+    with pytest.raises(NeedsCall):
+        document_root(passages(["source "*7000]),Schema.model_validate(tree),
+            Router(fields=chat,reasoning=chat,runtime=CapturePlanner(lease,{"fields":counter})),
+            counters={"fields":counter},record_chars=48000,check=lambda:None,
+            method=ArticleOptions(context="bounded" if bounded else "full",context_tokens=16000))
+    request=next(iter(lease.units.values()))["input"]["request"]
+    assert request["examples"]==([] if bounded else [candidate])
+    assert request["omissions"]==([{"id":"correction","reason":"budget"}] if bounded else [])
+    assert request["budget"]["reserve"]>=REPLY_TOKENS
+    assert (request["budget"]["reserve"]>=7000) is bounded
+    assert request["budget"]["counted"]+request["budget"]["reserve"]==counter.context_tokens
+    assert request["body"]["user"].split().count("source")==7000
+
+
 def test_replanning_subtracts_only_fixed_primary_coverage_and_keeps_offsets():
     source=unified_evidence("first entry; second entry")
     lease=MemoryLease({"recordDescription":"entry","schemaNodes":[]})

@@ -259,7 +259,8 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
         group = groups[index]
         check()
         fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars, record=0,
-            counter=counters["fields"], structured=structured, document=True)
+            counter=counters["fields"], structured=structured, document=True,
+            bounded_document=method.context == "bounded")
         candidates[index], answered[index] = fields, (attempts, problems)
         if on_context is not None:
             done = [number for number, each in enumerate(answered) if each is not None]  # source order
