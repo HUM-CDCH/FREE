@@ -135,6 +135,47 @@ let standIn: KeiStandIn | undefined
  *  rows, each a button named "{state} {name} {value} {chip}". */
 const resultsPanel = (page: Page) => page.getByRole('tabpanel', { name: /Results/ })
 
+const railPane = (page: Page) => page.getByRole('complementary', { name: 'Evidence, schema and results' })
+
+/** Drags the rail's handle until the rail is `width` wide (its 264–560px clamp holds the minimum). */
+async function setRailWidth(page: Page, width: number) {
+  const current = (await railPane(page).boundingBox())!.width
+  if (current === width) return
+  const handle = (await page.locator('[title="Drag to resize"]:not([role="separator"])').boundingBox())!
+  const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x + (current - width), y, { steps: 4 })
+  await page.mouse.up()
+  await expect.poll(async () => (await railPane(page).boundingBox())!.width).toBe(width)
+}
+
+/** The rail's narrow layouts (results review redesign §9), measured in a real browser: at 344px the chips are one
+ *  row and the list scrolls only vertically; at 264px the chips become a labelled select and the count block's
+ *  actions each take a full-width line. */
+async function expectRailLayouts(page: Page) {
+  const panel = resultsPanel(page)
+  const noSideScroll = () => panel.evaluate((element) => [...element.querySelectorAll<HTMLElement>('*')]
+    .filter((each) => each.scrollWidth > each.clientWidth + 1 && getComputedStyle(each).overflowX === 'auto' && !each.matches('[role="group"]')).length)
+  await setRailWidth(page, 344)
+  const chips = panel.getByRole('group', { name: 'Show values' })
+  await expect(chips).toBeVisible()
+  await expect(panel.getByRole('combobox', { name: 'Show' })).toBeHidden()
+  const tops = await chips.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top))
+  expect(new Set(tops).size).toBe(1)
+  expect(await noSideScroll()).toBe(0)
+  await setRailWidth(page, 264)
+  await expect(chips).toBeHidden()
+  await expect(panel.getByRole('combobox', { name: 'Show' })).toBeVisible()
+  const header = (await panel.getByRole('button', { name: /One by one/ }).boundingBox())!
+  const approve = (await panel.getByRole('button', { name: 'Approve rest…' }).boundingBox())!
+  expect(Math.abs(header.width - approve.width)).toBeLessThanOrEqual(1)
+  expect(approve.y).toBeGreaterThan(header.y + header.height - 1)
+  expect(header.width).toBeGreaterThan(200)
+  expect(await noSideScroll()).toBe(0)
+  await setRailWidth(page, 344)
+}
+
 /** With RAIL_SHOTS=1, the rail at 1280×720 at its 344px default and its 264px minimum, for the visual check against
  *  the prototype (results review redesign); otherwise nothing. */
 async function railShots(page: Page, testInfo: TestInfo, stage: string) {
@@ -142,33 +183,17 @@ async function railShots(page: Page, testInfo: TestInfo, stage: string) {
   const viewport = page.viewportSize()
   await page.setViewportSize({ width: 1280, height: 720 })
   for (const width of [344, 264]) {
-    const rail = page.getByRole('complementary', { name: 'Evidence, schema and results' })
-    const handle = await page.locator('[title="Drag to resize"]:not([role="separator"])').boundingBox()
-    const current = (await rail.boundingBox())!.width
-    if (handle && current !== width) {
-      const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2
-      await page.mouse.move(x, y)
-      await page.mouse.down()
-      await page.mouse.move(x + (current - width), y, { steps: 4 })
-      await page.mouse.up()
-    }
+    await setRailWidth(page, width)
     await page.screenshot({ path: testInfo.outputPath(`rail-${stage}-${width}.png`) })
   }
-  const handle = await page.locator('[title="Drag to resize"]:not([role="separator"])').boundingBox()
-  if (handle) {
-    const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2
-    await page.mouse.move(x, y)
-    await page.mouse.down()
-    await page.mouse.move(x - 80, y, { steps: 4 })
-    await page.mouse.up()
-  }
+  await setRailWidth(page, 344)
   if (viewport) await page.setViewportSize(viewport)
 }
 const statusLine = (page: Page) => resultsPanel(page).locator('p:has(> b)').first()
 const reviewBar = (page: Page) => resultsPanel(page).getByRole('img', { name: / to check, of \d+$/ })
 const breakdown = (page: Page) => resultsPanel(page).locator('p').filter({ hasText: /^\d+ approved · \d+ edited · \d+ rejected · / })
 const valueRow = (page: Page, name: RegExp) => resultsPanel(page).getByRole('button', { name })
-const decisionFor = (page: Page, name: string, action: 'Approve' | 'Edit' | 'Reject') =>
+const decisionFor = (page: Page, name: string, action: 'Approve' | 'Edit' | 'Reject' | 'Approve and save review' | 'Reject and save review') =>
   resultsPanel(page).getByRole('group', { name: `Decision for ${name}`, exact: true }).getByRole('button', { name: action, exact: true })
 const approveRestButton = (page: Page) => resultsPanel(page).getByRole('button', { name: 'Approve rest…', exact: true })
 const moreActions = (page: Page) => resultsPanel(page).getByRole('button', { name: 'More result actions', exact: true })
@@ -424,6 +449,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     const afterSettlement = await valueRow(page, /^Approved title First record/).boundingBox()
     expect(Math.abs(afterSettlement!.y - beforeSettlement!.y)).toBeLessThanOrEqual(1)
     await railShots(page, testInfo, 'settled')
+    await expectRailLayouts(page)
     await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
     // One by one (§4): A approves the current value and moves on, J skips, Z undoes the approval; Escape leaves.
     await resultsPanel(page).getByRole('button', { name: /One by one/ }).click()
@@ -439,7 +465,15 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await expect(reviewBar(page)).toHaveAccessibleName('1 approved, 0 edited, 0 rejected, 2 to check, of 3')
     await page.keyboard.press('Escape')
     await expect(resultsPanel(page).getByRole('group', { name: 'Show values' })).toBeVisible()
-    await approveRest(page)
+    // The decision that leaves nothing to check saves the review, and says so before it is made (§3.3, §6).
+    await valueRow(page, /^To check title Second record/).click()
+    await decisionFor(page, 'title', 'Approve').click()
+    await expect(reviewBar(page)).toHaveAccessibleName('2 approved, 0 edited, 0 rejected, 1 to check, of 3')
+    await valueRow(page, /^To check title Waiting record/).click()
+    await expect(resultsPanel(page).getByText('This is the last value to check. Your decision saves the review, and the review becomes read-only.')).toBeVisible()
+    await expect(decisionFor(page, 'title', 'Reject and save review')).toBeVisible()
+    await railShots(page, testInfo, 'last-decision')
+    await decisionFor(page, 'title', 'Approve and save review').click()
     await expect(statusLine(page)).toHaveText(/^Review saved\s*· \d+ decisions · read-only$/, { timeout: 20_000 })
     await railShots(page, testInfo, 'saved')
     await page.reload()
