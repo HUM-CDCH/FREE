@@ -137,7 +137,10 @@ export function createResearcherApiHandlers(
         extraction: extractionAttemptDto(extraction),
         pendingReviewDecisions,
         partial,
-        reviewDraft: extraction.executionStatus === 'COMPLETED' ? await module.readReviewDraft(extractionId) : undefined,
+        // A running Extraction's draft too (ADR 0016): decisions on records kei has finished, reconciled at settlement.
+        reviewDraft: extraction.executionStatus === 'COMPLETED' || extraction.executionStatus === 'RUNNING'
+          ? await module.readReviewDraft(extractionId)
+          : undefined,
       }),
       { headers: noStore },
     )

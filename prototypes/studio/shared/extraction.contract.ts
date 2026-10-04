@@ -582,6 +582,8 @@ export const extractionReadResponseSchema = z
           decision: z.object({ action: reviewDecisionActionSchema }).nullable() })),
         grounded: z.int().nonnegative(), ungrounded: z.int().nonnegative(), missing: z.int().nonnegative(), requiredRemaining: z.int().nonnegative(),
       }).optional(),
+      // Drafted while the Extraction ran, not kept at settlement (results review redesign §5.3).
+      dropped: z.array(z.object({ resultPath: resultPathSchema, evidenceAnchorId: z.string().min(1).nullable() }).strict()).optional(),
     }).strict().optional(),
   })
   .strict()
