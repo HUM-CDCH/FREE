@@ -17,7 +17,7 @@ import { evidenceQuote } from './evidenceQuote'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
 import { shownValue, stateLabel, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import type { MarkInfo } from './useEvidenceOverlays'
+import type { RailMarkState } from './useEvidenceOverlays'
 import {savedCorrectionHref,savedReviewCut} from './durableReviewLinks'
 import { keyAction } from './reviewKeys'
 
@@ -25,7 +25,7 @@ type Value=DurablePage['values'][number]
 const inputClass='w-full rounded-md border border-line bg-surface px-3 py-2 text-secondary text-ink focus-visible:outline-accent'
 function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,onSaved,onClose,onEvidence,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,onCloseOverlay,readOnly=false}:{
   id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;onSaved:()=>void;onClose:()=>void;
-  onEvidence:(id:string,occurrenceIds?:readonly string[])=>void;focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
+  onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
   queue:ReturnType<typeof reviewQueue>;readOnly?:boolean;
   onFocus:()=>void;
   keyboardRoot:RefObject<HTMLDivElement|null>;
@@ -89,7 +89,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
         </label>
       </div>}
     </fieldset>
-    {value.links.map((link,index)=><Button key={`${link.evidenceAnchorId}:${index}`} onClick={()=>onEvidence(link.evidenceAnchorId)}>
+    {value.links.map((link,index)=><Button key={`${link.evidenceAnchorId}:${index}`} onClick={()=>onEvidence(link.evidenceAnchorId,undefined,link.precision)}>
       Model Evidence · {link.resultPath.slice(2).join(' › ')}{link.precision==='input'?' · whole page':''}</Button>)}
     {value.correction?.decision.evidence.map((evidence:{anchorId:string;occurrenceIds:string[]})=><Button key={evidence.anchorId} onClick={()=>onEvidence(evidence.anchorId,evidence.occurrenceIds)}>Correction Evidence</Button>)}
     {value.historicalCorrection&&<p className="text-secondary">An incompatible correction remains saved. <a className="text-accent underline" href={savedCorrectionHref(projectId,sourceDocumentId,value.historicalCorrection)}>Open historical correction and review · revision {value.historicalCorrection.revision}</a></p>}
@@ -141,9 +141,9 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
 
 /** Durable live review in the existing results rail. All lifecycle states
  * share the same retained snapshot and independent researcher decisions. */
-export function DurableResults({attempt,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress}:{attempt:ExtractionAttempt|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[])=>void;readOnly?:boolean;
+export function DurableResults({attempt,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress}:{attempt:ExtractionAttempt|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
   onResultPathChange?:(path:string[]|null)=>void;onFocusEvidence?:(link:EvidenceLink|null)=>void;
-  onMarksChange?:(marks:{describe:ReadonlyMap<string,MarkInfo>;selected:string|null;savedLinks:{key:string;link:EvidenceLink;occurrenceIds?:string[]}[]}|null)=>void;
+  onMarksChange?:(marks:RailMarkState|null)=>void;
   selectValueRef?:RefObject<((key:string)=>void)|null>;headerExtras?:React.ReactNode;
   onStatusChange?:(id:string,status:ExtractionAttempt['executionStatus'])=>void;
   onPinnedDocument?:(id:string,source:PinnedExtractionSource|null)=>void;
@@ -193,20 +193,20 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
     if(!model||!page)return
     const rows=[...model.document,...model.records.flatMap(record=>record.rows)]
     if(review){const row=durableRailRow(review.value,document),index=rows.findIndex(each=>each.key===row.key);if(index<0)rows.push(row);else rows[index]=row}
-    const describe=new Map(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',anchorId:row.link?.evidenceAnchorId??''}]))
+    const describe=new Map(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',anchorId:row.link?.evidenceAnchorId??'',precision:row.link?.precision}]))
     const displayed=review?[...page.values.filter(value=>value.id!==review.value.id),review.value]:page.values
     const savedLinks=displayed.flatMap(value=>[
       ...value.links.map(link=>({key:value.id,link})),
       ...(value.correction?.decision.evidence??[]).map((evidence:{anchorId:string;occurrenceIds:string[]})=>({key:value.id,link:{resultPath:value.path,evidenceAnchorId:evidence.anchorId},occurrenceIds:evidence.occurrenceIds})),
     ])
-    onMarksChange?.({describe,selected:review?.value.id??null,savedLinks})
+    onMarksChange?.({describe,selected:review?.value.id??null,selectableKeys:new Set(rows.map(row=>row.key)),savedLinks})
   },[model,page,onMarksChange,review,document])
   useEffect(()=>()=>{onMarksChange?.(null);onFocusEvidence?.(null);onResultPathChange?.(null)},[onMarksChange,onFocusEvidence,onResultPathChange])
   useEffect(()=> {
     const link=review?.value.links[0]??null
     onFocusEvidence?.(focus?link:null)
     onResultPathChange?.(review?review.value.path.map(String):[])
-    if(focus&&link)onEvidence(link.evidenceAnchorId)
+    if(focus&&link)onEvidence(link.evidenceAnchorId,undefined,link.precision)
   },[focus,review,onFocusEvidence,onResultPathChange,onEvidence])
   const executionStatus=loaded?.state.status
   useEffect(()=>{if(id&&executionStatus)onStatusChange?.(id,executionStatus)},[id,executionStatus,onStatusChange])

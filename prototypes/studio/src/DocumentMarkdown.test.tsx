@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import DocumentMarkdown from './DocumentMarkdown'
 import MarkPopover from './MarkPopover'
+
+afterEach(cleanup)
 
 const markdown = '# Grav 8\n\nØrsted: NØ-SV orienteret.'
 const bytes = (text: string) => new TextEncoder().encode(text).length
@@ -47,5 +49,23 @@ describe('the values in one passage (§7.2)', () => {
     expect(onClose).toHaveBeenCalled()
     unmount()
     expect(window.document.activeElement).toBe(mark)
+  })
+})
+
+describe('mark visibility preserves the Markdown source', () => {
+  it('leaves unselected source text readable when marks are off', () => {
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: null, onSelect: vi.fn() }} marksShown={false} />)
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(markdown)
+    expect(screen.queryByRole('button', { name: 'orientation: NØ-SV' })).toBeNull()
+  })
+  it('keeps the selected mark when marks are off', () => {
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe: describe_, selected: key, onSelect: vi.fn() }} marksShown={false} />)
+    expect(screen.getByRole('button', { name: 'orientation: NØ-SV' })).toHaveAttribute('aria-current', 'true')
+  })
+  it('never marks a page-only link as a precise passage', () => {
+    const describe = new Map([[key, { ...describe_.get(key)!, precision: 'input' as const }]])
+    render(<DocumentMarkdown markdown={markdown} document={document} marks={{ describe, selected: key, onSelect: vi.fn() }} />)
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(markdown)
+    expect(screen.queryByRole('button', { name: 'orientation: NØ-SV' })).toBeNull()
   })
 })

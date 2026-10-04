@@ -127,7 +127,7 @@ describe('partial links (design §1)', () => {
       partialEvidenceLinks: [{ resultPath: ['records', 1, 'title'], evidenceAnchorId: 'a_nowhere' }],
     })
     expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(1)
-    expect(viewer.scrollPageIntoView).toHaveBeenCalledTimes(1)
+    expect(viewer.scrollPageIntoView).not.toHaveBeenCalled()
     rerender({ attempt: { ...running, executionStatus: 'FAILED' }, partialEvidenceLinks: null })
     expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(0)
   })
@@ -255,5 +255,48 @@ describe('marks select their values (results review redesign §7.2)', () => {
     expect(mark.style.background).toBe('')
     mark.click()
     expect(onSelect).toHaveBeenCalledWith([JSON.stringify(['records', 0, 'title']), JSON.stringify(['records', 0, 'subtitle'])], mark)
+  })
+})
+
+describe('mark precision, focus and navigation ownership', () => {
+  function fixture(precision: EvidenceLink['precision'] = 'segment') {
+    const parsedDocument = decodeParsedDocument(parsedFixture)
+    const anchor = parsedDocument.evidence_index.anchors[0]
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0].page_number}"></div>`
+    document.body.append(container)
+    const viewer = { scrollPageIntoView: vi.fn(), eventBus: { on: vi.fn(), off: vi.fn() } }
+    const key = JSON.stringify(['records', 0, 'title'])
+    const attempt = { extractionId: 'mark-run', executionStatus: 'COMPLETED' as const, outcome: 'SUCCEEDED' as const,
+      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, precision }], reviewDecisions: [] }
+    const marks = { describe: new Map([[key, { name: 'title', value: 'Alpha', word: null, style: 'link' as const, anchorId: anchor.anchor_id }]]), selected: null as string | null, onSelect: vi.fn() }
+    const containerRef = { current: container }, viewerRef = { current: viewer as never }
+    const hook = renderHook(({ attempt, marks }) => useEvidenceOverlays({
+      containerRef, viewerRef, parsedDocument, attempt, resultPath: [], active: true, marks,
+    }), { initialProps: { attempt, marks } })
+    return { ...hook, attempt, marks, key, container, viewer, anchor }
+  }
+  it('draws no rectangle for page-only precision', () => {
+    const { container } = fixture('input')
+    expect(container.querySelectorAll('.evidence-mark')).toHaveLength(0)
+  })
+  it('selecting a page-only link navigates to its page without drawing a focus rectangle', () => {
+    const { result, anchor, container, viewer } = fixture('input')
+    act(() => result.current(anchor, 'input'))
+    expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
+    expect(viewer.scrollPageIntoView).toHaveBeenCalledExactlyOnceWith({ pageNumber: anchor.producer_observations[0].page_number })
+  })
+  it('keeps the focused mark through a poll of the same Extraction', () => {
+    const { container, rerender, attempt, marks } = fixture()
+    const mark = container.querySelector<HTMLButtonElement>('button.evidence-mark')!
+    mark.focus()
+    rerender({ attempt: { ...attempt }, marks })
+    expect(document.activeElement).toBe(container.querySelector('button.evidence-mark'))
+  })
+  it('does not navigate the PDF when marks repaint after selecting a value', () => {
+    const { rerender, attempt, marks, key, viewer } = fixture()
+    viewer.scrollPageIntoView.mockClear()
+    rerender({ attempt, marks: { ...marks, selected: key } })
+    expect(viewer.scrollPageIntoView).not.toHaveBeenCalled()
   })
 })

@@ -14,16 +14,19 @@ import {
 } from './evidenceNavigation'
 
 /** What the rail says about one value, for its mark on the page (results review redesign §7.2). */
-export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral'; anchorId: string }
-export type SavedRailMarks = {
+export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral'; anchorId: string; precision?: EvidenceLink['precision'] }
+
+/** The rail also reports unlinked keys so a copied value link can restore every row's selection. */
+export type RailMarkState = {
   describe: ReadonlyMap<string, MarkInfo>
   selected: string | null
+  selectableKeys: ReadonlySet<string>
   /** Stable retained value IDs, including explicit correction occurrences. */
   savedLinks?: readonly {key:string;link:EvidenceLink;occurrenceIds?:readonly string[]}[]
 }
 
 /** The Results rail's values and selection, which the marks show and select. */
-export type RailMarks = SavedRailMarks & {
+export type RailMarks = Omit<RailMarkState,'selectableKeys'> & {
   onSelect: (keys: string[], mark: HTMLElement) => void
 }
 
@@ -42,6 +45,7 @@ function appendOverlay(
   occurrence: EvidenceOccurrence,
   options: {
     className: string
+    element?: HTMLElement
     background?: string
     border?: string
     evidenceAnchorId?: string
@@ -59,14 +63,18 @@ function appendOverlay(
     (candidate) => candidate.page_number === occurrence.page_number,
   )
   if (!bbox || !pageMeta) return null
-  const overlay = window.document.createElement(options.mark ? 'button' : 'div')
+  const tag = options.mark ? 'BUTTON' : 'DIV'
+  const overlay = options.element?.tagName === tag ? options.element : window.document.createElement(tag.toLowerCase())
+  if (options.element && options.element !== overlay) options.element.remove()
   overlay.className = options.className
   if (options.mark) {
     const { label, current, onClick } = options.mark
     ;(overlay as HTMLButtonElement).type = 'button'
     overlay.setAttribute('aria-label', label)
+    overlay.removeAttribute('aria-hidden')
     if (current) overlay.setAttribute('aria-current', 'true')
-    overlay.addEventListener('click', () => onClick(overlay))
+    else overlay.removeAttribute('aria-current')
+    overlay.onclick = () => onClick(overlay)
   } else overlay.ariaHidden = 'true'
   overlay.dataset.occurrenceId = occurrence.occurrence_id
   if (options.evidenceAnchorId)
@@ -85,7 +93,7 @@ function appendOverlay(
   })
   if (getComputedStyle(page).position === 'static')
     page.style.position = 'relative'
-  page.append(overlay)
+  if (overlay.parentElement !== page) page.append(overlay)
   return overlay
 }
 
@@ -202,8 +210,10 @@ export function useEvidenceOverlays({
       evidenceLinks === null ||
       !active ||
       !resultPath
-    )
+    ) {
+      removeOverlays(container, 'parsed-evidence-highlight')
       return
+    }
 
     const reviewedByAnchor = new Map(
       (attempt.reviewDecisions ?? []).map((decision) => [
@@ -217,12 +227,13 @@ export function useEvidenceOverlays({
         anchor,
       ]),
     )
-    const paint = (): EvidenceOccurrence | undefined => {
-      let firstOccurrence: EvidenceOccurrence | undefined
-      removeOverlays(container, 'parsed-evidence-highlight')
+    const paint = () => {
+      const previous = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')]
+        .map((element) => [element.dataset.occurrenceId!, element]))
       // One mark per occurrence, carrying every value its passage supports (§7.2: several open a popover).
       const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'] }>()
       for (const {link,key,occurrenceIds} of evidenceLinks) {
+        if (link.precision === 'input') continue
         if (!resultPath.every((segment, index) => segment === String(link.resultPath[index]))) continue
         const anchor = anchors.get(link.evidenceAnchorId)
         if (!anchor) continue
@@ -235,12 +246,14 @@ export function useEvidenceOverlays({
         }
       }
       for (const { occurrence, anchorId, keys,resultPath } of byOccurrence.values()) {
-        firstOccurrence ??= occurrence
+        const element = previous.get(occurrence.occurrence_id)
+        previous.delete(occurrence.occurrence_id)
         const infos = keys.map((key) => marks?.describe.get(key)).filter((info): info is MarkInfo => Boolean(info))
         const style = infos[0]?.style ?? 'link'
         const decided = infos.length > 0 && infos.every((info) => info.word !== null)
         const current = marks?.selected !== null && marks?.selected !== undefined && keys.includes(marks.selected)
         appendOverlay(container, parsedDocument, occurrence, {
+          element,
           className: `parsed-evidence-highlight evidence-mark ${style}${decided ? ' decided' : ''}${current ? ' selected' : ''}`,
           evidenceAnchorId: anchorId,
           resultPath,
@@ -250,20 +263,19 @@ export function useEvidenceOverlays({
           } } : {}),
         })
       }
-      return firstOccurrence
+      previous.forEach((element) => element.remove())
     }
 
     viewer?.eventBus?.on('pagerendered', paint)
-    const firstOccurrence = paint()
-    // A selected anchor owns navigation even while pdf.js has yet to render
-    // its page and the focus overlay cannot be painted.
-    if (firstOccurrence && !running && !stopFocusedPaint.current)
-      viewer?.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
+    // Painting never navigates: only an explicit selection from the rail owns document navigation.
+    paint()
     return () => {
       viewer?.eventBus?.off('pagerendered', paint)
-      removeOverlays(container, 'parsed-evidence-highlight')
     }
   }, [active, attempt, containerRef, marks, parsedDocument, partialEvidenceLinks, resultPath, viewerRef])
+
+  useEffect(() => () => removeOverlays(containerRef.current, 'parsed-evidence-highlight'),
+    [active, attempt?.extractionId, containerRef, parsedDocument])
 
   useEffect(
     () => () => {
@@ -276,7 +288,7 @@ export function useEvidenceOverlays({
   )
 
   return useCallback(
-    (anchor: ParsedEvidenceAnchor) => {
+    (anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => {
       const viewer = viewerRef.current
       const container = containerRef.current
       stopFocusedPaint.current?.()
@@ -289,6 +301,10 @@ export function useEvidenceOverlays({
       )
       const firstOccurrence = occurrences[0]
       if (!firstOccurrence) return
+      if (precision === 'input') {
+        viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
+        return
+      }
       // pdf.js resets an unrendered page's children; retain the selection through that render and later zooms.
       const paintFocus = () => {
         removeOverlays(container, 'parsed-evidence-focus')

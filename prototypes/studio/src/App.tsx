@@ -19,7 +19,7 @@ import {
   decodeParsedDocument,
   type ParsedDocument,
 } from 'extraction/parsed-document'
-import { useEvidenceOverlays, type SavedRailMarks } from './useEvidenceOverlays'
+import { useEvidenceOverlays, type RailMarkState } from './useEvidenceOverlays'
 import MarkPopover from './MarkPopover'
 import DocumentMarkdown from './DocumentMarkdown'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
@@ -250,7 +250,7 @@ export function DocumentWorkspace({
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
-  const [railTab, setRailTab] = useState<RailTab>('schema')
+  const [railTab, setRailTab] = useState<RailTab>(() => new URLSearchParams(window.location.search).has('value') ? 'results' : 'schema')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   // Extraction Schemas keyed by Schema Revision id, so any attempt — active,
@@ -757,7 +757,7 @@ export function DocumentWorkspace({
   }, [projectContextId, extractionSchemaId, missingSchemaRevisionId])
 
   // The rail's values as marks on the page; a mark selects its value in the rail, several open a popover (§7.2).
-  const [railMarks, setRailMarks] = useState<SavedRailMarks | null>(null)
+  const [railMarks, setRailMarks] = useState<RailMarkState | null>(null)
   const selectValueRef = useRef<((key: string) => void) | null>(null)
   const [markChoice, setMarkChoice] = useState<{ keys: string[]; mark: HTMLElement } | null>(null)
   const [marksShown, setMarksShown] = useState(true)
@@ -765,7 +765,7 @@ export function DocumentWorkspace({
   const linkedValue = useRef(new URLSearchParams(window.location.search).get('value'))
   useEffect(() => {
     const key = linkedValue.current
-    if (!key || !railMarks?.describe.has(key)) return
+    if (!key || !railMarks?.selectableKeys.has(key)) return
     linkedValue.current = null
     selectValueRef.current?.(key)
   }, [railMarks])
@@ -1049,7 +1049,7 @@ export function DocumentWorkspace({
                 {/* Over the PDF, which stays mounted with its marks and position. */}
                 {documentView === 'markdown' && (
                   <div className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
-                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={marks} />
+                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={marks} marksShown={marksShown} />
                   </div>
                 )}
               </div>

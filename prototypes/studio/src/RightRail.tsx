@@ -1,6 +1,6 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import type { SavedRailMarks } from './useEvidenceOverlays'
+import type { RailMarkState } from './useEvidenceOverlays'
 import PanelToggleIcon from './PanelToggleIcon'
 import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
 import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
@@ -53,12 +53,12 @@ type RightRailProps = {
   boundaries?: SchemaPanelProps['boundaries']
   /** Controls the Results header shows beside the attempt details: the snapshot choice, "Open latest reviewed". */
   resultsHeaderExtras?: ReactNode
-  onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
+  onSelectEvidence: (anchor: ParsedEvidenceAnchor, precision?: EvidenceLink['precision']) => void
   onResultPathChange: (path: string[] | null) => void
   /** The one-by-one value's Evidence link, for the document's dimming (results review redesign §7.3). */
   onFocusEvidence?: (link: EvidenceLink | null) => void
   /** The rail's values for the document's marks, and the handle a mark selects a value through (§7.2). */
-  onMarksChange?: (marks: SavedRailMarks | null) => void
+  onMarksChange?: (marks: RailMarkState | null) => void
   selectValueRef?: RefObject<((key: string) => void) | null>
   onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void
@@ -126,12 +126,12 @@ function RightRail({
     onTabChange('schema')
   }
   const { parsedDocument, reviewDecisions } = inspection
-  const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[])=> {
+  const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=> {
     const anchor=parsedDocument?.evidence_index.anchors.find(each=>each.anchor_id===id)
     if(!anchor)return
-    if(!occurrenceIds)onSelectEvidence(anchor)
-    else if(anchor.kind==='text')onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))})
-    else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))})
+    if(!occurrenceIds)onSelectEvidence(anchor,precision)
+    else if(anchor.kind==='text')onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
+    else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
   },[parsedDocument,onSelectEvidence])
   const showDeveloperUi = isDeveloperUiEnabled()
   const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
@@ -284,11 +284,11 @@ function RightRail({
           onMarksChange={onMarksChange}
           selectValueRef={selectValueRef}
           headerExtras={resultsHeaderExtras}
-          onSelectEvidence={(anchorId) => {
+          onSelectEvidence={(anchorId, precision) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(
               (candidate) => candidate.anchor_id === anchorId,
             )
-            if (anchor) onSelectEvidence(anchor)
+            if (anchor) onSelectEvidence(anchor, precision)
           }}
         />}
       </div>
