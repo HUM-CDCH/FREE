@@ -602,7 +602,7 @@ class Component extends DCLogic {
     dec[id] = action;
     if (action === 'edited') vals[id] = value; else delete vals[id];
     var left = this.openIds(dec).concat(new Array(s.otherOpen).fill('other'));
-    var saved = left.length === 0;
+    var saved = s.phase === 'ready' && left.length === 0;
     var next = s.focus ? this.nextOpen(id, dec) : null;
     var patch = {
       dec: dec, vals: vals, editing: null, hist: s.hist.concat([entry]), saved: saved, confirm: false,
@@ -719,7 +719,7 @@ class Component extends DCLogic {
       if (s.filter === 'notrev') return !linked(c);
       return true;
     };
-    var last = toCheck === 1;
+    var last = !running && toCheck === 1;
     var W = [60, 34, 120, 52, 40, 70, 96, 64, 80, 56, 72];
     var runRecs = s.t < 1 ? [] : [{ name: 'Grav 8', where: 'p.1', n: CLAIMS.length }].concat(RECORDS).map(function (r, i) {
       var st = stageAt(i, s.t);
@@ -848,7 +848,7 @@ class Component extends DCLogic {
       fSkip: function () { self.skip(); },
       fPrev: function () { self.step(-1); },
       approveAll: function () {
-        if (s.editing || s.saved) return;
+        if (s.editing || s.saved || running) return;
         var dec = Object.assign({}, s.dec);
         openList.forEach(function (id) { dec[id] = 'approved'; });
         var od = Object.assign({}, s.otherDec); od.approved += s.otherOpen;
