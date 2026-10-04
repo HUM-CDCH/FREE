@@ -569,7 +569,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
       <p className="sr-only" aria-live="polite" aria-atomic="true">{announce}</p>
       {toast && (
         <div className="absolute right-3 bottom-3 left-3 z-20">
-          <Toast key={toast.id} message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} className="w-full" />
+          <Toast key={toast.id} message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} className="w-full" wrap />
         </div>
       )}
       {menuOpen && (
