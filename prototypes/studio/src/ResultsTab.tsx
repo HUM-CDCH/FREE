@@ -209,10 +209,15 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   const readableRecords = model?.records.some((record) => record.state === 'finished') ?? false
   // The document follows the current value (§4.3, §7.3); the dimming lasts as long as one-by-one.
   const currentLink = currentItem?.row.link ?? null
+  // Once per current value: a re-render (a page the researcher scrolled to, a new callback) never pulls the PDF back.
+  const followRef = useRef({ onFocusEvidence, onSelectEvidence, currentLink })
+  useEffect(() => { followRef.current = { onFocusEvidence, onSelectEvidence, currentLink } })
+  const followKey = oneByOne && currentLink ? `${currentItem?.key} ${currentLink.evidenceAnchorId}` : null
   useEffect(() => {
-    onFocusEvidence?.(oneByOne ? currentLink : null)
-    if (oneByOne && currentLink) onSelectEvidence?.(currentLink.evidenceAnchorId)
-  }, [oneByOne, currentLink, onFocusEvidence, onSelectEvidence])
+    const { onFocusEvidence, onSelectEvidence, currentLink } = followRef.current
+    onFocusEvidence?.(followKey ? currentLink : null)
+    if (followKey && currentLink) onSelectEvidence?.(currentLink.evidenceAnchorId)
+  }, [followKey])
   useEffect(() => () => onFocusEvidence?.(null), [onFocusEvidence])
 
   const isOpenKey = (key: string | null) => key !== null && queue.find((item) => item.key === key)?.row.kind === 'to-check'
