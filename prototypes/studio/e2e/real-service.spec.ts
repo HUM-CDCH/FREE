@@ -7,6 +7,7 @@ import { documentReopenResponseSchema } from '../shared/projectContext.contract.
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
 import { batchExtractionResponseSchema } from '../shared/batchExtraction.contract.js'
 import { E2E_ORIGIN, e2eStudioPath, loginResearcher } from './auth.js'
+import { openRecord, recordHeader, reviewRow } from './resultsReview.js'
 import { cataloguePdf, numberedCataloguePdf, startRealService, textPdf } from './realService.js'
 import { admit, settle, uploaded } from './sourceIngestion.js'
 
@@ -184,9 +185,10 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
     await page.goto(`/projects/${projectContext.projectContextId}/documents/${source.sourceDocumentId}`)
     await page.getByRole('tab', { name: /Results/ }).click()
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Item 1 › Hill' }).click()
-    await expect(page.getByRole('button', { name: 'View Evidence for site' }).first()).toBeVisible()
-    await page.getByRole('button', { name: 'View Evidence for site' }).first().click()
+    // A reopened saved review lists its records collapsed (nothing left to check); the first one opens on its header.
+    await recordHeader(page, 'Hill').click()
+    await expect(reviewRow(page, 'site').first()).toBeVisible()
+    await reviewRow(page, 'site').first().click()
     await page.screenshot({ path: testInfo.outputPath('real-evidence-review.png'), fullPage: true })
   } finally {
     await service.close()
@@ -290,18 +292,23 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
 
     await page.goto(`/projects/${projectContext.projectContextId}/documents/${source.sourceDocumentId}`)
     await page.getByRole('tab', { name: /Results/ }).click()
-    const recipeReview = page.getByRole('region', { name: 'Recipe review' })
+    // The recipe's own review lives in Run details (results review redesign §8).
+    await page.getByRole('button', { name: 'Run details' }).click()
+    const recipeReview = page.getByRole('dialog', { name: 'Run details' }).getByRole('region', { name: 'Recipe review' })
     await expect(recipeReview).toContainText('Every source line is accounted for.')
     await expect(recipeReview).toContainText('Recall is not measured.')
     await expect(recipeReview).toContainText('2 proposed values not accepted')
+    await page.getByRole('button', { name: 'Close run details' }).click()
     // Evidence navigation lands on the physical page: 32's FA: value on page 2, its inherited Kreis heading on page 1.
-    await page.getByRole('button', { name: 'Item 2 › Heide' }).click()
-    await expect(page.getByText('Inherited from the heading in force', { exact: true })).toBeVisible()
-    await expect(page.getByText('Read after its printed key', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'View Evidence for fundart' }).click()
+    // What tied each value to its field shows under its source line once the value is selected (§3.3).
+    // Entry 32 is the second record (both are named by their Kreis heading, Heide).
+    await openRecord(page, 1)
+    await reviewRow(page, 'fundart').click()
+    await expect(page.getByText(/Read after its printed key/)).toBeVisible()
     await expect(page.locator('.page[data-page-number="2"] .parsed-evidence-focus')).not.toHaveCount(0)
     await page.screenshot({ path: testInfo.outputPath('recipe-catalog-continuation.png'), fullPage: true })
-    await page.getByRole('button', { name: 'View Evidence for kreis' }).click()
+    await reviewRow(page, 'kreis').click()
+    await expect(page.getByText(/Inherited from the heading in force/)).toBeVisible()
     await expect(page.locator('.page[data-page-number="1"] .parsed-evidence-focus')).not.toHaveCount(0)
     await expect(page.locator('.page[data-page-number="2"] .parsed-evidence-focus')).toHaveCount(0)
     await page.screenshot({ path: testInfo.outputPath('recipe-catalog-review.png'), fullPage: true })

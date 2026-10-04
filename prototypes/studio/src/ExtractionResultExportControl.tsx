@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import {
   createExtractionResultExportControl,
   deriveRowsRepresentOptions,
@@ -23,6 +23,10 @@ type ExtractionResultExportControlProps = {
    *  claim accounting. Otherwise (a batch export) the note says the export holds values only. */
   evidenceSheets?: boolean
   onExport: (format: ExportFormat, choices: ExportChoices) => Promise<void>
+  /** Opened from elsewhere (the Results rail's ⋯ menu): its own trigger is hidden and focus returns there. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  returnFocusRef?: RefObject<HTMLElement | null>
 }
 
 function DownloadIcon() {
@@ -63,8 +67,14 @@ function ExtractionResultExportControl({
   contestedCount = 0,
   evidenceSheets = false,
   onExport,
+  open: openFromOutside,
+  onOpenChange,
+  returnFocusRef,
 }: ExtractionResultExportControlProps) {
-  const [open, setOpen] = useState(false)
+  const [ownOpen, setOwnOpen] = useState(false)
+  const controlled = openFromOutside !== undefined
+  const open = openFromOutside ?? ownOpen
+  const setOpen = (next: boolean) => { if (controlled) onOpenChange?.(next); else setOwnOpen(next) }
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rowsRepresent, setRowsRepresent] = useState(ROOT_ROWS)
@@ -88,8 +98,8 @@ function ExtractionResultExportControl({
   useEffect(() => {
     if (pending || !restoreFocusAfterExport.current) return
     restoreFocusAfterExport.current = false
-    triggerRef.current?.focus()
-  }, [pending])
+    ;(returnFocusRef ?? triggerRef).current?.focus()
+  }, [pending, returnFocusRef])
 
   async function exportResult(format: ExportFormat): Promise<void> {
     if (unavailable || inFlight.current) return
@@ -113,17 +123,17 @@ function ExtractionResultExportControl({
 
   return (
     <div className="relative flex flex-col items-end gap-1">
-      <Button
+      {!controlled && <Button
         ref={triggerRef}
         aria-busy={pending}
         aria-expanded={open}
         aria-haspopup="dialog"
         disabled={unavailable || pending}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => setOpen(!open)}
       >
         <DownloadIcon />
         {pending ? 'Exporting…' : 'Export'}
-      </Button>
+      </Button>}
       {unavailable && disabledReason && (
         <p className="max-w-72 text-right text-[11.5px] leading-snug text-ink-muted">
           {disabledReason}
@@ -134,7 +144,7 @@ function ExtractionResultExportControl({
           ariaLabel="Export options"
           className="m-auto w-64 rounded-md border border-line bg-surface p-2 text-ink shadow-float backdrop:bg-ink/35"
           initialFocusRef={initialFocusRef}
-          returnFocusRef={triggerRef}
+          returnFocusRef={returnFocusRef ?? triggerRef}
           onDismiss={() => setOpen(false)}
         >
           <label className="mb-2 block text-[11px] font-semibold text-ink-muted">

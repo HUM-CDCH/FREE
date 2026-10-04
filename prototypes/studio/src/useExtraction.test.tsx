@@ -231,7 +231,7 @@ describe('useExtraction server-owned lifecycle', () => {
     const { result, rerender } = renderHook(({ current, documentKey }) => useExtraction({ ...options(current), documentKey }), { initialProps: { current: original, documentKey: 'first' } })
     await waitFor(() => expect(result.current.review.decisions).toHaveLength(1))
     act(() => result.current.review.setDecision(pending[0].resultPath, 'EDITED', 'Submitted'))
-    let request!: Promise<void>
+    let request!: Promise<boolean>
     act(() => {
       request = result.current.review.accept()
       void result.current.review.accept()
@@ -1592,6 +1592,24 @@ describe('review while the run reads (ADR 0016; results review redesign §5)', (
     expect(result.current.review.isTouched(['records', 1, 'title'])).toBe(false)
     expect(result.current.review.decisions[1]).toEqual(decision(1))
     expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it('a watched run without drafted decisions still reports its settlement, once its review is loaded', async () => {
+    vi.useFakeTimers()
+    const settled = attempt({ ...running(), executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', reviewable: true, complete: true,
+      resultPayload: { records: [{ title: 'Record 1' }] }, evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-0' }] })
+    let reads = 0
+    vi.mocked(api.readExtraction).mockImplementation(async () => (reads++ === 0
+      ? { extraction: running(), pendingReviewDecisions: null, partial: null }
+      : { extraction: settled, pendingReviewDecisions: [decision(0)], reviewDraft: { version: 0, decisions: [] } }))
+    const { result, unmount } = hook(running())
+    await poll()
+    expect(result.current.review.settlement).toBeNull()
+    await poll()
+    await flush()
+    await flush()
+    expect(result.current.review.settlement).toEqual({ kept: 0, changed: 0 })
     unmount()
   })
 

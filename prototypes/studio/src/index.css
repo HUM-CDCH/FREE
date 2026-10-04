@@ -37,6 +37,9 @@
   --text-secondary: 12px;
   --text-compact: 11px;
   --text-overline: 10.5px;
+  /* The rail's one display size: the To check count and the one-by-one value (results review redesign §12). */
+  --text-display: 20px;
+  --text-display--line-height: 1.25;
 
   --shadow-page:
     0 0 0 1px rgb(60 50 40 / 0.07),

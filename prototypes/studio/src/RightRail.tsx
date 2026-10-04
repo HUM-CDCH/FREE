@@ -17,7 +17,6 @@ export type RailTab = 'evidence' | 'schema' | 'results'
 export type ExtractionInspection = {
   attempt: ExtractionAttempt | null
   readOnly: boolean
-  documentMarkdown: string | null
   parsedDocument: ParsedDocument | null
   reviewDecisions: ExtractionAttempt['reviewDecisions']
   pinnedSchema: (SchemaDefinition & {
@@ -110,7 +109,7 @@ function RightRail({
       revisionNumber: pinned.revisionNumber, nodeId, nodeType: node.type, resultPaths: [path] })
     onTabChange('schema')
   }
-  const { documentMarkdown, parsedDocument, reviewDecisions } = inspection
+  const { parsedDocument, reviewDecisions } = inspection
   const showDeveloperUi = isDeveloperUiEnabled()
   const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
 
@@ -234,7 +233,7 @@ function RightRail({
           inspectedAttempt={inspection.readOnly ? inspection.attempt ?? undefined : undefined}
           readOnly={inspection.readOnly}
           schemaReady={schemaReady}
-          documentMarkdown={documentMarkdown}
+          parsedDocument={parsedDocument}
           pinnedSchema={inspection.pinnedSchema}
           exportSchema={inspection.exportSchema}
           currentSchemaRevision={currentSchemaRevision}

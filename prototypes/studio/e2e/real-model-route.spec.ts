@@ -2,10 +2,10 @@ import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import pluralize from 'pluralize'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
+import { approveRest, openRecord, reviewRow } from './resultsReview.js'
 import { startRealService } from './realService.js'
 import { admit, settle } from './sourceIngestion.js'
 
@@ -116,24 +116,22 @@ test('a real document runs through the application: extraction, evidence, browse
     await page.screenshot({ path: join(output, 'results.png'), fullPage: true })
     const edited = target ? `${target.value} (reviewed)` : null
     if (target) {
-      // One record's fields are shown at the root; several records are listed as items first.
-      if (records.length > 1) await page.getByRole('button', { name: new RegExp(`^Item ${target.record + 1}\\b`) }).first().click()
-      await page.getByRole('button', { name: new RegExp(`^${target.field}\\b`) }).first().click()
-      const singular = pluralize.singular(target.field)  // as ResultValue's singularItemLabel names list items
-      const listItem = `${singular.charAt(0).toUpperCase()}${singular.slice(1)} ${target.item + 1}`
-      if (target.child) await page.getByRole('button', { name: new RegExp(`^${listItem}\\b`) }).first().click()
-      const item = target.child ?? listItem
-      await page.getByRole('group', { name: `Review ${item}` }).getByRole('button', { name: `Edit ${item}` }).click()
-      const box = page.getByRole('textbox', { name: `Reviewed value for ${item}`, exact: true })
+      // Every value is a flat row named by its path, items 1-based (results review redesign §3.2); a record of
+      // several opens on its header.
+      if (records.length > 1) await openRecord(page, target.record)
+      const item = [target.field, String(target.item + 1), ...(target.child ? [target.child] : [])].join(' › ')
+      await reviewRow(page, item).click()
+      await page.getByRole('group', { name: `Decision for ${item}`, exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+      const box = page.getByRole('textbox', { name: 'Reviewed value', exact: true })
       await box.fill(edited!)
       await box.press('Enter')
-      await expect(page.getByText(edited!, { exact: true })).toBeVisible()
-      const original = page.getByRole('button', { name: `View Evidence for extracted value of ${item}` })
-      await expect(original).toBeVisible()
-      await original.click()
+      await expect(reviewRow(page, item)).toHaveAccessibleName(new RegExp(`^Edited .* ${edited!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`))
+      // The edited row stays selected; its Evidence is the extracted value's, and is labelled so.
+      await expect(reviewRow(page, item)).toBeVisible()
+      await expect(page.getByText(/^Evidence for the extracted value · /)).toBeVisible()
       await page.screenshot({ path: join(output, 'edited-item-evidence.png'), fullPage: true })
     }
-    await page.getByRole('button', { name: /Approve remaining/ }).click()
+    await approveRest(page)
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible({ timeout: 30_000 })
     clock.reviewed = new Date().toISOString()
 

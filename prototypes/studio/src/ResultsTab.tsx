@@ -1,29 +1,25 @@
-import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { exportExtractionResult, type ExtractionProvenance, type ProvenanceClaim } from 'extraction-result-export'
+import type { ParsedDocument } from 'extraction/parsed-document'
+import type { SchemaDefinition } from 'extraction/schema'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
-import { MethodUsed } from './MethodUsed'
-import ResultValue, { RecordHeader, singularItemLabel } from './ui/ResultValue'
-import PartialResults from './PartialResults'
-import { Overline, Spinner, Button, ModalDialog, Pill } from './ui'
+import { Button, ModalDialog, Toast } from './ui'
 import { isRecord } from '../shared/template'
-import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
-import { resultStats } from './resultStats'
 import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
-import type { ExtractionState } from './extraction'
 import type { ExtractionAttempt, ReviewDecisionAction, ReviewDecisionInput } from '../shared/extraction.contract'
-import type { EvidenceLink } from '../shared/groundedExtraction'
-import { reviewAttention } from 'extraction/review-attention'
-import { ReviewAttention } from './ReviewAttention'
 import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
-import { CatalogReview } from './CatalogReview'
-import { RecipeReview } from './RecipeReview'
-import { claimStatuses, describeClaimStatus, fieldLabel, linkOrigin, reasonText, type ClaimStatus } from './claimStates'
-import {
-  applyReviewDecisions,
-  orderResultFields,
-  resultPathKey,
-  schemaNodeAtResultPath,
-} from './reviewDecisions'
+import { claimStatuses, linkOrigin, type ClaimStatus } from './claimStates'
+import { applyReviewDecisions, orderResultFields, resultPathKey, schemaNodeAtResultPath } from './reviewDecisions'
+import { DECISION_WORD, partialRailModel, settledRailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
+import { breakdownState, statusLine } from './resultsHeaderCopy'
+import { recordDecision, undoLast, type HistoryEntry } from './reviewHistory'
+import { evidenceQuote } from './evidenceQuote'
+import { useToast } from './useToast'
+import ResultsHeader from './ResultsHeader'
+import ReviewList from './ReviewList'
+import ReviewRow from './ReviewRow'
+import RunDetailsDrawer, { type DrawerSection } from './RunDetailsDrawer'
+import ResultsMenu from './ResultsMenu'
 
 type PinnedSchema = SchemaDefinition & {
   revisionNumber?: number
@@ -31,18 +27,17 @@ type PinnedSchema = SchemaDefinition & {
 }
 
 /** One way to run (decision 03): the tab strip's "▶ Run extraction". The Results tab starts no Extraction itself; its
- *  empty state points at that button, or says why it cannot start (`runUnavailableReason`). Nowhere else: a view of an
- *  earlier Source Representation, whose Run is disabled, shows the other states too. */
+ *  empty state points at that button, or says why it cannot start (`runUnavailableReason`). */
 const RUN_POINTER = 'Press ▶ Run extraction above.'
 
 type ResultsTabProps = {
   controller: ExtractionController
-  /** Why the tab strip's Run cannot start now, in its own words (its title); the empty state says it instead of
-   *  pointing at the button. Null or absent when Run can start. */
+  /** Why the tab strip's Run cannot start now, in its own words (its title); null or absent when Run can start. */
   runUnavailableReason?: string | null
   schemaReady: boolean
-  documentMarkdown: string | null
   sourceDocumentName: string
+  /** The pinned document: the quotes of the selected value's Evidence. */
+  parsedDocument?: ParsedDocument | null
   onSelectEvidence?: (anchorId: string) => void
   onResultPathChange?: (path: string[] | null) => void
   /** Extraction Schema the displayed attempt ran with; also the used-schema preview. */
@@ -54,1074 +49,419 @@ type ResultsTabProps = {
   inspectedAttempt?: ExtractionAttempt
   readOnly?: boolean
   onEditField?: (nodeId: string, path: (string | number)[]) => void
-  /** Each Evidence anchor's first page (anchor id → page), for the export's Evidence sheet. */
+  /** Each Evidence anchor's first page (anchor id → page): the chips, the record headers and the export. */
   evidencePages?: ReadonlyMap<string, number>
-  /** The workspace's own header controls (snapshot choice, "Open latest reviewed"), before the attempt details. */
+  /** The workspace's own header controls (snapshot choice, "Open latest reviewed"), before ⓘ. */
   headerExtras?: ReactNode
 }
 
-type View = 'review' | 'json' | 'markdown'
+/** The path prefix the document's overlays filter by: none, so every link paints (§7.2), whatever the result's shape.
+ *  One array, so a parent's state settles. */
+const ALL_RECORDS: string[] = []
+const ALL_TOUCHED = () => true
 
-const preClasses =
-  'scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre bg-canvas px-4 py-3.5 font-mono text-compact leading-relaxed text-ink'
+const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`
 
-/** Tactile press for the panel's own actions; still only opt-in per button. */
-const pressable = 'active:scale-96 motion-reduce:active:scale-100'
-
-const noticeClasses =
-  'mt-2 rounded-md border border-stale bg-stale-soft px-2.5 py-2 text-compact leading-snug text-stale-ink'
-
-function outcomeLabel(outcome: string) {
-  return outcome.replaceAll('_', ' ')
-}
-
-function summaryItem(label: string, value: string | number) {
-  return (
-    <span className="rounded-full border border-line bg-surface-muted px-2 py-1 text-compact font-semibold text-ink-muted">
-      {label}: <span className="font-mono text-ink">{value}</span>
-    </span>
-  )
-}
-
-/** Checks describe the original value, so hide them after an edit or rejection. */
-function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, action?: ReviewDecisionAction): string | undefined {
-  if (action === 'EDITED' || action === 'REJECTED') return undefined
-  if (link.verbatim === false) return 'Value not found in the linked passage'
-  const others = (link.lexicalHits ?? 1) - 1
-  if (link.verbatim && others > 0) return `Value also appears in ${others} other passage${others === 1 ? '' : 's'}`
-  return undefined
-}
-
-/** A recipe or unified Catalog value's grounding in the researcher's words; like the checks, it describes the original
- *  value, so after an edit or rejection it names that extracted value instead. */
-function evidenceDetail(link: EvidenceLink, action: ReviewDecisionAction | undefined, extracted: unknown): string | undefined {
-  const grounding = link.grounding
-  if (action === 'EDITED' || action === 'REJECTED') return `Extracted value: ${String(extracted)}`
-  const location =
-    link.precision === 'cell'
-      ? 'Located to a table cell'
-      : link.precision === 'segment'
-        ? 'Located to the source block'
-        : link.precision === 'input'
-          ? 'Located to the whole input only'
-          : undefined
-  // Without a recipe or unified grounding, a link is the verifier's unless code linked it by a lexical match.
-  if (!grounding) return [linkOrigin(link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported', location].filter(Boolean).join(' · ')
-  const parts = [grounding.linkedBy === 'verification'
-    ? (grounding.support === 'literal' ? 'Verifier-supported; the value is printed in the entry' : 'Verifier-supported from a supporting passage; the value is not printed as such')
-    : grounding.linkedBy === 'key' ? 'Read after its printed key'
-      : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
-        : 'Entry number from the segmentation']
-  const others = grounding.alternatives.length
-  if (others > 0) parts.push(`${others} other match${others === 1 ? '' : 'es'} in the entry`)
-  if (grounding.precision === 'input') parts.push('located to the whole page only')
-  if (grounding.precision === 'cell') parts.push('located to a table cell')
-  if (grounding.linkedBy !== 'verification' && grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
-  return parts.join(' · ')
-}
-
-type DiagnosticCall = {
-  outcome: string
-  finishReason: string | null
-  calls?: number
-  inputTokens: number | null
-  outputTokens: number | null
-  durationMs: number
-  failureCode?: string | null
-}
-
-function DiagnosticDetails({
-  diagnostic,
-  identity,
-}: {
-  diagnostic: DiagnosticCall
-  identity?: Array<[string, string | number]>
-}) {
-  return (
-    <details className="mt-1 rounded-md border border-line bg-surface-muted px-2.5 py-1.5 text-compact text-ink-muted">
-      <summary className="cursor-pointer font-semibold text-ink">Technical details</summary>
-      <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-        {identity?.map(([label, value]) => (
-          <Fragment key={label}>
-            <dt>{label}</dt>
-            <dd className="font-mono text-ink">{value}</dd>
-          </Fragment>
-        ))}
-        <dt>Finish reason</dt>
-        <dd className="font-mono text-ink">{diagnostic.finishReason ?? '—'}</dd>
-        {diagnostic.calls !== undefined && (
-          <>
-            <dt>Calls</dt>
-            <dd className="font-mono text-ink">{diagnostic.calls}</dd>
-          </>
-        )}
-        <dt>Input tokens</dt>
-        <dd className="font-mono text-ink">{diagnostic.inputTokens ?? '—'}</dd>
-        <dt>Output tokens</dt>
-        <dd className="font-mono text-ink">{diagnostic.outputTokens ?? '—'}</dd>
-        <dt>Duration / latency</dt>
-        <dd className="font-mono text-ink">{diagnostic.durationMs} ms</dd>
-        <dt>Failure code</dt>
-        <dd className="font-mono text-ink">{diagnostic.failureCode ?? '—'}</dd>
-      </dl>
-    </details>
-  )
-}
-
-function GroundingDiagnostics({
-  diagnostics,
-}: {
-  diagnostics: NonNullable<NonNullable<ExtractionAttempt['diagnostics']>['grounding']>
-}) {
-  return (
-    <section className="mt-3 border-t border-line pt-2.5" aria-label="Grounding diagnostics">
-      <p className="text-compact font-bold uppercase tracking-[0.08em] text-ink-muted">
-        Grounding batches
-      </p>
-      <div className="mt-1.5 space-y-1.5">
-        {diagnostics.batches.map((batch, index) => (
-          <div key={`${index}-${batch.resultPath?.join('.') ?? 'run'}`} className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5">
-            <p className="text-compact text-ink">
-              Batch {index + 1} · {batch.outcome} · {batch.candidateCount} candidate{batch.candidateCount === 1 ? '' : 's'}
-            </p>
-            <DiagnosticDetails diagnostic={batch} identity={batch.resultPath ? [['Result path', batch.resultPath.join('.')] ] : undefined} />
-          </div>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
-  const diagnostics = attempt.diagnostics
-  if (!diagnostics)
-    return <p className="text-compact text-ink-muted">Diagnostics are not available yet.</p>
-  const catalog = diagnostics.catalog
-  return (
-    <section aria-label="Extraction diagnostics">
-      <div className="mt-2 space-y-2">
-        <p className="text-compact font-bold uppercase tracking-[0.08em] text-ink-muted">
-          Extraction diagnostics
-        </p>
-          <DiagnosticDetails
-            diagnostic={{
-              outcome: 'succeeded',
-              finishReason: diagnostics.finishReason,
-              inputTokens: diagnostics.inputTokens,
-              outputTokens: diagnostics.outputTokens,
-              durationMs: diagnostics.durationMs,
-              failureCode: null,
-              calls: diagnostics.modelCalls,
-            }}
-            identity={[
-              ['Phase', diagnostics.phase],
-              // The model each role ran on, as kei-exp resolved the run's choice over its defaults.
-              ...(diagnostics.models
-                ? [['Field model', diagnostics.models.fields], ['Reasoning model', diagnostics.models.reasoning]] as Array<[string, string]>
-                : []),
-            ]}
-          />
-          {catalog && (
-            <div className="space-y-2" aria-label="Catalog diagnostics">
-              <p className="text-compact font-semibold text-ink">Catalog stages</p>
-              {catalog.stages.map((stage) => (
-                <div
-                  key={stage.stage}
-                  aria-label={`Catalog stage ${stage.stage}: ${stage.outcome}, ${stage.provenance}`}
-                  className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5"
-                >
-                  <p className="text-compact text-ink">
-                    {stage.stage} · {outcomeLabel(stage.outcome)} · {stage.provenance}
-                  </p>
-                  <DiagnosticDetails diagnostic={stage} />
-                </div>
-              ))}
-              <p className="text-compact font-semibold text-ink">Catalog records</p>
-              <div
-                data-testid="catalog-record-diagnostics"
-                className="max-h-48 space-y-1.5 overflow-y-auto pr-1"
-              >
-                {catalog.records.map((record) => (
-                  <div
-                    key={record.ordinal}
-                    aria-label={`Catalog record ${record.ordinal + 1}: ${record.outcome}, ${record.provenance}, ${record.boundary.headingText}`}
-                    className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5"
-                  >
-                    <p className="text-compact text-ink">
-                      Record {record.ordinal + 1} · {outcomeLabel(record.outcome)} · {record.provenance} · {record.boundary.headingText}
-                    </p>
-                    <p className="text-compact text-ink-muted">
-                      Canonical {record.boundary.startContentIndex}–{record.boundary.endContentIndex}
-                      {record.boundary.headingLevel !== null && ` · heading level ${record.boundary.headingLevel}`}
-                    </p>
-                    <DiagnosticDetails
-                      diagnostic={record}
-                      identity={[
-                        ['Record identity', record.boundary.startBlockId],
-                        ['Record start', record.boundary.headingText],
-                        ['Canonical start', record.boundary.startContentIndex],
-                        ['Canonical end', record.boundary.endContentIndex],
-                        ['Heading level', record.boundary.headingLevel ?? 'Not a heading'],
-                      ]}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {diagnostics.grounding && <GroundingDiagnostics diagnostics={diagnostics.grounding} />}
-      </div>
-    </section>
-  )
-}
-
-function InfoIcon() {
-  return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none">
-      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="10" cy="6.5" r="1" fill="currentColor" />
-      <path d="M10 9.5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function AttemptDetails({ attempt }: { attempt: ExtractionAttempt }) {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        title="Run details"
-        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:text-ink"
-        onClick={() => setOpen(true)}
-      >
-        <InfoIcon />
-        <span className="sr-only">Run details</span>
-      </button>
-      {open && (
-        <ModalDialog
-          ariaLabel="Run details"
-          className="m-auto w-96 max-w-[90vw] rounded-md border border-line bg-surface p-3 text-ink shadow-float backdrop:bg-ink/35"
-          returnFocusRef={triggerRef}
-          onDismiss={() => setOpen(false)}
-        >
-          <div className="flex items-center justify-between">
-            <p className="text-compact font-bold uppercase tracking-[0.08em] text-ink-muted">Run details</p>
-            <button
-              type="button"
-              className="cursor-pointer rounded px-1.5 py-0.5 text-compact font-semibold text-ink-muted hover:text-ink"
-              onClick={() => setOpen(false)}
-            >
-              Close
-            </button>
-          </div>
-          <div className="scrollbar-subtle mt-1.5 max-h-64 overflow-y-auto pr-1">
-            <MethodUsed attempt={attempt} />
-            <ExtractionDiagnostics attempt={attempt} />
-          </div>
-        </ModalDialog>
-      )}
-    </>
-  )
-}
-
-function statusLabel(state: ExtractionState, attempt: ExtractionAttempt | null): string | null {
-  switch (state.status) {
-    case 'idle':
-      return null
-    case 'error':
-      return 'Failed'
-    case 'cancelled':
-      return 'Cancelled'
-    case 'running':
-      return attempt?.executionStatus === 'QUEUED'
-        ? 'Queued'
-        : attempt?.executionStatus === 'RUNNING'
-          ? 'Running'
-          : 'Starting'
-    case 'ready':
-      return attempt?.complete === false ? 'Completed · incomplete' : 'Completed'
-  }
+function getAtPath(value: unknown, path: readonly (string | number)[]): unknown {
+  return path.reduce<unknown>((current, step) =>
+    Array.isArray(current) ? current[Number(step)] : isRecord(current) ? current[String(step)] : undefined, value)
 }
 
 /**
- * Progress, Schema Revision comparison and connection state, each readable on
- * its own: the status never hides behind the revision badge, and a lost
- * connection keeps the last known status on screen.
+ * The Results tab (results review redesign §2–§3, §5–§6, §8): one header in every phase, the list of records and
+ * values for a running and a settled Extraction alike, decisions with undo, and saving only on a researcher's act.
  */
-function ExtractionStatus({
-  controller,
-  state,
-  attempt,
-  usedSchema,
-  currentSchemaRevision,
-  readOnly,
-}: {
-  controller: ExtractionController
-  state: ExtractionState
-  attempt: ExtractionAttempt | null
-  usedSchema: PinnedSchema | null
-  currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
-  readOnly: boolean
-}) {
-  const [schemaOpen, setSchemaOpen] = useState(false)
-  const label = statusLabel(state, attempt)
-  if (label === null) return null
-  const active = attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
-  // While a request is in flight the previous attempt is still mounted; its
-  // revision must not be read as the new run's.
-  const known = state.status === 'running' && !active ? null : attempt
-  // The caller pins the displayed attempt's schema; an id on it only guards
-  // against a stale pin while the attempt changes underneath.
-  const usedSchemaShown =
-    known && usedSchema && (usedSchema.schemaRevisionId ?? known.schemaRevisionId) === known.schemaRevisionId
-      ? usedSchema
-      : null
-  const usedRevisionNumber = usedSchemaShown?.revisionNumber ?? null
-  const previousSchema =
-    known !== null &&
-    currentSchemaRevision !== null &&
-    known.schemaRevisionId !== currentSchemaRevision.schemaRevisionId
-  const running = state.status === 'running' || active
-  const completed = state.status === 'ready' && !active && known !== null
-  const usedRevisionLabel = usedRevisionNumber === null
-    ? 'the Extraction’s Schema Revision'
-    : `Schema Revision ${usedRevisionNumber}`
-  return (
-    <section aria-label="Extraction status" className="shrink-0 border-b border-line bg-surface px-3 py-2">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <p role="status" className="text-compact font-semibold text-ink">{label}</p>
-        {previousSchema && <Pill tone="stale" outline>Previous schema</Pill>}
-      </div>
-      <p className="mt-0.5 text-compact text-ink-muted">
-        {known === null
-          ? 'Schema Revision loading…'
-          : usedRevisionNumber === null
-            ? 'Using Schema Revision (loading…)'
-            : `Using Schema Revision ${usedRevisionNumber}`}
-        {currentSchemaRevision && ` · Current revision: ${currentSchemaRevision.revisionNumber}`}
-      </p>
-      {controller.monitorError && !readOnly && (
-        <div role="alert" className={noticeClasses}>
-          <p>{controller.monitorError}</p>
-          <Button variant="secondary" size="sm" className={`mt-1.5 ${pressable}`} onClick={controller.reconnect}>
-            Reconnect
-          </Button>
-        </div>
-      )}
-      {running && !readOnly && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <p className="text-compact text-ink-muted">You can continue working on other documents.</p>
-          {/* Nothing to cancel until the server acknowledges the run ("Starting extraction…"). */}
-          <Button
-            variant="secondary"
-            size="sm"
-            className={pressable}
-            disabled={controller.cancellationRequested || !active}
-            onClick={() => void controller.requestCancellation()}
-          >
-            {controller.cancellationRequested ? 'Cancellation requested…' : 'Cancel extraction'}
-          </Button>
-          {controller.cancellationError && (
-            <p role="alert" className="basis-full text-compact text-danger">
-              Cancellation failed: {controller.cancellationError}
-            </p>
-          )}
-        </div>
-      )}
-      {completed && previousSchema && (
-        <p className="mt-2 text-compact text-ink-muted">Review applies to {usedRevisionLabel}</p>
-      )}
-      <button
-        type="button"
-        aria-expanded={schemaOpen}
-        aria-controls="results-used-schema"
-        disabled={usedSchemaShown === null}
-        title={usedSchemaShown === null ? 'The used Schema Revision is still loading' : undefined}
-        className={`mt-1.5 cursor-pointer rounded px-1 py-0.5 text-compact font-semibold text-accent outline-none hover:bg-accent-ghost/40 disabled:cursor-default disabled:text-ink-muted ${pressable}`}
-        onClick={() => setSchemaOpen((open) => !open)}
-      >
-        {schemaOpen ? 'Hide used schema' : 'View used schema'}
-      </button>
-      {schemaOpen && usedSchemaShown && (
-        <div id="results-used-schema" className="mt-1.5 flex max-h-56 flex-col rounded-md border border-line">
-          <p className="shrink-0 border-b border-line bg-surface-muted px-3 py-1.5 text-compact text-ink-muted">
-            {usedRevisionLabel} · <span className="font-mono text-ink">{usedSchemaShown.schemaRevisionId ?? known?.schemaRevisionId ?? 'unknown'}</span> · read-only
-          </p>
-          <pre className={`${preClasses} rounded-b-md px-3 py-2`}>{JSON.stringify(schemaDefinitionToTemplate({ recordDescription: usedSchemaShown.recordDescription, schemaNodes: usedSchemaShown.schemaNodes }), null, 2)}</pre>
-        </div>
-      )}
-    </section>
-  )
-}
-
-function getAtPath(obj: unknown, path: string[]): unknown {
-  return path.reduce(
-    (cur, key) =>
-      Array.isArray(cur) ? cur[parseInt(key, 10)] :
-      isRecord(cur) ? (cur as Record<string, unknown>)[key] :
-      undefined,
-    obj,
-  )
-}
-
-function ResultsTab({ controller, runUnavailableReason = null, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, evidencePages, onResultPathChange, onEditField, headerExtras }: ResultsTabProps) {
-  const approvalDescriptionId = useId()
+function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sourceDocumentName, parsedDocument = null,
+  pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence,
+  evidencePages, onResultPathChange, onEditField, headerExtras }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
-  const state = useMemo(
-    () => inspectedAttempt
-      ? extractionStateFromAttempt(inspectedAttempt)
-      : controller.state,
-    [controller.state, inspectedAttempt],
-  )
-  const visibleReviewDecisions = inspectedAttempt?.reviewDecisions ??
-    (attempt?.reviewedAt ? attempt.reviewDecisions : controller.review.decisions)
-  const reviewedResult = useMemo(
-    () => state.status === 'ready'
-      ? applyReviewDecisions(state.result, visibleReviewDecisions)
-      : null,
-    [state, visibleReviewDecisions],
-  )
-  const [view, setView] = useState<View>('review')
-  const [editingPaths, setEditingPaths] = useState<ReadonlySet<string>>(new Set())
-  const onEditingChange = useCallback((key: string, editing: boolean) => {
-    setEditingPaths((current) => {
-      const next = new Set(current)
-      if (editing) next.add(key)
-      else next.delete(key)
-      return next
-    })
-  }, [])
-  const attention = attempt?.resultPayload && pinnedSchema ? reviewAttention(attempt.resultPayload, pinnedSchema.schemaNodes, attempt.evidenceLinks ?? [],
-    attempt.reviewedAt ? attempt.reviewDecisions : controller.review.decisions.filter((decision) => controller.review.isTouched(decision.resultPath))) : null
-  // Saving is a researcher's act (§6): the decision that leaves nothing to check saves the review, once no other
-  // edit is open; settlement, a recovered draft or a reconnect never save by themselves.
-  const decide = (path: string[], action: ReviewDecisionAction, reviewedValue?: ReviewDecisionInput['reviewedValue']) => {
-    const { last } = controller.review.setDecision(absoluteReviewPath(path), action, reviewedValue)
-    const otherEdits = [...editingPaths].filter((key) => key !== JSON.stringify(path))
-    if (last && otherEdits.length === 0) void controller.review.accept()
+  const state = useMemo(() => inspectedAttempt ? extractionStateFromAttempt(inspectedAttempt) : controller.state,
+    [controller.state, inspectedAttempt])
+  const review = controller.review
+  const reviewed = Boolean(attempt?.reviewedAt)
+  const viewOnly = readOnly || Boolean(inspectedAttempt)
+  const decisions = inspectedAttempt?.reviewDecisions ?? (reviewed ? attempt!.reviewDecisions : review.decisions)
+  const isTouched = viewOnly || reviewed ? ALL_TOUCHED : review.isTouched
+  const partial = state.status === 'running' ? state.partial : null
+  const running = state.status === 'running'
+  const schemaNodes = useMemo(() => pinnedSchema?.schemaNodes ?? [], [pinnedSchema])
+
+  // The run's order and kei's labels, kept while this workspace stays open (§3.1): settlement moves nothing.
+  const [kept, setKept] = useState<{ from: unknown; order: number[]; labels: ReadonlyMap<number, string> }>(
+    { from: null, order: [], labels: new Map() })
+  if (partial && kept.from !== partial) {
+    const labels = new Map(kept.labels)
+    for (const record of partial.records) if (record.label) labels.set(record.index, record.label)
+    setKept({ from: partial, order: partial.records.map((record) => record.index), labels })
   }
-  const articleRecords =
-    state.status === 'ready' &&
-    isRecord(reviewedResult) &&
-    Array.isArray(reviewedResult.records)
-      ? reviewedResult.records
-      : null
-  const articlePathPrefix = useMemo(
-    () =>
-      articleRecords
-        ? articleRecords.length === 1
-          ? ['records', '0']
-          : ['records']
-        : [],
-    [articleRecords],
-  )
-  const absoluteReviewPath = (path: readonly string[]) => [
-    ...(articleRecords
-      ? articleRecords.length === 1
-        ? ['records', 0]
-        : ['records']
-      : []),
-    ...path.map((segment) => /^\d+$/.test(segment) ? Number(segment) : segment),
-  ]
-  const unorderedResult =
-    articleRecords?.length === 1
-      ? articleRecords[0]
-      : articleRecords ?? reviewedResult
-  const displayResult = useMemo(() => pinnedSchema
-    ? orderResultFields(unorderedResult, pinnedSchema.schemaNodes)
-    : unorderedResult, [unorderedResult, pinnedSchema])
-  const stats = useMemo(
-    () => (displayResult !== null ? resultStats(displayResult) : null),
-    [displayResult],
-  )
-
-  const [navPath, setNavPath] = useState<string[]>([])
-  const [backStack, setBackStack] = useState<string[][]>([])
-  const [forwardStack, setForwardStack] = useState<string[][]>([])
-
-  const partialShown = state.status === 'running' && state.partial !== null
-  useEffect(
-    () => onResultPathChange?.(
-      partialShown ? ['records'] : view === 'review' ? [...articlePathPrefix, ...navPath] : null,
-    ),
-    [articlePathPrefix, navPath, onResultPathChange, partialShown, view],
-  )
-  const evidenceLinkByPath = useMemo(
-    () =>
-      new Map(
-        state.status === 'ready'
-          ? state.evidenceLinks.map((link) => [
-              JSON.stringify(
-                link.resultPath.map(String).slice(articlePathPrefix.length),
-              ),
-              link,
-            ])
-          : [],
-      ),
-    [articlePathPrefix.length, state],
-  )
-  // The same links keyed by their absolute result path, as `statuses` and `reviewDecisionByPath` are: for the export.
-  const evidenceByAbsolutePath = useMemo(
-    () => new Map(state.status === 'ready' ? state.evidenceLinks.map((link) => [resultPathKey(link.resultPath), link]) : []),
-    [state],
-  )
-  const reviewDecisionByPath = useMemo(
-    () => new Map(visibleReviewDecisions.map((decision) => [
-      resultPathKey(decision.resultPath),
-      decision,
-    ])),
-    [visibleReviewDecisions],
-  )
-  // The decisions the Completion line and the export report: before the review is saved, only those the researcher
-  // made. A seeded approval or a decision carried from a sample is a default until touched, as `attention` reads it.
-  const madeDecisions = attempt?.reviewedAt || inspectedAttempt
-    ? visibleReviewDecisions
-    : visibleReviewDecisions.filter((decision) => controller.review.isTouched(decision.resultPath))
-  // Values the service left empty because their sources disagreed, keyed like the Evidence links; one a review has
-  // filled or rejected is no longer an open conflict.
-  const openContested = useMemo(
-    () => (state.status === 'ready' ? attempt?.diagnostics?.contested ?? [] : []).flatMap(({ resultPath, candidates }) => {
-      const path = resultPath.map(String).slice(articlePathPrefix.length)
-      const value = getAtPath(displayResult, path)
-      return (value === null || value === undefined || value === '') &&
-        reviewDecisionByPath.get(resultPathKey(resultPath))?.action !== 'REJECTED'
-        ? [{ path, candidates }]
-        : []
-    }),
-    [articlePathPrefix.length, attempt, displayResult, reviewDecisionByPath, state.status],
-  )
-  const contestedByPath = useMemo(
-    () => new Map(openContested.map(({ path, candidates }) => [JSON.stringify(path), candidates])),
-    [openContested],
-  )
-  const checkCount = state.status === 'ready'
-    ? state.evidenceLinks.filter((link) => evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action) !== undefined).length
-    : 0
-  const noGroundedValues = state.status === 'ready' && state.evidenceLinks.length === 0
-  const reviewReadOnly = readOnly || Boolean(inspectedAttempt)
-  const requiredCount = attempt?.reviewedAt
-    ? visibleReviewDecisions.length
-    : reviewReadOnly && state.status === 'ready'
-      ? state.evidenceLinks.length
-      : controller.review.requiredCount
-  // Each claim once, in its verifier state. The accounting is derived on read from the persisted evidence and
-  // diagnostics, a historical attempt's too; it is null only when the attempt persisted no evidence or no diagnostics.
+  const sawRun = kept.order.length > 0
   const statuses = useMemo(() => attempt ? claimStatuses(attempt) : new Map<string, ClaimStatus>(), [attempt])
   const claims = attempt?.diagnostics?.grounding?.claims ?? null
-  // Each linked value once, by who made its link: only the verifier's count as verifier-supported, with or without an accounting.
+  const model = useMemo(() => partial
+    ? partialRailModel(partial, { schemaNodes, decisions, isTouched, evidencePages, changed: review.changedAfterReview })
+    : state.status === 'ready'
+      ? settledRailModel(state.result, {
+          schemaNodes, decisions, isTouched, evidencePages, changed: review.changedAfterReview, links: state.evidenceLinks,
+          statuses: claims ? statuses : null, contested: attempt?.diagnostics?.contested ?? [],
+          order: kept.order, labels: kept.labels,
+        })
+      : null,
+  [partial, state, schemaNodes, decisions, isTouched, evidencePages, review.changedAfterReview, claims, statuses, attempt, kept])
+  const counts = model?.counts ?? { toCheck: 0, doubtful: 0, notReviewable: 0, required: 0, approved: 0, edited: 0, rejected: 0 }
+  const rows = useMemo(() => model ? [...model.document, ...model.records.flatMap((record) => record.rows)] : [], [model])
+  const rowByKey = useMemo(() => new Map(rows.map((row) => [row.key, row])), [rows])
+
+  const [filter, setFilter] = useState<ValueFilter>('all')
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [toggles, setToggles] = useState<ReadonlyMap<number, boolean>>(new Map())
+  // Read by the toast's Undo and by Z long after the render that made them: a ref, never a stale closure.
+  const historyRef = useRef<HistoryEntry[]>([])
+  const [announce, setAnnounce] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const [drawer, setDrawer] = useState<DrawerSection | 'open' | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [codeView, setCodeView] = useState(false)
+  const { toast, showToast, dismissToast, holdToast } = useToast()
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>())
+  // The row a decision, an undo or a cancelled edit returns focus to, after the render that shows it (§10).
+  const focusRef = useRef<string | null>(null)
+  const setFocusKey = (key: string) => { focusRef.current = key }
+  const detailsRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (focusRef.current === null) return
+    rowRefs.current.get(focusRef.current)?.focus()
+    focusRef.current = null
+  })
+  // Every link paints while the Results tab is open (§7.2): the list shows every record at once.
+  const hasModel = model !== null
+  useEffect(() => onResultPathChange?.(hasModel ? ALL_RECORDS : null), [hasModel, onResultPathChange])
+
+  // A reopened document opens the first record with a value to check; a run opens records as they are read (§3.1).
+  const [firstOpen, setFirstOpen] = useState<number | null | undefined>(undefined)
+  if (firstOpen === undefined && model && !partial && !sawRun)
+    setFirstOpen(model.records.find((record) => record.toCheck > 0)?.index ?? null)
+  const isOpen = (record: RailRecord) => toggles.get(record.index) ??
+    (sawRun ? record.state !== 'queued' : record.index === firstOpen || model?.records.length === 1)
+
+  // The live region and the rail's notices for the run: discovery, records read, settlement, a stopped run (§5.2, §5.3).
+  const seen = useRef({ discovered: 0, finished: new Set<number>() })
+  useEffect(() => {
+    if (!partial) return
+    const was = seen.current
+    if (was.discovered === 0 && partial.discovered > 0 && partial.strategy === 'CATALOG')
+      setAnnounce(`${plural(partial.discovered, 'record')} found.${partial.startedAtPage === null ? '' : ` Reading from page ${partial.startedAtPage}.`}`)
+    was.discovered = partial.discovered
+    const read = partial.records.filter((record) => record.state === 'finished' && !was.finished.has(record.index))
+    for (const record of read) {
+      const label = record.label ?? `Record ${record.index + 1}`
+      setAnnounce(was.finished.size === 0 ? `${label} read: its values can be reviewed now.` : `${label} read.`)
+      was.finished.add(record.index)
+    }
+  }, [partial])
+  // Once per settlement the controller reports, after the settled review has loaded, with the settled counts.
+  const settledShown = useRef<unknown>(null)
+  useEffect(() => {
+    const settlement = review.settlement
+    if (!settlement || settledShown.current === settlement || state.status !== 'ready' || review.loading) return
+    settledShown.current = settlement
+    const { kept, changed } = settlement
+    const message = counts.toCheck === 0 && kept > 0
+      ? `Run finished · your ${plural(kept, 'decision')} kept · nothing left to check.`
+      : `Run finished · ${kept > 0 ? `your ${plural(kept, 'decision')} kept · ` : ''}${counts.toCheck} to check.`
+    const full = changed > 0 ? `${message} · ${changed} changed after you reviewed them` : message
+    showToast(full)
+    setAnnounce(full)
+  }, [state.status, review.loading, review.settlement, counts.toCheck, showToast])
+  useEffect(() => {
+    if (review.discarded) showToast(`Run stopped · your ${plural(review.discarded, 'decision')} on it are discarded`)
+  }, [review.discarded, showToast])
+  useEffect(() => { if (review.draftRefused) showToast(review.draftRefused) }, [review.draftRefused, showToast])
+
+  const canDecide = !viewOnly && !reviewed && !review.saving && (review.available || review.draftAvailable)
+  const last = !running && counts.toCheck === 1 && canDecide && review.available
+  const nodeOf = (row: RailRow) => schemaNodeAtResultPath(schemaNodes, row.resultPath)
+
+  async function save(message: string) {
+    if (await review.accept()) { showToast(message); setAnnounce(message) }
+  }
+
+  function decide(row: RailRow, action: ReviewDecisionAction, value: ReviewDecisionInput['reviewedValue'] = null) {
+    if (!row.decision) return
+    historyRef.current = recordDecision(historyRef.current, row.decision, row.kind !== 'to-check')
+    const { last: saves } = review.setDecision(row.resultPath, action, value)
+    setEditingKey(null)
+    setFocusKey(row.key)
+    const word = DECISION_WORD[action]
+    if (saves) { void save(`${word} ${row.name}. Review saved; it is now read-only.`); return }
+    showToast(`${word} ${row.name}.`, { durationMs: 8000, action: { label: 'Undo ⌨Z', onAction: undo } })
+    setAnnounce(`${word} ${row.name}.${running ? '' : ` ${counts.toCheck - (row.kind === 'to-check' ? 1 : 0)} to check.`}`)
+  }
+
+  function undo() {
+    if (reviewed || review.saving) return
+    const undone = undoLast(historyRef.current, review.setDecision)
+    if (!undone) return
+    historyRef.current = undone.history
+    const key = resultPathKey(undone.entry.resultPath)
+    setSelectedKey(key)
+    setFocusKey(key)
+    dismissToast()
+    setAnnounce(`Undone. ${rowByKey.get(key)?.name ?? 'The value'} is to check again.`)
+  }
+
+  function undoOne(row: RailRow) {
+    if (!row.decision) return
+    historyRef.current = recordDecision(historyRef.current, row.decision, true)
+    review.setDecision(row.resultPath, 'APPROVED', null, null, false)
+    setFocusKey(row.key)
+    setAnnounce(`${row.name} is to check again.`)
+  }
+
+  function select(row: RailRow) {
+    const next = selectedKey === row.key ? null : row.key
+    setSelectedKey(next)
+    setEditingKey(null)
+    if (next && row.link) onSelectEvidence?.(row.link.evidenceAnchorId)
+  }
+
+  function openDrawer(section: DrawerSection) {
+    setMenuOpen(false)
+    setDrawer(section ?? 'open')
+  }
+
+  /** Escape's order in the list (§4.4): the open edit, the drawer, the menu (the dialog closes itself). */
+  function onKeyDown(event: React.KeyboardEvent) {
+    if (event.key !== 'Escape' || event.repeat) return
+    if (editingKey) setEditingKey(null)
+    else if (drawer) setDrawer(null)
+    else if (menuOpen) { setMenuOpen(false); menuRef.current?.focus() }
+    else return
+    event.preventDefault()
+  }
+
+  // The export and Values as code read the reviewed result, ordered by the schema.
+  const reviewedResult = useMemo(() => state.status === 'ready' ? applyReviewDecisions(state.result, decisions) : null, [state, decisions])
+  const records = isRecord(reviewedResult) && Array.isArray(reviewedResult.records) ? reviewedResult.records : null
+  const articlePathPrefix = records ? records.length === 1 ? 2 : 1 : 0
+  const displayResult = useMemo(() => {
+    const unordered = records?.length === 1 ? records[0] : records ?? reviewedResult
+    return pinnedSchema ? orderResultFields(unordered, pinnedSchema.schemaNodes) : unordered
+  }, [records, reviewedResult, pinnedSchema])
+  const openContested = useMemo(() => (state.status === 'ready' ? attempt?.diagnostics?.contested ?? [] : []).flatMap(({ resultPath, candidates }) => {
+    const value = getAtPath(reviewedResult, resultPath)
+    const rejected = decisions.find((decision) => resultPathKey(decision.resultPath) === resultPathKey(resultPath))?.action === 'REJECTED'
+    return (value === null || value === undefined || value === '') && !rejected ? [{ path: resultPath.map(String).slice(articlePathPrefix), candidates }] : []
+  }), [state.status, attempt, reviewedResult, decisions, articlePathPrefix])
   const linkCounts = useMemo(() => {
-    const origins = new Map(state.status === 'ready' ? state.evidenceLinks.map((link) => [resultPathKey(link.resultPath), linkOrigin(link)]) : [])
-    const verifier = [...origins.values()].filter((origin) => origin === 'verifier').length
-    return { verifier, rule: origins.size - verifier }
-  }, [state])
-  // With a claim accounting the workbook carries the Extraction and Evidence sheets; without one (no evidence or no
-  // diagnostics persisted) unsupported and unfinished values cannot be told apart, so the export stays values-only.
-  const evidenceSheets = attempt !== null && claims !== null && state.status === 'ready'
-  const reviewSaved = Boolean(controller.review.reviewedExtractionId || attempt?.reviewedAt)
+    const links = state.status === 'ready' ? state.evidenceLinks : partial?.records.flatMap((record) => record.evidenceLinks) ?? []
+    const verifier = links.filter((link) => linkOrigin(link) === 'verifier').length
+    return { verifier, rule: links.length - verifier }
+  }, [state, partial])
+  const madeDecisions = reviewed || viewOnly ? decisions : decisions.filter((decision) => review.isTouched(decision.resultPath))
 
-  /** Opens the claim's parent so its row, with its note, is on screen. */
-  function showClaim(resultPath: readonly (string | number)[]) {
-    const relative = resultPath.map(String).slice(articlePathPrefix.length)
-    setView('review')
-    navTo(relative.slice(0, -1))
+  async function exportResult(format: Parameters<React.ComponentProps<typeof ExtractionResultExportControl>['onExport']>[0],
+    choices: Parameters<React.ComponentProps<typeof ExtractionResultExportControl>['onExport']>[1]) {
+    if (displayResult === null || exportSchema === null || state.status !== 'ready') return
+    const madeByPath = new Map(madeDecisions.map((decision) => [resultPathKey(decision.resultPath), decision]))
+    const linkByPath = new Map(state.evidenceLinks.map((link) => [resultPathKey(link.resultPath), link]))
+    const provenance: ExtractionProvenance | undefined = attempt && claims ? {
+      identity: [
+        ['Extraction ID', attempt.extractionId], ['Strategy', attempt.strategy], ['Source Document', sourceDocumentName],
+        ['Source Document ID', attempt.sourceDocumentId], ['Source Representation Revision ID', attempt.sourceRepresentationRevisionId],
+        ['Schema Revision ID', attempt.schemaRevisionId], ['Reviewed at', attempt.reviewedAt ?? 'Not finalized'],
+        ['Decisions', madeDecisions.length],
+        ['Versions', Object.entries(attempt.diagnostics?.effectiveMethod?.versions ?? {}).map(([name, version]) => `${name} ${version}`).join(' · ') || 'Not recorded'],
+        ['Field model', attempt.diagnostics?.models?.fields ?? 'Not recorded'], ['Reasoning model', attempt.diagnostics?.models?.reasoning ?? 'Not recorded'],
+        ['Extraction complete', attempt.complete ? 'Yes (record recall unmeasured)' : 'Not shown complete: record recall unmeasured'],
+        ['Claims', claims.claims], ['Verifier-supported', linkCounts.verifier],
+        ...(linkCounts.rule > 0 ? [['Linked by rule', linkCounts.rule] as const] : []), ['Unsupported', claims.unsupported],
+        ['Not completed', claims.notCompleted], ['Excluded by policy', claims.excluded],
+        ['Document-level fields (not verified)', exportSchema.schemaNodes.filter((node) => node.valueSource === 'document').map((node) => node.name).join(', ') || 'None'],
+        ['Exported at', new Date().toISOString()],
+      ],
+      claims: [...statuses].map(([key, status]): ProvenanceClaim => {
+        const resultPath = JSON.parse(key) as (string | number)[]
+        const link = linkByPath.get(key)
+        const decision = madeByPath.get(key)
+        return {
+          ...(records && records.length > 1 ? { record: Number(resultPath[1]) } : {}),
+          path: records ? resultPath.slice(2) : resultPath, extracted: getAtPath(state.result, resultPath),
+          ...(decision ? { decision: decision.action, reviewed: decision.reviewedValue } : {}),
+          outcome: status.state, ...(status.linkedBy ? { linkedBy: status.linkedBy } : {}), reasons: status.state === 'excluded' ? [status.policy ?? 'unverified'] : status.reasons,
+          ...(link ? { anchorId: link.evidenceAnchorId, page: evidencePages?.get(link.evidenceAnchorId), precision: link.precision, verbatim: link.verbatim, lexicalHits: link.lexicalHits } : {}),
+        }
+      }),
+    } : undefined
+    await exportExtractionResult(displayResult, {
+      format, filename: sourceDocumentName, schemaNodes: exportSchema.schemaNodes, choices,
+      ...(openContested.length > 0 ? { contested: openContested.map(({ path, candidates }) => {
+        const steps = path.map((step) => /^\d+$/.test(step) ? Number(step) : step)
+        return Array.isArray(displayResult) && typeof steps[0] === 'number' ? { record: steps[0], path: steps.slice(1), candidates } : { path: steps, candidates }
+      }) } : {}),
+      ...(provenance ? { provenance } : {}),
+    })
   }
 
-  function navTo(newPath: string[]) {
-    setBackStack(prev => [...prev, navPath])
-    setForwardStack([])
-    setNavPath(newPath)
+  if (state.status === 'idle') {
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
+        <p className="m-0 text-content font-semibold text-ink">No results yet</p>
+        <p className="mt-1.5 mb-0 max-w-[34ch] text-compact leading-snug text-ink-muted">
+          {schemaReady ? 'Run extraction to apply the schema across the source document.' : 'Generate a schema in the Schema tab first, then run extraction.'}
+        </p>
+        {!readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? RUN_POINTER}</p>}
+      </div>
+    )
   }
 
-  function clearNavigation() {
-    setNavPath([])
-    setBackStack([])
-    setForwardStack([])
-  }
-
-  function goBack() {
-    if (backStack.length === 0) return
-    const prev = backStack[backStack.length - 1]
-    setForwardStack(f => [...f, navPath])
-    setNavPath(prev)
-    setBackStack(b => b.slice(0, -1))
-  }
-
-  function goForward() {
-    if (forwardStack.length === 0) return
-    const next = forwardStack[forwardStack.length - 1]
-    setBackStack(b => [...b, navPath])
-    setNavPath(next)
-    setForwardStack(f => f.slice(0, -1))
-  }
-
-  const resultViewTabs: Array<{ value: View; label: string }> = [
-    { value: 'review', label: 'Review' },
-    { value: 'json', label: 'Values as code' },
-    { value: 'markdown', label: 'Markdown' },
-  ]
-
-  const currentEntries = useMemo((): Array<{ pathKey: string; displayName: string; value: unknown }> => {
-    const node = navPath.length === 0 ? displayResult : (displayResult ? getAtPath(displayResult, navPath) : null)
-    if (Array.isArray(node)) return node.map((v, i) => ({ pathKey: String(i), displayName: singularItemLabel(navPath[navPath.length - 1] ?? 'item', i), value: v }))
-    if (isRecord(node)) return Object.entries(node as Record<string, unknown>).map(([k, v]) => ({ pathKey: k, displayName: k, value: v }))
-    return []
-  }, [displayResult, navPath])
-  // A Catalog record's entries open on its heading and the page its first Evidence names (§8): one record of several
-  // once opened, or a single-record Catalog's only record at the top. An Article result is one object: no heading.
-  const openRecord = articleRecords?.length === 1 && attempt?.strategy === 'CATALOG' && navPath.length === 0
-    ? 0
-    : articleRecords && articleRecords.length > 1 && navPath.length === 1 && /^\d+$/.test(navPath[0]!)
-      ? Number(navPath[0]) : null
-  const openRecordLink = openRecord !== null && state.status === 'ready'
-    ? state.evidenceLinks.find((link) => link.resultPath[0] === 'records' && Number(link.resultPath[1]) === openRecord)
-    : undefined
-  const recordPage = openRecordLink ? evidencePages?.get(openRecordLink.evidenceAnchorId) ?? null : null
+  const status = statusLine({
+    state, attempt, partial, cancellationRequested: controller.cancellationRequested,
+    schemaRevision: pinnedSchema?.revisionNumber ?? null, recordCount: model?.records.length ?? 0, decisionCount: decisions.length,
+  })!
+  const previousSchema = attempt && currentSchemaRevision && pinnedSchema?.revisionNumber !== undefined &&
+    attempt.schemaRevisionId !== currentSchemaRevision.schemaRevisionId
+    ? { revision: pinnedSchema.revisionNumber, current: currentSchemaRevision.revisionNumber } : null
+  const editOpen = editingKey !== null
+  const conflict = review.draftError === REVIEW_DRAFT_CONFLICT
+  const breakdown = breakdownState({ running, saving: review.saving, saved: reviewed, error: review.error, loading: review.loading && !viewOnly,
+    loaded: review.decisions.length > 0,
+    draftSaving: review.draftSaving, draftSaved: review.draftSaved, draftError: review.draftError, conflict })
+  const breakdownAction = breakdown.action === 'retry-draft' || breakdown.action === 'reload'
+    ? <> · <button type="button" className="cursor-pointer text-accent underline" onClick={review.retryDraft}>{breakdown.action === 'reload' ? 'Reload server review' : 'Retry draft'}</button></>
+    : breakdown.action === 'reload-review'
+      ? <> · <button type="button" className="cursor-pointer text-accent underline" onClick={review.reload}>Reload</button></>
+    : breakdown.action === 'retry'
+      ? <> · <button type="button" className="cursor-pointer text-accent underline" onClick={() => void save('Review saved. It is now read-only.')}>Retry</button></>
+      : null
+  const toCheckRecords = model?.records.filter((record) => record.toCheck > 0) ?? []
+  const doubtfulToCheck = rows.filter((row) => row.kind === 'to-check' && row.doubt !== null).length
+  const scope = toCheckRecords.length === 1 && (model?.records.length ?? 0) > 1
+    ? `${plural(counts.toCheck, 'value')} in ${toCheckRecords[0]!.label}${doubtfulToCheck ? `, including ${doubtfulToCheck} with a doubtful link` : ''}. The other ${(model?.records.length ?? 1) - 1 === 1 ? 'record is' : `${(model?.records.length ?? 1) - 1} records are`} already checked.`
+    : `${plural(counts.toCheck, 'value')} across ${plural(toCheckRecords.length, 'record')}${doubtfulToCheck ? `, including ${doubtfulToCheck} with a doubtful link` : ''}.`
+  const selectedRow = selectedKey ? rowByKey.get(selectedKey) ?? null : null
+  const selectedNode = selectedRow ? nodeOf(selectedRow) : null
+  const saveAvailable = !viewOnly && !reviewed && counts.toCheck === 0 && review.canAccept
+  const exportControl = (
+    <ExtractionResultExportControl schema={exportSchema} disabled={displayResult === null} contestedCount={openContested.length}
+      evidenceSheets={attempt !== null && claims !== null && state.status === 'ready'} onExport={exportResult}
+      {...(reviewed ? {} : { open: exportOpen, onOpenChange: setExportOpen, returnFocusRef: menuRef })} />
+  )
 
   return (
-    <div className="scrollbar-subtle flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="flex items-center justify-between gap-2 px-4 py-2.5">
-        <Overline as="h2">Extraction results</Overline>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-          {headerExtras}
-          {attempt && <AttemptDetails attempt={attempt} />}
-        </div>
-      </div>
-      {attention && <ReviewAttention attention={attention} onEditField={onEditField}
-        onSelect={(path) => { onResultPathChange?.(path.map(String)); const link = attempt?.evidenceLinks?.find((each) => resultPathKey(each.resultPath) === resultPathKey(path)); if (link) onSelectEvidence?.(link.evidenceAnchorId) }} />}
-      <ExtractionStatus
-        controller={controller}
-        state={state}
-        attempt={attempt}
-        usedSchema={pinnedSchema}
-        currentSchemaRevision={currentSchemaRevision}
-        readOnly={readOnly || Boolean(inspectedAttempt)}
-      />
-
-      {state.status === 'ready' && stats && (
-        <>
-          <div className="shrink-0 border-b border-line bg-surface px-3 py-2">
-            <div className="flex flex-wrap gap-1.5">
-              {/* {summaryItem(
-                'Status',
-                attempt?.complete === false ? 'incomplete' : 'ready',
-              )} */}
-              {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())}
-              {summaryItem('Fields', stats.fields)}
-              {summaryItem('Missing', stats.missing - openContested.length)}
-              {openContested.length > 0 && summaryItem('Contested', openContested.length)}
-              {summaryItem('Verifier-supported', linkCounts.verifier)}
-              {linkCounts.rule > 0 && summaryItem('Rule-linked', linkCounts.rule)}
-              {claims && claims.unsupported > 0 && summaryItem('Unsupported', claims.unsupported)}
-              {claims && claims.notCompleted > 0 && summaryItem('Not completed', claims.notCompleted)}
-              {claims && claims.excluded > 0 && summaryItem('Excluded', claims.excluded)}
-              {/* Grounding's doubts: a linked value not found in its passage, or found in others too. Not "to check", which
-                  is the badge's and the row marker's word for undecided values. */}
-              {checkCount > 0 && summaryItem('Doubtful links', checkCount)}
-              {/* {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)} */}
-            </div>
-            {(requiredCount > 0 || attempt?.reviewedAt || (!reviewReadOnly && (controller.review.loading || controller.review.error))) && (
-              <section aria-label="Review progress" className="mt-2 text-compact text-ink-muted">
-                <span role={reviewReadOnly ? undefined : 'status'} aria-atomic="true">
-                  {attempt?.reviewedAt ? <><span>Review saved</span> · {requiredCount} decision{requiredCount === 1 ? '' : 's'}</>
-                    : reviewReadOnly ? `Not reviewed · ${requiredCount} required decision${requiredCount === 1 ? '' : 's'}`
-                    : controller.review.loading ? 'Loading Review Decisions…'
-                    : controller.review.error && requiredCount === 0 ? 'Review Decisions could not be loaded'
-                    : <>
-                      {`${controller.review.untouchedCount} of ${requiredCount} required decisions remaining`}
-                      {controller.review.saving ? ' · Saving review…' : controller.review.error ? <> · <span>Review not saved</span></> : ''}
-                    </>}
-                </span>
-                {!reviewReadOnly && !attempt?.reviewedAt && !controller.review.loading && !controller.review.draftError && !controller.review.saving && (
-                  <span aria-live="off">{controller.review.draftSaving ? ' · Saving draft…' : controller.review.draftSaved ? <> · <span>Draft saved</span></> : ''}</span>
-                )}
-              </section>
-            )}
-            {claims && (
-              <section aria-label="Completion" className="mt-2 space-y-0.5 text-compact leading-snug text-ink-muted">
-                <p data-dimension="processing">Extraction: {attempt?.complete ? 'complete' : 'not shown complete'} · record recall unmeasured</p>
-                <p data-dimension="evidence">Evidence checks: {linkCounts.verifier} verifier-supported · {linkCounts.rule > 0 && `${linkCounts.rule} linked by rule · `}{claims.unsupported} unsupported · {claims.notCompleted} not completed · {claims.excluded} excluded by policy ({claims.claims} claims)</p>
-                <p data-dimension="review">Review: {attempt?.reviewedAt ? `${madeDecisions.length} decisions saved` : `${madeDecisions.length} decisions pending`}{state.ungroundedCount > 0 && ` · ${state.ungroundedCount} value${state.ungroundedCount === 1 ? '' : 's'} without evidence ${state.ungroundedCount === 1 ? 'is' : 'are'} not reviewable`}</p>
-                {claims.unfinished.length > 0 && (
-                  <details className="mt-1">
-                    <summary className="cursor-pointer font-semibold text-ink">Checks not completed ({claims.unfinished.length})</summary>
-                    <ul className="mt-1 space-y-1">
-                      {claims.unfinished.map(({ resultPath, reasons }) => {
-                        const label = fieldLabel(resultPath, articleRecords?.length ?? 1)
-                        return (
-                          <li key={JSON.stringify(resultPath)} className="flex flex-wrap items-baseline gap-x-2">
-                            <span className="font-mono text-ink">{label}</span>
-                            <span>{reasons.map(reasonText).join('; ')}</span>
-                            <Button size="sm" variant="secondary" onClick={() => showClaim(resultPath)}>Show {label}</Button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </details>
-                )}
-              </section>
-            )}
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-wrap gap-1.5">
-                <ExtractionResultExportControl
-                  schema={exportSchema}
-                  disabled={displayResult === null}
-                  contestedCount={openContested.length}
-                  evidenceSheets={evidenceSheets}
-                  onExport={async (format, choices) => {
-                    if (displayResult === null || exportSchema === null) return
-                    // Built here, not per render: the identity names the moment of export.
-                    const madeDecisionByPath = new Map(madeDecisions.map((decision) => [resultPathKey(decision.resultPath), decision]))
-                    const provenance: ExtractionProvenance | undefined = attempt && claims && state.status === 'ready' ? {
-                      identity: [
-                        ['Extraction ID', attempt.extractionId], ['Strategy', attempt.strategy], ['Source Document', sourceDocumentName],
-                        ['Source Document ID', attempt.sourceDocumentId], ['Source Representation Revision ID', attempt.sourceRepresentationRevisionId],
-                        ['Schema Revision ID', attempt.schemaRevisionId], ['Reviewed at', attempt.reviewedAt ?? 'Not finalized'],
-                        ['Decisions', madeDecisions.length],
-                        ['Versions', Object.entries(attempt.diagnostics?.effectiveMethod?.versions ?? {}).map(([name, version]) => `${name} ${version}`).join(' · ') || 'Not recorded'],
-                        ['Field model', attempt.diagnostics?.models?.fields ?? 'Not recorded'], ['Reasoning model', attempt.diagnostics?.models?.reasoning ?? 'Not recorded'],
-                        ['Extraction complete', attempt.complete ? 'Yes (record recall unmeasured)' : 'Not shown complete: record recall unmeasured'],
-                        ['Claims', claims.claims], ['Verifier-supported', linkCounts.verifier],
-                        ...(linkCounts.rule > 0 ? [['Linked by rule', linkCounts.rule] as const] : []), ['Unsupported', claims.unsupported],
-                        ['Not completed', claims.notCompleted], ['Excluded by policy', claims.excluded],
-                        ['Document-level fields (not verified)', exportSchema.schemaNodes.filter((node) => node.valueSource === 'document').map((node) => node.name).join(', ') || 'None'],
-                        ['Exported at', new Date().toISOString()],
-                      ],
-                      claims: [...statuses].map(([key, status]): ProvenanceClaim => {
-                        const resultPath = JSON.parse(key) as (string | number)[]
-                        const link = evidenceByAbsolutePath.get(key)
-                        const decision = madeDecisionByPath.get(key)
-                        // A records envelope's paths start `['records', n]`: the field path is the rest.
-                        const path = articleRecords ? resultPath.slice(2) : resultPath
-                        return {
-                          ...(articleRecords && articleRecords.length > 1 ? { record: Number(resultPath[1]) } : {}),
-                          path, extracted: getAtPath(state.result, resultPath.map(String)),
-                          ...(decision ? { decision: decision.action, reviewed: decision.reviewedValue } : {}),
-                          outcome: status.state, ...(status.linkedBy ? { linkedBy: status.linkedBy } : {}), reasons: status.state === 'excluded' ? [status.policy ?? 'unverified'] : status.reasons,
-                          ...(link ? { anchorId: link.evidenceAnchorId, page: evidencePages?.get(link.evidenceAnchorId), precision: link.precision, verbatim: link.verbatim, lexicalHits: link.lexicalHits } : {}),
-                        }
-                      }),
-                    } : undefined
-                    await exportExtractionResult(displayResult, {
-                      format,
-                      filename: sourceDocumentName,
-                      schemaNodes: exportSchema.schemaNodes,
-                      choices,
-                      ...(openContested.length > 0 ? {
-                        contested: openContested.map(({ path, candidates }) => {
-                          const steps = path.map((step) => /^\d+$/.test(step) ? Number(step) : step)
-                          // Several records display as an array: its first step is the record.
-                          return Array.isArray(displayResult) && typeof steps[0] === 'number'
-                            ? { record: steps[0], path: steps.slice(1), candidates }
-                            : { path: steps, candidates }
-                        }),
-                      } : {}),
-                      ...(provenance ? { provenance } : {}),
-                    })
-                  }}
-                />
-                {!readOnly && !inspectedAttempt && controller.review.available && !controller.review.reviewedExtractionId && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={controller.review.loading || controller.review.saving || editingPaths.size > 0 || controller.review.untouchedCount === 0}
-                    aria-describedby={approvalDescriptionId}
-                    onClick={() => {
-                      controller.review.approveAll()
-                      void controller.review.accept()
-                    }}
-                  >
-                    {controller.review.untouchedCount > 0 ? `Approve remaining (${controller.review.untouchedCount})` : 'Approve remaining'}
-                  </Button>
-                )}
-                {!readOnly && !inspectedAttempt && controller.review.available && (
-                  <>
-                    {controller.review.error && !controller.review.loading && requiredCount === 0 && (
-                      <Button size="sm" variant="secondary" onClick={controller.review.reload}>Retry</Button>
-                    )}
-                    {/* Also after a reload with every value decided: nothing saves the review by itself (§6). */}
-                    {controller.review.canAccept && (
-                      <Button size="sm" variant={controller.review.error ? 'secondary' : 'positive'} disabled={editingPaths.size > 0}
-                        onClick={() => void controller.review.accept()}>{controller.review.error ? 'Retry' : 'Save review'}</Button>
-                    )}
-                  </>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-3" role="tablist" aria-label="Result view">
-                {resultViewTabs.map(({ value, label }) => {
-                  const active = view === value
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      role="tab"
-                      id={`results-tab-${value}`}
-                      aria-selected={active}
-                      aria-controls={`results-panel-${value}`}
-                      className={`cursor-pointer border-b-2 px-0.5 pb-1 text-compact font-semibold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
-                        active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
-                      }`}
-                      onClick={() => setView(value)}
-                    >
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-            {!reviewReadOnly && controller.review.available && !attempt?.reviewedAt && (
-              <p id={approvalDescriptionId} className="mt-2 text-compact leading-snug text-ink-muted">
-                Approve only the remaining required decisions. Existing edits and rejections, and ungrounded values, are unchanged.{' '}
-                The review saves automatically when all required decisions are made.
-              </p>
-            )}
-            {controller.review.draftError && !readOnly && !inspectedAttempt && (
-              <div role="alert" className="text-xs text-danger">
-                Draft not saved: {controller.review.draftError}
-                <Button onClick={controller.review.retryDraft} disabled={controller.review.draftSaving}>{controller.review.draftError === REVIEW_DRAFT_CONFLICT ? 'Reload server review' : 'Retry draft'}</Button>
-              </div>
-            )}
-            {reviewSaved && (state.ungroundedCount > 0 || (claims?.notCompleted ?? 0) > 0) && (
-              <p role="status" className="text-compact text-ink-muted">
-                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} without evidence {state.ungroundedCount === 1 ? 'was' : 'were'} not reviewed{claims && `; ${claims.notCompleted} check${claims.notCompleted === 1 ? '' : 's'} never completed`}
-              </p>
-            )}
-            {controller.review.error && (
-              <p role="alert" className="mt-2 text-compact leading-snug text-danger">
-                {controller.review.error}
-              </p>
-            )}
-            {attempt?.complete === false && (
-              <div className={noticeClasses} role="status">
-                <p className="font-semibold">Incomplete Extraction</p>
-                <p>Successful values remain visible. See the persisted stage diagnostics for details.</p>
-                {attempt.diagnostics?.grounding?.issueCodes.includes('text_truncated') && (
-                  <p>Some extraction calls omitted source text because of their text budget; affected values may be missing.</p>
-                )}
-              </div>
-            )}
-            {noGroundedValues && (
-              <div className="mt-2 rounded-md border border-line-strong bg-surface-muted px-2.5 py-2 text-compact leading-snug text-ink" role="status">
-                <p className="font-semibold">No grounded values</p>
-                <p className="text-ink-muted">No populated value has model Evidence. Values remain visible; optional cells do not block finalizing a review.</p>
-              </div>
-            )}
-            {attempt?.diagnostics?.grounded && <RecipeReview grounded={attempt.diagnostics.grounded} />}
-            {attempt?.diagnostics?.unified && <CatalogReview unified={attempt.diagnostics.unified} />}
-            {/* An attempt without a claim accounting cannot tell unsupported from unfinished values; with one, the
-                Completion section names both apart. */}
-            {!claims && state.ungroundedCount > 0 && (
-              <p className="mt-2 text-compact leading-snug text-ink-muted">
-                {state.ungroundedCount} ungrounded value{state.ungroundedCount === 1 ? ' is' : 's are'} excluded from required review and {state.ungroundedCount === 1 ? 'remains' : 'remain'} recorded without Evidence.
-              </p>
-            )}
+    <div className="@container relative flex h-full min-h-0 flex-col" onKeyDown={onKeyDown}>
+      <ResultsHeader
+        status={status} extras={headerExtras} schemaNote={previousSchema}
+        alert={!viewOnly && (controller.monitorError || controller.cancellationError) ? (
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-stale bg-stale-soft px-2.5 py-1.5 text-compact text-stale-ink">
+            {controller.monitorError
+              ? <><span>{controller.monitorError}</span><Button onClick={controller.reconnect}>Reconnect</Button></>
+              : <span>Cancellation failed: {controller.cancellationError}</span>}
           </div>
-
-          {view === 'review' && (
-            <div
-              id="results-panel-review"
-              role="tabpanel"
-              aria-labelledby="results-tab-review"
-              className="flex flex-col"
-            >
-              {/* Breadcrumb bar — scrolls with Extraction status until it
-                  reaches the top, then sticks there (root is the scroll
-                  container: overflow-y-auto above). */}
-              <nav aria-label="Result navigation" className="sticky top-0 z-10 flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-2 py-1">
-                <button
-                  className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-content font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30"
-                  type="button"
-                  title="Back"
-                  disabled={backStack.length === 0}
-                  onClick={goBack}
-                >‹</button>
-                <button
-                  className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-content font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30"
-                  type="button"
-                  title="Forward"
-                  disabled={forwardStack.length === 0}
-                  onClick={goForward}
-                >›</button>
-                <span className="mx-1 h-3.5 w-px shrink-0 bg-line" />
-                <div className="scrollbar-subtle flex min-w-0 flex-1 items-center overflow-x-auto">
-                  <button
-                    aria-current={navPath.length === 0 ? 'page' : undefined}
-                    className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-secondary font-semibold text-accent hover:bg-accent-ghost/40 disabled:cursor-default disabled:text-ink"
-                    type="button"
-                    disabled={navPath.length === 0}
-                    onClick={() => navTo([])}
-                  >Root</button>
-                  {navPath.map((seg, i) => {
-                    const idx = parseInt(seg, 10)
-                    const label = !isNaN(idx) && String(idx) === seg ? singularItemLabel(navPath[i - 1] ?? 'item', idx) : seg
-                    return (
-                      <span key={i} className="flex items-center gap-0.5">
-                        <span className="text-compact text-ink-faint">›</span>
-                        {i < navPath.length - 1 ? (
-                          <button
-                            className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-secondary font-semibold text-ink-muted hover:text-accent"
-                            type="button"
-                            onClick={() => navTo(navPath.slice(0, i + 1))}
-                          >{label}</button>
-                        ) : (
-                          <span aria-current="page" className="shrink-0 px-1.5 py-0.5 text-secondary font-semibold text-ink">{label}</span>
-                        )}
-                      </span>
-                    )
-                  })}
-                </div>
-                {navPath.length > 0 && (
-                  <>
-                    <span className="mx-1 h-3.5 w-px shrink-0 bg-line" />
-                    <button
-                      className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-compact font-semibold text-ink-muted hover:bg-accent-ghost/40 hover:text-accent"
-                      type="button"
-                      title="Return to root"
-                      onClick={clearNavigation}
-                    >Clear</button>
-                  </>
-                )}
-              </nav>
-              {/* Content */}
-              <div className="bg-canvas px-3 py-2">
-                {openRecord !== null && <RecordHeader label={singularItemLabel('records', openRecord)} page={recordPage} />}
-                {currentEntries.map(({ pathKey, displayName, value: val }) => (
-                  <ResultValue
-                    key={pathKey}
-                    name={displayName}
-                    value={val}
-                    path={[...navPath, pathKey]}
-                    onNavigateTo={isRecord(val) || Array.isArray(val) ? navTo : undefined}
-                    defaultExpanded={false}
-                    expandText={navPath.length > 0}
-                    getEvidenceAnchorId={(path) =>
-                      evidenceLinkByPath.get(JSON.stringify(path))?.evidenceAnchorId
-                    }
-                    getEvidenceCheck={(path) => {
-                      const link = evidenceLinkByPath.get(JSON.stringify(path))
-                      return link && evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action)
-                    }}
-                    getEvidenceDetail={(path) => {
-                      const link = evidenceLinkByPath.get(JSON.stringify(path))
-                      return link && evidenceDetail(
-                        link,
-                        reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action,
-                        state.status === 'ready' ? getAtPath(state.result, link.resultPath.map(String)) : undefined,
-                      )
-                    }}
-                    getContested={(path) => contestedByPath.get(JSON.stringify(path))}
-                    getValueState={(path) => {
-                      const key = JSON.stringify(path)
-                      if (evidenceLinkByPath.has(key)) return 'grounded'
-                      if (contestedByPath.has(key)) return 'contested'
-                      const value = getAtPath(displayResult, path.map(String))
-                      return value === null || value === undefined || value === '' ? 'empty' : undefined
-                    }}
-                    getClaimStatus={(path) => {
-                      const status = statuses.get(JSON.stringify(absoluteReviewPath(path)))
-                      return status && status.state !== 'supported' ? describeClaimStatus(status) : undefined
-                    }}
-                    onSelectEvidence={onSelectEvidence}
-                    review={noGroundedValues ? undefined : {
-                      getDecision: (path) => reviewDecisionByPath.get(resultPathKey(absoluteReviewPath(path))),
-                      getSchemaNode: (path) => pinnedSchema
-                        ? schemaNodeAtResultPath(pinnedSchema.schemaNodes, absoluteReviewPath(path))
-                        : null,
-                      // An inspected attempt's decisions are its persisted ones, all made; the live controller's untouched set
-                      // belongs to the current attempt.
-                      isTouched: inspectedAttempt ? () => true : (path) => controller.review.isTouched(absoluteReviewPath(path)),
-                      onEditingChange,
-                      onDecision: readOnly || inspectedAttempt || attempt?.reviewedAt || controller.review.saving
-                        ? undefined
-                        : decide,
-                      readOnly: readOnly || Boolean(inspectedAttempt) || Boolean(attempt?.reviewedAt) || controller.review.saving,
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {view === 'json' && (
-            <pre
-              id="results-panel-json"
-              role="tabpanel"
-              aria-labelledby="results-tab-json"
-              className={preClasses}
-            >{JSON.stringify(displayResult, null, 2)}</pre>
-          )}
-
-          {view === 'markdown' && (
-            <div
-              id="results-panel-markdown"
-              role="tabpanel"
-              aria-labelledby="results-tab-markdown"
-              className="flex min-h-0 flex-1 flex-col"
-            >
-              {documentMarkdown ? (
-                <pre className={preClasses}>{documentMarkdown}</pre>
-              ) : (
-                <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
-                  <p className="text-content font-semibold text-ink">Markdown unavailable</p>
-                  <p className="mt-1.5 max-w-[34ch] text-compact leading-snug text-ink-muted">
-                    Parsed Markdown has not been received for this source document.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {state.status === 'running' && state.partial && (
-        <PartialResults partial={state.partial} schemaNodes={pinnedSchema?.schemaNodes} onSelectEvidence={onSelectEvidence} />
-      )}
-      {state.status === 'running' && !state.partial && (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-          {/* Queued or running only once the server acknowledged the attempt: until then the attempt on screen is
-              the previous one, and the new run may not exist yet. */}
-          <Spinner
-            label={attempt?.executionStatus === 'QUEUED'
-              ? 'Queued extraction…'
-              : attempt?.executionStatus === 'RUNNING'
-                ? 'Running extraction…'
-                : 'Starting extraction…'}
-            hint={attempt?.executionStatus === 'QUEUED'
-              ? 'Waiting for the extraction worker to start this attempt.'
-              : attempt?.executionStatus === 'RUNNING'
-                ? 'The server is extracting values, grounding Evidence, and saving the terminal attempt.'
-                : 'Sending the extraction to the server.'}
-          />
+        ) : null}
+        counts={counts} running={running}
+        readOnlyNote={reviewed || viewOnly ? (counts.notReviewable > 0 ? `Read-only. ${plural(counts.notReviewable, 'value')} without a link were not part of the review.` : null) : undefined}
+        actions={{
+          oneByOne: null,
+          approveRest: viewOnly || reviewed || (state.status !== 'ready' && !running) ? null : {
+            disabled: running ? 'Available when the run finishes' : counts.toCheck === 0 || editOpen || !review.available ? '' : null,
+            expanded: confirming,
+          },
+          saveReview: saveAvailable,
+          list: false,
+        }}
+        breakdown={<span role={breakdown.action ? 'alert' : undefined}>{counts.approved} approved · {counts.edited} edited · {counts.rejected} rejected{breakdown.text && ` · ${breakdown.text}`}{breakdownAction}</span>}
+        chips={(model !== null || running) && !codeView} filter={filter} onFilter={setFilter}
+        detailsOpen={drawer !== null} menuOpen={menuOpen} detailsRef={detailsRef} menuRef={menuRef}
+        exportButton={reviewed ? exportControl : null}
+        onDetails={() => openDrawer(null)} onMenu={() => setMenuOpen((open) => !open)}
+        onSchema={() => openDrawer('schema')} onWhy={() => openDrawer('extraction')} onShowDetails={() => openDrawer('extraction')}
+        onOneByOne={() => {}} onApproveRest={() => setConfirming(true)}
+        onSaveReview={() => void save('Review saved. It is now read-only.')} onList={() => {}}
+      />
+      {/* Contain absolute accessibility labels inside the list so deep rows cannot scroll the workspace. */}
+      <div className="scrollbar-subtle relative min-h-0 flex-1 overflow-y-auto bg-canvas p-2 pb-20">
+        {codeView ? (
+          <div>
+            <button type="button" className="mb-2 cursor-pointer text-secondary font-semibold text-accent" onClick={() => setCodeView(false)}>Back to review</button>
+            <pre className="scrollbar-subtle m-0 overflow-auto rounded-md border border-line bg-surface px-3 py-2 font-mono text-compact whitespace-pre text-ink">{JSON.stringify(displayResult, null, 2)}</pre>
+          </div>
+        ) : state.status === 'cancelled' || state.status === 'error' ? (
+          <p className="m-0 py-6 text-center text-secondary text-ink-muted">{state.status === 'cancelled' ? 'Stopped · nothing to review' : `Failed · ${state.message}`}</p>
+        ) : (
+          <ReviewList model={model ?? { document: [], records: [], counts }} article={attempt?.strategy === 'ARTICLE'}
+            finding={running && (!partial || (partial.discovered === 0 && partial.records.length === 0))}
+            filter={filter} selectedKey={selectedKey} isOpen={isOpen}
+            onToggle={(record) => setToggles((current) => new Map(current).set(record.index, !isOpen(record)))}
+            renderRow={(row, pinned) => {
+              const selected = row.key === selectedKey
+              const anchor = row.link?.evidenceAnchorId
+              return (
+                <ReviewRow row={row} selected={selected} pinned={pinned} onSelect={() => select(row)}
+                  rowRef={(element) => { if (element) rowRefs.current.set(row.key, element); else rowRefs.current.delete(row.key) }}
+                  quote={selected && anchor && parsedDocument ? evidenceQuote(parsedDocument, anchor, row.link?.grounding?.raw ?? null, row.extracted) : null}
+                  canDecide={canDecide} saved={reviewed} last={last && row.kind === 'to-check'} editing={editingKey === row.key}
+                  node={selected ? nodeOf(row) : null}
+                  onDecide={(action, value) => decide(row, action, value ?? null)}
+                  onEdit={() => setEditingKey(row.key)} onCancelEdit={() => { setEditingKey(null); setFocusKey(row.key) }}
+                  onUndo={() => undoOne(row)} />
+              )
+            }} />
+        )}
+      </div>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{announce}</p>
+      {toast && (
+        <div className="absolute right-3 bottom-3 left-3 z-20">
+          <Toast key={toast.id} message={toast.message} action={toast.action} onDismiss={dismissToast} onHoldChange={holdToast} className="w-full" />
         </div>
       )}
-
-      {state.status === 'error' && (
-        <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
-          <p className="text-content font-semibold text-danger">Extraction failed</p>
-          <p className="mt-1 wrap-anywhere text-secondary leading-snug text-ink-muted">{state.message}</p>
-        </div>
+      {menuOpen && (
+        <ResultsMenu items={[
+          ...(reviewed ? [] : [{ label: 'Export…', onSelect: () => { setMenuOpen(false); setExportOpen(true) } }]),
+          { label: codeView ? 'Back to review' : 'Values as code', onSelect: () => { setMenuOpen(false); setCodeView((shown) => !shown) } },
+          { label: selectedRow ? `Edit field ${selectedRow.name} in the schema…` : 'Edit field in the schema…',
+            disabled: selectedRow && selectedNode && onEditField ? null : 'Select a value first',
+            onSelect: () => { setMenuOpen(false); if (selectedRow && selectedNode) onEditField?.(selectedNode.id, selectedRow.resultPath) } },
+        ]} />
       )}
-
-      {state.status === 'idle' && (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
-          <p className="text-content font-semibold text-ink">No results yet</p>
-          <p className="mt-1.5 max-w-[34ch] text-compact leading-snug text-ink-muted">
-            {schemaReady
-              ? 'Run extraction to apply the schema across the source document.'
-              : 'Generate a schema in the Schema tab first, then run extraction.'}
-          </p>
-          {!readOnly && schemaReady && <p className="mt-1.5 text-compact font-semibold text-ink">{runUnavailableReason ?? RUN_POINTER}</p>}
-        </div>
+      {/* Opened from ⋯ until the review is saved; then it is the status line's own button. */}
+      {!reviewed && <div className="absolute top-0 right-0 size-0">{exportControl}</div>}
+      {drawer !== null && attempt && (
+        <RunDetailsDrawer attempt={attempt} section={drawer === 'open' ? null : drawer} recordCount={model?.records.length ?? 0}
+          usedSchema={pinnedSchema} usedRevision={pinnedSchema?.revisionNumber ?? null} currentRevision={currentSchemaRevision?.revisionNumber ?? null}
+          linkCounts={linkCounts} doubtful={counts.doubtful} returnFocusRef={detailsRef} recordsInResult={records?.length ?? 1}
+          review={`${counts.approved} approved · ${counts.edited} edited · ${counts.rejected} rejected · ${reviewed ? 'review saved, read-only' : running ? 'draft until the run finishes' : 'draft saved'}`}
+          onShowValue={(resultPath) => {
+            setDrawer(null)
+            const key = resultPathKey(resultPath)
+            const record = model?.records.find((record) => record.rows.some((row) => row.key === key))
+            if (record) setToggles((current) => new Map(current).set(record.index, true))
+            setFilter('all')
+            setSelectedKey(key)
+            setFocusKey(key)
+          }}
+          onClose={() => setDrawer(null)} />
       )}
-
-      {state.status === 'cancelled' && (
-        <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
-          <p className="text-content font-semibold text-ink">Extraction cancelled</p>
-        </div>
+      {confirming && (
+        <ModalDialog ariaLabel="Approve the rest and save the review" onDismiss={() => setConfirming(false)}
+          className="m-auto w-96 max-w-[90vw] rounded-md border border-line bg-surface p-4 text-ink shadow-float backdrop:bg-ink/35">
+          <p className="m-0 mb-1.5 text-content font-bold">Approve the {counts.toCheck} values still to check and save the review?</p>
+          <p className="m-0 mb-1.5 text-secondary">{scope}</p>
+          <p className="m-0 mb-2.5 text-secondary text-ink-muted">Filters don’t limit this. Your edits and rejections stay as they are. Saving makes the review read-only, so this can’t be undone.</p>
+          {editOpen && <p className="m-0 mb-2.5 text-secondary text-danger">Finish or cancel the edit in progress first.</p>}
+          <div className="flex gap-2">
+            <Button variant="outline-positive" size="md" disabled={editOpen} onClick={() => {
+              const approved = counts.toCheck
+              setConfirming(false)
+              review.approveAll()
+              void save(`Approved ${approved} values. Review saved; it is now read-only.`)
+            }}>Approve {counts.toCheck} and save review</Button>
+            <Button size="md" onClick={() => setConfirming(false)}>Cancel</Button>
+          </div>
+        </ModalDialog>
       )}
     </div>
   )

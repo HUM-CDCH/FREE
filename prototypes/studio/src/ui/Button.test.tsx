@@ -21,3 +21,18 @@ it('a disabled positive button loses its fill, so colour never carries the state
   render(<Button variant="positive" disabled>▶ Run</Button>)
   expect(screen.getByRole('button', { name: '▶ Run' }).className).toMatch(/disabled:bg-line/)
 })
+
+it('outline-positive and outline-danger keep their colour on text and border, never a fill; ghost has no border', () => {
+  render(<>
+    <Button variant="outline-positive">Approve rest…</Button>
+    <Button variant="outline-danger">Reject</Button>
+    <Button variant="ghost">Undo</Button>
+  </>)
+  const positive = screen.getByRole('button', { name: 'Approve rest…' }).className
+  expect(positive).toMatch(/\btext-green\b/)
+  expect(positive).toMatch(/\bborder-green\/40\b/)
+  expect(positive).toMatch(/\bhover:bg-green-soft\b/)
+  expect(positive).not.toMatch(/(^|\s)bg-green(\s|$)/)
+  expect(screen.getByRole('button', { name: 'Reject' }).className).toMatch(/\bborder-danger\/40\b.*\btext-danger\b/)
+  expect(screen.getByRole('button', { name: 'Undo' }).className).toMatch(/\bborder-transparent\b.*\btext-ink-muted\b/)
+})

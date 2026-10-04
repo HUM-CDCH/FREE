@@ -3,11 +3,11 @@ import type { Page } from '@playwright/test'
 import { strFromU8, unzipSync } from 'fflate'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import pluralize from 'pluralize'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
 import { fieldLabel } from '../src/claimStates.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
+import { approveRest, reviewRow } from './resultsReview.js'
 import { cataloguePdf, startRealService, textPdf } from './realService.js'
 import { admit, settle } from './sourceIngestion.js'
 
@@ -81,21 +81,28 @@ function target(result: Json, links: readonly { resultPath: Path; evidenceAnchor
   return listed.sort((a, b) => b.resultPath.length - a.resultPath.length)[0]
 }
 
-/** Opens the result tree down to `path` (below records/n) and names the leaf as the Results tab labels it. */
+/** The Results rail's name for the value at `path` (below records/n): its steps joined " › ", items 1-based (§3.2). */
+function rowName(path: Path): string {
+  return path.slice(2).map((step) => typeof step === 'number' ? String(step + 1) : step).join(' › ')
+}
+
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const STATES = 'To check|Approved|Edited|Rejected|Not completed|Unsupported|Excluded by policy|No evidence|Not reviewable|Missing|Contested|Document'
+
+/** Opens `path`'s record (a reopened review lists its records collapsed once nothing is left to check there) and
+ *  returns the name its row carries. An Article's one record is flat. */
 async function open(page: Page, path: Path, records: number): Promise<string> {
-  const steps = path.slice(2)
-  const panel = page.getByLabel('Evidence, schema and results')  // not the project rail, whose file names may match
-  if (records > 1) await panel.getByRole('button', { name: new RegExp(`^Item ${Number(path[1]) + 1}\\b`) }).first().click()
-  let field = ''
-  let leaf = ''
-  for (const [index, step] of steps.entries()) {
-    const singular = pluralize.singular(field)
-    const name = typeof step === 'number' ? `${singular.charAt(0).toUpperCase()}${singular.slice(1)} ${step + 1}` : step
-    if (typeof step === 'string') field = step
-    if (index === steps.length - 1) leaf = name
-    else await panel.getByRole('button', { name: new RegExp(`^${name}\\b`) }).first().click()
+  const panel = page.getByRole('tabpanel', { name: /^Results/ })
+  if (records > 1) {
+    const header = panel.locator('section[aria-label]:not([aria-label="Document"])').nth(Number(path[1])).locator('button[aria-expanded]').first()
+    if (await header.getAttribute('aria-expanded') === 'false') await header.click()
   }
-  return leaf
+  return rowName(path)
+}
+
+/** A value's row in the rail, whatever its state, by its full name. */
+function valueRow(page: Page, name: string) {
+  return page.getByRole('tabpanel', { name: /^Results/ }).getByRole('button', { name: new RegExp(`^(?:${STATES}) ${escaped(name)} `) })
 }
 
 /** The evidence overlay for `anchor` is drawn on its page and scrolled into view. */
@@ -105,25 +112,6 @@ async function highlighted(page: Page, anchor: string, pageNumber: number) {
   await expect(overlay).toBeInViewport()
 }
 
-/** The visible Results value row (`PrimitiveRow`), excluding the mounted Schema tab's same-named field rows. */
-function valueRow(page: Page, leaf: string) {
-  return page.getByRole('tabpanel', { name: /^Results/ }).locator('div.group')
-    .filter({ has: page.getByText(leaf, { exact: true }) })
-}
-
-/** How the Results tab names the last step of `path`: a field by its name, an array item as `Site 2`. */
-function stepLabel(path: Path): string {
-  const last = path.at(-1)
-  if (typeof last === 'string') return last
-  const singular = pluralize.singular(String(path.at(-2) ?? 'item'))
-  return `${singular.charAt(0).toUpperCase()}${singular.slice(1)} ${Number(last) + 1}`
-}
-
-/** The breadcrumb's current item once the tree shows `path`'s value: its parent (`Root` for a record's own field). */
-function parentLabel(path: Path, records: number): string {
-  const nav = path.slice(records > 1 ? 1 : 2, -1)
-  return nav.length === 0 ? 'Root' : stepLabel(nav)
-}
 
 const unescapeXml = (text: string) => text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
   .replace(/&apos;/g, "'").replace(/&amp;/g, '&')
@@ -270,36 +258,34 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
 
     await page.goto(workspace)
     await page.getByRole('tab', { name: /Results/ }).click()
-    const completion = page.getByRole('region', { name: 'Completion' })
+    // The claim accounting is in Run details' Evidence section (results review redesign §8).
+    await page.getByRole('button', { name: 'Run details' }).click()
+    const drawer = page.getByRole('dialog', { name: 'Run details' })
+    await expect(drawer.getByText(`Evidence · ${claims.claims} claims`, { exact: true })).toBeVisible()
     // A Catalog run may add rule-made links; an Article result never does.
-    await expect(completion.locator('[data-dimension="evidence"]')).toHaveText(new RegExp(
-      `^Evidence checks: ${claims.supported} verifier-supported · ${strategy === 'ARTICLE' ? '' : '(?:\\d+ linked by rule · )?'}` +
-      `${claims.unsupported} unsupported · ${claims.notCompleted} not completed · ${claims.excluded} excluded by policy ` +
-      `\\(${claims.claims} claims\\)$`))
-    const notCompletedNote = page.getByRole('note', { name: real ? /^Not completed: The check did not finish/
-      : 'Not completed: The check did not finish: the verifier did not answer for this value.', exact: true })
+    await expect(drawer.getByText(new RegExp(`^${claims.supported} verifier-supported · ${strategy === 'ARTICLE' ? '0' : '\\d+'} linked by rule$`))).toBeVisible()
+    await expect(drawer.getByText(`${claims.unsupported} unsupported · ${claims.notCompleted} not completed · ${claims.excluded} excluded by policy`, { exact: true })).toBeVisible()
     if (unfinished) {
-      // From the list of checks that never completed: Show opens the value, marked not completed.
+      // From the list of checks that never completed: Show selects the value, which says it was not completed.
       const label = fieldLabel(unfinished.resultPath, records.length)
-      await completion.getByText(`Checks not completed (${claims.notCompleted})`).click()
-      await completion.getByRole('button', { name: `Show ${label}` }).first().click()
-      await expect(page.getByRole('navigation', { name: 'Result navigation' }).locator('[aria-current="page"]'))
-        .toHaveText(parentLabel(unfinished.resultPath, records.length))
-      const shown = valueRow(page, stepLabel(unfinished.resultPath)).filter({ has: notCompletedNote })
-      await expect(shown).toHaveCount(1)
-      await expect(shown).toBeVisible()
-      // And through the tree: the value's own row is marked not completed and has no evidence to view.
+      await drawer.getByText(`Checks not completed (${claims.notCompleted})`).click()
+      await drawer.getByRole('button', { name: `Show ${label}` }).first().click()
+      const shown = valueRow(page, rowName(unfinished.resultPath))
+      await expect(shown).toHaveAttribute('aria-expanded', 'true')
+      await expect(shown).toHaveAccessibleName(new RegExp(`^Not completed ${escaped(rowName(unfinished.resultPath))} `))
+      await expect(page.getByText(real ? /^The check did not finish/ : 'The check did not finish: the verifier did not answer for this value.', { exact: !real })).toBeVisible()
+      await expect(page.getByText('Not part of the review. It stays in the result and the export as extracted.')).toBeVisible()
+      // And through the list: the value's own row is not completed and has no decision to make.
       await page.goto(workspace)
       await page.getByRole('tab', { name: /Results/ }).click()
       const leaf = await open(page, unfinished.resultPath, records.length)
-      const row = valueRow(page, leaf).filter({ has: notCompletedNote })
-      await expect(row).toHaveCount(1)
-      await expect(row).toBeVisible()
-      await expect(row.getByRole('button', { name: `View Evidence for ${leaf}`, exact: true })).toHaveCount(0)
+      await expect(valueRow(page, leaf)).toHaveAccessibleName(new RegExp(`^Not completed ${escaped(leaf)} `))
+      await expect(reviewRow(page, leaf)).toHaveCount(0)
       await page.screenshot({ path: join(output, 'not-completed.png') })
       await page.goto(workspace)
       await page.getByRole('tab', { name: /Results/ }).click()
     } else {
+      await page.getByRole('button', { name: 'Close run details' }).click()
       // Only a real route reaches this (the scripted route failed above): its document left no claim unfinished, so
       // the unfinished-claim steps (here, the Evidence sheet's not-completed row, the saved-review clause) are skipped.
       testInfo.annotations.push({ type: 'not-exercised',
@@ -310,36 +296,38 @@ test('a researcher chooses the scope, opens evidence, edits, reloads and exports
     // The nested value the review edits was supported by the verifier, and says so.
     const chosenRow = valueRow(page, item)
     await expect(chosenRow).toHaveCount(1)
-    await expect(chosenRow.getByText(/^Verifier-supported/)).toBeVisible()
-    await page.getByRole('button', { name: `View Evidence for ${item}`, exact: true }).click()
+    await chosenRow.click()
+    await expect(page.getByText(/^p\.\d+ · Verifier-supported/)).toBeVisible()
     await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
     await page.screenshot({ path: join(output, 'evidence.png') })
-    await page.getByRole('group', { name: `Review ${item}` }).getByRole('button', { name: `Edit ${item}` }).click()
-    const box = page.getByRole('textbox', { name: `Reviewed value for ${item}`, exact: true })
+    await page.getByRole('group', { name: `Decision for ${item}`, exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+    const box = page.getByRole('textbox', { name: 'Reviewed value', exact: true })
     await box.fill(edited)
     await box.press('Enter')
-    await expect(page.getByText(edited, { exact: true })).toBeVisible()
-    await expect(chosenRow.getByText(`Extracted value: ${original}`, { exact: true })).toBeVisible()
+    await expect(valueRow(page, item)).toHaveAccessibleName(new RegExp(`^Edited ${escaped(item)} ${escaped(edited)}`))
+    await expect(page.getByText(`Extracted value: ${original}`, { exact: true })).toBeVisible()
     // The evidence now supports the extracted value the edit replaced, and is labelled so.
-    await page.getByRole('button', { name: `View Evidence for extracted value of ${item}`, exact: true }).click()
+    await expect(page.getByText(/^Evidence for the extracted value · /)).toBeVisible()
     await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
-    await page.getByRole('button', { name: /Approve remaining/ }).click()
+    await approveRest(page)
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible({ timeout: 30_000 })
     clock.reviewed = new Date().toISOString()
 
     await page.reload()
     await page.getByRole('tab', { name: /Results/ }).click()
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
-    if (unfinished) await expect(page.getByText(new RegExp(
-      `values? without evidence (?:was|were) not reviewed; ${claims.notCompleted} checks? never completed`))).toBeVisible()
+    // A saved review says what was not part of it (§2.2).
+    if (unfinished) await expect(page.getByText(/^Read-only\. \d+ values? without a link were not part of the review\.$/)).toBeVisible()
     // The Record scope is in the Schema tab's header; the review continues in Results.
     await page.getByRole('tab', { name: /^Schema/ }).click()
     await expect(page.getByRole('combobox', { name: 'Record scope' })).toHaveValue(strategy === 'ARTICLE' ? 'document' : 'records')
     await page.getByRole('tab', { name: /Results/ }).click()
     await open(page, chosen!.resultPath, records.length)
-    await expect(page.getByText(edited, { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: `View Evidence for extracted value of ${item}`, exact: true }).click()
+    await expect(valueRow(page, item)).toHaveAccessibleName(new RegExp(`^Edited ${escaped(item)} ${escaped(edited)}`))
+    await valueRow(page, item).click()
     await highlighted(page, chosen!.evidenceAnchorId, anchorPage.get(chosen!.evidenceAnchorId)!)
+    await expect(page.getByRole('tab', { name: /^Results/ })).toBeInViewport()
+    await expect(page.getByRole('group', { name: 'Document view' })).toBeInViewport()
     await page.screenshot({ path: join(output, 'reloaded.png') })
     const reviewed = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
     expect(reviewed.extraction.reviewedAt).not.toBeNull()
