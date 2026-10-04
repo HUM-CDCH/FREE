@@ -1433,6 +1433,24 @@ describe('review while the run reads (ADR 0016; results review redesign §5)', (
     unmount()
   })
 
+  it('a watched run without drafted decisions still reports its settlement, once its review is loaded', async () => {
+    vi.useFakeTimers()
+    const settled = attempt({ ...running(), executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', reviewable: true, complete: true,
+      resultPayload: { records: [{ title: 'Record 1' }] }, evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-0' }] })
+    let reads = 0
+    vi.mocked(api.readExtraction).mockImplementation(async () => (reads++ === 0
+      ? { extraction: running(), pendingReviewDecisions: null, partial: null }
+      : { extraction: settled, pendingReviewDecisions: [decision(0)], reviewDraft: { version: 0, decisions: [] } }))
+    const { result, unmount } = hook(running())
+    await poll()
+    expect(result.current.review.settlement).toBeNull()
+    await poll()
+    await flush()
+    await flush()
+    expect(result.current.review.settlement).toEqual({ kept: 0, changed: 0 })
+    unmount()
+  })
+
   it('a stopped run discards its draft and says how many decisions went with it', async () => {
     vi.useFakeTimers()
     const stopped = jobAttempt({ strategy: 'CATALOG', executionStatus: 'FAILED',

@@ -11,6 +11,7 @@ describe('the breakdown line state (results review redesign §2.2, Error handlin
     [{ error: 'Saving the review failed.' }, 'Review not saved', 'retry'],
     [{ running: true }, 'draft until the run finishes', undefined],
     [{}, 'draft saved', undefined],
+    [{ draftSaved: false }, '', undefined],
   ])('%o → %s', (overrides, text, action) => {
     expect(breakdownState({ ...base, ...overrides })).toEqual(action ? { text, action } : { text })
   })

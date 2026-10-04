@@ -6,6 +6,7 @@ import pluralize from 'pluralize'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
+import { approveRest, reviewRow } from './resultsReview.js'
 import { startRealService } from './realService.js'
 import { admit, settle } from './sourceIngestion.js'
 
@@ -123,17 +124,18 @@ test('a real document runs through the application: extraction, evidence, browse
       const listItem = `${singular.charAt(0).toUpperCase()}${singular.slice(1)} ${target.item + 1}`
       if (target.child) await page.getByRole('button', { name: new RegExp(`^${listItem}\\b`) }).first().click()
       const item = target.child ?? listItem
-      await page.getByRole('group', { name: `Review ${item}` }).getByRole('button', { name: `Edit ${item}` }).click()
-      const box = page.getByRole('textbox', { name: `Reviewed value for ${item}`, exact: true })
+      await reviewRow(page, item).click()
+      await page.getByRole('group', { name: `Decision for ${item}`, exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+      const box = page.getByRole('textbox', { name: 'Reviewed value', exact: true })
       await box.fill(edited!)
       await box.press('Enter')
       await expect(page.getByText(edited!, { exact: true })).toBeVisible()
-      const original = page.getByRole('button', { name: `View Evidence for extracted value of ${item}` })
-      await expect(original).toBeVisible()
-      await original.click()
+      // The edited row stays selected; its Evidence is the extracted value's, and is labelled so.
+      await expect(reviewRow(page, item)).toBeVisible()
+      await expect(page.getByText(/^Evidence for the extracted value · /)).toBeVisible()
       await page.screenshot({ path: join(output, 'edited-item-evidence.png'), fullPage: true })
     }
-    await page.getByRole('button', { name: /Approve remaining/ }).click()
+    await approveRest(page)
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible({ timeout: 30_000 })
     clock.reviewed = new Date().toISOString()
 

@@ -7,6 +7,7 @@ import { documentReopenResponseSchema } from '../shared/projectContext.contract.
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
 import { batchExtractionResponseSchema } from '../shared/batchExtraction.contract.js'
 import { E2E_ORIGIN, e2eStudioPath, loginResearcher } from './auth.js'
+import { reviewRow } from './resultsReview.js'
 import { cataloguePdf, numberedCataloguePdf, startRealService, textPdf } from './realService.js'
 import { admit, settle, uploaded } from './sourceIngestion.js'
 
@@ -185,8 +186,8 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
     await page.getByRole('tab', { name: /Results/ }).click()
     await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Item 1 › Hill' }).click()
-    await expect(page.getByRole('button', { name: 'View Evidence for site' }).first()).toBeVisible()
-    await page.getByRole('button', { name: 'View Evidence for site' }).first().click()
+    await expect(reviewRow(page, 'site').first()).toBeVisible()
+    await reviewRow(page, 'site').first().click()
     await page.screenshot({ path: testInfo.outputPath('real-evidence-review.png'), fullPage: true })
   } finally {
     await service.close()
@@ -298,10 +299,10 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
     await page.getByRole('button', { name: 'Item 2 › Heide' }).click()
     await expect(page.getByText('Inherited from the heading in force', { exact: true })).toBeVisible()
     await expect(page.getByText('Read after its printed key', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'View Evidence for fundart' }).click()
+    await reviewRow(page, 'fundart').click()
     await expect(page.locator('.page[data-page-number="2"] .parsed-evidence-focus')).not.toHaveCount(0)
     await page.screenshot({ path: testInfo.outputPath('recipe-catalog-continuation.png'), fullPage: true })
-    await page.getByRole('button', { name: 'View Evidence for kreis' }).click()
+    await reviewRow(page, 'kreis').click()
     await expect(page.locator('.page[data-page-number="1"] .parsed-evidence-focus')).not.toHaveCount(0)
     await expect(page.locator('.page[data-page-number="2"] .parsed-evidence-focus')).toHaveCount(0)
     await page.screenshot({ path: testInfo.outputPath('recipe-catalog-review.png'), fullPage: true })
