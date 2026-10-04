@@ -203,6 +203,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           throw new DurableInvalid('Choose a committed result and review snapshot.')
         const corrections = (await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
           WHERE "extractionId"=$1 AND "feedbackVersion" <= $2 ORDER BY "valueId",revision DESC`, [id,feedbackVersion])).rows
+        const correctionsByValue = new Map(corrections.map(correction=>[correction.valueId,correction]))
         const allValues = snapshot ? durableValueSchema.array().parse(snapshot.values) : []
         const values=input.valueId?allValues.filter(v=>v.id===input.valueId):allValues
         const offset = input.offset ?? 0, limit = Math.min(input.limit ?? 100,500)
@@ -210,7 +211,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const finalization = (await client.query(`SELECT id,"snapshotVersion","feedbackVersion","createdAt" FROM extraction_runtime.finalization
           WHERE "extractionId"=$1 AND "snapshotVersion"=$2 AND "feedbackVersion"=$3`, [id,snapshotVersion,feedbackVersion])).rows[0] ?? null
         const projected = allValues.map(value => {
-            const historicalCorrection = corrections.find(c=>c.valueId===value.id) ?? null
+            const historicalCorrection = correctionsByValue.get(value.id) ?? null
             const compatible=historicalCorrection===null || reviewFits(historicalCorrection,value)
             const links=value.evidence.map(({anchorId,producer}) => {
               if ('provenance' in producer) return groundedEvidenceLink(producer,anchorId)
