@@ -621,11 +621,12 @@ export function useExtraction({
     })
   }
 
-  async function acceptResult() {
+  /** Saves the review; true once the server finalized it. */
+  async function acceptResult(): Promise<boolean> {
     const scope = saveScopeRef.current
     // The draft ref, not this render's state: a researcher's last decision and its save happen in one handler.
     const { decisions, touched } = draftRef.current
-    if (!attempt || !canSave || !everyRequiredTouched(decisions, touched) || scope.saving) return
+    if (!attempt || !canSave || !everyRequiredTouched(decisions, touched) || scope.saving) return false
     scope.saving = true
     setSaving(true)
     setReviewError(null)
@@ -637,15 +638,17 @@ export function useExtraction({
         decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))),
         draft.version,
       )
-      if (saveScopeRef.current !== scope) return
+      if (saveScopeRef.current !== scope) return false
       forgetReviewDraft(attempt.extractionId)
       setDraftError(null)
       setAttempt(finalized)
+      return true
     } catch (error) {
-      if (saveScopeRef.current !== scope) return
+      if (saveScopeRef.current !== scope) return false
       setReviewError(
         error instanceof Error ? error.message : 'Saving the review failed.',
       )
+      return false
     } finally {
       if (saveScopeRef.current === scope) {
         scope.saving = false

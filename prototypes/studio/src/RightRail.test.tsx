@@ -58,14 +58,13 @@ const defaultController: ExtractionController = {
     undo: () => ({ last: false }),
     reload: () => {},
     approveAll: () => {},
-    accept: async () => {},
+    accept: async () => false,
   },
 }
 
 const defaultInspection: ExtractionInspection = {
   attempt: null,
   readOnly: false,
-  documentMarkdown: '# Test doc',
   parsedDocument: null,
   reviewDecisions: [],
   pinnedSchema: null,
@@ -142,11 +141,11 @@ describe('RightRail developer UI visibility', () => {
         sourceDocumentName="test.pdf" sourceRepresentationId="source-1" onSelectEvidence={() => {}} onResultPathChange={() => {}} />
     }
     render(<Rail />)
-    expect(screen.getByText(/Review attention · 1 to check/).closest('details')).toHaveAttribute('open')
-    // The value is its own Evidence link (decision 14), and the Review attention row's "Edit field" stays.
-    expect(screen.getByRole('button', { name: 'View Evidence for title' })).toHaveTextContent('Report')
-    expect(screen.queryByText('Evidence')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Edit field' }))
+    // The selected value's field opens in the schema from ⋯ (results review redesign §8).
+    fireEvent.click(screen.getByRole('button', { name: /title\s*Report/ }))
+    expect(screen.getByRole('button', { name: /title\s*Report/ })).toHaveTextContent('Report')
+    fireEvent.click(screen.getByRole('button', { name: 'More result actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit field title in the schema…' }))
     expect(schema.snapshot().historicalPreview).toBeNull()
     expect(schema.snapshot().draft).toEqual(draft)
     expect(screen.getByText(/This field was removed. No replacement was selected/)).toBeVisible()
