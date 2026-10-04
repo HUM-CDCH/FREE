@@ -517,7 +517,7 @@ describe('/api/extractions transport', () => {
     expect(module.runSingle).not.toHaveBeenCalled()
   })
 
-  it('reads a running or failed job without values or review authority', async () => {
+  it('reads a running job with its Review Draft but no values, prepared decisions or review authority (ADR 0016); a failed one without either', async () => {
     const running = {
       ...attemptSnapshot,
       executionStatus: 'RUNNING' as const,
@@ -532,8 +532,11 @@ describe('/api/extractions transport', () => {
       reviewedAt: null,
       reviewDecisions: [],
     }
+    const draft = { version: 3, decisions: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1',
+      reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }] }
     const runningModule = extractionModule({
       readExtractionAttempt: vi.fn(async () => running),
+      readReviewDraft: vi.fn(async () => draft),
     })
     const runningResponse = await handlerFor(runningModule)(
       new Request(`http://test/api/extractions/${EXTRACTION}`),
@@ -549,9 +552,9 @@ describe('/api/extractions transport', () => {
         reviewable: false,
       },
       pendingReviewDecisions: null,
+      reviewDraft: draft,
     })
     expect(runningModule.prepareReview).not.toHaveBeenCalled()
-    expect(runningModule.readReviewDraft).not.toHaveBeenCalled()
 
     // Legacy-row fixture: a FAILED job carries the same null checkpoint values, plus a failure the reader
     // passes through unfiltered (`postgres-attempts.ts`'s `settledAttempt` FAILED branch).
@@ -584,6 +587,14 @@ describe('/api/extractions transport', () => {
     })
     expect(failedModule.prepareReview).not.toHaveBeenCalled()
     expect(failedModule.readReviewDraft).not.toHaveBeenCalled()
+  })
+
+  it('carries the decisions settlement did not keep as dropped', async () => {
+    const dropped = [{ resultPath: ['records', 3, 'title'], evidenceAnchorId: 'anchor-gone' }]
+    const module = extractionModule({ readReviewDraft: vi.fn(async () => ({ version: 2, decisions: [], dropped })) })
+    const response = await handlerFor(module)(new Request(`http://test/api/extractions/${EXTRACTION}`))
+    expect(response.status).toBe(200)
+    expect(extractionReadResponseSchema.parse(await response.json()).reviewDraft).toEqual({ version: 2, decisions: [], dropped })
   })
 
   it('reads a completed job whose stored diagnostics still hold the legacy retry key', async () => {
