@@ -154,25 +154,24 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
 
 test('One by one waits for its pinned source before navigating retained Model Evidence',async({page})=>{
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
-  const release=Promise.withResolvers<void>(),received=Promise.withResolvers<void>()
+  const release=Promise.withResolvers<void>()
+  let received=false
   try {
     const source=decodeParsedDocument(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)).json())
     const anchor=source.evidence_index.anchors[0]!,occurrence=anchor.producer_observations[0]!
     const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Grav 8'],'PAUSED',
       {modelEvidence:{title:[{anchorId:anchor.anchor_id,occurrenceIds:[occurrence.occurrence_id],producer:{path:['records',0,'title'],
         segment:'p1_s0',page:1,bbox_pt:[36,36,100,54],verbatim:true,hits:1,linked_by:'lexical',precision:'segment'}}]}})
-    const latestSource=randomUUID()
-    await pool.query(`INSERT INTO public."sourceRepresentationRevision" (id,"sourceDocumentId","revisionNumber","artifactReference","artifactSha256","contractVersion","preprocessId","parserName","parserVersion")
-      SELECT $1,"sourceDocumentId",2,"artifactReference","artifactSha256","contractVersion",$2,'fixture','2' FROM public."sourceRepresentationRevision" WHERE id=$3`,
-      [latestSource,`kei-exp:e2e-${latestSource}:g2`,fixture.sourceRepresentationRevisionId])
-    await page.route(`**/api/extractions/${id}/durable/source`,async route=>{
+    // Direct reopen already chooses the producing source. Hold its real parsed
+    // document request while the retained values and PDF become available.
+    await page.route(`**/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source?*`,async route=>{
       const response=await route.fetch()
-      received.resolve();await release.promise
+      received=true;await release.promise
       await route.fulfill({response})
     })
     await page.goto(`${fixture.url}?extractionId=${id}`)
     await page.locator('#rail-tab-results').click()
-    await received.promise
+    await expect.poll(()=>received).toBe(true)
     await expect(page.getByText('/ 6',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'One by one',exact:true}).click()
     await expect(page.getByRole('heading',{name:'Grav 8',exact:true})).toBeFocused()
