@@ -7,6 +7,8 @@ planning examples below (especially state mapping and progress retention).
 The checklists below preserve the original plan; commits and infrastructure
 execution were deferred at the local delivery boundary.
 
+> **Superseded in part (2026-10-04)** by `docs/superpowers/specs/2026-10-04-results-review-redesign-design.md` §5.5: the Global Constraint "the partial view offers no review controls", Task 2's `PartialResults` component and Ruling 7 (two components, order changing at settlement), the ` · started at page {n}` copy and the count appended to the run button are replaced there. Task 1 (the partial on the running state, `retainFinished`, `startPage`) and Task 3's overlay rulings stand.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Show the researcher each record as it is read: the Results tab lists a running Extraction's records in the order kei reads them, every value in one of the six states, with a progress line and a "k of n" badge; Run sends the page being read so those records come first; Evidence highlights draw as links arrive; the settled result takes the view's place when the attempt settles.

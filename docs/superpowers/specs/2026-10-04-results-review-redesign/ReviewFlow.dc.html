@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Results review flow</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#faf6f2}
+*{box-sizing:border-box}
+.app{width:1440px;height:900px;display:flex;font-family:'Albert Sans',system-ui,sans-serif;font-size:13px;line-height:1.5;color:#33302c;background:#faf6f2;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;touch-action:manipulation;text-align:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid #a34828;outline-offset:2px;border-radius:4px}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+.num{font-variant-numeric:tabular-nums}
+.ico{width:16px;height:16px;flex:none}
+.side{width:56px;flex:none;background:#fff;border-right:1px solid #eadfd6;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:10px}
+.mark{width:32px;height:32px;border-radius:50%;border:1.5px solid #a34828;color:#a34828;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;letter-spacing:.04em}
+.sbtn{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#6c6259}
+.sbtn:hover{background:#fbf1ec;color:#33302c}
+.sbtn.on{background:#fbf1ec;color:#a34828}
+.work{flex:1;min-width:0;display:flex;flex-direction:column}
+.top{height:52px;flex:none;display:flex;align-items:flex-end;gap:4px;padding:0 16px 0 12px;background:#f5efe9;border-bottom:1px solid #eadfd6}
+.proj{align-self:center;display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid #d9cabc;border-radius:6px;background:#fff;font-size:12px;color:#6c6259;margin-right:8px}
+.tab{display:flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#6c6259}
+.tab:hover{color:#33302c}
+.tab.on{background:#fff;color:#33302c;border:1px solid #eadfd6;border-bottom:0;height:41px;margin-bottom:-1px}
+.run{align-self:center;margin-left:auto;display:flex;align-items:center;gap:8px;height:36px;padding:0 16px;border-radius:6px;background:#3e7c4f;color:#fff;font-weight:700}
+.panes{flex:1;min-height:0;display:flex}
+.doc{flex:1;min-width:0;display:flex;flex-direction:column}
+.dtool{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;background:#fff;border-bottom:1px solid #eadfd6;font-size:12px;color:#6c6259}
+.tbtn{height:30px;padding:0 10px;border:1px solid #eadfd6;border-radius:6px;display:inline-flex;align-items:center;gap:6px;background:#fff}
+.tbtn:hover{border-color:#d9cabc;color:#33302c}
+.seg{display:inline-flex;border:1px solid #d9cabc;border-radius:6px;overflow:hidden}
+.seg button{height:28px;padding:0 10px;font-size:11px;font-weight:600;color:#6c6259;background:#fff}
+.seg button.on{background:#33302c;color:#faf6f2}
+.sw{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px;border-radius:6px;font-size:11px;font-weight:600}
+.sw:hover{background:#fbf1ec}
+.sw i{width:26px;height:16px;border-radius:999px;background:#d9cabc;position:relative;display:inline-block}
+.sw i::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .15s ease}
+.sw.on i{background:#4f8aa8}
+.sw.on i::after{transform:translateX(10px)}
+.scroll{flex:1;min-height:0;overflow:auto;padding:24px 0 40px;display:flex;justify-content:center}
+.page{width:600px;height:fit-content;background:#fff;box-shadow:0 1px 2px rgba(51,48,44,.08),0 6px 18px rgba(51,48,44,.08);padding:48px 54px;font-family:'Times New Roman',Times,serif;font-size:14px;line-height:1.42;color:#1d1b19}
+.page p{margin:0 0 6px}
+.page h3{margin:0 0 4px;font-size:15px}
+.page table{border-collapse:collapse;width:100%;margin:6px 0 10px;font-size:13px}
+.page td,.page th{border:1px solid #555;padding:1px 6px;text-align:left}
+.page.md{font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.6;color:#33302c}
+.u{text-decoration:underline}
+.ev{display:inline;background:#eef6fa;border-bottom:2px solid #4f8aa8;border-radius:2px;padding:0 1px;line-height:inherit}
+.ev:hover{background:#d9eaf3}
+.ev.rule{border-bottom-style:dotted}
+.ev.weak{border-bottom-style:dashed}
+.ev.done{background:transparent;border-bottom-width:1px}
+.ev.off{background:transparent;border-bottom-color:transparent}
+.ev.sel{background:#d9eaf3;border-bottom-color:#4f8aa8;outline:2px solid #a34828;outline-offset:1px}
+.rail{width:420px;flex:none;background:#fff;border-left:1px solid #eadfd6;display:flex;flex-direction:column;position:relative;min-height:0}
+.rtabs{display:flex;align-items:stretch;height:44px;flex:none;padding:0 6px 0 4px;border-bottom:1px solid #eadfd6}
+.rtab{padding:0 14px;font-weight:700;font-size:13px;color:#6c6259;border-bottom:2px solid transparent;display:flex;align-items:center;gap:6px}
+.rtab.on{color:#33302c;border-bottom-color:#a34828}
+.cnt{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:999px;background:#f5efe9;font-size:11px;font-weight:700;color:#6c6259}
+.hdr{flex:none;padding:10px 14px 12px;border-bottom:1px solid #eadfd6;display:flex;flex-direction:column;gap:10px}
+.srow{display:flex;align-items:center;gap:6px;font-size:12px;color:#6c6259;min-height:28px}
+.srow b{color:#33302c;font-weight:700}
+.dot{width:8px;height:8px;border-radius:50%;background:#3e7c4f;flex:none}
+.lnk{font-weight:600;color:#a34828;border-radius:4px;padding:2px 4px}
+.lnk:hover{background:#fbf1ec}
+.ibtn{width:32px;height:32px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:#6c6259}
+.ibtn:hover,.ibtn.on{background:#fbf1ec;color:#33302c}
+.bar{display:flex;height:8px;border-radius:999px;overflow:hidden;background:#eadfd6;gap:2px}
+.bar span{display:block;height:100%}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{height:28px;padding:0 10px;border:1px solid #eadfd6;border-radius:999px;font-size:11px;font-weight:600;color:#6c6259;display:inline-flex;align-items:center;gap:5px;background:#fff}
+.chip:hover{border-color:#d9cabc;color:#33302c}
+.chip.on{background:#33302c;border-color:#33302c;color:#faf6f2}
+.body{flex:1;min-height:0;overflow:auto;background:#faf6f2;padding:10px 10px 24px}
+.ent{background:#fff;border:1px solid #eadfd6;border-radius:8px;margin-bottom:8px}
+.enth{display:flex;align-items:center;gap:8px;padding:9px 12px;width:100%;font-size:12px;color:#6c6259;border-radius:8px}
+.enth:hover{background:#fbf1ec}
+.enth b{color:#33302c;font-size:13px}
+.row{border-radius:6px;margin:0 4px 2px}
+.rowmain{width:100%;display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px;border-radius:6px}
+.rowmain:hover{background:#fbf1ec}
+.row.sel{background:#fbf1ec}
+.row.sel .rowmain:hover{background:transparent}
+.row.sel .evc{display:none}
+.fname{display:block;font-size:11px;color:#776b60;font-family:'IBM Plex Mono',monospace}
+.fval{display:block;font-size:13px;color:#33302c;font-weight:500}
+.evc{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;border-radius:4px;background:#eef6fa;font-size:11px;font-weight:600;color:#33302c;white-space:nowrap;border:1px solid transparent}
+.evc.weak{background:#fff;border:1px dashed #4f8aa8}
+.evc.rule{background:#fff;border:1px dotted #4f8aa8}
+.evc.none{background:#f5efe9;color:#6c6259}
+.xp{padding:0 8px 10px 34px}
+.src{display:flex;align-items:center;gap:5px;margin:0 0 4px;font-size:11px;font-weight:600;color:#6c6259}
+.q{margin:0 0 10px;font-family:'Source Serif 4',Georgia,serif;font-size:13px;line-height:1.55;color:#33302c}
+.q mark,.fq mark{background:#d9eaf3;color:inherit;border-bottom:2px solid #4f8aa8;padding:0 1px}
+.q mark.weak,.fq mark.weak{border-bottom-style:dashed}
+.q mark.rule,.fq mark.rule{border-bottom-style:dotted}
+.why{margin:0 0 10px;font-size:12px;line-height:1.45;color:#33302c;display:flex;gap:6px;align-items:flex-start}
+.why.m{color:#6c6259}
+.last{margin:0 0 10px;padding:8px 10px;border-radius:6px;background:#f5efe9;font-size:12px;color:#33302c}
+.arow{display:flex;align-items:center;gap:8px}
+.ag{display:inline-flex;border:1px solid #d9cabc;border-radius:6px;overflow:hidden;background:#fff}
+.ag button{height:30px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#33302c}
+.ag button+button{border-left:1px solid #eadfd6}
+.ag button:hover{background:#fbf1ec}
+.ag button:focus-visible{outline-offset:-2px}
+.ghost{height:30px;padding:0 8px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#6c6259}
+.ghost:hover{background:#f5efe9;color:#33302c}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.btn{height:32px;padding:0 12px;border:1px solid #d9cabc;border-radius:6px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;background:#fff;color:#33302c}
+.btn:hover{background:#fbf1ec}
+.btn:disabled{color:#776b60;border-color:#eadfd6;background:#fff;cursor:default}
+.run{min-width:172px;justify-content:center}
+.btn.g{color:#3e7c4f;border-color:#b9d3bf}
+.btn.g:hover{background:#e7f1e9}
+.btn.d{color:#b3402a;border-color:#ecc3b9}
+.btn.d:hover{background:#fce8e4}
+.btn.fill{background:#3e7c4f;border-color:#3e7c4f;color:#fff}
+.inp{height:32px;width:100%;border:1px solid #d9cabc;border-radius:6px;padding:0 8px;font:inherit;font-size:13px;color:#33302c;margin-bottom:8px}
+.drawer{position:absolute;inset:0;background:#fff;z-index:5;display:flex;flex-direction:column}
+.dsec{padding:12px 16px;border-bottom:1px solid #eadfd6}
+.dsec h4{margin:0 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#776b60}
+.dsec p{margin:0 0 4px;font-size:12px;color:#33302c}
+.dsec .m{color:#6c6259}
+.menu{position:absolute;z-index:6;width:240px;background:#fff;border:1px solid #d9cabc;border-radius:8px;box-shadow:0 8px 24px rgba(51,48,44,.16);padding:4px}
+.menu button{width:100%;padding:8px 10px;border-radius:6px;font-size:12px;display:flex;gap:8px;align-items:center}
+.menu button:hover{background:#fbf1ec}
+.page.dim p,.page.dim h3,.page.dim table{opacity:.55;transition:opacity .2s ease}
+.page.dim .litp{opacity:1;position:relative;background:#fff;box-shadow:0 0 0 8px #fff,0 0 0 9px #d9cabc;border-radius:2px}
+.fq{margin:0;font-family:'Source Serif 4',Georgia,serif;font-size:13px;line-height:1.6;color:#33302c}
+.sig{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:6px;background:#f5efe9;font-size:12px;color:#33302c}
+.sig.weak{background:#fff;border:1px dashed #4f8aa8}
+.act{height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:13px;border:1px solid #d9cabc;background:#fff}
+.act:hover{background:#fbf1ec}
+.act.g{color:#3e7c4f;border-color:#b9d3bf;border-width:1.5px}
+.act.g:hover{background:#e7f1e9}
+.act.d{color:#b3402a;border-color:#ecc3b9}
+.act.d:hover{background:#fce8e4}
+.kbd{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;min-width:18px;height:18px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #d9cabc;border-bottom-width:2px;border-radius:4px;color:#6c6259;background:#fff}
+.qd{width:24px;height:24px;border-radius:5px;border:1.5px solid #776b60;background:#fff;display:flex;align-items:center;justify-content:center}
+.qd.weak{border-style:dashed;border-color:#4f8aa8}
+.qd.dec{border-color:#d9cabc}
+.qd.cur{outline:2px solid #a34828;outline-offset:2px}
+.qd .ico{width:14px;height:14px}
+.nx{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:6px 0;border-top:1px solid #eadfd6;font-size:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes arrive{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
+.spin{animation:spin .8s linear infinite;transform-origin:50% 50%}
+.arr{animation:arrive .2s ease both}
+.skel{display:inline-block;height:9px;border-radius:5px;background:#eadfd6;animation:pulse 1.4s ease-in-out infinite;vertical-align:middle}
+.cand{color:#776b60;font-style:italic}
+.rst{font-size:11px;font-weight:600;color:#6c6259;display:inline-flex;align-items:center;gap:5px}
+.runnote{margin:0;font-size:12px;color:#6c6259}
+.run.stop{background:#b3402a}
+.ev.new{animation:arrive .2s ease both}
+@media (prefers-reduced-motion: reduce){.spin,.arr,.skel,.ev.new{animation:none}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.pin{font-size:11px;color:#6c6259;font-style:italic}
+.toast{position:absolute;left:12px;right:12px;bottom:12px;z-index:7;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 14px;background:#33302c;color:#faf6f2;border-radius:8px;box-shadow:0 8px 24px rgba(51,48,44,.24);font-size:12px}
+.toast button{height:30px;padding:0 10px;border-radius:6px;font-weight:700;color:#faf6f2;display:inline-flex;align-items:center;gap:6px}
+.toast button:hover{background:rgba(255,255,255,.12)}
+.toast .kbd{background:transparent;color:#faf6f2;border-color:rgba(250,246,242,.5)}
+.orig{margin:0 0 8px;font-size:12px;color:#6c6259}
+.orig s{color:#33302c}
+.pop{position:absolute;z-index:6;width:300px;background:#fff;border:1px solid #d9cabc;border-radius:8px;box-shadow:0 8px 24px rgba(51,48,44,.16);padding:12px}
+</style>
+</helmet>
+<div class="app">
+  <nav class="side" aria-label="Projects">
+    <span class="mark" aria-hidden="true">FR</span>
+    <button class="sbtn on" type="button" aria-label="Application route project"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 4.5h4l1.5 1.5h5.5v6.5h-11z"></path></svg></button>
+    <button class="sbtn" type="button" aria-label="New project"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"></path></svg></button>
+    <span style="flex: 1;"></span>
+    <button class="sbtn" type="button" aria-label="Settings"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="2.2"></circle><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4L5 11M11 5l1.4-1.4"></path></svg></button>
+  </nav>
+
+  <div class="work">
+    <header class="top">
+      <span class="proj">Application route <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4.5 6.5l3.5 3.5 3.5-3.5"></path></svg></span>
+      <button class="tab on" type="button" aria-current="page" aria-label="{{tabLabel}}">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="#eadfd6" stroke-width="2.5"></circle><circle cx="9" cy="9" r="7" fill="none" stroke="{{ringColor}}" stroke-width="2.5" stroke-dasharray="{{ring}} 44" transform="rotate(-90 9 9)"></circle></svg>
+        Beretning_Ellekilde_8_13.pdf
+      </button>
+      <button class="tab" type="button">Ellekilde_grav_14.pdf</button>
+      <sc-if value="{{ready}}" hint-placeholder-val="{{true}}"><button class="run" type="button" onClick="{{restart}}"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z" fill="currentColor"></path></svg>Run extraction</button></sc-if>
+      <sc-if value="{{running}}" hint-placeholder-val="{{false}}"><button class="run stop" type="button"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor"></rect></svg>Stop extraction</button></sc-if>
+    </header>
+
+    <div class="panes">
+      <section class="doc" aria-label="Source document">
+        <div class="dtool">
+          <button class="tbtn" type="button"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10"></path></svg>Pages</button>
+          <span class="num" style="display: inline-flex; align-items: center; gap: 6px;"><button class="ibtn" type="button" aria-label="Previous page">‹</button>1 / 6<button class="ibtn" type="button" aria-label="Next page">›</button></span>
+          <span class="num">100%</span>
+          <span style="flex: 1;"></span>
+          <button class="{{marksCls}}" type="button" aria-pressed="{{marks}}" onClick="{{toggleMarks}}"><i aria-hidden="true"></i>Evidence marks</button>
+          <div class="seg" role="group" aria-label="Document view">
+            <button class="{{pdfCls}}" type="button" aria-pressed="{{notMd}}" onClick="{{showPdf}}">PDF</button>
+            <button class="{{mdCls}}" type="button" aria-pressed="{{md}}" onClick="{{showMd}}">Markdown</button>
+          </div>
+        </div>
+        <div class="scroll">
+          <sc-if value="{{notMd}}" hint-placeholder-val="{{true}}">
+            <article class="{{pageCls}}" aria-label="Page 1">
+              <h3 class="{{lp.category}}"><button type="button" class="{{mk.category}}" onClick="{{pk.category}}">Grav 8</button></h3>
+              <p class="{{lp.sheet}}"><span class="u">Ark</span>: <button type="button" class="{{mk.sheet}}" onClick="{{pk.sheet}}">67</button></p>
+              <p class="{{lp.photos}}"><span class="u">Foto</span>: <button type="button" class="{{mk.photos}}" onClick="{{pk.photos}}">Digital: 238-39, 246-48</button>. &#160; S/H (film 4): 22-23. &#160; Dias (film 4): 22-23</p>
+              <p><span class="u">Baggrund og udgravning</span>: Anlægget blev oprindelig tolket som værende væsentlig større end det reelt var, grundet områdets spættede undergrund. Efter afrensning blev anlægget fotograferet og nivelleret, samt genindmålt med GPS. Der fandtes knogler i overfladen, hvorfor anlægget udelukkende blev gravet med graveske og spatler.</p>
+              <p class="{{lp.orientation}}"><span class="u">Beskrivelse</span>: Langovalt fyldskifte af noget amorf form. Fylden var lyst gråbrunt sandet ler. Graven var ud fra skeletresterne at dømme orienteret <button type="button" class="{{mk.orientation}}" onClick="{{pk.orientation}}">NØ-SV</button>. Oprindelig længde og bredde kan ikke bestemmes.</p>
+              <p><span class="u">Skelet</span>: Der var bevaret et stykke af underkæben med 3 tænder (8-1), samt dele af begge lårben og en underarm (formodentlig). Begge lårben var skåret af drænet.</p>
+              <table><thead><tr><th>Nummer</th><th>Beskrivelse</th><th>Bemærkninger</th></tr></thead><tbody><tr><td>8-1</td><td>Kæbe og tænder</td><td></td></tr><tr><td>8-3</td><td>Dele af lårben</td><td>Meget fragmenteret</td></tr><tr><td>8-4</td><td>Dele af lårben</td><td>Meget fragmenteret</td></tr></tbody></table>
+              <p class="{{lp.skel}}">Antropologisk kunne skeletresterne bestemmes til at stamme fra en <button type="button" class="{{mk.sex}}" onClick="{{pk.sex}}">mand</button> (?) på <button type="button" class="{{mk.age}}" onClick="{{pk.age}}">over 45 år</button>.</p>
+              <p><span class="u">Gravudstyr</span>: Der fandtes ved det ene lårben, halvt under dette, et stykke jern. Efter konservering viste det sig at være et jernspænde.</p>
+              <p>Fundliste grav 8</p>
+              <table class="{{lp.gg}}"><thead><tr><th>Fundnummer</th><th>Beskrivelse</th><th>Bemærkninger</th></tr></thead><tbody><tr><td>8-2</td><td>Jern</td><td><button type="button" class="{{mk.gg}}" onClick="{{pk.gg}}">jernspænde</button></td></tr></tbody></table>
+            </article>
+          </sc-if>
+          <sc-if value="{{md}}" hint-placeholder-val="{{false}}">
+            <article class="page md" aria-label="Page 1, Markdown">
+              <p># <button type="button" class="{{mk.category}}" onClick="{{pk.category}}">Grav 8</button></p>
+              <p>**Ark**: <button type="button" class="{{mk.sheet}}" onClick="{{pk.sheet}}">67</button></p>
+              <p>**Foto**: <button type="button" class="{{mk.photos}}" onClick="{{pk.photos}}">Digital: 238-39, 246-48</button>. S/H (film 4): 22-23. Dias (film 4): 22-23</p>
+              <p>**Beskrivelse**: Langovalt fyldskifte af noget amorf form. … orienteret <button type="button" class="{{mk.orientation}}" onClick="{{pk.orientation}}">NØ-SV</button>. …</p>
+              <p>| Nummer | Beskrivelse | Bemærkninger |<br>|---|---|---|<br>| 8-1 | Kæbe og tænder | |<br>| 8-3 | Dele af lårben | Meget fragmenteret |</p>
+              <p>Antropologisk … fra en <button type="button" class="{{mk.sex}}" onClick="{{pk.sex}}">mand</button> (?) på <button type="button" class="{{mk.age}}" onClick="{{pk.age}}">over 45 år</button>.</p>
+              <p>| 8-2 | Jern | <button type="button" class="{{mk.gg}}" onClick="{{pk.gg}}">jernspænde</button> |</p>
+            </article>
+          </sc-if>
+        </div>
+      </section>
+
+
+      <aside class="rail" aria-label="Results" onKeyDown="{{onKey}}">
+        <div class="rtabs" role="tablist" aria-label="Rail">
+          <button class="rtab" role="tab" type="button" aria-selected="false">Schema <span class="cnt">6</span></button>
+          <button class="rtab on" role="tab" type="button" aria-selected="true">Results</button>
+          <span style="flex: 1;"></span>
+          <button class="ibtn" type="button" aria-label="Collapse panel" style="align-self: center;"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"></rect><path d="M10 3v10"></path></svg></button>
+        </div>
+
+        <div class="hdr">
+          <div class="srow">
+            <sc-if value="{{running}}" hint-placeholder-val="{{false}}"><svg class="ico spin" viewBox="0 0 16 16" fill="none" stroke="#33302c" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 2a6 6 0 016 6"></path></svg><b>{{runHeadB}}</b><span class="num">{{runHeadRest}}</span></sc-if>
+            <sc-if value="{{readyNotSaved}}" hint-placeholder-val="{{true}}">
+              <span class="dot" aria-hidden="true"></span><b>Completed</b><span>· Catalog · 7 records ·</span>
+              <button class="lnk" type="button" onClick="{{openDetails}}">Schema rev 2</button>
+            </sc-if>
+            <sc-if value="{{saved}}" hint-placeholder-val="{{false}}">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#3e7c4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg><b>Review saved</b><span>· 72 decisions · read-only</span>
+            </sc-if>
+            <span style="flex: 1;"></span>
+            <sc-if value="{{saved}}" hint-placeholder-val="{{false}}"><button class="btn" type="button">Export…</button></sc-if>
+            <button class="{{detailsBtnCls}}" type="button" aria-label="Run details" aria-expanded="{{details}}" onClick="{{openDetails}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 7.2v4M8 5v.01"></path></svg></button>
+            <button class="{{moreBtnCls}}" type="button" aria-label="More result actions" aria-expanded="{{more}}" onClick="{{toggleMore}}"><svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8" cy="8" r="1.3"></circle><circle cx="12.5" cy="8" r="1.3"></circle></svg></button>
+          </div>
+          <div>
+          <div style="display: flex; align-items: flex-end; gap: 10px;">
+            <div style="flex: 1; min-width: 0;">
+              <p style="margin: 0 0 6px; font-size: 12px; color: #6c6259;"><b class="num" style="font-size: 20px; color: #33302c; margin-right: 4px;">{{toCheck}}</b>to check</p>
+              <div class="bar" role="img" aria-label="{{barLabel}}">
+                <span style="width: {{pa}}%; background: #3e7c4f;"></span>
+                <span style="width: {{pe}}%; background: #6c6259;"></span>
+                <span style="width: {{pr}}%; background: #b3402a;"></span>
+              </div>
+            </div>
+            <sc-if value="{{showListActs}}" hint-placeholder-val="{{true}}">
+              <button class="btn" type="button" disabled="{{focusOff}}" title="{{focusTitle}}" onClick="{{startFocus}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9" rx="1.5"></rect><path d="M7 6.5l2.5 1.5L7 9.5z" fill="currentColor"></path></svg>One by one</button>
+              <button class="btn g" type="button" disabled="{{bulkOff}}" title="{{bulkTitle}}" aria-expanded="{{confirm}}" onClick="{{toggleConfirm}}">Approve rest…</button>
+            </sc-if>
+            <sc-if value="{{focus}}" hint-placeholder-val="{{false}}">
+              <button class="btn" type="button" onClick="{{exitFocus}}" aria-label="Leave one-by-one review, back to the list"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10"></path></svg>List <span class="kbd">Esc</span></button>
+            </sc-if>
+          </div>
+          <p class="num" style="margin: 6px 0 0; font-size: 11px; color: #6c6259;">{{approved}} approved · {{edited}} edited · {{rejected}} rejected · {{draftNote}}</p>
+          </div>
+          <sc-if value="{{showChips}}" hint-placeholder-val="{{true}}">
+          <div class="chips" role="group" aria-label="Show values">
+            <sc-for list="{{chips}}" as="ch" hint-placeholder-count="4">
+              <button class="{{ch.cls}}" type="button" aria-pressed="{{ch.on}}" onClick="{{ch.pick}}">{{ch.label}} <span class="num">{{ch.n}}</span></button>
+            </sc-for>
+          </div>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{notFocus}}" hint-placeholder-val="{{true}}">
+        <div class="body">
+          <sc-if value="{{finding}}" hint-placeholder-val="{{false}}">
+            <div class="ent" style="padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+              <span class="rst"><svg class="ico spin" viewBox="0 0 16 16" fill="none" stroke="#33302c" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 2a6 6 0 016 6"></path></svg>Finding the records in the source…</span>
+              <span class="skel" style="width: 70%;"></span><span class="skel" style="width: 45%;"></span>
+            </div>
+          </sc-if>
+          <sc-if value="{{g8Shown}}" hint-placeholder-val="{{true}}">
+          <section class="ent" aria-label="Record 1, Grav 8">
+            <button class="enth" type="button" aria-expanded="true">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4.5 6.5l3.5 3.5 3.5-3.5"></path></svg>
+              <b>Grav 8</b><span>Record 1 · p.1</span><span style="flex: 1;"></span><sc-if value="{{g8Busy}}" hint-placeholder-val="{{false}}"><span class="rst"><svg class="ico spin" viewBox="0 0 16 16" fill="none" stroke="#33302c" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 2a6 6 0 016 6"></path></svg>{{g8Stage}}</span></sc-if><sc-if value="{{g8Queued}}" hint-placeholder-val="{{false}}"><span class="rst" style="font-weight: 500;">Queued</span></sc-if><sc-if value="{{g8Readable}}" hint-placeholder-val="{{true}}"><span class="num">{{g8Left}} to check</span></sc-if>
+            </button>
+            <sc-if value="{{g8Run}}" hint-placeholder-val="{{false}}">
+                <sc-for list="{{g8Fields}}" as="f" hint-placeholder-count="6">
+                  <div class="row"><div class="rowmain">
+                    <span style="display: flex;">
+                      <sc-if value="{{f.isReading}}" hint-placeholder-val="{{true}}"><span class="ico"></span></sc-if>
+                      <sc-if value="{{f.isChecking}}" hint-placeholder-val="{{false}}"><svg class="ico spin" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3a5 5 0 015 5"></path></svg></sc-if>
+                      <sc-if value="{{f.isFinal}}" hint-placeholder-val="{{false}}"><span class="arr" style="display: flex;"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg></span></sc-if>
+                    </span>
+                    <span style="min-width: 0;"><span class="fname">{{f.field}}</span>
+                      <sc-if value="{{f.isReading}}" hint-placeholder-val="{{true}}"><span class="fval" aria-label="Reading"><span class="skel" style="width: {{f.w}}px;"></span></span></sc-if>
+                      <sc-if value="{{f.isChecking}}" hint-placeholder-val="{{false}}"><span class="fval cand arr" title="Candidate · being checked against the source">{{f.value}}</span></sc-if>
+                      <sc-if value="{{f.isFinal}}" hint-placeholder-val="{{false}}"><span class="fval arr">{{f.value}}</span></sc-if>
+                    </span>
+                    <sc-if value="{{f.isChecking}}" hint-placeholder-val="{{false}}"><span class="rst" style="font-weight: 500; height: 22px;">checking</span></sc-if>
+                    <sc-if value="{{f.isFinal}}" hint-placeholder-val="{{false}}"><span class="{{f.chipCls}} arr"><sc-if value="{{f.linked}}" hint-placeholder-val="{{true}}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#4f8aa8" stroke-width="1.6" aria-hidden="true"><path d="M4 2.5h5l3 3v8H4z"></path></svg></sc-if>{{f.chip}}</span></sc-if>
+                  </div></div>
+                </sc-for>
+            </sc-if>
+            <sc-if value="{{g8Readable}}" hint-placeholder-val="{{true}}">
+            <sc-for list="{{rows}}" as="c" hint-placeholder-count="6">
+              <div class="{{c.cls}}">
+                <button class="rowmain" type="button" aria-expanded="{{c.isSel}}" aria-controls="{{c.xid}}" onClick="{{c.pick}}" ref="{{c.ref}}">
+                  <span style="display: flex;"><sc-if value="{{c.g_check}}" hint-placeholder-val="{{true}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg></sc-if><sc-if value="{{c.g_approved}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#3e7c4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg></sc-if><sc-if value="{{c.g_edited}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#33302c" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l2 2L6 12H4v-2z"></path></svg></sc-if><sc-if value="{{c.g_rejected}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#b3402a" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"></path></svg></sc-if><sc-if value="{{c.g_notrev}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg></sc-if><sc-if value="{{c.g_missing}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4.5 8h7"></path></svg></sc-if><sc-if value="{{c.g_contested}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 6h9M3.5 10h9M10 3.5l-4 9"></path></svg></sc-if><span class="sr">{{c.stateLabel}}</span></span>
+                  <span style="min-width: 0;"><span class="fname">{{c.field}}</span><span class="fval">{{c.shown}}</span><sc-if value="{{c.pinned}}" hint-placeholder-val="{{false}}"><span class="pin">outside the current filter</span></sc-if></span>
+                  <span class="{{c.chipCls}}"><sc-if value="{{c.linked}}" hint-placeholder-val="{{true}}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#4f8aa8" stroke-width="1.6" aria-hidden="true"><path d="M4 2.5h5l3 3v8H4z"></path></svg></sc-if>{{c.chip}}</span>
+                </button>
+                <sc-if value="{{c.isSel}}" hint-placeholder-val="{{false}}">
+                  <div class="xp" id="{{c.xid}}">
+                    <sc-if value="{{c.wasEdited}}" hint-placeholder-val="{{false}}"><p class="orig">Extracted value: <s>{{c.orig}}</s></p></sc-if>
+                    <sc-if value="{{c.linked}}" hint-placeholder-val="{{true}}">
+                      <p class="src"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#4f8aa8" stroke-width="1.6" aria-hidden="true"><path d="M4 2.5h5l3 3v8H4z"></path></svg>{{c.srcLabel}}</p>
+                      <p class="q">{{c.pre}}<mark class="{{c.markCls}}">{{c.hit}}</mark>{{c.post}}</p>
+                    </sc-if>
+                    <sc-if value="{{c.hasDoubt}}" hint-placeholder-val="{{false}}"><p class="why"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#4f8aa8" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 13h11"></path><path d="M2.5 9.5h3M7 9.5h3M11.5 9.5h2" ></path></svg><span><b>Doubtful link.</b> {{c.doubt}}.</span></p></sc-if>
+                    <sc-if value="{{c.notLinked}}" hint-placeholder-val="{{false}}">
+                      <p class="src">{{c.stateLabel}}</p>
+                      <p class="why">{{c.detail}}</p>
+                      <p class="why m">Not part of the review. It stays in the result and the export as extracted.</p>
+                    </sc-if>
+                    <sc-if value="{{c.lastWarn}}" hint-placeholder-val="{{false}}"><p class="last">This is the last value to check. Your decision saves the review, and the review becomes read-only.</p></sc-if>
+                    <sc-if value="{{c.editing}}" hint-placeholder-val="{{false}}">
+                      <label style="display: block; font-size: 11px; font-weight: 600; color: #6c6259; margin-bottom: 4px;" for="edit-value">Reviewed value</label>
+                      <input id="edit-value" class="inp" name="reviewed-value" autocomplete="off" defaultValue="{{c.shown}}" onChange="{{onDraft}}" ref="{{inputRef}}">
+                      <div class="arow"><div class="ag"><button type="button" onClick="{{saveEdit}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#3e7c4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg>{{c.saveLabel}}</button><button type="button" onClick="{{cancelEdit}}">Cancel</button></div><span style="font-size: 11px; color: #6c6259;">Enter saves · Esc cancels</span></div>
+                    </sc-if>
+                    <sc-if value="{{c.showActs}}" hint-placeholder-val="{{true}}">
+                      <div class="arow">
+                        <div class="ag" role="group" aria-label="Decision for {{c.field}}">
+                          <button type="button" onClick="{{c.approve}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#3e7c4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg>{{c.approveLabel}}</button>
+                          <button type="button" onClick="{{c.edit}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l2 2L6 12H4v-2z"></path></svg>Edit</button>
+                          <button type="button" onClick="{{c.reject}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#b3402a" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"></path></svg>{{c.rejectLabel}}</button>
+                        </div>
+                        <span style="flex: 1;"></span>
+                        <button class="ghost" type="button" onClick="{{c.focusHere}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9" rx="1.5"></rect><path d="M7 6.5l2.5 1.5L7 9.5z" fill="currentColor"></path></svg>Review from here</button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{c.showUndo}}" hint-placeholder-val="{{false}}">
+                      <div class="arow"><span style="font-size: 12px; font-weight: 600;">{{c.stateLabel}}</span><button class="ghost" type="button" onClick="{{c.undo}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4L3 6.5 5.5 9M3 6.5h6.5a3.5 3.5 0 010 7H7"></path></svg>Undo</button></div>
+                    </sc-if>
+                    <sc-if value="{{c.showFinal}}" hint-placeholder-val="{{false}}">
+                      <p style="margin: 0; font-size: 12px; font-weight: 600;">{{c.stateLabel}} · saved</p>
+                    </sc-if>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+            <sc-if value="{{noRows}}" hint-placeholder-val="{{false}}">
+              <p style="margin: 0; padding: 4px 16px 12px; font-size: 12px; color: #6c6259;">Nothing in this record for this filter.</p>
+            </sc-if>
+            </sc-if>
+          </section>
+          </sc-if>
+          <sc-for list="{{records}}" as="e" hint-placeholder-count="6">
+            <section class="ent" aria-label="{{e.label}}">
+              <button class="enth" type="button" aria-expanded="false">
+                <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 4.5l3.5 3.5-3.5 3.5"></path></svg>
+                <b>{{e.name}}</b><span>{{e.where}}</span><span style="flex: 1;"></span><sc-if value="{{e.busy}}" hint-placeholder-val="{{false}}"><span class="rst"><svg class="ico spin" viewBox="0 0 16 16" fill="none" stroke="#33302c" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 2a6 6 0 016 6"></path></svg>{{e.stText}}</span></sc-if><sc-if value="{{e.queued}}" hint-placeholder-val="{{false}}"><span class="rst" style="font-weight: 500;">Queued</span></sc-if><sc-if value="{{e.done}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#3e7c4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg><span>all checked</span></sc-if><sc-if value="{{e.open}}" hint-placeholder-val="{{true}}"><span class="num">{{e.left}} to check</span></sc-if>
+              </button>
+            </section>
+          </sc-for>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{focus}}" hint-placeholder-val="{{false}}">
+          <div class="body" style="background: #fff; padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 11px; color: #6c6259; margin-right: 4px;">Grav 8</span>
+              <ol style="display: flex; gap: 6px; margin: 0; padding: 0; list-style: none;" aria-label="Record 1, values in review order">
+                <sc-for list="{{fqueue}}" as="d" hint-placeholder-count="7">
+                  <li><button type="button" class="{{d.cls}}" aria-label="{{d.label}}" aria-current="{{d.current}}" onClick="{{d.go}}"><sc-if value="{{d.g_check}}" hint-placeholder-val="{{true}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg></sc-if><sc-if value="{{d.g_approved}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#3e7c4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg></sc-if><sc-if value="{{d.g_edited}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#33302c" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l2 2L6 12H4v-2z"></path></svg></sc-if><sc-if value="{{d.g_rejected}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#b3402a" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"></path></svg></sc-if><sc-if value="{{d.g_notrev}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg></sc-if><sc-if value="{{d.g_missing}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4.5 8h7"></path></svg></sc-if><sc-if value="{{d.g_contested}}" hint-placeholder-val="{{false}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#776b60" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 6h9M3.5 10h9M10 3.5l-4 9"></path></svg></sc-if></button></li>
+                </sc-for>
+              </ol>
+              <span style="flex: 1;"></span>
+              <span class="num" style="font-size: 11px; color: #6c6259;">{{fpos}}</span>
+            </div>
+            <sc-if value="{{fHas}}" hint-placeholder-val="{{true}}">
+              <div>
+                <p class="mono" style="margin: 0 0 4px; font-size: 12px; color: #776b60;">Record 1 · Grav 8 › {{f.field}}</p>
+                <sc-if value="{{fNotEditing}}" hint-placeholder-val="{{true}}">
+                  <h2 tabIndex="-1" ref="{{valueRef}}" style="margin: 0; font-size: 20px; font-weight: 700; line-height: 1.25; outline: none;">{{f.shown}}</h2>
+                </sc-if>
+                <sc-if value="{{fEditing}}" hint-placeholder-val="{{false}}">
+                  <label for="fv" style="display: block; font-size: 11px; font-weight: 600; color: #6c6259; margin: 4px 0;">Reviewed value</label>
+                  <input id="fv" class="inp" style="height: 40px;" name="reviewed-value" autocomplete="off" defaultValue="{{f.shown}}" onChange="{{onDraft}}" ref="{{inputRef}}">
+                  <p style="margin: 0; font-size: 11px; color: #6c6259;">Enter saves · Esc cancels</p>
+                </sc-if>
+                <sc-if value="{{f.wasEdited}}" hint-placeholder-val="{{false}}"><p class="orig" style="margin: 4px 0 0;">Extracted value: <s>{{f.orig}}</s></p></sc-if>
+              </div>
+              <figure style="margin: 0;">
+                <figcaption class="src" style="margin-bottom: 6px;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#4f8aa8" stroke-width="1.6" aria-hidden="true"><path d="M4 2.5h5l3 3v8H4z"></path></svg>{{f.srcLabel}}</figcaption>
+                <blockquote class="fq" style="margin: 0;">{{f.pre}}<mark class="{{f.markCls}}">{{f.hit}}</mark>{{f.post}}</blockquote>
+              </figure>
+              <sc-if value="{{f.hasDoubt}}" hint-placeholder-val="{{false}}">
+                <div class="sig weak"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="#4f8aa8" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 13h11"></path><path d="M2.5 9.5h3M7 9.5h3M11.5 9.5h2" ></path></svg><span><b>Doubtful link.</b> {{f.doubt}}. Check that this is the right passage.</span></div>
+              </sc-if>
+              <sc-if value="{{fOpen}}" hint-placeholder-val="{{true}}">
+                <sc-if value="{{fLast}}" hint-placeholder-val="{{false}}"><p class="last" style="margin: 0;">This is the last value to check. Your decision saves the review, and the review becomes read-only.</p></sc-if>
+                <sc-if value="{{fNotEditing}}" hint-placeholder-val="{{true}}">
+                  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+                    <button class="act g" type="button" onClick="{{fApprove}}" style="grid-column: span 2;"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg>{{fApproveLabel}} <span class="kbd">A</span></button>
+                    <button class="act" type="button" onClick="{{fEdit}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l2 2L6 12H4v-2z"></path></svg>Edit <span class="kbd">E</span></button>
+                    <button class="act d" type="button" onClick="{{fReject}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"></path></svg>Reject <span class="kbd">R</span></button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{fEditing}}" hint-placeholder-val="{{false}}">
+                  <div style="display: flex; gap: 8px;">
+                    <button class="act g" type="button" onClick="{{saveEdit}}" style="flex: 1;">{{fSaveLabel}} <span class="kbd">↵</span></button>
+                    <button class="act" type="button" onClick="{{cancelEdit}}" style="padding: 0 16px;">Cancel <span class="kbd">Esc</span></button>
+                  </div>
+                </sc-if>
+              </sc-if>
+              <sc-if value="{{fDecided}}" hint-placeholder-val="{{false}}">
+                <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 6px; background: #f5efe9;">
+                  <b style="font-size: 13px;">{{fWord}}</b><span style="flex: 1;"></span>
+                  <button class="btn" type="button" onClick="{{fUndo}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4L3 6.5 5.5 9M3 6.5h6.5a3.5 3.5 0 010 7H7"></path></svg>Undo this decision</button>
+                </div>
+              </sc-if>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button class="btn" type="button" onClick="{{fPrev}}"><span class="kbd">K</span>Previous</button>
+                <button class="btn" type="button" onClick="{{fSkip}}">{{fSkipLabel}} <span class="kbd">J</span></button>
+              </div>
+              <div>
+                <p style="margin: 0 0 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #776b60;">Up next</p>
+                <sc-for list="{{upNext}}" as="n" hint-placeholder-count="3">
+                  <div class="nx"><span><span class="mono" style="color: #776b60;">{{n.field}}</span> · {{n.value}}</span><span style="color: #6c6259;">{{n.tag}}</span></div>
+                </sc-for>
+                <sc-if value="{{noUpNext}}" hint-placeholder-val="{{false}}"><p style="margin: 0; font-size: 12px; color: #6c6259;">Nothing else to check after this one.</p></sc-if>
+              </div>
+            </sc-if>
+            <sc-if value="{{fRecordDone}}" hint-placeholder-val="{{false}}">
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px 0;">
+                <svg width="40" height="40" viewBox="0 0 16 16" fill="none" stroke="#3e7c4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg>
+                <b style="font-size: 13px;">Grav 8 is checked</b>
+                <p style="margin: 0; font-size: 12px; color: #6c6259; max-width: 300px;">{{caughtUp}}</p>
+                <div style="display: flex; gap: 8px;"><button class="act g" type="button" style="padding: 0 16px;" disabled="{{true}}" title="Not in this prototype">Continue with record 2</button><button class="btn" type="button" onClick="{{exitFocus}}">Back to list</button></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{fSavedPanel}}" hint-placeholder-val="{{false}}">
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px 0;">
+                <svg width="40" height="40" viewBox="0 0 16 16" fill="none" stroke="#3e7c4f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg>
+                <b style="font-size: 13px;">Review saved</b>
+                <p style="margin: 0; font-size: 12px; color: #6c6259; max-width: 300px;">{{savedSummary}} The review is now read-only. Values that aren’t part of the review stay as extracted.</p>
+                <button class="btn" type="button" onClick="{{exitFocus}}">Back to list</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <p class="sr" aria-live="polite" aria-atomic="true">{{announce}}</p>
+
+        <sc-if value="{{hasToast}}" hint-placeholder-val="{{false}}">
+          <div class="toast" role="status">
+            <span style="flex: 1;">{{toastMsg}}</span>
+            <sc-if value="{{toastFocus}}" hint-placeholder-val="{{false}}"><button type="button" onClick="{{startFocus}}">Review one by one</button></sc-if>
+            <sc-if value="{{toastUndo}}" hint-placeholder-val="{{true}}"><button type="button" onClick="{{undoLast}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4L3 6.5 5.5 9M3 6.5h6.5a3.5 3.5 0 010 7H7"></path></svg>Undo <span class="kbd">Z</span></button></sc-if>
+            <button type="button" aria-label="Dismiss" onClick="{{dismissToast}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"></path></svg></button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{more}}" hint-placeholder-val="{{false}}">
+          <div class="menu" style="top: 86px; right: 12px;" role="menu" aria-label="More result actions">
+            <button type="button" role="menuitem">Export…</button>
+            <button type="button" role="menuitem">Values as code</button>
+            <button type="button" role="menuitem">Copy link to the selected value</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{confirm}}" hint-placeholder-val="{{false}}">
+          <div class="pop" style="top: 132px; right: 12px;" role="dialog" aria-modal="true" aria-label="Approve the rest and save the review">
+            <p style="margin: 0 0 6px; font-size: 13px; font-weight: 700;">Approve the {{toCheck}} values still to check and save the review?</p>
+            <p style="margin: 0 0 6px; font-size: 12px; color: #33302c;">{{bulkScope}}</p>
+            <p style="margin: 0 0 10px; font-size: 12px; color: #6c6259;">Filters don’t limit this. Your edits and rejections stay as they are. Saving makes the review read-only, so this can’t be undone.</p>
+            <sc-if value="{{bulkBlocked}}" hint-placeholder-val="{{false}}"><p style="margin: 0 0 10px; font-size: 12px; color: #b3402a;">Finish or cancel the edit in progress first.</p></sc-if>
+            <div class="acts"><button class="btn g" type="button" disabled="{{bulkBlocked}}" onClick="{{approveAll}}">Approve {{toCheck}} and save review</button><button class="btn" type="button" onClick="{{toggleConfirm}}">Cancel</button></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{details}}" hint-placeholder-val="{{false}}">
+          <div class="drawer" role="dialog" aria-label="Run details">
+            <div style="display: flex; align-items: center; height: 44px; padding: 0 8px 0 16px; border-bottom: 1px solid #eadfd6; flex: none;">
+              <b style="font-size: 13px;">Run details</b><span style="flex: 1;"></span>
+              <button class="ibtn" type="button" aria-label="Close run details" onClick="{{closeDetails}}"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"></path></svg></button>
+            </div>
+            <div style="flex: 1; overflow: auto;">
+              <div class="dsec"><h4>Extraction</h4><p>Completed · Catalog strategy · 7 records found</p><p class="m">How many records the source holds is not measured, so a missing record would not show here.</p><p class="m">1 record is cut off where the supplied source ends (record 7).</p></div>
+              <div class="dsec"><h4>Schema</h4><p>Revision 2 · the current revision</p><button class="lnk" type="button" style="margin-left: -4px;">View schema used</button></div>
+              <div class="dsec"><h4>Evidence · 74 claims</h4><p class="num">70 verifier-supported · 2 linked by rule</p><p class="m num">6 of the linked values have a doubtful link: the value isn’t found in its passage, or is found in other passages too.</p><p class="num">0 unsupported · 1 not completed · 1 excluded by policy</p><p class="m">Linked by rule: a key or structure rule linked it, and no verifier checked it. A link is never a judgement that the value is right; that is your decision.</p></div>
+              <div class="dsec"><h4>Review</h4><p class="num">{{approved}} approved · {{edited}} edited · {{rejected}} rejected · {{reviewState}}</p><p class="m">The review saves itself, and becomes read-only, once every linked value has a decision. Values that aren’t linked never block it.</p></div>
+              <div class="dsec"><h4>Method</h4><button class="lnk" type="button" style="margin-left: -4px;">Show the method used</button></div>
+            </div>
+          </div>
+        </sc-if>
+      </aside>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"scenario":{"editor":"enum","options":["fresh run","nearly done"],"default":"fresh run"},"$preview":{"width":1440,"height":900}}'>
+// States follow claimStates.ts: a linked value is verifier-supported or linked by rule, and may carry a doubtful link
+// (evidenceCheck's two reasons); the rest are unsupported, not completed, excluded by policy, contested or missing.
+var CLAIMS = [
+  { id: 'category', field: 'category', value: 'Grav 8', st: 'linked', origin: 'verifier', pre: '', hit: 'Grav 8', post: '', lit: 'category' },
+  { id: 'sheet', field: 'sheet', value: '67', st: 'linked', origin: 'rule', pre: 'Ark: ', hit: '67', post: '', lit: 'sheet' },
+  { id: 'photos', field: 'photos', value: 'Digital: 238-39, 246-48', st: 'linked', origin: 'verifier', pre: 'Foto: ', hit: 'Digital: 238-39, 246-48', post: '. S/H (film 4): 22-23.', lit: 'photos' },
+  { id: 'orientation', field: 'orientation', value: 'NØ-SV', st: 'linked', origin: 'verifier', pre: '…ud fra skeletresterne at dømme orienteret ', hit: 'NØ-SV', post: '. Oprindelig længde…', lit: 'orientation' },
+  { id: 'sex', field: 'skeleton › sex', value: 'mand', st: 'linked', origin: 'verifier', pre: '…til at stamme fra en ', hit: 'mand', post: ' (?) på over 45 år.', lit: 'skel' },
+  { id: 'age', field: 'skeleton › age', value: 'over 45 år', st: 'linked', origin: 'verifier', pre: '…fra en mand (?) på ', hit: 'over 45 år', post: '.', lit: 'skel' },
+  { id: 'gg', field: 'grave_goods › 1 › description', value: 'jernspænde', st: 'linked', origin: 'verifier', doubt: 'Value also appears in 1 other passage', pre: '8-2 · Jern · ', hit: 'jernspænde', post: '', lit: 'gg' },
+  { id: 'site', field: 'site', value: 'Ellekilde', st: 'excluded', label: 'Excluded by policy', chip: 'excluded', detail: 'The schema policy “unverified” asked for no verification.' },
+  { id: 'certainty', field: 'certainty', value: 'reported', st: 'not_completed', label: 'Not completed', chip: 'not completed', detail: 'The check did not finish: a verification call failed.' },
+  { id: 'condition', field: 'skeleton › condition', value: 'No value', st: 'contested', label: 'Contested', chip: 'contested', detail: 'Sources disagreed: “Meget fragmenteret” · “bevaret”.' },
+  { id: 'qualification', field: 'qualification', value: 'No value', st: 'missing', label: 'Missing', chip: 'missing', detail: 'No value was extracted.' }
+];
+var REQUIRED = 72;
+// Records 2–7 carry counts only; Grav 8 is the record this prototype shows in full.
+var RECORDS = [['p.2', 13], ['p.2–3', 12], ['p.3', 11], ['p.4', 10], ['p.5', 10], ['p.6 · cut at source end', 9]].map(function (r, i) { return { name: 'Record ' + (i + 2), where: r[0], n: r[1] }; });
+var OTHER_TOTAL = 65;
+// The streamed run (view-ordered streaming spec §1): discovery, then each record queued → reading → checking → read,
+// two in flight, one finishing at a time, start page first. A tick is one poll of the partial view, sped up for the prototype.
+var TICK_MS = 700, SETTLE = 19;
+var stageAt = function (i, t) { if (t < 1) return null; var b = 2 + 2 * i; return t < b ? 'queued' : t < b + 2 ? 'reading' : t < b + 4 ? 'checking' : 'finished'; };
+var WORD = { approved: 'Approved', edited: 'Edited', rejected: 'Rejected' };
+var linked = function (c) { return c.st === 'linked'; };
+var byId = function (id) { return CLAIMS.filter(function (c) { return c.id === id; })[0]; };
+var ORDER = CLAIMS.filter(linked).sort(function (a, b) { return (a.doubt ? 0 : 1) - (b.doubt ? 0 : 1); });
+
+class Component extends DCLogic {
+  constructor(...args) {
+    super(...args);
+    var nearly = this.props.scenario === 'nearly done';
+    this.state = { phase: nearly ? 'ready' : 'running', t: 0, otherOpen: nearly ? 0 : OTHER_TOTAL, otherDec: nearly ? { approved: 61, edited: 3, rejected: 1 } : { approved: 0, edited: 0, rejected: 0 },
+      focus: false, fsel: null, sel: nearly ? 'gg' : null, dec: {}, vals: {}, hist: [], filter: 'all', details: false, more: false, md: false, marks: true, confirm: false, editing: null, draft: '', saved: false, toast: null, announce: '' };
+    this.rowEls = {};
+    this.want = null;
+  }
+  componentDidMount() { if (this.state.phase === 'running') this.startTimer(); }
+  componentWillUnmount() { clearInterval(this.timer); }
+  startTimer() { var self = this; clearInterval(this.timer); this.timer = setInterval(function () { self.tick(); }, TICK_MS); }
+  tick() {
+    var s = this.state, t = s.t + 1;
+    if (t >= SETTLE) {
+      clearInterval(this.timer);
+      var n = this.openIds(s.dec).length + s.otherOpen, made = Object.keys(s.dec).length;
+      var msg = 'Run finished · ' + (made ? 'your ' + made + ' decision' + (made === 1 ? '' : 's') + ' kept · ' : '') + n + ' to check.';
+      this.setState({ t: t, phase: 'ready', toast: { msg: msg, undo: false, focus: !s.focus && n > 0 }, announce: msg });
+      return;
+    }
+    var said = null;
+    for (var i = 0; i < 7; i++) if (stageAt(i, t) === 'finished' && stageAt(i, t - 1) !== 'finished') said = i === 0 ? 'Grav 8 read: its values can be reviewed now.' : RECORDS[i - 1].name + ' read.';
+    if (t === 1) said = '7 records found. Reading from page 1.';
+    this.setState(said ? { t: t, announce: said } : { t: t });
+  }
+  restart() {
+    this.rowEls = {};
+    this.setState({ phase: 'running', t: 0, otherOpen: OTHER_TOTAL, otherDec: { approved: 0, edited: 0, rejected: 0 }, focus: false, fsel: null, sel: null, dec: {}, vals: {}, hist: [], filter: 'all', confirm: false, details: false, more: false, editing: null, saved: false, toast: null, announce: 'Extraction started.' });
+    this.startTimer();
+  }
+  componentDidUpdate() {
+    var w = this.want; this.want = null;
+    if (w === 'value' && this.valueEl) this.valueEl.focus();
+    else if (w === 'input' && this.inputEl) this.inputEl.focus();
+    else if (w && w.row && this.rowEls[w.row]) this.rowEls[w.row].focus();
+  }
+  openIds(dec) { return ORDER.filter(function (c) { return !dec[c.id]; }).map(function (c) { return c.id; }); }
+  nextOpen(fromId, dec) {
+    var i = ORDER.findIndex(function (c) { return c.id === fromId; });
+    for (var k = 1; k <= ORDER.length; k++) { var q = ORDER[(i + k) % ORDER.length]; if (!dec[q.id]) return q.id; }
+    return null;
+  }
+  // One decision: records undo history, saves the review when it was the last linked value (as ResultsTab does).
+  decide(id, action, value) {
+    var s = this.state;
+    if (s.saved) return;
+    var c = byId(id);
+    var dec = Object.assign({}, s.dec), vals = Object.assign({}, s.vals);
+    var entry = { id: id, prevDec: s.dec[id] || null, hadVal: Object.prototype.hasOwnProperty.call(s.vals, id), prevVal: s.vals[id] };
+    dec[id] = action;
+    if (action === 'edited') vals[id] = value; else delete vals[id];
+    var left = this.openIds(dec).concat(new Array(s.otherOpen).fill('other'));
+    var saved = s.phase === 'ready' && left.length === 0;
+    var next = s.focus ? this.nextOpen(id, dec) : null;
+    var patch = {
+      dec: dec, vals: vals, editing: null, hist: s.hist.concat([entry]), saved: saved, confirm: false,
+      toast: saved ? { msg: 'Review saved. It is now read-only.', undo: false } : { msg: WORD[action] + ' ' + c.field + '.', undo: true },
+      announce: saved ? WORD[action] + ' ' + c.field + '. Review saved; it is now read-only.' : WORD[action] + ' ' + c.field + '.' + (s.phase === 'ready' ? ' ' + left.length + ' to check.' : '') + (next ? ' Next: ' + byId(next).field + ', ' + byId(next).value + '.' : '')
+    };
+    if (s.focus) { patch.fsel = saved ? null : next; this.want = 'value'; }
+    else this.want = { row: id };
+    this.setState(patch);
+  }
+  undoLast() {
+    var s = this.state;
+    if (s.saved || !s.hist.length) return;
+    var e = s.hist[s.hist.length - 1], dec = Object.assign({}, s.dec), vals = Object.assign({}, s.vals);
+    if (e.prevDec) dec[e.id] = e.prevDec; else delete dec[e.id];
+    if (e.hadVal) vals[e.id] = e.prevVal; else delete vals[e.id];
+    var c = byId(e.id);
+    var patch = { dec: dec, vals: vals, hist: s.hist.slice(0, -1), toast: null, editing: null, announce: 'Undone. ' + c.field + ' is to check again.' };
+    if (s.focus) { patch.fsel = e.id; this.want = 'value'; } else { patch.sel = e.id; this.want = { row: e.id }; }
+    this.setState(patch);
+  }
+  undoOne(id) {
+    var s = this.state;
+    if (s.saved || !s.dec[id]) return;
+    var dec = Object.assign({}, s.dec), vals = Object.assign({}, s.vals);
+    var entry = { id: id, prevDec: s.dec[id], hadVal: Object.prototype.hasOwnProperty.call(s.vals, id), prevVal: s.vals[id] };
+    delete dec[id]; delete vals[id];
+    this.want = s.focus ? 'value' : { row: id };
+    this.setState({ dec: dec, vals: vals, hist: s.hist.concat([{ id: id, prevDec: entry.prevDec, hadVal: entry.hadVal, prevVal: entry.prevVal, revert: true }]), toast: null, announce: byId(id).field + ' is to check again.' });
+  }
+  startEdit(id) {
+    var s = this.state;
+    var has = Object.prototype.hasOwnProperty.call(s.vals, id);
+    this.want = 'input';
+    this.setState({ editing: id, draft: has ? s.vals[id] : byId(id).value });
+  }
+  saveEdit() { var s = this.state; if (s.editing) this.decide(s.editing, 'edited', s.draft); }
+  cancelEdit() { var s = this.state; this.want = s.focus ? 'value' : { row: s.editing }; this.setState({ editing: null }); }
+  enterFocus(id) {
+    var s = this.state;
+    if (s.saved || (s.phase !== 'ready' && stageAt(0, s.t) !== 'finished')) return;
+    var start = id && !s.dec[id] ? id : (s.sel && byId(s.sel) && linked(byId(s.sel)) && !s.dec[s.sel] ? s.sel : this.openIds(s.dec)[0]);
+    this.want = 'value';
+    this.setState({ focus: true, fsel: start, editing: null, details: false, more: false, confirm: false, announce: 'One by one. ' + this.openIds(s.dec).length + ' to check.' });
+  }
+  exitFocus() {
+    var s = this.state;
+    var id = s.fsel || s.sel;
+    this.want = id ? { row: id } : null;
+    this.setState({ focus: false, sel: id, editing: null });
+  }
+  step(delta) {
+    var s = this.state;
+    var i = ORDER.findIndex(function (c) { return c.id === s.fsel; });
+    this.want = 'value';
+    this.setState({ fsel: ORDER[(i + delta + ORDER.length) % ORDER.length].id, editing: null });
+  }
+  skip() {
+    var s = this.state;
+    var next = this.nextOpen(s.fsel, Object.assign({}, s.dec, s.fsel ? (function () { var o = {}; o[s.fsel] = 'skip'; return o; })() : {}));
+    this.want = 'value';
+    this.setState({ fsel: next || s.fsel, editing: null });
+  }
+  onKey(e) {
+    var s = this.state;
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (s.phase !== 'ready' && stageAt(0, s.t) !== 'finished' && e.key !== 'Escape') return;
+    var t = e.target, typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
+    if (e.key === 'Escape') {
+      if (s.editing) this.cancelEdit();
+      else if (s.confirm) this.setState({ confirm: false });
+      else if (s.details) this.setState({ details: false });
+      else if (s.more) this.setState({ more: false });
+      else if (s.focus) this.exitFocus();
+      else return;
+      e.preventDefault(); return;
+    }
+    if (typing) { if (e.key === 'Enter' && s.editing) { e.preventDefault(); this.saveEdit(); } return; }
+    var k = e.key.toLowerCase();
+    if (k === 'z' && !s.saved && s.hist.length) { e.preventDefault(); this.undoLast(); return; }
+    if (!s.focus || s.saved || !s.fsel) return;
+    var open = !s.dec[s.fsel];
+    if (k === 'a' && open) this.decide(s.fsel, 'approved');
+    else if (k === 'r' && open) this.decide(s.fsel, 'rejected');
+    else if (k === 'e' && open) this.startEdit(s.fsel);
+    else if (k === 'j') this.skip();
+    else if (k === 'k') this.step(-1);
+    else return;
+    e.preventDefault();
+  }
+  renderVals() {
+    var s = this.state, self = this;
+    var counts = { approved: 0, edited: 0, rejected: 0 };
+    Object.keys(s.dec).forEach(function (k) { counts[s.dec[k]]++; });
+    var approved = s.otherDec.approved + counts.approved, edited = s.otherDec.edited + counts.edited, rejected = s.otherDec.rejected + counts.rejected;
+    var running = s.phase === 'running';
+    var finished = 0; for (var ri = 0; ri < 7; ri++) if (stageAt(ri, s.t) === 'finished') finished++;
+    var g8 = running ? stageAt(0, s.t) : 'finished', g8Readable = g8 === 'finished';
+    // While the run reads, only what is read can be reviewed; decisions stay a draft until the run settles.
+    var readOther = 0; RECORDS.forEach(function (r, k) { if (running && stageAt(k + 1, s.t) === 'finished') readOther += r.n; });
+    var openList = this.openIds(s.dec), toCheck = (g8Readable ? openList.length : 0) + (running ? readOther : s.otherOpen);
+    var isOpen = function (c) { return linked(c) && !s.dec[c.id]; };
+    var shownOf = function (c) { return Object.prototype.hasOwnProperty.call(s.vals, c.id) ? s.vals[c.id] : c.value; };
+    var glyph = function (c) { var d = s.dec[c.id]; if (d) return d; if (linked(c)) return 'check'; return c.st === 'missing' ? 'missing' : c.st === 'contested' ? 'contested' : 'notrev'; };
+    var gflags = function (g, o) { ['check', 'approved', 'edited', 'rejected', 'notrev', 'missing', 'contested'].forEach(function (k) { o['g_' + k] = g === k; }); return o; };
+    var srcLabel = function (c) {
+      var base = c.origin === 'rule' ? 'p.1 · Linked by rule; no verifier checked it' : 'p.1 · Verifier-supported';
+      var d = s.dec[c.id];
+      return d === 'edited' || d === 'rejected' ? 'Evidence for the extracted value · ' + base : base;
+    };
+    var pass = function (c) {
+      if (s.filter === 'check') return isOpen(c);
+      if (s.filter === 'doubt') return !!c.doubt;
+      if (s.filter === 'notrev') return !linked(c);
+      return true;
+    };
+    var last = !running && toCheck === 1;
+    var W = [60, 34, 120, 52, 40, 70, 96, 64, 80, 56, 72];
+    var runRecs = s.t < 1 ? [] : [{ name: 'Grav 8', where: 'p.1', n: CLAIMS.length }].concat(RECORDS).map(function (r, i) {
+      var st = stageAt(i, s.t);
+      var stText = st === 'queued' ? 'Queued' : st === 'reading' ? 'Reading…' : st === 'checking' ? 'Checking ' + r.n + ' values' : 'Read · ' + r.n + ' values';
+      var fields = i !== 0 || st === 'queued' ? [] : CLAIMS.map(function (c, k) {
+        var hasCand = c.st !== 'missing' && c.st !== 'contested';
+        var fs = st === 'reading' || (st === 'checking' && !hasCand) ? 'reading' : st === 'checking' ? 'checking' : 'final';
+        return {
+          field: c.field, value: c.value, w: W[k % W.length], isReading: fs === 'reading', isChecking: fs === 'checking', isFinal: fs === 'final', linked: linked(c),
+          chip: linked(c) ? (c.doubt ? 'p.1 · doubtful' : c.origin === 'rule' ? 'p.1 · rule' : 'p.1') : c.st === 'contested' ? 'contested' : c.st === 'missing' ? 'missing' : 'no link',
+          chipCls: 'evc' + (!linked(c) ? ' none' : c.doubt ? ' weak' : c.origin === 'rule' ? ' rule' : '')
+        };
+      });
+      return { name: r.name, where: r.where, label: r.name + ', ' + stText, state: st, stText: stText, isQueued: st === 'queued', isBusy: st === 'reading' || st === 'checking', isDone: st === 'finished', showFields: fields.length > 0, fields: fields };
+    });
+    var rows = CLAIMS.filter(function (c) { return pass(c) || c.id === s.sel; }).map(function (c) {
+      var d = s.dec[c.id], isSel = s.sel === c.id, editing = s.editing === c.id;
+      return gflags(glyph(c), {
+        cls: 'row' + (isSel ? ' sel' : ''), isSel: isSel, xid: 'xp-' + c.id, field: c.field, shown: shownOf(c), pinned: !pass(c),
+        orig: c.value, wasEdited: d === 'edited',
+        linked: linked(c), notLinked: !linked(c), detail: c.detail || '',
+        stateLabel: d ? WORD[d] : linked(c) ? 'To check' : c.label,
+        chip: linked(c) ? (c.doubt ? 'p.1 · doubtful' : c.origin === 'rule' ? 'p.1 · rule' : 'p.1') : c.chip,
+        chipCls: 'evc' + (!linked(c) ? ' none' : c.doubt ? ' weak' : c.origin === 'rule' ? ' rule' : ''),
+        srcLabel: linked(c) ? srcLabel(c) : '', pre: c.pre, hit: c.hit, post: c.post,
+        markCls: c.doubt ? 'weak' : c.origin === 'rule' ? 'rule' : '',
+        hasDoubt: !!c.doubt && d !== 'edited' && d !== 'rejected', doubt: c.doubt || '',
+        lastWarn: isOpen(c) && last && !s.saved, editing: editing,
+        saveLabel: last && isOpen(c) ? 'Save edit and save review' : 'Save edit',
+        approveLabel: last && isOpen(c) ? 'Approve and save review' : 'Approve',
+        rejectLabel: last && isOpen(c) ? 'Reject and save review' : 'Reject',
+        showActs: isOpen(c) && !editing && !s.saved, showUndo: !!d && !s.saved, showFinal: !!d && s.saved,
+        ref: function (el) { if (el) self.rowEls[c.id] = el; },
+        pick: function () { self.setState({ sel: isSel ? null : c.id, editing: null }); },
+        approve: function () { self.decide(c.id, 'approved'); },
+        reject: function () { self.decide(c.id, 'rejected'); },
+        edit: function () { self.startEdit(c.id); },
+        undo: function () { self.undoOne(c.id); },
+        focusHere: function () { self.enterFocus(c.id); }
+      });
+    });
+    var curId = s.focus ? s.fsel : s.sel;
+    var mk = {}, pk = {};
+    CLAIMS.forEach(function (c) {
+      if (!linked(c)) return;
+      if (!g8Readable) { mk[c.id] = ''; pk[c.id] = function () {}; return; }
+      mk[c.id] = 'ev' + (c.origin === 'rule' ? ' rule' : '') + (c.doubt ? ' weak' : '') + (s.dec[c.id] ? ' done' : '') + (!s.marks ? ' off' : '') + (curId === c.id ? ' sel' : '');
+      pk[c.id] = function () {
+        if (s.focus) { self.want = 'value'; self.setState({ fsel: c.id, editing: null }); }
+        else { self.want = { row: c.id }; self.setState({ sel: c.id, details: false }); }
+      };
+    });
+    var fc = s.focus && s.fsel ? byId(s.fsel) : null;
+    var fd = fc ? s.dec[fc.id] : null;
+    var fEditing = !!(fc && s.editing === fc.id);
+    var lp = { category: '', sheet: '', photos: '', orientation: '', skel: '', gg: '' };
+    if (fc) lp[fc.lit] = 'litp';
+    var upNext = [];
+    if (fc) { var fi = ORDER.indexOf(fc); for (var k = 1; k < ORDER.length && upNext.length < 3; k++) { var q = ORDER[(fi + k) % ORDER.length]; if (isOpen(q)) upNext.push({ field: q.field, value: q.value, tag: q.doubt ? 'doubtful link' : q.origin === 'rule' ? 'linked by rule' : 'p.1' }); } }
+    var chipDefs = [['check', 'To check', ''], ['doubt', 'Doubtful', 6], ['notrev', 'Not reviewable', 4], ['all', 'All', '']];
+    var pct = function (n) { return (n / REQUIRED * 100).toFixed(1); };
+    var openDoubt = CLAIMS.filter(function (c) { return isOpen(c) && c.doubt; }).length;
+    return {
+      rows: rows, noRows: rows.length === 0, mk: mk, pk: pk, lp: lp,
+      records: RECORDS.map(function (r, k) {
+        var st = running ? stageAt(k + 1, s.t) : 'finished', read = st === 'finished';
+        var left = !read ? 0 : running || s.otherOpen ? r.n : 0;
+        var stText = st === 'reading' ? 'Reading…' : st === 'checking' ? 'Checking ' + r.n + ' values' : '';
+        return { name: r.name, where: r.where, label: r.name + ', ' + (st === 'queued' ? 'queued' : !read ? stText : left ? left + ' to check' : 'all checked'), left: left, done: read && left === 0, open: read && left > 0, busy: st === 'reading' || st === 'checking', queued: st === 'queued' || st === null, stText: stText };
+      }),
+      running: running, ready: !running, finding: running && s.t < 1,
+      showChips: !s.focus,
+      toCheckWord: running ? 'to check so far' : 'to check',
+      g8Shown: !running || s.t >= 1, g8Readable: g8Readable, g8Run: running && (g8 === 'reading' || g8 === 'checking'), g8Busy: g8 === 'reading' || g8 === 'checking', g8Queued: g8 === 'queued',
+      g8Stage: g8 === 'reading' ? 'Reading…' : 'Checking ' + CLAIMS.length + ' values', g8Fields: runRecs.length ? runRecs[0].fields : [],
+      caughtUp: running ? 'You’re caught up with what is read. ' + (readOther ? readOther + ' more values are read in other records (not in this prototype); ' : '') + (7 - finished) + ' record' + (7 - finished === 1 ? ' is' : 's are') + ' still being read, and their values join this queue as each one finishes.' : s.otherOpen + ' values are left to check in 6 more records.',
+      runRecs: runRecs, disc: 7, fin: finished, runPct: running && s.t >= 1 ? (finished / 7 * 100).toFixed(1) : '0',
+      runHeadB: s.t < 1 ? 'Starting' : 'Reading records', runHeadRest: s.t < 1 ? '· finding records…' : '· ' + finished + ' of 7 · from page 1',
+      readyNotSaved: !running && !s.saved,
+      ringColor: '#3e7c4f',
+      focusOff: !g8Readable || openList.length === 0, focusTitle: !g8Readable ? 'Available once a record is read' : openList.length === 0 ? 'Nothing left to check here' : '',
+      bulkOff: running || toCheck === 0, bulkTitle: running ? 'Available when the run finishes' : '',
+      draftNote: running ? 'draft until the run finishes' : s.saved ? 'saved' : 'draft saved',
+      badge: s.t < 1 ? 'running' : finished + ' of 7',
+      tabLabel: running ? 'Beretning_Ellekilde_8_13.pdf, reading records, ' + finished + ' of 7' : 'Beretning_Ellekilde_8_13.pdf, ' + toCheck + ' values to check',
+      restart: function () { self.restart(); },
+      otherOpen: s.otherOpen, g8Left: openList.length, fRecordDone: s.focus && !s.saved && !s.fsel,
+      toastFocus: !!(s.toast && s.toast.focus),
+      chips: chipDefs.map(function (d) { return { label: d[1], n: d[2], on: s.filter === d[0], cls: 'chip' + (s.filter === d[0] ? ' on' : ''), pick: function () { self.setState({ filter: d[0] }); } }; }),
+      toCheck: toCheck, approved: approved, edited: edited, rejected: rejected,
+      pa: pct(approved), pe: pct(edited), pr: pct(rejected), ring: ((approved + edited + rejected) / REQUIRED * 44).toFixed(1),
+      barLabel: approved + ' approved, ' + edited + ' edited, ' + rejected + ' rejected, ' + toCheck + ' to check, of ' + REQUIRED,
+      saved: s.saved, notSaved: !s.saved, focus: s.focus, notFocus: !s.focus, showListActs: !s.focus && !s.saved,
+      reviewState: s.saved ? 'review saved, read-only' : 'draft saved',
+      pageCls: 'page' + (fc ? ' dim' : ''),
+      fHas: !!fc && !s.saved, fSavedPanel: s.focus && s.saved, fEditing: fEditing, fNotEditing: !fEditing,
+      fOpen: !!fc && !fd, fDecided: !!fd && !s.saved, fWord: fd ? WORD[fd] : '', fLast: !!fc && !fd && last,
+      fApproveLabel: last ? 'Approve and save review' : 'Approve and next',
+      fSaveLabel: last ? 'Save edit and save review' : 'Save edit and next',
+      fSkipLabel: fd ? 'Next to check' : 'Skip for now',
+      fpos: fc ? toCheck + ' to check · doubtful links first' : '',
+      f: fc ? { field: fc.field, shown: shownOf(fc), orig: fc.value, wasEdited: fd === 'edited', pre: fc.pre, hit: fc.hit, post: fc.post, srcLabel: srcLabel(fc), markCls: fc.doubt ? 'weak' : fc.origin === 'rule' ? 'rule' : '', hasDoubt: !!fc.doubt && fd !== 'edited' && fd !== 'rejected', doubt: fc.doubt || '' } : {},
+      fqueue: ORDER.map(function (q) {
+        var d = s.dec[q.id], cur = !!fc && q.id === fc.id;
+        return gflags(d || 'none', { cls: 'qd' + (d ? ' dec' : q.doubt ? ' weak' : '') + (cur ? ' cur' : ''), current: cur ? 'step' : 'false', label: q.field + ', ' + (d ? WORD[d].toLowerCase() : 'to check') + (q.doubt ? ', doubtful link' : ''), go: function () { self.want = 'value'; self.setState({ fsel: q.id, editing: null }); } });
+      }),
+      upNext: upNext, noUpNext: upNext.length === 0,
+      savedSummary: approved + ' approved, ' + edited + ' edited, ' + rejected + ' rejected.',
+      announce: s.announce, hasToast: !!s.toast, toastMsg: s.toast ? s.toast.msg : '', toastUndo: !!(s.toast && s.toast.undo),
+      bulkScope: s.otherOpen ? toCheck + ' values across 7 records, including ' + (openDoubt + 5) + ' with a doubtful link.' : toCheck + ' value' + (toCheck === 1 ? '' : 's') + ' in Grav 8' + (openDoubt ? ', including ' + openDoubt + ' with a doubtful link' : '') + '. The other 6 records are already checked.',
+      bulkBlocked: !!s.editing,
+      onKey: function (e) { self.onKey(e); },
+      valueRef: function (el) { self.valueEl = el; },
+      inputRef: function (el) { self.inputEl = el; },
+      onDraft: function (e) { self.setState({ draft: e.target.value }); },
+      saveEdit: function () { self.saveEdit(); },
+      cancelEdit: function () { self.cancelEdit(); },
+      undoLast: function () { self.undoLast(); },
+      dismissToast: function () { self.setState({ toast: null }); },
+      startFocus: function () { self.enterFocus(null); },
+      exitFocus: function () { self.exitFocus(); },
+      fApprove: function () { self.decide(s.fsel, 'approved'); },
+      fReject: function () { self.decide(s.fsel, 'rejected'); },
+      fEdit: function () { self.startEdit(s.fsel); },
+      fUndo: function () { self.undoOne(s.fsel); },
+      fSkip: function () { self.skip(); },
+      fPrev: function () { self.step(-1); },
+      approveAll: function () {
+        if (s.editing || s.saved || running) return;
+        var dec = Object.assign({}, s.dec);
+        openList.forEach(function (id) { dec[id] = 'approved'; });
+        var od = Object.assign({}, s.otherDec); od.approved += s.otherOpen;
+        self.setState({ dec: dec, otherOpen: 0, otherDec: od, saved: true, confirm: false, toast: { msg: 'Approved ' + toCheck + ' values. Review saved; it is now read-only.', undo: false }, announce: 'Approved ' + toCheck + ' values. Review saved.' });
+      },
+      details: s.details, more: s.more, confirm: s.confirm, md: s.md, notMd: !s.md, marks: s.marks,
+      marksCls: 'sw' + (s.marks ? ' on' : ''), pdfCls: s.md ? '' : 'on', mdCls: s.md ? 'on' : '',
+      detailsBtnCls: 'ibtn' + (s.details ? ' on' : ''), moreBtnCls: 'ibtn' + (s.more ? ' on' : ''),
+      openDetails: function () { self.setState({ details: true, more: false, confirm: false }); },
+      closeDetails: function () { self.setState({ details: false }); },
+      toggleMore: function () { self.setState({ more: !s.more, confirm: false }); },
+      toggleConfirm: function () { self.setState({ confirm: !s.confirm, more: false }); },
+      toggleMarks: function () { self.setState({ marks: !s.marks }); },
+      showPdf: function () { self.setState({ md: false }); },
+      showMd: function () { self.setState({ md: true }); }
+    };
+  }
+}
+</script>
+</body>
+</html>
