@@ -1497,6 +1497,66 @@ describe('ResultsTab one by one (§4)', () => {
     expect(document.activeElement).toBe(rowOf('site'))
   })
 
+  it('leaving after advancing into a collapsed record reveals and focuses the current row', () => {
+    const result = { records: [{ place: 'Oslo' }, { place: 'Bergen' }] }
+    const evidence = [0, 1].map((i) => ({ resultPath: ['records', i, 'place'], evidenceAnchorId: `anchor-${i}` }))
+    render(<Reviewing attempt={withAttempt(result, evidence, { strategy: 'CATALOG' })}
+      initial={evidence.map((link) => decided(link.resultPath, link.evidenceAnchorId))} spy={vi.fn()} pinnedSchema={placeSchema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    key('j')
+    expect(heading()).toHaveTextContent('Bergen')
+    key('Escape')
+    const current = screen.getByRole('button', { name: /^To check place Bergen/ })
+    expect(current).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(current)
+  })
+
+  it('Article shows a flat queue and position without a Catalog record level', () => {
+    render(<Reviewing attempt={{ ...three, strategy: 'ARTICLE' }} initial={initial} spy={vi.fn()} pinnedSchema={schema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(screen.getByRole('list', { name: 'Values in review order' })).toBeInTheDocument()
+    expect(screen.getByText('1 of 3')).toBeInTheDocument()
+    expect(screen.queryByText(/Record 1/)).toBeNull()
+  })
+
+  it('Article end cards keep the flat document scope', () => {
+    const evidence = [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'a' }]
+    render(<Reviewing attempt={withAttempt({ records: [{ place: 'Oslo' }] }, evidence)}
+      initial={[decided(evidence[0]!.resultPath, 'a')]} spy={vi.fn()} pinnedSchema={placeSchema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    key('a')
+    expect(heading()).toHaveTextContent('Document is checked')
+    expect(screen.queryByText(/records?\b/i)).toBeNull()
+  })
+
+  it('the card retains the changed-after-review warning until a new decision is made', () => {
+    render(<Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema}
+      review={{ changedAfterReview: new Set([resultPathKey(['records', 0, 'site'])]) }} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(screen.getByText('changed after you reviewed it')).toBeInTheDocument()
+    key('a')
+    key('k')
+    expect(screen.queryByText('changed after you reviewed it')).toBeNull()
+  })
+
+  it.each(['input', 'cell'] as const)('the card states %s evidence precision', (precision) => {
+    const evidence = links.map((link) => ({ ...link, precision }))
+    render(<Reviewing attempt={withAttempt(three.resultPayload, evidence, { strategy: 'CATALOG' })}
+      initial={initial} spy={vi.fn()} pinnedSchema={schema} />)
+    fireEvent.click(screen.getByRole('button', { name: /One by one/ }))
+    expect(screen.getByText(precision === 'input' ? /located to the whole page only/ : /a table cell/)).toBeInTheDocument()
+  })
+
+  it('Run details owns keyboard focus and suspends decisions until it closes', () => {
+    const spy = enter()
+    openDetails()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close run details' }), { key: 'a' })
+    expect(spy).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Close run details' }))
+    key('a')
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
   it('when the record runs out, says so and offers the list', () => {
     enter()
     key('a')
@@ -1506,6 +1566,8 @@ describe('ResultsTab one by one (§4)', () => {
     expect(screen.getByText('0 values are left to check in 0 more records.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Back to list' }))
     expect(screen.getByRole('group', { name: 'Show values' })).toBeInTheDocument()
+    expect(rowOf('year')).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toBe(rowOf('year'))
   })
 
   it('"Review from here" enters at that value; One by one is unavailable with nothing to check', () => {
