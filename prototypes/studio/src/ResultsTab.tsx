@@ -148,12 +148,21 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   const detailsRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLButtonElement>(null)
 
+  // Focus belongs to the committed mode: an older passive effect must not consume a newer mode's request.
   useEffect(() => {
-    if (headingFocus.current) { headingFocus.current = false; headingRef.current?.focus() }
-    if (!oneByOne && listScroll.current !== null && scrollRef.current) { scrollRef.current.scrollTop = listScroll.current; listScroll.current = null }
-    if (focusRef.current === null) return
-    rowRefs.current.get(focusRef.current)?.focus()
-    focusRef.current = null
+    if (oneByOne) {
+      if (headingFocus.current && headingRef.current?.isConnected) {
+        headingRef.current.focus()
+        headingFocus.current = false
+      }
+      return
+    }
+    if (listScroll.current !== null && scrollRef.current) { scrollRef.current.scrollTop = listScroll.current; listScroll.current = null }
+    const row = focusRef.current === null ? null : rowRefs.current.get(focusRef.current)
+    if (row?.isConnected) {
+      row.focus()
+      focusRef.current = null
+    }
   })
   // Every link paints while the Results tab is open (§7.2): the list shows every record at once.
   const hasModel = model !== null
