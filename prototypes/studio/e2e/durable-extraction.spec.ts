@@ -48,7 +48,7 @@ test('every durable API rejects unauthenticated and foreign owners, wrong origin
     const unrelated=await page.request.post('/api/project-contexts',{headers:origin,data:{name:'Unrelated guidance target'}})
     expect(unrelated.status()).toBe(201)
     const otherProject=(await unrelated.json()).projectContext.projectContextId
-    expect((await page.request.get(`/api/project-contexts/${otherProject}/feedback?target=${id}`)).status()).toBe(422)
+    expect((await page.request.get(`/api/project-contexts/${otherProject}/feedback?target=${id}`)).status()).toBe(404)
     expect((await (await page.request.get(root)).json()).controlVersion).toBe(state.controlVersion)
     expect((await (await page.request.get(`${root}/values/title`)).json()).values[0].correction).toBeNull()
   } finally {await otherContext.close();await anonymous.close();await fixture.close()}
