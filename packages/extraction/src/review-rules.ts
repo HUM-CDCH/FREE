@@ -195,6 +195,18 @@ export function reviewDecisionMatchesSchema(
   ) && typeof value === 'string'
 }
 
+/** A draft decision made while the Extraction runs (ADR 0016), checked against the pinned document and Schema
+ * Revision only, never against kei's progress: an anchored decision under `records.<index>` naming every occurrence
+ * of a pinned anchor, its value fit to its node. Settlement reconciles it against the settled Evidence. */
+export function runningDraftMatchesDocument(
+  owned: ReviewAuthority['occurrenceIdsByAnchor'], nodes: readonly ExtractionSchemaNode[], decision: ReviewDecisionInput,
+): boolean {
+  const [scope, index] = decision.resultPath
+  return decision.evidenceAnchorId !== null && scope === 'records' && Number.isSafeInteger(index) && (index as number) >= 0 &&
+    reviewsAnchor(owned, decision.evidenceAnchorId, decision.reviewedOccurrenceIds) &&
+    reviewDecisionMatchesSchema(nodes, decision) && correctionEvidenceIsPublished(owned, decision)
+}
+
 /** The stored and digested form of submitted Review Decisions; its JSON is the review's decision digest. */
 export function normalizeDecisions(decisions: ReviewAuthority['reviewDecisions']) {
   return decisions.map((decision) => ({

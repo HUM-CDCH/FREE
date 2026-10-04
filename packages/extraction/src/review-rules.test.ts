@@ -7,7 +7,9 @@ import {
   reviewableExtraction,
   reviewAuthority,
   reviewAuthorityMatchesExtraction,
+  occurrenceOwnership,
   reviewDecisionMatchesSchema,
+  runningDraftMatchesDocument,
   type ReviewAuthority,
 } from './review-rules.js'
 import type { EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ResultPath, ReviewDecisionInput } from './types.js'
@@ -321,5 +323,30 @@ describe('a version 1 boolean: outside the grounding coverage unless the service
       result: { records: [{ title: 'Alpha', year: 1900, scale: 2.5, kind: 'map', flags: [true, false], tags: ['bronze'] }] } })
     assert.doesNotThrow(() => authorize(arrays([link('title'), link('year'), link('scale'), tag]), [...approvals(), tagApproval], tree))
     assert.throws(() => authorize(arrays([link('title'), link('year'), link('scale')]), approvals(), tree), refuses('invalid_review', COVERAGE))
+  })
+})
+
+describe('A draft decision on a running Extraction (ADR 0016)', () => {
+  const owned = occurrenceOwnership(document)
+  const matches = (decision: ReviewDecisionInput) => runningDraftMatchesDocument(owned, schemaTree.schemaNodes as ExtractionSchemaNode[], decision)
+
+  it('accepts an anchored decision under a record that names every occurrence of a pinned anchor', () => {
+    assert.equal(matches(approve('title')), true)
+    assert.equal(matches(approve('title', { resultPath: ['records', 7, 'title'] })), true) // kei's progress is never consulted
+    assert.equal(matches(approve('kind', { action: 'EDITED', reviewedValue: 'chart' })), true)
+  })
+
+  it('refuses an optional decision, an anchor the document lacks, a subset of occurrences and a path outside a record', () => {
+    assert.equal(matches(approve('title', { evidenceAnchorId: null, reviewedOccurrenceIds: [] })), false)
+    assert.equal(matches(approve('title', { evidenceAnchorId: 'anchor-elsewhere' })), false)
+    assert.equal(matches(approve('title', { reviewedOccurrenceIds: ['o-1'] })), false)
+    assert.equal(matches(approve('title', { resultPath: ['title'] })), false)
+    assert.equal(matches(approve('title', { resultPath: ['records', 'first', 'title'] })), false)
+    assert.equal(matches(approve('title', { resultPath: ['records', -1, 'title'] })), false)
+  })
+
+  it('refuses a value its schema node refuses', () => {
+    assert.equal(matches(approve('kind', { action: 'EDITED', reviewedValue: 'globe' })), false)
+    assert.equal(matches(approve('year', { action: 'APPROVED', reviewedValue: 1901 })), false)
   })
 })
