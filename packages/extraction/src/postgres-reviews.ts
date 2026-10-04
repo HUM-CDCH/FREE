@@ -81,11 +81,15 @@ export async function saveStoredReviewDraft(database: Database, accountId: strin
       throw new ExtractionError('not_found', 'That Extraction was not found.')
     // updateAll keeps the version predicate in the atomic UPDATE; update first
     // selects an identity, then updates by primary key and loses that guard.
-    const updated = await transaction.orm.public.Extraction.where({
-      id: extractionId, reviewedAt: null, reviewable: true, reviewDraftVersion: draft.version,
+    // A draft is kept on a reviewable Extraction, or on one not yet settled (ADR 0016): two guarded updates, since the
+    // object predicate has no OR. A save racing settlement passes one or the other; the version guards both.
+    const save = (settledOrNot: { reviewable: true } | { outcome: null }) => transaction.orm.public.Extraction.where({
+      id: extractionId, reviewedAt: null, reviewDraftVersion: draft.version, ...settledOrNot,
     }).updateAll({
       reviewDraft: draft.decisions, reviewDraftVersion: draft.version + 1,
     })
+    let updated = await save({ reviewable: true })
+    if (updated.length === 0) updated = await save({ outcome: null })
     if (updated.length !== 1) throw new ExtractionError('review_conflict', 'The review changed elsewhere. Reload before continuing.')
     return { decisions: draft.decisions, version: draft.version + 1 }
   })
