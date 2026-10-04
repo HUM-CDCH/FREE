@@ -39,7 +39,7 @@
 14. **Marks today** are `div`s with `pointer-events: none`, `aria-hidden`, four hardcoded rgba per-field colours and a `#d97706` focus border. e makes them buttons with one Evidence style from tokens (classes in `pdf-viewer.css` using `var(--color-…)`).
 15. **`?value=` goes through `projectNavigation.ts`** (`Route` document variant, `parseRoute`, `href`), not `studioUrl.ts`, which only handles the base path.
 16. **`Button` variants today are `positive | danger | secondary | pill`.** c adds `outline-positive`, `outline-danger`, `ghost`. `Overline` hardcodes `text-[10.5px]`; c switches it to `text-overline`.
-17. **The count word while a run reads is "to check so far"** (prototype `toCheckWord`), "to check" after settlement. The spec's §2.2 names only "to check"; the prototype is the source of truth for copy and the spec's number is explicitly "the read records so far". *Flagged for the researcher.*
+17. **The count word while a run reads is "to check so far"** (prototype `toCheckWord`), "to check" after settlement. The spec's §2.2 names only "to check"; the prototype is the source of truth for copy and the spec's number is explicitly "the read records so far". Confirmed by the researcher on 2026-10-04.
 18. **`useToast` takes a `string` message.** The rail toast is a second `useToast()` instance owned by `ResultsTab`, rendered with `Toast` docked in the rail (§2.5).
 19. **Saving stays researcher-triggered from (a) on.** Removing the effect in (a) without a trigger would ship "reviews never save": (a) wires `last` → `accept()` into today's ResultsTab decision handlers and "Approve remaining" calls `approveAll()` then `accept()`. The e2e's "saves automatically" description on Approve remaining (lifecycle spec) holds until c replaces the control.
 20. **The Results tab's key holds across settlement.** `RightRail` keys `ResultsTab` on `inspection.attempt?.extractionId`; `inspectedAttempt` is `pinnedAttempt ?? extraction.attempt`, set from the run's first read, so settlement keeps the key and §3.1's "settlement moves nothing" needs no re-keying. The one remount is `'none'` → id when the first read arrives, before any record exists.
@@ -240,4 +240,4 @@ Branch `feat/results-review-e-document` on d.
 
 - Spec coverage: §1 c2; §2 c5/c9; §3 c6/c7; §4 d; §5.1–5.3 b/c6/c7; §5.4 a; §5.5 Ruling 1, b4, c9; §6 a5/c7; §7.1 c3; §7.2 e1–e2; §7.3 d4; §7.4 c8/e3; §8 c8/e4; §9 e5; §10 e6; §11 copy throughout; §12 c1/e7; Error handling b2/c7/e4; Testing per task.
 - Not implemented: CONTEXT.md glossary edits (spec says proposed only); out-of-scope list unchanged.
-- Open for the researcher: Ruling 17 (count word during a run). Docker is available (2026-10-04).
+- Ruling 17 confirmed; Docker is available (2026-10-04).
