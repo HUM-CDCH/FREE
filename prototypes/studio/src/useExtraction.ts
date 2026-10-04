@@ -99,7 +99,7 @@ type Monitor = {
 }
 
 function isActive(attempt: ExtractionAttempt | null): boolean {
-  return attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
+  return Boolean(attempt && ['QUEUED','RUNNING','PAUSING','STOPPING'].includes(attempt.executionStatus))
 }
 
 function definiteRejection(error: unknown): error is ApiRequestError {
@@ -129,6 +129,7 @@ function everyRequiredTouched(decisions: readonly ReviewDecisionInput[], touched
 
 export function extractionStateFromAttempt(attempt: ExtractionAttempt | null, partial: PartialResult | null = null): ExtractionState {
   if (!attempt) return { status: 'idle' }
+  if (attempt.durable) return {status:'retained',executionStatus:attempt.executionStatus}
   const active = isActive(attempt)
   if (!attempt.resultPayload) {
     if (active) return { status: 'running', step: 'extraction', partial }
@@ -192,6 +193,8 @@ export function useExtraction({
   const [attempt, setAttempt] = useState<ExtractionAttempt | null>(
     initialAttempt,
   )
+  const currentAttemptRef=useRef(attempt)
+  currentAttemptRef.current=attempt
   const [state, setState] = useState<ExtractionState>(() =>
     extractionStateFromAttempt(initialAttempt),
   )
@@ -294,7 +297,7 @@ export function useExtraction({
         monitor.partial = retainFinished(monitor.partial ?? null, response.partial ?? null)
         monitor.unacknowledged = undefined
         if (isActive(latest)) watchedRunRef.current = latest.extractionId
-        if (latest.executionStatus === 'RUNNING' && !monitor.draftSeen) {
+        if (!latest.durable && latest.executionStatus === 'RUNNING' && !monitor.draftSeen) {
           monitor.draftSeen = true
           setRunDraft({ extractionId: latest.extractionId, version: response.reviewDraft?.version ?? 0,
             decisions: [...(response.reviewDraft?.decisions ?? [])] })
@@ -343,12 +346,13 @@ export function useExtraction({
     void watch(monitor, attempt?.extractionId === monitor.extractionId ? attempt : null, true)
   }
 
-  const hasResults = state.status === 'ready'
+  const hasResults = state.status === 'ready' || state.status === 'retained'
   const activeAttempt = isActive(attempt)
   const canRun =
     reviewTarget?.schemaRevisionId != null &&
     schemaReady &&
     !activeAttempt &&
+    (!attempt?.durable || ['COMPLETED','STOPPED'].includes(attempt.executionStatus)) &&
     !indexing
   // A different Source Representation still blocks new decisions; a newer
   // Current Schema Revision does not, because the backend validates decisions
@@ -373,12 +377,23 @@ export function useExtraction({
   // A record kei has finished can be decided on while the run goes on, as a draft (ADR 0016; §5.1).
   const runningPartial = state.status === 'running' ? state.partial : null
   const draftAvailable = Boolean(
+    !attempt?.durable &&
     attempt?.executionStatus === 'RUNNING' &&
     attempt.sourceRepresentationRevisionId === reviewTarget?.sourceRepresentationId &&
     occurrenceIdsByAnchor &&
     runningPartial?.records.some((record) => record.state === 'finished'),
   )
   const reviewable = reviewAvailable || draftAvailable
+  const acceptDurableStatus=useCallback((extractionId:string,executionStatus:ExtractionAttempt['executionStatus'])=> {
+    const previous=currentAttemptRef.current
+    if(!previous?.durable||previous.extractionId!==extractionId)return
+    // One observer owns native status after the retained reader is mounted.
+    if(monitorRef.current?.extractionId===extractionId){monitorRef.current.controller.abort();monitorRef.current=null}
+    if(previous.executionStatus===executionStatus)return
+    const next={...previous,executionStatus}
+    currentAttemptRef.current=next
+    setAttempt(next);setState(extractionStateFromAttempt(next))
+  },[])
 
   // While the run reads: the draft adopted once from the server, then every record kei finishes adds its prepared
   // decisions. A poll never overwrites a decision made on screen (plan Ruling 21).
@@ -754,6 +769,7 @@ export function useExtraction({
     attempt,
     canRun,
     hasResults,
+    acceptDurableStatus,
     runExtraction,
     requestCancellation,
     cancellationRequested,

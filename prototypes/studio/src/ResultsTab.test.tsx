@@ -42,6 +42,7 @@ function controller(
     state,
     attempt,
     canRun: true,
+    acceptDurableStatus:()=>{},
     hasResults: state.status === 'ready',
     runExtraction: async () => null,
     requestCancellation: async () => {},

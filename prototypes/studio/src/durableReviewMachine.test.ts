@@ -13,7 +13,7 @@ describe('retained value review',()=> {
     actor.stop()
   })
   it('retains a typed draft after conflict and reloads the saved version before an explicit retry',async()=> {
-    const value={id:'value',recordId:'document',fieldId:'flag',path:['records',0,'flag'],selectionId:'selection',schemaRevisionId:'schema',node:{id:'flag',name:'flag',type:'boolean'},modelValue:false,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null,correctionCompatibility:'compatible'} as DurablePage['values'][number]
+    const value={id:'value',recordId:'document',fieldId:'flag',path:['records',0,'flag'],selectionId:'selection',schemaRevisionId:'schema',node:{id:'flag',name:'flag',type:'boolean'},modelValue:false,evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null,correctionCompatibility:'compatible'} as DurablePage['values'][number]
     const requests:unknown[]=[]
     vi.stubGlobal('fetch',vi.fn(async(_url:string,options?:RequestInit)=> {
       if(!options?.body)return Response.json({values:[{...value,correction:{revision:1,decision:{action:'EDITED',value:false}}}]})

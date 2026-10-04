@@ -334,8 +334,9 @@ Logs are retained under `/tmp/free-durable-extraction-evidence/` with the
 
 The results-review agent has now committed its Baratheon verification report on
 `feat/results-review-e-document` (`b4dc2f8f`, clarified in `f56f35bf`). That
-completion evidence satisfies the wait condition. Our own Spark E2E remains
-unrun; integration and guarded all-feature verification remain required.
+completion report is preserved. A later read-only preflight observed its service
+test stack running, so explicit testing handoff is still pending. Our own Spark
+E2E remains unrun; guarded all-feature verification remains required.
 No remote Spark action was performed during this removal. Admissions remain
 hard OFF and nothing has been merged, deployed or enabled in production.
 
@@ -353,3 +354,96 @@ and the focused Studio review-read tests passed (42 across three files,
 including four DurableResults DOM cases). Targeted ESLint passed. Logs use the
 `free-durable-review-` prefix in `/tmp`. Shared native review UI and combined
 Spark verification remain in progress. The admission gate remains OFF.
+
+### Native review integration and four-method execution checks
+
+PR [183](https://github.com/HUM-CDCH/FREE/pull/183) ends at the imported
+`f56f35bf` tip. The durable rail now feeds stable retained value/record IDs,
+whole producing types and independent corrections into the shared ResultsHeader,
+ReviewList, ReviewRow and ReviewFocus. It supports one-by-one keyboard review,
+optional own-source correction Evidence, the source representation pinned by the
+Extraction, revised input selections, target-specific guidance preview,
+retained batch-member navigation and CSV/XLSX downloads. A direct grid URL for
+durable members opens the members view until typed grid decisions are supported.
+Model Evidence retains producer paths, spans, precision, rule/verifier origin
+and check metadata; constituent links do not verify a composite as a whole.
+
+Finalization is an immutable result/feedback pair. Pages expose that pair and
+whole-snapshot review counts, rather than counts from only the displayed page.
+The workspace progress ring uses the named durable cut, and latest-reviewed
+lookup includes durable finalizations. Execution-history export reads use a
+short repeatable-read transaction; the export manifest names its capture time
+separately from the fixed result/feedback cuts.
+
+The release review found that a returned unsuccessful model reply was retained
+as a call failure without immediately halting admissions. The current routine
+halts admission in the same transaction as saving that failure; the native step
+reports failure and joins successful siblings before compilation and boundary
+acknowledgement. Exhausted output-save retries also halt admission. An unchanged
+Retry retains the original request and the failure history.
+
+Observed task-owned disposable checks (not Spark acceptance):
+
+| Check | Observed result |
+| --- | --- |
+| Extraction unit | 242 passed |
+| Focused native UI/model/input/export | 14 passed; broader App/rail/native integration: 103 passed |
+| Python capture/retention | 23 passed, 5 PostgreSQL cases deselected |
+| Python failed-reply/replay/save-retry | 3 passed |
+| Full extraction / Studio PostgreSQL after shared integration | 110 / 68 passed, including five SIGKILL boundaries |
+| Restricted routine and atomic failed-admission checks | Passed |
+| Real DBOS Article/generic/recipe/unified lifecycle | **12 passed**: Pause/Resume, concurrent Stop, and failure/Retry for each method |
+| Authenticated native browser matrix | Five of six cases passed together; typed-edit/adoption case passed separately in 26.7 s after an observed Chromium network-change error |
+| Full Studio unit | 2155 passed, 3 intentionally skipped; one mobile class assertion updated for the verified width fix; affected 148-case rerun passed |
+| Studio ESLint / typechecks | Passed; two existing controller hook warnings |
+
+The lifecycle fixture provisions a fresh random loopback `free_test_*` database,
+migrates it, creates a disposable restricted worker role and private source
+directories, and starts real DBOS workers against a deterministic HTTP provider.
+Its loopback test bridge invokes the actual owned repository commands. No runtime
+database or other session's container is used. The twelve cases prove drain
+before acknowledgement, pending Resume cancellation, same visible Extraction,
+exact retained request reuse, terminal Stop, and retained failures on Retry.
+The fixture is part of `extraction test:postgres`; logs are
+`/tmp/free-durable-native-{db,extraction}-boundaries.log`.
+
+Private Playwright Chromium passed reload/correction/Undo/finalization/Stop,
+the 375px mobile geometry, off-page ungrounded value links, selected correction
+Evidence (one actual PDF mark), target-specific guidance exclusion/inclusion and
+incompatibility, a 506-value CSV preservation bundle, and all-paused/all-failed/
+all-stopped batch navigation and downloads. These five cases passed together in
+`/tmp/free-durable-final-browser.log`; the sixth typed-edit/adoption case encountered
+an observed `ERR_NETWORK_CHANGED` while importing the workspace. That case had
+passed in prior runs and its current isolated rerun passed in 26.7 s, recorded in
+`/tmp/free-durable-final-typed-browser.log`.
+This is classified local evidence, not an all-green Spark acceptance run.
+Earlier fixture failures (download path awaiting, document deduplication, batch
+schema pinning) and wrong tab/menu-role selectors remain in failed-run logs.
+No failed run is relabeled a pass. The runner retains failed traces.
+
+The final database recheck passed restricted routines and the fixed-cut control,
+correction, pagination, finalization and deletion fixture, plus all twelve native
+DBOS lifecycle scenarios. Safety checks passed 29 tests. Typechecks passed.
+ESLint passed with the two existing controller warnings. Generation guards now
+share one captured object across polling cleanup. The independent backend Spec review found no concrete issue. Standards
+review found a repeated correction lookup; `8ff52b89` replaces it with a value-ID
+map, and the guarded recheck passes. Backend boundary: `61a782a5`.
+
+Active-input editing waits for command acknowledgement before showing the
+editor. Browsing the Schema tab is inspection of project choices, so it does
+not pause this Extraction or adopt future project edits. Every change in the
+active-input editor is fenced before its local draft mutation. The affected
+rail/controller tests pass (13); the additional eight-state browser/keyboard
+scenario is still unpassed after workspace network-change failures. It also
+reported a wrong focus-editor Save selector in its first run; this is corrected.
+Seeded browser work is UI evidence, not worker drain/restart proof. The browser
+stack has no Parsing worker DBOS tables, so its periodic reconciler fails closed
+on those absent tables; the native lifecycle matrix supplies actual worker proof.
+
+The saved nine-risk integration report is the active checklist. The dashboard
+requires its private access link. Although PR 183 has a completion report, a
+subsequent read-only Spark preflight observed a running service-test stack; the
+user's wait request is still honored pending confirmation that testing has
+finished. No Spark test, remote mutation, merge, deployment or production
+enablement has occurred. All-feature Spark evidence and final release review
+remain required. Admissions remain hard OFF.

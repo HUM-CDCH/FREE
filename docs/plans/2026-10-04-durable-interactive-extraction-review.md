@@ -20,7 +20,7 @@ The parallel root-checkout review redesign/ADR 0016 was read only for compatibil
 
 Implementation evidence remains future work, not a planning readiness claim: guarded migration/role tests, real DBOS process-recovery faults, per-method counting stubs, source Evidence validation, context-token limits, concurrent edits/export pagination, and reference-safe GC/deletion. The [release matrix](2026-10-04-durable-interactive-extraction-release.md) states those checks and safe entry points. The [specification](2026-10-04-durable-interactive-extraction-specification.md) fixes interfaces/ownership and coherent boundaries.
 
-Implementation-session update: [incremental implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md) records the candidate's disposable checks and bounded code reviews. The READY verdict above concerns the planning map; it does not approve the implementation or enable admissions. Integration with the independently implemented results-review design and the requested baratheon Spark E2E matrix remain outstanding.
+Implementation-session update: [incremental implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md) records the candidate's disposable checks and bounded code reviews. The READY verdict above concerns the planning map; it does not approve the implementation or enable admissions. The completed results-review stack through PR 183 is imported and its shared components consume durable values. Combined release review and the requested baratheon Spark E2E matrix remain outstanding.
 
 ## Pre-production implementation scope amendment
 

@@ -581,14 +581,9 @@ export default function BatchExtractionsPanel({
   /** One spreadsheet over every Extraction Result this batch has produced. */
   const exportOpenBatch = async (
     format: ExportFormat,
-    choices: ExportChoices,
+    choices?: ExportChoices,
   ) => {
-    // Never project one batch's results through another's pinned schema.
-    if (
-      !openBatch ||
-      currentPinnedBatchSchema?.schemaRevisionId !== openBatch.schemaRevisionId
-    )
-      return
+    if (!openBatch) return
     if(openBatch.members.some(member=>member.durableExtractionId)) {
       const {downloadDurableBatch}=await import('../durableExport')
       await downloadDurableBatch(openBatch.batchExtractionId,openBatch.members.map(member=>({sourceDocumentId:member.sourceDocumentId,
@@ -597,6 +592,8 @@ export default function BatchExtractionsPanel({
       setExportCoverage({batchExtractionId:openBatch.batchExtractionId,message:'Exports retained durable values at fixed member snapshots, with producing schemas, corrections, Evidence and full provenance. Recall is unmeasured.'})
       return
     }
+    // Schema-led spreadsheet projection uses the batch's original schema.
+    if(currentPinnedBatchSchema?.schemaRevisionId!==openBatch.schemaRevisionId||!choices)return
     const snapshot = await getBatchExtractionResults(
       projectContextId,
       openBatch.batchExtractionId,
@@ -802,7 +799,7 @@ export default function BatchExtractionsPanel({
   }
 
   const openBatchHasSuccessfulResult =
-    openBatch?.members.some((member) => member.latestExtraction !== null) ??
+    openBatch?.members.some((member) => member.durableExtractionId || member.latestExtraction !== null) ??
     false
   const filtered = sourceDocuments.filter((document) =>
     document.name
@@ -1301,7 +1298,7 @@ export default function BatchExtractionsPanel({
           <p className="py-6 text-center text-xs text-ink-muted">
             That Batch Extraction is no longer listed.
           </p>
-        ) : screen === 'grid' ? (
+        ) : screen === 'grid' && !openBatch.members.some(member=>member.durableExtractionId) ? (
           <BatchExtractionReviewGrid
             batch={openBatch}
             schemaNodes={currentPinnedBatchSchema?.schemaNodes ?? null}

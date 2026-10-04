@@ -70,19 +70,21 @@ export type ReviewRowProps = {
   onCancelEdit: () => void
   onUndo: () => void
   onReviewFromHere?: () => void
+  onTypedEdit?: (value: unknown) => void
 }
 
 /** One value (results review redesign §3.2), and when selected its expansion (§3.3): one tinted surface, no card. */
 export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, last, editing, node,
-  onDecide, onEdit, onCancelEdit, onUndo, onReviewFromHere }: ReviewRowProps) {
+  onDecide, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const linked = row.decision !== null && row.link !== null
+  const reviewable = row.retained?.reviewable ?? linked
   const decided = row.kind === 'approved' || row.kind === 'edited' || row.kind === 'rejected'
   const word = row.decision ? DECISION_WORD[row.decision.action] : ''
   const origin = row.link && linkOrigin(row.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
   const precision = row.link?.precision === 'input' ? ' · located to the whole page only' : row.link?.precision === 'cell' ? ' · a table cell' : ''
-  const source = `${row.kind === 'edited' || row.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${row.page === null ? '' : `p.${row.page} · `}${origin}${precision}`
+  const source = row.retained?.source ?? `${row.kind === 'edited' || row.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${row.page === null ? '' : `p.${row.page} · `}${origin}${precision}`
   const style = row.chip?.style ?? 'neutral'
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
@@ -122,16 +124,18 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
             <>
               <p className="m-0 text-compact font-semibold text-ink">{row.evidence.label}</p>
               <p className="m-0 text-secondary text-ink">{row.evidence.detail}</p>
-              <p className="m-0 text-secondary text-ink-muted">Not part of the review. It stays in the result and the export as extracted.</p>
+              {!reviewable && <p className="m-0 text-secondary text-ink-muted">Not part of the review. It stays in the result and the export as extracted.</p>}
             </>
           )}
-          {last && row.kind === 'to-check' && !saved && (
+          {row.retained && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
+          {last && !row.retained && row.kind === 'to-check' && !saved && (
             <p className="m-0 rounded-md bg-surface-muted px-2.5 py-2 text-secondary text-ink">
               This is the last value to check. Your decision saves the review, and the review becomes read-only.
             </p>
           )}
           {editing ? (
             <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
+              onTypedSave={onTypedEdit}
               saveLabel={last ? 'Save edit and save review' : 'Save edit'} onSave={(value) => onDecide('EDITED', value)} />
           ) : row.kind === 'to-check' && canDecide ? (
             <div className="flex flex-wrap items-center gap-2">

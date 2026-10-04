@@ -19,9 +19,10 @@ import {
   decodeParsedDocument,
   type ParsedDocument,
 } from 'extraction/parsed-document'
-import { useEvidenceOverlays, type MarkInfo } from './useEvidenceOverlays'
+import { useEvidenceOverlays, type SavedRailMarks } from './useEvidenceOverlays'
 import MarkPopover from './MarkPopover'
 import DocumentMarkdown from './DocumentMarkdown'
+import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import { METHOD_CHANGED, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
@@ -712,6 +713,13 @@ export function DocumentWorkspace({
     ? latestReviewedExtraction
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
+  const [retainedSource,setRetainedSource]=useState<{id:string;source:PinnedExtractionSource}|null>(null)
+  const [durableReviewProgress,setDurableReviewProgress]=useState<DurableReviewProgress|null>(null)
+  const onPinnedDocument=useCallback((id:string,source:PinnedExtractionSource|null)=> {
+    setRetainedSource(previous=>source?{id,source}:previous?.id===id?null:previous)
+  },[])
+  const inspectionSource=retainedSource?.id===inspectedAttempt?.extractionId?retainedSource?.source:null
+  const inspectionDocument=inspectionSource?.document??parsedDocument
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
   const inspectedAttemptSchema =
     inspectedAttempt ? knownSchemas[inspectedAttempt.schemaRevisionId] ?? null : null
@@ -742,7 +750,7 @@ export function DocumentWorkspace({
   }, [projectContextId, extractionSchemaId, missingSchemaRevisionId])
 
   // The rail's values as marks on the page; a mark selects its value in the rail, several open a popover (§7.2).
-  const [railMarks, setRailMarks] = useState<{ describe: ReadonlyMap<string, MarkInfo>; selected: string | null } | null>(null)
+  const [railMarks, setRailMarks] = useState<SavedRailMarks | null>(null)
   const selectValueRef = useRef<((key: string) => void) | null>(null)
   const [markChoice, setMarkChoice] = useState<{ keys: string[]; mark: HTMLElement } | null>(null)
   const [marksShown, setMarksShown] = useState(true)
@@ -768,7 +776,7 @@ export function DocumentWorkspace({
   const selectEvidenceAnchor = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,
-    parsedDocument,
+    parsedDocument:inspectionDocument,
     attempt: inspectedAttempt,
     marks,
     resultPath,
@@ -889,7 +897,8 @@ export function DocumentWorkspace({
               : nextExtractionStrategy === null
                 ? 'Choose Article or Catalog in the schema header'
                 : null
-  const runLabel = running ? (extraction.cancellationRequested ? 'Cancellation requested…' : '■ Stop extraction') : '▶ Run extraction'
+  const nativeControls=Boolean(inspectedAttempt?.durable)
+  const runLabel = nativeControls ? 'Extraction controls' : running ? (extraction.cancellationRequested ? 'Cancellation requested…' : '■ Stop extraction') : '▶ Run extraction'
   return (
     <div
       className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-canvas text-ink"
@@ -903,6 +912,14 @@ export function DocumentWorkspace({
       {/* The open document's tab carries the review's progress as a ring, and says it (§2.4). */}
       {tabRingSlot && (extraction.hasResults || running) && createPortal((() => {
         const partial = extraction.state.status === 'running' ? extraction.state.partial : null
+        if(nativeControls) {
+          const progress=durableReviewProgress?.extractionId===inspectedAttempt?.extractionId?durableReviewProgress:null
+          const fraction=progress&&progress.required>0?(progress.required-progress.toCheck)/progress.required:0
+          return <><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" className="order-first shrink-0">
+            <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-line"/>
+            <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-green" strokeDasharray={`${(fraction*44).toFixed(1)} 44`} transform="rotate(-90 9 9)"/>
+          </svg><span className="sr-only">{inspectedAttempt?.executionStatus.toLowerCase()}{progress?`, ${progress.toCheck} saved values to check in results ${progress.snapshotVersion}${progress.finalized?', this review is finalized':''}`:', loading saved review progress'}</span></>
+        }
         const { requiredCount, untouchedCount, reviewedExtractionId } = extraction.review
         const saved = Boolean(reviewedExtractionId || extraction.attempt?.reviewedAt)
         const fraction = saved ? 1 : requiredCount === 0 ? 0 : (requiredCount - untouchedCount) / requiredCount
@@ -931,18 +948,18 @@ export function DocumentWorkspace({
               requested (then disabled). */}
           {/* One fixed width for Run and Stop, so the strip never shifts; progress is the Results badge's, not the button's (§2.4). */}
           <Button
-            variant={running ? 'danger' : 'positive'}
+            variant={nativeControls?'secondary':running ? 'danger' : 'positive'}
             size="md"
             className="min-w-43 justify-center tabular-nums"
-            disabled={running ? extraction.cancellationRequested : runExtractionUnavailable}
+            disabled={!nativeControls&&(running ? extraction.cancellationRequested : runExtractionUnavailable)}
             title={
-              running
+              nativeControls ? 'Open Pause, Resume, Stop and revised inputs in Results' : running
                 ? extraction.cancellationRequested ? 'Waiting for the Extraction to stop' : 'Cancel the active Extraction'
                 : runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
                   ? 'Find the catalogue entries and extract one record per entry'
                   : 'Extract one record from the whole document')
             }
-            onClick={() => (running ? void extraction.requestCancellation() : void runExtraction())}
+            onClick={() => nativeControls ? (setRailOpen(true),setRailTab('results')) : (running ? void extraction.requestCancellation() : void runExtraction())}
           >
             {runLabel}
           </Button>
@@ -1025,7 +1042,7 @@ export function DocumentWorkspace({
                 {/* Over the PDF, which stays mounted with its marks and position. */}
                 {documentView === 'markdown' && (
                   <div className={`scrollbar-subtle absolute inset-0 z-10 overflow-auto bg-canvas py-4 sm:py-8 ${marksShown ? '' : 'evidence-marks-off'}`}>
-                    <DocumentMarkdown markdown={documentMarkdown} document={parsedDocument} marks={marks} />
+                    <DocumentMarkdown markdown={inspectionSource?.markdown??documentMarkdown} document={inspectionDocument} marks={marks} />
                   </div>
                 )}
               </div>
@@ -1058,7 +1075,7 @@ export function DocumentWorkspace({
             style={{ width: effectiveRailWidth }}
             className={`flex min-h-0 shrink-0 flex-col border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
               effectiveRailOpen
-                ? 'max-[859px]:!w-[min(90vw,32rem)] max-[859px]:shadow-xl'
+                ? 'max-[859px]:!w-[min(90vw,100%,32rem)] max-[859px]:shadow-xl'
                 : ''
             }`}
             aria-label="Evidence, schema and results"
@@ -1075,7 +1092,7 @@ export function DocumentWorkspace({
               inspection={{
                 attempt: inspectedAttempt,
                 readOnly: inspectionReadOnly,
-                parsedDocument,
+                parsedDocument:inspectionDocument,
                 reviewDecisions: inspectedAttempt?.reviewDecisions ?? [],
                 pinnedSchema: inspectedAttemptSchema,
                 exportSchema: inspectedAttemptSchema,
@@ -1084,6 +1101,8 @@ export function DocumentWorkspace({
               runUnavailableReason={runUnavailableReason}
               sourceDocumentName={filename}
               sourceRepresentationId={sourceRepresentationId}
+              onPinnedDocument={onPinnedDocument}
+              onReviewProgress={setDurableReviewProgress}
               schemaName={schemaName}
               recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: running || savingForRun }}
               boundaries={

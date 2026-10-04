@@ -1,8 +1,9 @@
-import type { PartialResult } from '../shared/extraction.contract'
+import type { ExtractionAttempt, PartialResult } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 
 export type ExtractionState =
   | { status: 'idle' }
+  | { status: 'retained'; executionStatus: ExtractionAttempt['executionStatus'] }
   | { status: 'running'; step: 'extraction'; partial: PartialResult | null }
   | {
       status: 'ready'

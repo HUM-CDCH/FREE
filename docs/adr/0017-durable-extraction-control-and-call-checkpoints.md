@@ -33,6 +33,11 @@ Review projection uses each value's immutable producing schema, independently
 of consuming-target guidance compatibility. Stable child identities permit
 nested renames; approvals/rejections bind to the actual reviewed model version.
 Article aggregation retains historical lineage and explicit scalar proposals.
+The shared results-review components consume stable saved values directly.
+Whole-field edits validate against their producing type; optional correction
+Evidence names explicitly selected occurrences from the pinned source.
+Finalizations identify immutable result and decision cuts independently of
+processing completion. Operational export history has its own capture time.
 The source artifact and preprocessing generation stay referenced through
 terminal states and deletion drain. Deleted graphs are fenced atomically with
 public cascade deletion; native-history cleanup uses the Parsing worker's boot

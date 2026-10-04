@@ -7,7 +7,9 @@ function recordState(record: RailRecord): { text: string; busy: boolean; done: b
   if (record.state === 'queued') return { text: 'Queued', busy: false, done: false }
   if (record.state === 'reading') return { text: 'Reading…', busy: true, done: false }
   if (record.state === 'checking') return { text: `Checking ${record.rows.length} values`, busy: true, done: false }
-  return record.toCheck > 0 ? { text: `${record.toCheck} to check`, busy: false, done: false } : { text: 'all checked', busy: false, done: true }
+  return record.toCheck > 0 ? { text: `${record.toCheck} to check`, busy: false, done: false }
+    : record.retained ? {text:'saved values checked',busy:false,done:record.rows.every(row=>row.retained?.reviewable)}
+    : { text: 'all checked', busy: false, done: true }
 }
 
 const section = 'overflow-hidden rounded-lg border border-line bg-surface'
@@ -39,7 +41,7 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
       <span className="h-3 w-[45%] rounded-sm bg-line motion-safe:animate-pulse" />
     </div>
   )
-  if (model.records.length === 0)
+  if (model.records.length === 0 && model.document.length === 0)
     return <p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">No records were found in the source.</p>
   return (
     <div className="flex flex-col gap-2">
@@ -56,7 +58,7 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
         const open = record.state !== 'queued' && isOpen(record)
         const rows = open ? rowsOf(record.rows) : []
         return (
-          <section key={record.index} aria-label={`${record.label}, ${state.text}`} className={section}>
+          <section key={record.key ?? record.index} aria-label={`${record.label}, ${state.text}`} className={section}>
             <button type="button" aria-expanded={open} disabled={record.state === 'queued'} onClick={() => onToggle(record)}
               className="flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
               <DisclosureGlyph open={open} />

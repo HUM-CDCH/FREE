@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import type { SchemaDefinition } from 'extraction/schema'
 import type {
   ExportChoices,
@@ -132,6 +132,17 @@ function batchStatus(batch: BatchExtraction): {
   running: boolean
 } {
   const progress = batchExtractionProgress(batch)
+  if (batch.members.some((member) => member.durableExtractionId)) {
+    const counts = new Map<string, number>()
+    for (const member of batch.members)
+      counts.set(member.executionStatus, (counts.get(member.executionStatus) ?? 0) + 1)
+    const active = ['QUEUED', 'RUNNING', 'PAUSING', 'STOPPING'].some((state) => counts.has(state))
+    return {
+      label: [...counts].map(([state, count]) => `${count} ${state.toLowerCase()}`).join(' · '),
+      tone: counts.has('FAILED') ? 'danger' : active ? 'accent' : 'neutral',
+      running: active,
+    }
+  }
   if (batch.executionStatus === 'QUEUED')
     return { label: 'Queued', tone: 'neutral', running: true }
   if (batch.executionStatus === 'RUNNING')
@@ -161,6 +172,24 @@ function batchSchemaLine(batch: BatchExtraction): string {
   return `${batch.extractionSchemaName} · Schema Revision ${batch.schemaRevisionNumber}`
 }
 
+function RetainedBatchExport({disabled,onExport}:{disabled:boolean;onExport:(format:ExportFormat)=>Promise<void>}) {
+  const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null)
+  const download=async(format:ExportFormat)=> {
+    setBusy(true);setOpen(false);setError(null)
+    try {await onExport(format)}
+    catch(error){setError(error instanceof Error?error.message:'Unable to export saved values.')}
+    finally {setBusy(false)}
+  }
+  return <div className="space-y-1">
+    <Button disabled={disabled||busy} aria-expanded={open} aria-haspopup="menu" onClick={()=>setOpen(!open)}>{busy?'Exporting…':'Export'}</Button>
+    {open&&<div role="menu" aria-label="Retained batch exports" className="flex flex-wrap gap-2">
+      <Button role="menuitem" onClick={()=>void download('csv')}>Export CSV bundle</Button>
+      <Button role="menuitem" onClick={()=>void download('xlsx')}>Export XLSX</Button>
+    </div>}
+    {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
+  </div>
+}
+
 function selectionLine(batch: BatchExtraction): string {
   const count = batch.members.length
   const strategy = batch.strategy === 'CATALOG' ? 'Catalog' : 'Article'
@@ -185,8 +214,10 @@ export function BatchExtractionHistory({
       {batches.map((batch) => {
         const status = batchStatus(batch)
         const progress = batchExtractionProgress(batch)
-        const percent =
-          progress.total > 0 ? (progress.extracted / progress.total) * 100 : 0
+        const completed = batch.members.some((member) => member.durableExtractionId)
+          ? batch.members.filter((member) => member.executionStatus === 'COMPLETED').length
+          : progress.extracted
+        const percent = progress.total > 0 ? (completed / progress.total) * 100 : 0
         return (
           <li key={batch.batchExtractionId}>
             {/* `-mx-2 px-2` keeps the hover fill wider than the text while the
@@ -269,7 +300,7 @@ export function BatchExtractionMembers({
   /** The saved method Run again submits, with its loading, error and stale-settings refusal. */
   runAgainMethod: ReactNode
   documentName(sourceDocumentId: string): string
-  onExport(format: ExportFormat, choices: ExportChoices): Promise<void>
+  onExport(format: ExportFormat, choices?: ExportChoices): Promise<void>
   onRetrySchema(): void
   onRunAgain(): void
   onOpenGridReview(): void
@@ -285,22 +316,26 @@ export function BatchExtractionMembers({
         </p>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <StatusLine tone={status.tone} label={status.label} />
-          <ExtractionResultExportControl
+          {batch.members.some(member=>member.durableExtractionId)
+            ? <RetainedBatchExport disabled={!hasSuccessfulResult} onExport={onExport}/>
+            : <ExtractionResultExportControl
             schema={pinnedSchema}
             disabled={!hasSuccessfulResult}
             disabledReason={
               !hasSuccessfulResult
-                ? 'No successful Extraction Results are available to export.'
+                ? 'No saved Extraction data is available to export.'
                 : null
             }
             onExport={onExport}
-          />
+          />}
           <Button
             size="sm"
             variant="secondary"
-            disabled={!hasSuccessfulResult}
+            disabled={!hasSuccessfulResult || batch.members.some(member=>member.durableExtractionId)}
             title={
-              !hasSuccessfulResult
+              batch.members.some(member=>member.durableExtractionId)
+                ? 'Open a member to review its saved typed values and producing inputs.'
+                : !hasSuccessfulResult
                 ? 'No successful Extraction Results are available to review.'
                 : undefined
             }
@@ -363,12 +398,13 @@ export function BatchExtractionMembers({
               <button
                 className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[1fr_auto] items-center gap-6 rounded-xs px-2 py-3.5 text-left outline-none hover:bg-line/20 disabled:cursor-default disabled:hover:bg-transparent sm:grid-cols-[1fr_13rem_auto]"
                 type="button"
-                disabled={!member.latestExtraction}
+                disabled={!member.durableExtractionId&&!member.latestExtraction}
                 onClick={() => {
-                  if (member.latestExtraction)
+                  const id=member.durableExtractionId??member.latestExtraction?.extractionId
+                  if (id)
                     onOpenMember(
                       member.sourceDocumentId,
-                      member.latestExtraction.extractionId,
+                      id,
                     )
                 }}
               >

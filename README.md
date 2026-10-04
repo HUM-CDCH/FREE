@@ -253,6 +253,14 @@ the correction's own source; incompatible corrections remain historical and do
 not enter the consuming target's context. No automatic guidance-conflict
 classification is performed.
 
+The candidate uses the shared results-review rail with stable saved-value IDs
+and whole-field typed corrections. Historical review uses its producing schema
+and pinned Source Representation. A finalized result/decision pair remains
+available beside later work; it does not freeze the Extraction. Export bundles
+fix value and decision versions and attach execution history observed at a
+recorded capture time. Batch members retain independent cuts and remain openable
+and exportable when paused, failed or stopped.
+
 The existing extraction implementation remains available while this candidate’s
 admissions are disabled. Durable admission stays disabled through integration
 with the review redesign,

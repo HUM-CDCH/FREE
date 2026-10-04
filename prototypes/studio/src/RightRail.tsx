@@ -1,13 +1,14 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import type { MarkInfo } from './useEvidenceOverlays'
+import type { SavedRailMarks } from './useEvidenceOverlays'
 import PanelToggleIcon from './PanelToggleIcon'
 import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
-import { useMemo, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
+import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ResultsTab from './ResultsTab'
+import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import { DurableResults } from './DurableResults'
 import type { ExtractionController } from './useExtraction'
 import { resultsBadgeFor } from './resultsBadge'
@@ -57,8 +58,10 @@ type RightRailProps = {
   /** The one-by-one value's Evidence link, for the document's dimming (results review redesign §7.3). */
   onFocusEvidence?: (link: EvidenceLink | null) => void
   /** The rail's values for the document's marks, and the handle a mark selects a value through (§7.2). */
-  onMarksChange?: (marks: { describe: ReadonlyMap<string, MarkInfo>; selected: string | null } | null) => void
+  onMarksChange?: (marks: SavedRailMarks | null) => void
   selectValueRef?: RefObject<((key: string) => void) | null>
+  onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
+  onReviewProgress?:(progress:DurableReviewProgress|null)=>void
 }
 
 /** A tab's count. Under a 300px tab strip (the 264px rail) a worded one ("7 to check") shows its number only, so the
@@ -107,6 +110,8 @@ function RightRail({
   onFocusEvidence,
   onMarksChange,
   selectValueRef,
+  onPinnedDocument,
+  onReviewProgress,
 }: RightRailProps) {
   const [fieldContext, setFieldContext] = useState<FieldContext | null>(null)
   const editField = (nodeId: string, path: (string | number)[]) => {
@@ -121,6 +126,13 @@ function RightRail({
     onTabChange('schema')
   }
   const { parsedDocument, reviewDecisions } = inspection
+  const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[])=> {
+    const anchor=parsedDocument?.evidence_index.anchors.find(each=>each.anchor_id===id)
+    if(!anchor)return
+    if(!occurrenceIds)onSelectEvidence(anchor)
+    else if(anchor.kind==='text')onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))})
+    else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))})
+  },[parsedDocument,onSelectEvidence])
   const showDeveloperUi = isDeveloperUiEnabled()
   const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
 
@@ -241,9 +253,18 @@ function RightRail({
           key={(inspection.attempt ?? extraction.attempt)?.extractionId ?? 'none'}
           attempt={inspection.attempt ?? extraction.attempt}
           document={parsedDocument}
+          documentRevisionId={sourceRepresentationId}
           currentSchema={currentSchemaRevision?.schemaRevisionId ?? null}
           readOnly={inspection.readOnly}
-          onEvidence={id=> {const anchor=parsedDocument?.evidence_index.anchors.find(a=>a.anchor_id===id);if(anchor)onSelectEvidence(anchor)}}
+          onEvidence={selectNativeEvidence}
+          onResultPathChange={onResultPathChange}
+          onFocusEvidence={onFocusEvidence}
+          onMarksChange={onMarksChange}
+          selectValueRef={selectValueRef}
+          headerExtras={resultsHeaderExtras}
+          onStatusChange={extraction.acceptDurableStatus}
+          onReviewProgress={onReviewProgress}
+          onPinnedDocument={onPinnedDocument}
         /> : <ResultsTab
           onEditField={editField}
           key={inspection.attempt?.extractionId ?? 'none'}

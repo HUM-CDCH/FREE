@@ -704,7 +704,7 @@ describe('reopened Source Document workspace', () => {
     const rail = screen.getByRole('complementary', {
       name: 'Evidence, schema and results',
     })
-    const mobileDrawerWidth = 'max-[859px]:!w-[min(90vw,32rem)]'
+    const mobileDrawerWidth = 'max-[859px]:!w-[min(90vw,100%,32rem)]'
 
     expect(rail.className).toContain(mobileDrawerWidth)
 

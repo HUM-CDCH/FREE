@@ -3,13 +3,13 @@ import { durableRequest } from './durableExtractionApi'
 import Button from './ui/Button'
 
 type Correction={id:string;valueId:string;revision:number;feedbackVersion:number;included:boolean;active:boolean;selectionId:string;targetCompatibility:string;candidate:{value:unknown;grounded:boolean;sourceContext:string};decision:{action:string}}
-export function ProjectFeedback({projectId,target,revision}:{projectId:string;target?:string;revision?:string}) {
-  const url=`/api/project-contexts/${projectId}/feedback${target?`?target=${target}`:''}`
-  return <FeedbackResource key={url} url={url} target={target} revision={revision}/>
+export function ProjectFeedback({projectId,target,revision,selection}:{projectId:string;target?:string;revision?:string;selection?:string}) {
+  const url=`/api/project-contexts/${projectId}/feedback${target?`?target=${target}${selection?`&selection=${selection}`:''}`:''}`
+  return <FeedbackResource key={url} url={url} target={target} revision={revision} preview={Boolean(selection)}/>
 }
-function FeedbackResource({url,target,revision}:{url:string;target?:string;revision?:string}) {
+function FeedbackResource({url,target,revision,preview}:{url:string;target?:string;revision?:string;preview:boolean}) {
   const [rows,setRows]=useState<Correction[]>([]),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState<string|null>(null)
-  const [open,setOpen]=useState(false)
+  const [open,setOpen]=useState(preview)
   const lifetime=useRef({active:false,version:0})
   useLayoutEffect(()=>{const resource=lifetime.current;resource.active=true;return()=>{resource.active=false}},[])
   useEffect(()=> {
@@ -21,8 +21,10 @@ function FeedbackResource({url,target,revision}:{url:string;target?:string;revis
     }).catch(e=>{if(resource.active&&!controller.signal.aborted&&version===resource.version)setError(e.message)})
     return()=>controller.abort()
   },[url,open,revision])
-  return <details className="rounded-md border border-line bg-surface p-3" onToggle={event=>setOpen(event.currentTarget.open)}>
-    <summary className="cursor-pointer text-secondary font-semibold">Project guidance{open?` · ${rows.filter(r=>r.active&&r.included).length} included`:''}</summary>
+  const incompatible=rows.filter(row=>row.active&&row.decision.action==='EDITED'&&row.targetCompatibility==='incompatible').length
+  return <details open={open} className="rounded-md border border-line bg-surface p-3" onToggle={event=>setOpen(event.currentTarget.open)}>
+    <summary className="cursor-pointer text-secondary font-semibold">{preview?'Guidance for pending inputs':'Project guidance'}{open?` · ${rows.filter(r=>r.active&&r.included).length} included${incompatible?` · ${incompatible} incompatible`:''}`:''}</summary>
+    {incompatible>0&&<p role="status" className="my-2 text-secondary">{incompatible} saved {incompatible===1?'correction is':'corrections are'} incompatible with {preview?'the pending':'this'} schema. They remain saved and never enter its model context.</p>}
     <p className="my-2 text-compact text-ink-muted">{target?'Compatibility is evaluated for this Extraction’s selected schema.':'Open an Extraction to evaluate compatibility for its selected schema.'} Ungrounded corrections can provide guidance; linking Evidence is optional.</p>
     {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
     <div className="space-y-2">{rows.map(row=><article key={row.id} className="border-t border-line py-2 text-secondary">

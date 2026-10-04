@@ -1,7 +1,7 @@
 import type { ParsedDocument } from 'extraction/parsed-document'
-import type { MarkInfo } from './useEvidenceOverlays'
+import type { RailMarks } from './useEvidenceOverlays'
 
-type Marks = { describe: ReadonlyMap<string, MarkInfo>; selected: string | null; onSelect: (keys: string[], mark: HTMLElement) => void }
+type Marks = RailMarks
 
 /**
  * The parsed Markdown in the document pane (results review redesign §7.4): a page-shaped text with the rail's values
@@ -18,7 +18,13 @@ export default function DocumentMarkdown({ markdown, document, marks }: { markdo
   const bytes = new TextEncoder().encode(markdown)
   const decode = (start: number, end: number) => new TextDecoder().decode(bytes.subarray(start, end))
   const keysByAnchor = new Map<string, string[]>()
-  for (const [key, info] of marks?.describe ?? []) keysByAnchor.set(info.anchorId, [...keysByAnchor.get(info.anchorId) ?? [], key])
+  const links=marks?.savedLinks?.map(({key,link})=>({key,anchorId:link.evidenceAnchorId}))
+    ?? [...marks?.describe??[]].map(([key,info])=>({key,anchorId:info.anchorId}))
+  for (const {key,anchorId} of links) {
+    const keys=keysByAnchor.get(anchorId)??[]
+    if(!keys.includes(key))keys.push(key)
+    keysByAnchor.set(anchorId,keys)
+  }
   const spans = (document?.evidence_index.anchors ?? []).flatMap((anchor) => anchor.kind === 'text' && keysByAnchor.has(anchor.anchor_id)
     ? [{ ...anchor.markdown_span, keys: keysByAnchor.get(anchor.anchor_id)! }] : [])
     .sort((a, b) => a.start - b.start)

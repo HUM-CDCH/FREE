@@ -3,6 +3,7 @@ import type { SchemaNode } from 'extraction/schema'
 import type { ReviewDecisionInput } from '../../shared/extraction.contract'
 import { parseReviewedValue } from '../reviewDecisions'
 import { ApprovedGlyph } from './icons'
+import { schemaNodesToZod } from 'extraction/schema'
 
 const control = 'w-full rounded-md border border-line-strong bg-surface px-2 text-content text-ink outline-none focus-visible:border-accent'
 
@@ -15,26 +16,38 @@ const editableText = (value: unknown) =>
  * a date or number input by type, text otherwise. Enter saves, Escape cancels; an empty value is refused ("to remove a
  * value, Reject"), and a value the schema refuses keeps editing with its reason.
  */
-export default function ReviewedValueEditor({ node, initial, saveLabel, tall = false, onSave, onCancel }: {
+export default function ReviewedValueEditor({ node, initial, saveLabel, tall = false, onSave, onTypedSave, onCancel }: {
   node: SchemaNode | null
   initial: unknown
   saveLabel: string
   tall?: boolean
   onSave: (value: ReviewDecisionInput['reviewedValue']) => void
+  /** Retained corrections use the complete producing type, including composites. */
+  onTypedSave?: (value: unknown) => void
   onCancel: () => void
 }) {
   const id = useId()
-  const [draft, setDraft] = useState(() => editableText(initial))
+  const composite = Boolean(onTypedSave && (node?.type === 'array' || node?.type === 'object'))
+  const [draft, setDraft] = useState(() => composite ? JSON.stringify(initial, null, 2) : editableText(initial))
   const [error, setError] = useState<string | null>(null)
   const height = tall ? 'h-10' : 'h-8'
   function save() {
+    if (onTypedSave && node) {
+      try {
+        const value = composite ? JSON.parse(draft) : parseReviewedValue(node, draft).value
+        if (!schemaNodesToZod([node]).safeParse({[node.name]: value}).success) {
+          setError('The value does not fit its producing field.'); return
+        }
+        onTypedSave(value); return
+      } catch { setError('Enter valid JSON for this field.'); return }
+    }
     if (draft.trim() === '') { setError('Enter a value.'); return }
     const parsed = parseReviewedValue(node, draft)
     if (parsed.error) { setError(parsed.error); return }
     onSave(parsed.value)
   }
   const keys = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter') { event.preventDefault(); save() }
+    if (event.key === 'Enter' && !composite) { event.preventDefault(); save() }
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onCancel() }
   }
   const common = { id, autoFocus: true, onKeyDown: keys, value: draft, 'aria-invalid': error !== null || undefined,
@@ -43,7 +56,9 @@ export default function ReviewedValueEditor({ node, initial, saveLabel, tall = f
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-compact font-semibold text-ink-muted">Reviewed value</label>
-      {node?.allowedValues ? (
+      {composite ? (
+        <textarea {...common} className={`${control} min-h-24 py-2 font-mono`} onChange={event => {setDraft(event.target.value);setError(null)}} />
+      ) : node?.allowedValues ? (
         <select {...common} onChange={(event) => setDraft(event.target.value)}>
           {!node.allowedValues.includes(draft) && <option value={draft}>{draft}</option>}
           {node.allowedValues.map((option) => <option key={option}>{option}</option>)}
@@ -67,7 +82,7 @@ export default function ReviewedValueEditor({ node, initial, saveLabel, tall = f
           </button>
           <button type="button" onClick={onCancel} className="cursor-pointer border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">Cancel</button>
         </div>
-        <span className="text-compact text-ink-muted">Enter saves · Esc cancels</span>
+        <span className="text-compact text-ink-muted">{composite?'Use Save edit to save':'Enter saves'} · Esc cancels</span>
       </div>
     </div>
   )

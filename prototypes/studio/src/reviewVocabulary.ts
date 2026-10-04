@@ -32,9 +32,13 @@ export type RailRow = {
   /** The run-time decision was not kept at settlement (§5.3). */
   changed: boolean
   page: number | null
+  /** Retained values can be reviewed without a model Evidence link. */
+  retained?: { reviewable: boolean; source: string; attribution: string }
 }
 
 export type RailRecord = {
+  key?: string
+  retained?: true
   index: number
   label: string
   page: number | null
@@ -66,9 +70,10 @@ export function stateLabel(row: Pick<RailRow, 'kind' | 'evidence'>): string {
   }
 }
 
-/** A value as a row shows it: "No value" for a missing or contested one, a list as comma-separated text. */
+/** Preserve the shape of typed composite values while showing absent values clearly. */
 export const shownValue = (value: unknown) =>
-  value === null || value === undefined || value === '' ? 'No value' : Array.isArray(value) ? value.map(String).join(', ') : String(value)
+  value === null || value === undefined || value === '' ? 'No value'
+    : typeof value === 'object' ? JSON.stringify(value) : String(value)
 
 export const isDecidable = (kind: RowKind) => kind === 'to-check' || kind === 'approved' || kind === 'edited' || kind === 'rejected'
 export const isNotReviewable = (kind: RowKind) => kind === 'not-reviewable' || kind === 'missing' || kind === 'contested'

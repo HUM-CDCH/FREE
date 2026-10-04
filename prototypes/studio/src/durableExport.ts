@@ -22,8 +22,10 @@ export async function fixedDurableValues(fixed:Fixed) {
   return values
 }
 function frozen(fixed:Fixed,values:DurablePage['values']) {
-  const manifest={protocol:1,extractionId:fixed.state.extractionId,snapshotVersion:fixed.page.snapshotVersion,feedbackVersion:fixed.page.feedbackVersion,status:fixed.page.status,source:fixed.state.source,coverage:fixed.page.coverage,recall:'unmeasured',values:values.length}
-  return {manifest,values,history:{...fixed.history,snapshots:fixed.history.snapshots.filter(s=>s.version<=fixed.page.snapshotVersion),corrections:fixed.history.corrections.filter(c=>c.feedbackVersion<=fixed.page.feedbackVersion)}}
+  const manifest={protocol:1,extractionId:fixed.state.extractionId,snapshotVersion:fixed.page.snapshotVersion,feedbackVersion:fixed.page.feedbackVersion,status:fixed.page.status,source:fixed.state.source,coverage:fixed.page.coverage,recall:'unmeasured',values:values.length,
+    historyCapturedAt:fixed.history.capturedAt,historyScope:'Complete execution inputs and call history at capture time; result versions and decisions are limited to the named snapshot cuts.'}
+  return {manifest,values,history:{...fixed.history,snapshots:fixed.history.snapshots.filter(s=>s.version<=fixed.page.snapshotVersion),corrections:fixed.history.corrections.filter(c=>c.feedbackVersion<=fixed.page.feedbackVersion),
+    finalizations:fixed.history.finalizations.filter(f=>f.snapshotVersion<=fixed.page.snapshotVersion&&f.feedbackVersion<=fixed.page.feedbackVersion)}}
 }
 /** Base64 over UTF-8 is XML-safe, and the prefix prevents spreadsheet formula
  * protection from changing chunks. Concatenate chunks without their prefixes,

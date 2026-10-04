@@ -31,6 +31,7 @@ const defaultController: ExtractionController = {
   state: { status: 'idle' },
   attempt: null,
   canRun: true,
+  acceptDurableStatus:()=>{},
   hasResults: false,
   runExtraction: async () => null,
   requestCancellation: async () => {},

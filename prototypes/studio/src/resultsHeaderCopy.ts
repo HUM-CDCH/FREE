@@ -33,6 +33,7 @@ export function statusLine({ state, attempt, partial, cancellationRequested, sch
   const active = attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
   switch (state.status) {
     case 'idle': return null
+    case 'retained': return null // Its retained controller supplies the native header.
     case 'cancelled': return { mark: 'stopped', word: 'Stopped', rest: '· nothing to review' }
     case 'error': return { mark: 'failed', word: 'Failed', rest: '· nothing to review', failure: state.message }
     case 'running': {
