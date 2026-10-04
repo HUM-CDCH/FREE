@@ -3,6 +3,7 @@ import {
   reportAuthenticationRequired,
 } from './auth/authenticatedFetch.ts'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { anchorOccurrences } from './evidenceNavigation'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
@@ -19,7 +20,6 @@ import {
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 import { METHOD_CHANGED, useExtraction } from './useExtraction'
-import { resultsBadgeFor } from './resultsBadge'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
 import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
@@ -295,6 +295,11 @@ export function DocumentWorkspace({
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
   const parsedDocument = docIndex.status === 'ready' ? docIndex.document : null
+  // A running Extraction's draft decisions name every occurrence of their anchor (results review redesign §5.1).
+  const occurrenceIdsByAnchor = useMemo(() => parsedDocument
+    ? new Map(parsedDocument.evidence_index.anchors.map((anchor) =>
+        [anchor.anchor_id, anchorOccurrences(anchor).map((occurrence) => occurrence.occurrence_id)]))
+    : null, [parsedDocument])
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
   }, [])
@@ -631,6 +636,7 @@ export function DocumentWorkspace({
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
     reviewTarget,
+    occurrenceIdsByAnchor,
     // Completion preserves the rail tab and inspected snapshot; it says so in one toast, whose "Review now" (a run started
     // here that succeeded) opens Results.
     onTerminal: (attempt, isRerun) => {
@@ -856,7 +862,6 @@ export function DocumentWorkspace({
               : nextExtractionStrategy === null
                 ? 'Choose Article or Catalog in the schema header'
                 : null
-  const badge = resultsBadgeFor(extraction)
   const runLabel = running ? (extraction.cancellationRequested ? 'Cancellation requested…' : '■ Stop extraction') : '▶ Run extraction'
   return (
     <div
@@ -879,9 +884,11 @@ export function DocumentWorkspace({
           <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
           {/* Run is the screen's one positive; while a run is active it is Stop, in danger, also once its cancellation is
               requested (then disabled). */}
+          {/* One fixed width for Run and Stop, so the strip never shifts; progress is the Results badge's, not the button's (§2.4). */}
           <Button
             variant={running ? 'danger' : 'positive'}
             size="md"
+            className="min-w-43 justify-center tabular-nums"
             disabled={running ? extraction.cancellationRequested : runExtractionUnavailable}
             title={
               running
@@ -893,7 +900,6 @@ export function DocumentWorkspace({
             onClick={() => (running ? void extraction.requestCancellation() : void runExtraction())}
           >
             {runLabel}
-            {running && !extraction.cancellationRequested && badge && <span className="font-medium opacity-80"> · {badge.label}</span>}
           </Button>
         </>,
         tabBarSlot,

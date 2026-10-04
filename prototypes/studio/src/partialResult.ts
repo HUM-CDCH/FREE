@@ -1,4 +1,4 @@
-import type { PartialRecord, PartialResult } from '../shared/extraction.contract'
+import type { PartialRecord, PartialResult, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { ValueState } from './ui'
 
 /** Retain whole finished server snapshots through missing or regressed progress reads; settlement replaces them. */
@@ -58,6 +58,29 @@ export function partialHeadline(partial: PartialResult): string {
       ? `Reading the document · ${partial.document.contextsAnswered} of ${partial.document.contexts} contexts`
       : 'Reading the document'
   }
-  const from = partial.startedAtPage === null ? '' : ` · started at page ${partial.startedAtPage}`
+  const from = partial.startedAtPage === null ? '' : ` · from page ${partial.startedAtPage}`
   return `Reading records · ${partial.finished} of ${partial.discovered}${from}`
+}
+
+/**
+ * The decisions a running Extraction can take (ADR 0016), in the shape the settled attempt's prepared decisions have:
+ * one approval per Evidence link of a record kei has finished, when the pinned document has its anchor. A record still
+ * read or checked gives none: a candidate is never decided on.
+ */
+export function draftDecisionsFromPartial(
+  partial: PartialResult, occurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>,
+): ReviewDecisionInput[] {
+  return partial.records.filter((record) => record.state === 'finished').flatMap((record) => record.evidenceLinks.flatMap((link) => {
+    const occurrences = occurrenceIdsByAnchor.get(link.evidenceAnchorId)
+    return occurrences
+      ? [{ resultPath: [...link.resultPath], evidenceAnchorId: link.evidenceAnchorId, reviewedOccurrenceIds: [...occurrences],
+          action: 'APPROVED' as const, reviewedValue: null }]
+      : []
+  }))
+}
+
+/** The value at a result path (`records.<index>.…`) as the partial shows it; undefined when its record has none. */
+export function partialValueAt(partial: PartialResult, resultPath: readonly (string | number)[]): unknown {
+  const record = partial.records.find((each) => each.index === resultPath[1])
+  return record?.values[JSON.stringify(resultPath.slice(2).map(String))]?.value
 }

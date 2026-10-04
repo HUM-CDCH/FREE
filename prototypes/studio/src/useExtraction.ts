@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
+import { reconcileAtSettlement } from './reviewReconcile'
 import {
   ApiRequestError,
   cancelExtraction,
@@ -10,7 +11,7 @@ import {
   requestExtraction,
 } from './api'
 import type { ExtractionState } from './extraction'
-import { retainFinished } from './partialResult'
+import { draftDecisionsFromPartial, partialValueAt, retainFinished } from './partialResult'
 import {
   type ExtractionAttempt,
   type ExtractionStrategy,
@@ -74,6 +75,8 @@ type UseExtractionOptions = {
    * relying on `useState`'s initializer, which only runs once.
    */
   documentKey?: string
+  /** Every Evidence Anchor's occurrence IDs in the pinned document: a running Extraction's decisions name them all. */
+  occurrenceIdsByAnchor?: ReadonlyMap<string, readonly string[]> | null
 }
 
 /**
@@ -91,6 +94,8 @@ type Monitor = {
   unacknowledged?: string
   /** Last server partial for this Extraction; survives a paused monitor and reconnect. */
   partial?: PartialResult | null
+  /** The server's Review Draft was adopted from this monitor's first RUNNING read; later reads never overwrite it. */
+  draftSeen?: boolean
 }
 
 function isActive(attempt: ExtractionAttempt | null): boolean {
@@ -182,6 +187,7 @@ export function useExtraction({
   initialAttempt = null,
   reviewTarget = null,
   documentKey = '',
+  occurrenceIdsByAnchor = null,
 }: UseExtractionOptions) {
   const [attempt, setAttempt] = useState<ExtractionAttempt | null>(
     initialAttempt,
@@ -199,6 +205,8 @@ export function useExtraction({
   const [touchedPaths, setTouchedPaths] = useState<ReadonlySet<string>>(new Set())
   const draftRef = useRef<{ decisions: ReviewDecisionInput[]; touched: ReadonlySet<string> }>({ decisions: reviewDecisions, touched: touchedPaths })
   draftRef.current = { decisions: reviewDecisions, touched: touchedPaths }
+  // The draft as the server last accepted it: a running draft it refuses reverts to this.
+  const draftAcceptedRef = useRef<{ decisions: ReviewDecisionInput[]; touched: ReadonlySet<string> } | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const draftSaveRef = useRef({ version: 0, pending: Promise.resolve(), writes: 0, conflict: false })
   const [reviewReload, setReviewReload] = useState(0)
@@ -213,6 +221,17 @@ export function useExtraction({
   const monitorRef = useRef<Monitor | null>(null)
   const reviewLoadRef = useRef(0)
   const saveScopeRef = useRef({ saving: false })
+  // Review during a run (ADR 0016). The server's draft as the first RUNNING read carried it; the Extraction the
+  // decisions on screen belong to; and, per decision made during the run, the value it was made on (§5.3).
+  const [runDraft, setRunDraft] = useState<{ extractionId: string; version: number; decisions: ReviewDecisionInput[] } | null>(null)
+  const adoptedRunDraftRef = useRef<typeof runDraft>(null)
+  const reviewReloadRef = useRef(reviewReload)
+  const decisionsForRef = useRef<string | null>(null)
+  const decidedOnRef = useRef<{ extractionId: string | null; values: Map<string, unknown> }>({ extractionId: null, values: new Map() })
+  const [changedAfterReview, setChangedAfterReview] = useState<ReadonlySet<string>>(new Set())
+  const [settlement, setSettlement] = useState<{ kept: number; changed: number } | null>(null)
+  const [discarded, setDiscarded] = useState<number | null>(null)
+  const [draftRefused, setDraftRefused] = useState<string | null>(null)
 
   function stopMonitor() {
     monitorRef.current?.controller.abort()
@@ -234,6 +253,15 @@ export function useExtraction({
     setDraftSaving(false)
     setDraftSaved(false)
     setSaving(false)
+    draftAcceptedRef.current = null
+    adoptedRunDraftRef.current = null
+    decisionsForRef.current = null
+    decidedOnRef.current = { extractionId: null, values: new Map() }
+    if (documentChanged || runDraft?.extractionId !== nextAttempt?.extractionId) setRunDraft(null)
+    setChangedAfterReview(new Set())
+    setSettlement(null)
+    setDraftRefused(null)
+    setDiscarded(null)
     if (documentChanged) {
       // Orphaned reads notice the missing monitor and drop their response.
       monitorRef.current = null
@@ -264,11 +292,19 @@ export function useExtraction({
         if (!immediate) await pollingDelay(signal)
         immediate = false
         if (!live()) return
+        const draftScope = draftSaveRef.current
+        const pendingAtRead = draftScope.pending
         const response = await readExtraction(monitor.extractionId, signal)
         if (!live()) return
         latest = response.extraction
         monitor.partial = retainFinished(monitor.partial ?? null, response.partial ?? null)
         monitor.unacknowledged = undefined
+        if (latest.executionStatus === 'RUNNING' && !monitor.draftSeen &&
+          draftSaveRef.current === draftScope && draftScope.writes === 0 && draftScope.pending === pendingAtRead) {
+          monitor.draftSeen = true
+          setRunDraft({ extractionId: latest.extractionId, version: response.reviewDraft?.version ?? 0,
+            decisions: [...(response.reviewDraft?.decisions ?? [])] })
+        }
         setAttempt(latest)
         setState(extractionStateFromAttempt(latest, monitor.partial))
       }
@@ -309,6 +345,7 @@ export function useExtraction({
     const monitor = monitorRef.current
     if (!monitor?.paused) return
     monitor.paused = false
+    monitor.draftSeen = false
     setMonitorError(null)
     void watch(monitor, attempt?.extractionId === monitor.extractionId ? attempt : null, true)
   }
@@ -338,15 +375,117 @@ export function useExtraction({
     attempt?.reviewedAt === null
   )
   const canAccept = canSave && everyRequiredTouched(reviewDecisions, touchedPaths)
+  // A record kei has finished can be decided on while the run goes on, as a draft (ADR 0016; §5.1).
+  const runningPartial = state.status === 'running' ? state.partial : null
+  const draftAvailable = Boolean(
+    attempt?.executionStatus === 'RUNNING' &&
+    attempt.sourceRepresentationRevisionId === reviewTarget?.sourceRepresentationId &&
+    occurrenceIdsByAnchor &&
+    runningPartial?.records.some((record) => record.state === 'finished'),
+  )
+  const reviewable = reviewAvailable || draftAvailable
 
+  // While the run reads: the draft adopted once from the server, then every record kei finishes adds its prepared
+  // decisions. A poll never overwrites a decision made on screen (plan Ruling 21).
+  useEffect(() => {
+    if (!draftAvailable || !attempt || !runningPartial || !occurrenceIdsByAnchor) return
+    let current = true
+    // Deferred, as the review load is, so the effect body schedules no state update.
+    void Promise.resolve().then(() => { if (current) mergeRunningDraft(attempt, runningPartial, occurrenceIdsByAnchor) })
+    return () => { current = false }
+    // mergeRunningDraft is redeclared each render and reads the draft through refs; runDraft is its one other input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftAvailable, attempt, runningPartial, occurrenceIdsByAnchor, runDraft])
+
+  function mergeRunningDraft(attempt: ExtractionAttempt, runningPartial: PartialResult, occurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>) {
+    const prepared = draftDecisionsFromPartial(runningPartial, occurrenceIdsByAnchor)
+    // A decision made after a reconnect GET began owns its pending write; read again after it settles.
+    if (decisionsForRef.current === attempt.extractionId && adoptedRunDraftRef.current !== runDraft &&
+      (draftSaveRef.current.writes > 0 || (runDraft?.version ?? 0) < draftSaveRef.current.version)) {
+      adoptedRunDraftRef.current = runDraft
+      if (monitorRef.current?.extractionId === attempt.extractionId) monitorRef.current.draftSeen = false
+    }
+    if (decisionsForRef.current !== attempt.extractionId || adoptedRunDraftRef.current !== runDraft) {
+      if (runDraft?.extractionId !== attempt.extractionId) return
+      const restored = recoverReviewDraft(attempt.extractionId, runDraft, prepared)
+      // A decision on a record the retained partial no longer shows stays in the draft; saves keep sending it.
+      const shown = new Set(prepared.map((decision) => resultPathKey(decision.resultPath)))
+      const decisions = [...restored.decisions, ...runDraft.decisions.filter((decision) => !shown.has(resultPathKey(decision.resultPath)))]
+      // A failed write still belongs to this run. Reconnect must not silently replace it.
+      const retainLocal = decisionsForRef.current === attempt.extractionId && Boolean(draftError)
+      const conflict = retainLocal ? draftSaveRef.current.version !== runDraft.version : restored.conflict
+      const adopted = retainLocal ? draftRef.current : { decisions, touched: restored.touchedPaths }
+      if (!retainLocal && decidedOnRef.current.extractionId === attempt.extractionId) {
+        const previous = new Map(draftRef.current.decisions.map((decision) => [resultPathKey(decision.resultPath), decision]))
+        for (const decision of adopted.decisions) {
+          const key = resultPathKey(decision.resultPath)
+          if (JSON.stringify(previous.get(key)) !== JSON.stringify(decision)) decidedOnRef.current.values.delete(key)
+        }
+      }
+      adoptedRunDraftRef.current = runDraft
+      decisionsForRef.current = attempt.extractionId
+      draftSaveRef.current = { version: retainLocal && conflict ? draftSaveRef.current.version : restored.version,
+        pending: Promise.resolve(), writes: 0, conflict }
+      setDraftError(conflict ? REVIEW_DRAFT_CONFLICT : null)
+      setDiscarded(null)
+      setDraftSaved(!conflict && !retainLocal && !restored.retry && runDraft.version > 0)
+      draftRef.current = adopted
+      draftAcceptedRef.current = { decisions, touched: restored.touchedPaths }
+      setReviewDecisions(adopted.decisions)
+      setTouchedPaths(adopted.touched)
+      if (!conflict && (retainLocal || restored.retry)) updateReview(adopted.decisions, adopted.touched)
+      return
+    }
+    const present = new Set(draftRef.current.decisions.map((decision) => resultPathKey(decision.resultPath)))
+    const added = prepared.filter((decision) => !present.has(resultPathKey(decision.resultPath)))
+    if (added.length === 0) return
+    const decisions = [...draftRef.current.decisions, ...added]
+    draftRef.current = { ...draftRef.current, decisions }
+    setReviewDecisions(decisions)
+  }
+
+  // Polling replaces RUNNING attempt objects; it must not cancel an explicit reload of the same Extraction.
+  const reviewAttempt = activeAttempt ? attempt?.extractionId : attempt
   useEffect(() => {
     const controller = new AbortController()
     const load = ++reviewLoadRef.current
     void Promise.resolve().then(async () => {
       if (reviewLoadRef.current !== load) return
       setReviewError(null)
+      const reloadRequested = reviewReloadRef.current !== reviewReload
+      reviewReloadRef.current = reviewReload
+      // Ordinary polls add records without replacing decisions. An explicit reload reads server authority.
+      if (attempt && isActive(attempt)) {
+        if (!reloadRequested) return
+        setReviewLoading(true)
+        try {
+          const response = await readExtraction(attempt.extractionId, controller.signal)
+          if (controller.signal.aborted || reviewLoadRef.current !== load) return
+          setDraftError(null)
+          decidedOnRef.current = { extractionId: null, values: new Map() }
+          if (response.extraction.executionStatus === 'RUNNING') {
+            setRunDraft({ extractionId: attempt.extractionId, version: response.reviewDraft?.version ?? 0,
+              decisions: [...(response.reviewDraft?.decisions ?? [])] })
+            setState((current) => current.status === 'running'
+              ? extractionStateFromAttempt(response.extraction, retainFinished(current.partial, response.partial ?? null)) : current)
+          } else {
+            setAttempt(response.extraction)
+            setState(extractionStateFromAttempt(response.extraction))
+          }
+        } catch (error) {
+          if (reviewLoadRef.current === load) setReviewError(error instanceof Error ? error.message : 'Loading the review failed.')
+        } finally {
+          if (reviewLoadRef.current === load) setReviewLoading(false)
+        }
+        return
+      }
       if (!reviewAvailable || !attempt) {
         setReviewLoading(false)
+        if (attempt && decisionsForRef.current === attempt.extractionId) {
+          // A run that stopped or failed has no result: its draft is never read again (§5.2).
+          decisionsForRef.current = null
+          setDiscarded(draftRef.current.touched.size)
+        }
         if (attempt?.reviewedAt) {
           forgetReviewDraft(attempt.extractionId)
           const decisions = attempt.reviewDecisions.map(pendingDecision)
@@ -371,9 +510,13 @@ export function useExtraction({
       }
       setReviewLoading(true)
       setReviewReadFor('')
-      setDraftSaved(false)
-      setReviewDecisions([])
-      setTouchedPaths(new Set())
+      const fromRun = decisionsForRef.current === attempt.extractionId
+      // Settlement keeps the run's decisions on screen while the settled review loads: nothing moves (§5.3).
+      if (!fromRun) {
+        setDraftSaved(false)
+        setReviewDecisions([])
+        setTouchedPaths(new Set())
+      }
       try {
         const prepared = await readExtraction(
           attempt.extractionId,
@@ -394,7 +537,19 @@ export function useExtraction({
           )
           return
         }
-        const recovered = recoverReviewDraft(attempt.extractionId, prepared.reviewDraft, prepared.pendingReviewDecisions ?? [])
+        const restored = recoverReviewDraft(attempt.extractionId, prepared.reviewDraft, prepared.pendingReviewDecisions ?? [])
+        const dropped = prepared.reviewDraft?.dropped ?? []
+        const decidedOn = decidedOnRef.current.extractionId === attempt.extractionId ? decidedOnRef.current.values : new Map<string, unknown>()
+        const reconciled = fromRun || dropped.length > 0
+          ? reconcileAtSettlement({ recovered: restored, prepared: prepared.pendingReviewDecisions ?? [], result: prepared.extraction.resultPayload,
+              decidedOn, dropped })
+          : null
+        const recovered = reconciled ? { ...restored, decisions: reconciled.decisions, touchedPaths: reconciled.touchedPaths } : restored
+        decisionsForRef.current = attempt.extractionId
+        if (reconciled) {
+          setChangedAfterReview(reconciled.changed)
+          if (fromRun) setSettlement({ kept: reconciled.kept, changed: reconciled.changed.size })
+        }
         setReviewReadFor(attempt.extractionId)
         draftSaveRef.current = { version: recovered.version, pending: Promise.resolve(), writes: 0, conflict: recovered.conflict }
         // Version-zero drafts have not been acknowledged by the server.
@@ -419,7 +574,9 @@ export function useExtraction({
       controller.abort()
       reviewLoadRef.current += 1
     }
-  }, [attempt, reviewAvailable, documentKey, reviewReload])
+    // The active attempt identity, rather than each poll object, owns a running reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewAttempt, reviewAvailable, documentKey, reviewReload])
 
   /** Cancels the acknowledged active attempt; before the server acknowledges a run there is nothing to cancel. */
   async function requestCancellation() {
@@ -572,13 +729,25 @@ export function useExtraction({
     setDraftSaving(true)
     setDraftSaved(false)
     setDraftError(null)
+    const previous = draftAcceptedRef.current
     const write = saveExtractionReviewDraft(attempt.extractionId, saved, scope.version)
     scope.pending = write.then((result) => {
       scope.version = result.version
-      if (draftSaveRef.current === scope) setDraftSaved(true)
+      if (draftSaveRef.current === scope) {
+        draftAcceptedRef.current = { decisions, touched }
+        setDraftSaved(true)
+      }
     })
     void scope.pending.catch((error: unknown) => {
       if (draftSaveRef.current !== scope) return
+      if (isActive(attempt) && previous && error instanceof ApiRequestError && error.code === 'invalid_review') {
+        // A running draft the server refused (an anchor not in the pinned document): back to the last accepted draft.
+        draftRef.current = previous
+        setReviewDecisions(previous.decisions)
+        setTouchedPaths(previous.touched)
+        setDraftRefused('This value can’t be reviewed: its Evidence is not in this document.')
+        return
+      }
       const message = error instanceof Error ? error.message : 'Draft could not be saved.'
       // Retrying a stale version can never succeed; only reloading server state can.
       if (message === REVIEW_DRAFT_CONFLICT) scope.conflict = true
@@ -596,7 +765,7 @@ export function useExtraction({
     reviewedEvidence: ReviewDecisionInput['reviewedEvidence'] = null,
     touch = true,
   ): { last: boolean } {
-    if (saveScopeRef.current.saving || !reviewAvailable || reviewLoading || attempt?.reviewedAt) return { last: false }
+    if (saveScopeRef.current.saving || !reviewable || reviewLoading || attempt?.reviewedAt) return { last: false }
     const key = resultPathKey(resultPath)
     if (!reviewDecisions.some((decision) => resultPathKey(decision.resultPath) === key)) return { last: false }
     const touched = new Set(draftRef.current.touched)
@@ -609,9 +778,17 @@ export function useExtraction({
       delete (next as { reviewedEvidence?: unknown }).reviewedEvidence
       return next
     })
+    if (!draftAcceptedRef.current) draftAcceptedRef.current = draftRef.current
+    setDraftRefused(null)
+    if (draftAvailable && attempt && runningPartial) {
+      if (decidedOnRef.current.extractionId !== attempt.extractionId)
+        decidedOnRef.current = { extractionId: attempt.extractionId, values: new Map() }
+      decidedOnRef.current.values.set(key, partialValueAt(runningPartial, resultPath))
+    }
     updateReview(decisions, touched)
     // The decision that leaves nothing to check saves the review; the tab says so before it and calls accept (§6).
-    return { last: touch && everyRequiredTouched(decisions, touched) }
+    // While the run goes on nothing is the last: the review cannot be saved until it settles (§5.1).
+    return { last: touch && !draftAvailable && everyRequiredTouched(decisions, touched) }
   }
 
   // Marks every field the researcher hasn't explicitly acted on as touched,
@@ -638,6 +815,18 @@ export function useExtraction({
     reconnect,
     review: {
       available: reviewAvailable,
+      /** Decisions may be drafted on the records kei has finished while the run goes on (ADR 0016). */
+      draftAvailable,
+      /** Per decision made during the run in this session, the value it was made on (§5.3). */
+      decidedOn: decidedOnRef.current.extractionId === attempt?.extractionId ? decidedOnRef.current.values as ReadonlyMap<string, unknown> : new Map<string, unknown>(),
+      /** Result paths whose run-time decision was not kept at settlement: "changed after you reviewed it". */
+      changedAfterReview,
+      /** Set once at the terminal read of a run with drafted decisions: how many were kept, how many changed. */
+      settlement,
+      /** Decisions discarded with a run that stopped or failed; null when there were none to discard. */
+      discarded,
+      /** The server refused a running draft: the decision was reverted. */
+      draftRefused,
       canAccept,
       saving,
       loading: reviewLoading,

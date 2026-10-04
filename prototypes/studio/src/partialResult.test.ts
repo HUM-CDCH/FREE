@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PartialRecord, PartialResult, PartialValueState } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import { partialHeadline, partialValueState, retainFinished } from './partialResult'
+import { draftDecisionsFromPartial, partialHeadline, partialValueAt, partialValueState, retainFinished } from './partialResult'
 
 const link = (index: number, field = 'site'): EvidenceLink => ({
   resultPath: ['records', index, field], evidenceAnchorId: 'a_p1_s0',
@@ -90,10 +90,29 @@ describe('retainFinished', () => {
 describe('partialHeadline', () => {
   it('names the server counts, the start page when known, and Article contexts', () => {
     const shown = { ...partial([record(0, 'finished')]), finished: 2, discovered: 5 }
-    expect(partialHeadline(shown)).toBe('Reading records · 2 of 5 · started at page 1')
+    expect(partialHeadline(shown)).toBe('Reading records · 2 of 5 · from page 1')
     expect(partialHeadline({ ...shown, startedAtPage: null })).toBe('Reading records · 2 of 5')
     expect(partialHeadline({ ...shown, strategy: 'ARTICLE', document: { contextsAnswered: 1, contexts: 3, groundingBatches: 0 } }))
       .toBe('Reading the document · 1 of 3 contexts')
     expect(partialHeadline({ ...shown, strategy: 'ARTICLE' })).toBe('Reading the document')
+  })
+})
+
+describe('draft decisions on a running Extraction (results review redesign §5.1)', () => {
+  const occurrences = new Map([['a_p1_s0', ['o-2', 'o-1']]])
+
+  it('prepares one approval per link of a finished record whose anchor the pinned document has, naming every occurrence', () => {
+    const shown = partial([record(0, 'finished', [link(0), { resultPath: ['records', 0, 'gone'], evidenceAnchorId: 'elsewhere' }]),
+      record(1, 'checking', [link(1)]), record(2, 'reading')])
+    expect(draftDecisionsFromPartial(shown, occurrences)).toEqual([{
+      resultPath: ['records', 0, 'site'], evidenceAnchorId: 'a_p1_s0', reviewedOccurrenceIds: ['o-2', 'o-1'],
+      action: 'APPROVED', reviewedValue: null,
+    }])
+  })
+
+  it('reads the value a decision is made on from its record', () => {
+    const shown = partial([record(0, 'finished', [link(0)])])
+    expect(partialValueAt(shown, ['records', 0, 'site'])).toBe('Site 0')
+    expect(partialValueAt(shown, ['records', 4, 'site'])).toBeUndefined()
   })
 })

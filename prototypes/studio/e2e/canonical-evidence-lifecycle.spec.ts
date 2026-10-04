@@ -320,11 +320,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   const stopExtraction = page.getByRole('button', { name: /■ Stop extraction/ })
   await expect(stopExtraction).toBeVisible({ timeout: 20_000 })
   await expect.poll(() => kei.lastStartPage).toBe(2)
-  await expect(stopExtraction).toContainText(strategy === 'CATALOG' ? '1 of 3' : '0 of 1', { timeout: 10_000 })
   await page.getByRole('tab', { name: /Results/ }).click()
   const progressStatus = page.getByRole('status').filter({ hasText: /^Reading/ })
   await expect(progressStatus).toHaveText(strategy === 'CATALOG'
-    ? 'Reading records · 1 of 3 · started at page 2' : 'Reading the document · 1 of 2 contexts')
+    ? 'Reading records · 1 of 3 · from page 2' : 'Reading the document · 1 of 2 contexts')
   await expect(page.getByRole('tab', { name: /Results/ })).toContainText(strategy === 'CATALOG' ? '1 of 3' : '0 of 1')
   const partialView = page.getByRole('region', { name: 'Extraction in progress' })
   await expect(partialView.getByRole('group', { name: /^Review / })).toHaveCount(0)
