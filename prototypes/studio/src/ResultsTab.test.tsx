@@ -1576,13 +1576,19 @@ describe('ResultsTab one by one (§4)', () => {
     expect(document.activeElement).toBe(rowOf('year'))
   })
 
-  it('keeps heading focus when entry arrives before passive effects from the list', () => {
+  it('keeps heading focus and the saved scroll position when entry precedes list effects', () => {
     function EnterBoundary() {
-      useLayoutEffect(() => { screen.getByRole('button', { name: /One by one/ }).click() }, [])
+      useLayoutEffect(() => {
+        const scroller = document.querySelector('.overflow-y-auto')!
+        scroller.scrollTop = 137
+        screen.getByRole('button', { name: /One by one/ }).click()
+      }, [])
       return <Reviewing attempt={three} initial={initial} spy={vi.fn()} pinnedSchema={schema} />
     }
     render(<EnterBoundary />)
     expect(document.activeElement).toBe(heading())
+    key('Escape')
+    expect(rowOf('site').closest('.overflow-y-auto')!.scrollTop).toBe(137)
   })
 
   it('when the record runs out, says so and offers the list', () => {
