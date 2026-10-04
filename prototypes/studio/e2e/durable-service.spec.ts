@@ -170,13 +170,13 @@ test('an ungrounded UI correction guides a later worker with immutable captured 
     const historyUrl=`/api/extractions/${extractionB}/durable/history`
     const started=await (await page.request.get(historyUrl)).json()
     const capture=started.captures.find((each:{request:unknown})=>each.request)
+    const providerRequest=service.modelRequests()[requestsBefore]
+    await writeFile(info.outputPath('guidance-started-request.json'),JSON.stringify({correction,capture,providerRequest},null,2))
     expect(capture.feedbackVersion).toBe(correction.feedbackVersion)
     expect(capture.request.examples).toContainEqual(correction.candidate)
     expect(capture.request.body.system).toContain('Researcher guidance sentinel')
     expect(capture.request.body.user).not.toContain('Researcher guidance sentinel')
-    const providerRequest=service.modelRequests()[requestsBefore]
     expect(providerRequest).toEqual(capture.request.body.httpRequest)
-    await writeFile(info.outputPath('guidance-started-request.json'),JSON.stringify({correction,capture,providerRequest},null,2))
 
     // A later project-guidance edit affects future captures, never this started call.
     await page.goto(`/projects/${project}/documents/${sourceB.sourceDocumentId}?extractionId=${extractionB}`)
