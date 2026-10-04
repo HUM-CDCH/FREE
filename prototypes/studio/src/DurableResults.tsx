@@ -22,13 +22,13 @@ import {savedCorrectionHref,savedReviewCut} from './durableReviewLinks'
 
 type Value=DurablePage['values'][number]
 const inputClass='w-full rounded-md border border-line bg-surface px-3 py-2 text-secondary text-ink focus-visible:outline-accent'
-function ValueReview({id,projectId,sourceDocumentId,value,snapshotVersion,document,onSaved,onClose,onEvidence,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,readOnly=false}:{
+function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,onSaved,onClose,onEvidence,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,readOnly=false}:{
   id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;onSaved:()=>void;onClose:()=>void;
   onEvidence:(id:string,occurrenceIds?:readonly string[])=>void;focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
   queue:ReturnType<typeof reviewQueue>;readOnly?:boolean;
   onFocus:()=>void;
   keyboardRoot:RefObject<HTMLDivElement|null>;
-  projectId:string;sourceDocumentId:string;
+  projectId:string;sourceDocumentId:string;article:boolean;
 }) {
   const [state,send]=useMachine(durableReviewMachine,{input:{extractionId:id,value,snapshotVersion}})
   const [editing,setEditing]=useState(false)
@@ -71,7 +71,7 @@ function ValueReview({id,projectId,sourceDocumentId,value,snapshotVersion,docume
   })
   return <section aria-label={`Review ${value.node.name}`} className="space-y-2">
     <fieldset disabled={busy||readOnly} className="m-0 min-w-0 border-0 p-0">
-      {focus?<ReviewFocus {...common} current={row} items={position?.items??[]} position={position}
+      {focus?<ReviewFocus {...common} article={article} current={row} items={position?.items??[]} position={position}
         recordLabel={`Record ${position?.record??1}`} label={`Snapshot ${snapshotVersion}`} upNext={queue.filter(item=>item.key!==value.id&&item.row.kind==='to-check').slice(0,3)}
         end={null} headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo} onContinue={()=>onNext()} onBack={onClose}/>
         :<ReviewRow {...common} row={row} selected pinned={false} onSelect={onClose} canDecide={!busy&&!readOnly&&Boolean(row.retained?.reviewable)}
@@ -314,7 +314,7 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
       {review&&<div className="space-y-2 border-b border-line pb-3">
         {(review.version!==page.snapshotVersion||review.feedbackVersion!==page.feedbackVersion)&&<p role="status" className="text-secondary">Your open review stays on results {review.version} and decisions {review.feedbackVersion}. Select a value below to review its displayed version.</p>}
-        <ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} value={review.value} snapshotVersion={review.version} document={document} onSaved={saved}
+        <ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={attempt.strategy==='ARTICLE'} value={review.value} snapshotVersion={review.version} document={document} onSaved={saved}
           onClose={()=>{setReview(null);setFocus(false)}} onEvidence={onEvidence} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot} readOnly={readOnly}/>
       </div>}
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values on this page. New saved work can be reviewed when it arrives.</p>}

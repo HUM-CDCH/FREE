@@ -483,6 +483,11 @@ export function useExtraction({
       setReviewError(null)
       const reloadRequested = reviewReloadRef.current !== reviewReload
       reviewReloadRef.current = reviewReload
+      // Native corrections and their explicit reload belong to the durable review actor.
+      if (attempt?.durable) {
+        setReviewLoading(false)
+        return
+      }
       // Ordinary polls add records without replacing decisions. An explicit reload reads server authority.
       if (attempt && isActive(attempt)) {
         if (!reloadRequested) return

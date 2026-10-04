@@ -122,6 +122,19 @@ beforeEach(() => {
 })
 
 describe('useExtraction server-owned lifecycle', () => {
+  it.each(['QUEUED','RUNNING','PAUSING','PAUSED','STOPPING','STOPPED','FAILED','COMPLETED'] as const)(
+    'leaves native %s review reads and reloads to the durable actor', async (executionStatus) => {
+      const native=jobAttempt({durable:true,executionStatus})
+      const {result}=renderHook(()=>useExtraction(options(native)))
+      await act(async()=>{})
+      act(()=>result.current.review.reload())
+      await act(async()=>{})
+      expect(api.readExtraction).not.toHaveBeenCalled()
+      expect(api.saveExtractionReviewDraft).not.toHaveBeenCalled()
+      expect(result.current.review.loading).toBe(false)
+    },
+  )
+
   it('switches native Extractions on the same source and fences the previous observer', () => {
     const first = jobAttempt({durable:true,executionStatus:'PAUSING'})
     const second = jobAttempt({durable:true,extractionId:'55555555-5555-4555-8555-555555555555',executionStatus:'PAUSED'})
