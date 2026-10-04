@@ -115,6 +115,97 @@ for(const method of methods) {
   })
 }
 
+test('an ungrounded UI correction guides a later worker with immutable captured attribution',async({page},info)=>{
+  test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'Guidance attribution uses the counted provider hold.')
+  const service=await startRealService(info.outputPath('durable-guidance-worker.log'))
+  try {
+    await loginResearcher(page,randomUUID())
+    const headers={Origin:E2E_ORIGIN}
+    const created=await page.request.post('/api/project-contexts',{headers,data:{name:'Native correction guidance'}})
+    expect(created.status()).toBe(201)
+    const project=(await created.json()).projectContext.projectContextId as string
+    const sourceA=await settle(page,project,await admit(page,project,cataloguePdf(),'guidance-a.pdf'),180_000)
+    expect(sourceA.status).toBe('succeeded')
+    if(sourceA.status!=='succeeded')throw new Error('Guidance source A was not published.')
+    const extractionA=await seedNative(page,project,sourceA.sourceDocumentId,'article')
+    const complete=async(id:string)=>expect.poll(async()=>{
+      const head=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
+      if(head.status==='FAILED')throw new Error(JSON.stringify(head.failure))
+      return head.status
+    },{timeout:180_000}).toBe('COMPLETED')
+    await service.reconcileDurable();await complete(extractionA)
+    const headA=await (await page.request.get(`/api/extractions/${extractionA}/durable`)).json()
+    const savedA=await (await page.request.get(`/api/extractions/${extractionA}/durable/values`)).json()
+    const value=savedA.values.find((each:{fieldId:string})=>each.fieldId==='sites')
+    expect(value).toBeDefined()
+    const corrected=[{site:'Researcher guidance sentinel',finds:'pottery',year:1901}]
+    await page.goto(`/projects/${project}/documents/${sourceA.sourceDocumentId}?extractionId=${extractionA}&value=${encodeURIComponent(value.id)}`)
+    await page.locator('#rail-tab-results').click()
+    const review=page.getByRole('region',{name:'Review sites',exact:true})
+    await review.getByRole('button',{name:'Edit',exact:true}).click()
+    await review.getByRole('textbox',{name:'Reviewed value'}).fill(JSON.stringify(corrected))
+    await review.getByRole('button',{name:'Save edit',exact:true}).click()
+    const valueUrl=`/api/extractions/${extractionA}/durable/values/${encodeURIComponent(value.id)}`
+    await expect.poll(async()=>(await (await page.request.get(valueUrl)).json()).values[0].correction?.decision.value).toEqual(corrected)
+    const correction=(await (await page.request.get(valueUrl)).json()).values[0].correction
+    expect(correction.decision.evidence).toEqual([])
+    expect(correction.candidate.grounded).toBe(false)
+    expect(correction.included).toBe(true)
+    expect(JSON.parse(correction.candidate.sourceContext)).toEqual({sourceRevisionId:headA.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue})
+
+    // Distinct source bytes publish a new source pin while preserving field meaning.
+    const sourceB=await settle(page,project,await admit(page,project,Buffer.concat([cataloguePdf(),Buffer.from('\n% guidance source B\n')]),'guidance-b.pdf'),180_000)
+    expect(sourceB.status).toBe('succeeded')
+    if(sourceB.status!=='succeeded')throw new Error('Guidance source B was not published.')
+    expect(sourceB.sourceDocumentId).not.toBe(sourceA.sourceDocumentId)
+    service.holdNextExtraction()
+    const extractionB=await seedNative(page,project,sourceB.sourceDocumentId,'article')
+    const requestsBefore=service.modelRequests().length
+    await service.reconcileDurable()
+    await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
+    const historyUrl=`/api/extractions/${extractionB}/durable/history`
+    const started=await (await page.request.get(historyUrl)).json()
+    const capture=started.captures.find((each:{request:unknown})=>each.request)
+    expect(capture.feedbackVersion).toBe(correction.feedbackVersion)
+    expect(capture.request.examples).toContainEqual(correction.candidate)
+    expect(capture.request.body.system).toContain('Researcher guidance sentinel')
+    expect(capture.request.body.user).not.toContain('Researcher guidance sentinel')
+    const providerRequest=service.modelRequests()[requestsBefore]
+    expect(providerRequest).toEqual(capture.request.body.httpRequest)
+    await writeFile(info.outputPath('guidance-started-request.json'),JSON.stringify({correction,capture,providerRequest},null,2))
+
+    // A later project-guidance edit affects future captures, never this started call.
+    await page.goto(`/projects/${project}/documents/${sourceB.sourceDocumentId}?extractionId=${extractionB}`)
+    await page.locator('#rail-tab-results').click()
+    await page.getByText(/^Project guidance/).click()
+    await expect(page.getByText(/ungrounded · compatible for this target/)).toBeVisible()
+    await page.getByRole('button',{name:'Exclude from guidance',exact:true}).click()
+    await expect(page.getByRole('button',{name:'Include in guidance',exact:true})).toBeVisible()
+    const guidance=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
+    expect(guidance.find((each:{active:boolean})=>each.active)).toMatchObject({revision:2,included:false,candidate:{value:corrected,grounded:false}})
+    expect(guidance.find((each:{id:string})=>each.id===correction.id).active).toBe(false)
+    service.releaseExtraction();await complete(extractionB)
+    const finished=await (await page.request.get(historyUrl)).json()
+    expect(finished.captures.find((each:{id:string})=>each.id===capture.id)).toMatchObject({feedbackVersion:capture.feedbackVersion,request:capture.request})
+    expect(finished.captures.find((each:{id:string})=>each.id===capture.id).outputDigest).toBeTruthy()
+    for(const later of finished.captures.filter((each:{id:string})=>each.id!==capture.id)) {
+      expect(later.request.examples).not.toContainEqual(correction.candidate)
+      expect(later.request.body.system).not.toContain('Researcher guidance sentinel')
+    }
+    const retainedA=(await (await page.request.get(valueUrl)).json()).values[0]
+    expect(retainedA.correction.decision.value).toEqual(corrected)
+    expect(retainedA.correction.included).toBe(false)
+    await page.getByRole('button',{name:'More result actions'}).click()
+    const download=page.waitForEvent('download')
+    await page.getByRole('menuitem',{name:'Export CSV bundle'}).click()
+    const files=unzipSync(new Uint8Array(await readFile((await (await download).path())!)))
+    const exported=JSON.parse(strFromU8(files['snapshot.json']))
+    expect(exported.history.captures.find((each:{id:string})=>each.id===capture.id).request).toEqual(capture.request)
+    await writeFile(info.outputPath('guidance-export-snapshot.json'),JSON.stringify(exported,null,2))
+    await page.screenshot({path:info.outputPath('native-guidance-attribution.png'),fullPage:true})
+  } finally {service.releaseExtraction();await service.close()}
+})
+
 test('deleting a project fences its held native worker and retains another project source',async({page},info)=>{
   test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'Deletion uses the counted provider hold.')
   const service=await startRealService(info.outputPath('durable-deletion-worker.log'))

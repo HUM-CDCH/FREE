@@ -71,6 +71,7 @@ const DOCUMENT_INSTRUCTION = 'The document is the one object to extract:'
  *  records it as not completed (`missing_claim`). */
 async function modelServer(options: { unansweredClaimValue?: string } = {}) {
   let calls = 0
+  const requests: unknown[] = []
   let holdNext = false
   let releaseHeld: (() => void) | null = null
   let held: Promise<void> | null = null
@@ -90,6 +91,7 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
         response.end(JSON.stringify({ count: counted, max_model_len: 16384 }))
         return
       }
+      requests.push(body)
       if (holdNext) {
         holdNext = false
         held = new Promise<void>((resolve) => { releaseHeld = resolve })
@@ -173,6 +175,7 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
   return {
     url: `http://127.0.0.1:${address.port}/v1/chat/completions`,
     count: () => calls,
+    requests: () => structuredClone(requests),
     holdNextExtraction: () => { holdNext = true },
     extractionHeld: () => held !== null,
     releaseExtraction: () => { releaseHeld?.(); holdNext = false },
@@ -315,6 +318,7 @@ export async function startRealService(logFile: string,
     runs,
     model: env.KEI_EXTRACT_MODEL,
     modelCalls: () => fixture?.count() ?? null,
+    modelRequests: () => fixture?.requests() ?? [],
     holdNextExtraction: () => fixture?.holdNextExtraction(),
     extractionHeld: () => fixture?.extractionHeld() ?? false,
     releaseExtraction: () => fixture?.releaseExtraction(),
