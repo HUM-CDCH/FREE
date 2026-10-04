@@ -140,6 +140,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   const headingFocus = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const listScroll = useRef<number | null>(null)
+  const restoreListScroll = useRef(false)
   const { toast, showToast, dismissToast, holdToast } = useToast()
   const rowRefs = useRef(new Map<string, HTMLButtonElement>())
   // The row a decision, an undo or a cancelled edit returns focus to, after the render that shows it (§10).
@@ -157,7 +158,11 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
       }
       return
     }
-    if (listScroll.current !== null && scrollRef.current) { scrollRef.current.scrollTop = listScroll.current; listScroll.current = null }
+    if (restoreListScroll.current && scrollRef.current) {
+      scrollRef.current.scrollTop = listScroll.current ?? 0
+      restoreListScroll.current = false
+      listScroll.current = null
+    }
     const row = focusRef.current === null ? null : rowRefs.current.get(focusRef.current)
     if (row?.isConnected) {
       row.focus()
@@ -247,6 +252,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
     if (!readableRecords || reviewed) return
     const start = isOpenKey(key) ? key : isOpenKey(selectedKey) ? selectedKey : nextToCheck(queue, null)
     listScroll.current = scrollRef.current?.scrollTop ?? 0
+    restoreListScroll.current = false
     setOneByOne(true)
     lastCurrentKey.current = null
     setLastRecord(null)
@@ -267,7 +273,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
       setSelectedKey(key)
       setFocusKey(key)
     }
-    if (listScroll.current === null) listScroll.current = 0
+    restoreListScroll.current = true
   }
   useEffect(() => { oneByOneRef.current = oneByOne; enterRef.current = enter })
 
