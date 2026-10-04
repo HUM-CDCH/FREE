@@ -165,6 +165,8 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
 
   // The live region and the rail's notices for the run: discovery, records read, settlement, a stopped run (§5.2, §5.3).
   const seen = useRef({ discovered: 0, finished: new Set<number>() })
+  // On one-by-one's caught-up card every record read joins the queue, and says so (§4.5).
+  const caughtUpRef = useRef(false)
   useEffect(() => {
     if (!partial) return
     const was = seen.current
@@ -174,7 +176,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
     const read = partial.records.filter((record) => record.state === 'finished' && !was.finished.has(record.index))
     for (const record of read) {
       const label = record.label ?? `Record ${record.index + 1}`
-      setAnnounce(was.finished.size === 0 ? `${label} read: its values can be reviewed now.` : `${label} read.`)
+      setAnnounce(was.finished.size === 0 || caughtUpRef.current ? `${label} read: its values can be reviewed now.` : `${label} read.`)
       was.finished.add(record.index)
     }
   }, [partial])
@@ -207,6 +209,7 @@ function ResultsTab({ controller, runUnavailableReason = null, schemaReady, sour
   const queue = useMemo(() => model ? reviewQueue(model) : [], [model])
   const currentItem = oneByOne ? queue.find((item) => item.key === currentKey) ?? null : null
   const readableRecords = model?.records.some((record) => record.state === 'finished') ?? false
+  useEffect(() => { caughtUpRef.current = oneByOne && !currentItem })
   // The document follows the current value (§4.3, §7.3); the dimming lasts as long as one-by-one.
   const currentLink = currentItem?.row.link ?? null
   // Once per current value: a re-render (a page the researcher scrolled to, a new callback) never pulls the PDF back.
