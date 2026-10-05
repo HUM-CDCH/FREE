@@ -172,7 +172,7 @@ A Researcher Account's saved choices, per Extraction Strategy, of how future Ext
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:
-What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (legacy Catalog only), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. The method of each producing input selection never changes after its admission; a durable interactive Extraction may adopt another immutable selection at a paused boundary. Execution reads its selected pinned method; Extraction details show it beside the options and protocol versions the Parsing Service reports for the run. Equal methods do not promise identical model output across runtime revisions.
+What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (legacy Catalog only), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. The method of each producing input selection never changes after its admission; a durable interactive Extraction may adopt another immutable selection at a paused boundary. Execution reads its selected pinned method; Extraction details show the requested method beside the effective models, options and protocol versions the Parsing Service captured for that selection. Equal methods do not promise identical model output across runtime revisions.
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:

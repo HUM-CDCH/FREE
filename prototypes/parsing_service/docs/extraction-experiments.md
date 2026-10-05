@@ -1,9 +1,11 @@
 # Extraction stages and controlled experiments
 
-The serving entrypoint is `kei_exp.kie.extract.run.extract`. It reads one verified
-canonical generation, checks strategy settings, calls the stages, and assembles
-one evidence-bearing artifact. DBOS still owns scheduling and cancellation;
-the experiment runner calls this same extraction entrypoint directly.
+Production runs `extractDurableV1`: its planner reads one verified canonical
+generation, checks pinned strategy settings and calls `run.dispatch` to assemble
+evidence-bearing values. Each model call is captured and checkpointed separately,
+and retained snapshots are published through restricted coordination routines.
+The experiment runner calls the same strategy implementations through
+`kei_exp.kie.extract.run.extract`, retaining its result payload locally.
 
 ```mermaid
 flowchart LR
@@ -40,7 +42,7 @@ flowchart LR
 | `acceptance.py` | Decide, without a model, whether a recipe Catalog candidate is accepted, proposed or rejected: its value typed, its quote in the entry, a recipe key introducing it; the candidate reply schemas. |
 | `windows.py` | Cut an oversized recipe Catalog entry into consecutive windows whose request fits the budget, with optional one-line overlap. |
 | `catalog_result.py` | Shape recipe Catalog outcomes into records, evidence links (table cells, glossary normalization) and review items. |
-| `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; all three share one call shape. Publish the artifact. |
+| `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; the strategies share one call shape. Return the assembled result. |
 | `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. Never imported by serving code. |
 
 These are ordinary Python functions. There is no plugin graph or separate
@@ -49,24 +51,23 @@ identities recur across sections; Catalog entries own contiguous source spans.
 
 ## Pipeline map
 
-How one production Extraction runs, from the pinned request to the result
-Studio accepts. Studio owns Schema Suggestion and Interaction model calls; this
-service owns every Extraction model call and grounding. Studio pins the Schema
-Revision and Source Representation Revision it admitted; the request carries
-that schema and the parse generation, and nothing below substitutes a newer one.
+How one production Extraction runs, from its pinned input selection to the saved
+values Studio reads. Studio owns Schema Suggestion and Interaction model calls;
+this service owns every Extraction model call and grounding. Each immutable
+input selection pins its Schema Revision, Source Representation Revision and
+method; later calls never substitute a newer revision for those producing inputs.
 
 ### Admission, source and publication
 
 | Step | Owner |
 | --- | --- |
-| Pinned request | Studio's [`keiExtractRequest`](../../../packages/extraction/src/workflows.ts) sends the pinned executable schema, options and parse generation through [`KeiHandoff`](../../../packages/extraction/src/kei-handoff.ts) as the portable input of the `extract` workflow. |
-| Durable step | [`extract_workflow`/`extract_run`](../src/kei_exp/workflows/extract.py): the one `extract_run` step requires a complete manifest, validates `run.ExtractRequest` (an unservable model choice or unknown recipe is refused by `run.Options` before any call), builds the run's clients with `models.chats_for`, checks cancellation, extracts, checks cancellation again and publishes. Its checkpoint is `ExtractOk` (identities, generation, artifact digest, models), never source text, prompts or replies. There is no per-record or per-call checkpoint. |
-| Canonical input | [`run.extract`](../src/kei_exp/kie/extract/run.py) loads verified canonical `Evidence`/`Passage`s with [`passages.load`](../src/kei_exp/kie/passages.py), refuses a stale generation (`StaleGeneration`) before any model or tokenizer request, and dispatches: `options.unified` to `unified.extract` (with the extraction ID its records are published under), a recipe to `grounded.extract`, `article` to `article.extract`, otherwise `catalog.extract`. |
-| Version-1 artifact | [`assembly.artifact`](../src/kei_exp/kie/extract/assembly.py) builds Article and generic Catalog's artifact: it merges records (`stages.merge`), lists ungrounded values, serializes `Link`, `Issue` and `Call`, and computes `fingerprint`; `article.extract` adds its inventory and method fields. |
-| Recipe Catalog artifact | [`grounded.extract_grounded`](../src/kei_exp/kie/extract/grounded.py) constructs the version-2 body; `grounded.extract` adds the run and generation identity, schema, options, model identities and fingerprint. |
-| Unified Catalog artifact | [`unified.extract`](../src/kei_exp/kie/extract/unified.py) publishes `catalog-execution.json` (pins and each stage's resolved budget) before any model call and `catalog-discovery.json` (entries, source ledger, windows and their calls) before entry calls, and each cleanly finished entry's work as `catalog-entry-<n>.v<version>.json`, all write-once beside the result; a re-executed step validates and reuses them (asking only for unfinished entries), and refuses budgets the served context no longer fits (`budget_refused`). Its version-3 artifact embeds both with their canonical digests. |
-| Publication | `run.publish_extraction` writes `extractions/<id>/result.json` by rename, only after `extract_run`'s final forced cancellation check. |
-| Studio acceptance | [`runExtractionWorkflow`](../../../packages/extraction/src/workflows.ts) reads the artifact, compares its digest with `ExtractOk`, and [`acceptKeiArtifact`](../../../packages/extraction/src/kei-artifact.ts) validates its shape, requires the requested run, generation, strategy, schema, recipe and model choice, maps each Evidence link to its anchor ID and verifies table-cell anchors against the pinned Source Representation before the Extraction settles. |
+| Pinned selection and dispatch | Studio's [`initializeDurableExtraction`](../../../packages/extraction/src/durable-repository.ts) stores the immutable executable schema, method and source pins. Its reconciler dispatches `extractDurableV1` with only protocol, Extraction ID and attempt ID; the worker reads the selection through restricted [`coordination`](../src/kei_exp/workflows/coordination.py) routines. |
+| Effective inputs | [`effective` / `plan_next`](../src/kei_exp/workflows/durable_extract.py) validates `run.ExtractRequest`, resolves and saves effective model routes, options and protocol versions for that selection, then reuses those captured inputs on recovery. An unservable model choice or unknown recipe is refused before a new provider call. |
+| Canonical input | `plan_next` loads verified canonical `Evidence`/`Passage`s with [`passages.load`](../src/kei_exp/kie/passages.py) and refuses a generation different from the source pin. [`run.dispatch`](../src/kei_exp/kie/extract/run.py) chooses unified Catalog, recipe Catalog, Article or generic Catalog from the pinned options. |
+| Captured calls | [`CapturePlanner`](../src/kei_exp/kie/extract/durable.py) reserves exact model requests and correction context before execution. [`extractionCallV1` / `invoke_capture`](../src/kei_exp/workflows/durable_extract.py) durably saves each response before acknowledgement. Recovery and unchanged-input Retry reuse committed successful outputs; failed responses remain attempt-specific history. |
+| Result assembly | [`assembly.artifact`](../src/kei_exp/kie/extract/assembly.py), [`grounded.extract`](../src/kei_exp/kie/extract/grounded.py) and [`unified.extract`](../src/kei_exp/kie/extract/unified.py) assemble the version-1, version-2 and version-3 internal results, including values, Evidence and diagnostics. Unified execution/discovery records and entry work are assembled in memory; deleted stage files are not checkpoints. |
+| Retained publication | [`retained.publish_values` / `publish_final`](../src/kei_exp/kie/extract/retained.py) validate typed values, bind stable record/field identities, retain producing selections and producer Evidence, and call `publish_snapshot`. [`publish_result`](../src/kei_exp/workflows/durable_extract.py) completes publication before the attempt's acknowledgement. Nothing publishes an extraction result beside a parse run. |
+| Studio read and review | The [`durable repository`](../../../packages/extraction/src/durable-repository.ts) reads fixed snapshots and numbered correction versions. [`kei-evidence`](../../../packages/extraction/src/kei-evidence.ts) projects producer Evidence against the pinned Source Representation; corrections and finalization use the durable routes. No legacy workflow or HTTP artifact reader participates. |
 
 ### Model calls
 

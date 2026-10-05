@@ -445,6 +445,141 @@ describe('reopened Source Document workspace', () => {
   })
 
   // Review now opens the Results tab even when the researcher collapsed the rail during the run: it opens the rail too.
+  it.each(['the rail collapses', 'Latest reviewed is inspected', 'latest Results stays open'] as const)('keeps monitoring after the Results reader reports running and %s', async (inspection) => {
+    let extractionId = ''
+    let status: ExtractionAttempt['executionStatus'] = 'RUNNING'
+    const reads: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      const durable = durableRead(url, status)
+      if (durable) return Promise.resolve(durable)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+        extractionId = (JSON.parse(String(init.body)) as { id: string }).id
+        return Promise.resolve(Response.json(runningAttempt(extractionId), { status: 201 }))
+      }
+      if (url === `/api/extractions/${extractionId}`) {
+        reads.push(extractionId)
+        return Promise.resolve(Response.json({ extraction: { ...runningAttempt(extractionId), executionStatus: status } }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} latestReviewedExtraction={{ ...reopened.persistedExtraction!,
+      finalizedReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T00:00:00.000Z' } }} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Extraction controls' }))
+    expect(await screen.findByText('Ellekilde')).toBeVisible()
+    if (inspection === 'the rail collapses') fireEvent.click(screen.getByTitle('Collapse panel'))
+    else if (inspection === 'Latest reviewed is inspected') {
+      fireEvent.change(screen.getByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: reopened.persistedExtraction!.extractionId } })
+      expect(await screen.findByText('Ellekilde')).toBeVisible()
+    }
+    status = 'COMPLETED'
+    if (inspection === 'latest Results stays open') {
+      expect(await screen.findByText('Extraction complete — saved values are ready to review.', undefined, { timeout: 4_000 })).toBeVisible()
+      expect(screen.queryByRole('button', { name: 'Review now' })).not.toBeInTheDocument()
+    } else {
+      const reviewNow=await screen.findByRole('button', { name: 'Review now' }, { timeout: 4_000 })
+      expect(reviewNow).toBeVisible()
+      fireEvent.click(reviewNow)
+      expect(await screen.findByRole('combobox', { name: 'Extraction snapshot' })).toHaveValue(extractionId)
+      expect(reads).toEqual([extractionId])
+    }
+    expect(shownToasts.filter(message => message.includes('complete —'))).toHaveLength(1)
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+  }, 6_000)
+
+  it.each(['PAUSED', 'FAILED', 'PAUSING', 'STOPPING'] as const)('disables Run while latest is %s and Latest reviewed is inspected', async (status) => {
+    const latest = { ...reopened.persistedExtraction!, executionStatus: status }
+    const reviewed = { ...reopened.persistedExtraction!, extractionId: '51000000-0000-4000-8006-000000000074',
+      finalizedReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T00:00:00.000Z' } }
+    const posts: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/extractions' && init?.method === 'POST') posts.push(JSON.parse(String(init.body)))
+      return Promise.resolve(durableRead(url, url.includes(latest.extractionId) ? status : 'COMPLETED') ??
+        (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning')))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={latest} latestReviewedExtraction={reviewed} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Extraction controls' }))
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: reviewed.extractionId } })
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    expect(posts).toEqual([])
+  })
+
+  it('shows uncertain re-run admission beside prior results and reconnects the original identity after a page change', async () => {
+    const posts: Array<{ id: string; startPage: number }> = []
+    const reads: string[] = []
+    let readable = false
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      const durable = durableRead(url)
+      if (durable) return Promise.resolve(durable)
+      if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+      if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+      if (url === '/api/extractions' && init?.method === 'POST') {
+        posts.push(JSON.parse(String(init.body)))
+        return Promise.resolve(new Response('Bad gateway', { status: 502 }))
+      }
+      if (/^\/api\/extractions\/[^/]+$/.test(url)) {
+        const id = url.split('/').at(-1)!
+        reads.push(id)
+        return Promise.resolve(readable ? Response.json({ extraction: { ...runningAttempt(id), executionStatus: 'PAUSED' } }) : new Response('Bad gateway', { status: 502 }))
+      }
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    await waitFor(() => expect(posts).toHaveLength(1))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to update status')
+    expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeVisible()
+    expect(shownToasts.some(message => message.includes('admission'))).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
+    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    readable = true
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument())
+    expect(posts).toHaveLength(1)
+    expect(reads).toEqual([posts[0]!.id, posts[0]!.id])
+  })
+
+  it('retries an uncertain request that never committed with its original identity and page', async () => {
+    const posts: Array<{ id: string; startPage: number }> = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url=String(input)
+      const durable=durableRead(url)
+      if(durable)return Promise.resolve(durable)
+      if(url.endsWith('/source'))return Promise.resolve(Response.json(parsedDocument))
+      if(url.endsWith('/markdown'))return Promise.resolve(new Response('# Beretning'))
+      if(url==='/api/extractions'&&init?.method==='POST') {
+        const body=JSON.parse(String(init.body)) as (typeof posts)[number]
+        posts.push(body)
+        return Promise.resolve(posts.length===1 ? new Response('Bad gateway',{status:502})
+          : Response.json({...runningAttempt(body.id),executionStatus:'COMPLETED'},{status:201}))
+      }
+      if(/^\/api\/extractions\/[^/]+$/.test(url))return Promise.resolve(Response.json({error:{code:'not_found',message:'Not admitted.'}},{status:404}))
+      return Promise.resolve(new Response('pdf'))
+    }))
+    render(<DocumentWorkspace {...reopened}/>)
+    await waitFor(()=>expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button',{name:'▶ Run extraction'}))
+    const retry=await screen.findByRole('button',{name:'Retry original request'})
+    fireEvent.click(screen.getByRole('button',{name:'Next page'}))
+    expect(screen.getByRole('textbox',{name:'Current page'})).toHaveValue('2')
+    expect(screen.getByRole('button',{name:'▶ Run extraction'})).toBeDisabled()
+    fireEvent.click(retry)
+    await waitFor(()=>expect(posts).toHaveLength(2))
+    expect(posts[1]).toEqual(posts[0])
+    expect(posts[1]!.startPage).toBe(1)
+    await waitFor(()=>expect(screen.queryByRole('button',{name:'Retry original request'})).not.toBeInTheDocument())
+  })
+
   it('Review now opens a rail collapsed during the run on its Results tab', async () => {
     let extractionId = '51000000-0000-4000-8006-000000000043'
     const completed = () => ({ ...runningAttempt(extractionId), executionStatus: 'COMPLETED' })
@@ -2134,9 +2269,11 @@ describe('reopened Source Document workspace', () => {
 
   describe('the next run after a refused or failed one', () => {
 
-    it('a refused admission keeps the saved revision and re-runs under a new ID; an uncertain one re-runs under the same ID', async () => {
+    it('a refused admission keeps the saved revision and re-runs under a new ID; an uncertain one reserves its identity for Reconnect', async () => {
       const writes: RevisionWrite[] = []
       const runs: Array<{ id: string; schemaRevisionId: string }> = []
+      const reads: string[] = []
+      let readable = false
       vi.stubGlobal(
         'fetch',
         vi.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -2157,6 +2294,13 @@ describe('reopened Source Document workspace', () => {
               : runs.length === 2
                 ? new Response('Bad gateway', { status: 502 })
                 : Response.json({ ...reopened.persistedExtraction, extractionId: body.id, schemaRevisionId: body.schemaRevisionId }, { status: 201 }))
+          }
+          if (/^\/api\/extractions\/[^/]+$/.test(url)) {
+            const id = url.split('/').at(-1)!
+            reads.push(id)
+            return Promise.resolve(readable
+              ? Response.json({ extraction: { ...runningAttempt(id), executionStatus: 'PAUSED' } })
+              : new Response('Bad gateway', { status: 502 }))
           }
           // Reading the uncertain run fails too, so its admission stays unresolved.
           return Promise.resolve(new Response('pdf'))
@@ -2180,15 +2324,17 @@ describe('reopened Source Document workspace', () => {
       expect(writes).toHaveLength(1)
       expect(runs[1]).toEqual({ ...runs[0], id: expect.not.stringMatching(runs[0]!.id) })
 
-      // Uncertain (the gateway failed, and so does reading it): running again posts the same identity, which
-      // admission replays if it did commit (design §4).
+      // Uncertain (the gateway failed, and so does reading it): Reconnect reads the reserved identity.
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
       expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
-      await waitFor(() => expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled())
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-      await waitFor(() => expect(runs).toHaveLength(3))
+      readable = true
+      fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
+      await waitFor(() => expect(reads).toHaveLength(2))
       expect(writes).toHaveLength(1)
-      expect(runs[2]).toEqual(runs[1])
+      expect(runs).toHaveLength(2)
+      expect(reads).toEqual([runs[1]!.id, runs[1]!.id])
     })
 
 

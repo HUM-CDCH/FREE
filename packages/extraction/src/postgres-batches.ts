@@ -69,25 +69,30 @@ export async function loadBatches(
     .select('id')
     .all()
   const derived = await deriveAttempts(orm, memberIds.length === 0 ? [] : await readAttemptRows(orm, memberIds.map((row) => row.id)))
+  const schemas = await orm.public.SchemaRevision.where(row => row.id.in(batches.map(batch => batch.schemaRevisionId)))
+    .select('id', 'extractionSchemaId', 'revisionNumber').all()
+  const owners = schemas.length ? await orm.public.ExtractionSchema.where(row => row.id.in(schemas.map(schema => schema.extractionSchemaId)))
+    .select('id', 'name').all() : []
+  const schemasById = new Map(schemas.map(schema => [schema.id, schema]))
+  const ownersById = new Map(owners.map(owner => [owner.id, owner]))
   const loaded: DurableBatchExtraction[] = []
   for (const id of batchExtractionIds) {
     const batch = batches.find((candidate) => candidate.id === id)
     if (!batch) continue
-    const schema = await orm.public.SchemaRevision.select('extractionSchemaId', 'revisionNumber').first({
-      id: batch.schemaRevisionId,
-    })
-    const owner = schema
-      ? await orm.public.ExtractionSchema.select('name').first({ id: schema.extractionSchemaId })
-      : null
+    const durableMembers = [...derived.values()].filter(({ row }) => row.batchExtractionId === batch.id)
+    // A Batch Extraction is visible only while at least one of its members has a live durable head.
+    if (durableMembers.length === 0) continue
+    const schema = schemasById.get(batch.schemaRevisionId)
+    const owner = schema ? ownersById.get(schema.extractionSchemaId) : null
     if (!schema || !owner) throw new Error('Stored Batch Extraction pins are unavailable.')
-    const members: BatchExtractionMemberSnapshot[] = [...derived.values()]
-      .filter(({ row }) => row.batchExtractionId === batch.id)
+    const members: BatchExtractionMemberSnapshot[] = durableMembers
       .sort((left, right) => left.row.sourceDocumentId.localeCompare(right.row.sourceDocumentId))
-      .map(({ row, head, reviewable, currentReview }) => ({
+      .map(({ row, head, completed, reviewable, currentReview }) => ({
         extractionId: row.id,
         sourceDocumentId: row.sourceDocumentId,
         sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
         executionStatus: durableStatus(head),
+        completed,
         reviewable,
         // Pilot progress counts a finalized current cut produced by this batch's own Schema Revision only.
         currentReview: currentReview?.schemaRevisionId === batch.schemaRevisionId ? currentReview : null,

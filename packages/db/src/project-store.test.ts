@@ -918,6 +918,28 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     assert.equal(deleted?.reviewedSourceDocumentCount, 0)
   })
 
+  it('keeps completed work in extracted totals after Stop or adopting new inputs', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const id = '51000000-0000-4000-8006-000000000001'
+    database.tables.Extraction = [{ id, sourceDocumentId: DOCUMENT,
+      sourceRepresentationRevisionId: database.tables.SourceRepresentationRevision[1].id,
+      batchExtractionId: null, createdAt: new Date('2026-08-03T10:00:00Z') }]
+    database.tables.Attempt = [{ extractionId: id, outcome: 'COMPLETED' }]
+    database.tables.Finalization = []
+    for (const acknowledgement of ['COMPLETED', 'STOPPED', 'PAUSED', 'RUNNING', 'FAILED']) {
+      database.tables.Head = [{ id, acknowledgement, deleted: false }]
+      const summary = (await store.listProjectContexts(20)).find(item => item.projectContextId === PROJECT)?.summary
+      assert.equal(summary?.extractionCount, 1, acknowledgement)
+      assert.equal(summary?.extractedSourceDocumentCount, 1, acknowledgement)
+      assert.equal(summary?.reviewedSourceDocumentCount, 0, acknowledgement)
+      assert.ok((await store.listRecentActivity(10)).some(event => event.kind === 'extraction_appended'), acknowledgement)
+    }
+    database.tables.Head[0].deleted = true
+    const deleted = (await store.listProjectContexts(20)).find(item => item.projectContextId === PROJECT)?.summary
+    assert.equal(deleted?.extractedSourceDocumentCount, 0)
+  })
+
   it('lists persisted activity newest first, bounded, across owned projects only', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)

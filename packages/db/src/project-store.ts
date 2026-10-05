@@ -392,6 +392,7 @@ export const suggestWorkflowId = (batchSchemaSuggestionId: string, attempt: numb
 
 /**
  * The durable Extractions of these Source Documents (ADR 0017): a public Extraction row with a live coordination head.
+ * `completed` retains any completed attempt even after Stop or input adoption changes the head's status.
  * `finished` is a COMPLETED, FAILED or STOPPED acknowledgement; `reviewedAt` is the latest named finalization of any of
  * its result/decision cuts. A row without a live head is no Extraction these summaries count.
  */
@@ -405,6 +406,9 @@ async function durableExtractionFacts(database: Database, where: { documentIds?:
   const ids = rows.map((row) => row.id)
   const heads = new Map((await database.orm.extraction_runtime.Head.where((head) => head.id.in(ids)).select('id', 'acknowledgement', 'deleted').all())
     .filter((head) => !head.deleted).map((head) => [head.id, head.acknowledgement]))
+  const completed = new Set(heads.size === 0 ? [] : (await database.orm.extraction_runtime.Attempt
+    .where(row => row.extractionId.in([...heads.keys()])).where({ outcome: 'COMPLETED' })
+    .select('extractionId').all()).map(row => row.extractionId))
   const finalizations = heads.size === 0 ? [] : await database.orm.extraction_runtime.Finalization.where((row) => row.extractionId.in([...heads.keys()]))
     .select('extractionId', 'createdAt').all()
   const reviewedAt = new Map<string, Date>()
@@ -414,7 +418,7 @@ async function durableExtractionFacts(database: Database, where: { documentIds?:
   }
   return rows.filter((row) => heads.has(row.id)).map((row) => {
     const acknowledgement = heads.get(row.id)!
-    return { ...row, completed: acknowledgement === 'COMPLETED',
+    return { ...row, completed: acknowledgement === 'COMPLETED' || completed.has(row.id),
       finished: acknowledgement === 'COMPLETED' || acknowledgement === 'FAILED' || acknowledgement === 'STOPPED',
       reviewedAt: reviewedAt.get(row.id) ?? null }
   })

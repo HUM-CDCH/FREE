@@ -23,7 +23,7 @@ import MarkPopover from './MarkPopover'
 import DocumentMarkdown from './DocumentMarkdown'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import type { SavedReviewCut } from './durableReviewLinks'
-import { METHOD_CHANGED, useExtraction } from './useExtraction'
+import { ADMISSION_UNCERTAIN, METHOD_CHANGED, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
 import type { ExtractionStrategy } from '../shared/extraction.contract'
@@ -613,7 +613,6 @@ export function DocumentWorkspace({
   // The one-by-one value's link: the page dims around it (results review redesign §7.3).
   const [focusedEvidence, setFocusedEvidence] = useState<EvidenceLink | null>(null)
   const railOnResultsRef = useRef(false)
-  useEffect(() => { railOnResultsRef.current = railOpen && railTab === 'results' }, [railOpen, railTab])
   // The document pane shows the PDF or the parsed Markdown (results review redesign §7.4).
   const [documentView, setDocumentView] = useState<'pdf' | 'markdown'>('pdf')
   const effectiveRailWidth = effectiveRailOpen ? railWidth : COLLAPSED_WIDTH
@@ -645,11 +644,11 @@ export function DocumentWorkspace({
    *  offers "Review now", which opens the rail (collapsed during the run, say) on the Results tab, and stays eight
    *  seconds. */
   function showCompletion(isRerun: boolean, reviewNow: boolean) {
-    // With the rail open on Results its own settlement toast is the one notice (results review redesign §2.5).
-    if (railOnResultsRef.current) return
+    const reviewingLatest = railOnResultsRef.current
     showToast(
-      isRerun ? '↻ Re-run complete — review it in the Results tab' : '✓ Extraction complete — review it in the Results tab',
-      reviewNow ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setRailOpen(true); setRailTab('results') } } } : undefined,
+      reviewingLatest ? 'Extraction complete — saved values are ready to review.'
+        : isRerun ? '↻ Re-run complete — review it in the Results tab' : '✓ Extraction complete — review it in the Results tab',
+      reviewNow && !reviewingLatest ? { durationMs: 8000, action: { label: 'Review now', onAction: () => { setSelectedInspectionId(null); setRailOpen(true); setRailTab('results') } } } : undefined,
     )
   }
   const extraction = useExtraction({
@@ -677,6 +676,10 @@ export function DocumentWorkspace({
     onSuperseded,
     onMethodChanged: (message, code) => {
       refusalRef.current = { message, code }
+    },
+    onAdmissionUncertain: (extractionId) => {
+      pendingReportRef.current = extractionId
+      showToast(ADMISSION_UNCERTAIN, { durationMs: 6000 })
     },
   })
 
@@ -715,6 +718,9 @@ export function DocumentWorkspace({
     ? latestReviewedExtraction
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
+  useEffect(() => {
+    railOnResultsRef.current = railOpen && railTab === 'results' && inspectedAttempt?.extractionId === latestAttempt?.extractionId
+  }, [railOpen, railTab, inspectedAttempt?.extractionId, latestAttempt?.extractionId])
   // "Latest reviewed" opens its finalized result/decision pair, not that Extraction's later live cut; a routed cut
   // applies to the routed Extraction only. Ordinary inspection opens the live cut.
   const reviewedChoice = pinnedAttempt && pinnedAttempt.extractionId !== latestAttempt?.extractionId ? pinnedAttempt : null
@@ -763,7 +769,7 @@ export function DocumentWorkspace({
    *  run over the whole document: what admission pins is what was saved at the click (§2). A `method_changed` refusal
    *  re-reads once and retries; a second refusal starts nothing. A failed admission leaves the revision saved. */
   async function runExtraction() {
-    if (savingForRun || running || !sourceRepresentationCurrent) return
+    if (savingForRun || !extraction.canRun || !sourceRepresentationCurrent) return
     setSavingForRun(true)
     const targetSourceRepresentationId = sourceRepresentationId
     const stillHere = () => activeSourceRepresentationIdRef.current === targetSourceRepresentationId
@@ -874,7 +880,7 @@ export function DocumentWorkspace({
 
   const runExtractionUnavailable =
     savingForRun ||
-    running ||
+    !extraction.canRun ||
     !sourceRepresentationId ||
     !sourceRepresentationCurrent ||
     !schemaReady ||
@@ -899,7 +905,11 @@ export function DocumentWorkspace({
               ? 'Generate a schema in the Schema tab first'
               : nextExtractionStrategy === null
                 ? 'Choose Article or Catalog in the schema header'
-                : null
+                : extraction.monitorError
+                  ? 'Reconnect to check the original Extraction before starting another.'
+                  : !extraction.canRun
+                    ? 'The latest Extraction can still continue. Open Latest attempt in Results to Resume, Retry or Stop it.'
+                    : null
   // An Extraction that can still continue is controlled with Pause, Resume, Retry and Stop in Results; a completed or
   // stopped one, or none, leaves Run to start a new Extraction.
   const nativeControls = Boolean(inspectedAttempt && inspectedAttempt.executionStatus !== 'COMPLETED' && inspectedAttempt.executionStatus !== 'STOPPED')

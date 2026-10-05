@@ -63,6 +63,7 @@ const batchExtractionMemberSchema = z
     sourceDocumentId: canonicalUuidSchema,
     sourceRepresentationRevisionId: canonicalUuidSchema,
     executionStatus: z.enum(['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'COMPLETED', 'FAILED']),
+    completed: z.boolean(),
     reviewable: z.boolean(),
     currentReview: z.object({ snapshotVersion: z.number().int().positive(), feedbackVersion: z.number().int().nonnegative(),
       createdAt: z.iso.datetime(), schemaRevisionId: canonicalUuidSchema }).strict().nullable(),
@@ -107,11 +108,11 @@ export const batchExtractionListResponseSchema = z
  * Execution counts and the separate persisted research-review digest.
  */
 export function batchExtractionProgress(batch: BatchExtraction) {
-  const extracted = batch.members.filter((member) => member.executionStatus === 'COMPLETED')
+  const extracted = batch.members.filter((member) => member.completed || member.currentReview !== null)
   // A completed member without saved values can never be finalized, so it is its own outcome — never counted as what a
   // researcher has reviewed. These three groups partition `extracted`.
   const reviewed = extracted.filter((member) => member.currentReview !== null)
-  const unreviewable = extracted.filter((member) => !member.reviewable)
+  const unreviewable = extracted.filter((member) => !member.reviewable && member.currentReview === null)
   return {
     total: batch.members.length,
     extracted: extracted.length,

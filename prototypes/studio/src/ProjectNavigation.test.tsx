@@ -1304,6 +1304,7 @@ describe('Project Context navigation', () => {
           sourceRepresentationRevisionId:
             '51000000-0000-4000-8002-000000000001',
           executionStatus: 'COMPLETED',
+          completed: true,
           reviewable: false,
           currentReview: null,
         },

@@ -9,6 +9,8 @@ export const MONITOR_DISCONNECTED =
 /** Shown when the server denies or cannot find the monitored Extraction. */
 export const EXTRACTION_UNAVAILABLE =
   'Extraction status is unavailable: it was not found or access was denied.'
+export const ADMISSION_UNCERTAIN =
+  'Extraction admission is uncertain. Reconnect to check the original run before starting another.'
 
 type ExtractionRunRequest = Readonly<{
   sourceRepresentationRevisionId: string
@@ -37,9 +39,11 @@ type UseExtractionOptions = {
   /** The server refused a run because the Source Representation it names was superseded by reprocessing. Nothing
    *  failed, so `onError` is not called. */
   onSuperseded?: () => void
-  /** Admission refused the run (`code`: a changed saved method, a pending migration, a record-scope refusal or
-   *  disabled admissions): nothing started. The caller re-reads the saved method on `METHOD_CHANGED`. */
+  /** Admission refused the run (`code`: a changed saved method, a pending migration or a record-scope refusal):
+   *  nothing started. The caller re-reads the saved method on `METHOD_CHANGED`. */
   onMethodChanged?: (message: string, code: string) => void
+  /** The POST may have committed; its identity stays reserved until the monitor reconciles it. */
+  onAdmissionUncertain?: (extractionId: string) => void
   initialAttempt?: ExtractionAttempt | null
   reviewTarget?: ReviewTarget | null
   /** Identifies which Source Document `initialAttempt` belongs to: `attempt` is reseeded whenever it changes. */
@@ -48,8 +52,8 @@ type UseExtractionOptions = {
 
 /**
  * One watch over a single Extraction's admission and status. Every status read and callback is bound to the monitor
- * that started it, so a late response for a previous Source Document or Extraction is ignored. Once the durable
- * results reader is mounted it owns status (`acceptDurableStatus`) and this monitor stops.
+ * that started it, so a late response for a previous Source Document or Extraction is ignored. The workspace keeps
+ * monitoring active work even when the durable results reader is unmounted or inspecting a different Extraction.
  */
 type Monitor = {
   extractionId: string
@@ -114,6 +118,7 @@ export function useExtraction({
   onError,
   onSuperseded,
   onMethodChanged,
+  onAdmissionUncertain,
   initialAttempt = null,
   reviewTarget = null,
   documentKey = '',
@@ -122,12 +127,23 @@ export function useExtraction({
   const currentAttemptRef = useRef(attempt)
   useLayoutEffect(() => { currentAttemptRef.current = attempt })
   const [admitting, setAdmitting] = useState(false)
+  const [unansweredAdmission, setUnansweredAdmission] = useState(false)
   const [monitorError, setMonitorError] = useState<string | null>(null)
   const monitorRef = useRef<Monitor | null>(null)
-  /** The run this page started, so its terminal report says whether it was a re-run after the reader took over. */
+  /** The run this page started, so either observer's terminal report says whether it was a re-run. */
   const startedRef = useRef<{ extractionId: string; isRerun: boolean } | null>(null)
   const onTerminalRef = useRef(onTerminal)
   useEffect(() => { onTerminalRef.current = onTerminal })
+
+  /** Both readers share this transition check, so one terminal transition is announced once. */
+  const acceptAttempt = useCallback((next: ExtractionAttempt, isRerun: boolean) => {
+    const previous = currentAttemptRef.current
+    currentAttemptRef.current = next
+    setAttempt(next)
+    if (TERMINAL.has(next.executionStatus) &&
+      (previous?.extractionId !== next.extractionId || !TERMINAL.has(previous.executionStatus)))
+      onTerminalRef.current(next, isRerun)
+  }, [])
 
   function stopMonitor() {
     monitorRef.current?.controller.abort()
@@ -144,12 +160,13 @@ export function useExtraction({
     if (documentChanged || initialAttempt?.extractionId !== attempt?.extractionId) {
       setAttempt(initialAttempt)
       setAdmitting(false)
+      setUnansweredAdmission(false)
       setMonitorError(null)
     }
   }
 
   /**
-   * The only polling loop, until the durable reader takes status over or the work is idle. `seed` is the last attempt
+   * The workspace's polling loop, until the work is idle. `seed` is the last attempt
    * read for this monitor (null after an uncertain POST); `immediate` skips the first delay. A read failure pauses the
    * monitor and keeps the last known state; `reconnect()` resumes it.
    */
@@ -166,10 +183,10 @@ export function useExtraction({
         latest = (await readExtraction(monitor.extractionId, signal)).extraction
         if (!live()) return
         monitor.unacknowledged = undefined
-        setAttempt(latest)
+        setUnansweredAdmission(false)
+        acceptAttempt(latest, monitor.isRerun)
       }
       monitorRef.current = null
-      if (TERMINAL.has(latest.executionStatus)) onTerminalRef.current(latest, monitor.isRerun)
     } catch (error) {
       if (!live()) return
       monitor.paused = true
@@ -190,26 +207,27 @@ export function useExtraction({
     if (documentChanged || (monitorRef.current && monitorRef.current.extractionId !== initialAttempt?.extractionId)) stopMonitor()
   }, [documentKey, initialAttempt?.extractionId])
   useEffect(() => () => stopMonitor(), [])
+  const active = isActive(attempt)
   useEffect(() => {
-    if (!isActive(initialAttempt)) return
+    if (!active || monitorRef.current?.extractionId === attempt?.extractionId) return
     stopMonitor()
     const monitor: Monitor = {
-      extractionId: initialAttempt!.extractionId,
-      isRerun: true,
+      extractionId: attempt!.extractionId,
+      isRerun: startedRef.current?.extractionId === attempt!.extractionId ? startedRef.current.isRerun : true,
       paused: false,
       controller: new AbortController(),
     }
     monitorRef.current = monitor
     // Deferred so the effect body itself schedules no state update; an aborted monitor (StrictMode re-run, unmount)
     // exits on its first check.
-    void Promise.resolve().then(() => watch(monitor, initialAttempt, false))
+    void Promise.resolve().then(() => watch(monitor, attempt, false))
     return () => {
       monitor.controller.abort()
       if (monitorRef.current === monitor) monitorRef.current = null
     }
     // watch is redeclared each render and reads everything through refs and the monitor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentKey, initialAttempt?.extractionId])
+  }, [documentKey, attempt?.extractionId, active])
 
   function reconnect() {
     const monitor = monitorRef.current
@@ -219,26 +237,29 @@ export function useExtraction({
     void watch(monitor, attempt?.extractionId === monitor.extractionId ? attempt : null, true)
   }
 
-  /** The durable reader's status for this Extraction. One observer owns status once the reader is mounted. */
+  /** The durable reader shares updates, while the workspace keeps observing the latest active Extraction. */
   const acceptDurableStatus = useCallback((extractionId: string, executionStatus: ExtractionAttempt['executionStatus']) => {
     const previous = currentAttemptRef.current
     if (!previous || previous.extractionId !== extractionId) return
     const monitor = monitorRef.current
-    if (monitor?.extractionId === extractionId) { monitor.controller.abort(); monitorRef.current = null }
     if (previous.executionStatus === executionStatus) return
     const next = { ...previous, executionStatus }
-    currentAttemptRef.current = next
-    setAttempt(next)
-    if (!TERMINAL.has(previous.executionStatus) && TERMINAL.has(executionStatus))
-      onTerminalRef.current(next, startedRef.current?.extractionId === extractionId ? startedRef.current.isRerun : true)
-  }, [])
+    if (monitor?.extractionId === extractionId && !isActive(next)) {
+      monitor.controller.abort()
+      monitorRef.current = null
+      setMonitorError(null)
+    }
+    acceptAttempt(next, startedRef.current?.extractionId === extractionId ? startedRef.current.isRerun : true)
+  }, [acceptAttempt])
 
   // A new Extraction starts from no Extraction or from one that can no longer continue; any other is controlled with
   // Pause, Resume, Retry and Stop in Results.
   const canRun =
-    reviewTarget?.schemaRevisionId != null &&
+    // App may flush a pending schema draft before supplying its acknowledged revision to runExtraction.
+    reviewTarget !== null &&
     schemaReady &&
     !admitting &&
+    !unansweredAdmission &&
     (!attempt || attempt.executionStatus === 'COMPLETED' || attempt.executionStatus === 'STOPPED') &&
     !indexing
 
@@ -248,12 +269,15 @@ export function useExtraction({
    * failure, gateway error) is reconciled by reading the same identity rather than by posting again, so the admitted
    * run keeps the method it was requested with (design §7).
    */
-  async function runRequest(isRerun: boolean, request: ExtractionRunRequest) {
+  async function runRequest(isRerun: boolean, request: ExtractionRunRequest, originalRetry = false) {
     const running = monitorRef.current
-    if (!schemaReady || isActive(attempt) || (running !== null && !running.paused) || indexing)
+    const unacknowledged = JSON.stringify(request)
+    const latest = currentAttemptRef.current
+    if (!schemaReady || admitting || indexing ||
+      (latest && latest.executionStatus !== 'COMPLETED' && latest.executionStatus !== 'STOPPED') ||
+      (running !== null && (!running.paused || (running.unacknowledged && running.unacknowledged !== unacknowledged))))
       return null
     stopMonitor()
-    const unacknowledged = JSON.stringify(request)
     const monitor: Monitor = {
       extractionId: running?.paused && running.unacknowledged === unacknowledged ? running.extractionId : crypto.randomUUID(),
       unacknowledged,
@@ -265,6 +289,7 @@ export function useExtraction({
     startedRef.current = { extractionId: monitor.extractionId, isRerun }
     setMonitorError(null)
     setAdmitting(true)
+    setUnansweredAdmission(true)
     let seed: ExtractionAttempt | null = null
     try {
       seed = await requestExtraction({ id: monitor.extractionId, ...request }, monitor.controller.signal)
@@ -273,8 +298,9 @@ export function useExtraction({
       if (definiteRejection(error)) {
         monitorRef.current = null
         setAdmitting(false)
+        setUnansweredAdmission(false)
         if (error.code === SOURCE_REPRESENTATION_SUPERSEDED) onSuperseded?.()
-        else if (ADMISSION_REFUSALS.has(error.code ?? '')) onMethodChanged?.(serverMessage(error), error.code!)
+        else if (ADMISSION_REFUSALS.has(error.code ?? '') && !originalRetry) onMethodChanged?.(serverMessage(error), error.code!)
         else onError(serverMessage(error))
         return null
       }
@@ -283,10 +309,18 @@ export function useExtraction({
     setAdmitting(false)
     if (seed) {
       monitor.unacknowledged = undefined
-      setAttempt(seed)
-    }
+      setUnansweredAdmission(false)
+      acceptAttempt(seed, isRerun)
+    } else onAdmissionUncertain?.(monitor.extractionId)
     void watch(monitor, seed, seed === null)
     return seed
+  }
+
+  /** Replays only the unanswered descriptor, including its identity; current page, draft and settings cannot replace it. */
+  function retryAdmission() {
+    const monitor = monitorRef.current
+    if (!monitor?.paused || !monitor.unacknowledged) return Promise.resolve(null)
+    return runRequest(monitor.isRerun, JSON.parse(monitor.unacknowledged) as ExtractionRunRequest, true)
   }
 
   async function runExtraction(
@@ -318,5 +352,7 @@ export function useExtraction({
     monitorError,
     /** Reads the same Extraction again and resumes polling; never posts. */
     reconnect,
+    /** An unanswered admission can be safely replayed with its original inputs when reads cannot find it. */
+    retryAdmission: unansweredAdmission ? retryAdmission : null,
   }
 }

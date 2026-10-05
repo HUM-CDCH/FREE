@@ -229,16 +229,11 @@ export default function BatchExtractionsPanel({
     batchExtractionId: string
     message: string
   } | null>(null)
-  // Carries a flagged field's context into the schema editor after "Edit
-  // schema" is chosen from the review grid (schema-issue-flagging) — a
-  // client-side hand-off, not persisted state.
   const [stabilisingChosenSchema, setStabilisingChosenSchema] = useState(false)
   const [stabiliseChosenSchemaError, setStabiliseChosenSchemaError] = useState<string | null>(null)
   // Guided next-step nudge (guided-pilot-extraction-workflow): fires right
-  // after a Schema Revision is stabilised, from either the preparation
-  // screen's own "Stabilise schema" button or the review grid's. Holds the
-  // just-stabilised `schemaRevisionId` so "Run the full collection" can
-  // preselect it regardless of which screen triggered it.
+  // after the preparation screen stabilises a Schema Revision. Holds its
+  // `schemaRevisionId` so "Run the full collection" can preselect it.
   const [stabiliseNudge, setStabiliseNudge] = useState<string | null>(null)
   // Which of the two `extract` rounds the prepare screen is currently framed
   // as — set by whichever entry point opened it, not derived from the
@@ -536,8 +531,7 @@ export default function BatchExtractionsPanel({
           ? 'declares neither Article nor Catalog'
           : `is saved as ${STRATEGY_NAME[strategyOf(currentPinnedBatchSchema.recordScope)]}`}, so this Batch Extraction cannot run again as ${STRATEGY_NAME[openBatch.strategy]}. Start a New Batch Extraction with the schema and choose Article or Catalog there.`
         : null
-  // The Schema Revision the open Batch Extraction pinned, so its export offers
-  // the schema-led choices of the schema that actually produced the results.
+  // Read the pinned Schema Revision to check its record scope before Run again.
   useEffect(() => {
     if (!pinnedExtractionSchemaId || !pinnedSchemaRevisionId) return
     const controller = new AbortController()

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { DurablePage } from 'extraction/durable-types'
 import { decodeParsedDocument } from 'extraction/parsed-document'
@@ -11,6 +11,49 @@ import { durableRequest, readDurable, readDurableHistory } from './durableExtrac
 
 vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),readDurable:vi.fn(),readDurableHistory:vi.fn(),durableRoot:(id:string)=>`/api/extractions/${id}/durable`}))
 afterEach(()=>{cleanup();vi.resetAllMocks();window.history.replaceState(null,'','/')})
+
+it('shows requested and effective methods with their producing selections, and names unresolved effective methods',async()=>{
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'pending',ordinal:3},pendingSelection:null,counts:{saved:0,inFlight:0}},page} as never)
+  const provider=(key:string,model:string)=>({key,model,adapter:'gliformer',adapterVersion:1,
+    nativeInfo:{protocol:3,model,identity:'native-model-v2',max_input_tokens:8192}})
+  vi.mocked(readDurableHistory).mockResolvedValue({
+    selections:[
+      {id:'first',ordinal:1,schemaRevisionId:'schema-first',schemaTree:{},method:{models:{fields:'requested-first'},settings:{article:{context:'bounded'}}},resolved:{}},
+      {id:'second',ordinal:2,schemaRevisionId:'schema-second',schemaTree:{},method:{models:{fields:'requested-second'},settings:{article:{context:'full'}}},resolved:{}},
+      {id:'pending',ordinal:3,schemaRevisionId:'schema-pending',schemaTree:{},method:{models:null,settings:{article:null}},resolved:{}},
+    ],
+    effective:[
+      {id:'second',configuration:{models:{fields:provider('resolved-second','served-second'),reasoning:provider('reasoning-second','reasoner-second')},options:{article:{context:'full'}},planner:1,protocols:{calls:1,source:'document'}}},
+      {id:'first',configuration:{models:{fields:provider('resolved-first','served-first'),reasoning:provider('reasoning-first','reasoner-first')},options:{article:{context:'bounded',context_tokens:8192}},planner:1,protocols:{calls:1,source:'document'}}},
+    ],snapshots:[],finalizations:[],captures:[],
+  } as never)
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  const history=(await screen.findByText('Saved history and producing inputs')).closest('details')!
+  history.open=true;fireEvent(history,new Event('toggle'))
+  await screen.findByText('Input selection 1 · schema schema-f')
+  for (const ordinal of [1,2,3]) {
+    const selection=screen.getByText(new RegExp(`^Input selection ${ordinal} · schema `)).closest('details')!
+    selection.open=true;fireEvent(selection,new Event('toggle'))
+  }
+  const first=within(screen.getByRole('region',{name:'Method used for input selection 1'}))
+  expect(first.getByText(/served-first · model key resolved-first · gliformer adapter version 1/)).toBeVisible()
+  expect(first.getByText(/reasoner-first · model key reasoning-first/)).toBeVisible()
+  expect(first.getByText(/Planner version 1 · call protocol version 1 · source scope document/)).toBeVisible()
+  expect(first.getByText('Effective method settings').nextElementSibling).toHaveTextContent('"context_tokens": 8192')
+  expect(first.getByText(/"requested-first"/)).toBeVisible()
+  expect(first.queryByText(/served-second/)).toBeNull()
+  const native=first.getAllByText('Native model protocol and identity')[0]!.closest('details')!
+  native.open=true;fireEvent(native,new Event('toggle'))
+  expect(within(native).getByText(/"protocol": 3/)).toBeVisible()
+  const second=within(screen.getByRole('region',{name:'Method used for input selection 2'}))
+  expect(second.getByText(/served-second · model key resolved-second/)).toBeVisible()
+  expect(second.getByText(/"requested-second"/)).toBeVisible()
+  const pending=within(screen.getByRole('region',{name:'Method used for input selection 3'}))
+  expect(pending.getByText('Effective method: Not recorded')).toBeVisible()
+  expect(pending.queryByText('Effective model choices')).toBeNull()
+})
 
 it('ignores review keys outside Results, while hidden, and on repeat',async()=>{
   const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',

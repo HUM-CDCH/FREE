@@ -76,6 +76,7 @@ const batch = {
       sourceDocumentId: failedDocumentId,
       sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
       executionStatus: 'FAILED' as BatchExtractionMember['executionStatus'],
+      completed: false,
       reviewable: false,
       currentReview: null as BatchExtractionMember['currentReview'],
     },
@@ -84,6 +85,7 @@ const batch = {
       sourceDocumentId: cancelledDocumentId,
       sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000002',
       executionStatus: 'STOPPED' as BatchExtractionMember['executionStatus'],
+      completed: false,
       reviewable: false,
       currentReview: null as BatchExtractionMember['currentReview'],
     },
@@ -95,7 +97,7 @@ function publishedMember(
   member: (typeof batch.members)[number],
   extraction: Partial<Pick<BatchExtractionMember, 'extractionId' | 'reviewable' | 'currentReview'>> = {},
 ) {
-  return { ...member, executionStatus: 'COMPLETED' as const, reviewable: true, ...extraction }
+  return { ...member, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true, ...extraction }
 }
 
 /** The chosen schema's current revision: its saved record scope is the batch's strategy (an Article by default). */
@@ -1726,6 +1728,36 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh summary' }))
     expect(saved.refresh).toHaveBeenCalledOnce()
     expect(screen.queryByText(message, { exact: false })).not.toBeInTheDocument()
+  })
+
+  it('explains a pinned Schema Revision failure and retries its Run again scope check', async () => {
+    let revisionReads = 0
+    const failure = 'The pinned Schema Revision could not be read.'
+    const refusal = 'Schema Revision 1 is saved as Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the schema and choose Article or Catalog there.'
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [batch] })
+      if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`)) {
+        revisionReads += 1
+        if (revisionReads === 1) throw new Error(failure)
+        return response({ revision: chosenRevision('records') })
+      }
+      if (url.startsWith('/api/schema-revisions?')) return response({ revisions: [] })
+      throw new Error(`Unexpected request: ${url}`)
+    }))
+    renderPanel(vi.fn(), batchExtractionId)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(failure)
+    expect(revisionReads).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Schema Revision' }))
+
+    const rerun = screen.getByRole('button', { name: 'Run again' })
+    await waitFor(() => expect(rerun).toHaveAccessibleDescription(refusal))
+    expect(rerun).toBeDisabled()
+    expect(revisionReads).toBe(2)
+    expect(screen.queryByText(failure)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry Schema Revision' })).not.toBeInTheDocument()
   })
 
   it.each([

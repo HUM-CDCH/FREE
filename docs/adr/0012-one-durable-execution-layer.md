@@ -70,3 +70,13 @@ rejection cannot silently transfer to changed model output. The review redesign
 is reused where compatible; path/anchor reconciliation is not applied
 to durable correction history. Neither existing DBOS application versions nor
 existing workflow step sequences change. Release admissions remain disabled.
+
+## Durable-only admission amendment (2026-10-06)
+
+The [admission amendment in ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md#admission-amendment)
+supersedes the admission-disabled statement above. Valid requests admit durable
+Extractions directly, with no release flag or environment switch; legacy
+Extraction workflows and readers were removed. PostgreSQL, browser, Compose
+and exact-commit Spark acceptance in the
+[active OpenSpec tasks](../../openspec/changes/durable-only-extraction-review/tasks.md)
+must pass before merging this follow-up. Deployment remains a separate action.

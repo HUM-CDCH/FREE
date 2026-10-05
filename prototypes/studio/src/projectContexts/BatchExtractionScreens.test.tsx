@@ -18,6 +18,7 @@ const batch: BatchExtraction = {
     sourceDocumentId: `51000000-0000-4000-8001-00000000000${index + 1}`,
     sourceRepresentationRevisionId: `51000000-0000-4000-8002-00000000000${index + 1}`,
     executionStatus: executionStatus as BatchExtraction['members'][number]['executionStatus'],
+    completed: executionStatus === 'COMPLETED',
     reviewable: true, currentReview: null,
   })),
 }

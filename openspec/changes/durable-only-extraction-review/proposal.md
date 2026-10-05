@@ -52,12 +52,16 @@ review model the code now implements, with no legacy compatibility obligation.
 ## Impact
 
 - Specs: `openspec/specs/canonical-evidence-lifecycle/spec.md`,
+  `openspec/specs/durable-extraction-admission/spec.md`,
   `openspec/specs/result-tree-navigator/spec.md` (removed).
 - Code already implementing the new requirements: `packages/extraction/src/durable-repository.ts`
   (`saveCorrection`, `finalize`, `page`), `prototypes/studio/api/durable_extractions.ts`
   (pinned-source Evidence check), `prototypes/studio/src/DurableResults.tsx`,
   `App.tsx`/`AppFrame.tsx`/`projectNavigation.ts` (review-cut routing).
-- No dependency or database migration change. Remove the disabled-admission
+- Drop the unused `extraction` workspace dependency from
+  `extraction-result-export`; no external dependency or database migration
+  change. Remove the disabled-admission
   error and its API/UI handling. Valid requests admit durable work directly.
   Merging this implementation removes the admission block. The current source
-  still requires infrastructure acceptance before deployment.
+  requires PostgreSQL, browser, Compose and exact-commit Spark acceptance
+  before merge. Deployment remains a separate action.

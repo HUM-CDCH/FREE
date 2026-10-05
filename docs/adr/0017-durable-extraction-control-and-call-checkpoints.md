@@ -39,8 +39,9 @@ lane. Studio's and the Parsing Service's garbage collection keep only current
 ownership: a run stays while a surviving revision or any durable head,
 tombstoned heads included, pins it, and a deleted graph's DBOS history goes
 only after its native calls are quiescent. Project summaries and activity count
-an Extraction as extracted only once it is COMPLETED, and as reviewed once any
-of its result/decision pairs is finalized, whatever its processing state. The
+an Extraction as extracted once it is COMPLETED or any of its result/decision
+pairs is finalized, and as reviewed once a pair is finalized, whatever its
+processing state. The
 living `canonical-evidence-lifecycle` specification and the retired
 `result-tree-navigator` specification were reconciled with this model by the
 OpenSpec change `durable-only-extraction-review`, which stays open until its
@@ -51,6 +52,10 @@ infrastructure acceptance passes.
 Amendment, 2026-10-05: the user required removal of the whole admission gate.
 Valid requests now admit durable Extractions directly. There is no release flag,
 environment switch, disabled-admission error, or non-durable fallback.
+This amendment supersedes the admission-disabled clauses in ADRs 0012 and
+0015 and the pre-production scope amendment above. Exact-commit Spark
+acceptance is a merge prerequisite in the active
+[OpenSpec tasks](../../openspec/changes/durable-only-extraction-review/tasks.md).
 PostgreSQL checks cover successful single and batch admission, replay and enqueue
 rollback. The Compose contract checks HTTP 201 followed by durable COMPLETED.
 Merging this implementation removes the admission block. This follow-up must
@@ -62,8 +67,8 @@ plan records remain unchanged and describe their own source cuts.
 The candidate lives on `feat/durable-interactive-extraction`, based on current
 `dev` (`db6f8b92`), with the planning commit and ADR 0016/redesign artifacts
 preserved. Its `extraction_runtime` namespace adds no mutated historical public
-Extraction pins. Runtime capability is selected by its Head row, not by the
-current admission gate. DBOS attempts and call workflows retain distinct names;
+Extraction pins. Runtime capability is selected by its Head row. DBOS attempts
+and call workflows retain distinct names;
 failed responses are immutable attempt-specific history, while successful
 checkpoints are reusable by unchanged-input retries.
 

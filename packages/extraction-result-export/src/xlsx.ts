@@ -12,7 +12,7 @@ const sheetData = (table: Table): SheetData => [
   ),
 ];
 
-/** A sheet after the Results sheet: the Review notes, or an Extraction's Extraction and Evidence sheets. */
+/** A sheet after Results, such as durable Producing inputs, Calls, or Corrections history. */
 export interface CompanionSheet {
   readonly sheet: string;
   readonly table: Table;

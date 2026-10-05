@@ -40,6 +40,49 @@ afterAll(async () => {
 })
 
 describe('garbage collection across Studio processes', () => {
+  it('repairs a deletion crash by cancelling ingestion and kei work, then collecting their young history', async () => {
+    const names=testSchemas(),{owner,store}=await seedOwner()
+    const project=(await store.createProjectContext(`GC missed cancel ${randomUUID()}`)).projectContextId
+    const env={
+      DATABASE_URL:url,FREE_TEST_DBOS_SCHEMA:names.schema,FREE_TEST_KEI_SCHEMA:schemas.keiSchema,
+      FREE_TEST_EXECUTOR:names.executorId,FREE_TEST_ACCOUNT:owner,FREE_TEST_PROJECT:project,
+      FREE_TEST_PDF:pdf,FREE_SOURCE_INBOX:join(scratch,'missed-cancel-inbox'),
+      XDG_DATA_HOME:join(scratch,'missed-cancel-data'),KEI_EXP_URL:standIn.url,
+      GC_OBSERVATIONS:join(scratch,'missed-cancel-observations.json'),
+      FREE_CRASH_MARKER:join(scratch,'missed-cancel-first-run'),
+    }
+    await standIn.policy({convert:'hold'})
+    try {
+      const deleted=await runWorkflowChild('gc-missed-ingest-cancel',env)
+      expect(deleted.signal,deleted.output).toBe('SIGKILL')
+      const repaired=await runWorkflowChild('gc-missed-ingest-cancel',env)
+      expect(repaired.signal,repaired.output).toBe('SIGKILL')
+      const current=JSON.parse(readFileSync(env.GC_OBSERVATIONS,'utf8')) as {
+        ingestId:string;convertId:string;repaired:GarbageSummary;currentIngestStatus:string|null
+      }
+      expect(current.repaired.failedPhases).toEqual([])
+      expect(current.repaired.cancelledStudio).toContain(current.ingestId)
+      expect(current.repaired.cancelledKei).toContain(current.convertId)
+      expect(current.currentIngestStatus).toBe('CANCELLED')
+      const collected=await runWorkflowChild('gc-missed-ingest-cancel',env)
+      expect(collected,collected.output).toMatchObject({code:0,signal:null})
+      const next=JSON.parse(readFileSync(env.GC_OBSERVATIONS,'utf8')) as {
+        next:GarbageSummary;nextIngestStatus:string|null;orphanPayloads:number
+      }
+      expect(next.next.failedPhases).toEqual([])
+      expect(next.next.deletedStudioHistory).toBeGreaterThanOrEqual(1)
+      expect(next.nextIngestStatus).toBeNull()
+      expect(next.next.keiRequest?.conversions).toContain(current.convertId)
+      expect((await standIn.deleteRunsRequests()).some(({request})=>request.conversions.includes(current.convertId))).toBe(true)
+      expect(next.orphanPayloads).toBe(0)
+    } finally {
+      for(const work of await standIn.held())await standIn.answer(work.workflowId,{convert:'auto'})
+      await standIn.policy({convert:'auto'})
+      await dropSchemas(url,names.schema)
+      await removeOwner(owner)
+    }
+  })
+
   it('collects a staged orphan after a crash once old, while keeping a young staged source', async () => {
     const env = {
       DATABASE_URL: url, ...{
@@ -175,7 +218,9 @@ describe('garbage collection across Studio processes', () => {
       expect(during.keptFile).toBe(true)
       expect(during.removedLoser).toBe(true)
       expect(during.removedStagedSources).toBe(1)
-      expect(during.keiRequest?.conversions ?? []).toEqual([])
+      // Other cases share kei's schema and can leave stopped conversions for
+      // later sweeps. This live conversion must keep its staged source and run.
+      expect(during.keiRequest?.conversions ?? []).not.toContain(held[0]!.workflowId)
       await standIn.answer(held[0]!.workflowId, { convert: 'auto' })
       const final = await runWorkflowChild('gc-held-ingestion', env)
       expect(final).toMatchObject({ code: 0, signal: null })

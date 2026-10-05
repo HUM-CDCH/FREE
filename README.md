@@ -37,15 +37,15 @@ FREE's normative product and safety contract is:
    canonical extraction path over the Project Context's source documents.
    Schema suggestion feeds this path; it is not a competing extraction mode.
 4. **Evidence and review.** Every populated extraction value is paired with
-   locatable source evidence or visibly marked ungrounded. Complete
-   accept/reject/edit review decisions are validated and stored; partial or
-   structurally invalid review cannot silently become authoritative.
-   Partial review decisions are saved as versioned drafts in PostgreSQL;
-   only a complete, validated review is finalized. Concurrent draft edits
-   report conflicts instead of silently overwriting another view's changes.
-   Revert all resets saved reviews to pending and restores extraction values;
-   previous review revisions remain in history, and results use only the latest
-   active review.
+   locatable source evidence or visibly marked ungrounded. Approve, reject and
+   typed edit decisions are revisioned corrections of stable saved values,
+   bound to their producing inputs and numbered Project decision versions.
+   Concurrent correction writes report conflicts instead of overwriting a
+   newer decision. Finalization is an explicit action on one named result
+   snapshot and decision version; saving a correction never finalizes review.
+   A deliberately older pair may be finalized, and "Latest reviewed" opens
+   the most recently finalized pair. Later work retains earlier decisions and
+   finalized pairs without freezing the Extraction.
 5. **Durable, versioned state.** Project Contexts, source documents and their
    representation revisions, schema revisions, extractions, and review decisions
    survive ordinary restarts. One Extraction record carries a run from admission
@@ -53,9 +53,11 @@ FREE's normative product and safety contract is:
    source-representation and schema revisions it used, and to the extraction
    method it was admitted with (its Extraction Model Choice and Extraction
    Method Settings), so newer revisions can make it stale without rewriting its
-   history. Work in progress survives too:
-   it runs as DBOS workflows inside Studio and the Parsing Service, which resume
-   after a restart, and its status is derived from them rather than stored twice.
+   history. Work in progress survives too: the durable coordination head owns
+   an Extraction's lifecycle, saved values and control intent, while DBOS
+   workflows dispatch linked attempts, retain call checkpoints and recover
+   unfinished work after a restart. Other background workflow status is
+   derived from DBOS.
 6. **Project lifecycle.** A researcher can create, list, rename, and
    permanently delete a Project Context. Deletion removes its owned database
    graph and removes filesystem artifacts only when no remaining Project
@@ -134,7 +136,7 @@ mutating checks:
 | `pnpm test:safety` | Safety/configuration checks; no running FREE stack, but Docker is required for Compose rendering and a throwaway nginx config check; no database mutation |
 | `pnpm test:postgres` | Studio's DBOS workflows, db, extraction and Parsing Service PostgreSQL checks against caller-provisioned disposable loopback `free_test_*` databases; the DBOS checks create and drop their own schemas |
 | `pnpm test:e2e` | Playwright browser tests; creates and removes its own Docker PostgreSQL and mock-OIDC stack, migrates it, and starts Studio locally |
-| `pnpm test:service` | Isolated authenticated FREE workflow using the real Python API/worker and native PDF parsing; scripts only the extraction model boundary; checks evidence, review, and restart persistence |
+| `pnpm test:service` | Isolated authenticated FREE workflows using the real Python API/worker; checks native parsing recovery/reuse, durable controls, retained corrections and exports, deletion and garbage collection; model responses are scripted unless a live endpoint is supplied |
 | `pnpm test:all` | All deterministic tiers: typecheck, lint, unit, safety, caller-provisioned PostgreSQL integration, E2E, and the real-service workflow |
 | `pnpm test:all:node` | The deterministic tiers that need no Python environment: typecheck, lint, Node unit (`test:unit:node`), safety, db and extraction PostgreSQL (`test:postgres:node`), and E2E |
 | `pnpm test:ci` | CI-only aggregate; verifies the fixed disposable CI targets, migrates them, and runs `test:all:node` when `FREE_SKIP_PYTHON=1` (GitHub's job), otherwise `test:all` |
@@ -237,7 +239,7 @@ registration and rotation:
 
 Every Extraction is a protocol-1 durable Extraction governed by
 [ADR 0017](docs/adr/0017-durable-extraction-control-and-call-checkpoints.md) and
-[its release matrix](docs/plans/2026-10-04-durable-interactive-extraction-release.md);
+[the active acceptance work](openspec/changes/durable-only-extraction-review/tasks.md);
 there is one execution, review and export path. Valid requests admit new durable
 single, Batch and suggested-Batch Extractions. Each admission commits its public
 row, durable coordination head and workflow enqueue in one transaction.
@@ -276,20 +278,19 @@ value and decision versions and attach execution history observed at a recorded
 capture time. Batch members retain independent cuts and remain openable and
 exportable when paused, failed or stopped; there is no batch-wide review grid.
 
-The integrated candidate passed its guarded checks and required E2E verification
-on baratheon Spark at the source cuts recorded in the
-[integration evidence](docs/validation/2026-10-04-durable-review-integration-verification.md);
-that evidence predates the durable-only follow-up and does not cover it. Durable
-admission is enabled by this implementation. A merge therefore removes the
-application admission block. The current follow-up must pass its own acceptance
-checks before deployment. This work does not authorize a production migration,
-merge or deployment.
+Durable admission is enabled by this implementation. Merging it therefore
+requires PostgreSQL, browser, Compose and exact-commit Spark acceptance recorded
+in [the active OpenSpec change](openspec/changes/durable-only-extraction-review/tasks.md).
+Earlier [integration evidence](docs/validation/2026-10-04-durable-review-integration-verification.md)
+identifies its own source cuts and does not establish acceptance of this source.
+Production migration, merge and deployment remain separate operator actions.
 
 
-FREE sends the pinned schema and the Source Document's run ID to the included
-Parsing Service for Article or Catalog extraction. The service owns extraction
-and grounding; Studio stores the returned records, evidence and diagnostics
-for review. Compose wires `KEI_EXP_URL` to its private API and, with GPU access,
+FREE saves the pinned schema and the Source Document's run ID in the durable
+input selection read by the included Parsing Service's worker. The service
+owns extraction and grounding, and publishes saved values, Evidence and
+diagnostics through restricted coordination routines for Studio to review.
+Compose wires `KEI_EXP_URL` to its private read API and, with GPU access,
 starts a vLLM server with the `KEI_EXTRACT_MODEL` model (default
 `Qwen/Qwen3.8-27B-FP8`). Model Connections and Capability Routes are not sent
 to this separate execution endpoint. Instead, every single and Batch Extraction
@@ -309,9 +310,9 @@ method on the Extraction's first durable input selection (and on the Batch
 Extraction and each member). Durable call captures carry only the pinned method,
 also after a restart; saving new settings affects only later admissions. A repeated request with the same
 Extraction ID and method replays its Extraction; the same ID with another
-method is a conflict. Extraction details show the requested method beside the
-options and protocol versions the Parsing Service reports; a run from before
-methods were recorded shows "Not recorded". The Parsing Service remains the
+method is a conflict. Input-selection history shows the requested method beside the
+effective models, options and protocol versions captured by the Parsing
+Service for each input selection. The Parsing Service remains the
 authority on method rules and re-validates every request; Studio's copy of the
 rules (`packages/extraction/src/extraction-method.ts`) is pinned to it by shared
 fixtures in `prototypes/parsing_service/tests/fixtures/contracts/`. Schema
@@ -322,8 +323,9 @@ Parsing Service's worker on its extraction lane. Each Schema Revision declares i
 Article/Catalog selection: Article returns exactly one document-level object,
 gathered from the complete source; Catalog returns a collection of records.
 Admission refuses an undeclared scope or a strategy that contradicts it, and a
-result whose root count breaks the scope is refused. Article and Catalog have three-hour
-execution deadlines, counted from when the worker starts them. Pause drains
+result whose root count breaks the scope is refused. Durable attempts have no
+whole-Extraction deadline; provider calls use `KEI_EXTRACT_TIMEOUT` and bounded
+retries. Pause drains
 admitted calls; Stop is terminal and keeps saved values, corrections and export
 history; Retry continues a failed Extraction with its saved work.
 
@@ -344,7 +346,7 @@ Neither model keys nor document content enter Studio's workflow inputs.
 | Schema editing (Interaction) | [`proposeSchemaEdit`](prototypes/studio/api/_schema_edit.ts) prepares the pinned schema tree and optional source Markdown, builds the edit and bounded repair prompts. [`proposeSchemaEditWorkflow`](prototypes/studio/api/_schema_edit_workflow.ts) owns the pinned reads and step. | [`generateSchemaEditJson`](prototypes/studio/api/_schema_edit.ts) uses [`executeEditPrompt`](prototypes/studio/api/_model_execution.ts), which resolves the researcher's Interaction Route and shares general-adapter output negotiation and credential handling with suggestions. | `generateSchemaEditJson` rejects truncated output; `proposeSchemaEdit` uses the shared JSON parsing and repair path and validates field edits/additions, including the model retry for invalid entries. The edit workflow checkpoints its proposal; [`edit_schema.ts`](prototypes/studio/api/edit_schema.ts) maps its response, not a mutation of the pinned revision. |
 | Article Extraction | Admission pins the executable schema, method and parse generation in the Extraction's first durable input selection ([`initializeDurableExtraction`](packages/extraction/src/durable-repository.ts)); the reconciler dispatches Python [`extractDurableV1`](prototypes/parsing_service/src/kei_exp/workflows/durable_extract.py), whose planner validates the selection and captures every call before it runs; [`run.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/run.py) loads canonical [`Evidence`/`Passage`](prototypes/parsing_service/src/kei_exp/kie/passages.py) and refuses a stale generation before any model call; [`article.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/article.py) extracts the one document-level object (Record Scope `document`) from every value context of the full source, combines the contexts without dropping list items, and grounds it; [`run.dispatch`](prototypes/parsing_service/src/kei_exp/kie/extract/run.py) refuses any other root count. Shared [`stages.extract_document`/`stages.record_request`](prototypes/parsing_service/src/kei_exp/kie/extract/stages.py) build document/record value prompts, with field guidance and reply schemas from [`schema.notes`/`schema.json_schema`](prototypes/parsing_service/src/kei_exp/kie/extract/schema.py). [`assembly.document_values`](prototypes/parsing_service/src/kei_exp/kie/extract/assembly.py) coordinates document calls, not their prompt construction; grounding prompts and reply schemas live in [`grounding.verify`](prototypes/parsing_service/src/kei_exp/kie/extract/grounding.py). | Every call goes through [`calls.complete`](prototypes/parsing_service/src/kei_exp/kie/extract/calls.py): [`models.Router`](prototypes/parsing_service/src/kei_exp/kie/extract/models.py) sends inventory/grounding to the reasoning model and document/record values to the fields model, [`tokens`](prototypes/parsing_service/src/kei_exp/kie/extract/tokens.py) counts each request on the serving endpoint's `/tokenize`, and [`OpenAIChat`/`NuExtractChat`](prototypes/parsing_service/src/kei_exp/kie/extract/llm.py) invoke the configured extraction endpoints, **not** Studio Capability Routes. | `calls.complete` decodes each reply with `llm.parse_json`, fails a cut-off or unreadable reply without repair and records every attempt as a `Call`. Python schema conformance and grounding precede `publish_snapshot`, which publishes the saved values as a fixed result snapshot through the restricted coordination routines; Studio projects their Evidence with [`kei-evidence`](packages/extraction/src/kei-evidence.ts) and reviews them through the [durable repository](packages/extraction/src/durable-repository.ts). The [pipeline map](prototypes/parsing_service/docs/extraction-experiments.md#pipeline-map) lists every call purpose. |
 | Generic Catalog Extraction | The same pinned handoff and canonical Evidence load. Without `options.catalog.recipe`, [`run.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/run.py) dispatches to [`catalog.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/catalog.py): chunked labelled-block discovery, per-record source slices, values and grounding. [`catalog.discover`](prototypes/parsing_service/src/kei_exp/kie/extract/catalog.py) builds the boundary-discovery prompt and reply schema; record values delegate to shared [`stages.extract_record`/`stages.record_request`](prototypes/parsing_service/src/kei_exp/kie/extract/stages.py), and document values to `stages.extract_document`. Field guidance and reply schemas come from [`schema`](prototypes/parsing_service/src/kei_exp/kie/extract/schema.py). | The same `calls.complete`: `models.Router` assigns discovery/grounding to reasoning and record/document values to fields; character budgets (`discovery_chars`, `record_chars`) stand in for token counting; `llm.py` sends the calls. | `catalog.discover` reads the record boundaries, `schema.conform` conforms values and `grounding.verify` links them to their slice's passages; the durable attempt publishes the version-1 values as a saved result snapshot. A recipe is **optional** and distinct: `options.catalog.recipe` dispatches to [`grounded.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/grounded.py), with segmentation, token-budgeted entry calls through the same `calls.complete` and version-2 span Evidence. It does not replace generic Catalog. |
-| Unified Catalog Extraction (behind `FREE_CATALOG_METHOD=unified`) | The same pinned handoff with `options.unified` and no recipe. [`unified.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/unified.py) publishes its execution record, runs [`discovery.discover`](prototypes/parsing_service/src/kei_exp/kie/extract/discovery.py) over counted windows of the whole source and publishes its discovery record and source ledger, then reads every entry and the document fields in counted windows. | The same `calls.complete` with a counter for every call: discovery, verification and arbitration on reasoning, entries and document fields on fields; each stage's reply reserve is counted before the call. | Code checks each `{value, quote}` candidate; only candidates a separate verification supports are accepted; version-3 values published as a saved result snapshot; Studio shows processing and Evidence separately. |
+| Unified Catalog Extraction (behind `FREE_CATALOG_METHOD=unified`) | The same pinned selection with `options.unified` and no recipe. [`unified.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/unified.py) assembles its execution record, runs [`discovery.discover`](prototypes/parsing_service/src/kei_exp/kie/extract/discovery.py) over counted windows of the whole source to build its discovery record and source ledger, then reads every entry and the document fields in counted windows. | The same `calls.complete` with a counter for every call: discovery, verification and arbitration on reasoning, entries and document fields on fields; each stage's reply reserve is counted before the call. | Code checks each `{value, quote}` candidate; only candidates a separate verification supports are accepted; version-3 values and diagnostics are published as retained snapshots; Studio shows processing and Evidence separately. |
 
 These are different validation boundaries, not equivalent schema validators:
 [`parseSchemaDefinition`](packages/extraction/src/schema.ts) accepts an editable

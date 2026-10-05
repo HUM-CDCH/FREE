@@ -122,7 +122,7 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   served by this API. A request may name
   `start_page`, the page the researcher is reading: the unified Catalog reads
   the records nearest it first and Article its bounded value contexts, the
-  artifact unchanged.
+  admitted source range unchanged.
   Changing the schema reruns Extraction without rerunning OCR.
 - Extraction calls take one of two roles. `fields` reads values off the source
   (document, record and grounded entry calls); `reasoning` decides over labelled
@@ -203,7 +203,7 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   result version 2: structural segmentation with a coverage ledger, one bounded
   call per entry, and code-verified candidates (accepted, proposed, rejected)
   with code-point span Evidence. The worker runs its entries in
-  `KEI_CATALOG_CHUNKS` chunks at once; the artifact records the count used as
+  `KEI_CATALOG_CHUNKS` chunks at once; the result records the count used as
   `chunks`, outside the fingerprint. Without a recipe, Catalog runs generic
   discovery (version 1). The extraction endpoint must count requests on vLLM's
   `/tokenize` and report its context size. Otherwise the request
@@ -218,7 +218,7 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   windows that read the whole admitted text, and a window that cannot be read
   leaves its range unresolved rather than clipped. Candidates are verified by a
   separate reasoning request; unverified, partial or conflicting values stay
-  proposals. The artifact carries the execution record (pins and resolved
+  proposals. The internal result carries the execution record (pins and resolved
   budgets), the discovery record and each entry's work; nothing is written
   beside the run, and durable execution resumes only from its committed call
   outputs. A request the server refuses
@@ -226,8 +226,10 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   or left failed and visible. A record the supplied source ends inside, with no
   unread text after it, ends `source_end` and does not make boundaries
   incomplete. A value printed in another cell of the table row whose cell the
-  quote names is located in its own cell. The artifact embeds the execution and
-  discovery records with their canonical digests, which Studio verifies.
+  quote names is located in its own cell. Retained snapshots preserve the
+  execution and discovery records as diagnostics, with each saved value's
+  producing selection and source Evidence. Studio reads those snapshots
+  through the durable repository; there is no extraction-artifact HTTP handoff.
   New admissions use it only where
   Studio's `FREE_CATALOG_METHOD=unified` gate is on.
 

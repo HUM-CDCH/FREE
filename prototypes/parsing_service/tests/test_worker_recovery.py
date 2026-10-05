@@ -17,7 +17,6 @@ from kei_exp import runs
 from kei_exp.workflows import config
 from tests.helpers import kei_worker
 from tests.helpers import kei as kei_helper
-from tests.helpers import postgres as postgres_helper
 from tests.helpers.pdfs import mask
 from tests.test_delete_runs import age
 
@@ -25,7 +24,7 @@ pytestmark = pytest.mark.slow
 
 
 @pytest.fixture
-def site(database, tmp_path):
+def site(coordination_database, tmp_path):
     paths = {name: tmp_path / name for name in ("runs", "inbox", "control")}
     for path in paths.values():
         path.mkdir()
@@ -33,7 +32,7 @@ def site(database, tmp_path):
     keis: list[kei_helper.Kei] = []
 
     def start(crash_after=None):
-        worker = kei_worker.spawn("slot-1", database_url=postgres_helper.url(database), runs_root=paths["runs"],
+        worker = kei_worker.spawn("slot-1", database_url=coordination_database, runs_root=paths["runs"],
                                   inbox=paths["inbox"], control=paths["control"], crash_after=crash_after)
         workers.append(worker)
         worker.wait_serving()
@@ -42,13 +41,13 @@ def site(database, tmp_path):
     def kei():
         """A portable client on this database, as tests/helpers/kei.py's; never a DBOS launch in this process."""
         if not keis:  # kei_dbos exists only once a worker has launched
-            url = postgres_helper.url(database)
+            url = coordination_database
             keis.append(kei_helper.Kei(url, DBOSClient(system_database_url=url, dbos_system_schema=config.SCHEMA,
                                                        application_name=config.APP_NAME),
                                        paths["runs"], paths["inbox"]))
         return keis[0]
     try:
-        yield paths, start, kei, postgres_helper.url(database)
+        yield paths, start, kei, coordination_database
     finally:
         for number, worker in enumerate(workers, 1):
             worker.shutdown()

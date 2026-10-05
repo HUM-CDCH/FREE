@@ -46,4 +46,7 @@ The user then required removal of the complete admission gate.
 
 - Merging the implementation removes the admission block. Its PostgreSQL,
   browser, Compose and Spark acceptance must be recorded on the current source.
-  Keep missing checks open and do not archive the change before they pass.
+  **Exact-commit Spark acceptance is a merge prerequisite**, not only an archive
+  requirement. The current Baratheon test project is authorized; production
+  migration and deployment are separate actions. Keep missing checks open and
+  do not merge or archive the change before they pass.

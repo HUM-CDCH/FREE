@@ -109,6 +109,7 @@ describe('Batch Extraction contracts', () => {
     sourceDocumentId: sourceDocumentIds[index],
     sourceRepresentationRevisionId: `51000000-0000-4000-8002-${String(index + 1).padStart(12, '0')}`,
     executionStatus,
+    completed: executionStatus === 'COMPLETED',
     reviewable,
     currentReview,
   })
@@ -142,7 +143,7 @@ describe('Batch Extraction contracts', () => {
     const [first] = batch.members
     for (const removed of [{ startedAt: null }, { executionFailureMessage: null }, { latestExtraction: null }, { durableExtractionId: first!.extractionId }])
       expect(batchExtractionSchema.safeParse({ ...batch, members: [{ ...first, ...removed }] }).success).toBe(false)
-    for (const required of ['extractionId', 'executionStatus', 'reviewable', 'currentReview'] as const)
+    for (const required of ['extractionId', 'executionStatus', 'completed', 'reviewable', 'currentReview'] as const)
       expect(batchExtractionSchema.safeParse({ ...batch, members: [without(first!, required)] }).success).toBe(false)
   })
 
@@ -159,8 +160,12 @@ describe('Batch Extraction contracts', () => {
     })
     const empty = batchExtractionSchema.parse({ ...batch, members: [member(0, 'COMPLETED', false)] })
     expect(batchExtractionProgress(empty)).toMatchObject({ succeeded: 1, reviewed: 0, needsReview: 0, unreviewable: 1 })
-    // A paused member's finalized current cut is a review; it is still not a completed extraction.
+    // A finalized current cut counts as extracted while processing is paused.
     const paused = batchExtractionSchema.parse({ ...batch, members: [member(0, 'PAUSED', true, review)] })
-    expect(batchExtractionProgress(paused)).toMatchObject({ extracted: 0, reviewed: 1 })
+    expect(batchExtractionProgress(paused)).toMatchObject({ extracted: 1, reviewed: 1, needsReview: 0 })
+    for (const executionStatus of ['STOPPED', 'PAUSED', 'RUNNING', 'FAILED']) {
+      const retained = batchExtractionSchema.parse({ ...batch, members: [{ ...member(0, executionStatus), completed: true }] })
+      expect(batchExtractionProgress(retained)).toMatchObject({ extracted: 1, reviewed: 0, needsReview: 1 })
+    }
   })
 })

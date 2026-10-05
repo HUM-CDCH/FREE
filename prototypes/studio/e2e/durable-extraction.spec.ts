@@ -17,7 +17,17 @@ test.beforeEach(({page})=> {
 })
 
 test('every durable API rejects unauthenticated and foreign owners, wrong origins and oversized writes',async({page,browser})=>{
-  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  const parsed=decodeParsedDocument(JSON.parse(await readFile(new URL('../src/assets/parsed_document.v2.json',import.meta.url),'utf8')))
+  const anchor=parsed.evidence_index.anchors[0]!
+  if(anchor.kind!=='text')throw new Error('The browser fixture requires text Evidence.')
+  const heading={...parsed.content_stream[0]!,block_id:'bundled-heading',text:'Article fixture',markdown_span:{start:2,end:17},
+    bbox:{x0:36,y0:12,x1:140,y1:30}}
+  parsed.content_stream.unshift(heading)
+  parsed.pages[0]!.ordered_content.unshift(heading.block_id)
+  parsed.pages[0]!.markdown_span={start:2,end:27}
+  parsed.evidence_index.anchors.unshift({...anchor,anchor_id:'heading-anchor',block_id:heading.block_id,markdown_span:heading.markdown_span,
+    producer_observations:[{...anchor.producer_observations[0]!,occurrence_id:'heading-occurrence',producer_ref:'#/texts/0',bbox:heading.bbox}]})
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false,sourceDocument:decodeParsedDocument(parsed)})
   const otherContext=await browser.newContext(),anonymous=await browser.newContext()
   try {
     const {id,schemaRevisionId}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Private value'])
@@ -48,6 +58,14 @@ test('every durable API rejects unauthenticated and foreign owners, wrong origin
       expect((await page.request.post(path,{headers:{...origin,'Content-Type':'application/json'},data:JSON.stringify({payload:'x'.repeat(1024*1024)})})).status(),path).toBe(413)
     }
     expect((await page.request.post(`${root}/values/title`,{headers:origin,data:{expectedRevision:0,snapshotVersion:1,action:'EDITED',value:'Refused Evidence',included:true,evidence:[{anchorId:'foreign-anchor',occurrenceIds:['foreign-occurrence']}]}})).status()).toBe(422)
+    const source = (await (await page.request.get(`${root}/source`)).json()).document
+    const anchors = source.evidence_index.anchors.filter((anchor: { producer_observations: unknown[] }) => anchor.producer_observations.length > 0)
+    expect(anchors.length).toBeGreaterThan(1)
+    const wrongOccurrence = await page.request.post(`${root}/values/title`, { headers: origin, data: {
+      expectedRevision: 0, snapshotVersion: 1, action: 'EDITED', value: 'Refused occurrence', included: true,
+      evidence: [{ anchorId: anchors[0].anchor_id, occurrenceIds: [anchors[1].producer_observations[0].occurrence_id] }],
+    } })
+    expect(wrongOccurrence.status()).toBe(422)
     const unrelated=await page.request.post('/api/project-contexts',{headers:origin,data:{name:'Unrelated guidance target'}})
     expect(unrelated.status()).toBe(201)
     const otherProject=(await unrelated.json()).projectContext.projectContextId

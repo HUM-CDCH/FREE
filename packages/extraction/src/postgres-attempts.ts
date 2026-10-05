@@ -6,6 +6,7 @@
  */
 
 import type { DatabaseOrm } from 'db'
+import { z } from 'zod'
 import { durableHeadSchema, durableStatus, durableValueSchema, type DurableHead } from './durable-contract.js'
 import { modelChoice, recordedSettings } from './extraction-method.js'
 import type {
@@ -33,6 +34,8 @@ export type DerivedAttempt = Readonly<{
   head: DurableHead
   /** The latest named finalization of any of its cuts; the cut it names stays openable beside later work. */
   finalizedReview: FinalizedReview | null
+  /** Completion survives Stop and adopting revised inputs. */
+  completed: boolean
   /** Whether its current result cut holds saved values to review. */
   reviewable: boolean
   /** A finalization of its current cut whose values share one producing schema (guided pilot progress). */
@@ -45,23 +48,49 @@ export async function readRuntimeHeads(orm: DatabaseOrm, ids: readonly string[])
   return new Map(heads.filter(h => !h.deleted).map(h => [h.id, durableHeadSchema.parse(h)]))
 }
 
+// Summaries need only processing and producing-schema metadata. Opening a result still validates the complete
+// durable value and its producer Evidence; a batch poll never repeats that work over every value of every member.
+const summaryValuesSchema = z.array(z.object({
+  processing: durableValueSchema.shape.processing,
+  schemaRevisionId: durableValueSchema.shape.schemaRevisionId,
+}))
+
 /** Guided pilot progress uses a finalized current result cut and its actual
  * producing schema. Historical or mixed-schema reviews never unlock an
  * adopted revision. */
 export async function readDurableSummaries(orm: DatabaseOrm, heads: ReadonlyMap<string, DurableHead>) {
-  const summaries = new Map<string, { reviewable: boolean; review: DerivedAttempt['currentReview'] }>()
-  await Promise.all([...heads.values()].map(async head => {
-    // Read only the current cut, never every historical snapshot's payload.
-    const snapshot = await orm.extraction_runtime.Snapshot.select('values').first({ extractionId: head.id, version: head.snapshotVersion })
-    const values = snapshot ? durableValueSchema.array().parse(snapshot.values).filter(value => value.processing === 'saved') : []
-    const summary: { reviewable: boolean; review: DerivedAttempt['currentReview'] } = { reviewable: values.length > 0, review: null }
-    summaries.set(head.id, summary)
-    const schemaRevisionId = values[0]?.schemaRevisionId
-    if (!schemaRevisionId || values.some(value => value.schemaRevisionId !== schemaRevisionId)) return
-    const finalized = await orm.extraction_runtime.Finalization.where({ extractionId: head.id, snapshotVersion: head.snapshotVersion })
-      .select('snapshotVersion', 'feedbackVersion', 'createdAt').orderBy(row => row.createdAt.desc()).first()
-    if (finalized) summary.review = { ...finalized, schemaRevisionId }
-  }))
+  const summaries = new Map<string, { reviewable: boolean; review: DerivedAttempt['currentReview']; finalizedReview: FinalizedReview | null }>()
+  if (heads.size === 0) return summaries
+  const finalizations = await orm.extraction_runtime.Finalization.where(row => row.extractionId.in([...heads.keys()]))
+    .select('extractionId', 'snapshotVersion', 'feedbackVersion', 'createdAt').orderBy(row => row.createdAt.desc()).all()
+  const latest = new Map<string, FinalizedReview>(), current = new Map<string, FinalizedReview>()
+  for (const { extractionId, ...finalization } of finalizations) {
+    if (!latest.has(extractionId)) latest.set(extractionId, finalization)
+    if (finalization.snapshotVersion === heads.get(extractionId)?.snapshotVersion && !current.has(extractionId))
+      current.set(extractionId, finalization)
+  }
+  // Each version group is one bulk read of exactly the heads' current cuts. Read groups sequentially so a batch
+  // poll never queues one pool checkout per member, and never reads historical snapshot payloads.
+  const groups = new Map<number, string[]>()
+  for (const head of heads.values()) {
+    summaries.set(head.id, { reviewable: false, review: null, finalizedReview: latest.get(head.id) ?? null })
+    if (head.snapshotVersion === 0) continue
+    const group = groups.get(head.snapshotVersion) ?? []
+    group.push(head.id)
+    groups.set(head.snapshotVersion, group)
+  }
+  for (const [version, ids] of groups) {
+    const snapshots = await orm.extraction_runtime.Snapshot.where(row => row.extractionId.in(ids))
+      .where({ version }).select('extractionId', 'values').all()
+    for (const snapshot of snapshots) {
+      const values = summaryValuesSchema.parse(snapshot.values).filter(value => value.processing === 'saved')
+      const summary = summaries.get(snapshot.extractionId)!
+      summary.reviewable = values.length > 0
+      const schemaRevisionId = values[0]?.schemaRevisionId, finalized = current.get(snapshot.extractionId)
+      if (schemaRevisionId && finalized && values.every(value => value.schemaRevisionId === schemaRevisionId))
+        summary.review = { ...finalized, schemaRevisionId }
+    }
+  }
   return summaries
 }
 
@@ -72,18 +101,17 @@ export async function deriveAttempts(
 ): Promise<ReadonlyMap<string, DerivedAttempt>> {
   const heads = await readRuntimeHeads(orm, rows.map(row => row.id))
   const summaries = await readDurableSummaries(orm, heads)
-  const finalizations = heads.size ? await orm.extraction_runtime.Finalization.where(row => row.extractionId.in([...heads.keys()]))
-    .select('extractionId', 'snapshotVersion', 'feedbackVersion', 'createdAt').orderBy(row => row.createdAt.desc()).all() : []
+  const completedAttempts = heads.size ? await orm.extraction_runtime.Attempt.where(row => row.extractionId.in([...heads.keys()]))
+    .where({ outcome: 'COMPLETED' }).select('extractionId').all() : []
+  const completed = new Set(completedAttempts.map(attempt => attempt.extractionId))
   const derived = new Map<string, DerivedAttempt>()
   for (const row of rows) {
     const head = heads.get(row.id)
     if (!head) continue
-    const finalized = finalizations.find(item => item.extractionId === row.id)
     derived.set(row.id, {
       row, head,
-      finalizedReview: finalized
-        ? { snapshotVersion: finalized.snapshotVersion, feedbackVersion: finalized.feedbackVersion, createdAt: finalized.createdAt }
-        : null,
+      finalizedReview: summaries.get(row.id)?.finalizedReview ?? null,
+      completed: head.acknowledgement === 'COMPLETED' || completed.has(row.id),
       reviewable: summaries.get(row.id)?.reviewable ?? false,
       currentReview: summaries.get(row.id)?.review ?? null,
     })

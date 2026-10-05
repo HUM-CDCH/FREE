@@ -41,7 +41,6 @@ from kei_exp.pagefile import RESULT_VERSION, PageResult, read_manifest, read_pag
 from kei_exp.workflows import config
 from tests.helpers import kei as kei_helper
 from tests.helpers import kei_worker
-from tests.helpers import postgres as postgres_helper
 from tests.helpers.contracts import convert_timeout_ms, fixture
 
 pytestmark = [pytest.mark.slow, pytest.mark.live_model]
@@ -74,13 +73,13 @@ def smoke_pdf(request: pytest.FixtureRequest) -> Path:
 
 
 @pytest.fixture
-def service(database: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Service]:
+def service(coordination_database: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Service]:
     """One `kei-worker worker` process and the API, wired to one runs root and one source inbox under `tmp_path`."""
     runs_root, inbox = tmp_path / "runs", tmp_path / "inbox"
     runs_root.mkdir()
     inbox.mkdir()
     monkeypatch.setattr(runs, "RUNS", runs_root)
-    url = postgres_helper.url(database)
+    url = coordination_database
     # The database URL goes in the environment, as a deployment sets it, not on the command line (visible in ps).
     environment = {**os.environ, "KEI_SYSTEM_DATABASE_URL": url, "KEI_RUNS": str(runs_root),
                    "KEI_SOURCE_INBOX": str(inbox), "KEI_LOG_LEVEL": "INFO", "PYTHONUNBUFFERED": "1"}

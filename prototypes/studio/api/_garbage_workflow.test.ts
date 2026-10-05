@@ -68,6 +68,38 @@ function fakePorts(studioRows: WorkflowRow[] = [], keiRows: WorkflowRow[] = []) 
 }
 
 describe('collectGarbage', () => {
+  it('repairs orphaned ingest/reprocess work through each application client', async () => {
+    const project='51000000-0000-4000-8000-000000000001'
+    const ingest=`ingest:${project}:52000000-0000-4000-8000-000000000001`
+    const reprocess='reprocess:53000000-0000-4000-8000-000000000001:54000000-0000-4000-8000-000000000001'
+    const orphan=`kei-convert:ingest:${project}:55000000-0000-4000-8000-000000000001`
+    const children=[`kei-convert:${ingest}`,`kei-convert:${reprocess}`,orphan]
+    const fake=fakePorts([
+      {workflowID:ingest,status:'PENDING',attributes:{projectContextId:project},updatedAt:NOW},
+      {workflowID:reprocess,status:'ENQUEUED',attributes:{projectContextId:project},updatedAt:NOW},
+    ],children.map(workflowID=>({workflowID,status:'PENDING',updatedAt:NOW})))
+    const repaired=await repairCancellations(fake.ports)
+    expect(repaired).toEqual({studio:[ingest,reprocess].sort(),kei:children.sort()})
+    expect(fake.studio.cancelWorkflow.mock.calls.map(([id])=>id)).toEqual([ingest,reprocess].sort())
+    expect(fake.kei.cancelWorkflow.mock.calls.map(([id])=>id)).toEqual(children)
+    expect(fake.studio.cancelWorkflow.mock.calls.flat()).not.toContain(orphan)
+  })
+
+  it('collects a deleted project\'s young settled ingestion history and names its conversion', async () => {
+    const project='51000000-0000-4000-8000-000000000001'
+    const ingest=`ingest:${project}:52000000-0000-4000-8000-000000000001`
+    const conversion=`kei-convert:${ingest}`
+    const fake=fakePorts([
+      {workflowID:ingest,status:'SUCCESS',updatedAt:NOW-100,completedAt:NOW-100,
+        attributes:{projectContextId:project}},
+    ],[{workflowID:conversion,status:'SUCCESS',updatedAt:NOW-100,completedAt:NOW-100}])
+    expect(await collectStudioHistory(fake.ports,NOW)).toBe(1)
+    expect(fake.studio.deleteWorkflows).toHaveBeenCalledWith([ingest])
+    expect(await collectKei(fake.ports,NOW,'kei-gc:deleted-project')).toEqual({conversions:[conversion],history:[]})
+    expect(fake.keiHandoff.requestDeleteRuns).toHaveBeenCalledWith('kei-gc:deleted-project',
+      {conversions:[conversion],history:[]})
+  })
+
   it('reads the clock once and runs the five named phases in order', async () => {
     const fake = fakePorts()
     const result = await collectGarbageWorkflow(SCHEDULED, fake.ports)

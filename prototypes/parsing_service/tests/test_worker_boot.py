@@ -236,16 +236,28 @@ def _echoing(url):
     raise psycopg.OperationalError(f"connection to {url} failed: password={SYNTHETIC_PASSWORD} was refused")
 
 
-@pytest.mark.parametrize(("url", "clock", "kind"), [
+@pytest.mark.parametrize(("url", "boundary", "kind"), [
     (f"kei:{SYNTHETIC_PASSWORD}@db", None, "ProgrammingError"),  # psycopg quotes a malformed conninfo whole
     (f"postgresql://kei:{SYNTHETIC_PASSWORD}@127.0.0.1:1/free", None, "OperationalError"),  # refused
-    (f"postgresql://kei:{SYNTHETIC_PASSWORD}@127.0.0.1:1/free", _echoing, "OperationalError"),
-    (f"postgresql://kei:{SYNTHETIC_PASSWORD.replace('-', '%2D')}@127.0.0.1:1/free", _echoing, "OperationalError"),
+    *[(f"postgresql://kei:{password}@127.0.0.1:1/free", boundary, "OperationalError")
+      for password in (SYNTHETIC_PASSWORD, SYNTHETIC_PASSWORD.replace("-", "%2D"))
+      for boundary in ("coordination", "clock")],
 ])
-def test_a_startup_error_never_prints_the_database_password(lock_root, monkeypatch, capsys, caplog, url, clock,
+def test_a_startup_error_never_prints_the_database_password(lock_root, monkeypatch, capsys, caplog, url, boundary,
                                                              kind):
-    if clock is not None:
-        monkeypatch.setattr(boot, "database_clock_ms", clock)
+    from kei_exp.workflows import durable_extract
+
+    calls = []
+    if boundary is not None:
+        def echoing(database_url):
+            calls.append(database_url)
+            return _echoing(database_url)
+
+        if boundary == "coordination":
+            monkeypatch.setattr(durable_extract, "configure", echoing)
+        else:
+            monkeypatch.setattr(durable_extract, "configure", lambda _: None)
+            monkeypatch.setattr(boot, "database_clock_ms", echoing)
     monkeypatch.setattr(boot, "_timestamp_ms", None)
     with pytest.raises(SystemExit) as stopped:
         cli.main(["worker", "--slot", "slot-9", "--database-url", url])
@@ -255,6 +267,8 @@ def test_a_startup_error_never_prints_the_database_password(lock_root, monkeypat
     assert SYNTHETIC_PASSWORD not in caplog.text  # nor in any log record
     assert "%2D" not in output.err  # nor its percent-encoded spelling
     assert output.err.startswith(f"kei worker stopped: {kind}")
+    if boundary is not None:
+        assert calls == [url], f"the {boundary} failure must reach its password-echoing double"
 
 
 def test_kei_launches_in_kei_dbos_with_its_four_lanes(kei):

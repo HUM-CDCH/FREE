@@ -5,6 +5,10 @@
 > **325 production files** — tests, e2e, DB migrations and Markdown docs were
 > deliberately excluded. Explore interactively with `/understand-dashboard`.
 
+Runtime descriptions and file pointers updated 2026-10-06 for durable-only
+Extraction. File counts, import counts and hotspot metrics below remain the
+historical graph snapshot; refresh the graph before using them for sizing work.
+
 ## 1. Project overview
 
 FREE lets an authenticated humanities researcher turn source documents (PDFs)
@@ -17,7 +21,7 @@ into structured, **evidence-grounded** extraction results and review them.
 | **Frontend** | React 19, Vite, Tailwind CSS, XState v5, PDF.js |
 | **Studio server** | Hono (Node 24), Microsoft Entra / mock OIDC, signed-cookie sessions, Vercel AI SDK |
 | **Persistence** | PostgreSQL 17 via prisma-next (`packages/db`) |
-| **Parsing service** | FastAPI + Uvicorn, Pydantic, Docling, Surya OCR, vLLM, Procrastinate job queue |
+| **Parsing service** | FastAPI + Uvicorn, Pydantic, Docling, Surya OCR, vLLM, DBOS worker |
 | **Tooling** | Vitest, Playwright, Pytest, Docker Compose, GitHub Actions, LikeC4 |
 
 Run it: `pnpm dev` (local: Compose + nginx + mock OIDC at https://localhost:8443/free/)
@@ -30,28 +34,29 @@ or `pnpm production`. Both go through `scripts/free.mjs`.
                                                                                ▲        │
                              Studio Server Host (server/, Hono) ──dispatch─────┘        ├──► Persistence (packages/db)
                                                                                         └──► Extraction Packages
-                                                                                                  │ HTTP (submit + poll)
+                                                                                                  │ DBOS enqueue + restricted coordination
                                                                                                   ▼
                                                                                Parsing Service (kei_exp, FastAPI)
-                                                                                 + Procrastinate workers
+                                                                                 + DBOS worker (kei_dbos)
 ```
 
 | Layer | Files | What lives here |
 |---|---:|---|
-| **Studio Web UI** — `prototypes/studio/src` | 96 | React SPA: auth screens, project contexts, schema editor, single-doc + batch review, evidence overlays, provider config, XState machines, `ui/` kit |
+| **Studio Web UI** — `prototypes/studio/src` | 96 | React SPA: auth screens, project contexts, schema editor, durable results-review rail, batch-member navigation, evidence overlays, provider config, XState machines, `ui/` kit |
 | **Shared Studio Contracts** — `prototypes/studio/shared` | 17 | Zod schemas + pure helpers imported by *both* SPA and API handlers |
 | **Studio HTTP API** — `prototypes/studio/api` | 34 | Request handlers (project contexts, source documents, schemas, extractions, model probing, LLM inspector) and private `_*.ts` helpers |
 | **Studio Server Host** — `prototypes/studio/server` | 17 | Hono composition root: Entra/dev auth, signed session cookies, origin (CSRF) checks, API dispatch, static serving |
-| **Extraction Packages** — `packages/extraction`, `packages/extraction-result-export` | 28 | Extraction domain/runtime (run, cancel, review, finalize, batch, job worker, kei-exp HTTP client) and CSV/XLSX export |
+| **Extraction Packages** — `packages/extraction`, `packages/extraction-result-export` | 28 | Durable admission, immutable selections, controls, corrections, finalization, batch readers, canonical Evidence and fixed-cut exports |
 | **Persistence Layer** — `packages/db` | 15 | prisma-next contract, researcher-scoped project store, content-addressed artifact store, account store, DB-URL safety guards |
 | **Parsing Service (kei_exp)** — `prototypes/parsing_service` | 64 | FastAPI run store, PDF ingest/layout/OCR (native, Surya, VLM), KIE segmentation, grounded extraction, durable jobs |
 | **Deployment & Operations** | 19 | Dockerfiles, `compose*.yaml` overlays, nginx templates, container entrypoint, CI workflow, `scripts/*.mjs` |
 | **Workspace & Build Config** | 35 | Manifests, tsconfigs, Vite/Vitest/Playwright/ESLint, Semgrep/ast-grep rules, `studio-configuration` package |
 
 Dependency direction (from the import graph): UI → Contracts (73 imports),
-API → Contracts (26), API → `db` (20), Server → API (9). The Studio talks to the
-parsing service **only over HTTP**; there are no code imports across the
-TypeScript/Python boundary.
+API → Contracts (26), API → `db` (20), Server → API (9). Studio enqueues the
+Parsing Service's work through DBOS, and the worker uses restricted coordination
+routines for durable Extraction. HTTP reads model listings and canonical parse
+files. There are no code imports across the TypeScript/Python boundary.
 
 ## 3. Key concepts
 
@@ -72,14 +77,15 @@ TypeScript/Python boundary.
   verified *in code* against quotes, keys and headings before being linked to
   evidence spans. Values that can't be located are marked ungrounded, never
   silently accepted.
-- **Durable work, two queues.** Studio-side extraction and batch schema
-  suggestion jobs are leased from Postgres (`packages/extraction` job worker,
-  `api/_project_operations.ts`); parsing-side conversion/extraction jobs run on
-  **Procrastinate** (`kei_exp/jobs/*`). (A DBOS unification is planned but not
-  yet in code.)
-- **Review lifecycle.** Accept / reject / edit per field → versioned drafts with
-  optimistic-concurrency conflict detection → finalize only when complete →
-  "revert all" resets to pending while keeping history.
+- **Durable work.** Studio and the Parsing Service run DBOS workflows in
+  `dbos` and `kei_dbos`. A durable coordination head owns each Extraction's
+  lifecycle and linked attempts. Calls capture immutable inputs and saved
+  outputs; Pause drains calls, Resume adopts eligible selections, Retry reuses
+  eligible work, and Stop retains saved values.
+- **Review lifecycle.** Approve / reject / typed edit decisions are revisioned
+  corrections of stable saved values. Explicit finalization names one result
+  snapshot and decision version; "Latest reviewed" opens the finalized pair.
+  Corrections never finalize implicitly, and later work keeps earlier history.
 - **Model-provider surface.** `api/_provider.ts` is the registry/runtime for
   Ollama, OpenAI, Anthropic, Google, vLLM, Codex CLI, Claude Code and
   OpenAI-compatible connections; `_model_config.ts` persists the configuration.
@@ -89,7 +95,7 @@ TypeScript/Python boundary.
 ## 4. Guided tour
 
 1. **Launching the FREE stack** — `scripts/free.mjs`: `local` prepares mkcert certs, dev session secret, GPU/Entra overlays and starts Compose; `production` validates `.env` and renders the prod deployment.
-2. **The Compose topology** — `compose.yaml`, both Dockerfiles: app Postgres + parsing Postgres, parsing migrate/API/worker containers, the Studio container.
+2. **The Compose topology** — `compose.yaml`, both Dockerfiles: one PostgreSQL server, the parsing API/DBOS worker, Studio, and the proxy/model overlays.
 3. **The SPA boots behind auth** — `src/main.tsx` → `auth/AuthApplication.tsx`; `auth/authenticatedFetch.ts` turns an expired session into recovery, not a silent failure.
 4. **Studio shell and workspaces** — `AppFrame.tsx` (rail, tabs, routed panes), `App.tsx` (per-document `DocumentWorkspace`), `projectContexts/BatchExtractionsPanel.tsx`.
 5. **Shared browser/server contracts** — `shared/projectContext.contract.ts`, `extraction.contract.ts`, `batchExtraction.contract.ts`, `modelConfig.contract.ts`.
@@ -97,9 +103,9 @@ TypeScript/Python boundary.
 7. **Authentication and session gating** — `server/auth.ts`, `server/sessionGate.ts` (mock OIDC locally, Entra in production, same code path).
 8. **API dispatch and handlers** — `server/api-dispatcher.ts`, `api/_http.ts` (most-imported file: `ApiError`, body parsing, error mapping), `api/extractions.ts`, `api/batch_extractions.ts`, `api/_provider.ts`.
 9. **Durable state in PostgreSQL** — `packages/db/src/prisma/contract.prisma`, `project-store.ts`, `artifact-store.ts`.
-10. **The extraction runtime package** — `packages/extraction/src/runtime.ts`, `module.ts`, `types.ts`, `postgres-persistence.ts` (composition over `postgres-{admission,attempts,batches,reviews,ownership,workflow-store}.ts`), `job-worker.ts`.
-11. **Crossing to the parsing service** — `packages/extraction/src/kei-exp.ts` (submit + poll with Retry-After) and `studio/api/_kei_exp.ts` (parse run → `parsed_document.v2`).
-12. **kei_exp API and durable jobs** — `kei_exp/api.py` (highest fan-out in the graph), `jobs/app.py`, `jobs/tasks.py`.
+10. **The extraction runtime package** — `packages/extraction/src/durable.ts`, `durable-contract.ts`, `durable-repository.ts`, `postgres-admission.ts`, `postgres-persistence.ts` (composition over current admission, attempt, batch and ownership readers).
+11. **Crossing to the parsing service** — `studio/server/dbos.ts` (named portable DBOS enqueue), `server/durable-extraction-workflow.ts` (durable reconciliation) and `studio/api/_kei_exp.ts` (parse run → `parsed_document.v2`).
+12. **kei_exp API and durable workflows** — `kei_exp/api.py` (read-only files/models), `workflows/cli.py`, `workflows/convert.py`, `workflows/durable_extract.py`, `workflows/coordination.py`.
 13. **Parsing: layout, OCR, segments** — `kie/runner.py`, `kie/segmentation.py`, `kie/passages.py`, `canonical.py`.
 14. **Grounded extraction and CI** — `kie/passages.py`, `kie/extract/grounded.py`, `.github/workflows/verify.yml`.
 
@@ -110,24 +116,24 @@ TypeScript/Python boundary.
 - `src/AppFrame.tsx` — top-level shell layout
 - `src/App.tsx` — per-document workspace (PDF viewer, overlays, schema, extraction)
 - `src/api.ts` — client API layer; `src/auth/authenticatedFetch.ts` — fetch wrapper
-- `src/useExtraction.ts` — single-document extraction lifecycle (request, poll with backoff, review, finalize)
+- `src/useExtraction.ts` — single-document admission and status monitor
 - `src/SchemaPanel.tsx`, `src/currentSchemaRevision.ts`, `src/schemaChanges.ts`, `src/schemaEditorTree.ts` — schema editor, persistence and AI-proposal diffing
-- `src/ResultsTab.tsx`, `src/ui/ResultValue.tsx` — result review UI
-- `src/projectContexts/*` — project list/page, source ingestion, batch extraction panels and review grid
+- `src/DurableResults.tsx`, `src/ReviewRow.tsx`, `src/ResultsHeader.tsx` — retained values, typed corrections and named finalization
+- `src/projectContexts/*` — project list/page, source ingestion and batch extraction panels with links to each member's review
 - `src/projectNavigation.ts` — XState navigation machine + route codec
 - `src/providerConfig/ProviderConfigPage.tsx` — model connections and routing
 
 **Shared contracts** — `shared/extraction.contract.ts`, `projectContext.contract.ts`, `batchExtraction.contract.ts`, `batchSchemaSuggestion.contract.ts`, `schemaRevision.contract.ts`, `modelConfig.contract.ts`, `groundedExtraction.ts`, `authSession.contract.ts`
 
-**Studio HTTP API** — `api/_http.ts` (shared HTTP plumbing), `project_contexts.ts`, `source_documents.ts` (PDF upload → kei_exp → publish representation), `document_reopen.ts`, `extractions.ts`, `batch_extractions.ts`, `batch_schema_suggestions.ts`, `_project_operations.ts` (background worker), `_model.ts` / `_provider.ts` / `_model_config.ts` (model layer), `_schema_edit.ts`, `_kei_exp.ts`, `_llm_inspector.ts` (dev only)
+**Studio HTTP API** — `api/_http.ts` (shared HTTP plumbing), `project_contexts.ts`, `source_documents.ts` (PDF upload → kei_exp → publish representation), `document_reopen.ts`, `extractions.ts`, `durable_extractions.ts`, `batch_extractions.ts`, `batch_schema_suggestions.ts`, `_model.ts` / `_provider.ts` / `_model_config.ts` (model layer), `_schema_edit.ts`, `_kei_exp.ts`, `_llm_inspector.ts` (dev only)
 
 **Studio Server Host** — `server/index.ts` (CLI entry), `host.ts` (prod host), `developmentHost.ts` (Vite SSR host), `app.ts` (composition root), `auth.ts`, `entraIdentityProvider.ts`, `entraTransaction.ts`, `session.ts`, `signedCookie.ts`, `sessionGate.ts`, `origin.ts`, `api-dispatcher.ts`, `static.ts`
 
-**Extraction packages** — `extraction/src/module.ts`, `runtime.ts`, `job-worker.ts`, `postgres-persistence.ts`, `kei-exp.ts`, `schema.ts`, `types.ts`, `batch.ts`, `allowed-values.ts`; `extraction-result-export/src/table.ts`, `csv.ts`, `download.ts`
+**Extraction packages** — `extraction/src/module.ts`, `durable.ts`, `durable-contract.ts`, `durable-repository.ts`, `postgres-admission.ts`, `postgres-persistence.ts`, `kei-evidence.ts`, `kei-exp.ts`, `schema.ts`, `types.ts`, `batch.ts`, `allowed-values.ts`; `extraction-result-export/src/table.ts`, `csv.ts`, `download.ts`
 
 **Persistence** — `db/src/prisma/contract.prisma`, `project-store.ts`, `artifact-store.ts`, `researcher-account-store.ts`, `database-url.ts`, `index.ts`
 
-**Parsing service** — `kei_exp/api.py`, `jobs/{app,tasks,store,worker}.py`, `kie/runner.py`, `kie/stages/{ingest,ocr,layout,route,segment}.py`, `kie/{primitives,blocks,ingest_model,passages}.py`, `kie/extract/{run,stages,assembly,grounding,grounded,locate,llm}.py`, `transcription/{native,surya}.py`, `cut.py`, `result.py`, `pagefile.py`, `canonical.py`, `kie/recipes/numbered-catalogue-de.json`
+**Parsing service** — `kei_exp/api.py`, `workflows/{cli,config,convert,durable_extract,coordination,gc,boot}.py`, `kie/runner.py`, `kie/stages/{ingest,ocr,layout,route,segment}.py`, `kie/{primitives,blocks,ingest_model,passages}.py`, `kie/extract/{run,durable,retained,stages,assembly,grounding,grounded,locate,llm}.py`, `transcription/{native,surya}.py`, `cut.py`, `result.py`, `pagefile.py`, `canonical.py`, `kie/recipes/numbered-catalogue-de.json`
 
 **Deployment & ops** — `scripts/free.mjs`, `compose.yaml` + `compose.{override,prod,gpu,nginx,entra}.yaml`, both Dockerfiles, `docker/nginx/*.template`, `docker/studio-entrypoint.sh`, `.github/workflows/verify.yml`
 
@@ -138,10 +144,10 @@ TypeScript/Python boundary.
 | File | Lines | In | Out | Why careful |
 |---|---:|---:|---:|---|
 | `packages/db/src/project-store.ts` | 2292 | 12 | 2 | God-store for projects, sources, schemas, revisions, batches — every ownership rule lives here |
-| `packages/extraction/src/postgres-admission.ts` | 422 | — | — | Admission and replay under document row locks; persistence is split by concern (`postgres-{attempts,batches,reviews,ownership}.ts`), composed in `postgres-persistence.ts` (320) |
+| `packages/extraction/src/postgres-admission.ts` | 422 | — | — | Admission and replay under document row locks; attempt, batch and ownership readers compose in `postgres-persistence.ts`; durable selections, corrections and finalization live in `durable-repository.ts` |
 | `prototypes/studio/src/SchemaPanel.tsx` | 1813 | 2 | 11 | Tree editor + DnD + AI-proposal review in one component |
 | `prototypes/studio/src/projectContexts/BatchExtractionsPanel.tsx` | 1386 | 1 | 18 | Highest UI fan-out; orchestrates selection, suggestion, runs, history |
-| `prototypes/studio/src/ResultsTab.tsx` | 1122 | 1 | 12 | Review decisions, drafts, diagnostics, retry |
+| `prototypes/studio/src/DurableResults.tsx` | — | — | — | Fixed snapshots, correction versions, selected values and named finalization; replaces the historical results sub-view |
 | `prototypes/studio/src/App.tsx` | 958 | 0 | 13 | Per-document workspace composition |
 | `prototypes/parsing_service/src/kei_exp/kie/ingest_model.py` | 407 | — | — | Largest of the KIE core type modules (split by layer: `primitives`, `blocks`, `ingest_model`) |
 | `prototypes/parsing_service/src/kei_exp/kie/extract/grounded.py` | 767 | 1 | 10 | The evidence-verification heart of the product promise |

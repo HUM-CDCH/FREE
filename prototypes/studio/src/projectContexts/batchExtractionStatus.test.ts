@@ -7,6 +7,7 @@ const member: BatchExtractionMember = {
   sourceDocumentId: '51000000-0000-4000-8001-000000000001',
   sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
   executionStatus: 'QUEUED',
+  completed: false,
   reviewable: false,
   currentReview: null,
 }

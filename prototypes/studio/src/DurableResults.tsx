@@ -45,7 +45,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     if(action==='EDITED')send({type:'edit',draft:{...state.context.draft,value:edited}})
     send({type:'save',action})
   }
-  const common={quote,last:false,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
+  const common={quote,editing,node:value.node,onDecide:decide,onEdit:()=>setEditing(true),
     onCancelEdit:()=>setEditing(false),onUndo:()=>send({type:'undo'}),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
   useEffect(()=> {
     const root=keyboardRoot.current
@@ -104,6 +104,40 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   </section>
 }
 
+type EffectiveConfiguration = {
+  models: Record<string, {key:string;model:string;adapter:string;adapterVersion:number;nativeInfo?:Record<string,unknown>}>
+  options: Record<string,unknown>
+  planner: number
+  protocols: {calls:number;source:string}
+}
+
+/** The worker's resolved configuration belongs to the producing selection, never to the current account settings. */
+function ProducingMethod({ordinal,requested,effective}:{ordinal:number;requested:unknown;effective:EffectiveConfiguration|undefined}) {
+  return <section aria-label={`Method used for input selection ${ordinal}`} className="space-y-2 pt-2">
+    <h3 className="m-0 text-secondary font-semibold">Method used</h3>
+    <p className="m-0 text-compact font-semibold">Requested method</p>
+    <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(requested,null,2)}</pre>
+    {effective ? <>
+      <p className="m-0 text-compact font-semibold">Effective model choices</p>
+      <dl className="space-y-1 text-compact">
+        {Object.entries(effective.models).map(([role,model])=><div key={role}>
+          <dt className="font-semibold">{role==='fields'?'Field extraction':role==='reasoning'?'Reasoning':role}</dt>
+          <dd className="m-0 break-words">{model.model} · model key {model.key} · {model.adapter} adapter version {model.adapterVersion}</dd>
+          {model.nativeInfo&&<dd className="m-0"><details><summary className="cursor-pointer">Native model protocol and identity</summary>
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words">{JSON.stringify(model.nativeInfo,null,2)}</pre>
+          </details></dd>}
+        </div>)}
+      </dl>
+      <p className="m-0 text-compact font-semibold">Effective method settings</p>
+      <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(effective.options,null,2)}</pre>
+      <p className="m-0 text-compact text-ink-muted">Planner version {effective.planner} · call protocol version {effective.protocols.calls} · source scope {effective.protocols.source}</p>
+      <details><summary className="cursor-pointer text-compact">Exact effective configuration</summary>
+        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(effective,null,2)}</pre>
+      </details>
+    </> : <p className="m-0 text-compact text-ink-muted">Effective method: Not recorded</p>}
+  </section>
+}
+
 function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackVersion?:number)=>void}) {
   const [history,setHistory]=useState<DurableHistory|null>(null),[error,setError]=useState<string|null>(null)
   return <details className="rounded-md border border-line bg-surface p-3" onToggle={event=> {
@@ -115,7 +149,10 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
       {history.selections.map(selection=><details key={selection.id} className="text-secondary">
         <summary className="cursor-pointer">Input selection {selection.ordinal} · schema {selection.schemaRevisionId.slice(0,8)}</summary>
         <p className="text-compact text-ink-muted">Earlier values retain this schema and these settings.</p>
-        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({schema:selection.schemaTree,method:selection.method,resolved:selection.resolved},null,2)}</pre>
+        <ProducingMethod ordinal={selection.ordinal} requested={selection.method} effective={history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined}/>
+        <details><summary className="cursor-pointer">Pinned schema and admission inputs</summary>
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({schema:selection.schemaTree,resolved:selection.resolved},null,2)}</pre>
+        </details>
       </details>)}
       {history.captures?.map(capture=><details key={capture.id} className="text-secondary">
         <summary className="cursor-pointer">Call · {capture.descriptor.stage} · input selection {history.selections.find(selection=>selection.id===capture.selectionId)?.ordinal??capture.selectionId.slice(0,8)} · decisions {capture.feedbackVersion}</summary>
@@ -298,7 +335,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const newerResults=loaded.page.snapshotVersion>page.snapshotVersion?loaded.page.snapshotVersion:null
   const newerDecisions=loaded.page.feedbackVersion>page.feedbackVersion?loaded.page.feedbackVersion:null
   const finalizeLabel=!readOnly&&!page.finalization&&page.total>0?`Finalize ${cut}`:null
-  const renderValue=(row:RailRow,pinned:boolean)=>row.key===review?.value.id&&review.version===page.snapshotVersion&&review.feedbackVersion===page.feedbackVersion?null:<ReviewRow row={row} selected={false} pinned={pinned} onSelect={()=>selectValue(row.key)} quote={null} canDecide={false} saved={readOnly} last={false}
+  const renderValue=(row:RailRow,pinned:boolean)=>row.key===review?.value.id&&review.version===page.snapshotVersion&&review.feedbackVersion===page.feedbackVersion?null:<ReviewRow row={row} selected={false} pinned={pinned} onSelect={()=>selectValue(row.key)} quote={null} canDecide={false} saved={readOnly}
     editing={false} node={null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
   return <div ref={keyboardRoot} className="flex h-full min-h-0 flex-col">
     <ResultsHeader status={{mark:['QUEUED','RUNNING','PAUSING','STOPPING'].includes(state.status)?'spinner':state.status==='STOPPED'?'stopped':state.status==='FAILED'?'failed':state.status==='COMPLETED'?'completed':'incomplete',

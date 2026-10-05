@@ -26,6 +26,7 @@ const defaultController: ExtractionController = {
   attempt: null,
   admitting: false,
   canRun: true,
+  retryAdmission: null,
   acceptDurableStatus: () => {},
   runExtraction: async () => null,
   monitorError: null,

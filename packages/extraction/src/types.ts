@@ -123,6 +123,8 @@ export type BatchExtractionMemberSnapshot = Readonly<{
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   executionStatus: ExtractionExecutionStatus
+  /** Whether any durable attempt completed, including after Stop or revised input adoption. */
+  completed: boolean
   /** Whether its current result cut holds saved values to review. */
   reviewable: boolean
   /** A finalization of its current result cut, produced by the batch's own Schema Revision; null otherwise. */

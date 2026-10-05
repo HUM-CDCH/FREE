@@ -35,6 +35,7 @@ function member(
     sourceDocumentId,
     sourceRepresentationRevisionId: REPRESENTATION,
     executionStatus,
+    completed: executionStatus === 'COMPLETED',
     reviewable: state !== 'unsaved',
     currentReview: state === 'reviewed'
       ? { snapshotVersion: 1, feedbackVersion: 1, createdAt: '2026-01-01T01:00:00.000Z', schemaRevisionId: '50000000-0000-4000-8000-000000000001' }

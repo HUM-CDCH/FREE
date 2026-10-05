@@ -210,6 +210,15 @@ function RightRail({
         </button>
       </div>
 
+      {/* Status belongs to the latest run, including an unanswered re-run while prior results remain visible. */}
+      {extraction.monitorError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
+        <p role="alert" className="m-0 text-compact text-danger">{extraction.monitorError}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={extraction.reconnect}>Reconnect</Button>
+          {extraction.retryAdmission&&<Button onClick={()=>void extraction.retryAdmission?.()}>Retry original request</Button>}
+        </div>
+      </div>}
+
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
       {showDeveloperUi && (
         <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'evidence'}>
@@ -254,11 +263,6 @@ function RightRail({
             {schemaReady ? 'Run extraction to apply the schema across the source document.' : 'Generate a schema in the Schema tab first, then run extraction.'}
           </p>
           {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? 'Press ▶ Run extraction above.'}</p>}
-          {/* An admission whose answer was lost is read again by its own identity; Reconnect never posts. */}
-          {extraction.monitorError && <div className="mt-3 flex flex-col items-center gap-2">
-            <p role="alert" className="m-0 text-compact text-danger">{extraction.monitorError}</p>
-            <Button onClick={extraction.reconnect}>Reconnect</Button>
-          </div>}
         </div>}
       </div>
     </div>

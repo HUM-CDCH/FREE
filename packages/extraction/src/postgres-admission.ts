@@ -21,6 +21,7 @@ import {
   type DatabaseTransaction,
 } from 'db'
 import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT } from './batch.js'
+import { DURABLE_EXTRACTION_PROTOCOL } from './durable-contract.js'
 import type { ExtractionExecution } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
@@ -97,6 +98,7 @@ function batchMethod(input: Pick<ScheduleBatchInput, 'strategy' | 'method'>): Ex
 function selectionId(input: ScheduleBatchInput, method: ExtractionMethodIntent): string {
   const hash = createHash('sha256')
     .update(JSON.stringify([
+      DURABLE_EXTRACTION_PROTOCOL,
       input.projectContextId,
       input.schemaRevisionId,
       input.strategy,
@@ -190,7 +192,9 @@ type AdmittedIdentity = Readonly<{
   batchExtractionId: string | null
 }>
 
-/** An identical interactive request: the same pins and choices. A legacy sample row (a page scope) never equals a new request, so reusing its ID is a conflict. A batch member's ID is never an interactive one. The start page is not identity: the same whole-document Extraction, whatever page the researcher was reading (design §4). */
+/** An identical interactive request: the same pins and choices. A batch member's ID is never an interactive one.
+ * The start page is not identity: the same whole-document Extraction, whatever page the researcher was reading
+ * (design §4). Replay also requires a live coordination head. */
 function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
   return row.batchExtractionId === null &&
     row.sourceDocumentId === pins.sourceDocumentId &&
@@ -199,7 +203,6 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
     row.strategy === pins.strategy &&
     row.catalogRecipe === pins.catalogRecipe &&
     isDeepStrictEqual(modelChoice(row.requestedModels), pins.requestedModels) &&
-    // A NULL (historical) row was admitted before settings were recorded, so it never equals a recorded method.
     isDeepStrictEqual(row.requestedSettings ?? null, pins.requestedSettings) &&
     row.requestedPages === null
 }
@@ -228,12 +231,13 @@ export async function admitInteractiveExtraction(
         'requestedModels', 'requestedSettings', 'requestedPages', 'batchExtractionId',
       ).first({ id: input.extractionId })
       // Another researcher's Extraction under this ID is concealed behind the same missing answer.
-      const replay = async (row: AdmittedIdentity) =>
-        sameAdmission(row, pins)
-          ? 'replayed' as const
-          : (await ownsResearcherExtraction(transaction, researcherAccountId, input.extractionId))
-              ? 'conflict' as const
-              : 'missing' as const
+      const replay = async (row: AdmittedIdentity) => {
+        const head = await transaction.orm.extraction_runtime.Head.select('id').first({ id: input.extractionId, deleted: false })
+        if (head && sameAdmission(row, pins)) return 'replayed' as const
+        return await ownsResearcherExtraction(transaction, researcherAccountId, input.extractionId)
+          ? 'conflict' as const
+          : 'missing' as const
+      }
       // Replay resolution comes first: an identical repeat replays even when its revision is superseded now (PR #140).
       const existing = await identity()
       if (existing) return replay(existing)
@@ -304,41 +308,6 @@ export const SUGGESTED_BATCH_KEYS = [
  * (PR #140). The researcher's saved method is compared under the account configuration's lock after those, and pinned
  * once on the batch and every member.
  */
-/**
- * A Schema Revision's stabilisation timestamp, or null when it carries none. The column arrives in a later release
- * than the admission this gate belongs to, so a database migrated only as far as the record-scope release — which its
- * own migration-history test does, running this admission against that schema — has no stabilised revisions to name.
- */
-async function stabilisedAtOf(
-  orm: DatabaseOrm,
-  schemaRevisionId: string,
-): Promise<Date | null> {
-  try {
-    const row = await orm.public.SchemaRevision.select('stabilisedAt').first({
-      id: schemaRevisionId,
-    })
-    return row?.stabilisedAt ?? null
-  } catch (error) {
-    if (!isUndefinedColumn(error)) throw error
-    return null
-  }
-}
-
-/** PostgreSQL `undefined_column` (42703), through whatever the driver wrapped it in. */
-function isUndefinedColumn(error: unknown): boolean {
-  const seen = new Set<object>()
-  for (
-    let current = error;
-    current && typeof current === 'object' && !seen.has(current);
-    current = (current as { cause?: unknown }).cause
-  ) {
-    seen.add(current)
-    const candidate = current as { code?: unknown; sqlState?: unknown }
-    if (candidate.code === '42703' || candidate.sqlState === '42703') return true
-  }
-  return false
-}
-
 export async function admitBatchExtraction(
   database: Database,
   execution: ExtractionExecution,
@@ -399,6 +368,7 @@ export async function admitBatchExtraction(
           'schemaTree',
           'recordScope',
           'revisionNumber',
+          'stabilisedAt',
         ).first({ id: input.schemaRevisionId })
       const owner = schema
         ? await orm.public.ExtractionSchema.select(
@@ -424,7 +394,7 @@ export async function admitBatchExtraction(
       // a pilot and stabilised the revision.
       if (
         selected.length > PILOT_BATCH_SELECTION_LIMIT &&
-        (await stabilisedAtOf(orm, input.schemaRevisionId)) === null
+        schema.stabilisedAt === null
       )
         return 'unstabilised' as const
       // An equal selection replayed above; a new batch runs every member under the one strategy its revision's record

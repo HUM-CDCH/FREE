@@ -1,7 +1,7 @@
 ## 1. Specifications
 
-- [x] 1.1 Write delta specs for `canonical-evidence-lifecycle` and `result-tree-navigator`
-- [x] 1.2 Sync the deltas into `openspec/specs/` (main specs updated; `result-tree-navigator` removed)
+- [x] 1.1 Write delta specs for `canonical-evidence-lifecycle`, `result-tree-navigator` and `durable-extraction-admission`
+- [x] 1.2 Sync the deltas into `openspec/specs/` (main specs updated; `durable-extraction-admission` added; `result-tree-navigator` removed)
 - [x] 1.3 `openspec validate durable-only-extraction-review --strict` and `openspec validate --specs` pass
 
 ## 2. Implementation (durable-only follow-up)
@@ -19,11 +19,12 @@
 - [x] 2.10 Verify late save responses, both Latest reviewed routes and older-pair finalization in the browser
 
 - [x] 2.11 Initialize worker coordination before DBOS launch and close it before process exit
+- [x] 2.12 Document the durable-only upgrade: operationally close access, drain or cancel deleted `runExtraction` / `extract` invocations with pinned DBOS clients, require zero active rows after writers stop, and describe optional terminal-history cleanup (`docs/operations/deployment.md`)
 
-## 3. Infrastructure acceptance (required before archive)
+## 3. Infrastructure acceptance (required before merge and archive)
 
 - [x] 3.1 `packages/extraction` and `packages/db` `test:postgres`, including `durable-readers.postgres.check.ts` and `durable-control.postgres.check.ts`
 - [x] 3.2 Studio PostgreSQL tests and Playwright e2e on the durable routes (`durable-service.spec.ts`: six passed, one passed on retry after a local write quota error, two live-model checks skipped)
 - [x] 3.3 Root `pnpm test:system` and `pnpm test:safety` against Compose
-- [ ] 3.4 Spark acceptance recorded on an exact commit (not authorized in this follow-up)
-- [ ] 3.5 Independent review of the exact commit; archive this change only after 3.1–3.4 pass, with `openspec archive durable-only-extraction-review --skip-specs` (the main specs are already synced; re-applying the REMOVED deltas would fail)
+- [ ] 3.4 Spark acceptance recorded on the exact merge-candidate commit (authorized isolated Baratheon test project; a merge prerequisite; production remains unchanged)
+- [ ] 3.5 Independent review of the exact commit; merge and archive this change only after 3.1–3.4 pass, with `openspec archive durable-only-extraction-review --skip-specs` (the main specs are already synced; re-applying the REMOVED deltas would fail)

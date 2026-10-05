@@ -12,7 +12,7 @@ export async function requestDurableReconciliation(identity:string):Promise<void
 }
 
 /** A dispatch receipt reconciler; DBOS owns execution and recovery. Register
- * once before launch, independently of the admission feature gate. */
+ * once before launch so committed attempts and deleted graphs are reconciled. */
 export function registerDurableExtractionReconciler() {
   return DBOS.registerWorkflow(async () => {
     await DBOS.runStep(async () => {

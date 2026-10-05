@@ -336,7 +336,6 @@ export async function startRealService(logFile: string,
     studioWorkflows: (prefix: string) => studioClient.listWorkflows({
       workflow_id_prefix: prefix, loadInput: false, loadOutput: true,
     }),
-    cancelKeiWorkflow: (id: string) => keiClient.cancelWorkflow(id),
     collectGarbage: async (): Promise<GarbageSummary> =>
       (await studioClient.triggerSchedule('collectGarbage')).getResult() as Promise<GarbageSummary>,
     reconcileDurable: async () => (await studioClient.triggerSchedule('reconcileDurableExtractions')).getResult(),

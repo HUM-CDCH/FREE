@@ -158,7 +158,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const prior = (await client.query('SELECT method,resolved FROM extraction_runtime.selection WHERE id=$1', [head.selectionId])).rows[0]
         const method = canonicalIntent(input.method,head.strategy,prior.resolved.catalogRecipe)
         if (!method) throw new DurableInvalid('The Extraction settings are invalid.')
-        refuseUnusableIdentityFields(method.settings,tree)
+        refuseUnusableIdentityFields(method.settings,row.schemaTree)
         refuseIncompatibleGliformer(method,executionDefinition(tree))
         const ordinal = (await client.query('SELECT coalesce(max(ordinal),0)+1 AS n FROM extraction_runtime.selection WHERE "extractionId"=$1', [id])).rows[0].n
         const selectionId = randomUUID()

@@ -40,7 +40,8 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   assert.deepEqual(await owner.readDocumentExtractions({ sourceDocumentId: d1.sourceDocumentId }),
     { sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId, latestAttempt: null, latestReviewed: null })
   assert.equal(await owner.readExtractionAttempt(history.extractions.article.reviewed), null)
-  assert.deepEqual((await owner.readBatch({ projectContextId: history.projectContextId, batchExtractionId: history.batches.catalog }))?.members, [])
+  assert.equal(await owner.readBatch({ projectContextId: history.projectContextId, batchExtractionId: history.batches.catalog }), null)
+  assert.deepEqual(await owner.listBatches(history.projectContextId, 50), [])
 
   const id = randomUUID()
   const representation = (await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1', [d1.sourceRepresentationRevisionId])).rows[0]
@@ -81,7 +82,56 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   assert.equal(batch?.disposition, 'created')
   assert.equal(batch?.batch.members.length, 1)
   assert.equal(batch?.batch.members[0].executionStatus, 'QUEUED')
+  assert.equal(batch?.batch.members[0].completed, false)
   assert.deepEqual({ rows: await rows(), heads: await heads() }, { rows: before.rows + 2, heads: before.heads + 2 })
   const queued = (await admin.query('SELECT id FROM reader_test.queue ORDER BY id')).rows.map(row => row.id)
   assert.deepEqual(queued, [admitted!.extraction.extractionId, batch!.batch.members[0].extractionId].map(id => `durable-dispatch:${id}`).sort())
+
+  // Three heads share two current-cut versions. A malformed historical payload must never be loaded by a summary,
+  // and the latest named finalization remains independent of a finalization of the current cut.
+  const {readRuntimeHeads,readDurableSummaries}=await import('./postgres-attempts.js')
+  const nativeIds=[id,admitted!.extraction.extractionId,batch!.batch.members[0].extractionId]
+  const runtime=createDisposableRuntime(source)
+  let nativeHeads=await readRuntimeHeads(runtime.orm,nativeIds)
+  for(let index=0;index<nativeIds.length;index++) {
+    const extractionId=nativeIds[index],head=nativeHeads.get(extractionId)!,version=index===2?1:2
+    const node=ARTICLE_TREE.schemaNodes[0]
+    const value={id:'value',recordId:'record',fieldId:node.id,path:['records',0,node.name],selectionId:head.selectionId,
+      schemaRevisionId:history.revisions.article,node,modelValue:'Saved value',evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
+    const values=index===1?[value,{...value,id:'second-value',schemaRevisionId:history.revisions.catalog}]:[value]
+    if(index===0) await admin.query(`INSERT INTO extraction_runtime.snapshot
+      (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,1,$3,$4,$5,'{}')`,
+      [randomUUID(),extractionId,head.selectionId,'a'.repeat(64),JSON.stringify([{historical:'not summary metadata'}])])
+    await admin.query(`INSERT INTO extraction_runtime.snapshot
+      (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,$3,$4,$5,$6,'{}')`,
+      [randomUUID(),extractionId,version,head.selectionId,'b'.repeat(64),JSON.stringify(values)])
+    await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=$2 WHERE id=$1',[extractionId,version])
+    await admin.query(`INSERT INTO extraction_runtime.finalization
+      (id,"extractionId","snapshotVersion","feedbackVersion","decisionDigest","createdAt") VALUES ($1,$2,$3,0,$4,$5)`,
+      [randomUUID(),extractionId,version,'c'.repeat(64),'2026-10-05T01:00:00Z'])
+    if(index===0) await admin.query(`INSERT INTO extraction_runtime.finalization
+      (id,"extractionId","snapshotVersion","feedbackVersion","decisionDigest","createdAt") VALUES ($1,$2,1,1,$3,$4)`,
+      [randomUUID(),extractionId,'d'.repeat(64),'2026-10-05T02:00:00Z'])
+  }
+  nativeHeads=await readRuntimeHeads(runtime.orm,nativeIds)
+  let checkouts=0
+  const acquired=()=>{checkouts++}
+  source.on('acquire',acquired)
+  let summaries:Awaited<ReturnType<typeof readDurableSummaries>>
+  try{summaries=await readDurableSummaries(runtime.orm,nativeHeads)}finally{source.off('acquire',acquired)}
+  assert.ok(checkouts<=3,`Current-cut summaries used ${checkouts} pool checkouts for three heads sharing two versions.`)
+  assert.equal(summaries.get(id)?.review?.snapshotVersion,2)
+  assert.equal(summaries.get(id)?.finalizedReview?.snapshotVersion,1)
+  assert.equal(summaries.get(admitted!.extraction.extractionId)?.reviewable,true)
+  assert.equal(summaries.get(admitted!.extraction.extractionId)?.review,null)
+  assert.equal(summaries.get(batch!.batch.members[0].extractionId)?.review?.schemaRevisionId,history.revisions.article)
+
+  // Completion comes from attempt history after Stop changes the visible acknowledgement.
+  const memberId=batch!.batch.members[0].extractionId
+  await admin.query('UPDATE extraction_runtime.attempt SET outcome=\'COMPLETED\' WHERE id=$1',[nativeHeads.get(memberId)!.attemptId])
+  await admin.query('UPDATE extraction_runtime.head SET intent=\'STOP\',acknowledgement=\'STOPPED\' WHERE id=$1',[memberId])
+  const stoppedBatch=await owner.readBatch({projectContextId:history.projectContextId,batchExtractionId:batch!.batch.batchExtractionId})
+  assert.equal(stoppedBatch?.members[0].executionStatus,'STOPPED')
+  assert.equal(stoppedBatch?.members[0].completed,true)
+  await runtime.close()
 })

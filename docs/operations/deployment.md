@@ -541,14 +541,17 @@ Add `-f compose.nginx.yaml` and `-f compose.gpu.yaml` when the deployment uses
 them. For tracing operations, also add `-f compose.phoenix.yaml --profile phoenix`.
 
 - **Cancelling.** A cancel stops a workflow at its next step boundary; a step
-  already running finishes first. The Parsing Service's steps also check for a
-  cancel between pages and records. That check fails open: if the worker cannot
+  already running finishes first. Conversion steps check for cancellation
+  between pages. That check fails open: if the worker cannot
   read a workflow's status (a PostgreSQL restart), it carries on and logs `the
   status of … could not be read` once per step execution, and reads again at
-  its next check.
+  its next check. Durable Extraction Pause and Stop use coordination controls:
+  they refuse new call captures while reserved calls finish and save. Pause
+  becomes Paused at the drained boundary; Stop retains saved values and is
+  terminal. A DBOS cancellation by itself never proves a native call quiescent.
 - **Garbage collection** runs every ten minutes on queue `gc`. It cancels work
   whose outcome is already recorded or whose Project Context is gone; deletes
-  interactive history 24 hours and background history 30 days after it ends,
+  current interactive history 24 hours and background history 30 days after it ends,
   and a deleted scope's history at once; asks the Parsing Service to delete
   runs nothing references (after 24 hours) with their history; and removes
   staged PDFs of finished attempts and unreferenced canonical packages after
@@ -567,6 +570,123 @@ them. For tracing operations, also add `-f compose.phoenix.yaml --profile phoeni
   `kei@1` stay fixed; change one only for an incompatible contract change,
   and only after draining: stop new work, wait until neither schema has an
   `ENQUEUED`, `DELAYED` or `PENDING` workflow, then deploy.
+
+## Upgrade: durable-only extraction
+
+The durable-only release deletes Studio's `runExtraction` and the Parsing
+Service's `extract` workflow registrations. Their old IDs are `extract:<id>`
+and `kei-extract:<id>`; durable attempts retain the `kei-extract` queue but
+use different workflow names. The application versions remain `studio@1` and
+`kei@1`. A new image cannot recover an old invocation of either deleted
+function. A stranded `PENDING` Parsing workflow also occupies the queue's
+global concurrency until its deadline; an old Studio workflow has no deadline.
+
+Before starting either replacement image, finish or cancel these workflows
+using the deployed images. This applies to `node scripts/free.mjs production`
+as well as an external release wrapper: the in-repository launcher does not
+perform this drain. Preserve the previous images and use the deployment's
+complete Compose arguments in every command below, including GPU/tracing
+overlays when enabled.
+
+1. **Close access and inventory.** Close the researcher-facing host route, or
+   stop the bundled `nginx` service, and stop any external API callers. This
+   is an operator maintenance action; it needs no application admission flag.
+   Leave the previous `studio` and `parsing_worker` processes running to
+   finish admitted work. Run this query through the existing database
+   container, and record its IDs and statuses in the release evidence:
+
+   ```bash
+   docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres -d free -v ON_ERROR_STOP=1 -c \
+     "SELECT 'dbos' AS schema, workflow_uuid, name, status FROM dbos.workflow_status WHERE name = 'runExtraction' AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') UNION ALL SELECT 'kei_dbos', workflow_uuid, name, status FROM kei_dbos.workflow_status WHERE name = 'extract' AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') ORDER BY 1, 2"
+   ```
+
+   Filter by function name, not queue: the `kei-extract` queue also holds
+   durable attempts, and a recovered workflow may use the internal queue.
+2. **Drain, or stop and cancel.** For a drain, wait until that query returns
+   no rows. If remaining work must be abandoned, first stop every application
+   process below, so an already executing step cannot keep writing after
+   cancellation. Cancellation discards the remaining work; keep its IDs in
+   the release evidence. Do not resume, fork or rewind these deleted functions
+   after upgrading.
+
+   ```bash
+   docker compose -f compose.yaml -f compose.prod.yaml stop -t 60 studio parsing_service parsing_worker
+   ```
+
+   Cancel with the previous images, before building their replacements. These
+   one-off clients bypass the application entrypoints, register no workflows,
+   and use the SDK versions pinned by this release: TypeScript 5.1.10 and
+   Python 3.1.0. Database URLs remain in the containers' environment.
+
+   ```bash
+   docker compose -f compose.yaml -f compose.prod.yaml run --rm --no-deps -T --entrypoint node -w /workspace/prototypes/studio studio --input-type=module <<'JS'
+   import { DBOSClient } from '@dbos-inc/dbos-sdk';
+   const client = await DBOSClient.create({
+     systemDatabaseUrl: process.env.DATABASE_URL,
+     systemDatabaseSchemaName: 'dbos',
+     applicationName: 'studio',
+   });
+   try {
+     const rows = await client.listWorkflows({
+       workflowName: 'runExtraction',
+       status: ['ENQUEUED', 'DELAYED', 'PENDING'],
+       loadInput: false, loadOutput: false,
+     });
+     for (const row of rows) {
+       await client.cancelWorkflow(row.workflowID);
+       console.log('cancelled dbos', row.workflowID);
+     }
+   } finally {
+     await client.destroy();
+   }
+   JS
+   docker compose -f compose.yaml -f compose.prod.yaml run --rm --no-deps -T --entrypoint python parsing_worker - <<'PY'
+   import os
+   from dbos import DBOSClient
+   client = DBOSClient(
+       system_database_url=os.environ['KEI_SYSTEM_DATABASE_URL'],
+       dbos_system_schema='kei_dbos', application_name='kei',
+   )
+   try:
+       rows = client.list_workflows(
+           name='extract', status=['ENQUEUED', 'DELAYED', 'PENDING'],
+           load_input=False, load_output=False,
+       )
+       for row in rows:
+           client.cancel_workflow(row.workflow_id)
+           print('cancelled kei_dbos', row.workflow_id)
+   finally:
+       client.destroy()
+   PY
+   ```
+
+3. **Stop writers and recheck.** If work drained normally, run the same stop
+   command now. Confirm all three application processes have exited. Repeat
+   the inventory query with writers stopped; it must return **zero rows** in
+   both schemas. Any remaining `ENQUEUED`, `DELAYED` or `PENDING` invocation of
+   the deleted functions blocks this upgrade. Do not rely solely on a release
+   wrapper's earlier preflight check. If cancellation fails or rows remain,
+   retain the previous images, resolve the failure with their clients, and
+   repeat this check.
+4. **Back up and deploy together.** Take the backup set below while writers
+   remain stopped. Build and start Studio and the Parsing Service from the
+   same commit, then verify health and a new durable Extraction before
+   reopening researcher access. No stub registrations or legacy reader are
+   part of this procedure.
+
+Terminal history of these deleted workflows is inert and is outside the
+current garbage collector's retention rules. An operator may explicitly
+remove it as a separate, one-time cleanup after the drain and backup, while
+all writers remain stopped. Inventory and review an exact ID allowlist: only
+`runExtraction` with an `extract:` ID in `dbos`, or `extract` with a
+`kei-extract:` ID in `kei_dbos`, and only statuses `SUCCESS`, `ERROR`,
+`CANCELLED` or `MAX_RECOVERY_ATTEMPTS_EXCEEDED`. Using the clients above, pass
+only those reviewed IDs to `await client.deleteWorkflows(ids, false)` in
+Studio or `client.delete_workflows(ids, delete_children=False)` in Python.
+These APIs remove associated DBOS history as well as status rows. Do not
+delete active rows, durable attempts/calls, public Extraction records or
+Parsing artifacts, and do not run a blanket SQL deletion or a database reset.
+This optional operation is not a historical migration or a runtime shim.
 
 ## Back up and restore
 
@@ -598,113 +718,47 @@ Extractions and Batch Extractions pinned to each revision: only `ARTICLE` →
 both, stays `NULL`. A declared scope is never rewritten, and the schema tree is
 untouched.
 
-Legacy scope may remain undeclared; new extraction admission requires a
+An older revision's scope may remain undeclared; new extraction admission requires a
 resolved scope. Admission refuses a revision without one with
 `record_scope_required` (HTTP 409) until the researcher chooses Article or
 Catalog and saves; it refuses a strategy that the scope does not name with
 `record_scope_mismatch` (409). An identical repeat of an already admitted
 Extraction or Batch Extraction still replays: replay is checked before scope.
-Historical Extractions (their pins, method, outcome, result, evidence and
-diagnostics), review drafts and finalized reviews with their decision digests,
-and batch exports are read unchanged. A historical Article result with several
-root records stays readable. Nothing adds a scope to an old run's request.
+The current durable model pins scope in each immutable input selection.
+Article admits one document-level object; Catalog admits records. Saved values
+and corrections retain their producing selection when a later selection is
+adopted. Head-less historical Extraction rows are neither listed nor opened;
+no Review Draft or extraction-artifact compatibility reader remains.
 
-An Extraction in flight at the upgrade runs the scope that its admitted
-strategy names (`recordScopeOf(admitted.strategy)` in
-`packages/extraction/src/workflows.ts`); a pinned revision that declares
-another scope fails it with `invalid_extraction_pins`. The backfill counts
-that Extraction, so it never gives its revision the other scope. A resumed
-Article Extraction is now held to exactly one root record, by Studio and by
-the Parsing Service.
+For the durable-only release, follow
+[Upgrade: durable-only extraction](#upgrade-durable-only-extraction) before
+starting new images. Deploy Studio and the Parsing Service from one commit.
+Studio's entrypoint replays the authored migrations, and a failed migration
+prevents startup. Verify health, then inspect
+`SELECT "recordScope", count(*) FROM "schemaRevision" GROUP BY 1`; `NULL`
+identifies revisions needing an explicit scope before new admission. Verify a
+new Article Extraction and Catalog Extraction, saved values, a correction and
+a named finalization before reopening access.
 
-Drain before you upgrade, so that no run resumes across it. An Extraction
-the previous Studio had already handed to the Parsing Service ran on a
-request whose schema has no `recordScope`. The upgraded Studio recomputes the
-request, which now names the scope, and compares it with the artifact's
-schema echo; they differ, and the Extraction fails with
-`invalid_model_output` ("kei-exp returned an artifact for different
-extraction inputs"). A drained upgrade also judges no earlier run by the
-one-root rule.
-
-Deploy Studio and the Parsing Service together, from one commit, as
-`node scripts/free.mjs production` does. Studio now sends `recordScope` in
-every extraction request's schema, and a Parsing Service from before this
-change refuses it (its schema forbids unknown fields), failing every new
-Extraction.
-
-1. **Drain.** Close researcher access by stopping `nginx` (with the bundled
-   proxy) or the host route, and leave `studio` and `parsing_worker` running.
-   Wait until this query returns no rows:
-   `SELECT 'dbos', status, count(*) FROM dbos.workflow_status WHERE queue_name IS DISTINCT FROM 'gc' AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') GROUP BY 2 UNION ALL SELECT 'kei_dbos', status, count(*) FROM kei_dbos.workflow_status WHERE queue_name IS DISTINCT FROM 'kei-gc' AND status IN ('ENQUEUED', 'DELAYED', 'PENDING') GROUP BY 2`.
-   It leaves out only garbage collection (`gc`, `kei-gc`). A workflow
-   started outside a queue (a child workflow) has no `queue_name`, and one
-   DBOS recovered or an operator resumed may sit on `_dbos_internal_queue`:
-   `IS DISTINCT FROM` counts both, where `IN (...)` or `<>` would skip a
-   `NULL` queue.
-2. **Back up.** Stop `studio` and `parsing_worker`, then take the backup set
-   from [Back up and restore](#back-up-and-restore). Keep the previous image
-   tags, or the previous commit, so you can rebuild them.
-3. **Deploy.** Run `node scripts/free.mjs production`. Studio's entrypoint
-   replays the migrations (`pnpm --filter db db:init`), and a failed migration
-   prevents startup.
-4. **Verify.** Check the health route, then run
-   `SELECT "recordScope", count(*) FROM "schemaRevision" GROUP BY 1`. The
-   `NULL` count is the revisions that never ran or ran as both. Open a
-   historical reviewed Extraction and a Batch Extraction export, and check
-   that they show the same values as before. Reopen access.
-5. **Roll back.** Migrations are forward-only, and this one has no down
-   migration. Stop the stack, restore `free` and the volumes from the step 2
-   backup, and start the previous images. A restore loses all
-   work done after the deploy: new and re-run Extractions and Batch
-   Extractions, review drafts and finalizations, schema revisions (and the
-   scopes researchers chose), uploads and reprocessing, model-configuration
-   changes, and the matching DBOS and `parsing-runs` state.
+Migrations are forward-only. To roll back, stop the application processes,
+restore the pre-upgrade database and volume backup, and start the previous
+images. A restore loses work saved after the backup: Extractions and Batch
+Extractions, corrections and finalizations, Schema Revisions and scopes,
+uploads and reprocessing, model configuration, and matching DBOS/run state.
 
 ## Upgrade: sample workbench removal
 
-This change removes Sample Extractions, the pinned review transfer and hand
-pairings. It has no migration: the retired columns `requestedPages`,
-`reviewTransfer` and `reviewPairings` on `Extraction` stay, are never written
-again, and a later migration drops them. A legacy sample row stays in the
-database but is never a document's latest attempt or latest reviewed result,
-never counts in a project summary or the recent-activity feed, and its ID is
-refused (`extraction_id_conflict`, 409) if a whole-document run reuses it.
+Sample Extractions, pinned review transfer and hand pairings were removed
+before the durable-only release. The retired public columns remain untouched;
+they are not read as durable values or corrections. Historical sample rows
+without a live coordination head are not listed, reopened or counted. No
+review transfer, `carriedFrom` decision or Review Draft is converted into the
+durable model.
 
-The upgraded client and API speak a narrower contract:
-
-- A run request that names `pages` is refused with `invalid_request` (422).
-- The reopen and review responses no longer carry `latestSample`, the review
-  transfer, its sources or the pairings, and review decisions no longer carry
-  `carriedFrom`.
-- A review draft saved before the upgrade loses every decision it carried
-  from a sample when it is read: those decisions were never the researcher's
-  own, so the review must not finalize on them. The researcher's own
-  decisions keep their values and the draft keeps its version. A finalized
-  review reads back without `carriedFrom` and still replays.
-
-Before you upgrade, count the drafts whose carried decisions the upgrade
-drops, so you can tell the affected researchers to review those fields again:
-`SELECT count(*) FROM "extraction" WHERE "reviewedAt" IS NULL AND jsonb_path_exists("reviewDraft", '$[*].carriedFrom')`.
-Run it after the drain (step 1 below), when no draft can change.
-
-1. **Drain, back up, deploy.** Follow steps 1 to 3 of
-   [Upgrade: Schema Revision record scope](#upgrade-schema-revision-record-scope):
-   drain until no DBOS or kei workflow is enqueued, delayed or pending, so no
-   sample run resumes across the upgrade; back up; then deploy Studio and the
-   Parsing Service together from the merged head with
-   `node scripts/free.mjs production`. The Parsing Service now refuses
-   `options.pages` as an unknown option.
-2. **Refresh every open Studio tab.** A tab loaded before the deploy runs the
-   old client: its reopen and review parsers reject the new responses, and
-   its run requests that name `pages` are refused with 422. Ask researchers to
-   reload Studio before they continue.
-3. **Verify.** Check the health route, reopen a document that had a sample
-   and confirm it shows its whole-document result, and open a historical
-   reviewed Extraction to check it shows the same values as before. Reopen
-   access.
-4. **Roll back.** Nothing in the database changed, so the previous images
-   start on it; drafts saved after the upgrade no longer carry the dropped
-   decisions.
+The durable-only upgrade procedure above supersedes the former sample-reader
+upgrade steps and Review Draft inspection query. New Extractions use the whole
+admitted source; an obsolete request naming `pages` is invalid. Refresh open
+Studio tabs after deployment so they use the matching durable API contract.
 
 ## Upgrade: OCR result reuse
 

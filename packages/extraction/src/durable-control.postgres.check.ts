@@ -7,6 +7,7 @@ import { migrate,provisionDatabase,seedPreMigrationHistory,ARTICLE_TREE } from '
 import { createGarbageReferences } from '../../db/src/garbage-references.js'
 import { createDurableRepository,initializeDurableExtraction,DurableConflict,DurableNotFound,collectDeletedDurableGraphs,reconcileDurableAttempts } from './durable-repository.js'
 import { createResearcherExtractionPersistence } from './postgres-persistence.js'
+import { REFERENCE_ARTICLE } from './extraction-method.js'
 
 test('native pilot finalization drives batch progress and unlocks only its producing schema',async t=> {
   const base=process.env.EXTRACTION_TEST_DATABASE_URL
@@ -52,7 +53,14 @@ test('native pilot finalization drives batch progress and unlocks only its produ
   const revised=randomUUID()
   await admin.query('INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope") SELECT $1,"extractionSchemaId",2,\'RESEARCHER_EDIT\',"schemaTree\",\'document\' FROM public."schemaRevision" WHERE id=$2',[revised,fixture.revisions.article])
   const state=await repository.read(ids[0])
-  const selected=await repository.saveSelection(ids[0],{expectedVersion:state.controlVersion,schemaRevisionId:revised,method:{models:null,settings:{article:null}}})
+  const identityMethod={models:null,settings:{article:{...REFERENCE_ARTICLE,identity:'conservative',identity_fields:['title']}}}
+  await assert.rejects(repository.saveSelection(ids[0],{expectedVersion:state.controlVersion,schemaRevisionId:revised,
+    method:{...identityMethod,settings:{article:{...identityMethod.settings.article,identity_fields:['missing']}}}}),
+    {code:'invalid_identity_fields'})
+  const selected=await repository.saveSelection(ids[0],{expectedVersion:state.controlVersion,schemaRevisionId:revised,method:identityMethod})
+  const pending=(await repository.read(ids[0])).pendingSelection
+  assert.equal(pending.schemaTree.recordScope,'document')
+  assert.deepEqual(pending.method.settings.article.identity_fields,['title'])
   await repository.adoptSelection(ids[0],{expectedVersion:selected.controlVersion,selectionId:selected.selectionId,reprocessValueIds:[]})
   assert.equal(await persistence.stabiliseSchemaRevision({...input,schemaRevisionId:revised}),'not-ready')
 })
@@ -213,5 +221,86 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   assert.equal(await collectDeletedDurableGraphs(live,source),0)
   assert.equal(await collectDeletedDurableGraphs(async()=>new Map(),source),1)
   assert.equal((await admin.query('SELECT count(*)::int AS n FROM extraction_runtime.correction WHERE "extractionId"=$1',[id])).rows[0].n,0)
+  await runtime.close()
+})
+
+test('deleted durable graphs retain their pins until fenced worker history removal succeeds',async t=> {
+  const base=process.env.EXTRACTION_TEST_DATABASE_URL
+  if(!base)throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')
+  const target=await provisionDatabase(base,`free_test_durable_history_gc_${randomBytes(5).toString('hex')}`)
+  const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
+  t.after(async()=>{await source.end();await admin.end();await target.drop()})
+  await migrate(target.url);await admin.connect()
+  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d1,id=randomUUID()
+  const representation=(await admin.query('SELECT * FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
+  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
+    VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
+  await admin.query('BEGIN')
+  try {
+    await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,
+      sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,
+      schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,
+      requestedModels:null,requestedSettings:{article:null}})
+    await admin.query('COMMIT')
+  } catch(error) {await admin.query('ROLLBACK');throw error}
+  const initial=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  const node=ARTICLE_TREE.schemaNodes[0]
+  const value={id:'saved',recordId:'record',fieldId:node.id,path:['records',0,node.name],selectionId:initial.selectionId,
+    schemaRevisionId:fixture.revisions.article,node,modelValue:'Retained',evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
+  await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage)
+    VALUES ($1,$2,1,$3,$4,$5,'{}')`,[randomUUID(),id,initial.selectionId,'a'.repeat(64),JSON.stringify([value])])
+  await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=1 WHERE id=$1',[id])
+  await createDurableRepository(fixture.accountId,source).saveCorrection(id,'saved',
+    {snapshotVersion:1,expectedRevision:0,action:'APPROVED',evidence:[]},async()=>{})
+  await admin.query('DELETE FROM public."projectContext" WHERE id=$1',[fixture.projectContextId])
+  const deleted=(await admin.query('SELECT deleted,fence FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  assert.equal(deleted.deleted,true)
+  const [{workflowId}]=(await admin.query('SELECT "workflowId" FROM extraction_runtime.attempt WHERE "extractionId"=$1',[id])).rows
+  const runtime=createDisposableRuntime(source),references=createGarbageReferences(runtime)
+  const retained=async()=> {
+    assert.equal((await admin.query('SELECT count(*)::int AS n FROM extraction_runtime.head WHERE id=$1',[id])).rows[0].n,1)
+    assert.equal((await admin.query('SELECT count(*)::int AS n FROM extraction_runtime.correction WHERE "extractionId"=$1',[id])).rows[0].n,1)
+    assert.equal(await references.packageIsReferenced(representation.artifactReference),true)
+    assert.ok((await references.referencedPreprocessIds()).has(representation.preprocessId))
+  }
+  const cancelled:string[]=[],removals:Array<[string,number]>=[]
+  let allowed=false,failed=false,changeFence=false
+  const history={
+    cancelQueued:async(identity:string)=>{cancelled.push(identity)},
+    remove:async(extractionId:string,fence:number)=> {
+      removals.push([extractionId,fence])
+      if(failed)throw new Error('Worker history removal failed')
+      if(changeFence)await admin.query('UPDATE extraction_runtime.head SET fence=fence+1 WHERE id=$1',[id])
+      return allowed
+    },
+  }
+  const statuses=(status:string)=>async(ids:readonly string[])=>new Map(ids.map(identity=>[identity,status]))
+  for(const status of ['ENQUEUED','PENDING','DELAYED']) {
+    assert.equal(await collectDeletedDurableGraphs(statuses(status),source,history),0)
+    await retained()
+  }
+  assert.deepEqual(cancelled,[workflowId])
+  assert.deepEqual(removals,[])
+  // CANCELLED alone cannot prove native quiescence; a false/failed worker
+  // response retains all ownership until a later reconciliation retries it.
+  assert.equal(await collectDeletedDurableGraphs(statuses('CANCELLED'),source,history),0)
+  await retained()
+  failed=true
+  await assert.rejects(collectDeletedDurableGraphs(statuses('CANCELLED'),source,history),/Worker history removal failed/)
+  await retained()
+  failed=false;allowed=true;changeFence=true
+  assert.equal(await collectDeletedDurableGraphs(statuses('CANCELLED'),source,history),0)
+  await retained()
+  assert.deepEqual(removals,Array.from({length:3},()=>[id,deleted.fence]))
+  changeFence=false
+  assert.equal(await collectDeletedDurableGraphs(statuses('CANCELLED'),source,history),1)
+  assert.deepEqual(removals.at(-1),[id,deleted.fence+1])
+  for(const table of ['head','correction','attempt','snapshot']) {
+    const key=table==='head'?'id':'"extractionId"'
+    assert.equal((await admin.query(`SELECT count(*)::int AS n FROM extraction_runtime.${table} WHERE ${key}=$1`,[id])).rows[0].n,0)
+  }
+  assert.equal((await admin.query('SELECT count(*)::int AS n FROM extraction_runtime."feedbackHead" WHERE id=$1',[fixture.projectContextId])).rows[0].n,0)
+  assert.equal(await references.packageIsReferenced(representation.artifactReference),false)
+  assert.ok(!(await references.referencedPreprocessIds()).has(representation.preprocessId))
   await runtime.close()
 })

@@ -938,6 +938,7 @@ test.describe('rail navigation', () => {
           sourceRepresentationRevisionId: REPRESENTATIONS[BERETNING],
           executionStatus: 'COMPLETED',
           reviewable: false,
+          completed: true,
           currentReview: null,
         },
       ],
