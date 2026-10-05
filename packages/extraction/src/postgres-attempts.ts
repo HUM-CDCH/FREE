@@ -20,6 +20,7 @@ import type {
   ExtractionSnapshot,
   ExtractionStrategy,
   ExtractionExecutionStatus,
+  BatchExtractionMemberSnapshot,
   ReadDocumentExtractionsInput,
 } from './types.js'
 
@@ -68,6 +69,7 @@ type DerivedAttempt = Readonly<{
   durable?: true
   finalizedReview?: {snapshotVersion:number;feedbackVersion:number;createdAt:Date} | null
   durableReview?: {snapshotVersion:number;feedbackVersion:number;createdAt:Date;schemaRevisionId:string}
+  durableReviewable?: boolean
 }>
 
 const INTERRUPTED: ExtractionFailure = { ...INTERRUPTED_FAILURE, phase: 'extracting' }
@@ -92,7 +94,7 @@ export async function deriveAttempts(
   rows: readonly AttemptRow[],
 ): Promise<ReadonlyMap<string, DerivedAttempt>> {
   const heads = await readRuntimeHeads(orm, rows.map(row=>row.id))
-  const durableReviews=await readDurableReviews(orm,heads)
+  const durableResults=await readDurableSummaries(orm,heads)
   const finalizations = heads.size ? await orm.extraction_runtime.Finalization.where(row=>row.extractionId.in([...heads.keys()]))
     .select('extractionId','snapshotVersion','feedbackVersion','createdAt').orderBy(row=>row.createdAt.desc()).all() : []
   const unsettled = rows.filter((row) => row.outcome === null && !heads.has(row.id))
@@ -112,7 +114,8 @@ export async function deriveAttempts(
     const head = heads.get(row.id)
     if (head) {
       const executionStatus=durableStatus(head)
-      derived.set(row.id,{row,executionStatus,failure:null,durable:true,durableReview:durableReviews.get(row.id),finalizedReview:finalizations.find(item=>item.extractionId===row.id)??null})
+      derived.set(row.id,{row,executionStatus,failure:null,durable:true,durableReview:durableResults.get(row.id)?.review,
+        durableReviewable:durableResults.get(row.id)?.reviewable??false,finalizedReview:finalizations.find(item=>item.extractionId===row.id)??null})
       continue
     }
     const settled = settledAttempt(row)
@@ -137,24 +140,21 @@ export async function readRuntimeHeads(orm: DatabaseOrm, ids: readonly string[])
 /** Guided pilot progress uses a finalized current result cut and its actual
  * producing schema. Historical or mixed-schema reviews never unlock an
  * adopted revision, and native reviews never mirror public reviewedAt. */
-export async function readDurableReviews(orm:DatabaseOrm,heads:ReadonlyMap<string,DurableHead>) {
-  const reviews=new Map<string,{snapshotVersion:number;feedbackVersion:number;createdAt:Date;schemaRevisionId:string}>()
-  if(!heads.size)return reviews
-  const finalizations=await orm.extraction_runtime.Finalization.where(row=>row.extractionId.in([...heads.keys()]))
-    .select('extractionId','snapshotVersion','feedbackVersion','createdAt').orderBy(row=>row.createdAt.desc()).all()
-  const snapshots=await orm.extraction_runtime.Snapshot.where(row=>row.extractionId.in([...heads.keys()]))
-    .select('extractionId','version','values').all()
-  for(const finalized of finalizations) {
-    if(reviews.has(finalized.extractionId)||finalized.snapshotVersion!==heads.get(finalized.extractionId)?.snapshotVersion)continue
-    const snapshot=snapshots.find(row=>row.extractionId===finalized.extractionId&&row.version===finalized.snapshotVersion)
-    if(!snapshot)continue
-    const values=durableValueSchema.array().parse(snapshot.values).filter(value=>value.processing==='saved')
+export async function readDurableSummaries(orm:DatabaseOrm,heads:ReadonlyMap<string,DurableHead>) {
+  const summaries=new Map<string,{reviewable:boolean;review?:NonNullable<BatchExtractionMemberSnapshot['durableReview']>}>()
+  await Promise.all([...heads.values()].map(async head=> {
+    // Read only the current cut, never every historical snapshot's payload.
+    const snapshot=await orm.extraction_runtime.Snapshot.select('values').first({extractionId:head.id,version:head.snapshotVersion})
+    const values=snapshot?durableValueSchema.array().parse(snapshot.values).filter(value=>value.processing==='saved'):[]
+    const summary:{reviewable:boolean;review?:NonNullable<BatchExtractionMemberSnapshot['durableReview']>}={reviewable:values.length>0}
+    summaries.set(head.id,summary)
     const schemaRevisionId=values[0]?.schemaRevisionId
-    if(!schemaRevisionId||values.some(value=>value.schemaRevisionId!==schemaRevisionId))continue
-    reviews.set(finalized.extractionId,{snapshotVersion:finalized.snapshotVersion,feedbackVersion:finalized.feedbackVersion,
-      createdAt:finalized.createdAt,schemaRevisionId})
-  }
-  return reviews
+    if(!schemaRevisionId||values.some(value=>value.schemaRevisionId!==schemaRevisionId))return
+    const finalized=await orm.extraction_runtime.Finalization.where({extractionId:head.id,snapshotVersion:head.snapshotVersion})
+      .select('snapshotVersion','feedbackVersion','createdAt').orderBy(row=>row.createdAt.desc()).first()
+    if(finalized)summary.review={...finalized,schemaRevisionId}
+  }))
+  return summaries
 }
 
 async function pinsOf(orm: DatabaseOrm, row: AttemptRow) {

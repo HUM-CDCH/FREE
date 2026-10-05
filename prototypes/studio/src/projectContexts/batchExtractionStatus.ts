@@ -13,7 +13,7 @@ export function memberStatus(member: BatchExtractionMember): {
 } {
   const extraction = member.latestExtraction
   if(member.durableExtractionId) {
-    if(member.durableReview)return {label:'Reviewed',tone:'success',message:'Saved review names its result and feedback versions.'}
+    if(member.durableReview&&member.executionStatus==='COMPLETED')return {label:'Reviewed',tone:'success',message:'Saved review names its result and feedback versions.'}
     const label=member.executionStatus.charAt(0)+member.executionStatus.slice(1).toLowerCase()
     return {label,tone:member.executionStatus==='FAILED'?'danger':member.executionStatus==='RUNNING'||member.executionStatus==='PAUSING'||member.executionStatus==='STOPPING'?'accent':'neutral',
       message:member.executionFailureMessage??'Saved values and producing inputs remain available.'}

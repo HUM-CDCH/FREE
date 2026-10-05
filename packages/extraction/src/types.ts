@@ -354,6 +354,7 @@ export type ReviewDraft = Readonly<{
 
 export type BatchExtractionMemberSnapshot = Readonly<{
   durableExtractionId?:string
+  durableReviewable?:boolean
   durableReview?: Readonly<{snapshotVersion:number;feedbackVersion:number;createdAt:Date;schemaRevisionId:string}>
   sourceDocumentId: string
   sourceRepresentationRevisionId: string

@@ -173,6 +173,17 @@ describe('Batch Extraction contracts', () => {
     }).success).toBe(false)
   })
 
+  it('native completion and named reviews have consistent counts without treating paused work as success',()=> {
+    const native=(index:number,status:'COMPLETED'|'PAUSED'|'FAILED')=>({...withoutResult(index,status,null),
+      durableExtractionId:`51000000-0000-4000-8006-${String(index+1).padStart(12,'0')}`,durableReviewable:true})
+    const value=batchExtractionSchema.parse({...batch,members:[
+      {...native(0,'COMPLETED'),durableReview:{snapshotVersion:1,feedbackVersion:1,createdAt:'2026-09-26T10:05:00.000Z',schemaRevisionId}},
+      native(1,'COMPLETED'),native(2,'PAUSED'),native(3,'FAILED')]})
+    expect(batchExtractionProgress(value)).toMatchObject({total:4,extracted:2,succeeded:2,reviewed:1,needsReview:1,failed:1,unreviewable:0})
+    const empty=batchExtractionSchema.parse({...batch,members:[{...native(0,'COMPLETED'),durableReviewable:false}]})
+    expect(batchExtractionProgress(empty)).toMatchObject({succeeded:1,reviewed:0,needsReview:0,unreviewable:1})
+  })
+
   it('progress counts pending, failed and interrupted members from their status', () => {
     expect(batchExtractionProgress(batchExtractionSchema.parse(batch))).toEqual({
       total: 6,

@@ -13,6 +13,7 @@ import { usePilotRoundProgress } from './usePilotRoundProgress'
 
 afterEach(() => {
   cleanup()
+  getBatchExtraction.mockReset()
   vi.restoreAllMocks()
 })
 

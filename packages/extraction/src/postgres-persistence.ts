@@ -28,7 +28,7 @@ import {
   loadDocumentExtractions,
   readAttemptRows,
   readRuntimeHeads,
-  readDurableReviews,
+  readDurableSummaries,
 } from './postgres-attempts.js'
 import {
   loadBatch,
@@ -355,8 +355,8 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
         .first()
       if (!reviewedPilot) {
         const nativeIds=await orm.extraction_runtime.Head.where({projectId:input.projectContextId,deleted:false}).select('id').all()
-        const reviews=await readDurableReviews(orm,await readRuntimeHeads(orm,nativeIds.map(row=>row.id)))
-        if(![...reviews.values()].some(review=>review.schemaRevisionId===input.schemaRevisionId))return 'not-ready' as const
+        const summaries=await readDurableSummaries(orm,await readRuntimeHeads(orm,nativeIds.map(row=>row.id)))
+        if(![...summaries.values()].some(summary=>summary.review?.schemaRevisionId===input.schemaRevisionId))return 'not-ready' as const
       }
       const stabilisedAt = new Date()
       const updated = await orm.public.SchemaRevision.where({
