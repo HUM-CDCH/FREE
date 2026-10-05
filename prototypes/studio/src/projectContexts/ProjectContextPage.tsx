@@ -127,7 +127,7 @@ function RenameForm({
         </p>
       )}
       <button
-        className="rounded-md p-1.5 leading-none text-accent outline-none transition-colors hover:bg-accent-soft disabled:opacity-60"
+        className="rounded-md p-1.5 leading-none text-green outline-none transition-colors hover:bg-green-soft disabled:opacity-60"
         type="submit"
         aria-label="Rename"
         title="Rename"
@@ -899,7 +899,7 @@ export default function ProjectContextPage({
                   }
                   renameTrigger.current = button
                 }}
-                className="rounded-md p-1.5 text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-60"
+                className="rounded-md p-1.5 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink disabled:opacity-60"
                 type="button"
                 aria-label="Rename"
                 title="Rename"
@@ -1046,7 +1046,7 @@ export default function ProjectContextPage({
                     onClick={() => setShowSchemaHistory(true)}
                     aria-label="Schema history"
                     title="Schema history"
-                    className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40"
+                    className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
                   >
                     <HistoryIcon />
                   </button>
@@ -1075,7 +1075,7 @@ export default function ProjectContextPage({
                               fromSchemaBuilder: true,
                             })
                           }
-                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] text-ink transition-colors hover:bg-accent-soft hover:text-accent"
+                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] text-ink transition-colors hover:bg-surface-muted hover:text-ink"
                         >
                           <span className="min-w-0 truncate">
                             {document.name}

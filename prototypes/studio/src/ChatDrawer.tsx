@@ -30,7 +30,7 @@ export default function ChatDrawer({ open, onCollapse, onExpand, title, headerAc
             <div className="flex shrink-0 items-center gap-1.5">
               {headerAction}
               <button type="button" aria-label="Collapse conversation" title="Collapse"
-                className="grid size-6 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none hover:text-accent" onClick={onCollapse}>
+                className="grid size-6 cursor-pointer place-items-center rounded-[3px] text-ink-muted outline-none hover:text-ink" onClick={onCollapse}>
                 <span aria-hidden="true">⌄</span>
               </button>
             </div>

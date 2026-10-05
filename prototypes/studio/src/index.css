@@ -25,11 +25,11 @@
   --color-ev-ghost: #eef6fa;      /* faint evidence wash (stepper, current row) */
   --color-green: #3e7c4f;
   --color-green-soft: #e7f1e9;
-  --color-stale: #c98a2b;         /* stale / re-run amber */
-  --color-stale-soft: #fdf3e3;    /* stale fill */
-  --color-stale-ink: #9a6b14;     /* stale text */
-  --color-danger: #b3402a;
-  --color-danger-soft: #fce8e4;    /* danger tint fill */
+  --color-stale: #b8860b;         /* stale / re-run golden amber, held off the terracotta hue */
+  --color-stale-soft: #fdf6e0;    /* stale fill */
+  --color-stale-ink: #8a6400;     /* stale text (AA on stale-soft and surface) */
+  --color-danger: #9e2b33;        /* destructive red: deeper and cooler than the terracotta accent */
+  --color-danger-soft: #fbe7ea;   /* danger tint fill */
 
   /* Rail type scale (DESIGN.md §3): content, secondary, compact, overline. Tailwind derives the utilities
      text-content, text-secondary, text-compact and text-overline from these. */

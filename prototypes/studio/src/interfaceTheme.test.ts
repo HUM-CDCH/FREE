@@ -38,6 +38,11 @@ describe('Studio interface theme', () => {
     ['accent', 'surface'],
     ['accent', 'canvas'],
     ['accent', 'surface-muted'],
+    ['danger', 'surface'],
+    ['danger', 'canvas'],
+    ['danger', 'danger-soft'],
+    ['stale-ink', 'stale-soft'],
+    ['stale-ink', 'surface'],
   ])('%s text passes AA on %s', (foreground, background) => {
     expect(contrast(hex(foreground), hex(background))).toBeGreaterThanOrEqual(4.5)
   })

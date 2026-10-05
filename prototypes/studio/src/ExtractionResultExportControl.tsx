@@ -179,7 +179,7 @@ function ExtractionResultExportControl({
             ] as const).map(([format, label]) => (
               <button
                 key={format}
-                className="block w-full cursor-pointer rounded px-2.5 py-1.5 text-left text-[11px] font-semibold text-ink hover:bg-accent-soft"
+                className="block w-full cursor-pointer rounded px-2.5 py-1.5 text-left text-[11px] font-semibold text-ink hover:bg-surface-muted"
                 type="button"
                 onClick={() => void exportResult(format)}
               >

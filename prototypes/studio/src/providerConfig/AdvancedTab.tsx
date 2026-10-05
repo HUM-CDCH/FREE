@@ -128,7 +128,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
         </fieldset>
         <div className="flex flex-wrap gap-2">
           <button type="button" aria-pressed={!custom}
-            className={`${textButton} rounded-md border border-line px-2.5 py-1 ${custom ? 'text-ink-muted hover:text-accent' : 'bg-surface-muted text-ink'}`}
+            className={`${textButton} rounded-md border border-line px-2.5 py-1 ${custom ? 'text-ink-muted hover:text-ink' : 'bg-surface-muted text-ink'}`}
             onClick={() => editor.useServiceDefaults(strategy)}>Use service defaults</button>
           <button type="button" aria-pressed={custom}
             className={`${textButton} rounded-md border border-line px-2.5 py-1 ${custom ? 'bg-surface-muted text-ink' : 'text-accent hover:underline'}`}

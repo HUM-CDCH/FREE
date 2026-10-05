@@ -70,7 +70,7 @@ export default function ActionsMenu({ label, items, trigger, triggerClassName = 
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`grid h-7 min-w-7 cursor-pointer place-items-center rounded-[3px] border border-line bg-surface px-1 text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent ${triggerClassName}`}
+        className={`grid h-7 min-w-7 cursor-pointer place-items-center rounded-[3px] border border-line bg-surface px-1 text-ink-muted outline-none transition-colors hover:border-line-strong hover:text-ink ${triggerClassName}`}
         onMouseDown={(event) => open && event.preventDefault()}
         onClick={() => setOpen((current) => !current)}
       >

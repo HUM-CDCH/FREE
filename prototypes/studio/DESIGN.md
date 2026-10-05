@@ -23,14 +23,16 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 | Accent ghost | `--color-accent-ghost` | `#fbf1ec` | n/a | Hover wash |
 | Evidence | `--color-ev` | `#4f8aa8` | n/a | Evidence-related marks only |
 | Success | `--color-green` | `#3e7c4f` | n/a | Positive commands (run, apply, accept, save, finalize) and success state |
-| Warning | `--color-stale` | `#c98a2b` | n/a | Stale state |
-| Error | `--color-danger` | `#b3402a` | n/a | Destructive commands (delete a field, clear the schema, discard a proposal, cancel) and errors |
+| Warning | `--color-stale` | `#b8860b` | n/a | Stale state (golden amber, held off the terracotta hue) |
+| Error | `--color-danger` | `#9e2b33` | n/a | Destructive commands (delete a field, clear the schema, discard a proposal, cancel) and errors |
 
 ### Rules
 
-- Terracotta (accent) marks brand, the active tab, selection and drag states, and focus.
-- Green (`--color-green`) fills positive commands: run, apply, accept, save, finalize.
-- Red (`--color-danger`) fills destructive commands: delete a field, clear the schema, discard a proposal, cancel.
+- Terracotta (accent) is a **rest** colour: brand, the active tab, the selected or current item, drag, and focus. It is never a hover-only transition on an otherwise-neutral control.
+- Neutral controls rest in ink/line and hover to ink (`text-ink`, `bg-surface-muted`, `border-line-strong`) — a muted button, tab, icon button, menu item or text action never turns terracotta on hover. Selectable rows keep the faint `accent-ghost` wash that previews their selected state.
+- Green (`--color-green`) fills positive and commit commands: run, apply, accept, save, finalize, create, add. An inline confirm/save icon button takes green, not terracotta.
+- Red (`--color-danger`) fills destructive commands: delete a field, clear the schema, discard a proposal, cancel. It is deeper and cooler than the terracotta accent so the two never read as one colour.
+- Amber (`--color-stale`) is a distinct golden hue from the terracotta accent, so "stale / re-run" and "brand / current" never blur together.
 - Every coloured action keeps an icon or a label; colour is never the only signal.
 - Preserve the warm paper palette; avoid decorative gradients.
 - Do not introduce raw colors outside this file and `index.css`.
@@ -95,7 +97,7 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 
 ### Action Button
 - **Structure**: compact rounded button with border.
-- **Variants**: green positive, danger, surface secondary, rounded pill; `outline-positive` (green text and icon, `border-green/40`, `--color-green-soft` on hover) and `outline-danger` (the same in danger) for the rail's positive and destructive actions; `ghost` (muted text, no border, surface-muted on hover) for quiet text actions; disabled is a line fill.
+- **Variants**: green positive, danger, surface secondary, rounded pill; `outline-positive` (green text and icon, `border-green/40`, `--color-green-soft` on hover) and `outline-danger` (the same in danger) for the rail's positive and destructive actions; `ghost` (muted text, no border, surface-muted on hover) for quiet text actions; disabled is a line fill. Secondary and pill hover to ink on `line-strong`/`surface-muted`, never to terracotta; only their focus ring is terracotta.
 - **States**: hover brightness or color shift, global dual-color focus indicator.
 - One filled primary per screen. The tab strip's "▶ Run extraction" is positive; while a run is active it reads "■ Stop extraction" in danger, and stays danger (disabled) once its cancellation is requested.
 

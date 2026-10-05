@@ -1445,7 +1445,7 @@ function SchemaPanel({
               </div>
               {!editorReadOnly && <button
                 ref={addFieldRef}
-                className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
+                className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-line-strong hover:text-ink focus-visible:border-accent focus-visible:text-accent"
                 type="button"
                 disabled={editing !== null}
                 onClick={addField}

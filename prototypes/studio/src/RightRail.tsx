@@ -181,7 +181,7 @@ function RightRail({
     return (
       <div className="flex h-full flex-col items-center">
         <button
-          className="flex cursor-pointer items-center justify-center py-3 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+          className="flex cursor-pointer items-center justify-center py-3 text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
           type="button"
           title="Expand panel"
           onClick={onToggle}
@@ -221,7 +221,7 @@ function RightRail({
           )
         })}
         <button
-          className="flex cursor-pointer items-center justify-center border-b-2 border-transparent px-2.5 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+          className="flex cursor-pointer items-center justify-center border-b-2 border-transparent px-2.5 text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
           type="button"
           title="Collapse panel"
           onClick={onToggle}

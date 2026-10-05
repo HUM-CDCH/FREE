@@ -1064,7 +1064,7 @@ export default function BatchExtractionReviewGrid({
                         <button
                           type="button"
                           title="Open document"
-                          className="min-w-0 truncate text-left text-[12px] font-semibold text-ink outline-none hover:text-accent hover:underline"
+                          className="min-w-0 truncate text-left text-[12px] font-semibold text-ink outline-none hover:underline"
                           onClick={() =>
                             onOpenMember(row.sourceDocumentId, member.latestExtraction!.extractionId)
                           }

@@ -252,7 +252,7 @@ export function ProjectContextRail({
       <div className="flex h-full flex-col items-center py-3">
         <button
           data-rail-toggle
-          className="cursor-pointer text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+          className="cursor-pointer text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
           type="button"
           aria-label="Expand projects"
           title="Expand projects"
@@ -270,7 +270,7 @@ export function ProjectContextRail({
         <Overline as="h2">Projects</Overline>
         <button
           ref={createTrigger}
-          className="cursor-pointer rounded-sm p-1 text-accent outline-none transition-colors hover:bg-accent-ghost"
+          className="cursor-pointer rounded-sm p-1 text-green outline-none transition-colors hover:bg-green-soft"
           type="button"
           aria-label="Create project"
           title="Create project"
@@ -324,7 +324,7 @@ export function ProjectContextRail({
                   <button
                     data-project-row
                     className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-sm py-1 pl-1 pr-1 text-left outline-none transition-colors hover:bg-accent-ghost focus-visible:bg-accent-ghost ${
-                      active ? 'text-accent' : 'text-ink-faint hover:text-accent'
+                      active ? 'text-accent' : 'text-ink-faint hover:text-ink'
                     }`}
                     type="button"
                     aria-expanded={isExpanded}
@@ -347,7 +347,7 @@ export function ProjectContextRail({
                   </button>
                   <details className="relative shrink-0">
                     <summary
-                      className="flex size-6 cursor-pointer list-none items-center justify-center rounded-sm text-ink-faint outline-none transition-colors hover:bg-accent-ghost hover:text-accent [&::-webkit-details-marker]:hidden"
+                      className="flex size-6 cursor-pointer list-none items-center justify-center rounded-sm text-ink-faint outline-none transition-colors hover:bg-surface-muted hover:text-ink [&::-webkit-details-marker]:hidden"
                       role="button"
                       aria-label={`Actions for ${project.name}`}
                     >
@@ -511,7 +511,7 @@ export function ProjectContextRail({
         <div className="flex items-center">
           <SessionControls />
           <button
-            className="rounded p-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+            className="rounded p-1 text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
             type="button"
             aria-label="Configure models"
             title="Configure models"

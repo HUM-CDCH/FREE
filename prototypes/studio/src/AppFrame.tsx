@@ -354,7 +354,7 @@ export default function AppFrame({
   )
   const narrowNavToggle = narrowViewport && !effectiveNavOpen && (
     <button
-      className={`grid size-10 shrink-0 place-items-center rounded-md border border-line bg-surface/95 text-ink-muted shadow-sm backdrop-blur outline-none transition-colors hover:text-accent ${
+      className={`grid size-10 shrink-0 place-items-center rounded-md border border-line bg-surface/95 text-ink-muted shadow-sm backdrop-blur outline-none transition-colors hover:text-ink ${
         hasOpenDocumentTabs ? 'self-center' : 'fixed left-2 top-2 z-30'
       }`}
       type="button"
@@ -467,7 +467,7 @@ export default function AppFrame({
           {effectiveNavOpen && (
             <button
               data-rail-toggle
-              className="ml-auto cursor-pointer rounded-sm p-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+              className="ml-auto cursor-pointer rounded-sm p-1 text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
               type="button"
               aria-label="Collapse projects"
               title="Collapse projects"

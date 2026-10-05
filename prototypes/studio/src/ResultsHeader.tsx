@@ -142,7 +142,7 @@ export default function ResultsHeader({
           <div role="group" aria-label="Show values" className="scrollbar-subtle flex gap-1.5 overflow-x-auto @max-[264px]:hidden">
             {chipList.map((chip) => (
               <button key={chip.value} type="button" aria-pressed={filter === chip.value} onClick={() => onFilter(chip.value)}
-                className="h-7 shrink-0 cursor-pointer rounded-full border border-line px-2.5 text-compact font-semibold whitespace-nowrap text-ink-muted outline-none hover:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-canvas">
+                className="h-7 shrink-0 cursor-pointer rounded-full border border-line px-2.5 text-compact font-semibold whitespace-nowrap text-ink-muted outline-none hover:border-line-strong focus-visible:ring-2 focus-visible:ring-accent aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-canvas">
                 {chip.label}{chip.count !== undefined && <span className="ml-1 tabular-nums">{chip.count}</span>}
               </button>
             ))}

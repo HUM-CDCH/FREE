@@ -129,7 +129,7 @@ export function SessionControls() {
   return (
     <details className="relative min-w-0 flex-1">
       <summary
-        className="flex cursor-pointer list-none items-center rounded-sm text-[11px] font-semibold text-ink-muted outline-none hover:text-accent [&::-webkit-details-marker]:hidden"
+        className="flex cursor-pointer list-none items-center rounded-sm text-[11px] font-semibold text-ink-muted outline-none hover:text-ink [&::-webkit-details-marker]:hidden"
         role="button"
         aria-label="Researcher Account"
         title={displayName}

@@ -35,7 +35,7 @@ export type FieldRowProps = {
 // Colours stay off the shared base: two utilities of one property resolve by stylesheet order, not class order. Worded,
 // not icons explained by tooltips (decision 11): 28px tall, at least 28px wide.
 const ACTION = 'inline-flex h-7 min-w-7 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-[3px] px-2 text-compact font-semibold outline-none transition-colors disabled:cursor-default disabled:opacity-40'
-const ACTION_PLAIN = `${ACTION} text-ink-muted hover:bg-surface-muted hover:text-accent`
+const ACTION_PLAIN = `${ACTION} text-ink-muted hover:bg-surface-muted hover:text-ink`
 const ACTION_DANGER = `${ACTION} text-danger hover:bg-danger-soft`
 /** The type and values pills' buttons: at least 24px tall around the pill. A type longer than its line ellipsizes. */
 const PILL_BUTTON = 'inline-flex min-h-6 min-w-0 max-w-full cursor-pointer items-center rounded-full outline-none disabled:cursor-default disabled:opacity-60'
@@ -215,7 +215,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
         ) : <span className="w-3.5 shrink-0" />}
         {isGroup ? (
           <button type="button" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.name}`} aria-expanded={expanded}
-            className="mt-[3px] grid size-6 shrink-0 cursor-pointer place-items-center text-ink-faint outline-none hover:text-accent" onClick={onToggleExpanded}>
+            className="mt-[3px] grid size-6 shrink-0 cursor-pointer place-items-center text-ink-faint outline-none hover:text-ink" onClick={onToggleExpanded}>
             <CollapseArrow expanded={expanded} />
           </button>
         ) : <span className="w-6 shrink-0" />}

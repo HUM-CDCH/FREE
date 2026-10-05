@@ -21,7 +21,7 @@ const variants: Record<Variant, string> = {
   danger:
     'rounded-[3px] border border-danger bg-danger text-white transition-[filter] hover:brightness-108 disabled:border-line disabled:bg-line disabled:text-ink-muted',
   secondary:
-    'rounded-[3px] border border-line bg-surface text-ink-muted hover:border-accent/50 hover:text-accent focus-visible:border-accent',
+    'rounded-[3px] border border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink focus-visible:border-accent',
   'outline-positive':
     'rounded-[3px] border border-green/40 bg-surface text-green hover:bg-green-soft focus-visible:border-green disabled:border-line disabled:text-ink-muted disabled:hover:bg-surface',
   'outline-danger':
@@ -29,7 +29,7 @@ const variants: Record<Variant, string> = {
   ghost:
     'rounded-[3px] border border-transparent text-ink-muted hover:bg-surface-muted hover:text-ink focus-visible:border-accent',
   pill:
-    'rounded-full border border-line bg-surface text-ink-muted hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted',
+    'rounded-full border border-line bg-surface text-ink-muted hover:border-line-strong hover:bg-surface-muted hover:text-ink focus-visible:border-accent disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted',
 }
 
 const sizes: Record<Size, string> = {

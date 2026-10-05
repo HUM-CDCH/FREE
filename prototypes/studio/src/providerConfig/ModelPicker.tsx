@@ -16,7 +16,7 @@ export type PickerGroup = {
 type Row = { id: string; value: string; disabled: boolean }
 
 const TRIGGER_CLASS =
-  'flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-line-strong bg-canvas px-2.75 py-2 text-left text-[12.5px] text-ink transition-colors hover:border-accent/60 disabled:cursor-default disabled:opacity-60'
+  'flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-line-strong bg-canvas px-2.75 py-2 text-left text-[12.5px] text-ink transition-colors hover:border-ink-muted disabled:cursor-default disabled:opacity-60'
 
 /**
  * One control for "which model": options grouped by where they run, a search box and, in a group that accepts one,

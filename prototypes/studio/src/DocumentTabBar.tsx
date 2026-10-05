@@ -43,7 +43,7 @@ function ProjectChip({ name, onNavigateProject, onBackToReviewGrid }: {
     <div className="flex shrink-0 items-center self-center">
       <button
         type="button"
-        className="flex h-7 max-w-48 cursor-pointer items-center rounded-l-[3px] border border-line bg-surface px-2 text-compact font-semibold text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+        className="flex h-7 max-w-48 cursor-pointer items-center rounded-l-[3px] border border-line bg-surface px-2 text-compact font-semibold text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
         aria-label={`Open project ${name}`}
         onClick={onNavigateProject}
       >
@@ -155,7 +155,7 @@ function DocumentTabBar({
                 </span>
                 <button
                   type="button"
-                  className="shrink-0 cursor-pointer font-semibold text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+                  className="shrink-0 cursor-pointer font-semibold text-ink-muted outline-none transition-colors hover:text-ink focus-visible:text-ink"
                   onClick={pilotRoundProgress.onNext}
                 >
                   Next document<span aria-hidden="true"> →</span>

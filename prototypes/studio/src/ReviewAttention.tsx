@@ -36,7 +36,7 @@ export function ReviewAttention({ attention, onSelect, onEditField }: {
       <ul className="mt-2 flex flex-col gap-1">
         {cells.map((cell) => (
           <li key={resultPathKey([...cell.resultPath])} className="flex items-center gap-2">
-            <button type="button" className="min-h-6 min-w-0 flex-1 cursor-pointer truncate text-left font-mono text-compact text-ink outline-none hover:text-accent focus-visible:text-accent"
+            <button type="button" className="min-h-6 min-w-0 flex-1 cursor-pointer truncate text-left font-mono text-compact text-ink outline-none hover:text-ink focus-visible:text-ink"
               onClick={() => onSelect([...cell.resultPath])}>
               {cellLabel(cell.resultPath)}
             </button>

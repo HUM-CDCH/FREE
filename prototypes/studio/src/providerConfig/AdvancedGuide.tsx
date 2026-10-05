@@ -231,7 +231,7 @@ function StartingPointCard({ point, article, onUse }: { point: StartingPoint; ar
           : <SettingsViews label="Starting point change" titles={delta.map((change) => change.label)}>{delta.map((change) => <p key={change.label}>{change.label}: {change.from} → {change.to}</p>)}</SettingsViews>}
       </div>
       <button type="button" disabled={!shown || delta.length === 0} onClick={() => onUse(point)}
-        className="rounded-md border border-line px-2.5 py-1 text-[11.5px] font-semibold text-ink hover:text-accent disabled:text-ink-faint disabled:hover:text-ink-faint">Use these settings</button>
+        className="rounded-md border border-line px-2.5 py-1 text-[11.5px] font-semibold text-ink hover:bg-surface-muted disabled:text-ink-faint disabled:hover:bg-transparent disabled:hover:text-ink-faint">Use these settings</button>
     </section>
   )
 }

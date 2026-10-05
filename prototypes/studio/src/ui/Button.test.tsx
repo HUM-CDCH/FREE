@@ -36,3 +36,12 @@ it('outline-positive and outline-danger keep their colour on text and border, ne
   expect(screen.getByRole('button', { name: 'Reject' }).className).toMatch(/\bborder-danger\/40\b.*\btext-danger\b/)
   expect(screen.getByRole('button', { name: 'Undo' }).className).toMatch(/\bborder-transparent\b.*\btext-ink-muted\b/)
 })
+
+it('secondary and pill hover neutral, never terracotta, so green stays the only action fill', () => {
+  render(<><Button>Cancel</Button><Button variant="pill">Filter</Button></>)
+  for (const name of ['Cancel', 'Filter']) {
+    const className = screen.getByRole('button', { name }).className
+    expect(className).toMatch(/\bhover:text-ink\b/)
+    expect(className).not.toMatch(/hover:text-accent|hover:bg-accent|hover:border-accent/)
+  }
+})

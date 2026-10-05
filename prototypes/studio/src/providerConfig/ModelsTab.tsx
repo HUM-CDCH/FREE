@@ -237,7 +237,7 @@ function Step({
           {open ? (
             <button
               type="button"
-              className="text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-accent"
+              className="text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-ink"
               onClick={() => {
                 onReset()
                 if (open) onClose()
@@ -310,7 +310,7 @@ function AssistantChoice({
           <div ref={suggestion} className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-[11px] font-semibold text-ink-muted">Schema Suggestion</span>
-              <button type="button" className="text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-accent" onClick={followAssistant}>
+              <button type="button" className="text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-ink" onClick={followAssistant}>
                 Use the assistant model
               </button>
             </div>
