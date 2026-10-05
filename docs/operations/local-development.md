@@ -158,22 +158,21 @@ listens on loopback only.
 
 ## Model-call traces (Phoenix)
 
-To inspect Studio's and the Parsing Service's model calls, start development
-with the optional Phoenix dashboard:
+Every development deployment traces Studio's and the Parsing Service's model
+calls and starts the Phoenix dashboard:
 
 ```bash
-pnpm dev -- --phoenix
+pnpm dev
 ```
 
 Phoenix opens at http://localhost:6006, published on loopback only and never
 behind nginx; the `phoenix-data` volume keeps its traces across restarts. The
-flag adds the shared `compose.phoenix.yaml` overlay and the Compose `phoenix`
-profile, and sets
-`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` for Studio and the worker; without it
-nothing is traced. Tracing never gates inference: spans are exported in the
+base `compose.yaml` includes Phoenix and sets
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` for Studio and the worker. No startup flag
+is required. Tracing never gates inference: spans are exported in the
 background, and a stopped Phoenix only loses them.
 
-Production uses the same flag and collector; see the
+Production uses the same collector by default; see the
 [production tracing runbook](deployment.md#model-call-traces-phoenix), including
 SSH access to the loopback dashboard on DGX Spark.
 
@@ -197,7 +196,7 @@ separate roots in the trace list.
 Prompts, raw responses and parsed outputs are not recorded unless listed:
 
 ```bash
-FREE_TRACE_CAPTURE=prompts,responses,parsed pnpm dev -- --phoenix
+FREE_TRACE_CAPTURE=prompts,responses,parsed pnpm dev
 ```
 
 `prompts` records the model's input; `responses` records its raw reply;

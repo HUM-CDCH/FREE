@@ -16,10 +16,14 @@
 x-parsing-build: &parsing-build
   context: prototypes/parsing_service
 
+x-tracing-environment: &tracing-environment
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://phoenix:6006/v1/traces
+  FREE_TRACE_CAPTURE: "${FREE_TRACE_CAPTURE:-}"
+
 x-parsing-runtime: &parsing-runtime
   build: *parsing-build
   init: true
-  environment:
+  environment: &parsing-environment
     KEI_RUNS: /app/runs
     KEI_SLOT: slot-1
     # Studio's staged source PDFs (the source-inbox volume); only the worker mounts it, read-only.
@@ -71,6 +75,8 @@ services:
 
   parsing_worker:
     <<: *parsing-runtime
+    environment:
+      <<: [*parsing-environment, *tracing-environment]
     command: ["kei-worker", "worker"]
     # Restarting only the API leaves the worker's admitted conversions alive.
     restart: unless-stopped
@@ -92,6 +98,7 @@ services:
       context: .
       dockerfile: prototypes/studio/Dockerfile
     environment:
+      <<: *tracing-environment
       NODE_ENV: production
       # Parsing and extraction use the service built from this checkout.
       KEI_EXP_URL: http://parsing_service:8001
@@ -157,7 +164,21 @@ services:
       app:
       proxy:
 
+  # Tracing is always enabled; collector availability never gates inference.
+  phoenix:
+    image: arizephoenix/phoenix:version-20.16.0
+    restart: unless-stopped
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+    ports:
+      - "127.0.0.1:6006:6006"
+    volumes:
+      - phoenix-data:/mnt/data
+    networks:
+      - app
+
 volumes:
+  phoenix-data:
   postgres-data:
   parsing-runs:
   parsing-models:
