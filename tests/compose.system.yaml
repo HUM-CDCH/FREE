@@ -1,4 +1,9 @@
 services:
+  phoenix:
+    # Isolated test stacks keep tracing without taking the deployment's dashboard port.
+    ports: !override
+      - "127.0.0.1::6006"
+
   contract-model:
     image: node:24-alpine
     command: ["node", "/fixture/model.mjs"]

@@ -308,15 +308,14 @@ and sign-in path.
 
 ## Model-call traces (Phoenix)
 
-Enable the optional Phoenix collector when deploying or updating the running
-production stack:
+Every production deployment starts Phoenix and enables model-call tracing:
 
 ```bash
-pnpm production -- --phoenix
+pnpm production
 ```
 
-The launcher adds `compose.phoenix.yaml` and the `phoenix` profile alongside
-the production, bundled-nginx and GPU overlays the deployment uses. It keeps
+The base `compose.yaml` includes Phoenix and the exporter settings for Studio
+and the worker, so later redeployments keep tracing without a startup flag. The launcher keeps
 the build-before-stop sequence and stops only Studio and the parsing API/worker;
 the model servers stay running and all existing data volumes are retained.
 Studio and the worker export to `http://phoenix:6006/v1/traces`. Nothing depends
@@ -324,7 +323,7 @@ on the collector, so stopping it does not stop inference. Phoenix restarts with
 Docker and retains its traces in `phoenix-data`.
 
 Content capture is off by default. To record LLM input and raw output, add this
-to the existing root `.env`, then redeploy with `--phoenix`:
+to the existing root `.env`, then redeploy:
 
 ```dotenv
 FREE_TRACE_CAPTURE=prompts,responses
@@ -334,7 +333,7 @@ Add `parsed` to also record FREE's interpreted output. For a single deployment,
 the process environment takes precedence over `.env`:
 
 ```bash
-FREE_TRACE_CAPTURE=prompts,responses,parsed FREE_GPU=required pnpm production -- --phoenix
+FREE_TRACE_CAPTURE=prompts,responses,parsed FREE_GPU=required pnpm production
 ```
 
 On DGX Spark, keep the existing `FREE_NGINX=container`, TLS, Entra and validated
@@ -355,15 +354,10 @@ provider refusal bodies are omitted even with capture enabled. The
 workflow correlation, retries and recovery limits. Surya's OCR requests are not
 traced.
 
-Pass `--phoenix` on every later redeploy that should keep tracing. Running plain
-`pnpm production` disables tracing in Studio and the worker, even if
-`FREE_TRACE_CAPTURE` or `FREE_PHOENIX` is set. A previously started collector
-and its data volume remain; stop that collector separately if desired:
-
-```bash
-docker compose -f compose.yaml -f compose.prod.yaml -f compose.phoenix.yaml \
-  --profile phoenix stop phoenix
-```
+`--phoenix`, the `FREE_PHOENIX` switch and the separate tracing overlay are
+retired. Both normal launcher commands and direct Compose deployments include
+tracing through the base topology. Stopping the collector loses new spans until
+it starts again; its volume retains previously collected traces.
 
 ## Manage Researcher access
 
@@ -538,7 +532,7 @@ docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres 
 ```
 
 Add `-f compose.nginx.yaml` and `-f compose.gpu.yaml` when the deployment uses
-them. For tracing operations, also add `-f compose.phoenix.yaml --profile phoenix`.
+them. Phoenix is included in the base topology.
 
 - **Cancelling.** A cancel stops a workflow at its next step boundary; a step
   already running finishes first. Conversion steps check for cancellation

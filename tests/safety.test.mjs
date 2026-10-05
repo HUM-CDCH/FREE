@@ -13,9 +13,7 @@ import {
   developmentComposeEnvironment,
   deriveDevProfile,
   parseDevOptions,
-  parseProductionOptions,
   productionComposeArguments,
-  productionComposeEnvironment,
   renderNginxLocations,
   validateProductionEnvironment,
 } from '../scripts/free.mjs'
@@ -63,11 +61,8 @@ function renderDevelopmentCompose(profile, entraEnvironment = null, environment 
   return JSON.parse(result.stdout)
 }
 
-function renderProductionCompose(environment, phoenix, gpu = false) {
-  const composeEnvironment = productionComposeEnvironment(
-    parseProductionOptions(phoenix ? ['--phoenix'] : []),
-    { ...process.env, ...environment, COMPOSE_DISABLE_ENV_FILE: '1' },
-  )
+function renderProductionCompose(environment, gpu = false) {
+  const composeEnvironment = { ...process.env, ...environment, COMPOSE_DISABLE_ENV_FILE: '1' }
   const launchArguments = productionComposeArguments(
     composeEnvironment,
     gpu ? ['-f', 'compose.gpu.yaml'] : [],
@@ -188,6 +183,7 @@ function assertPhoenixTracing(config, capture) {
   const phoenix = config.services.phoenix
   assert.equal(phoenix.image, 'arizephoenix/phoenix:version-20.16.0')
   assert.equal(phoenix.restart, 'unless-stopped')
+  assert.equal(phoenix.profiles, undefined, 'tracing must not require an optional profile')
   assert.deepEqual(phoenix.ports.map(({ host_ip, published, target }) => [host_ip, String(published), target]), [
     ['127.0.0.1', '6006', 6006],
   ])
@@ -218,7 +214,7 @@ for (const nginx of ['host', 'container']) {
           FREE_TLS_CERT_PATH: certificate,
           FREE_TLS_KEY_PATH: certificate,
           FREE_TRACE_CAPTURE: capture,
-        }, true, gpu)
+        }, gpu)
         assertPhoenixTracing(config, capture)
         assertOwnedParsingTopology(config, gpu)
         assert.equal(config.services['mock-oidc'], undefined)
@@ -232,23 +228,16 @@ for (const nginx of ['host', 'container']) {
   }
 }
 
-test('production tracing: capture settings alone cannot enable tracing', () => {
+test('production tracing: enabled by default with content capture off', () => {
   const config = renderProductionCompose({
     ...completeProductionEnvironment('/tmp/free-test-client.pem'),
-    FREE_PHOENIX: '1',
-    FREE_TRACE_CAPTURE: 'prompts,responses,parsed',
-    COMPOSE_PROFILES: 'phoenix',
-  }, false)
-  assert.equal(config.services.phoenix, undefined)
-  assert.equal(config.volumes['phoenix-data'], undefined)
-  for (const name of ['studio', 'parsing_worker']) {
-    assert.equal(config.services[name].environment.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, undefined)
-    assert.equal(config.services[name].environment.FREE_TRACE_CAPTURE, undefined)
-  }
+    FREE_TRACE_CAPTURE: '',
+  })
+  assertPhoenixTracing(config, '')
 })
 
-test('development tracing: the shared overlay still enables LLM input and output capture', () => {
-  const profile = deriveDevProfile(parseDevOptions(['--phoenix']), {})
+test('development tracing: enabled by default with optional LLM input and output capture', () => {
+  const profile = deriveDevProfile(parseDevOptions([]), {})
   const config = renderDevelopmentCompose(profile, null, {
     ...process.env,
     FREE_TRACE_CAPTURE: 'prompts,responses',
@@ -361,7 +350,11 @@ function assertOwnedParsingTopology(config, gpu) {
 }
 
 test("development: the owned parsing stack runs on Studio's database and restarts both source processes", () => {
-  const config = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {}))
+  const config = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {}), null, {
+    ...process.env,
+    FREE_TRACE_CAPTURE: '',
+  })
+  assertPhoenixTracing(config, '')
   assertOwnedParsingTopology(config, false)
   assert.equal(new URL(config.services.parsing_worker.environment.KEI_SYSTEM_DATABASE_URL).password, 'kei-development')
   for (const name of ['parsing_service', 'parsing_worker']) {

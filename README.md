@@ -209,7 +209,10 @@ Variants:
 | `pnpm dev:wifi` | Also reachable from the private Wi-Fi subnet (phone testing) |
 | `pnpm dev:wifi:revoke` | Remove the Windows firewall rule again |
 | `pnpm dev -- --entra` | Local Compose against a configured real Entra tenant |
-| `pnpm dev -- --phoenix` | Also start Phoenix, the model-call trace dashboard, on http://localhost:6006 ([capture settings](docs/operations/local-development.md#model-call-traces-phoenix)) |
+
+Every development and production deployment starts Phoenix and records model-call
+traces. Its dashboard is at http://localhost:6006; prompt and response capture is
+optional ([capture settings](docs/operations/local-development.md#model-call-traces-phoenix)).
 
 Detailed host, Entra, Wi-Fi, verification, and database
 instructions:
