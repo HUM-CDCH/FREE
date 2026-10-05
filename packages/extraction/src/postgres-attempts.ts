@@ -10,6 +10,7 @@ import {
   type DatabaseOrm,
   type WorkflowStatuses,
 } from 'db'
+import { durableHeadSchema, durableStatus, durableValueSchema, type DurableHead } from './durable-contract.js'
 import { extractWorkflowId } from './kei-handoff.js'
 import { modelChoice, recordedSettings } from './extraction-method.js'
 import type {
@@ -18,7 +19,8 @@ import type {
   ExtractionFailure,
   ExtractionSnapshot,
   ExtractionStrategy,
-  ProjectOperationStatus,
+  ExtractionExecutionStatus,
+  BatchExtractionMemberSnapshot,
   ReadDocumentExtractionsInput,
 } from './types.js'
 
@@ -62,8 +64,12 @@ export type AttemptRow = Awaited<ReturnType<typeof readAttemptRows>>[number]
 /** A row and how its work stands: from its outcome, or else from its workflow's DBOS status. */
 type DerivedAttempt = Readonly<{
   row: AttemptRow
-  executionStatus: ProjectOperationStatus
+  executionStatus: ExtractionExecutionStatus
   failure: ExtractionFailure | null
+  durable?: true
+  finalizedReview?: {snapshotVersion:number;feedbackVersion:number;createdAt:Date} | null
+  durableReview?: {snapshotVersion:number;feedbackVersion:number;createdAt:Date;schemaRevisionId:string}
+  durableReviewable?: boolean
 }>
 
 const INTERRUPTED: ExtractionFailure = { ...INTERRUPTED_FAILURE, phase: 'extracting' }
@@ -87,7 +93,11 @@ export async function deriveAttempts(
   statuses: WorkflowStatuses,
   rows: readonly AttemptRow[],
 ): Promise<ReadonlyMap<string, DerivedAttempt>> {
-  const unsettled = rows.filter((row) => row.outcome === null)
+  const heads = await readRuntimeHeads(orm, rows.map(row=>row.id))
+  const durableResults=await readDurableSummaries(orm,heads)
+  const finalizations = heads.size ? await orm.extraction_runtime.Finalization.where(row=>row.extractionId.in([...heads.keys()]))
+    .select('extractionId','snapshotVersion','feedbackVersion','createdAt').orderBy(row=>row.createdAt.desc()).all() : []
+  const unsettled = rows.filter((row) => row.outcome === null && !heads.has(row.id))
   const current = unsettled.length === 0
     ? new Map<string, string>()
     : await statuses(unsettled.map((row) => extractWorkflowId(row.id)))
@@ -101,6 +111,13 @@ export async function deriveAttempts(
   const derived = new Map<string, DerivedAttempt>()
   for (const read of rows) {
     const row = reloaded.get(read.id) ?? read
+    const head = heads.get(row.id)
+    if (head) {
+      const executionStatus=durableStatus(head)
+      derived.set(row.id,{row,executionStatus,failure:null,durable:true,durableReview:durableResults.get(row.id)?.review,
+        durableReviewable:durableResults.get(row.id)?.reviewable??false,finalizedReview:finalizations.find(item=>item.extractionId===row.id)??null})
+      continue
+    }
     const settled = settledAttempt(row)
     if (settled) {
       derived.set(row.id, settled)
@@ -112,6 +129,32 @@ export async function deriveAttempts(
       : { row, executionStatus: 'FAILED', failure: INTERRUPTED })
   }
   return derived
+}
+
+export async function readRuntimeHeads(orm: DatabaseOrm, ids: readonly string[]) {
+  if (!ids.length) return new Map()
+  const heads=await orm.extraction_runtime.Head.where(row=>row.id.in([...ids])).all()
+  return new Map(heads.filter(h=>!h.deleted).map(h=>[h.id,durableHeadSchema.parse(h)]))
+}
+
+/** Guided pilot progress uses a finalized current result cut and its actual
+ * producing schema. Historical or mixed-schema reviews never unlock an
+ * adopted revision, and native reviews never mirror public reviewedAt. */
+export async function readDurableSummaries(orm:DatabaseOrm,heads:ReadonlyMap<string,DurableHead>) {
+  const summaries=new Map<string,{reviewable:boolean;review?:NonNullable<BatchExtractionMemberSnapshot['durableReview']>}>()
+  await Promise.all([...heads.values()].map(async head=> {
+    // Read only the current cut, never every historical snapshot's payload.
+    const snapshot=await orm.extraction_runtime.Snapshot.select('values').first({extractionId:head.id,version:head.snapshotVersion})
+    const values=snapshot?durableValueSchema.array().parse(snapshot.values).filter(value=>value.processing==='saved'):[]
+    const summary:{reviewable:boolean;review?:NonNullable<BatchExtractionMemberSnapshot['durableReview']>}={reviewable:values.length>0}
+    summaries.set(head.id,summary)
+    const schemaRevisionId=values[0]?.schemaRevisionId
+    if(!schemaRevisionId||values.some(value=>value.schemaRevisionId!==schemaRevisionId))return
+    const finalized=await orm.extraction_runtime.Finalization.where({extractionId:head.id,snapshotVersion:head.snapshotVersion})
+      .select('snapshotVersion','feedbackVersion','createdAt').orderBy(row=>row.createdAt.desc()).first()
+    if(finalized)summary.review={...finalized,schemaRevisionId}
+  }))
+  return summaries
 }
 
 async function pinsOf(orm: DatabaseOrm, row: AttemptRow) {
@@ -190,11 +233,12 @@ export async function extractionSnapshot(orm: DatabaseOrm, row: AttemptRow): Pro
 /** An attempt as the wire shows it: the full result once published; otherwise its status, its failure if any, and
  *  no result fields (plan decision 6). */
 export async function attemptSnapshot(orm: DatabaseOrm, attempt: DerivedAttempt): Promise<ExtractionAttemptSnapshot> {
-  if (attempt.row.outcome === 'SUCCEEDED')
+  if (!attempt.durable && attempt.row.outcome === 'SUCCEEDED')
     return { ...(await extractionSnapshot(orm, attempt.row)), executionStatus: 'COMPLETED' }
   return {
     ...(await pinsOf(orm, attempt.row)),
     executionStatus: attempt.executionStatus,
+    ...(attempt.durable ? {durable:true as const,finalizedReview:attempt.finalizedReview??null}:{}),
     outcome: null,
     complete: null,
     modelAttribution: null,
@@ -233,8 +277,9 @@ export async function loadDocumentExtractions(
   // An interactive attempt in any state, or a published result of any kind: a pending or failed batch member is not a
   // result and never displaces one (spec, *One Extraction row*). A legacy sample row (`requestedPages` set) is neither.
   const whole = rows.filter((row) => row.requestedPages === null)
+  const heads=await readRuntimeHeads(orm,whole.map(row=>row.id))
   const candidates = whole
-    .filter((row) => row.batchExtractionId === null || row.outcome === 'SUCCEEDED')
+    .filter((row) => row.batchExtractionId === null || row.outcome === 'SUCCEEDED' || heads.has(row.id))
     .sort((left, right) =>
       right.createdAt.getTime() - left.createdAt.getTime() || right.id.localeCompare(left.id))
   const currentRepresentationId = (await orm.public.SourceRepresentationRevision.where({
@@ -249,10 +294,13 @@ export async function loadDocumentExtractions(
   if (input.extractionId && !selected) return null
   const representationId = selected?.sourceRepresentationRevisionId ?? currentRepresentationId
   if (!representationId) return null
+  const durableReviews=heads.size ? await orm.extraction_runtime.Finalization.where(row=>row.extractionId.in([...heads.keys()]))
+    .select('extractionId','createdAt').orderBy(row=>row.createdAt.desc()).all() : []
+  const reviewedTime=(row:typeof whole[number])=>heads.has(row.id)?durableReviews.find(item=>item.extractionId===row.id)?.createdAt??null:row.reviewedAt
   const latestReviewed = whole
-    .filter((row) => row.outcome === 'SUCCEEDED' && row.reviewedAt !== null)
+    .filter((row) => heads.has(row.id)?reviewedTime(row)!==null:row.outcome === 'SUCCEEDED' && row.reviewedAt !== null)
     .sort((left, right) =>
-      right.reviewedAt!.getTime() - left.reviewedAt!.getTime() ||
+      reviewedTime(right)!.getTime() - reviewedTime(left)!.getTime() ||
       right.createdAt.getTime() - left.createdAt.getTime() ||
       right.id.localeCompare(left.id))[0] ?? null
   const attempts = await loadAttempts(orm, statuses, [

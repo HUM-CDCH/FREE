@@ -3,11 +3,13 @@ import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { RailMarkState } from './useEvidenceOverlays'
 import PanelToggleIcon from './PanelToggleIcon'
 import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
-import { useMemo, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
+import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ResultsTab from './ResultsTab'
+import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
+import { DurableResults } from './DurableResults'
 import type { ExtractionController } from './useExtraction'
 import { resultsBadgeFor } from './resultsBadge'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -58,6 +60,9 @@ type RightRailProps = {
   /** The rail's values for the document's marks, and the handle a mark selects a value through (§7.2). */
   onMarksChange?: (marks: RailMarkState | null) => void
   selectValueRef?: RefObject<((key: string) => void) | null>
+  onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
+  onReviewProgress?:(progress:DurableReviewProgress|null)=>void
+  onReviewFinalized?:()=>void
 }
 
 /** A tab's count. Under a 300px tab strip (the 264px rail) a worded one ("7 to check") shows its number only, so the
@@ -106,6 +111,9 @@ function RightRail({
   onFocusEvidence,
   onMarksChange,
   selectValueRef,
+  onPinnedDocument,
+  onReviewProgress,
+  onReviewFinalized,
 }: RightRailProps) {
   const [fieldContext, setFieldContext] = useState<FieldContext | null>(null)
   const editField = (nodeId: string, path: (string | number)[]) => {
@@ -120,6 +128,13 @@ function RightRail({
     onTabChange('schema')
   }
   const { parsedDocument, reviewDecisions } = inspection
+  const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=> {
+    const anchor=parsedDocument?.evidence_index.anchors.find(each=>each.anchor_id===id)
+    if(!anchor)return
+    if(!occurrenceIds)onSelectEvidence(anchor,precision)
+    else if(anchor.kind==='text')onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
+    else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
+  },[parsedDocument,onSelectEvidence])
   const showDeveloperUi = isDeveloperUiEnabled()
   const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
 
@@ -236,7 +251,24 @@ function RightRail({
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>
-        <ResultsTab
+        {(inspection.attempt ?? extraction.attempt)?.durable ? <DurableResults
+          key={(inspection.attempt ?? extraction.attempt)?.extractionId ?? 'none'}
+          attempt={inspection.attempt ?? extraction.attempt}
+          document={parsedDocument}
+          documentRevisionId={sourceRepresentationId}
+          currentSchema={currentSchemaRevision?.schemaRevisionId ?? null}
+          readOnly={inspection.readOnly}
+          onEvidence={selectNativeEvidence}
+          onResultPathChange={onResultPathChange}
+          onFocusEvidence={onFocusEvidence}
+          onMarksChange={onMarksChange}
+          selectValueRef={selectValueRef}
+          headerExtras={resultsHeaderExtras}
+          onStatusChange={extraction.acceptDurableStatus}
+          onReviewProgress={onReviewProgress}
+          onReviewFinalized={onReviewFinalized}
+          onPinnedDocument={onPinnedDocument}
+        /> : <ResultsTab
           onEditField={editField}
           key={inspection.attempt?.extractionId ?? 'none'}
           controller={extraction}
@@ -261,7 +293,7 @@ function RightRail({
             )
             if (anchor) onSelectEvidence(anchor, precision)
           }}
-        />
+        />}
       </div>
     </div>
   )

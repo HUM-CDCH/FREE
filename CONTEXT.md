@@ -109,8 +109,12 @@ A read-only view of a Historical Schema Revision that does not replace or alter 
 _Avoid_: restore, rollback, checkout
 
 **Extraction**:
-A run that applies an extraction schema to source context from its source document to produce extracted values.
+A researcher-visible operation that applies an Extraction Schema to Source Context from its Source Document to produce extracted values. A durable interactive Extraction retains its identity through Pause, Resume and Retry; completed work and researcher decisions remain saved.
 _Avoid_: schema, suggestion
+
+**Producing Input Selection**:
+The immutable schema revision, Extraction Method and resolved settings that produced particular values within a durable interactive Extraction. Adopting revised inputs creates another selection; earlier values retain their producing selection.
+_Avoid_: current schema, mutable run settings
 
 **Batch Extraction**:
 A researcher-initiated operation that applies one Current Schema Revision and one Extraction Strategy to a selected set of Source Documents, creating a separate Extraction and Extraction Result for each Source Document.
@@ -118,7 +122,7 @@ _Avoid_: annotation set, combined extraction, project-wide extraction
 
 **Extraction Result**:
 A source-grounded value or set of values produced by an extraction and linked to
-validated evidence.
+validated evidence. Durable interactive Extractions also retain structurally valid provisional or ungrounded values with an explicit Evidence status; researcher corrections remain independent of that status.
 _Avoid_: extraction, output, response
 
 **Review Decision**:
@@ -158,7 +162,7 @@ A Researcher Account's saved choices, per Extraction Strategy, of how future Ext
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:
-What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (legacy Catalog only), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. It never changes after admission, and execution reads only it; Extraction details show it beside the options and protocol versions the Parsing Service reports for the run. Equal methods do not promise identical model output across runtime revisions.
+What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (legacy Catalog only), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. The method of each producing input selection never changes after its admission; a durable interactive Extraction may adopt another immutable selection at a paused boundary. Execution reads its selected pinned method; Extraction details show it beside the options and protocol versions the Parsing Service reports for the run. Equal methods do not promise identical model output across runtime revisions.
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:

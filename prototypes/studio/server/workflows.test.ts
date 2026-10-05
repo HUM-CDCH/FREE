@@ -33,7 +33,7 @@ describe('Studio workflow registration', () => {
     const names = registerWorkflow.mock.calls.map(([, config]) => config?.name)
     for (const name of names) expect(name).toEqual(expect.any(String))
     expect(names).toEqual([...STUDIO_WORKFLOW_NAMES])
-    expect(names).toEqual(['runExtraction', 'suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit', 'collectGarbage'])
+    expect(names).toEqual(['runExtraction', 'suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit', 'collectGarbage','reconcileDurableExtractions'])
   })
 
   it('applies the named ten-minute schedule on gc without backfill', async () => {
@@ -41,10 +41,13 @@ describe('Studio workflow registration', () => {
     await expect(applyStudioSchedules()).rejects.toThrow('after registerStudioWorkflows')
     registerStudioWorkflows()
     await applyStudioSchedules()
-    const handle = registerWorkflow.mock.results.at(-1)?.value
+    const handle = registerWorkflow.mock.results.at(-2)?.value
     expect(applySchedules).toHaveBeenCalledWith([{
       scheduleName: 'collectGarbage', workflowFn: handle, schedule: '*/10 * * * *',
       queueName: 'gc', automaticBackfill: false,
+    },{
+      scheduleName:'reconcileDurableExtractions',workflowFn:registerWorkflow.mock.results.at(-1)?.value,
+      schedule:'* * * * *',queueName:'studio',automaticBackfill:false,
     }])
   })
 

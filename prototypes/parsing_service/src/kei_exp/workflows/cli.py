@@ -73,6 +73,9 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
     with slot.hold_slot(slot_name):
         logger.info("slot %s taken by pid %s", slot_name, os.getpid())
         import kei_exp.workflows.registered  # noqa: F401 - every workflow is registered before launch
+        if os.environ.get("FREE_DURABLE_EXTRACTION_COORDINATION") == "1":
+            from kei_exp.workflows.durable_extract import configure
+            configure(database_url)
         boot.set_timestamp(boot.database_clock_ms(database_url))
         # From here on DBOS may run steps (launch recovers this executor's pending workflows), and destroy() does not
         # wait for them: their threads are not daemons, so returning would free the slot while they write on. Every
@@ -93,10 +96,16 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
             try:
                 DBOS.destroy()
             finally:  # a second interrupt inside destroy() must not unwind the slot's `with` either
+                if os.environ.get("FREE_DURABLE_EXTRACTION_COORDINATION") == "1":
+                    from kei_exp.workflows.durable_extract import close_coordination
+                    close_coordination()
                 print(stopped(error, database_url), file=sys.stderr)
                 exit_process(1)
             return  # only a test's exit_process returns
         DBOS.destroy()
+        if os.environ.get("FREE_DURABLE_EXTRACTION_COORDINATION") == "1":
+            from kei_exp.workflows.durable_extract import close_coordination
+            close_coordination()
         exit_process(0)
 
 

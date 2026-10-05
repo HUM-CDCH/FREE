@@ -13,6 +13,7 @@ import { usePilotRoundProgress } from './usePilotRoundProgress'
 
 afterEach(() => {
   cleanup()
+  getBatchExtraction.mockReset()
   vi.restoreAllMocks()
 })
 
@@ -60,6 +61,29 @@ function batch(members: BatchExtraction['members']): BatchExtraction {
 }
 
 describe('usePilotRoundProgress', () => {
+  it('refreshes the current round after a review is finalized without navigating', async () => {
+    getBatchExtraction.mockResolvedValueOnce(batch([member(DOC_A), member(DOC_B)]))
+    const { result, rerender } = renderHook(
+      ({ revision }) => usePilotRoundProgress(PROJECT, BATCH, DOC_A, revision),
+      { initialProps: { revision: 0 } },
+    )
+    await waitFor(() => expect(result.current?.reviewed).toBe(0))
+    getBatchExtraction.mockResolvedValueOnce(batch([
+      member(DOC_A, { reviewedAt: '2026-01-01T01:00:00.000Z' }), member(DOC_B),
+    ]))
+    rerender({ revision: 1 })
+    await waitFor(() => expect(result.current?.reviewed).toBe(1))
+    expect(getBatchExtraction).toHaveBeenCalledTimes(2)
+    expect(result.current?.nextMember?.sourceDocumentId).toBe(DOC_B)
+  })
+  it('counts native finalized review and opens the next native member without a legacy result',async()=> {
+    const first={...member(DOC_A,null),executionStatus:'COMPLETED' as const,durableExtractionId:DOC_A,
+      durableReview:{snapshotVersion:1,feedbackVersion:1,createdAt:'2026-01-01T01:00:00.000Z',schemaRevisionId:'50000000-0000-4000-8000-000000000001'}}
+    const second={...member(DOC_B,null),executionStatus:'COMPLETED' as const,durableExtractionId:DOC_B}
+    getBatchExtraction.mockResolvedValueOnce(batch([first,second]))
+    const {result}=renderHook(()=>usePilotRoundProgress(PROJECT,BATCH,DOC_A))
+    await waitFor(()=>expect(result.current).toEqual({reviewed:1,total:2,nextMember:{sourceDocumentId:DOC_B,extractionId:DOC_B}}))
+  })
   it('reports null before a projectContextId/batchExtractionId pair is available', () => {
     const { result } = renderHook(() => usePilotRoundProgress(null, null, null))
     expect(result.current).toBeNull()

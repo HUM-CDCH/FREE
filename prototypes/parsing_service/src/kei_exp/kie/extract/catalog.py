@@ -28,6 +28,7 @@ from kei_exp.kie.extract.calls import Call, complete, looped
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.llm import Chat, bounded
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.retained import saved_record, plan_records
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Issue, _labelled, extract_record, pages_of
 from kei_exp.kie.passages import Evidence, Passage
@@ -81,6 +82,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                                                         before_call=check)
     calls += discovery_calls
     issues += discovery_issues
+    plan_records(chat,"generic-records",[[{"segment":p.id,"start":0,"end":len(p.text)} for p in group] for group in groups])
     slices = []
     for number, group in enumerate(groups):
         check()
@@ -88,6 +90,9 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                                                       number=number, check=check)
         calls += record_calls
         issues += record_issues
+        saved_record(chat, fields, [{"segment": p.id, "start": 0, "end": len(p.text)} for p in group],
+                     record=number, primary=[{"segment": p.id, "start": 0, "end": len(p.text)} for p in group]
+                     if all(call.ok or call.recovered for call in record_calls) else [])
         slices.append((group, fields))
     support = ground_records(slices, schema, chat, budget=options.record_chars, check=check)
     return artifact(evidence, request, chat, started=started, clock=clock, fields=[fields for _, fields in slices],

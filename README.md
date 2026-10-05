@@ -154,6 +154,12 @@ stack it starts itself. `FREE_SKIP_PYTHON=1` also makes `pnpm install` skip
 the parsing service's `uv sync --frozen`; leave it unset on development and
 deployment hosts.
 
+The Extraction PostgreSQL tier also runs Python-backed durable lifecycle and
+process-recovery checks when `FREE_SKIP_PYTHON` is unset. These require a built
+`free-parsing_worker` image (or `DURABLE_TEST_WORKER_IMAGE` naming an equivalent
+image), Docker and the guarded disposable PostgreSQL target. The Node-only CI
+tier explicitly skips these two checks; full-host verification must run them.
+
 `test:service` may download Docling layout weights on first use. Supply both
 `FREE_REAL_EXTRACT_URL` (a chat-completions URL) and
 `FREE_REAL_EXTRACT_MODEL` to run the same workflow against a real model.
@@ -226,6 +232,49 @@ registration and rotation:
 [docs/operations/entra-authentication.md](docs/operations/entra-authentication.md).
 
 ## Extraction execution
+
+### Durable interactive extraction candidate
+
+The protocol-1 implementation is an admission-disabled candidate governed by
+[ADR 0017](docs/adr/0017-durable-extraction-control-and-call-checkpoints.md) and
+[its release matrix](docs/plans/2026-10-04-durable-interactive-extraction-release.md).
+`DURABLE_RELEASE_VERIFIED` remains false; environment configuration alone cannot
+admit it. This pre-production feature adds no historical extraction migration or
+compatibility layer.
+
+A protocol-1 Extraction retains one visible identity across Pause, Resume and
+Retry. Pause drains and saves admitted calls before becoming Paused; Stop is
+terminal and retains saved data. Its application-owned coordination state
+expresses control and immutable progress; DBOS still dispatches and recovers
+linked attempts. This is the Extraction-specific amendment to the
+DBOS-derived status contract, with DBOS retaining execution and dispatch.
+
+Producing schema revisions, methods, exact call inputs, outputs and correction
+history remain immutable. Revised inputs are saved separately and adopted only
+at a drained boundary; a later edit cancels pending Resume. Saved structurally
+valid provisional or ungrounded values support independent researcher decisions.
+Finalization and exports select fixed result/review versions. Compatible active
+Project corrections can guide later admitted calls, with optional Evidence from
+the correction's own source; incompatible corrections remain historical and do
+not enter the consuming target's context. No automatic guidance-conflict
+classification is performed.
+
+The candidate uses the shared results-review rail with stable saved-value IDs
+and whole-field typed corrections. Historical review uses its producing schema
+and pinned Source Representation. A finalized result/decision pair remains
+available beside later work; it does not freeze the Extraction. Export bundles
+fix value and decision versions and attach execution history observed at a
+recorded capture time. Batch members retain independent cuts and remain openable
+and exportable when paused, failed or stopped.
+
+The existing extraction implementation remains available while this candidate’s
+admissions are disabled. The integrated candidate passed its guarded checks and
+required E2E verification on baratheon Spark; exact cuts, conditional skips and
+review are recorded in the
+[integration evidence](docs/validation/2026-10-04-durable-review-integration-verification.md).
+Durable admissions remain hard OFF after verification. This work does not
+authorize a production migration, merge, deployment or enablement.
+
 
 FREE sends the pinned schema and the Source Document's run ID to the included
 Parsing Service for Article or Catalog extraction. The service owns extraction

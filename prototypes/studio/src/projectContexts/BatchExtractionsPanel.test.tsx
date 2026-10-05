@@ -2844,7 +2844,7 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
     expect(
       screen.getByText(
-        'No successful Extraction Results are available to export.',
+        'No saved Extraction data is available to export.',
       ),
     ).toBeVisible()
     expect(screen.getByRole('button', { name: 'Review grid' })).toBeDisabled()

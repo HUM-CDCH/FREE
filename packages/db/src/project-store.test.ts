@@ -60,6 +60,8 @@ function fakeDatabase(
   } = {},
 ) {
   const tables: Record<string, Row[]> = {
+    Head: [],
+    ArtifactReference: [],
     ResearcherAccount: [
       { id: RESEARCHER_A, email: 'researcher-a@example.org' },
       { id: RESEARCHER_B, email: 'researcher-b@example.org' },
@@ -454,7 +456,7 @@ function fakeDatabase(
   })
   return {
     tables,
-    orm,
+    orm: {...orm,extraction_runtime:{Head:collection('Head'),ArtifactReference:collection('ArtifactReference')}},
     transaction: async <T>(
       run: (tx: {
         orm: typeof orm
@@ -665,6 +667,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       reviewedSourceDocumentCount: 0,
       staleSourceDocumentCount: 0,
       schemaDraftCount: 0,
+      schemaStabilised: false,
       lastActivityAt: new Date('2026-08-01T11:02:00Z'),
       runningBatch: null,
     })

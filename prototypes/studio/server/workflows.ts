@@ -22,12 +22,14 @@ import { sourceInboxRoot } from '../api/_source_inbox.js'
 import { COLLECT_GARBAGE, garbagePorts, registerGarbageWorkflow, type GarbagePorts } from '../api/_garbage_workflow.js'
 import { COLLECT_GARBAGE_CRON, COLLECT_GARBAGE_SCHEDULE, GC_QUEUE, studioDbos } from './dbos.js'
 import { DBOS, type ScheduledWorkflowFn } from '@dbos-inc/dbos-sdk'
+import { DURABLE_RECONCILE } from 'extraction/durable'
+import { registerDurableExtractionReconciler } from './durable-extraction-workflow.js'
 
 /** Every Studio workflow's explicit name. A bundler renames unnamed functions (M0R 2: `job$1`), and a workflow started
  *  under one build must be recoverable by another. */
 export const STUDIO_WORKFLOW_NAMES: readonly string[] = [
   RUN_EXTRACTION, SUGGEST_SCHEMA_BATCH, INGEST_SOURCE, REPROCESS_SOURCE, SUGGEST_SCHEMA, PROPOSE_SCHEMA_EDIT,
-  COLLECT_GARBAGE,
+  COLLECT_GARBAGE, DURABLE_RECONCILE,
 ]
 
 /** Both source conversion workflows use the same kei handoff, inbox, package store and owner-scoped store. */
@@ -44,6 +46,7 @@ export function sourceConversionWorkflowPorts(): IngestionWorkflowPorts & Reproc
 
 let registered = false
 let collectGarbage: ReturnType<typeof registerGarbageWorkflow> | undefined
+let reconcileExtractions: ReturnType<typeof registerDurableExtractionReconciler> | undefined
 
 /** Registers every Studio workflow. Only launchStudioDbos calls it, once, before DBOS.launch(); no module registers a
  *  workflow at import, because the API dispatcher and several tests import every handler module. */
@@ -80,10 +83,11 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
     }
   })
   collectGarbage = registerGarbageWorkflow(options.garbagePorts ?? (() => garbagePorts()))
+  reconcileExtractions = registerDurableExtractionReconciler()
 }
 
 export async function applyStudioSchedules(): Promise<void> {
-  if (!collectGarbage) throw new Error('applyStudioSchedules runs after registerStudioWorkflows.')
+  if (!collectGarbage || !reconcileExtractions) throw new Error('applyStudioSchedules runs after registerStudioWorkflows.')
   await DBOS.applySchedules([{
     scheduleName: COLLECT_GARBAGE_SCHEDULE,
     // The scheduler's type narrows results to void; DBOS still persists this workflow's summary for gc:now.
@@ -91,5 +95,6 @@ export async function applyStudioSchedules(): Promise<void> {
     schedule: COLLECT_GARBAGE_CRON,
     queueName: GC_QUEUE,
     automaticBackfill: false,
-  }])
+  },{scheduleName:DURABLE_RECONCILE,workflowFn:reconcileExtractions as unknown as ScheduledWorkflowFn,
+    schedule:'* * * * *',queueName:'studio',automaticBackfill:false}])
 }

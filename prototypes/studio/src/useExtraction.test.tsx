@@ -122,6 +122,60 @@ beforeEach(() => {
 })
 
 describe('useExtraction server-owned lifecycle', () => {
+  it.each(['QUEUED','RUNNING','PAUSING','PAUSED','STOPPING','STOPPED','FAILED','COMPLETED'] as const)(
+    'leaves native %s review reads and reloads to the durable actor', async (executionStatus) => {
+      const native=jobAttempt({durable:true,executionStatus})
+      const {result}=renderHook(()=>useExtraction(options(native)))
+      await act(async()=>{})
+      act(()=>result.current.review.reload())
+      await act(async()=>{})
+      expect(api.readExtraction).not.toHaveBeenCalled()
+      expect(api.saveExtractionReviewDraft).not.toHaveBeenCalled()
+      expect(result.current.review.loading).toBe(false)
+    },
+  )
+
+  it('switches native Extractions on the same source and fences the previous observer', () => {
+    const first = jobAttempt({durable:true,executionStatus:'PAUSING'})
+    const second = jobAttempt({durable:true,extractionId:'55555555-5555-4555-8555-555555555555',executionStatus:'PAUSED'})
+    const {result,rerender}=renderHook(({initialAttempt})=>useExtraction({...options(initialAttempt),documentKey:representationId}),
+      {initialProps:{initialAttempt:first}})
+    act(()=>result.current.acceptDurableStatus(first.extractionId,'PAUSING'))
+    rerender({initialAttempt:second})
+    expect(result.current.attempt?.extractionId).toBe(second.extractionId)
+    expect(result.current.state).toEqual({status:'retained',executionStatus:'PAUSED'})
+    act(()=>result.current.acceptDurableStatus(first.extractionId,'STOPPED'))
+    expect(result.current.state).toEqual({status:'retained',executionStatus:'PAUSED'})
+  })
+
+  it('does not replace locally observed native status when admission metadata catches up', () => {
+    const first = jobAttempt({durable:true,executionStatus:'QUEUED'})
+    const {result,rerender}=renderHook(({initialAttempt})=>useExtraction({...options(initialAttempt),documentKey:representationId}),
+      {initialProps:{initialAttempt:first}})
+    act(()=>result.current.acceptDurableStatus(first.extractionId,'PAUSED'))
+    rerender({initialAttempt:{...first,executionStatus:'RUNNING'}})
+    expect(result.current.state).toEqual({status:'retained',executionStatus:'PAUSED'})
+  })
+
+  it('drops a previous same-source status read after explicit Extraction navigation', async () => {
+    vi.useFakeTimers()
+    try {
+      const first=jobAttempt({durable:true})
+      const second=jobAttempt({durable:true,extractionId:'55555555-5555-4555-8555-555555555555',executionStatus:'PAUSED'})
+      const read=Promise.withResolvers<Awaited<ReturnType<typeof api.readExtraction>>>()
+      vi.mocked(api.readExtraction).mockReturnValueOnce(read.promise)
+      const {result,rerender}=renderHook(({initialAttempt})=>useExtraction({...options(initialAttempt),documentKey:representationId}),
+        {initialProps:{initialAttempt:first}})
+      await act(()=>vi.advanceTimersByTimeAsync(2000))
+      expect(api.readExtraction).toHaveBeenCalledOnce()
+      rerender({initialAttempt:second})
+      expect(vi.mocked(api.readExtraction).mock.calls[0]![1]!.aborted).toBe(true)
+      await act(async()=>read.resolve({extraction:{...first,executionStatus:'COMPLETED'},pendingReviewDecisions:null}))
+      expect(result.current.attempt?.extractionId).toBe(second.extractionId)
+      expect(result.current.state).toEqual({status:'retained',executionStatus:'PAUSED'})
+    } finally {vi.useRealTimers()}
+  })
+
   it('distinguishes a version-zero draft from an acknowledged server draft', async () => {
     const decision: ReviewDecisionInput = {
       resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1',
@@ -1341,6 +1395,30 @@ describe('review while the run reads (ADR 0016; results review redesign §5)', (
   const poll = () => act(() => vi.advanceTimersByTimeAsync(2_000))
   const flush = () => act(() => vi.advanceTimersByTimeAsync(0))
   afterEach(() => { vi.useRealTimers() })
+
+  it.each(['QUEUED','RUNNING'] as const)('releases a previous review load when navigating to %s work',async(executionStatus)=>{
+    vi.useFakeTimers()
+    const delayed=Promise.withResolvers<Awaited<ReturnType<typeof api.readExtraction>>>()
+    const previous=attempt({extractionId:'55555555-5555-4555-8555-555555555555'})
+    vi.mocked(api.readExtraction).mockReturnValueOnce(delayed.promise).mockResolvedValue({extraction:running(),
+      pendingReviewDecisions:null,partial:reading(['finished']),reviewDraft:{version:2,decisions:[]}})
+    const {result,rerender,unmount}=renderHook(({current,documentKey})=>useExtraction({...options(current),documentKey,occurrenceIdsByAnchor}),
+      {initialProps:{current:previous,documentKey:'previous'}})
+    try {
+      await flush()
+      expect(result.current.review.loading).toBe(true)
+      rerender({current:jobAttempt({strategy:'CATALOG',executionStatus}),documentKey:'running'})
+      await flush()
+      expect(result.current.review.loading).toBe(false)
+      await poll()
+      expect(result.current.review.draftAvailable).toBe(true)
+      act(()=>{result.current.review.setDecision(decision(0).resultPath,'REJECTED')})
+      expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(running().extractionId,[decision(0,'REJECTED')],2)
+      await act(async()=>delayed.resolve({extraction:previous,pendingReviewDecisions:[]}))
+      expect(result.current.attempt?.extractionId).toBe(running().extractionId)
+      expect(result.current.review.decisions).toEqual([decision(0,'REJECTED')])
+    } finally {unmount()}
+  })
 
   it('drafts a decision on a finished record; a later poll adds new records and never reverts it', async () => {
     vi.useFakeTimers()

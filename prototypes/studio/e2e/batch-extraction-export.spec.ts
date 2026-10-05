@@ -64,6 +64,10 @@ function readySuggestionDto(
     attempt: 1,
     executionStatus: 'COMPLETED',
     phase: 'READY',
+    sourceKind: 'DOCUMENTS',
+    purpose: null,
+    columnFieldMapping: null,
+    projectSpreadsheetVersionId: null,
     proposal: schemaTree,
     sourceCoverage: null,
     draft,
@@ -559,7 +563,7 @@ test('a Batch Extraction runs over selected Source Documents and exports one spr
   await expect(historyRow).toContainText('2 Source Documents · Article')
   await expect(historyRow).toContainText(/Queued|Running/)
   await expect(historyRow).toContainText('2 need review', { timeout: 15_000 })
-  const completionDialog = page.getByRole('dialog', { name: 'Batch Extraction finished' })
+  const completionDialog = page.getByRole('dialog', { name: 'Pilot Extraction finished' })
   await expect(completionDialog).toBeVisible()
   await completionDialog.getByRole('button', { name: 'Dismiss', exact: true }).click()
   await expect(completionDialog).toBeHidden()
@@ -926,7 +930,7 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
   await reviewGrid.click()
 
   await expect(page.getByText('Review data is temporarily unavailable.')).toBeVisible()
-  await page.getByRole('button', { name: 'Retry' }).click()
+  await panel(page).getByRole('button', { name: 'Retry',exact:true }).click()
   await expect(page.getByText('Ellekilde', { exact: true })).toBeVisible()
   await expect(page.getByText('4 of 4 required decisions remaining', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Approve remaining (4)', exact: true })).toHaveAccessibleDescription(/all loaded Source Documents.*rows hidden by a filter.*save automatically/)

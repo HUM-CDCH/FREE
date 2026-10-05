@@ -47,8 +47,12 @@ class GLiFormerFields:
     url: str
     model: str = MODEL
     timeout: float = 1800
+    runtime: object | None = None
+    pinned_info: dict | None = None
 
     def info(self) -> dict:
+        if self.pinned_info is not None:
+            return self.pinned_info
         response = requests.get(f"{self.url.rstrip('/')}/info", timeout=10)
         response.raise_for_status()
         body = response.json()

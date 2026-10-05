@@ -31,7 +31,7 @@ export type EndCard =
  * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card (§4.5).
  */
 export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, last, editing, node, upNext, end,
-  headingRef, onDecide, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack }: {
+  headingRef, onDecide, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit }: {
   article: boolean
   items: readonly QueueItem[]
   position: { record: number; records: number; at: number; of: number } | null
@@ -54,6 +54,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
   onGo: (key: string) => void
   onContinue: (index: number) => void
   onBack: () => void
+  onTypedEdit?: (value: unknown) => void
 }) {
   if (end || !current) {
     const card = end ?? { kind: 'caught-up' as const, line: '', next: null }
@@ -77,7 +78,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
   const decided = current.kind !== 'to-check'
   const origin = current.link && linkOrigin(current.link) === 'rule' ? 'Linked by rule; no verifier checked it' : 'Verifier-supported'
   const precision = current.link?.precision === 'input' ? ' · located to the whole page only' : current.link?.precision === 'cell' ? ' · a table cell' : ''
-  const source = `${current.kind === 'edited' || current.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${current.page === null ? '' : `p.${current.page} · `}${origin}${precision}`
+  const source = `${current.retained?.source ?? `${current.kind === 'edited' || current.kind === 'rejected' ? 'Evidence for the extracted value · ' : ''}${current.page === null ? '' : `p.${current.page} · `}${origin}`}${precision}`
   const style = current.chip?.style === 'rule' ? 'border-dotted' : current.chip?.style === 'doubtful' ? 'border-dashed' : 'border-solid'
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
@@ -100,6 +101,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         <p className="m-0 mb-1 font-mono text-secondary text-ink-faint">{article ? current.name : `${label} · ${recordLabel} › ${current.name}`}</p>
         {editing ? (
           <ReviewedValueEditor node={node} initial={current.value} tall onCancel={onCancelEdit}
+            onTypedSave={onTypedEdit}
             saveLabel={last ? 'Save edit and save review' : 'Save edit and next'} onSave={(value) => onDecide('EDITED', value)} />
         ) : (
           <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{shownValue(current.value)}</h2>

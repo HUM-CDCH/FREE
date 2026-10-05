@@ -10,7 +10,7 @@ import {
 import { dbosSteps, isWorkflowCancellation, type WorkflowSteps } from 'extraction/workflow-steps'
 import { databaseClockMs, studioDbos } from '../server/dbos.js'
 import {
-  GC_POLICY, STUDIO_WORKFLOW_PREFIXES, SWEEP_PREFIX, TERMINAL_STATUSES, keiParentOf,
+  GC_POLICY, STUDIO_WORKFLOW_PREFIXES, STUDIO_MAINTENANCE_PREFIXES, TERMINAL_STATUSES, keiParentOf,
   planCancellationRepair, planKeiCleanup, planPackages, planStagedSources, planStudioHistory,
   scopeIdsOf, type GarbagePolicy, type WorkflowRow,
 } from './_garbage_plan.js'
@@ -85,7 +85,7 @@ export async function repairCancellations(ports: GarbagePorts): Promise<{ studio
 
 export async function collectStudioHistory(ports: GarbagePorts, nowMs: number): Promise<number> {
   const terminal = rows(await ports.studio.listWorkflows({
-    workflow_id_prefix: [...STUDIO_WORKFLOW_PREFIXES, SWEEP_PREFIX],
+    workflow_id_prefix: [...STUDIO_WORKFLOW_PREFIXES, ...STUDIO_MAINTENANCE_PREFIXES],
     status: [...TERMINAL_STATUSES], ...NO_DATA,
   }))
   const scopes = await ports.references.scopes(scopeIdsOf(terminal))
@@ -99,7 +99,7 @@ export async function collectStudioHistory(ports: GarbagePorts, nowMs: number): 
 
 export async function collectKei(ports: GarbagePorts, nowMs: number, workflowId: string): Promise<KeiDeleteRunsInput | null> {
   const kei = rows(await ports.kei.listWorkflows({
-    workflowName: ['convert', 'extract', 'deleteRuns'], loadInput: false, loadOutput: true,
+    workflowName: ['convert', 'extract', 'deleteRuns', 'deleteDurableHistoryV1'], loadInput: false, loadOutput: true,
   }))
   // The parent must be quiescent before its reference read; that read then sees any final publication.
   const parents = byId(await listed(ports.studio, unique(kei.map((row) => keiParentOf(row.workflowID)))))

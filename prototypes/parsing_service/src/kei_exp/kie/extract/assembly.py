@@ -92,6 +92,8 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
     contexts sharing an overlap passage both returned joined once (`overlap_items_joined`), equal items from other
     contexts named (`possible_repeated_items`). A scalar the contexts disagree on is null, with its conflict and a
     `conflicting_document_values` issue."""
+    from kei_exp.kie.extract.retained import document_inputs, saved_document
+    schema, carried = document_inputs(chat,schema)
     documents: list[dict] = []
     calls: list[Call] = []
     issues: list[Issue] = []
@@ -103,6 +105,8 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
         documents.append(document)
         calls += document_calls
         issues += document_issues
+        interim=assemble_document(documents,sharing(contexts[:len(documents)]))[0] if len(documents)>1 else documents[0]
+        saved_document(chat,{**carried,**interim},complete=all(call.ok or call.recovered for call in calls))
     document, conflicts, repeats, joined = (assemble_document(documents, sharing(contexts)) if len(documents) > 1
                                             else (documents[0], [], [], []))
     issues += [Issue("conflicting_document_values", json.dumps(conflict, ensure_ascii=False))
@@ -111,7 +115,7 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
                for repeat in repeats]
     issues += [Issue("overlap_items_joined", json.dumps(join, ensure_ascii=False), None, tuple(join["path"]))
                for join in joined]
-    return document, conflicts, calls, issues
+    return {**carried,**document}, conflicts, calls, issues
 
 
 @dataclass

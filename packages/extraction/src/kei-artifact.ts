@@ -8,7 +8,7 @@ import type { ParsedDocument } from './parsed-document.js'
 import { refuseRecordCardinality } from './record-scope.js'
 import { recordScopeSchema } from './schema.js'
 import { nativeFieldsSchema } from './native-fields.js'
-import type { EvidenceLink, ExtractionStrategy } from './types.js'
+import type { ExtractionStrategy } from './types.js'
 
 const path = z.array(z.union([z.string(), z.number().int().nonnegative()]))
 /** One model call, as the Parsing Service's `kie/extract/calls.py` `Call` is written into the artifact. */
@@ -95,7 +95,7 @@ const artifactSchema = z.object({
 const span = z.object({ segment: z.string().regex(/^p\d+_s\d+$/), start: z.number().int().nonnegative(), end: z.number().int().positive() })
 /** Version 2 evidence (`kie/extract/grounded.py` `_link`): the version 1 link plus the raw code-point spans of the value,
  *  its key, its provenance and alternatives, and the precision its box can claim. */
-const groundedEvidenceSchema = evidenceSchema.extend({
+export const groundedEvidenceSchema = evidenceSchema.extend({
   linked_by: z.enum(['key', 'structure']),
   spans: z.array(span).min(1),
   alternatives: z.array(z.array(span)),
@@ -175,7 +175,7 @@ export const evidenceAnchorIdOf = (link: { segment: string; cell?: string | null
   `a_${link.segment}${link.cell ? `_${link.cell}` : ''}`
 
 /** A version 3 link as the Extraction keeps it: a verified value with its spans (`VerifiedGrounding`). */
-export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>, evidenceAnchorId: string): EvidenceLink {
+export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>, evidenceAnchorId: string) {
   return {
     resultPath: link.path, evidenceAnchorId, precision: link.precision, verbatim: link.verbatim, lexicalHits: link.hits,
     grounding: {
@@ -186,12 +186,27 @@ export function unifiedEvidenceLink(link: z.infer<typeof unifiedEvidenceSchema>,
 }
 
 /** A version 1 link as the Extraction keeps it. */
-export function plainEvidenceLink(link: z.infer<typeof evidenceSchema>, evidenceAnchorId: string): EvidenceLink {
+export function plainEvidenceLink(link: z.infer<typeof evidenceSchema>, evidenceAnchorId: string) {
   return {
     resultPath: link.path, evidenceAnchorId,
     ...(link.precision ? { precision: link.precision } : {}),
     verbatim: link.verbatim, lexicalHits: link.hits,
     ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
+  }
+}
+/** The recipe's rule attribution is independent of a verifier's support. */
+export function groundedEvidenceLink(link: z.infer<typeof groundedEvidenceSchema>, evidenceAnchorId: string) {
+  return {
+    resultPath: link.path, evidenceAnchorId, precision: link.precision,
+    verbatim: link.verbatim, lexicalHits: link.hits,
+    grounding: {
+      linkedBy: link.linked_by, provenance: link.provenance, textSpans: link.spans, keySpans: link.key_spans,
+      alternatives: link.alternatives, heading: link.heading, precision: link.precision, raw: link.raw,
+      normalized: link.normalized && {
+        value: link.normalized.value, rule: link.normalized.rule,
+        keySpan: link.normalized.key_span, expansionSpan: link.normalized.expansion_span,
+      },
+    },
   }
 }
 /** A version 3 candidate kept for review: proposed (unverified, a partial list item, a competing value...) or rejected. */
@@ -360,21 +375,7 @@ export function acceptKeiArtifact(pins: ArtifactPins, document: ParsedDocument, 
     evidence: artifact.extraction_version === 3
       ? artifact.evidence.map((link) => unifiedEvidenceLink(link, anchorId(link)))
       : artifact.extraction_version === 2
-      ? artifact.evidence.map((link) => ({
-          resultPath: link.path,
-          evidenceAnchorId: anchorId(link),
-          ...(link.precision ? { precision: link.precision } : {}),
-          verbatim: link.verbatim,
-          lexicalHits: link.hits,
-          grounding: {
-            linkedBy: link.linked_by, provenance: link.provenance, textSpans: link.spans, keySpans: link.key_spans,
-            alternatives: link.alternatives, heading: link.heading, precision: link.precision, raw: link.raw,
-            normalized: link.normalized && {
-              value: link.normalized.value, rule: link.normalized.rule,
-              keySpan: link.normalized.key_span, expansionSpan: link.normalized.expansion_span,
-            },
-          },
-        }))
+      ? artifact.evidence.map((link) => groundedEvidenceLink(link, anchorId(link)))
       : artifact.evidence.map((link) => plainEvidenceLink(link, anchorId(link))),
     modelAttribution: { provider: 'kei-exp', modelId: artifact.model },
     diagnostics: {

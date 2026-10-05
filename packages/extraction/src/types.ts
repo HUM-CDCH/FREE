@@ -6,6 +6,7 @@ export type ExtractionDisposition = 'created' | 'replayed'
 export type BatchDisposition = 'created' | 'replayed'
 export type BatchRepetition = 'reuse-equal-selection' | 'create-new'
 export type ProjectOperationStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+export type ExtractionExecutionStatus = ProjectOperationStatus | 'PAUSING' | 'PAUSED' | 'STOPPING' | 'STOPPED'
 
 export type ScalarFieldType = SchemaScalarFieldType
 export type ExtractionSchemaNode = SchemaNode
@@ -289,7 +290,10 @@ export type ExtractionAttemptSnapshot = Readonly<{
   /** The settings admitted with the run (`{article}`, `{generic}` or `{recipe}`, each null for service defaults);
    *  null or absent when the run predates recorded settings ("Not recorded"). */
   requestedSettings?: ActiveSettings | null
-  executionStatus: ProjectOperationStatus
+  durable?: true
+  /** A named immutable durable review cut, independent of processing completion. */
+  finalizedReview?: Readonly<{snapshotVersion:number;feedbackVersion:number;createdAt:Date}> | null
+  executionStatus: ExtractionExecutionStatus
   /** SUCCEEDED once published; a failed, cancelled or interrupted attempt is FAILED with its failure instead. */
   outcome: 'SUCCEEDED' | null
   complete: boolean | null
@@ -349,9 +353,12 @@ export type ReviewDraft = Readonly<{
 }>
 
 export type BatchExtractionMemberSnapshot = Readonly<{
+  durableExtractionId?:string
+  durableReviewable?:boolean
+  durableReview?: Readonly<{snapshotVersion:number;feedbackVersion:number;createdAt:Date;schemaRevisionId:string}>
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
-  executionStatus: ProjectOperationStatus
+  executionStatus: ExtractionExecutionStatus
   /** Why the member failed, was cancelled or was interrupted; null unless its status is FAILED. */
   failureMessage: string | null
   /** The member's published Extraction; a member that failed has none. */

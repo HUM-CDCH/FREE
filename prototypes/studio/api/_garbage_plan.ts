@@ -38,6 +38,7 @@ export const GC_POLICY: GarbagePolicy = {
 export const TERMINAL_STATUSES = ['SUCCESS', 'ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'] as const
 export const STUDIO_WORKFLOW_PREFIXES = [STUDIO_EXTRACT_PREFIX, 'suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:'] as const
 export const SWEEP_PREFIX = 'sched-collectGarbage-'
+export const STUDIO_MAINTENANCE_PREFIXES = [SWEEP_PREFIX, 'studio:durable-reconcile:', 'sched-reconcileDurableExtractions-', 'durable-dispatch:'] as const
 const INTERACTIVE_PREFIXES = ['suggestion:', 'edit:']
 const KEI_CONVERT = 'kei-convert:'
 const KEI_EXTRACT = 'kei-extract:'
@@ -64,7 +65,7 @@ export function keiParentOf(keiWorkflowId: string): string | null {
 const endedAt = (row: WorkflowRow) => row.completedAt ?? row.updatedAt ?? Number.POSITIVE_INFINITY
 const text = (value: unknown) => (typeof value === 'string' ? value : undefined)
 const owned = (workflowId: string) =>
-  workflowId.startsWith(SWEEP_PREFIX) || STUDIO_WORKFLOW_PREFIXES.some((prefix) => workflowId.startsWith(prefix))
+  [...STUDIO_MAINTENANCE_PREFIXES, ...STUDIO_WORKFLOW_PREFIXES].some((prefix) => workflowId.startsWith(prefix))
 
 /** Only a canonical UUID can name a row. The scope read reports any other ID as absent without asking the database,
  *  so its absence proves nothing: a malformed or missing ID never condemns a workflow on scope grounds. */
@@ -175,7 +176,7 @@ export function planStudioHistory(input: {
   const due = input.rows.filter((row) => {
     if (!owned(row.workflowID) || !TERMINAL.has(row.status) || !quiescent(row, input.bootTimestampMs)) return false
     const age = input.nowMs - endedAt(row)
-    if (row.workflowID.startsWith(SWEEP_PREFIX)) return age >= policy.sweepRetentionMs
+    if (STUDIO_MAINTENANCE_PREFIXES.some((prefix) => row.workflowID.startsWith(prefix))) return age >= policy.sweepRetentionMs
     if (scopeGone(row, input.scopes) || rowGone(row, input.scopes)) return true // deleted scopes bypass age, not quiescence
     const interactive = INTERACTIVE_PREFIXES.some((prefix) => row.workflowID.startsWith(prefix))
     return age >= (interactive ? policy.interactiveRetentionMs : policy.backgroundRetentionMs)

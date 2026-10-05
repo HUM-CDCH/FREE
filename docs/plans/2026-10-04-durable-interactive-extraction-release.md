@@ -1,0 +1,81 @@
+# Durable interactive Extraction: migration and release
+
+Date: 2026-10-04; updated 2026-10-05. Status: isolated candidate implemented; guarded Spark execution and independent Standards/Spec code and evidence reviews passed; admissions OFF. Planning baseline: `a1ae85b7ce500aa57ffd4025453c4703665daca7`. Review: [planning review record](2026-10-04-durable-interactive-extraction-review.md). Observed checks: [implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md). No runtime database, deployment, merge, or production enablement is authorized by this candidate's checks.
+
+Origin: [Define migration, recovery verification, and release compatibility](https://github.com/HUM-CDCH/FREE/issues/176), child of [Map durable interactive extraction and project-wide feedback](https://github.com/HUM-CDCH/FREE/issues/169). Product decisions remain in their linked resolution comments; this asset defines release mechanics and required evidence.
+
+## Pre-production implementation scope
+
+Scope amendment, 2026-10-04: the user confirmed this is pre-production and
+removed historical extraction compatibility from this feature. No legacy result
+reader/identity mapping, failed-legacy upgrade Retry, protocol-0 fallback,
+Cancel-to-Stop translation, or mixed-protocol export is required. Retry applies
+to durable attempts in the same Extraction. Immutable producing inputs,
+corrections, source Evidence, restricted coordination, and the admission gate
+remain required. This amendment supersedes the original planning map's legacy
+release requirements; it does not change the settled durable product decisions.
+
+1. Author the durable namespace through `packages/db/migrations/app/` and its
+   Prisma Next contract/reference workflow. The two unreleased candidate
+   migrations are regenerated without a historical identity table. Do not alter
+   migrations predating this candidate or reset runtime databases.
+2. Each durable Extraction retains its visible ID and original source/strategy
+   pins. Immutable selections and attempts record later producing inputs and
+   work; Retry never overwrites captured call inputs.
+3. Canonical source generations and Evidence anchors remain pinned. Version the
+   coordination/checkpoint protocol separately from canonical parse artifacts.
+4. Existing execution code remains available while durable admissions are OFF.
+   This candidate adds no compatibility adapter for historical extraction data.
+
+## Role bootstrap and startup order
+
+- Authored app migrations complete before `db:kei-role` in `docker/studio-entrypoint.sh`. Migrations create coordination objects and the narrowly owning role; worker bootstrap then idempotently grants its actual `kei` role only schema USAGE and EXECUTE on approved routines. Cluster-wide role creation must be idempotent. The same `DATABASE_URL` principal already runs app migrations and `db:kei-role`; its existing role-bootstrap requirement includes CREATEROLE or equivalent administrative privilege, not merely database ownership. Check that prerequisite in fresh/upgrade fixtures; never grant it to worker `kei`. A fresh database and an upgraded database must converge on the same contract.
+- `kei` keeps NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOINHERIT/NOREPLICATION/NOBYPASSRLS. It gets no app `public` table access, no Studio `dbos` access, no direct coordination-table privileges, and no permission to create arbitrary coordination objects. Grants are direct, because NOINHERIT is intentional.
+- SECURITY DEFINER routines have a fixed trusted search path, fully qualified tables, PUBLIC EXECUTE revoked, narrow accepted inputs, and fence checks. Revoke default PUBLIC function execution privileges for the definer role in this namespace as well, and verify explicit grant sets after bootstrap. Their owner owns only the coordination namespace and cannot read researcher tables. Studio's app role can atomically publish app review and coordination feedback records, subject to its authenticated ownership checks. Worker startup refuses an incompatible schema/protocol version.
+- Introduce a bounded, separate worker coordination connection pool; never hold a connection/transaction over provider work. Its configured upper bound must fit worker concurrency and deployment connection capacity. Readiness refuses incompatible protocol/schema capabilities; it never enables a fallback that drops durable checkpointing.
+- API/model payloads, manifests, workflow inputs, and call contexts contain no researcher provider secrets. Existing credential and deployment-authentication contracts stay intact.
+
+## Workflow registration and dispatch
+
+- Register the durable attempt/call/cleanup workflows with explicit names before launch. Existing workflow registration and step sequences are unchanged by this candidate; honor local `DBOS.patch()` and app-version rules when editing those sequences. No historical workflow migration is required for release.
+- Enqueue new attempt workflows using deterministic execution IDs and the existing durable DBOS path. A transactional dispatch outbox tracks committed attempt creation versus enqueue acceptance, including crash reconciliation. It is a handoff/reconciliation record, not a second scheduler or lease-worker replacement for DBOS.
+- Paused attempts return after draining/committing, freeing Parsing and any Studio orchestration queue slot. No parent workflow may remain in a long durable wait on a paused child. Control/feedback reads are short coordination transactions at work-unit boundaries; notifications only reduce latency.
+- Running recovery reuses durable captures and committed outputs; replay checks the unit store before making another provider call. A committed output whose DBOS step acknowledgement was interrupted must not produce another model call. PAUSE/STOP intent after process loss prevents replaying lost unsaved calls: keep them unfinished for Resume, or terminate Stop. Already saved units stay retained.
+- Takeover after a lost worker uses a bounded database-clock lease, preserves the attempt fence, and advances the process lease epoch under lock. Old lease epochs cannot capture, commit, or acknowledge. Allocate a new attempt fence only for a planned Resume/Retry at acknowledged quiescence. A successfully returned but uncommitted output can be lost and repeated; exactly-once provider execution is not claimed.
+
+## Enablement and rollback limits
+
+1. Verify the schema expansion, durable readers and role grants with admissions OFF in a disposable stack. Validate fresh migration replay, graph integrity and role isolation.
+2. Complete producer/worker handlers, controls, retained-result review/export, and feedback capture together behind gated admissions. New-protocol admission is refused for any method whose provider calls do not all pass through the capture adapter. Keep the gate OFF until Article and generic, recipe, and unified Catalog pass the matrix. Pilot evidence collection happens in isolated deployments, not partially durable production exposure.
+3. Enable new admissions only after acceptance evidence below passes, then expand exposure. Capability is recorded on each Extraction/attempt so toggling the gate never changes already-admitted semantics.
+4. To roll back exposure, stop new-protocol admissions and retain compatible readers/workers/migrations for every admitted new-protocol Extraction, including paused resumable ones. Quiesce active work cooperatively. Do not downgrade to code that cannot read its history, process its controls, or protect its artifacts. A schema-down migration that deletes new progress is not an acceptable rollback.
+5. Any later replacement of existing execution code follows repository workflow rules; historical extraction adapters are outside this feature. No GC rule may treat a quiescent paused execution as unreferenced.
+
+## Required acceptance evidence
+
+Implementation owners run the narrow unit/contract tier first, then guarded database/recovery/service tiers appropriate to their changes. This planning session runs none of them against runtime data.
+
+| Scenario | Required observable evidence |
+| --- | --- |
+| Pause queued work | No provider call starts; durable Paused state; no occupied attempt slot after acknowledgement. |
+| Pause with concurrent calls | New captures refused after pause wins admission; existing calls finish/commit; no Paused acknowledgement while any committed capture still owns an in-flight call or unsaved output. |
+| Pause/Stop/Resume races | Versioned repeated commands harmless; stale conflicting commands return conflict; accepted Stop terminal; Resume during drain waits for boundary; Completed wins only the agreed Pause completion race. |
+| Save fails | New calls stop; returned output not presented as saved; retry persistence; crash before commit may repeat only unsaved work. |
+| Commit then crash | Kill after coordination commit and before DBOS step acknowledgement; restarted workflow reuses exact output without a second provider invocation. |
+| Running versus paused restart | Running recovers automatically; paused stays paused and releases capacity; Stop does not initiate lost calls. Save/adoption state remains correct. |
+| Failure of one concurrent call | Other successful outputs preserved; no newly admitted calls; Failed/Retry processes failed or unfinished work; pending Stop wins. |
+| Stale worker/lease expiry | Old lease epoch cannot capture, commit, or acknowledge; wrong attempt fences/reservations refused separately; preserved outputs remain visible; deleted graph cannot be resurrected. |
+| Parameter adoption | Save during draining does not change captured inputs; adoption only at durable idle boundary; new selection immutable; other running Extractions unchanged. |
+| Window/planner changes | Article schema/token budget and generic/recipe/unified Catalog settings can change windows. Replan incompatible pending work without treating an old checkpoint as new-input output or repeating completed results implicitly. |
+| Review races/reprocessing | Stable result IDs survive ordering changes; model writes do not overwrite correction; edits conflict explicitly; removed/retyped/ambiguous values remain historical and reviewable. |
+| Feedback boundary | Correction/exclusion/supersession commit and guidance revision atomic; a unit captures latest committed revision at its defined admission point; started/replayed call retains exact context. Other project/owner data never enters context. |
+| Ungrounded and incompatible guidance | Compatible ungrounded feedback eligible with optional Link evidence; incompatible-for-target feedback absent from context and warned; no automatic semantic conflict detector. |
+| Context budgets | Required source/instruction/reply budgets preserved; omit oversize feedback with recorded reason; no silently truncated target source or correction. |
+| Partial review/finalization | Live valid edits saved all states; incomplete review never silently finalizes; finalization tied to fixed producing-result snapshot. |
+| Export and pagination | Partial/stopped/failed data included; snapshot consistent under concurrent appends/edits; CSV bundle/XLSX preserve revision metadata, historic corrections, evidence statuses, proposals; no skipped/duplicated pages. |
+| Retention/deletion | Source/result/Evidence/review/feedback references protect paused and terminal artifacts; shared references remain protected; explicit deletion fences writers; only true orphans collected. |
+| Current schema/worker roles | Fresh disposable schema and authored migrations converge; current durable pins, checkpoints and corrections survive restart; kei denied public, Studio dbos, direct coordination access, unauthorized routines, and stale-fence writes. Historical compatibility and legacy upgrades are outside the amended scope. |
+
+Cover Article and generic, recipe, and unified Catalog with at least one multi-call case each, including configured Catalog concurrency. Use deterministic model stubs for boundary/crash assertions; reserve real-model service checks for protocol/evidence interoperability, not exact stochastic values. Use durable completed, failed, paused, stopped, and queued/running attempts; mixed deployment versions and legacy upgrade scenarios are outside this feature.
+
+Repository verification entry points: `pnpm test`, `pnpm test:safety`, `pnpm test:postgres`, `pnpm test:e2e`, `pnpm test:service`; Parsing `pnpm --filter parsing-service test`, `test:postgres`, `test:service`, and `test:recovery`. Guarded PostgreSQL requires explicitly provisioned loopback `free_test_*` databases and never falls back to runtime URLs. Evidence must identify commit, commands, environment/guard, fixture protocols, and observed results. The existing schema-history fixture and Studio extraction/garbage recovery suites provide starting patterns; exact added cases are owned by the coherent implementation boundaries.

@@ -71,6 +71,7 @@ const DOCUMENT_INSTRUCTION = 'The document is the one object to extract:'
  *  records it as not completed (`missing_claim`). */
 async function modelServer(options: { unansweredClaimValue?: string } = {}) {
   let calls = 0
+  const requests: unknown[] = []
   let holdNext = false
   let releaseHeld: (() => void) | null = null
   let held: Promise<void> | null = null
@@ -90,6 +91,7 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
         response.end(JSON.stringify({ count: counted, max_model_len: 16384 }))
         return
       }
+      requests.push(body)
       if (holdNext) {
         holdNext = false
         held = new Promise<void>((resolve) => { releaseHeld = resolve })
@@ -108,7 +110,23 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
         return { site, finds, year: Number(year) }
       })
       let answer: unknown
-      if (candidates) {
+      if (system.startsWith('You find where records begin')) {
+        // Unified discovery uses line labels and printed record identifiers.
+        const lines = [...prompt.matchAll(/^\[(L\d+)\] (.*)$/gm)]
+        const places = lines.flatMap(([, label, text]) => {
+          const starts = [...text!.matchAll(/(?<!\S)(\d+\.)(?=\s)/g)]
+          return starts.map(start => [label, 'record', start[1], ...(start.index ? [text!.slice(start.index, start.index + 12)] : [])])
+        })
+        if (places.length !== 2) throw new Error(`Unified discovery did not receive both parsed entries: ${prompt}`)
+        answer = { places, begins_inside_record: false, ends_inside_record: false }
+      } else if (system.startsWith('You extract structured data from one record')) {
+        if (records.length !== 1) throw new Error(`Unified fields received ${records.length} records: ${prompt}`)
+        const record = records[0]!
+        answer = Object.fromEntries(Object.keys(properties).map(name => [name,
+          name in record ? { value: record[name as keyof typeof record], quote: String(record[name as keyof typeof record]) } : null]))
+      } else if (system.startsWith('You check values extracted')) {
+        answer = Object.fromEntries(Object.keys(properties).map(name => [name, 'supported']))
+      } else if (candidates) {
         // One recipe entry: answer from the text between the ENTRY markers only, quoting it verbatim.
         const entry = prompt.split('### ENTRY\n')[1]?.split('\n### END ENTRY')[0]
         if (!entry) throw new Error(`Recipe call without an entry: ${prompt}`)
@@ -157,6 +175,7 @@ async function modelServer(options: { unansweredClaimValue?: string } = {}) {
   return {
     url: `http://127.0.0.1:${address.port}/v1/chat/completions`,
     count: () => calls,
+    requests: () => structuredClone(requests),
     holdNextExtraction: () => { holdNext = true },
     extractionHeld: () => held !== null,
     releaseExtraction: () => { releaseHeld?.(); holdNext = false },
@@ -215,6 +234,9 @@ export async function startRealService(logFile: string,
     KEI_RUNS: runs,
     KEI_SOURCE_INBOX: inbox,
     KEI_SLOT: 'free-service-e2e',
+    // Initialize the restricted coordination reader/writer for seeded native
+    // fixtures without enabling Studio's production admission gate.
+    FREE_DURABLE_EXTRACTION_COORDINATION: '1',
     // No OCR server unless a real run names one: a scanned page then fails its ingestion explicitly.
     KEI_VLLM_URL: (process.env.FREE_REAL_EXTRACT_URL && process.env.FREE_REAL_OCR_URL) || 'http://127.0.0.1:1/v1/chat/completions',
     KEI_EXTRACT_URL: realUrl ?? fixture!.url,
@@ -296,6 +318,7 @@ export async function startRealService(logFile: string,
     runs,
     model: env.KEI_EXTRACT_MODEL,
     modelCalls: () => fixture?.count() ?? null,
+    modelRequests: () => fixture?.requests() ?? [],
     holdNextExtraction: () => fixture?.holdNextExtraction(),
     extractionHeld: () => fixture?.extractionHeld() ?? false,
     releaseExtraction: () => fixture?.releaseExtraction(),
@@ -319,6 +342,7 @@ export async function startRealService(logFile: string,
     cancelKeiWorkflow: (id: string) => keiClient.cancelWorkflow(id),
     collectGarbage: async (): Promise<GarbageSummary> =>
       (await studioClient.triggerSchedule('collectGarbage')).getResult() as Promise<GarbageSummary>,
+    reconcileDurable: async () => (await studioClient.triggerSchedule('reconcileDurableExtractions')).getResult(),
     ageRun: (runId: string, byMs: number) => ageFile(join(runs, runId), byMs),
     runExists: async (runId: string) => stat(join(runs, runId)).then(() => true, () => false),
     orphanPayloadRows: async (schema: 'dbos' | 'kei_dbos') => {

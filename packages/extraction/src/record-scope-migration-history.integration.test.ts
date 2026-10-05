@@ -1,7 +1,7 @@
 /**
  * The record-scope release read through the extraction package on history it did not write: a fresh database migrated
  * by the real runner to the migration before `schema_revision_record_scope`, seeded as the previous release stored
- * Extractions, results, reviews and batches, read, migrated forward and read again. Admission then replays what was
+ * Extractions, results, reviews and batches, then migrated forward before current readers run. Admission replays what was
  * admitted before and refuses new work on a revision whose scope is undeclared or names the other strategy.
  *
  * `db` binds its pool to DATABASE_URL when it is first imported, so every module that imports it is imported only after
@@ -99,9 +99,6 @@ describe('the record-scope release on pre-migration history', { skip: !baseUrl &
         replayedReview: await reviews.finalizeStoredReview(db, accountId, extractions.article.reviewed, authority),
       }
     }
-    // Today's read code against the previous release's schema: it never selects the new column.
-    const before = await read()
-
     // Forward to the release under test only: later releases are checked by their own migration tests.
     assert.deepEqual((await migrate(database.url, RECORD_SCOPE_MIGRATION)).applied, [RECORD_SCOPE_MIGRATION])
     const scope = async (id: string) =>
@@ -110,11 +107,14 @@ describe('the record-scope release on pre-migration history', { skip: !baseUrl &
     for (const id of [revisions.article, revisions.catalog, revisions.catalogBatch, revisions.both, revisions.never])
       backfilled.push(await scope(id))
     assert.deepEqual(backfilled, ['document', 'records', 'records', null, null])
-    const afterwards = await read()
-    // (3) Every read returns what it returned before the migration.
-    assert.deepEqual(afterwards, before)
-    // (2) And the stored rows are byte-identical, the repeated finalization having written nothing.
+    // The scoped migration changes no historical bytes. Current startup then
+    // completes every migration before using current readers; a missing runtime
+    // schema is an error, not a compatibility mode.
     assert.deepEqual(await snapshotHistory(client), seeded)
+    await migrate(database.url)
+    const currentSeeded = await snapshotHistory(client)
+    const afterwards = await read()
+    assert.deepEqual(await snapshotHistory(client), currentSeeded)
 
     // What those reads are, against the seeded history.
     type Snapshot = Awaited<ReturnType<typeof attempts.attemptSnapshot>>
@@ -188,6 +188,6 @@ describe('the record-scope release on pre-migration history', { skip: !baseUrl &
     await assert.rejects(batch(revisions.never, 'ARTICLE', [d2], 'create-new', methods.article), refused('record_scope_required'))
     await assert.rejects(batch(revisions.catalogBatch, 'ARTICLE', [d2], 'create-new', methods.article), refused('record_scope_mismatch'))
     // Nothing was admitted, and history is still as it was stored.
-    assert.deepEqual(await snapshotHistory(client), seeded)
+    assert.deepEqual(await snapshotHistory(client), currentSeeded)
   })
 })

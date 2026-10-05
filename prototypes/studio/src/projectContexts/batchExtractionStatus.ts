@@ -12,6 +12,12 @@ export function memberStatus(member: BatchExtractionMember): {
   message: string | null
 } {
   const extraction = member.latestExtraction
+  if(member.durableExtractionId) {
+    if(member.durableReview&&member.executionStatus==='COMPLETED')return {label:'Reviewed',tone:'success',message:'Saved review names its result and feedback versions.'}
+    const label=member.executionStatus.charAt(0)+member.executionStatus.slice(1).toLowerCase()
+    return {label,tone:member.executionStatus==='FAILED'?'danger':member.executionStatus==='RUNNING'||member.executionStatus==='PAUSING'||member.executionStatus==='STOPPING'?'accent':'neutral',
+      message:member.executionFailureMessage??'Saved values and producing inputs remain available.'}
+  }
   if (member.executionStatus === 'RUNNING')
     return { label: 'Running', tone: 'accent', message: null }
   // Failed, cancelled or interrupted: the member's own message says which.

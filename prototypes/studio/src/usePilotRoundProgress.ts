@@ -22,8 +22,9 @@ export function usePilotRoundProgress(
   projectContextId: string | null,
   batchExtractionId: string | null,
   currentSourceDocumentId: string | null,
+  reviewRevision=0,
 ): PilotRoundProgress | null {
-  const key = [projectContextId ?? '', batchExtractionId ?? '', currentSourceDocumentId ?? ''].join(':')
+  const key = [projectContextId ?? '', batchExtractionId ?? '', currentSourceDocumentId ?? '',reviewRevision].join(':')
   // Keyed by the request it answers: a new request reads as "no progress yet"
   // without setting state synchronously from the effect.
   const [state, setState] = useState<{
@@ -52,8 +53,8 @@ export function usePilotRoundProgress(
         const next = ordered.find(
           (member) =>
             member.sourceDocumentId !== currentSourceDocumentId &&
-            member.latestExtraction &&
-            !member.latestExtraction.reviewedAt,
+            (member.durableExtractionId ? member.durableReviewable!==false : member.latestExtraction) &&
+            !member.durableReview && !member.latestExtraction?.reviewedAt,
         )
         setState({
           key,
@@ -63,7 +64,7 @@ export function usePilotRoundProgress(
             nextMember: next
               ? {
                   sourceDocumentId: next.sourceDocumentId,
-                  extractionId: next.latestExtraction!.extractionId,
+                  extractionId: next.durableExtractionId??next.latestExtraction!.extractionId,
                 }
               : null,
           },

@@ -87,7 +87,7 @@ class OpenAIChat:
         return {"model": self.model, "add_generation_prompt": True, "messages": _messages(system, user),
                 "chat_template_kwargs": dict(THINKING_OFF)}
 
-    def complete(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> Reply:
+    def request_body(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> dict:
         payload: dict[str, Any] = {
             "model": self.model, "temperature": 0, "max_tokens": max_tokens or self.max_tokens,
             "messages": _messages(system, user), "chat_template_kwargs": dict(THINKING_OFF),
@@ -100,6 +100,11 @@ class OpenAIChat:
         else:
             constrained = {**payload, "response_format": {"type": "json_schema", "json_schema": {
                 "name": "reply", "schema": _plain(schema), "strict": True}}}
+        return constrained
+
+    def complete(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> Reply:
+        constrained = self.request_body(system=system,user=user,schema=schema,max_tokens=max_tokens)
+        payload = {key:value for key,value in constrained.items() if key != "response_format"}
         started = time.monotonic()
         attempts: tuple[str, ...] = ()
         response = requests.post(self.url, json=constrained, headers=self.headers, timeout=self.timeout)
@@ -146,10 +151,14 @@ class NuExtractChat:
         return {"model": self.model, "add_generation_prompt": True, "messages": [{"role": "user", "content": user}],
                 "chat_template_kwargs": self._controls(system, schema)}
 
-    def complete(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> Reply:
+    def request_body(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> dict:
         payload = {"model": self.model, "temperature": 0, "max_tokens": max_tokens or self.max_tokens,
                    "messages": [{"role": "user", "content": user}],
                    "chat_template_kwargs": self._controls(system, schema)}
+        return payload
+
+    def complete(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> Reply:
+        payload = self.request_body(system=system,user=user,schema=schema,max_tokens=max_tokens)
         started = time.monotonic()
         return _reply(requests.post(self.url, json=payload, headers=self.headers, timeout=self.timeout), started, ())
 

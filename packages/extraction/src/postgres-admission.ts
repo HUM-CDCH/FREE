@@ -39,6 +39,8 @@ import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
 import { refuseRecordScope, storedRecordScope } from './record-scope.js'
 import { parseExtractionSchema, type RecordScope } from './schema.js'
+import { durableAdmissionsEnabled } from './durable-contract.js'
+import { initializeDurableExtraction, DURABLE_RECONCILE } from './durable-repository.js'
 import {
   EXTRACTION_QUEUE,
   extractionAttributes,
@@ -281,7 +283,12 @@ export async function admitInteractiveExtraction(
         batchExtractionId: null,
         startPage: pins.startPage,
       })
-      await execution.enqueue(client, {
+      if (durableAdmissionsEnabled()) {
+        await initializeDurableExtraction(client,input.extractionId,pins)
+        await execution.enqueue(client,{workflowName:DURABLE_RECONCILE,
+          workflowID:`durable-dispatch:${input.extractionId}`,queueName:EXTRACTION_QUEUE,
+          authenticatedUser:pins.owner,attributes:extractionAttributes({...pins,batchExtractionId:null})},input.extractionId)
+      } else await execution.enqueue(client, {
         workflowName: RUN_EXTRACTION,
         workflowID: extractWorkflowId(input.extractionId),
         queueName: EXTRACTION_QUEUE,
@@ -574,7 +581,14 @@ export async function admitBatchMember(
     requestedSettings: member.requestedSettings,
     batchExtractionId: member.batchExtractionId,
   })
-  await execution.enqueue(client, {
+  if (durableAdmissionsEnabled()) {
+    const schema = await orm.public.SchemaRevision.select('schemaTree','recordScope').first({id:member.schemaRevisionId})
+    if (!schema) throw new ExtractionError('invalid_extraction_pins','The selected Schema Revision is unavailable.')
+    await initializeDurableExtraction(client,id,{...member,catalogRecipe:null,
+      schemaTree:{...parseExtractionSchema(schema.schemaTree),recordScope:schema.recordScope}})
+    await execution.enqueue(client,{workflowName:DURABLE_RECONCILE,workflowID:`durable-dispatch:${id}`,
+      queueName:EXTRACTION_QUEUE,authenticatedUser:member.owner,attributes:extractionAttributes(member)},id)
+  } else await execution.enqueue(client, {
     workflowName: RUN_EXTRACTION,
     workflowID: extractWorkflowId(id),
     queueName: EXTRACTION_QUEUE,

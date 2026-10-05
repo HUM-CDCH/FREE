@@ -21,15 +21,19 @@ import type {
   ExtractionModelChoice,
   ExtractionStrategy,
   ProjectOperationStatus,
+  ExtractionExecutionStatus,
   ReadBatchInput,
   ResultPath,
   ReviewDecisionAction,
 } from './types.js'
 
 type BatchMember = Readonly<{
+  durableExtractionId?:string
+  durableReviewable?:boolean
+  durableReview?: BatchExtractionSnapshot['members'][number]['durableReview']
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
-  executionStatus: ProjectOperationStatus
+  executionStatus: ExtractionExecutionStatus
   executionFailure: ExtractionFailure | null
   latestExtraction: BatchExtractionSnapshot['members'][number]['latestExtraction']
   /** The member's Extraction as read, for its result. */
@@ -68,6 +72,9 @@ export function snapshot(batch: DurableBatchExtraction): BatchExtractionSnapshot
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
       failureMessage: failureMessage(member.executionFailure),
+      ...(member.durableExtractionId?{durableExtractionId:member.durableExtractionId}:{}),
+      ...(member.durableExtractionId?{durableReviewable:member.durableReviewable??false}:{}),
+      ...(member.durableReview?{durableReview:member.durableReview}:{}),
       latestExtraction: member.latestExtraction,
     })),
   }
@@ -110,8 +117,11 @@ export async function loadBatches(
       .filter((row) => row.batchExtractionId === batch.id)
       .sort((left, right) => left.sourceDocumentId.localeCompare(right.sourceDocumentId))
       .map((read) => {
-        const { row, executionStatus, failure } = derived.get(read.id)!
+        const { row, executionStatus, failure, durable, durableReview, durableReviewable } = derived.get(read.id)!
         return {
+          ...(durable?{durableExtractionId:row.id}:{}),
+          ...(durable?{durableReviewable:durableReviewable??false}:{}),
+          ...(durableReview?.schemaRevisionId===batch.schemaRevisionId?{durableReview}:{}),
           sourceDocumentId: row.sourceDocumentId,
           sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
           executionStatus,
@@ -132,7 +142,7 @@ export async function loadBatches(
     const executionStatus: ProjectOperationStatus =
       members.length > 0 && members.every((member) => member.executionStatus === 'QUEUED')
         ? 'QUEUED'
-        : members.every((member) => member.executionStatus === 'COMPLETED' || member.executionStatus === 'FAILED')
+        : members.every((member) => member.executionStatus === 'COMPLETED' || member.executionStatus === 'FAILED' || member.executionStatus === 'STOPPED')
           ? 'COMPLETED'
           : 'RUNNING'
     loaded.push({

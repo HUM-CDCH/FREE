@@ -102,7 +102,7 @@ type Monitor = {
 }
 
 function isActive(attempt: ExtractionAttempt | null): boolean {
-  return attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
+  return Boolean(attempt && ['QUEUED','RUNNING','PAUSING','STOPPING'].includes(attempt.executionStatus))
 }
 
 function definiteRejection(error: unknown): error is ApiRequestError {
@@ -132,6 +132,7 @@ function everyRequiredTouched(decisions: readonly ReviewDecisionInput[], touched
 
 export function extractionStateFromAttempt(attempt: ExtractionAttempt | null, partial: PartialResult | null = null): ExtractionState {
   if (!attempt) return { status: 'idle' }
+  if (attempt.durable) return {status:'retained',executionStatus:attempt.executionStatus}
   const active = isActive(attempt)
   if (!attempt.resultPayload) {
     if (active) return { status: 'running', step: 'extraction', partial }
@@ -196,6 +197,8 @@ export function useExtraction({
   const [attempt, setAttempt] = useState<ExtractionAttempt | null>(
     initialAttempt,
   )
+  const currentAttemptRef=useRef(attempt)
+  currentAttemptRef.current=attempt
   const [state, setState] = useState<ExtractionState>(() =>
     extractionStateFromAttempt(initialAttempt),
   )
@@ -248,29 +251,37 @@ export function useExtraction({
   // change, so no frame renders the previous document's state. A change of
   // the Current Schema Revision alone touches nothing here: polling, drafts
   // and decisions stay bound to the Extraction's own revision.
-  const [rendered, setRendered] = useState({ documentKey, extractionId: attempt?.extractionId })
+  const [rendered, setRendered] = useState({ documentKey, extractionId: attempt?.extractionId, initialExtractionId: initialAttempt?.extractionId })
   const documentChanged = rendered.documentKey !== documentKey
-  const nextAttempt = documentChanged ? initialAttempt : attempt
-  if (documentChanged || rendered.extractionId !== nextAttempt?.extractionId) {
-    setRendered({ documentKey, extractionId: nextAttempt?.extractionId })
-    // In-flight saves and draft writes belong to the previous document or attempt.
-    saveScopeRef.current = { saving: false }
-    draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
-    setDraftSaving(false)
-    setDraftSaved(false)
-    setSaving(false)
-    draftAcceptedRef.current = null
-    adoptedRunDraftRef.current = null
-    decisionsForRef.current = null
-    decidedOnRef.current = { extractionId: null, values: new Map() }
-    if (documentChanged || runDraft?.extractionId !== nextAttempt?.extractionId) setRunDraft(null)
-    setChangedAfterReview(new Set())
-    setSettlement(null)
-    setDraftRefused(null)
-    setDiscarded(null)
-    if (documentChanged) {
+  const initialChanged = rendered.initialExtractionId !== initialAttempt?.extractionId
+  // Explicit history navigation can select another Extraction on this same
+  // document. A prop catching up to a run admitted here is not a new scope.
+  const scopeChanged = documentChanged || initialChanged && initialAttempt?.extractionId !== attempt?.extractionId
+  const nextAttempt = scopeChanged ? initialAttempt : attempt
+  const attemptChanged = rendered.extractionId !== nextAttempt?.extractionId
+  if (documentChanged || initialChanged || attemptChanged) {
+    setRendered({ documentKey, extractionId: nextAttempt?.extractionId, initialExtractionId: initialAttempt?.extractionId })
+    if (scopeChanged || attemptChanged) {
+      // In-flight saves and draft writes belong to the previous document or attempt.
+      saveScopeRef.current = { saving: false }
+      draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
+      setDraftSaving(false)
+      setDraftSaved(false)
+      setSaving(false)
+      setReviewLoading(false)
+      draftAcceptedRef.current = null
+      adoptedRunDraftRef.current = null
+      decisionsForRef.current = null
+      decidedOnRef.current = { extractionId: null, values: new Map() }
+      if (documentChanged || runDraft?.extractionId !== nextAttempt?.extractionId) setRunDraft(null)
+      setChangedAfterReview(new Set())
+      setSettlement(null)
+      setDraftRefused(null)
+      setDiscarded(null)
+    }
+    if (scopeChanged) {
       // Orphaned reads notice the missing monitor and drop their response.
-      monitorRef.current = null
+      stopMonitor()
       setAttempt(initialAttempt)
       setState(extractionStateFromAttempt(initialAttempt))
       setReviewDecisions([])
@@ -308,7 +319,7 @@ export function useExtraction({
         latest = response.extraction
         monitor.partial = retainFinished(monitor.partial ?? null, response.partial ?? null)
         monitor.unacknowledged = undefined
-        if (latest.executionStatus === 'RUNNING' && !monitor.draftSeen &&
+        if (!latest.durable && latest.executionStatus === 'RUNNING' && !monitor.draftSeen &&
           draftSaveRef.current === draftScope && draftScope.writes === 0 && draftScope.pending === pendingAtRead) {
           monitor.draftSeen = true
           setRunDraft({ extractionId: latest.extractionId, version: response.reviewDraft?.version ?? 0,
@@ -359,12 +370,13 @@ export function useExtraction({
     void watch(monitor, attempt?.extractionId === monitor.extractionId ? attempt : null, true)
   }
 
-  const hasResults = state.status === 'ready'
+  const hasResults = state.status === 'ready' || state.status === 'retained'
   const activeAttempt = isActive(attempt)
   const canRun =
     reviewTarget?.schemaRevisionId != null &&
     schemaReady &&
     !activeAttempt &&
+    (!attempt?.durable || ['COMPLETED','STOPPED'].includes(attempt.executionStatus)) &&
     !indexing
   // A different Source Representation still blocks new decisions; a newer
   // Current Schema Revision does not, because the backend validates decisions
@@ -389,12 +401,23 @@ export function useExtraction({
   // A record kei has finished can be decided on while the run goes on, as a draft (ADR 0016; §5.1).
   const runningPartial = state.status === 'running' ? state.partial : null
   const draftAvailable = Boolean(
+    !attempt?.durable &&
     attempt?.executionStatus === 'RUNNING' &&
     attempt.sourceRepresentationRevisionId === reviewTarget?.sourceRepresentationId &&
     occurrenceIdsByAnchor &&
     runningPartial?.records.some((record) => record.state === 'finished'),
   )
   const reviewable = reviewAvailable || draftAvailable
+  const acceptDurableStatus=useCallback((extractionId:string,executionStatus:ExtractionAttempt['executionStatus'])=> {
+    const previous=currentAttemptRef.current
+    if(!previous?.durable||previous.extractionId!==extractionId)return
+    // One observer owns native status after the retained reader is mounted.
+    if(monitorRef.current?.extractionId===extractionId){monitorRef.current.controller.abort();monitorRef.current=null}
+    if(previous.executionStatus===executionStatus)return
+    const next={...previous,executionStatus}
+    currentAttemptRef.current=next
+    setAttempt(next);setState(extractionStateFromAttempt(next))
+  },[])
 
   // While the run reads: the draft adopted once from the server, then every record kei finishes adds its prepared
   // decisions. A poll never overwrites a decision made on screen (plan Ruling 21).
@@ -465,6 +488,11 @@ export function useExtraction({
       setReviewError(null)
       const reloadRequested = reviewReloadRef.current !== reviewReload
       reviewReloadRef.current = reviewReload
+      // Native corrections and their explicit reload belong to the durable review actor.
+      if (attempt?.durable) {
+        setReviewLoading(false)
+        return
+      }
       // Ordinary polls add records without replacing decisions. An explicit reload reads server authority.
       if (attempt && isActive(attempt)) {
         if (!reloadRequested) return
@@ -821,6 +849,7 @@ export function useExtraction({
     attempt,
     canRun,
     hasResults,
+    acceptDurableStatus,
     runExtraction,
     requestCancellation,
     cancellationRequested,

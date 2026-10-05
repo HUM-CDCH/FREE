@@ -59,9 +59,13 @@ export type BatchExtractionRequest = z.infer<typeof batchExtractionRequestSchema
  */
 const batchExtractionMemberSchema = z
   .object({
+    durableExtractionId:canonicalUuidSchema.optional(),
+    durableReviewable:z.boolean().optional(),
+    durableReview:z.object({snapshotVersion:z.number().int().positive(),feedbackVersion:z.number().int().nonnegative(),
+      createdAt:z.iso.datetime(),schemaRevisionId:canonicalUuidSchema}).strict().optional(),
     sourceDocumentId: canonicalUuidSchema,
     sourceRepresentationRevisionId: canonicalUuidSchema,
-    executionStatus: projectOperationStatusSchema,
+    executionStatus: z.enum(['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'COMPLETED', 'FAILED']),
     /** Why a FAILED member failed, was cancelled or was interrupted. */
     executionFailureMessage: z.string().nullable(),
     latestExtraction: z
@@ -150,16 +154,17 @@ export type BatchExtractionResult = z.output<
  * Execution counts and the separate persisted research-review digest.
  */
 export function batchExtractionProgress(batch: BatchExtraction) {
-  const extracted = batch.members.filter((member) => member.latestExtraction)
+  const extracted = batch.members.filter((member) => member.latestExtraction ||
+    (member.durableExtractionId&&member.executionStatus==='COMPLETED'))
   // A succeeded Extraction with no reviewable result can never carry Review
   // Decisions, so it is its own outcome — never counted as what a researcher
   // has reviewed. An Extraction is reviewable whenever it has been reviewed
   // (extraction.contract.ts), so these three groups partition `extracted`.
   const reviewed = extracted.filter(
-    (member) => member.latestExtraction!.reviewedAt !== null,
+    (member) => member.latestExtraction?.reviewedAt != null || member.durableReview,
   )
   const unreviewable = extracted.filter(
-    (member) => !member.latestExtraction!.reviewable,
+    (member) => member.durableExtractionId?member.durableReviewable===false:!member.latestExtraction!.reviewable,
   )
   return {
     total: batch.members.length,
@@ -175,7 +180,7 @@ export function batchExtractionProgress(batch: BatchExtraction) {
     // Failed, cancelled or interrupted: the member settled without a result.
     failed: batch.members.filter((member) => member.executionStatus === 'FAILED')
       .length,
-    reviewed: reviewed.length,
+    reviewed: batch.members.filter(member=>member.durableReview||member.latestExtraction?.reviewedAt).length,
     unreviewable: unreviewable.length,
     needsReview: extracted.length - reviewed.length - unreviewable.length,
   }

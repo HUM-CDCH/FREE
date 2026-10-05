@@ -253,6 +253,7 @@ export type ProjectContextActivitySummary = {
   reviewedSourceDocumentCount: number
   staleSourceDocumentCount: number
   schemaDraftCount: number
+  schemaStabilised: boolean
   lastActivityAt: Date
   runningBatch: { completedMemberCount: number; memberCount: number } | null
 }
@@ -289,6 +290,7 @@ export function emptyProjectContextActivitySummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     schemaDraftCount: 0,
+    schemaStabilised: false,
     lastActivityAt,
     runningBatch: null,
   }
@@ -1313,7 +1315,8 @@ export function createResearcherProjectStore(
       const schemas = await database.orm.public.ExtractionSchema.where(
         (schema) => schema.projectContextId.in(projectIds),
       )
-        .select('id', 'projectContextId')
+        .select('id', 'projectContextId', 'createdAt')
+        .orderBy([(schema) => schema.createdAt.desc(), (schema) => schema.id.desc()])
         .all()
       const projectBySchema = new Map(
         schemas.map((schema) => [schema.id, schema.projectContextId]),
@@ -1324,7 +1327,7 @@ export function createResearcherProjectStore(
           : await database.orm.public.SchemaRevision.where((revision) =>
               revision.extractionSchemaId.in(schemas.map((schema) => schema.id)),
             )
-              .select('extractionSchemaId', 'createdAt')
+              .select('extractionSchemaId', 'revisionNumber', 'stabilisedAt', 'createdAt')
               .all()
       const suggestions = await database.orm.public.BatchSchemaSuggestion.where(
         (suggestion) => suggestion.projectContextId.in(projectIds),
@@ -1380,6 +1383,7 @@ export function createResearcherProjectStore(
             staleSourceDocumentCount: 0,
             schemaDraftCount: 0,
             hasSchemaRevision: false,
+            schemaStabilised: false,
             hasReadySuggestion: false,
             lastActivityAt: row.createdAt,
             runningBatch: null as {
@@ -1431,6 +1435,15 @@ export function createResearcherProjectStore(
         if (!projectContextId || !state) continue
         state.hasSchemaRevision = true
         bump(projectContextId, revision.createdAt)
+      }
+      const currentSchemaProjects = new Set<string>()
+      for(const schema of schemas) {
+        if (currentSchemaProjects.has(schema.projectContextId)) continue
+        currentSchemaProjects.add(schema.projectContextId)
+        const latest=schemaRevisions.filter(revision=>revision.extractionSchemaId===schema.id)
+          .reduce<(typeof schemaRevisions)[number]|null>((current,revision)=>!current||revision.revisionNumber>current.revisionNumber?revision:current,null)
+        const state=project.get(schema.projectContextId)
+        if(state&&latest?.stabilisedAt)state.schemaStabilised=true
       }
       for (const suggestion of suggestions) {
         const state = project.get(suggestion.projectContextId)
@@ -1506,6 +1519,7 @@ export function createResearcherProjectStore(
             reviewedSourceDocumentCount: state.reviewedDocuments.size,
             staleSourceDocumentCount: state.staleSourceDocumentCount,
             schemaDraftCount: state.schemaDraftCount,
+            schemaStabilised: state.schemaStabilised,
             lastActivityAt: state.lastActivityAt,
             runningBatch: state.runningBatch && {
               completedMemberCount: state.runningBatch.completedMemberCount,

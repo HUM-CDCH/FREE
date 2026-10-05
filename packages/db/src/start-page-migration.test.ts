@@ -17,10 +17,8 @@ it('adds one nullable integer column and nothing else: no row is given a start p
   assert.match(operations[0]!.execute?.[0]?.sql ?? '', /^ALTER TABLE "public"\."extraction" ADD COLUMN "startPage" (?:int4|integer)$/)
 })
 
-it('follows the record-scope migration directly and is the ref the database is checked against', () => {
+it('follows the record-scope migration directly', () => {
   const migration = JSON.parse(readFileSync(resolve(directory, 'migration.json'), 'utf8')) as { from: string; to: string }
   const previous = JSON.parse(readFileSync(resolve(named('_schema_revision_record_scope'), 'migration.json'), 'utf8')) as { to: string }
-  const ref = JSON.parse(readFileSync(resolve(migrations, 'refs/db.json'), 'utf8')) as { hash: string }
   assert.equal(migration.from, previous.to)
-  assert.equal(ref.hash, migration.to)
 })

@@ -1,6 +1,6 @@
 # View-ordered, streamed extraction — design
 
-Date: 2026-10-02 · Status: implemented locally by `docs/superpowers/plans/2026-10-03-view-ordered-streaming-service.md` (Part A) and `docs/superpowers/plans/2026-10-03-view-ordered-streaming-client.md` (Part B); Part B delivery pending (see its SDD ledger). Superseded in part by `2026-10-04-results-review-redesign-design.md` (2026-10-04, its §5): a record kei has finished may be reviewed while the run goes on, as a draft reconciled at settlement; the Constraints bullet "review, finalize and export read the settled attempt only" and §1's settlement sentence are replaced there · Scope:
+Date: 2026-10-02 · Status: Part A and Part B implemented locally; see their execution ledgers. Superseded in part by `2026-10-04-results-review-redesign-design.md` (2026-10-04, §5): finished grounded values may be reviewed while the run goes on, as drafts reconciled at settlement. This replaces the earlier settlement-only review restriction · Scope:
 `prototypes/parsing_service/src/kei_exp` (`kie/extract/unified.py`,
 `kie/extract/article.py`, `kie/extract/run.py`, `api.py`), `packages/extraction/src`,
 `prototypes/studio/api`, `prototypes/studio/shared`, `prototypes/studio/src`,

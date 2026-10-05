@@ -195,6 +195,10 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   The root's reply may use the served context its counted input leaves (at
   least 4,096 tokens), since a long list is restated item by item; a bounded
   context keeps as many reply tokens as its request counts.
+  Durable calls fit whole correction examples above that required reply floor,
+  then allocate spare capacity to the reply. The captured request records its
+  exact examples, tokenizer identity, effective ceiling and reply allowance;
+  guidance edits never recompose a started call or unchanged-selection retry.
   `record_chars` and `discovery_chars` apply only to generic Catalog. Array-item
   recall and semantic correctness still need evaluation; `complete` is not a
   recall score.
@@ -324,3 +328,34 @@ There is no migration command: `DBOS.launch()` migrates `kei_dbos`.
 The database-free conversion and extraction CLIs remain available through
 `uv run --no-sync kei-exp --help` and
 `uv run --no-sync python -m kei_exp.kie.extract.run --help` in this directory.
+
+## Durable interactive extraction candidate
+
+Protocol 1 adds explicitly named `extractDurableV1`, `extractionCallV1` and
+`deleteDurableHistoryV1` workflows on the existing extraction/GC lanes. Legacy
+`extract`, `extract_run`, `convert` and `deleteRuns` names, step sequences and
+`kei@1` remain unchanged. Admissions stay disabled in Studio pending the full
+[release matrix](../../docs/plans/2026-10-04-durable-interactive-extraction-release.md).
+
+The worker uses a separate pool of at most four short routine calls against
+`extraction_runtime`, through an explicit allowlist. Its restricted role cannot
+read application or Studio DBOS tables, directly access coordination tables, or
+invoke internal definer helpers. No pooled connection or transaction spans a
+provider call. The pool closes at worker shutdown.
+
+Calls capture effective models/settings, tokenizer/composer versions, complete
+request bodies and guidance revisions before native execution. Successful
+outputs are immutable reusable checkpoints; failed responses remain immutable
+attempt-specific history and an unchanged-selection Retry uses the exact saved
+request. Pause and Stop refuse new admissions while allowing reserved calls to
+save. Fixed retained snapshots preserve producing inputs and correction history.
+Historical Article contributions retain lineage; incompatible scalar contributions
+remain explicit proposals for review.
+
+Public deletion fences the runtime graph in the same transaction as the public
+cascade. `deleteDurableHistoryV1` obtains only the fenced deleted graph through a
+restricted routine, checks every linked attempt/call using the existing worker
+boot clock, and deletes native histories only at quiescence. Studio releases the
+retained graph and source references only after that proof. Cancellation alone
+never establishes native quiescence; a cancelled call from this process retains
+its references until it ends or a subsequent worker boot proves it cannot write.

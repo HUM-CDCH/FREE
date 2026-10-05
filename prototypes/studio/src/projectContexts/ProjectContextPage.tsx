@@ -33,6 +33,7 @@ import {
 import { useSpreadsheetSchemaSuggestion } from './useSpreadsheetSchemaSuggestion'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts } from './useProjectContexts'
+import { ProjectFeedback } from '../ProjectFeedback'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import ProjectWorkflowSteps from './ProjectWorkflowSteps'
 
@@ -993,6 +994,8 @@ export default function ProjectContextPage({
         }
       >
         {tab === 'extractions' ? (
+          <>
+          <ProjectFeedback projectId={projectContextId}/>
           <BatchExtractionsPanel
             // A different Project Context is different research state, never a
             // continuation of what this panel currently shows.
@@ -1017,6 +1020,7 @@ export default function ProjectContextPage({
             onNavigate={onNavigate}
             onReviewCommitted={refreshProjects}
           />
+          </>
         ) : tab === 'schemas' ? (
           <div
             id="project-schemas-panel"

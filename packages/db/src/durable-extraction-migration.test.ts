@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { test } from 'node:test'
+const root=resolve(import.meta.dirname,'../migrations/app')
+const dir=resolve(root,'20261004T1159_durable_extraction')
+const read=(file:string)=>JSON.parse(readFileSync(resolve(dir,file),'utf8'))
+test('the durable expansion preserves the complete public contract and advances the migration reference',()=> {
+  const start=read('start-contract.json'),end=read('end-contract.json')
+  assert.deepEqual(end.storage.namespaces.public,start.storage.namespaces.public)
+  const migration=read('migration.json'),ref=JSON.parse(readFileSync(resolve(root,'refs/db.json'),'utf8'))
+  assert.equal(migration.from,start.storage.storageHash)
+  assert.equal(migration.to,end.storage.storageHash)
+  const retry=JSON.parse(readFileSync(resolve(root,'20261004T1351_durable_retry_history/migration.json'),'utf8'))
+  assert.equal(retry.from,migration.to)
+  const pilotBridge=JSON.parse(readFileSync(resolve(root,'20261005T0831_pilot_after_durable/migration.json'),'utf8'))
+  const durableBridge=JSON.parse(readFileSync(resolve(root,'20261005T0832_durable_after_pilot/migration.json'),'utf8'))
+  const pilot=JSON.parse(readFileSync(resolve(root,'20261004T1635_project_spreadsheet_and_schema_issue_flags/migration.json'),'utf8'))
+  assert.equal(pilotBridge.from,retry.to)
+  assert.equal(durableBridge.from,pilot.to)
+  assert.equal(pilotBridge.to,durableBridge.to)
+  assert.equal(ref.hash,durableBridge.to)
+})

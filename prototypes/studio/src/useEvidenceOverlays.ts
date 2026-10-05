@@ -17,12 +17,16 @@ import {
 export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral'; anchorId: string; precision?: EvidenceLink['precision'] }
 
 /** The rail also reports unlinked keys so a copied value link can restore every row's selection. */
-export type RailMarkState = { describe: ReadonlyMap<string, MarkInfo>; selected: string | null; selectableKeys: ReadonlySet<string> }
-
-/** The Results rail's values and selection, which the marks show and select. */
-export type RailMarks = {
+export type RailMarkState = {
   describe: ReadonlyMap<string, MarkInfo>
   selected: string | null
+  selectableKeys: ReadonlySet<string>
+  /** Stable retained value IDs, including explicit correction occurrences. */
+  savedLinks?: readonly {key:string;link:EvidenceLink;occurrenceIds?:readonly string[]}[]
+}
+
+/** The Results rail's values and selection, which the marks show and select. */
+export type RailMarks = Omit<RailMarkState,'selectableKeys'> & {
   onSelect: (keys: string[], mark: HTMLElement) => void
 }
 
@@ -196,9 +200,9 @@ export function useEvidenceOverlays({
     const container = containerRef.current
     const viewer = viewerRef.current
     const running = attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
-    const evidenceLinks = attempt?.outcome === 'SUCCEEDED'
+    const evidenceLinks = marks?.savedLinks ?? (attempt?.outcome === 'SUCCEEDED'
       ? attempt.evidenceLinks ?? []
-      : running ? partialEvidenceLinks ?? null : null
+      : running ? partialEvidenceLinks ?? null : null)?.map(link=>({key:JSON.stringify(link.resultPath),link,occurrenceIds:undefined})) ?? null
     if (
       !container ||
       !parsedDocument ||
@@ -227,21 +231,21 @@ export function useEvidenceOverlays({
       const previous = new Map([...container.querySelectorAll<HTMLElement>('.parsed-evidence-highlight')]
         .map((element) => [element.dataset.occurrenceId!, element]))
       // One mark per occurrence, carrying every value its passage supports (§7.2: several open a popover).
-      const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[] }>()
-      for (const link of evidenceLinks) {
+      const byOccurrence = new Map<string, { occurrence: EvidenceOccurrence; anchorId: string; keys: string[];resultPath:EvidenceLink['resultPath'] }>()
+      for (const {link,key,occurrenceIds} of evidenceLinks) {
         if (link.precision === 'input') continue
         if (!resultPath.every((segment, index) => segment === String(link.resultPath[index]))) continue
         const anchor = anchors.get(link.evidenceAnchorId)
         if (!anchor) continue
-        const reviewed = reviewedByAnchor.get(anchor.anchor_id)
+        const reviewed = occurrenceIds ?? reviewedByAnchor.get(anchor.anchor_id)
         for (const occurrence of anchorOccurrences(anchor)) {
           if (reviewed && !reviewed.includes(occurrence.occurrence_id)) continue
-          const entry = byOccurrence.get(occurrence.occurrence_id) ?? { occurrence, anchorId: anchor.anchor_id, keys: [] }
-          entry.keys.push(JSON.stringify(link.resultPath))
+          const entry = byOccurrence.get(occurrence.occurrence_id) ?? { occurrence, anchorId: anchor.anchor_id, keys: [],resultPath:link.resultPath }
+          if (!entry.keys.includes(key)) entry.keys.push(key)
           byOccurrence.set(occurrence.occurrence_id, entry)
         }
       }
-      for (const { occurrence, anchorId, keys } of byOccurrence.values()) {
+      for (const { occurrence, anchorId, keys,resultPath } of byOccurrence.values()) {
         const element = previous.get(occurrence.occurrence_id)
         previous.delete(occurrence.occurrence_id)
         const infos = keys.map((key) => marks?.describe.get(key)).filter((info): info is MarkInfo => Boolean(info))
@@ -252,7 +256,7 @@ export function useEvidenceOverlays({
           element,
           className: `parsed-evidence-highlight evidence-mark ${style}${decided ? ' decided' : ''}${current ? ' selected' : ''}`,
           evidenceAnchorId: anchorId,
-          resultPath: JSON.parse(keys[0]!) as (string | number)[],
+          resultPath,
           ...(marks && infos.length > 0 ? { mark: {
             label: infos.map((info) => `${info.name}: ${info.value}${info.word ? `, ${info.word}` : ''}`).join('; '),
             current, onClick: (element: HTMLElement) => marks.onSelect(keys, element),

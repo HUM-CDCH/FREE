@@ -82,3 +82,6 @@ class LimitedCounter:
 
     def request_tokens(self, system: str, user: str, schema=None) -> int:
         return self.counter.request_tokens(system, user, schema)
+
+    def identity(self) -> dict:
+        return self.counter.identity()

@@ -128,17 +128,17 @@ export function createResearcherApiHandlers(
     const extraction = await module.readExtractionAttempt(extractionId).catch(unavailableUnlessDomain)
     if (!extraction)
       throw new ApiError(404, 'not_found', 'That Extraction was not found.')
-    const pendingReviewDecisions = extraction.executionStatus === 'COMPLETED'
+    const pendingReviewDecisions = !extraction.durable && extraction.executionStatus === 'COMPLETED'
       ? (await module.prepareReview(extractionId)).reviewDecisions
       : null
-    const partial = extraction.executionStatus === 'RUNNING' ? await readPartial(extraction) : null
+    const partial = !extraction.durable && extraction.executionStatus === 'RUNNING' ? await readPartial(extraction) : null
     return json(
       extractionReadResponseSchema.parse({
         extraction: extractionAttemptDto(extraction),
         pendingReviewDecisions,
         partial,
-        // A running Extraction's draft too (ADR 0016): decisions on records kei has finished, reconciled at settlement.
-        reviewDraft: extraction.executionStatus === 'COMPLETED' || extraction.executionStatus === 'RUNNING'
+        // Durable decisions use retained snapshots and their producing schema.
+        reviewDraft: !extraction.durable && (extraction.executionStatus === 'COMPLETED' || extraction.executionStatus === 'RUNNING')
           ? await module.readReviewDraft(extractionId)
           : undefined,
       }),

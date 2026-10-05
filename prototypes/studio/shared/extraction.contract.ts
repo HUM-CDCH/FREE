@@ -444,7 +444,9 @@ export const extractionAttemptSchema = z
     requestedModels: extractionModelChoiceSchema.nullable().optional(),
     /** The settings admitted with the run; null when it predates recorded settings ("Not recorded"). */
     requestedSettings: activeSettingsSchema.nullable().optional(),
-    executionStatus: z.enum(['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED']),
+    durable: z.literal(true).optional(),
+    finalizedReview: z.object({snapshotVersion:z.number().int().positive(),feedbackVersion:z.number().int().nonnegative(),createdAt:z.iso.datetime()}).strict().nullable().optional(),
+    executionStatus: z.enum(['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'COMPLETED', 'FAILED']),
     /** SUCCEEDED once COMPLETED; a failed, cancelled or interrupted Extraction is FAILED with its failure instead. */
     outcome: z.literal('SUCCEEDED').nullable(),
     complete: z.boolean().nullable(),
@@ -464,7 +466,7 @@ export const extractionAttemptSchema = z
     const empty = attempt.complete === null && attempt.modelAttribution === null && attempt.diagnostics === null &&
       attempt.resultPayload === null && attempt.evidenceLinks === null && !attempt.reviewable &&
       attempt.reviewedAt === null && attempt.reviewDecisions.length === 0
-    const shape =
+    const shape = attempt.durable ? empty :
       attempt.executionStatus === 'COMPLETED'
         // A succeeded Extraction: its result, evidence and diagnostics, and no failure.
         ? attempt.outcome === 'SUCCEEDED' && attempt.diagnostics !== null && attempt.complete !== null &&

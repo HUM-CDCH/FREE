@@ -61,3 +61,19 @@ so user should be able to review the partial values extracted on the go."
   for Part B is replaced where it built a separate one.
 - Article results are reviewable only from their grounding phase, when links
   exist; nothing changes for them earlier.
+
+## Durable interactive Extraction amendment (2026-10-04)
+
+[ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md) explicitly
+extends this decision for admission-disabled durable interactive Extractions.
+The pre-production candidate adds no historical extraction compatibility layer.
+Durable interactive execution keeps one
+visible Extraction across linked attempts, preserves immutable producing input
+selections and exact captured calls, and reviews saved typed values independently
+of execution completion or grounding. Compatible ungrounded corrections may be
+Project guidance with optional own-source Evidence. Fixed retained snapshots
+support partial/failed/stopped exports and explicit finalization; an approval or
+rejection cannot silently transfer to changed model output. The review redesign
+is reused where compatible; path/anchor reconciliation is not applied
+to durable correction history. Neither existing DBOS application versions nor
+existing workflow step sequences change. Release admissions remain disabled.

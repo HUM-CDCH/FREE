@@ -27,6 +27,8 @@ import {
   deriveAttempts,
   loadDocumentExtractions,
   readAttemptRows,
+  readRuntimeHeads,
+  readDurableSummaries,
 } from './postgres-attempts.js'
 import {
   loadBatch,
@@ -85,6 +87,9 @@ async function cancelInteractiveExtraction(
   researcherAccountId: string,
   extractionId: string,
 ): Promise<CancellationResult> {
+  // Durable execution accepts only its fenced Stop command; cancellation
+  // through this entrypoint would bypass drain and saved-result protection.
+  if ((await readRuntimeHeads(database.orm, [extractionId])).has(extractionId)) return 'not-found'
   const written = await database.transaction(async (transaction) => {
     if (!(await ownsResearcherExtraction(transaction, researcherAccountId, extractionId))) return 'not-found' as const
     const row = await transaction.orm.public.Extraction.select('batchExtractionId').first({ id: extractionId })
@@ -199,8 +204,9 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
       return owned ?? null
     })
     // A batch member is read one by one only once published (its Batch reads its progress).
-    if (!row || (row.batchExtractionId !== null && row.outcome !== 'SUCCEEDED')) return null
+    if (!row) return null
     const [attempt] = (await deriveAttempts(this.database.orm, this.execution.statuses, [row])).values()
+    if(row.batchExtractionId!==null && row.outcome!=='SUCCEEDED' && !attempt?.durable)return null
     return attemptSnapshot(this.database.orm, attempt!)
   }
 
@@ -347,7 +353,11 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
         .where((extraction) => extraction.reviewedAt.isNotNull())
         .select('id')
         .first()
-      if (!reviewedPilot) return 'not-ready' as const
+      if (!reviewedPilot) {
+        const nativeIds=await orm.extraction_runtime.Head.where({projectId:input.projectContextId,deleted:false}).select('id').all()
+        const summaries=await readDurableSummaries(orm,await readRuntimeHeads(orm,nativeIds.map(row=>row.id)))
+        if(![...summaries.values()].some(summary=>summary.review?.schemaRevisionId===input.schemaRevisionId))return 'not-ready' as const
+      }
       const stabilisedAt = new Date()
       const updated = await orm.public.SchemaRevision.where({
         id: input.schemaRevisionId,
