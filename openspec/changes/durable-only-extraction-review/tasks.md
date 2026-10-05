@@ -23,8 +23,8 @@
 
 ## 3. Infrastructure acceptance (required before merge and archive)
 
-- [x] 3.1 `packages/extraction` and `packages/db` `test:postgres`, including `durable-readers.postgres.check.ts` and `durable-control.postgres.check.ts`
-- [x] 3.2 Studio PostgreSQL tests and Playwright e2e on the durable routes (`durable-service.spec.ts`: six passed, one passed on retry after a local write quota error, two live-model checks skipped)
-- [x] 3.3 Root `pnpm test:system` and `pnpm test:safety` against Compose
-- [ ] 3.4 Spark acceptance recorded on the exact merge-candidate commit (authorized isolated Baratheon test project; a merge prerequisite; production remains unchanged)
+- [x] 3.1 Current implementation `b6b3cbe2`: db 57 and extraction 15 PostgreSQL checks passed on Baratheon, including all 18 actual Python durable lifecycle/recovery cases; see `docs/validation/2026-10-06-pr188-independent-review-followup.md`
+- [x] 3.2 Current implementation `b6b3cbe2`: Studio PostgreSQL 63, durable browser 18 and real-service browser 13 passed; two live-model cases and one private scanned-PDF case skipped (record above)
+- [ ] 3.3 Current-source root `pnpm test:system` against Compose (earlier source passed; rerun required). `pnpm test:safety` passed all 29 on `b6b3cbe2`
+- [ ] 3.4 Complete Spark acceptance recorded on the exact merge-candidate commit: deterministic isolated Baratheon checks passed on `b6b3cbe2`; finish current-source standard/recovery browser matrix and live Article/unified model checks before merge. Production remains unchanged
 - [ ] 3.5 Independent review of the exact commit; merge and archive this change only after 3.1–3.4 pass, with `openspec archive durable-only-extraction-review --skip-specs` (the main specs are already synced; re-applying the REMOVED deltas would fail)
