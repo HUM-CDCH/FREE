@@ -128,6 +128,34 @@ See the [Entra authentication runbook](entra-authentication.md). In the host
 Compose topologies the base path and TLS behavior are identical, so the
 redirect URIs differ from production only by host.
 
+## Studio client against Spark
+
+To work on browser code against a deployed Studio's real data (Baratheon by
+default), run only this checkout's client, with HMR:
+
+```bash
+ssh baratheon 'docker exec free-nginx-1 cat /etc/nginx/tls/studio.crt' > .certs/spark.crt  # once
+pnpm dev:spark
+```
+
+It opens `http://127.0.0.1:5173/free/`. Vite forwards `/free/api` to Spark;
+no local server, database, DBOS executor or model runs, so nothing competes
+with Spark's work. Signing in opens a separate browser window on Spark's real
+Microsoft sign-in. Its profile, `.dev/spark-browser/`, keeps you signed in
+between runs; it holds your credentials, so never share it. The session stays in
+the dev server's memory and is added only to same-origin requests; the server
+listens on loopback only.
+
+- Writes are refused by default, because they would change real data: a
+  save answers 403 `read_only` and the terminal names the request. Use
+  `FREE_SPARK_WRITE=1 pnpm dev:spark` to allow them.
+- `FREE_SPARK_ORIGIN` selects another deployment; `FREE_SPARK_CA_FILE` names
+  its certificate (default `.certs/spark.crt`). Both the proxy and the sign-in
+  window accept only that certificate.
+- The client must stay compatible with the API deployed on Spark; API or
+  workflow changes need `pnpm dev` or a deployment.
+- If Playwright's Chromium is missing: `pnpm --filter studio exec playwright install chromium`.
+
 ## Model-call traces (Phoenix)
 
 To inspect Studio's and the Parsing Service's model calls, start development
