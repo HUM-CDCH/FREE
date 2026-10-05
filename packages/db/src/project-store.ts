@@ -1316,7 +1316,7 @@ export function createResearcherProjectStore(
         (schema) => schema.projectContextId.in(projectIds),
       )
         .select('id', 'projectContextId', 'createdAt')
-        .orderBy((schema) => schema.createdAt.desc(), (schema) => schema.id.desc())
+        .orderBy([(schema) => schema.createdAt.desc(), (schema) => schema.id.desc()])
         .all()
       const projectBySchema = new Map(
         schemas.map((schema) => [schema.id, schema.projectContextId]),
