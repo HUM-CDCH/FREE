@@ -12,7 +12,8 @@ import { ensureKeiRole } from '../../db/src/kei-role.js'
 import { initializeDurableExtraction } from './durable-repository.js'
 import { durableTestNetwork } from './durable-test-network.js'
 
-test('real worker processes recover captures, exact inputs and the app-commit/DBOS-ack gap',async t=>{
+test('real worker processes recover captures, exact inputs and the app-commit/DBOS-ack gap',
+  {skip:process.env.FREE_SKIP_PYTHON==='1'?'Python worker checks run on the full verification host.':false},async t=>{
   const network=durableTestNetwork()
   const base=process.env.EXTRACTION_TEST_DATABASE_URL
   if(!base) throw new Error('Set EXTRACTION_TEST_DATABASE_URL to an explicit disposable free_test_* target.')
@@ -53,7 +54,7 @@ test('real worker processes recover captures, exact inputs and the app-commit/DB
   const {stdout}=await promisify(execFile)('docker',['run','--rm','--network',network,'--entrypoint','sh',
     '-e','PYTHONDONTWRITEBYTECODE=1','-e','DURABLE_RECOVERY_FIXTURE=/fixture/fixture.json',
     '-v',`${root}/prototypes/parsing_service:/test:ro`,'-v',`${directory}:/fixture:ro`,'-w','/test',
-    process.env.DURABLE_TEST_WORKER_IMAGE??'phoenix-tracing-parsing_worker','-c',
+    process.env.DURABLE_TEST_WORKER_IMAGE??'free-parsing_worker','-c',
     'uv pip install --python /app/.venv/bin/python pytest==9.1.1 && /app/.venv/bin/python -m pytest -q --tb=short -o cache_dir=/tmp/pytest_cache tests/test_durable_workflow_recovery.py'],
     {timeout:240000,maxBuffer:1024*1024}).catch((error:{stdout?:string})=>{
       console.info(error.stdout?.split('\n').filter(line=>/^E\s|Error|FAILED|passed|failed/.test(line)).join('\n'))

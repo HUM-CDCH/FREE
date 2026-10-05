@@ -1,6 +1,31 @@
 import { createHash } from 'node:crypto'
 import { stableJson } from 'db'
 import { schemaNodesToZod, type SchemaNode } from './schema.js'
+import { blockForAnchor, tableForAnchor, type ParsedDocument } from './parsed-document.js'
+import type { DurableValue } from './durable-contract.js'
+
+/** Immutable examples contain source material, not just application IDs. Links
+ * remain distinct from model Evidence and never become target-source Evidence.
+ * With no locatable anchor retain the whole source; budgeting omits it whole. */
+export function correctionSourceContext(document: ParsedDocument, markdown: string, value: DurableValue,
+  evidence: {anchorId:string;occurrenceIds:string[]}[]) {
+  const selected=evidence.length?evidence:value.evidence
+  const excerpts=selected.flatMap(link=> {
+    const anchor=document.evidence_index.anchors.find(each=>each.anchor_id===link.anchorId)
+    if(!anchor)return []
+    let text: string | undefined
+    if(anchor.kind==='text') {
+      const block=blockForAnchor(document,anchor)
+      if(block && 'text' in block)text=block.text
+      else if(block?.kind==='list')text=block.items.join('\n')
+    } else text=tableForAnchor(document,anchor)?.cells.find(cell=>cell.cell_id===anchor.cell_id)?.text
+    return text===undefined?[]:[{anchorId:link.anchorId,occurrenceIds:link.occurrenceIds,text}]
+  })
+  return {
+    source:excerpts.length?{scope:evidence.length?'correction-anchors':'model-anchors',excerpts}:{scope:'document',text:markdown},
+    correctionEvidence:evidence,modelEvidence:value.evidence,modelGrounding:value.grounding,
+  }
+}
 
 /** Names are presentation. Identity and meaning/type/constraints determine
  * compatibility; reinterpreting a field deliberately changes this digest. */

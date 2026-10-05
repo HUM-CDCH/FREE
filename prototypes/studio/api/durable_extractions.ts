@@ -1,5 +1,5 @@
 import { canonicalPackageStore, pool, type ResearcherProjectStore } from 'db'
-import { createDurableRepository, DurableConflict, DurableInvalid, DurableNotFound, setFeedbackIncluded } from 'extraction/durable'
+import { correctionSourceContext, createDurableRepository, DurableConflict, DurableInvalid, DurableNotFound, setFeedbackIncluded } from 'extraction/durable'
 import { ExtractionError } from 'extraction'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import { z } from 'zod'
@@ -51,14 +51,16 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
         if(action==='selection') return json(await repository.saveSelection(id,body),{headers:noStore})
         if(action==='adopt') return json(await repository.adoptSelection(id,body),{headers:noStore})
         if(action==='finalize') return json(await repository.finalize(id,z.object({snapshotVersion:z.number().int().positive(),feedbackVersion:z.number().int().nonnegative()}).strict().parse(body)),{headers:noStore})
-        if(action==='values' && match[3]) return json(await repository.saveCorrection(id,decodeURIComponent(match[3]),body,async(_value,evidence,sourceRevisionId)=> {
-          if(!evidence.length) return
+        if(action==='values' && match[3]) return json(await repository.saveCorrection(id,decodeURIComponent(match[3]),body,async(value,evidence,sourceRevisionId)=> {
           const document=await pinnedSource(sourceRevisionId)
           for(const selected of evidence) {
             const anchor=document.evidence_index.anchors.find(a=>a.anchor_id===selected.anchorId)
             if(!anchor || selected.occurrenceIds.some(o=>!anchor.producer_observations.some(observation=>observation.occurrence_id===o)))
               throw new DurableInvalid('Link Evidence from this Extraction’s pinned source.')
           }
+          const revision=await sourceRevision(sourceRevisionId)
+          const markdown=new TextDecoder().decode((await canonicalPackageStore.read(revision,'markdown')).bytes)
+          return correctionSourceContext(document,markdown,value,evidence)
         }),{headers:noStore})
       }
       throw new ApiError(404,'not_found','API route not found.')

@@ -231,7 +231,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           next:offset+limit < values.length ? {snapshotVersion,feedbackVersion,offset:offset+limit,limit} : null }
       })
     },
-    async saveCorrection(id: string, valueId: string, raw: unknown, validateEvidence: (value: DurableValue, evidence: {anchorId:string;occurrenceIds:string[]}[], sourceRevisionId: string) => Promise<void>) {
+    async saveCorrection(id: string, valueId: string, raw: unknown, validateEvidence: (value: DurableValue, evidence: {anchorId:string;occurrenceIds:string[]}[], sourceRevisionId: string) => Promise<Record<string,unknown> | void>) {
       const input = durableCorrectionSchema.parse(raw)
       const validated = await owned(id,async(client,head)=> {
         const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
@@ -241,7 +241,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       })
       // Artifact reads happen before the short publication transaction. The
       // source and snapshot pins used here are immutable and rechecked below.
-      await validateEvidence(validated.value,input.evidence,validated.sourceRevisionId)
+      const context=await validateEvidence(validated.value,input.evidence,validated.sourceRevisionId)
       return runtimeTransaction(source,async client => {
         const initial = await ownedHead(client,owner,id)
         const feedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1 FOR UPDATE', [initial.projectId])).rows[0]
@@ -254,7 +254,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         if (revision !== input.expectedRevision) throw new DurableConflict('Another view saved a newer correction.')
         const feedbackVersion = feedback.version+1, correctionId = randomUUID()
         const candidate = {id:correctionId,fieldId:value.fieldId,meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest(value),value:input.value ?? null,
-          sourceContext:stableJson({sourceRevisionId:head.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue}),grounded:input.evidence.length>0}
+          sourceContext:stableJson({...context,sourceRevisionId:head.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue}),grounded:input.evidence.length>0}
         const included = input.included && input.action === 'EDITED'
         await client.query(`INSERT INTO extraction_runtime.correction
           (id,"projectId","extractionId","valueId",revision,"feedbackVersion","snapshotVersion","selectionId",decision,candidate,included)

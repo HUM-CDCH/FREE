@@ -154,6 +154,12 @@ stack it starts itself. `FREE_SKIP_PYTHON=1` also makes `pnpm install` skip
 the parsing service's `uv sync --frozen`; leave it unset on development and
 deployment hosts.
 
+The Extraction PostgreSQL tier also runs Python-backed durable lifecycle and
+process-recovery checks when `FREE_SKIP_PYTHON` is unset. These require a built
+`free-parsing_worker` image (or `DURABLE_TEST_WORKER_IMAGE` naming an equivalent
+image), Docker and the guarded disposable PostgreSQL target. The Node-only CI
+tier explicitly skips these two checks; full-host verification must run them.
+
 `test:service` may download Docling layout weights on first use. Supply both
 `FREE_REAL_EXTRACT_URL` (a chat-completions URL) and
 `FREE_REAL_EXTRACT_MODEL` to run the same workflow against a real model.

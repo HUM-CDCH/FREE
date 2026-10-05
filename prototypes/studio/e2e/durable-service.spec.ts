@@ -157,7 +157,12 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(correction.decision.evidence).toEqual([])
     expect(correction.candidate.grounded).toBe(false)
     expect(correction.included).toBe(true)
-    expect(JSON.parse(correction.candidate.sourceContext)).toEqual({sourceRevisionId:headA.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue})
+    const exampleContext=JSON.parse(correction.candidate.sourceContext)
+    expect(exampleContext).toMatchObject({sourceRevisionId:headA.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue,
+      correctionEvidence:[],modelEvidence:value.evidence,modelGrounding:value.grounding})
+    const pinnedA=await (await page.request.get(`/api/extractions/${extractionA}/durable/source`)).json()
+    if(exampleContext.source.scope==='document')expect(exampleContext.source.text).toBe(pinnedA.markdown)
+    else expect(exampleContext.source.excerpts.length).toBeGreaterThan(0)
 
     // Distinct source bytes publish a new source pin while preserving field meaning.
     const sourceB=await settle(page,project,await admit(page,project,Buffer.concat([cataloguePdf(),Buffer.from('\n% guidance source B\n')]),'guidance-b.pdf'),180_000)
@@ -186,6 +191,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(capture.request.budget.context).toBe(context==='bounded'?8192:16384)
     expect(capture.request.budget.reserve).toBeGreaterThanOrEqual(4096)
     expect(capture.request.body.system).toContain('Researcher guidance sentinel')
+    expect(capture.request.body.system).toContain(JSON.stringify(correction.candidate.sourceContext).slice(1,-1))
     expect(capture.request.body.user).not.toContain('Researcher guidance sentinel')
     expect(providerRequest).toEqual(capture.request.body.httpRequest)
 
