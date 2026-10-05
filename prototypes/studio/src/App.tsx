@@ -1194,6 +1194,7 @@ export function DocumentWorkspace({
               sourceRepresentationId={sourceRepresentationId}
               onPinnedDocument={onPinnedDocument}
               onReviewProgress={setDurableReviewProgress}
+              onReviewFinalized={onReviewFinalized}
               schemaName={schemaName}
               recordScope={{ value: schemaSnap.recordScope, onChange: (scope) => schema.setRecordScope(scope), disabled: running || savingForRun }}
               boundaries={

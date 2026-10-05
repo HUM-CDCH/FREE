@@ -62,6 +62,7 @@ type RightRailProps = {
   selectValueRef?: RefObject<((key: string) => void) | null>
   onPinnedDocument?: (id:string,source:PinnedExtractionSource|null)=>void
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void
+  onReviewFinalized?:()=>void
 }
 
 /** A tab's count. Under a 300px tab strip (the 264px rail) a worded one ("7 to check") shows its number only, so the
@@ -112,6 +113,7 @@ function RightRail({
   selectValueRef,
   onPinnedDocument,
   onReviewProgress,
+  onReviewFinalized,
 }: RightRailProps) {
   const [fieldContext, setFieldContext] = useState<FieldContext | null>(null)
   const editField = (nodeId: string, path: (string | number)[]) => {
@@ -264,6 +266,7 @@ function RightRail({
           headerExtras={resultsHeaderExtras}
           onStatusChange={extraction.acceptDurableStatus}
           onReviewProgress={onReviewProgress}
+          onReviewFinalized={onReviewFinalized}
           onPinnedDocument={onPinnedDocument}
         /> : <ResultsTab
           onEditField={editField}

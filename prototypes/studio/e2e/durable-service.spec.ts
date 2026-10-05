@@ -228,6 +228,25 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     const reincluded=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
     expect(reincluded.find((each:{active:boolean})=>each.active)).toMatchObject({revision:3,included:true,
       candidate:{value:corrected,grounded:false,sourceContext:correction.candidate.sourceContext}})
+    if(context==='full') {
+      const batchId=randomUUID()
+      await withPoolClientTransaction(async(_tx,client)=>{
+        await client.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,
+          [batchId,project,value.schemaRevisionId,{article:null}])
+        await client.query('UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])',[batchId,[extractionA,extractionB]])
+      })
+      await page.goto(`/projects/${project}/documents/${sourceA.sourceDocumentId}?extractionId=${extractionA}&fromBatchExtractionId=${batchId}&value=${encodeURIComponent(value.id)}`)
+      await page.locator('#rail-tab-results').click()
+      await expect(page.getByText('Reviewed 0/2',{exact:true})).toBeVisible()
+      await page.getByRole('button',{name:'Save review',exact:true}).click()
+      await expect(page.getByText('Reviewed 1/2',{exact:true})).toBeVisible()
+      const batch=await (await page.request.get(`/api/batch-extractions/${batchId}?projectContextId=${project}`)).json()
+      await writeFile(info.outputPath('native-pilot-review.json'),JSON.stringify(batch,null,2))
+      await page.getByRole('button',{name:'Next document'}).click()
+      await expect(page).toHaveURL(new RegExp(sourceB.sourceDocumentId))
+      const stabilised=await page.request.post('/api/stabilise_schema_revision',{headers,data:{projectContextId:project,schemaRevisionId:value.schemaRevisionId}})
+      expect(stabilised.status(),await stabilised.text()).toBe(200)
+    }
     await page.screenshot({path:info.outputPath('native-guidance-attribution.png'),fullPage:true})
   } finally {service.releaseExtraction();await service.close()}
 })

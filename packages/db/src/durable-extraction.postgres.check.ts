@@ -7,6 +7,28 @@ import { ensureKeiRole, EXTRACTION_RUNTIME_ROUTINES } from './kei-role.js'
 
 const baseUrl = process.env.PROJECT_STORE_POSTGRES_URL
 
+test('the durable-first upgrade converges with pilot-first without rewriting history', async () => {
+  if (!baseUrl) throw new Error('Set PROJECT_STORE_POSTGRES_URL to an explicit disposable free_test_* target.')
+  const target = await provisionDatabase(baseUrl, `free_test_durable_bridge_${randomBytes(5).toString('hex')}`)
+  const owner = new Client({ connectionString: target.url })
+  try {
+    await migrate(target.url, '20261003T1357_start_page')
+    await owner.connect()
+    await seedPreMigrationHistory(owner)
+    const before = await snapshotHistory(owner)
+    assert.deepEqual((await migrate(target.url, '20261004T1351_durable_retry_history')).applied,
+      ['20261004T1159_durable_extraction', '20261004T1351_durable_retry_history'])
+    assert.deepEqual((await migrate(target.url)).applied, ['20261005T0831_pilot_after_durable'])
+    assert.deepEqual(await snapshotHistory(owner), before)
+    assert.deepEqual((await migrate(target.url)).applied, [])
+    assert.equal((await owner.query('SELECT extraction_runtime.capabilities() AS value')).rows[0].value.protocol, 1)
+    await owner.query('SELECT "stabilisedAt" FROM public."schemaRevision" LIMIT 1')
+  } finally {
+    await owner.end()
+    await target.drop()
+  }
+})
+
 test('protocol expansion preserves existing public rows and exposes only fenced worker routines', async () => {
   if (!baseUrl) throw new Error('Set PROJECT_STORE_POSTGRES_URL to an explicit disposable free_test_* target.')
   const suffix = randomBytes(5).toString('hex')
@@ -29,7 +51,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   await owner.connect()
   const history = await seedPreMigrationHistory(owner)
   const before = await snapshotHistory(owner)
-  assert.deepEqual((await migrate(target.url)).applied, ['20261004T1159_durable_extraction','20261004T1351_durable_retry_history'])
+  assert.deepEqual((await migrate(target.url)).applied, ['20261004T1635_project_spreadsheet_and_schema_issue_flags','20261005T0832_durable_after_pilot'])
   assert.deepEqual(await snapshotHistory(owner), before)
   assert.deepEqual((await migrate(target.url)).applied, [])
   await ensureKeiRole(owner, { role, schema, password })

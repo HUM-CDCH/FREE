@@ -16,6 +16,9 @@ test('native pilot finalization drives batch progress and unlocks only its produ
   t.after(async()=>{await source.end();await admin.end();await target.drop()})
   await migrate(target.url);await admin.connect()
   const fixture=await seedPreMigrationHistory(admin),batchId=randomUUID(),ids:string[]=[]
+  // This case proves native eligibility, independently of the legacy reviews
+  // deliberately supplied by the shared historical fixture.
+  await admin.query('UPDATE public.extraction SET "reviewedAt"=NULL WHERE "schemaRevisionId"=$1',[fixture.revisions.article])
   await admin.query('INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,\'ARTICLE\',$4)',
     [batchId,fixture.projectContextId,fixture.revisions.article,{article:null}])
   for(const document of [fixture.documents.d1,fixture.documents.d2]) {

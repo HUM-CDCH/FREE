@@ -141,13 +141,14 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
 
 /** Durable live review in the existing results rail. All lifecycle states
  * share the same retained snapshot and independent researcher decisions. */
-export function DurableResults({attempt,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress}:{attempt:ExtractionAttempt|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
+export function DurableResults({attempt,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized}:{attempt:ExtractionAttempt|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
   onResultPathChange?:(path:string[]|null)=>void;onFocusEvidence?:(link:EvidenceLink|null)=>void;
   onMarksChange?:(marks:RailMarkState|null)=>void;
   selectValueRef?:RefObject<((key:string)=>void)|null>;headerExtras?:React.ReactNode;
   onStatusChange?:(id:string,status:ExtractionAttempt['executionStatus'])=>void;
   onPinnedDocument?:(id:string,source:PinnedExtractionSource|null)=>void;
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void;
+  onReviewFinalized?:()=>void;
 }) {
   const id=attempt?.extractionId
   const keyboardRoot=useRef<HTMLDivElement>(null)
@@ -277,6 +278,7 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
   const finalize=()=>void durableRequest(`${durableRoot(id)}/finalize`,{snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion}).then(async()=>{
     await selectPage(`${durableRoot(id)}/values?snapshotVersion=${page.snapshotVersion}&feedbackVersion=${page.feedbackVersion}`)
     setError(null);setNotice('This saved review snapshot is finalized.')
+    onReviewFinalized?.()
   }).catch(error=>setError(error.message))
   const exportSaved=(format:'xlsx'|'csv')=>void readDurableHistory(id).then(history=>import('./durableExport').then(module=>module.downloadDurableExport({state,page,history},format))).catch(error=>setError(error.message))
   const renderValue=(row:RailRow,pinned:boolean)=>row.key===review?.value.id&&review.version===page.snapshotVersion&&review.feedbackVersion===page.feedbackVersion?null:<ReviewRow row={row} selected={false} pinned={pinned} onSelect={()=>selectValue(row.key)} quote={null} canDecide={false} saved={readOnly} last={false}

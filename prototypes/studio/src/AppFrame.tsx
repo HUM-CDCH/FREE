@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ProjectContextRail } from './projectContexts/ProjectContextRail'
 import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
@@ -341,10 +341,13 @@ export default function AppFrame({
     )?.name ?? null
   const backToReviewGridBatchExtractionId =
     route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
+  const [reviewRevision,setReviewRevision]=useState(0)
+  const reviewFinalized=useCallback(()=>{void refreshProjects();setReviewRevision(revision=>revision+1)},[refreshProjects])
   const pilotRoundProgress = usePilotRoundProgress(
     route.kind === 'document' ? route.projectContextId : null,
     backToReviewGridBatchExtractionId,
     route.kind === 'document' ? route.sourceDocumentId : null,
+    reviewRevision,
   )
   const hasOpenDocumentTabs = Boolean(
     routedProjectContextId && openProjectTabs.length > 0,
@@ -601,7 +604,7 @@ export default function AppFrame({
                   onInitialResourceLoadFailure={onInitialResourceLoadFailure}
                   onNavigate={onNavigate}
                   onSchemaApproved={refreshProjects}
-                  onReviewFinalized={refreshProjects}
+                  onReviewFinalized={reviewFinalized}
                 />
               </Suspense>
             </RouteLoadBoundary>
