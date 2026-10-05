@@ -1,9 +1,10 @@
 /** A TypeScript kei for tests: a DBOS application named `kei` that plays kei's worker at the contract
  *  (prototypes/parsing_service/src/kei_exp/workflows/) and serves kei's read routes (kei_exp/api.py).
  *
- *  It registers kei's portable `convert`, `extract` and `deleteRuns` workflows under kei's names, with kei's recovery
- *  limit, and kei's four lanes with kei's limits. Each workflow runs one step (`convert_run`, `extract_run`,
- *  `delete_runs`, as kei names its own) that asks `script` how to finish. A decision the script holds blocks inside the
+ *  It registers kei's portable `convert` and `deleteRuns` workflows under kei's names, with kei's recovery limit, and
+ *  kei's four lanes with kei's limits. Each workflow runs one step (`convert_run`, `delete_runs`, as kei names its own)
+ *  that asks `script` how to finish. Durable Extraction workflows are not played here: the stand-in covers ingestion,
+ *  cleanup and the read routes. A decision the script holds blocks inside the
  *  step, as kei's native step does, so a cancel leaves the step running and its lane occupied until the step returns
  *  (M0R 4).
  *
@@ -14,13 +15,11 @@
  *
  *  Test-only: nothing in the runtime imports it. DBOS is one singleton per process, so the stand-in runs only where no
  *  other DBOS application runs; a test process whose DBOS is Studio's spawns it (kei-stand-in-client.ts). */
-import { createHash } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import {
   DELETE_RUNS, KEI_APPLICATION, KEI_QUEUE, KEI_RUN_ID, keiConvertInputSchema, keiConvertOkSchema,
-  keiDeleteRunsInputSchema, keiExtractInputSchema, keiExtractWorkflowId, type KeiConvertInput, type KeiDeleteRunsInput,
-  type KeiDeleteRunsOk, type KeiExtractInput, type KeiFailureCode,
+  keiDeleteRunsInputSchema, type KeiConvertInput, type KeiDeleteRunsInput, type KeiDeleteRunsOk, type KeiFailureCode,
 } from '../kei-handoff.js'
 
 export type StandInFailure = { code: KeiFailureCode; reason: string; retryable: boolean }
@@ -28,11 +27,8 @@ export type StandInDecision<T> = { output: T } | { failure: StandInFailure }
 export type StandInConversion = { runId: string; manifest: Record<string, unknown>; pages: ReadonlyMap<number, Uint8Array> }
 export type KeiStandInScript = {
   convert?(request: KeiConvertInput, workflowId: string): Promise<StandInDecision<StandInConversion>>
-  extract?(request: KeiExtractInput, workflowId: string): Promise<StandInDecision<{ artifact: unknown }>>
   /** Replaces the default cleanup (see the module comment). */
   deleteRuns?(request: KeiDeleteRunsInput, workflowId: string): Promise<KeiDeleteRunsOk>
-  /** kei's progress route for a running extraction: the document to serve, or null/undefined for 404 (`no progress yet`). */
-  progress?(runId: string, extractionId: string): unknown
 }
 /** A `deleteRuns` request as the stand-in received it. */
 export type KeiDeleteRunsRequest = { workflowId: string; request: KeiDeleteRunsInput; receivedAtMs: number }
@@ -75,7 +71,6 @@ export async function launchKeiStandIn(options: {
 }): Promise<KeiStandIn> {
   if (DBOS.isInitialized()) throw new Error('The kei stand-in needs a process without another DBOS application.')
   const results = new Map<string, { manifest: Record<string, unknown>; pages: ReadonlyMap<number, Uint8Array> }>()
-  const artifacts = new Map<string, Uint8Array>() // `${runId}/${extractionId}`
   const deleteRunsRequests: KeiDeleteRunsRequest[] = []
   const fail = (code: KeiFailureCode, reason: string) => ({ ok: false, code, reason, retryable: false })
   DBOS.registerWorkflow(async (raw: unknown) => {
@@ -95,25 +90,6 @@ export async function launchKeiStandIn(options: {
       }
     }, { name: 'convert_run' })
   }, { name: 'convert', serialization: 'portable', maxRecoveryAttempts: MAX_RECOVERY_ATTEMPTS })
-  DBOS.registerWorkflow(async (raw: unknown) => {
-    const workflowId = DBOS.workflowID!
-    return DBOS.runStep(async () => {
-      const extractionId = workflowId.slice(keiExtractWorkflowId('').length)
-      const request = keiExtractInputSchema.safeParse(raw)
-      if (!request.success || !workflowId.startsWith(keiExtractWorkflowId('')) || !KEI_RUN_ID.test(extractionId))
-        return fail('invalid_request', 'The extract input or workflow ID is outside the contract.')
-      const decision = await options.script.extract?.(request.data, workflowId)
-      if (!decision) return fail('extraction_failed', 'The stand-in has no extraction script.')
-      if ('failure' in decision) return { ok: false, ...decision.failure }
-      const bytes = new TextEncoder().encode(JSON.stringify(decision.output.artifact))
-      artifacts.set(`${request.data.run_id}/${extractionId}`, bytes)
-      const artifact = decision.output.artifact as { generation: string; model: string; models: Record<string, string> }
-      return {
-        ok: true, run_id: request.data.run_id, extraction_id: extractionId, generation: artifact.generation,
-        artifact_sha256: createHash('sha256').update(bytes).digest('hex'), model: artifact.model, models: artifact.models,
-      }
-    }, { name: 'extract_run' })
-  }, { name: 'extract', serialization: 'portable', maxRecoveryAttempts: MAX_RECOVERY_ATTEMPTS })
   /** The default cleanup. DBOS runs listWorkflows and deleteWorkflows directly inside a step (runInternalStep). */
   async function deleteRuns(request: KeiDeleteRunsInput): Promise<KeiDeleteRunsOk> {
     const conversions = [...new Set(request.conversions)]
@@ -142,7 +118,6 @@ export async function launchKeiStandIn(options: {
         continue
       }
       results.delete(run)
-      for (const key of artifacts.keys()) if (key.startsWith(`${run}/`)) artifacts.delete(key)
       deletedRuns.push(run)
     }
     return {
@@ -164,8 +139,7 @@ export async function launchKeiStandIn(options: {
     name: KEI_APPLICATION, systemDatabaseUrl: options.databaseUrl, systemDatabaseSchemaName: options.schema,
     applicationVersion: 'kei@1', executorID: options.executorId ?? 'kei-stand-in', enableOTLP: false, logLevel: 'error',
   })
-  // kei's read routes (M3 Task 10): the model listings, a run's manifest and pages, a published extraction artifact, and a
-  // running extraction's progress.
+  // kei's read routes (M3 Task 10): the model listings and a run's manifest and pages.
   const server = createServer((request, response) => {
     void route(request, response).catch(() => {
       if (response.headersSent) response.destroy()
@@ -189,14 +163,6 @@ export async function launchKeiStandIn(options: {
     if (kind === 'pages' && item !== undefined && rest.length === 0 && /^[1-9][0-9]*$/.test(item)) {
       const page = results.get(run)?.pages.get(Number(item))
       return page ? sendBytes(response, page) : send(response, 404, { detail: 'no result for this page yet' })
-    }
-    if (kind === 'extractions' && item !== undefined && rest.length === 1 && rest[0] === 'progress' && KEI_RUN_ID.test(item)) {
-      const progress = options.script.progress?.(run, item)
-      return progress == null ? send(response, 404, { detail: 'no progress yet' }) : send(response, 200, progress)
-    }
-    if (kind === 'extractions' && item !== undefined && rest.length === 0 && KEI_RUN_ID.test(item)) {
-      const artifact = artifacts.get(`${run}/${item}`)
-      return artifact ? sendBytes(response, artifact) : send(response, 404, { detail: 'no such extraction' })
     }
     return send(response, 404, { detail: 'Not Found' })
   }

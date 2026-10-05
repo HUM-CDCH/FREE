@@ -1,6 +1,0 @@
-{
-  "ok": false,
-  "code": "stale_generation",
-  "reason": "the run's result is generation 20260927T080000.000000Z-4e5f6a7b, not 20260926T120000.000000Z-0a1b2c3d",
-  "retryable": false
-}

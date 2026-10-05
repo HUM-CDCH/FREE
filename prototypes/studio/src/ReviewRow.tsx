@@ -1,9 +1,8 @@
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { ReviewDecisionAction, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { EvidenceQuote } from './evidenceQuote'
-import { linkOrigin } from './claimStates'
-import { DECISION_WORD, groundingDetail, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
+import { linkOrigin } from './linkOrigin'
+import { DECISION_WORD, type ReviewAction, groundingDetail, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph, OneByOneGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
@@ -65,7 +64,7 @@ export type ReviewRowProps = {
   last: boolean
   editing: boolean
   node: SchemaNode | null
-  onDecide: (action: ReviewDecisionAction, value?: ReviewDecisionInput['reviewedValue']) => void
+  onDecide: (action: ReviewAction, value?: unknown) => void
   onEdit: () => void
   onCancelEdit: () => void
   onUndo: () => void

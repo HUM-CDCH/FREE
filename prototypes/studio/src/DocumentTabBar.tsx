@@ -12,7 +12,7 @@ export type DocumentTabBarProps = {
   onNavigateProject: () => void
   /** Present only when this document was opened from a Batch Extraction's
    *  review grid — offers a direct way back to it. */
-  onBackToReviewGrid?: () => void
+  onBackToBatch?: () => void
   /** Present only when this document was opened from a Batch Extraction
    *  (a pilot round or any other batch) — review progress across that
    *  batch's members, plus a way to jump straight to the next unreviewed
@@ -34,10 +34,10 @@ export type DocumentTabBarProps = {
 
 /** The open project as a chip before the tabs: the name opens the project's Sources tab; the caret offers "Back to
  *  review grid" when the document came from one, and is a plain mark otherwise. */
-function ProjectChip({ name, onNavigateProject, onBackToReviewGrid }: {
+function ProjectChip({ name, onNavigateProject, onBackToBatch }: {
   name: string
   onNavigateProject: () => void
-  onBackToReviewGrid?: () => void
+  onBackToBatch?: () => void
 }) {
   return (
     <div className="flex shrink-0 items-center self-center">
@@ -49,13 +49,13 @@ function ProjectChip({ name, onNavigateProject, onBackToReviewGrid }: {
       >
         <span className="truncate">{name}</span>
       </button>
-      {onBackToReviewGrid ? (
+      {onBackToBatch ? (
         <ActionsMenu
           label="Project actions"
           align="left"
           trigger={<span aria-hidden="true">▾</span>}
           triggerClassName="rounded-l-none border-l-0"
-          items={[{ id: 'grid', label: 'Back to review grid', onSelect: onBackToReviewGrid }]}
+          items={[{ id: 'batch', label: 'Back to Batch Extraction', onSelect: onBackToBatch }]}
         />
       ) : (
         <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-r-[3px] border border-l-0 border-line text-ink-faint">▾</span>
@@ -75,7 +75,7 @@ function DocumentTabBar({
   onActivate,
   onClose,
   onNavigateProject,
-  onBackToReviewGrid,
+  onBackToBatch,
   pilotRoundProgress,
   slotRef,
   ringSlotRef,
@@ -87,7 +87,7 @@ function DocumentTabBar({
     <div className="flex min-h-14 shrink-0 flex-wrap items-end gap-2 border-b border-line bg-surface pl-2 sm:h-14 sm:flex-nowrap">
       {navigationToggle}
       {projectName !== null && (
-        <ProjectChip name={projectName} onNavigateProject={onNavigateProject} onBackToReviewGrid={onBackToReviewGrid} />
+        <ProjectChip name={projectName} onNavigateProject={onNavigateProject} onBackToBatch={onBackToBatch} />
       )}
       <div
         role="tablist"

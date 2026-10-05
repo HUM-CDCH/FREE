@@ -78,7 +78,7 @@ describe('focused Evidence navigation', () => {
   })
 })
 
-describe('partial links (design §1)', () => {
+describe('saved Evidence marks across reads', () => {
   function viewerWithPage(anchor: ReturnType<typeof decodeParsedDocument>['evidence_index']['anchors'][number]) {
     const container = document.createElement('div')
     container.innerHTML = `<div class="page" data-page-number="${anchor.producer_observations[0].page_number}"></div>`
@@ -88,49 +88,9 @@ describe('partial links (design §1)', () => {
     // Stable refs keep a poll from looking like a different viewer.
     return { container, viewer, containerRef: { current: container }, viewerRef: { current: viewer as never } }
   }
-  const running = { extractionId: 'x-1', executionStatus: 'RUNNING' as const, outcome: null, evidenceLinks: null, reviewDecisions: [] }
+  const running = { extractionId: 'x-1' }
 
-  it('paints a running attempt\'s partial links without moving the page the researcher is reading', () => {
-    const parsedDocument = decodeParsedDocument(parsedFixture)
-    const anchor = parsedDocument.evidence_index.anchors[0]
-    const { container, viewer, containerRef, viewerRef } = viewerWithPage(anchor)
-    renderHook(() => useEvidenceOverlays({
-      containerRef, viewerRef, parsedDocument, attempt: running,
-      resultPath: ['records'], active: true,
-      partialEvidenceLinks: [
-        { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id },
-        { resultPath: ['records', 1, 'title'], evidenceAnchorId: 'a_nowhere' },
-      ],
-    }))
-    expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(1)
-    expect(viewer.scrollPageIntoView).not.toHaveBeenCalled()
-    expect(container.scrollTo).not.toHaveBeenCalled()
-  })
 
-  it('paints nothing without partial links, then uses a settled attempt\'s own links', () => {
-    const parsedDocument = decodeParsedDocument(parsedFixture)
-    const anchor = parsedDocument.evidence_index.anchors[0]
-    const { container, viewer, containerRef, viewerRef } = viewerWithPage(anchor)
-    const { rerender } = renderHook(({ attempt, partialEvidenceLinks }) => useEvidenceOverlays({
-      containerRef, viewerRef, parsedDocument, attempt,
-      resultPath: ['records'], active: true, partialEvidenceLinks,
-    }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'], partialEvidenceLinks: null as readonly EvidenceLink[] | null } })
-    expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(0)
-    rerender({
-      attempt: { ...running },
-      partialEvidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id }],
-    })
-    expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(1)
-    expect(viewer.scrollPageIntoView).not.toHaveBeenCalled()
-    rerender({
-      attempt: { ...running, executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id }] },
-      partialEvidenceLinks: [{ resultPath: ['records', 1, 'title'], evidenceAnchorId: 'a_nowhere' }],
-    })
-    expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(1)
-    expect(viewer.scrollPageIntoView).not.toHaveBeenCalled()
-    rerender({ attempt: { ...running, executionStatus: 'FAILED' }, partialEvidenceLinks: null })
-    expect(container.querySelectorAll('.parsed-evidence-highlight')).toHaveLength(0)
-  })
 
   it('a focused Evidence survives a poll of the same Extraction and clears for another one', () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
@@ -138,7 +98,7 @@ describe('partial links (design §1)', () => {
     const { container, containerRef, viewerRef } = viewerWithPage(anchor)
     const { result, rerender } = renderHook(({ attempt }) => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument, attempt,
-      resultPath: ['records'], active: true, partialEvidenceLinks: null,
+      resultPath: ['records'], active: true,
     }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'] } })
     act(() => result.current(anchor))
     expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(1)
@@ -148,7 +108,7 @@ describe('partial links (design §1)', () => {
     expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
   })
 
-  it('keeps an off-page Evidence selection through settlement while its PDF page renders', () => {
+  it('keeps an off-page Evidence selection through a later read while its PDF page renders', () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const firstAnchor = parsedDocument.evidence_index.anchors[0]
     if (firstAnchor.kind !== 'text') throw new Error('The off-page focus fixture requires a text Evidence anchor.')
@@ -177,16 +137,19 @@ describe('partial links (design §1)', () => {
       { resultPath: ['records', 0, 'title'], evidenceAnchorId: firstAnchor.anchor_id },
       { resultPath: ['records', 1, 'title'], evidenceAnchorId: secondAnchor.anchor_id },
     ]
-    const { result, rerender } = renderHook(({ attempt }) => useEvidenceOverlays({
-      containerRef, viewerRef, parsedDocument: source, attempt,
-      resultPath: ['records'], active: true, partialEvidenceLinks: evidenceLinks,
-    }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'] } })
+    const marks = (selected: string | null) => ({ describe: new Map(), selected, onSelect: vi.fn(),
+      savedLinks: evidenceLinks.map((link) => ({ key: JSON.stringify(link.resultPath), link })) })
+    const { result, rerender } = renderHook(({ attempt, marks }) => useEvidenceOverlays({
+      containerRef, viewerRef, parsedDocument: source, attempt, marks,
+      resultPath: ['records'], active: true,
+    }), { initialProps: { attempt: running as Parameters<typeof useEvidenceOverlays>[0]['attempt'], marks: marks(null) } })
 
     act(() => result.current(secondAnchor))
     expect(viewer.scrollPageIntoView).toHaveBeenCalledExactlyOnceWith({ pageNumber: 2 })
     expect(container.querySelectorAll('.parsed-evidence-focus')).toHaveLength(0)
 
-    rerender({ attempt: { ...running, executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', evidenceLinks } })
+    // The durable reader's next read of the same Extraction repaints its marks.
+    rerender({ attempt: { ...running }, marks: marks(null) })
     expect(viewer.scrollPageIntoView).toHaveBeenCalledExactlyOnceWith({ pageNumber: 2 })
 
     container.insertAdjacentHTML('beforeend', '<div class="page" data-page-number="2"></div>')
@@ -241,8 +204,9 @@ describe('marks select their values (results review redesign §7.2)', () => {
     ])
     renderHook(() => useEvidenceOverlays({
       containerRef: { current: container }, viewerRef: { current: { scrollPageIntoView: vi.fn() } as never }, parsedDocument,
-      attempt: { extractionId: 'x', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', evidenceLinks: links, reviewDecisions: [] },
-      resultPath: [], active: true, marks: { describe, selected: JSON.stringify(['records', 0, 'subtitle']), onSelect },
+      attempt: { extractionId: 'x' },
+      resultPath: [], active: true, marks: { describe, selected: JSON.stringify(['records', 0, 'subtitle']), onSelect,
+        savedLinks: links.map((link) => ({ key: JSON.stringify(link.resultPath), link })) },
     }))
     const marks = container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')
     expect(marks).toHaveLength(anchor.producer_observations.length)
@@ -267,9 +231,9 @@ describe('mark precision, focus and navigation ownership', () => {
     document.body.append(container)
     const viewer = { scrollPageIntoView: vi.fn(), eventBus: { on: vi.fn(), off: vi.fn() } }
     const key = JSON.stringify(['records', 0, 'title'])
-    const attempt = { extractionId: 'mark-run', executionStatus: 'COMPLETED' as const, outcome: 'SUCCEEDED' as const,
-      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, precision }], reviewDecisions: [] }
-    const marks = { describe: new Map([[key, { name: 'title', value: 'Alpha', word: null, style: 'link' as const, anchorId: anchor.anchor_id }]]), selected: null as string | null, onSelect: vi.fn() }
+    const attempt = { extractionId: 'mark-run' }
+    const marks = { describe: new Map([[key, { name: 'title', value: 'Alpha', word: null, style: 'link' as const, anchorId: anchor.anchor_id }]]), selected: null as string | null, onSelect: vi.fn(),
+      savedLinks: [{ key, link: { resultPath: ['records', 0, 'title'], evidenceAnchorId: anchor.anchor_id, precision } }] }
     const containerRef = { current: container }, viewerRef = { current: viewer as never }
     const hook = renderHook(({ attempt, marks }) => useEvidenceOverlays({
       containerRef, viewerRef, parsedDocument, attempt, resultPath: [], active: true, marks,

@@ -364,9 +364,6 @@ export async function startRealService(logFile: string,
         return orphans
       } finally { await client.end() }
     },
-    keiExtractStepFinished: async (workflowID: string) =>
-      (await keiClient.listWorkflowSteps(workflowID))?.some((step) =>
-        step.name === 'extract_run' && step.completedAtEpochMs !== undefined) ?? false,
     async restart() { await Promise.all([stop(api), stop(worker)]); await boot() },
     async killWorker() { const running = worker; if (!running) throw new Error('Worker is not running.')
       running.child.kill('SIGKILL'); await running.exited

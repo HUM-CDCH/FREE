@@ -492,9 +492,6 @@ export default function ProjectContextPage({
   // suggestion's "Confirm schema" runs an Article batch, and admission refuses
   // a start whose method is stale.
   const savedMethod = useSavedMethod()
-  // The review grid is a spreadsheet: it earns the full viewport instead of
-  // the reading-width column every other tab renders in.
-  const isGridScreen = resource.tab === 'extractions' && resource.view === 'grid'
   const {
     projects,
     branches,
@@ -863,11 +860,7 @@ export default function ProjectContextPage({
   return (
     <div className="scrollbar-subtle flex h-full flex-col overflow-y-auto">
       <div
-        className={
-          isGridScreen
-            ? 'flex w-full shrink-0 flex-col gap-6 px-4 pt-6 sm:px-8 sm:pt-8'
-            : 'mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-6 px-4 pt-6 sm:p-8 sm:pb-0'
-        }
+        className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-6 px-4 pt-6 sm:p-8 sm:pb-0"
       >
         <header>
           {renaming && project ? (
@@ -987,11 +980,7 @@ export default function ProjectContextPage({
       </div>
 
       <div
-        className={
-          isGridScreen
-            ? 'flex flex-col px-4 pb-6 sm:px-8 sm:pb-8'
-            : 'mx-auto w-full max-w-3xl flex-1 px-4 pb-28 sm:p-8 sm:pb-28'
-        }
+        className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 sm:p-8 sm:pb-28"
       >
         {tab === 'extractions' ? (
           <>
@@ -1009,16 +998,12 @@ export default function ProjectContextPage({
                 ? (resource.batchExtractionId ?? null)
                 : null
             }
-            openBatchExtractionView={
-              resource.tab === 'extractions' ? (resource.view ?? null) : null
-            }
             pilotSchemaRevisionId={
               resource.tab === 'extractions'
                 ? (resource.pilotSchemaRevisionId ?? null)
                 : null
             }
             onNavigate={onNavigate}
-            onReviewCommitted={refreshProjects}
           />
           </>
         ) : tab === 'schemas' ? (

@@ -61,7 +61,7 @@ vi.mock('./App', () => ({
             {annotationSet?.annotations[0]?.text ?? 'no annotation'} ·{' '} */}
         Opened {filename} · {pdfUrl} · {String(markdownUrl)} ·{' '}
         {JSON.stringify(extractionSchema?.schemaNodes ?? 'no schema')} ·{' '}
-        {persistedExtraction?.outcome ?? 'no extraction'}
+        {persistedExtraction?.executionStatus ?? 'no extraction'}
       </p>
       <p data-testid="workspace-resources">
         {sourceRepresentationId} · {pdfUrl} · {markdownUrl} ·{' '}
@@ -74,7 +74,7 @@ vi.mock('./App', () => ({
         {JSON.stringify(extractionSchema?.schemaNodes ?? null)}
       </p>
       <p data-testid="workspace-result">
-        {JSON.stringify(persistedExtraction?.resultPayload ?? null)}
+        {JSON.stringify(persistedExtraction?.extractionId ?? null)}
       </p>
       <button type="button" onClick={onInitialResourceLoadFailure}>
         Fail retained artifact
@@ -175,29 +175,13 @@ function hydratedSnapshot() {
       sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
       schemaRevisionId: '51000000-0000-4000-8005-000000000002',
       createdAt: '2026-07-31T12:03:00.000Z',
-      reviewedAt: null,
       strategy: 'ARTICLE',
       catalogRecipe: null,
+      requestedModels: null,
+      requestedSettings: null,
       executionStatus: 'COMPLETED',
-      outcome: 'SUCCEEDED',
-      complete: true,
-      diagnostics: {
-        phase: 'grounding',
-        durationMs: 1,
-        modelCalls: 0,
-        finishReason: null,
-        inputTokens: null,
-        outputTokens: null,
-        grounding: null,
-        catalog: null,
-      },
-      failure: null,
-      resultPayload: { place: 'Ellekilde' },
-      evidenceLinks: [],
-      modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-      reviewable: true,
+      finalizedReview: null,
       batchExtractionId: null,
-      reviewDecisions: [],
       sourceRepresentation: {
         revisionNumber: 2,
         resources: {
@@ -1315,12 +1299,13 @@ describe('Project Context navigation', () => {
       executionStatus: 'COMPLETED',
       members: [
         {
+          extractionId: '51000000-0000-4000-8006-000000000031',
           sourceDocumentId,
           sourceRepresentationRevisionId:
             '51000000-0000-4000-8002-000000000001',
           executionStatus: 'COMPLETED',
-          executionFailureMessage: null,
-          latestExtraction: null,
+          reviewable: false,
+          currentReview: null,
         },
       ],
     }
@@ -2355,7 +2340,7 @@ describe('routed Source Document reopening', () => {
     renderRoutes(studioFetch(() => Response.json(hydratedSnapshot())))
 
     expect(
-      await screen.findByText(/place.*SUCCEEDED/),
+      await screen.findByText(/place.*COMPLETED/),
     ).toBeInTheDocument()
   })
 
@@ -2436,7 +2421,7 @@ describe('routed Source Document reopening', () => {
     await waitFor(() => expect(reopens).toHaveLength(3))
     await Promise.resolve()
     expect(screen.getByTestId('workspace-source-current')).toHaveTextContent(/^superseded$/)
-    expect(screen.getByTestId('workspace-result')).toHaveTextContent('place')
+    expect(screen.getByTestId('workspace-result')).toHaveTextContent('51000000-0000-4000-8006-000000000001')
     expect(screen.queryByRole('heading', { name: /could not be opened|cannot be reopened/ })).not.toBeInTheDocument()
   })
 
@@ -2487,7 +2472,7 @@ describe('routed Source Document reopening', () => {
       ...reopened.latestAttempt,
       sourceRepresentationRevisionId: historicalRepresentationId,
       schemaRevisionId: '51000000-0000-4000-8005-000000000009',
-      resultPayload: { place: 'Historical persisted result' },
+      extractionId: '51000000-0000-4000-8006-000000000019',
       sourceRepresentation: {
         revisionNumber: 1,
         resources: {
@@ -2515,7 +2500,7 @@ describe('routed Source Document reopening', () => {
       'historical_place',
     )
     expect(screen.getByTestId('workspace-result')).toHaveTextContent(
-      'Historical persisted result',
+      '51000000-0000-4000-8006-000000000019',
     )
   })
 

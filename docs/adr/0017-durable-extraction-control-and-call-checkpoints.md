@@ -19,6 +19,34 @@ corrections, source Evidence, restricted coordination, and the admission gate
 remain required. This amendment supersedes the original planning map's legacy
 release requirements; it does not change the settled durable product decisions.
 
+## Durable-only amendment
+
+Amendment, 2026-10-05: the user required durable-only code with no legacy
+implementation or compatibility shim. Admission, readers, review, finalization
+and exports now use the durable model alone. The non-durable `runExtraction`
+workflow and its registration, path/anchor Review Drafts and settlement, the
+review/draft/reset/cancel routes, the batch review grid and the old result and
+batch exports were deleted. While `DURABLE_RELEASE_VERIFIED` is false every new
+single, Batch and suggested-Batch admission is refused before any row is
+written; saved durable Extractions stay readable, controllable, reviewable and
+exportable. A public Extraction row without a live coordination head is not
+listed or opened. No historical migration or table drop was made. The Parsing
+Service's `extract` workflow, its artifact and progress routes, the stage files
+and write-once records it published beside a run, and its `kei-extract:`
+contract were deleted too. The worker registers only `convert`, `deleteRuns`
+and the durable `extractDurableV1`, `extractionCallV1` and
+`deleteDurableHistoryV1` workflows; durable attempts keep the `kei-extract`
+lane. Studio's and the Parsing Service's garbage collection keep only current
+ownership: a run stays while a surviving revision or any durable head,
+tombstoned heads included, pins it, and a deleted graph's DBOS history goes
+only after its native calls are quiescent. Project summaries and activity count
+an Extraction as extracted only once it is COMPLETED, and as reviewed once any
+of its result/decision pairs is finalized, whatever its processing state. The
+living `canonical-evidence-lifecycle` specification and the retired
+`result-tree-navigator` specification were reconciled with this model by the
+OpenSpec change `durable-only-extraction-review`, which stays open until its
+infrastructure acceptance passes.
+
 ## Candidate implementation and integration status
 
 The candidate lives on `feat/durable-interactive-extraction`, based on current

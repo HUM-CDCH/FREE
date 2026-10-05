@@ -233,14 +233,20 @@ registration and rotation:
 
 ## Extraction execution
 
-### Durable interactive extraction candidate
+### Durable extraction (admissions disabled)
 
-The protocol-1 implementation is an admission-disabled candidate governed by
+Every Extraction is a protocol-1 durable Extraction governed by
 [ADR 0017](docs/adr/0017-durable-extraction-control-and-call-checkpoints.md) and
-[its release matrix](docs/plans/2026-10-04-durable-interactive-extraction-release.md).
-`DURABLE_RELEASE_VERIFIED` remains false; environment configuration alone cannot
-admit it. This pre-production feature adds no historical extraction migration or
-compatibility layer.
+[its release matrix](docs/plans/2026-10-04-durable-interactive-extraction-release.md);
+there is no second execution, review or export path. `DURABLE_RELEASE_VERIFIED`
+remains false and environment configuration alone cannot open it, so every new
+single, Batch and suggested-Batch admission is refused with
+`extraction_admissions_disabled` (HTTP 409) before any row, coordination head or
+workflow is written. Saved durable Extractions stay readable, controllable,
+reviewable and exportable. A public Extraction row without a live coordination
+head is not an Extraction: readers neither list nor open it. This pre-production
+change adds no historical extraction migration or compatibility layer, and
+drops no table.
 
 A protocol-1 Extraction retains one visible identity across Pause, Resume and
 Retry. Pause drains and saves admitted calls before becoming Paused; Stop is
@@ -259,21 +265,23 @@ the correction's own source; incompatible corrections remain historical and do
 not enter the consuming target's context. No automatic guidance-conflict
 classification is performed.
 
-The candidate uses the shared results-review rail with stable saved-value IDs
-and whole-field typed corrections. Historical review uses its producing schema
-and pinned Source Representation. A finalized result/decision pair remains
-available beside later work; it does not freeze the Extraction. Export bundles
-fix value and decision versions and attach execution history observed at a
-recorded capture time. Batch members retain independent cuts and remain openable
-and exportable when paused, failed or stopped.
+Results use the shared results-review rail with stable saved-value IDs and
+whole-field typed corrections. Historical review uses its producing schema and
+pinned Source Representation. The rail always names the selected result and
+decision versions and any newer saved ones; finalization names the pair it
+finalizes, and a deliberately older pair may be finalized. A finalized
+result/decision pair remains available beside later work; it does not freeze the
+Extraction, and "Latest reviewed" opens that finalized pair. Export bundles fix
+value and decision versions and attach execution history observed at a recorded
+capture time. Batch members retain independent cuts and remain openable and
+exportable when paused, failed or stopped; there is no batch-wide review grid.
 
-The existing extraction implementation remains available while this candidate’s
-admissions are disabled. The integrated candidate passed its guarded checks and
-required E2E verification on baratheon Spark; exact cuts, conditional skips and
-review are recorded in the
-[integration evidence](docs/validation/2026-10-04-durable-review-integration-verification.md).
-Durable admissions remain hard OFF after verification. This work does not
-authorize a production migration, merge, deployment or enablement.
+The integrated candidate passed its guarded checks and required E2E verification
+on baratheon Spark at the source cuts recorded in the
+[integration evidence](docs/validation/2026-10-04-durable-review-integration-verification.md);
+that evidence predates the durable-only follow-up and does not cover it. Durable
+admissions remain hard OFF. This work does not authorize a production migration,
+merge, deployment or enablement.
 
 
 FREE sends the pinned schema and the Source Document's run ID to the included
@@ -295,9 +303,9 @@ deployment sets `FREE_CATALOG_METHOD=unified`, the one unified Catalog method
 for single and batch work alike, with no recipe). Admission
 compares that method with the account's saved one under the configuration
 row's lock and refuses a stale one, starting nothing; otherwise it pins the
-method on the Extraction (and on the Batch Extraction and each member).
-`runExtraction` sends only the pinned method, also after a restart; saving new
-settings affects only later admissions. A repeated request with the same
+method on the Extraction's first durable input selection (and on the Batch
+Extraction and each member). Durable call captures carry only the pinned method,
+also after a restart; saving new settings affects only later admissions. A repeated request with the same
 Extraction ID and method replays its Extraction; the same ID with another
 method is a conflict. Extraction details show the requested method beside the
 options and protocol versions the Parsing Service reports; a run from before
@@ -306,17 +314,16 @@ authority on method rules and re-validates every request; Studio's copy of the
 rules (`packages/extraction/src/extraction-method.ts`) is pinned to it by shared
 fixtures in `prototypes/parsing_service/tests/fixtures/contracts/`. Schema
 Suggestion and Interaction use the configured Capability Routes, and an unset
-route runs on the deployment's instruction model. Each Extraction runs as a
-durable workflow: Studio hands it to the Parsing Service's worker on its
-extraction lane. Each Schema Revision declares its Record Scope through the
+route runs on the deployment's instruction model. Each Extraction runs as
+durable attempts: Studio's reconciler dispatches `extractDurableV1` to the
+Parsing Service's worker on its extraction lane. Each Schema Revision declares its Record Scope through the
 Article/Catalog selection: Article returns exactly one document-level object,
 gathered from the complete source; Catalog returns a collection of records.
 Admission refuses an undeclared scope or a strategy that contradicts it, and a
 result whose root count breaks the scope is refused. Article and Catalog have three-hour
-execution deadlines, counted from when the worker starts them. Cancelling an Extraction
-records the cancellation and stops the Parsing Service's work too. A failed
-extraction carries the Parsing Service's own reason. There is no targeted
-Catalog retry; start a new Extraction to rerun.
+execution deadlines, counted from when the worker starts them. Pause drains
+admitted calls; Stop is terminal and keeps saved values, corrections and export
+history; Retry continues a failed Extraction with its saved work.
 
 ## Pipeline reference
 
@@ -324,7 +331,7 @@ Studio owns Schema Suggestion and Interaction model calls; the Parsing Service
 owns Extraction model calls and grounding. A Schema Revision identifies the
 approved structure used by an Extraction. Edits create new immutable revisions:
 the Extraction keeps its exact Schema Revision and Source Representation Revision
-pins ([schema](packages/extraction/src/schema.ts), [Studio workflow](packages/extraction/src/workflows.ts)).
+pins ([schema](packages/extraction/src/schema.ts), [durable selections](packages/extraction/src/durable-repository.ts)).
 Neither model keys nor document content enter Studio's workflow inputs.
 
 | Path | Source and prompt owner | Model selection and invocation | Interpretation and publication |
@@ -333,9 +340,9 @@ Neither model keys nor document content enter Studio's workflow inputs.
 | Per-source Batch Schema Suggestion | [`suggestSchemaBatchWorkflow`](prototypes/studio/api/_batch_suggestion_workflow.ts) past the `batch-schema-suggestion-windows` DBOS patch gives each admitted Source Representation Revision a `suggestSource:<id>:window:<n>` step per window, each re-reading the pinned source, then folds its window suggestions (their union) in `suggestSource:<id>:reduce:<level>:<group>` steps. [`suggestBatchSource`](prototypes/studio/api/_schema_suggestion.ts) supplies the per-source instruction to `generateSchemaWithModel`. A run started before the patch keeps one excerpting `suggestSource:<id>` step per source. | The same researcher's Schema Suggestion Route and `executeSchemaSuggestion`, resolved when each call runs. | `suggestBatchSource` and [`combineBatchSchemas`](prototypes/studio/api/_schema_suggestion.ts) convert and check the editable definition with `parseBatchSuggestionDefinition`: ordinary schema validation plus repeated-sibling-name rejection. Each step checks its attempt first and checkpoints a window count and definition, or a sanitized failure, never source text or provider response; the source is declared read whole. |
 | Batch merge | Past the patch, the checkpointed source definitions are intersected level by level by [`reduceSchemas`](prototypes/studio/api/_schema_reduction.ts), a `merge:reduce:<level>:<group>` step per request within the 48,000-character limit, so every suggestion is read; a group holding a suggestion without fields stays without fields, with no call. A run started before the patch keeps its single `merge` step: [`suggestBatchCommon`](prototypes/studio/api/_schema_suggestion.ts) serializes whole labelled suggestions in member order up to the limit and names the ones it left out. It does **not** replace per-source generation. | The same route/execution seam, in separate model calls. | The combination is validated as an editable definition and an empty one is heterogeneous. A suggestion that cannot fit one request fails the merge (`merge_input_too_large`) rather than being left out. The workflow checks the current attempt, then conditionally publishes READY/HETEROGENEOUS with each source's declaration (a pre-patch run may declare suggestions not combined), or a sanitized failure through [`workerSuggestionStore`](prototypes/studio/api/_batch_suggestion_workflow.ts). |
 | Schema editing (Interaction) | [`proposeSchemaEdit`](prototypes/studio/api/_schema_edit.ts) prepares the pinned schema tree and optional source Markdown, builds the edit and bounded repair prompts. [`proposeSchemaEditWorkflow`](prototypes/studio/api/_schema_edit_workflow.ts) owns the pinned reads and step. | [`generateSchemaEditJson`](prototypes/studio/api/_schema_edit.ts) uses [`executeEditPrompt`](prototypes/studio/api/_model_execution.ts), which resolves the researcher's Interaction Route and shares general-adapter output negotiation and credential handling with suggestions. | `generateSchemaEditJson` rejects truncated output; `proposeSchemaEdit` uses the shared JSON parsing and repair path and validates field edits/additions, including the model retry for invalid entries. The edit workflow checkpoints its proposal; [`edit_schema.ts`](prototypes/studio/api/edit_schema.ts) maps its response, not a mutation of the pinned revision. |
-| Article Extraction | [`keiExtractRequest`](packages/extraction/src/workflows.ts) sends the pinned executable schema and parse generation via [`KeiHandoff`](packages/extraction/src/kei-handoff.ts). Python [`extract_run`](prototypes/parsing_service/src/kei_exp/workflows/extract.py) validates the request; [`run.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/run.py) loads canonical [`Evidence`/`Passage`](prototypes/parsing_service/src/kei_exp/kie/passages.py) and refuses a stale generation before any model call; [`article.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/article.py) extracts the one document-level object (Record Scope `document`) from every value context of the full source, combines the contexts without dropping list items, and grounds it; `run.dispatch` refuses any other root count. Shared [`stages.extract_document`/`stages.record_request`](prototypes/parsing_service/src/kei_exp/kie/extract/stages.py) build document/record value prompts, with field guidance and reply schemas from [`schema.notes`/`schema.json_schema`](prototypes/parsing_service/src/kei_exp/kie/extract/schema.py). [`assembly.document_values`](prototypes/parsing_service/src/kei_exp/kie/extract/assembly.py) coordinates document calls, not their prompt construction; grounding prompts and reply schemas live in [`grounding.verify`](prototypes/parsing_service/src/kei_exp/kie/extract/grounding.py). | Every call goes through [`calls.complete`](prototypes/parsing_service/src/kei_exp/kie/extract/calls.py): [`models.Router`](prototypes/parsing_service/src/kei_exp/kie/extract/models.py) sends inventory/grounding to the reasoning model and document/record values to the fields model, [`tokens`](prototypes/parsing_service/src/kei_exp/kie/extract/tokens.py) counts each request on the serving endpoint's `/tokenize`, and [`OpenAIChat`/`NuExtractChat`](prototypes/parsing_service/src/kei_exp/kie/extract/llm.py) invoke the configured extraction endpoints, **not** Studio Capability Routes. | `calls.complete` decodes each reply with `llm.parse_json`, fails a cut-off or unreadable reply without repair and records every attempt as a `Call`. Python schema conformance and grounding precede atomic [`publish_extraction`](prototypes/parsing_service/src/kei_exp/kie/extract/run.py). Studio [`acceptKeiArtifact`](packages/extraction/src/kei-artifact.ts) verifies artifact identity, schema and evidence anchors before [`runExtractionWorkflow`](packages/extraction/src/workflows.ts) settles the Extraction. The [pipeline map](prototypes/parsing_service/docs/extraction-experiments.md#pipeline-map) lists every call purpose. |
-| Generic Catalog Extraction | The same pinned handoff and canonical Evidence load. Without `options.catalog.recipe`, [`run.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/run.py) dispatches to [`catalog.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/catalog.py): chunked labelled-block discovery, per-record source slices, values and grounding. [`catalog.discover`](prototypes/parsing_service/src/kei_exp/kie/extract/catalog.py) builds the boundary-discovery prompt and reply schema; record values delegate to shared [`stages.extract_record`/`stages.record_request`](prototypes/parsing_service/src/kei_exp/kie/extract/stages.py), and document values to `stages.extract_document`. Field guidance and reply schemas come from [`schema`](prototypes/parsing_service/src/kei_exp/kie/extract/schema.py). | The same `calls.complete`: `models.Router` assigns discovery/grounding to reasoning and record/document values to fields; character budgets (`discovery_chars`, `record_chars`) stand in for token counting; `llm.py` sends the calls. | `catalog.discover` reads the record boundaries, `schema.conform` conforms values and `grounding.verify` links them to their slice's passages; `publish_extraction` writes the version-1 result; `acceptKeiArtifact` verifies it before Studio settles. A recipe is **optional** and distinct: `options.catalog.recipe` dispatches to [`grounded.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/grounded.py), with segmentation, token-budgeted entry calls through the same `calls.complete` and version-2 span Evidence. It does not replace generic Catalog. |
-| Unified Catalog Extraction (behind `FREE_CATALOG_METHOD=unified`) | The same pinned handoff with `options.unified` and no recipe. [`unified.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/unified.py) publishes its execution record, runs [`discovery.discover`](prototypes/parsing_service/src/kei_exp/kie/extract/discovery.py) over counted windows of the whole source and publishes its discovery record and source ledger, then reads every entry and the document fields in counted windows. | The same `calls.complete` with a counter for every call: discovery, verification and arbitration on reasoning, entries and document fields on fields; each stage's reply reserve is counted before the call. | Code checks each `{value, quote}` candidate; only candidates a separate verification supports are accepted; version-3 `publish_extraction`; `acceptKeiArtifact` requires a unified request, the embedded records' digests and pins, and Studio shows accounting, processing and evidence separately. |
+| Article Extraction | Admission pins the executable schema, method and parse generation in the Extraction's first durable input selection ([`initializeDurableExtraction`](packages/extraction/src/durable-repository.ts)); the reconciler dispatches Python [`extractDurableV1`](prototypes/parsing_service/src/kei_exp/workflows/durable_extract.py), whose planner validates the selection and captures every call before it runs; [`run.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/run.py) loads canonical [`Evidence`/`Passage`](prototypes/parsing_service/src/kei_exp/kie/passages.py) and refuses a stale generation before any model call; [`article.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/article.py) extracts the one document-level object (Record Scope `document`) from every value context of the full source, combines the contexts without dropping list items, and grounds it; [`run.dispatch`](prototypes/parsing_service/src/kei_exp/kie/extract/run.py) refuses any other root count. Shared [`stages.extract_document`/`stages.record_request`](prototypes/parsing_service/src/kei_exp/kie/extract/stages.py) build document/record value prompts, with field guidance and reply schemas from [`schema.notes`/`schema.json_schema`](prototypes/parsing_service/src/kei_exp/kie/extract/schema.py). [`assembly.document_values`](prototypes/parsing_service/src/kei_exp/kie/extract/assembly.py) coordinates document calls, not their prompt construction; grounding prompts and reply schemas live in [`grounding.verify`](prototypes/parsing_service/src/kei_exp/kie/extract/grounding.py). | Every call goes through [`calls.complete`](prototypes/parsing_service/src/kei_exp/kie/extract/calls.py): [`models.Router`](prototypes/parsing_service/src/kei_exp/kie/extract/models.py) sends inventory/grounding to the reasoning model and document/record values to the fields model, [`tokens`](prototypes/parsing_service/src/kei_exp/kie/extract/tokens.py) counts each request on the serving endpoint's `/tokenize`, and [`OpenAIChat`/`NuExtractChat`](prototypes/parsing_service/src/kei_exp/kie/extract/llm.py) invoke the configured extraction endpoints, **not** Studio Capability Routes. | `calls.complete` decodes each reply with `llm.parse_json`, fails a cut-off or unreadable reply without repair and records every attempt as a `Call`. Python schema conformance and grounding precede `publishExtractionResultV1`, which publishes the saved values as a fixed result snapshot through the restricted coordination routines; Studio projects their Evidence with [`kei-evidence`](packages/extraction/src/kei-evidence.ts) and reviews them through the [durable repository](packages/extraction/src/durable-repository.ts). The [pipeline map](prototypes/parsing_service/docs/extraction-experiments.md#pipeline-map) lists every call purpose. |
+| Generic Catalog Extraction | The same pinned handoff and canonical Evidence load. Without `options.catalog.recipe`, [`run.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/run.py) dispatches to [`catalog.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/catalog.py): chunked labelled-block discovery, per-record source slices, values and grounding. [`catalog.discover`](prototypes/parsing_service/src/kei_exp/kie/extract/catalog.py) builds the boundary-discovery prompt and reply schema; record values delegate to shared [`stages.extract_record`/`stages.record_request`](prototypes/parsing_service/src/kei_exp/kie/extract/stages.py), and document values to `stages.extract_document`. Field guidance and reply schemas come from [`schema`](prototypes/parsing_service/src/kei_exp/kie/extract/schema.py). | The same `calls.complete`: `models.Router` assigns discovery/grounding to reasoning and record/document values to fields; character budgets (`discovery_chars`, `record_chars`) stand in for token counting; `llm.py` sends the calls. | `catalog.discover` reads the record boundaries, `schema.conform` conforms values and `grounding.verify` links them to their slice's passages; the durable attempt publishes the version-1 values as a saved result snapshot. A recipe is **optional** and distinct: `options.catalog.recipe` dispatches to [`grounded.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/grounded.py), with segmentation, token-budgeted entry calls through the same `calls.complete` and version-2 span Evidence. It does not replace generic Catalog. |
+| Unified Catalog Extraction (behind `FREE_CATALOG_METHOD=unified`) | The same pinned handoff with `options.unified` and no recipe. [`unified.extract`](prototypes/parsing_service/src/kei_exp/kie/extract/unified.py) publishes its execution record, runs [`discovery.discover`](prototypes/parsing_service/src/kei_exp/kie/extract/discovery.py) over counted windows of the whole source and publishes its discovery record and source ledger, then reads every entry and the document fields in counted windows. | The same `calls.complete` with a counter for every call: discovery, verification and arbitration on reasoning, entries and document fields on fields; each stage's reply reserve is counted before the call. | Code checks each `{value, quote}` candidate; only candidates a separate verification supports are accepted; version-3 values published as a saved result snapshot; Studio shows processing and Evidence separately. |
 
 These are different validation boundaries, not equivalent schema validators:
 [`parseSchemaDefinition`](packages/extraction/src/schema.ts) accepts an editable
@@ -343,8 +350,8 @@ TypeScript tree (including zero fields); batch suggestions additionally use
 `parseBatchSuggestionDefinition` to forbid repeated sibling field names. At
 execution, Python [`Schema`](prototypes/parsing_service/src/kei_exp/kie/extract/schema.py)
 requires at least one field and unique sibling names and builds strict call
-schemas; [`acceptKeiArtifact`](packages/extraction/src/kei-artifact.ts) validates
-the returned artifact. Historical Schema Revisions remain pinned, readable
+schemas; [`durableValueSchema`](packages/extraction/src/durable-contract.ts) validates
+each saved value and its producer Evidence. Historical Schema Revisions remain pinned, readable
 research records, not retroactively revalidated or rewritten to match a
 later executable-input rule.
 

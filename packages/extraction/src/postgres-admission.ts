@@ -1,8 +1,10 @@
 /**
  * Owns admission: the identities an Extraction or a Batch Extraction is admitted under, and the transactions that
- * commit each row together with its `runExtraction` workflow on one pooled client (ADR 0012: row-backed work is
- * enqueued in the same transaction as its rows). New work pins the document's current revision under its row lock; a
- * repeated request replays, and a different one under the same identity conflicts.
+ * commit each row, its durable coordination head and its dispatch reconciliation on one pooled client (ADR 0012:
+ * row-backed work is enqueued in the same transaction as its rows; ADR 0017: the durable head owns the visible
+ * lifecycle). New work pins the document's current revision under its row lock; a repeated request replays, and a
+ * different one under the same identity conflicts. While the durable release is unverified, every admission is refused
+ * before any row is written.
  */
 
 import { createHash, randomUUID } from 'node:crypto'
@@ -18,13 +20,11 @@ import {
   type Database,
   type DatabaseOrm,
   type DatabaseTransaction,
-  type WorkflowStatuses,
 } from 'db'
 import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT } from './batch.js'
 import type { ExtractionExecution } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
-import { extractWorkflowId } from './kei-handoff.js'
 import {
   accountMethod,
   canonicalIntent,
@@ -41,11 +41,7 @@ import { refuseRecordScope, storedRecordScope } from './record-scope.js'
 import { parseExtractionSchema, type RecordScope } from './schema.js'
 import { durableAdmissionsEnabled } from './durable-contract.js'
 import { initializeDurableExtraction, DURABLE_RECONCILE } from './durable-repository.js'
-import {
-  EXTRACTION_QUEUE,
-  extractionAttributes,
-  RUN_EXTRACTION,
-} from './workflows.js'
+import { EXTRACTION_QUEUE, extractionAttributes } from './workflows.js'
 import type {
   ExtractionModelChoice,
   ExtractionStrategy,
@@ -56,6 +52,15 @@ import type {
 
 const EXTRACTION_KEY = 'extraction_pkey'
 const BATCH_KEY = 'batchExtraction_pkey'
+
+export const ADMISSIONS_DISABLED_MESSAGE =
+  'Starting new Extractions is unavailable until the durable extraction release is verified. Nothing was started; saved Extractions remain available.'
+
+/** The hard admission gate: while it is off, no Extraction, batch or member row and no workflow is created. */
+export function refuseDisabledAdmission(): void {
+  if (!durableAdmissionsEnabled())
+    throw new ExtractionError('extraction_admissions_disabled', ADMISSIONS_DISABLED_MESSAGE)
+}
 
 export const METHOD_CHANGED_MESSAGE =
   'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
@@ -89,13 +94,6 @@ export function refuseUnusableIdentityFields(settings: ActiveSettings, schemaTre
   const issues = identityFieldIssues(nodes, article.identity_fields)
   if (issues.length > 0) throw new ExtractionError('invalid_identity_fields', identityFieldsMessage(issues))
 }
-
-/**
- * The statuses of work admitted just now: each workflow was enqueued in the transaction that committed its row, so it
- * is QUEUED (an outcome on the row still wins). A created admission answers with them, so a DBOS read cannot turn a
- * committed admission into a failure the client would retry with a new identity.
- */
-export const JUST_ADMITTED: WorkflowStatuses = async (workflowIds) => new Map(workflowIds.map((id) => [id, 'ENQUEUED']))
 
 function canonicalIds(ids: readonly string[]): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
@@ -223,8 +221,8 @@ function workflowIdInUse(error: unknown): boolean {
 }
 
 /**
- * Admits one interactive Extraction: its row and its `runExtraction` workflow commit together on one pooled client
- * (spec, *Admission: one transaction*), or neither does.
+ * Admits one interactive Extraction: its row, its durable head and its dispatch commit together on one pooled client
+ * (spec, *Admission: one transaction*), or none does.
  */
 export async function admitInteractiveExtraction(
   execution: ExtractionExecution,
@@ -232,6 +230,7 @@ export async function admitInteractiveExtraction(
   input: RunSingleInput,
   attempt = 0,
 ): Promise<'created' | 'replayed' | 'conflict' | 'superseded' | 'method-changed' | 'missing'> {
+  refuseDisabledAdmission()
   try {
     return await withPoolClientTransaction(async (transaction, client) => {
       const pins = await resolveAdmission(transaction, researcherAccountId, input)
@@ -283,18 +282,10 @@ export async function admitInteractiveExtraction(
         batchExtractionId: null,
         startPage: pins.startPage,
       })
-      if (durableAdmissionsEnabled()) {
-        await initializeDurableExtraction(client,input.extractionId,pins)
-        await execution.enqueue(client,{workflowName:DURABLE_RECONCILE,
-          workflowID:`durable-dispatch:${input.extractionId}`,queueName:EXTRACTION_QUEUE,
-          authenticatedUser:pins.owner,attributes:extractionAttributes({...pins,batchExtractionId:null})},input.extractionId)
-      } else await execution.enqueue(client, {
-        workflowName: RUN_EXTRACTION,
-        workflowID: extractWorkflowId(input.extractionId),
-        queueName: EXTRACTION_QUEUE,
-        authenticatedUser: pins.owner,
-        attributes: extractionAttributes({ ...pins, batchExtractionId: null }),
-      }, input.extractionId)
+      await initializeDurableExtraction(client,input.extractionId,pins)
+      await execution.enqueue(client,{workflowName:DURABLE_RECONCILE,
+        workflowID:`durable-dispatch:${input.extractionId}`,queueName:EXTRACTION_QUEUE,
+        authenticatedUser:pins.owner,attributes:extractionAttributes({...pins,batchExtractionId:null})},input.extractionId)
       return 'created'
     })
   } catch (error) {
@@ -319,8 +310,8 @@ export const SUGGESTED_BATCH_KEYS = [
 ] as const
 
 /**
- * Admits a Batch Extraction: the batch, one pending Extraction per selected Source Document (deterministic IDs) and
- * every member's `runExtraction` workflow commit together on one pooled client. Each member pins its document's
+ * Admits a Batch Extraction: the batch, one durable Extraction per selected Source Document (deterministic IDs) and
+ * every member's dispatch commit together on one pooled client. Each member pins its document's
  * current revision under the document's row lock, taken in sorted order so batches and reprocesses never deadlock
  * (PR #140). The researcher's saved method is compared under the account configuration's lock after those, and pinned
  * once on the batch and every member.
@@ -366,6 +357,7 @@ export async function admitBatchExtraction(
   researcherAccountId: string,
   input: ScheduleBatchInput,
 ): Promise<ScheduleBatchResult | null> {
+  refuseDisabledAdmission()
   const method = batchMethod(input)
   const batchExtractionId =
     input.repetition === 'create-new' ? randomUUID() : selectionId(input, method)
@@ -377,7 +369,6 @@ export async function admitBatchExtraction(
       researcherAccountId,
       input.projectContextId,
       batchExtractionId,
-      execution.statuses,
     )
     if (
       !batch ||
@@ -540,7 +531,6 @@ export async function admitBatchExtraction(
     researcherAccountId,
     input.projectContextId,
     batchExtractionId,
-    JUST_ADMITTED,
   )
   if (!batch)
     throw new Error('Persisted Batch Extraction could not be read.')
@@ -562,13 +552,15 @@ export type BatchMemberAdmission = Readonly<{
   preprocessId: string
 }>
 
-/** One pending member Extraction and its `runExtraction` workflow, in the batch's admission transaction. */
+/** One durable member Extraction and its dispatch, in the batch's admission transaction. */
 export async function admitBatchMember(
   orm: DatabaseOrm,
   client: Parameters<ExtractionExecution['enqueue']>[0],
   execution: ExtractionExecution,
   member: BatchMemberAdmission,
 ): Promise<void> {
+  // Every caller refused a disabled admission before its transaction; this keeps a member from committing regardless.
+  refuseDisabledAdmission()
   const id = batchMemberExtractionId(member.batchExtractionId, member.sourceDocumentId)
   await orm.public.Extraction.create({
     id,
@@ -581,19 +573,11 @@ export async function admitBatchMember(
     requestedSettings: member.requestedSettings,
     batchExtractionId: member.batchExtractionId,
   })
-  if (durableAdmissionsEnabled()) {
-    const schema = await orm.public.SchemaRevision.select('schemaTree','recordScope').first({id:member.schemaRevisionId})
-    if (!schema) throw new ExtractionError('invalid_extraction_pins','The selected Schema Revision is unavailable.')
-    await initializeDurableExtraction(client,id,{...member,catalogRecipe:null,
-      schemaTree:{...parseExtractionSchema(schema.schemaTree),recordScope:schema.recordScope}})
-    await execution.enqueue(client,{workflowName:DURABLE_RECONCILE,workflowID:`durable-dispatch:${id}`,
-      queueName:EXTRACTION_QUEUE,authenticatedUser:member.owner,attributes:extractionAttributes(member)},id)
-  } else await execution.enqueue(client, {
-    workflowName: RUN_EXTRACTION,
-    workflowID: extractWorkflowId(id),
-    queueName: EXTRACTION_QUEUE,
-    authenticatedUser: member.owner,
-    attributes: extractionAttributes(member),
-  }, id)
+  const schema = await orm.public.SchemaRevision.select('schemaTree','recordScope').first({id:member.schemaRevisionId})
+  if (!schema) throw new ExtractionError('invalid_extraction_pins','The selected Schema Revision is unavailable.')
+  await initializeDurableExtraction(client,id,{...member,catalogRecipe:null,
+    schemaTree:{...parseExtractionSchema(schema.schemaTree),recordScope:schema.recordScope}})
+  await execution.enqueue(client,{workflowName:DURABLE_RECONCILE,workflowID:`durable-dispatch:${id}`,
+    queueName:EXTRACTION_QUEUE,authenticatedUser:member.owner,attributes:extractionAttributes(member)},id)
 }
 export type AdmitBatchMember = typeof admitBatchMember

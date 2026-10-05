@@ -126,17 +126,9 @@ def converted_run(runs_root: Path, workflow_id: str, case: str = "headings") -> 
     return run_id
 
 
-def extract_request(run_id: str, generation: str, options: dict | None = None) -> dict:
-    """An `extract` input; by default the recipe's grounded Catalog."""
-    from tests.test_extract_grounded import SCHEMA
-    options = {"strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}} if options is None else options
-    return {"run_id": run_id, "generation": generation, "request": {"schema": SCHEMA, "options": options}}
-
-
 class Gate:
-    """Holds chosen workflows' steps inside a native-like call until released; records when each entered and left.
-    Keyed by DBOS.workflow_id, which only a sync step's own thread carries: Catalog chunk threads have none, so
-    tests keep KEI_CATALOG_CHUNKS unset (1) when a chat double calls a gate."""
+    """Holds chosen workflows inside a native-like call until released; records when each entered and left.
+    Keyed by DBOS.workflow_id, which a workflow's and a sync step's own thread carry, never a worker pool's."""
     def __init__(self) -> None:
         self.entered: dict[str, float] = {}
         self.left: dict[str, float] = {}

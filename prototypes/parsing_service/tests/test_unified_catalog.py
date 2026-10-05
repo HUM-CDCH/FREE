@@ -9,7 +9,6 @@ budgets are easy to reason about; the chat reports the same count, as an honest 
 import json
 import os
 import re
-from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -18,8 +17,7 @@ import pytest
 import requests
 from pydantic import ValidationError
 
-from kei_exp.canonical import canonical_json
-from kei_exp.kie.extract import discovery, progress, run, unified
+from kei_exp.kie.extract import discovery, run, unified
 from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.models import as_router
 from kei_exp.kie.passages import Evidence, Passage, load
@@ -135,11 +133,11 @@ def request(schema=SCHEMA, start_page: int | None = None, **settings) -> run.Ext
         **({"start_page": start_page} if start_page is not None else {})}})
 
 
-def extract(source: Evidence, model=None, *, schema=SCHEMA, counter=None, run_dir=None, extraction_id=None,
+def extract(source: Evidence, model=None, *, schema=SCHEMA, counter=None, run_dir=None,
             start_page: int | None = None, **settings):
     chat = CountingChat(model or Model(source))
     result = unified.extract(run_dir, source, request(schema, start_page, **settings), as_router(chat),
-                             counter=counter or WordCounter(), extraction_id=extraction_id)
+                             counter=counter or WordCounter())
     assert_links_resolve(result)
     return result, chat
 
@@ -861,217 +859,10 @@ def test_a_start_page_is_a_strict_one_based_integer_that_the_artifact_never_reco
             run.Options.model_validate({"strategy": "article", "start_page": refused})
 
 
-def test_the_records_are_published_once_and_reused_on_re_execution(tmp_path):
-    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
-    first, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
-    directory = tmp_path / "extractions" / "x1"
-    for name, key in (("catalog-execution.json", "execution"), ("catalog-discovery.json", "discovery")):
-        assert (directory / name).read_bytes() == canonical_json(first[key])
-        assert unified.digest(first[key]) == first[f"{key}_sha256"]
-    assert first["discovery"]["execution_sha256"] == first["execution_sha256"]
-    again, chat = extract(source, run_dir=tmp_path, extraction_id="x1")
-    assert not any(call["system"].startswith("You find where") for call in chat.calls)  # discovery reused
-    assert again["discovery_sha256"] == first["discovery_sha256"] and again["records"] == first["records"]
-    assert [call["stage"] for call in again["calls"]].count("discovery") == 1  # its calls stay accounted for
-
-
-def test_budgets_the_environment_can_no_longer_honor_are_refused(tmp_path):
-    source = evidence("1. Adorf. Material: Holz.")
-    extract(source, run_dir=tmp_path, extraction_id="x1")
-    smaller = WordCounter()
-    smaller.context_tokens = 8_192
-    with pytest.raises(unified.BudgetRefused, match="budget_unhonorable"):
-        extract(source, counter=smaller, run_dir=tmp_path, extraction_id="x1")
-
-
-def test_records_of_other_inputs_are_a_conflict_never_replaced(tmp_path):
-    source = evidence("1. Adorf. Material: Holz.")
-    extract(source, run_dir=tmp_path, extraction_id="x1")
-    execution = tmp_path / "extractions" / "x1" / "catalog-execution.json"
-    before = execution.read_bytes()
-    with pytest.raises(unified.RecordConflict):
-        extract(source, run_dir=tmp_path, extraction_id="x1", overlap=0)
-    assert execution.read_bytes() == before
-
-
-def test_a_crash_after_the_execution_record_resumes_with_it(tmp_path):
-    source = evidence("1. Adorf. Material: Holz.")
-    model = Model(source)
-
-    def crash(system, user, schema):
-        if system.startswith("You find where"):
-            raise RuntimeError("worker killed")
-        return model(system, user, schema)
-    with pytest.raises(RuntimeError):
-        extract(source, crash, run_dir=tmp_path, extraction_id="x1")
-    directory = tmp_path / "extractions" / "x1"
-    assert (directory / "catalog-execution.json").exists() and not (directory / "catalog-discovery.json").exists()
-    result, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
-    assert result["records"][0]["material"] == "Holz"
-
-
-def test_a_different_discovery_published_first_is_a_conflict(tmp_path):
-    source = evidence("1. Adorf. Material: Holz.")
-    first, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
-    path = tmp_path / "extractions" / "x1" / "catalog-discovery.json"
-    path.unlink()
-    rival = {**first["discovery"], "entries": []}
-
-    class Racing(Model):
-        def discover(self, user):
-            path.write_bytes(canonical_json(rival))  # another recovery publishes first
-            return super().discover(user)
-    with pytest.raises(unified.RecordConflict):
-        extract(source, Racing(source), run_dir=tmp_path, extraction_id="x1")
-    assert json.loads(path.read_bytes()) == rival
-
-
-RICH = evidence("Vorwort.\n1. Adorf. Material: Holz. Gilded. Find: Nadel (2). Find: Fibel (1).\n"
-                "2. Bdorf. Material: Stein. Material: Stein.\n3. Cdorf. Material: Gold. Find: Perle (3).\n4. Ddorf. Material: Zinn.")
-LONG = evidence("1. Adorf.\n" + "\n".join(f"Find: F{n} ({n}). " + "filler " * 60 for n in range(1, 7)) +
-                "\n2. Bdorf. Material: Holz. " + " ".join(["Text"] * 700) + " Material: Stein.\n3. Cdorf. Material: Gold.")
-
-
-def last_material(record, user, schema):
-    answer = fields(record, user, schema)
-    if material := re.findall(r"Material: (\w+)", record):
-        answer["material"] = candidate(material[-1], f"Material: {material[-1]}")
-    return answer
-
-
-def rich_verdict(path, value, record):
-    return "unsupported" if value == "Bdorf" else "unclear" if value == "4" else "supported"
-
-
-CASES = [(RICH, lambda source: Model(source, verdict=rich_verdict), "3. Cdorf", {}),
-         (LONG, lambda source: Model(source, entry=last_material, choice="NONE"), "3. Cdorf",
-          {"input_tokens": 520, "output_tokens": 64, "overlap": 0})]
-
-
-def entry_file(number: int) -> str:
-    return f"catalog-entry-{number}.v{unified.ENTRY_VERSION}.json"
-
-
-def entry_records(directory) -> list[str]:
-    """The finished entry records: the partial view's stage files (`.reading`, `.candidates`) are not records."""
-    return sorted(path.name for path in directory.glob("catalog-entry-*.json")
-                  if re.fullmatch(r"catalog-entry-\d+\.v\d+\.json", path.name))
-
-
-def comparable(result: dict) -> dict:
-    """What a re-execution must reproduce: everything but timings."""
-    calls = [{key: value for key, value in call.items() if key != "seconds"} for call in result["calls"]]
-    return {key: canonical_json(result[key]) for key in ("records", "evidence", "proposed", "rejected", "competitors",
-                                                       "items", "issues")} | {"calls": canonical_json(calls)}
-
-
 def untimed(result: dict) -> str:
     calls = [{key: value for key, value in call.items() if key != "seconds"} for call in result["calls"]]
     rest = {key: value for key, value in result.items() if key not in ("started", "seconds", "calls")}
     return json.dumps({**rest, "calls": calls}, ensure_ascii=False, indent=2)
-
-
-@pytest.mark.parametrize("case", range(len(CASES)))
-def test_finished_entries_are_published_once_and_reused_after_a_crash(tmp_path, case):
-    source, model, crash_at, settings = CASES[case]
-    fresh, _ = extract(source, model(source), **settings)
-    healthy = model(source)
-
-    def crashing(system, user, schema):
-        if system.startswith("You extract structured data") and crash_at in section(user, "RECORD"):
-            raise requests.ConnectionError("connection reset")  # transient: the step is retried
-        return healthy(system, user, schema)
-    with pytest.raises(requests.ConnectionError):
-        extract(source, crashing, run_dir=tmp_path, extraction_id="x1", **settings)
-    directory = tmp_path / "extractions" / "x1"
-    assert entry_records(directory) == [entry_file(0), entry_file(1)]
-    published = json.loads((directory / entry_file(1)).read_bytes())
-    found = json.loads((directory / "catalog-discovery.json").read_bytes())
-    assert (published["version"], published["index"], published["discovery_sha256"], published["ranges"]) == \
-        (unified.ENTRY_VERSION, 1, unified.digest(found), found["entries"][1]["ranges"])
-    again, chat = extract(source, model(source), run_dir=tmp_path, extraction_id="x1", **settings)
-    finished = [text(source, entry["ranges"][0])[:8] for entry in found["entries"][:2]]
-    assert not any(label in section(call["user"], "RECORD") for call in chat.calls for label in finished)
-    assert not any(call["system"].startswith("Several verified") for call in chat.calls)
-    assert any(crash_at in section(call["user"], "RECORD") for call in chat.calls)
-    assert comparable(again) == comparable(fresh)  # nothing was lost in the entry records
-    assert again["complete"] == fresh["complete"] and again["processing"] == fresh["processing"]
-    published, _ = extract(source, model(source), run_dir=tmp_path / "fresh", extraction_id="x1", **settings)
-    assert untimed(again) == untimed(published)  # and the artifact is byte for byte the one a fresh run publishes
-    if case == 1:  # the reused entry kept its partial items and its unresolved contest
-        assert any(item["reason"] == "partial_item" for item in again["proposed"])
-        assert again["competitors"][0]["outcome"] == "unresolved"
-
-
-def test_an_entry_record_of_other_inputs_or_published_first_is_a_conflict(tmp_path):
-    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
-    extract(source, run_dir=tmp_path, extraction_id="x1")
-    path = tmp_path / "extractions" / "x1" / entry_file(1)
-    published = json.loads(path.read_bytes())
-    for key, other in (("version", 99), ("discovery_sha256", "0" * 64), ("index", 0),
-                       ("ranges", [{"segment": "p1_s0", "start": 0, "end": 4}])):
-        path.write_bytes(canonical_json({**published, key: other}))
-        with pytest.raises(unified.RecordConflict, match=entry_file(1)):
-            extract(source, run_dir=tmp_path, extraction_id="x1")
-    path.unlink()
-    rival = {**published, "work": {**published["work"], "record": {}}}
-    model = Model(source)
-
-    def racing(system, user, schema):
-        if system.startswith("You extract structured data") and "Bdorf" in section(user, "RECORD"):
-            path.write_bytes(canonical_json(rival))  # another recovery publishes first
-        return model(system, user, schema)
-    with pytest.raises(unified.RecordConflict):
-        extract(source, racing, run_dir=tmp_path, extraction_id="x1")
-    assert json.loads(path.read_bytes()) == rival
-
-
-def test_an_entry_record_of_an_older_entry_version_is_extracted_again_not_a_conflict(tmp_path):
-    """The entry version is in the file name: after a version bump a resumed extraction reads the entry again
-    instead of failing on the record an older version published (unversioned names were version 2's)."""
-    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
-    first, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
-    directory = tmp_path / "extractions" / "x1"
-    current = directory / entry_file(1)
-    older = {**json.loads(current.read_bytes()), "version": unified.ENTRY_VERSION - 1,
-             "work": {**json.loads(current.read_bytes())["work"], "record": {}}}
-    current.unlink()
-    for name in ("catalog-entry-1.json", f"catalog-entry-1.v{unified.ENTRY_VERSION - 1}.json"):
-        (directory / name).write_bytes(canonical_json(older))
-    again, chat = extract(source, run_dir=tmp_path, extraction_id="x1")
-    assert any("Bdorf" in section(call["user"], "RECORD") for call in chat.calls)
-    assert not any("Adorf" in section(call["user"], "RECORD") for call in chat.calls)  # its current record is reused
-    assert again["records"] == first["records"] and json.loads(current.read_bytes())["version"] == unified.ENTRY_VERSION
-
-
-def test_an_entry_with_a_failed_call_or_undecided_verdict_is_never_published_so_a_retry_asks_again(tmp_path):
-    """Entry 1's server error is contained in it, entry 2's lost connection ends the step: the retry reuses only
-    entry 0, the one finished whole, and asks entries 1 and 2 again."""
-    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.\n3. Cdorf. Material: Gold.")
-    model = Model(source)
-
-    def failing(system, user, schema):
-        record = section(user, "RECORD")
-        if system.startswith("You extract structured data") and "Bdorf" in record:
-            raise server_error(500)  # contained: a failed call of entry 1
-        if system.startswith("You extract structured data") and "Cdorf" in record:
-            raise requests.ConnectionError("connection reset")  # transient: the step is retried
-        return model(system, user, schema)
-    with pytest.raises(requests.ConnectionError):
-        extract(source, failing, run_dir=tmp_path, extraction_id="x1")
-    directory = tmp_path / "extractions" / "x1"
-    assert entry_records(directory) == [entry_file(0)]
-    again, chat = extract(source, run_dir=tmp_path, extraction_id="x1")
-    asked = [section(call["user"], "RECORD") for call in chat.calls if call["system"].startswith("You extract struct")]
-    assert not any("Adorf" in record for record in asked)
-    assert any("Bdorf" in record for record in asked) and any("Cdorf" in record for record in asked)
-    assert again["complete"] is True and [record["material"] for record in again["records"]] == ["Holz", "Stein", "Gold"]
-    assert entry_records(directory) == [entry_file(n) for n in range(3)]
-
-    undecided = Model(source, verdict=lambda path, value, record: "maybe" if value == "Stein" else "supported")
-    result, _ = extract(source, undecided, run_dir=tmp_path, extraction_id="x2")
-    assert result["processing"]["verification"]["undecided"] == 1
-    assert not (tmp_path / "extractions" / "x2" / entry_file(1)).exists()
 
 
 def test_entries_are_read_nearest_the_start_page_first_and_assembled_in_source_order():
@@ -1090,75 +881,7 @@ def test_entries_are_read_nearest_the_start_page_first_and_assembled_in_source_o
                               {"p1_s0": 1, "p3_s0": 3}, None) == [0, 1]  # no start page: source order
 
 
-def test_each_entry_publishes_a_reading_marker_and_its_candidates_before_verification_and_a_retry_ignores_both(tmp_path):
-    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
-    directory = tmp_path / "extractions" / "x1"
-    model = Model(source)
-    seen: dict[str, bool] = {}
-
-    def failing_verification(system, user, schema):
-        if system.startswith("You check values") and "Bdorf" in section(user, "RECORD"):
-            seen["reading"] = (directory / progress.reading_name(1)).exists()
-            seen["candidates"] = (directory / progress.candidates_name(1)).exists()
-            raise requests.ConnectionError("connection reset")  # transient: the step is retried
-        return model(system, user, schema)
-    with pytest.raises(requests.ConnectionError):
-        extract(source, failing_verification, run_dir=tmp_path, extraction_id="x1", start_page=1)
-    assert seen == {"reading": True, "candidates": True}
-    header = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
-    assert {key: header[key] for key in ("version", "strategy", "start_page")} == {"version": 1, "strategy": "catalog", "start_page": 1}
-    written = json.loads((directory / progress.candidates_name(1)).read_bytes())
-    assert (written["version"], written["execution"], written["index"], written["failed"]) == (1, header["execution"], 1, 0)
-    assert written["ranges"] == json.loads((directory / "catalog-discovery.json").read_bytes())["entries"][1]["ranges"]
-    assert {tuple(row["path"]) for row in written["candidates"]} == {("label",), ("site",), ("material",)}
-    assert written["record"]["material"] == "Stein" and written["record"]["gilded"] is None  # conform fills every field
-    assert json.loads((directory / progress.reading_name(1)).read_bytes()) == {"version": 1, "execution": header["execution"], "index": 1}
-    assert entry_records(directory) == [entry_file(0)]  # entry 1 is not a record
-    again, chat = extract(source, run_dir=tmp_path, extraction_id="x1")
-    assert any("Bdorf" in section(call["user"], "RECORD") for call in chat.calls)  # asked again, the stage files ignored
-    assert not any("Adorf" in section(call["user"], "RECORD") for call in chat.calls)
-    assert again["records"][1]["material"] == "Stein" and entry_records(directory) == [entry_file(0), entry_file(1)]
-    retried = json.loads((directory / progress.PROGRESS_NAME).read_bytes())
-    assert retried["start_page"] is None and retried["execution"] != header["execution"]  # the retry's own header
-
-
-def test_a_failed_values_window_is_counted_in_the_candidates_file(tmp_path):
-    source = evidence("1. Adorf. Material: Holz.")
-    model = Model(source)
-
-    def refusing(system, user, schema):
-        if system.startswith("You extract structured data"):
-            raise server_error(500)  # the window fails and is halved; a one-unit window fails alone
-        return model(system, user, schema)
-    extract(source, refusing, run_dir=tmp_path, extraction_id="x1")
-    written = json.loads((tmp_path / "extractions" / "x1" / progress.candidates_name(0)).read_bytes())
-    assert written["failed"] >= 1 and written["candidates"] == [] and written["record"]["material"] is None
-
-
-def test_a_stage_file_that_cannot_be_written_never_fails_the_extraction(tmp_path, monkeypatch):
-    source = evidence("1. Adorf. Material: Holz.")
-
-    @contextmanager
-    def full_disk(target):
-        raise OSError(28, "No space left on device", str(target))
-        yield  # pragma: no cover
-    monkeypatch.setattr(progress, "publish", full_disk)
-    result, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
-    assert result["records"][0]["material"] == "Holz" and result["complete"] is True
-    directory = tmp_path / "extractions" / "x1"
-    assert not (directory / progress.PROGRESS_NAME).exists() and not (directory / progress.candidates_name(0)).exists()
-    assert entry_records(directory) == [entry_file(0)]  # the write-once records are not stage files
-
-
-def test_entry_links_are_the_artifacts_links_for_that_entry(tmp_path):
-    source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
-    result, _ = extract(source, run_dir=tmp_path, extraction_id="x1")
-    passages = {passage.id: passage for passage in source.passages}
-    published = json.loads((tmp_path / "extractions" / "x1" / entry_file(1)).read_bytes())
-    assert unified.entry_links(published, passages) == [link for link in result["evidence"] if link["path"][1] == 1]
-
-
-def test_a_persistent_server_error_ends_with_its_entry_failed_and_visible(tmp_path):
+def test_a_persistent_server_error_ends_with_its_entry_failed_and_visible():
     source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
     model = Model(source)
 
@@ -1167,11 +890,10 @@ def test_a_persistent_server_error_ends_with_its_entry_failed_and_visible(tmp_pa
             raise server_error(500)
         return model(system, user, schema)
     for _ in range(2):  # each execution returns; nothing loops waiting for the entry to succeed
-        result, _ = extract(source, refusing, run_dir=tmp_path, extraction_id="x1")
+        result, _ = extract(source, refusing)
         assert [record["material"] for record in result["records"]] == ["Holz", None]
         assert result["processing"]["entries"]["failed"] == 1 and result["complete"] is False
         assert ("entry_window_failed", 1) in {(issue["code"], issue["record"]) for issue in result["issues"]}
-    assert not (tmp_path / "extractions" / "x1" / entry_file(1)).exists()
 
 
 def test_entries_run_concurrently_assemble_in_source_order():
@@ -1206,9 +928,9 @@ def test_the_unified_modules_know_no_recipe():
 # --- the cross-language contract ------------------------------------------------------------------------------------
 
 def test_the_version_3_contract_fixture_is_what_the_service_produces(tmp_path, monkeypatch):
-    """Studio's acceptance test reads this fixture: a unified artifact over a written canonical result, with the
-    manifest and page files it was read from, so digests over non-ASCII text and evidence anchors are checked across
-    languages. Set `FREE_UPDATE_GOLDEN=1` to rewrite it after a reviewed contract change."""
+    """A unified artifact over a written canonical result, with the manifest and page files it was read from, so
+    digests over non-ASCII text and evidence anchors stay pinned. Set `FREE_UPDATE_GOLDEN=1` to rewrite it after a
+    reviewed contract change."""
     case = {"transcriber": "native", "source_name": "katalog.pdf", "pages": [{"page": 1, "units": [{"index": 0, "segments": [
         "Vorwort: Funde aus Schäfers Grabung. Title: Fundkatalog Süd.", "12. Adorf. Material: Bronze. Find: Nadel (2).",
         "第3号 北京出土 Material: Jade. Gilded."]}]}]}
@@ -1218,11 +940,11 @@ def test_the_version_3_contract_fixture_is_what_the_service_produces(tmp_path, m
     source = load(run_dir)
     scoped = {**SCHEMA, "recordScope": "records"}  # as Studio sends a revision's declared scope, echoed and digested
     produced = unified.extract(run_dir, source, request(scoped), as_router(CountingChat(Model(source))),
-                               counter=WordCounter(), extraction_id="x-contract")
+                               counter=WordCounter())
     assert produced["complete"] is True and len(produced["records"]) == 2
-    fixture = {"extraction_id": "x-contract",
-               "request": {"run_id": source.run_id, "generation": source.generation, "request": {
-                   "schema": scoped, "options": {"strategy": "catalog", "unified": {"defaults": 1}}}},
+    assert produced["execution"]["extraction_id"] is None and not (run_dir / "extractions").exists()
+    fixture = {"source": {"run_id": source.run_id, "generation": source.generation},
+               "request": {"schema": scoped, "options": {"strategy": "catalog", "unified": {"defaults": 1}}},
                "manifest": json.loads((run_dir / "result" / "result.json").read_text(encoding="utf-8")),
                "pages": [json.loads((run_dir / "result" / "pages" / "1.json").read_text(encoding="utf-8"))],
                "artifact": produced}

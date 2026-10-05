@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import {
-  exportBatchExtractionResults,
-  type ExportChoices,
-  type ExportFormat,
-} from 'extraction-result-export'
+import type { ExportFormat } from 'extraction-result-export'
 import type { NavigableRoute } from '../projectNavigation'
 import {
   getSchemaRevision,
@@ -12,7 +8,6 @@ import {
 } from '../schemaRevisions'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import { Button, GuidedNextStep } from '../ui'
-import { contestedNotice } from '../ExtractionResultExportControl'
 import { requestModelKeyResend } from '../auth/authenticatedFetch'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
@@ -44,7 +39,6 @@ import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import { SavedMethodSummary } from '../SavedMethodSummary'
 import {
   BatchRequestError,
-  getBatchExtractionResults,
   listBatchExtractions,
   listBatchSchemaSuggestions,
   openBatchExtraction,
@@ -56,10 +50,8 @@ import {
   BatchExtractionHistory,
   BatchExtractionMembers,
 } from './BatchExtractionScreens'
-import BatchExtractionReviewGrid from './BatchExtractionReviewGrid'
-import BatchExtractionFinishedDialog from './BatchExtractionFinishedDialog'
 
-type Screen = 'history' | 'prepare' | 'members' | 'grid'
+type Screen = 'history' | 'prepare' | 'members'
 
 type SourceDocument = {
   sourceDocumentId: string
@@ -125,27 +117,6 @@ function newestBatchFirst(left: BatchExtraction, right: BatchExtraction): number
   )
 }
 
-/** The immediately preceding pilot round under the same Schema Revision as
- *  `current` (design.md D2: a pilot round is a Batch Extraction at or under
- *  `PILOT_BATCH_SELECTION_LIMIT` members) — the comparison point for the
- *  soft "ready to stabilise" signal. */
-function priorPilotRound(
-  batches: readonly BatchExtraction[],
-  current: BatchExtraction,
-): BatchExtraction | null {
-  const candidates = batches.filter(
-    (batch) =>
-      batch.batchExtractionId !== current.batchExtractionId &&
-      batch.schemaRevisionId === current.schemaRevisionId &&
-      batch.members.length <= PILOT_BATCH_SELECTION_LIMIT &&
-      Date.parse(batch.createdAt) < Date.parse(current.createdAt),
-  )
-  if (candidates.length === 0) return null
-  return candidates.reduce((newest, batch) =>
-    Date.parse(batch.createdAt) > Date.parse(newest.createdAt) ? batch : newest,
-  )
-}
-
 /** Source Documents already reviewed under this Schema Revision in some
  *  prior Batch Extraction — what a new batch against the same revision would
  *  reuse instead of re-extracting (batch-extraction-pilot-reuse). */
@@ -157,7 +128,7 @@ function alreadyReviewedSourceDocumentIds(
   for (const batch of batches) {
     if (batch.schemaRevisionId !== schemaRevisionId) continue
     for (const member of batch.members)
-      if (member.durableReview || member.latestExtraction?.reviewedAt) ids.add(member.sourceDocumentId)
+      if (member.currentReview) ids.add(member.sourceDocumentId)
   }
   return ids
 }
@@ -187,26 +158,17 @@ export default function BatchExtractionsPanel({
   projectContextId,
   sourceDocuments,
   openBatchExtractionId,
-  openBatchExtractionView,
   pilotSchemaRevisionId,
   onNavigate,
-  onReviewCommitted,
 }: {
   projectContextId: string
   sourceDocuments: readonly SourceDocument[]
   /** The routed Batch Extraction, so one is linkable and survives a refresh. */
   openBatchExtractionId: string | null
-  /** The routed sub-view over that Batch Extraction, e.g. the review grid. */
-  openBatchExtractionView: 'grid' | null
   /** Set right after approving a Schema Revision from the document workspace
    *  — opens straight into "Pilot Extraction" on this exact Revision. */
   pilotSchemaRevisionId: string | null
   onNavigate: (route: NavigableRoute) => void
-  /** Fired once a grid member's review is finalized (or reverted) — this can
-   *  move the project's workflow phase (extract -> validate), so the
-   *  caller's persisted project summary needs the same refresh cue that
-   *  `onSchemaApproved` gives the document workspace. */
-  onReviewCommitted?: () => void
 }) {
   const sourceDocumentIds = sourceDocuments.map(
     (document) => document.sourceDocumentId,
@@ -217,9 +179,7 @@ export default function BatchExtractionsPanel({
   const screen: Screen = preparing
     ? 'prepare'
     : openBatchExtractionId
-      ? openBatchExtractionView === 'grid'
-        ? 'grid'
-        : 'members'
+      ? 'members'
       : 'history'
   const showHistory = useCallback(() => {
     setPreparing(false)
@@ -230,12 +190,6 @@ export default function BatchExtractionsPanel({
     failure: null,
   })
   const [reload, setReload] = useState(0)
-  // The last execution status observed for each Batch Extraction, so a
-  // RUNNING/QUEUED -> terminal transition can be reported exactly once per
-  // mount — a reload or reopened panel starts this fresh and never re-fires.
-  const previousExecutionStatus = useRef<Map<string, string>>(new Map())
-  const [finishedBatchReport, setFinishedBatchReport] =
-    useState<BatchExtraction | null>(null)
   const [openingBatch, setOpeningBatch] = useState(false)
   // The account's saved method: a start submits what it saw, and admission refuses it if an Apply changed it since.
   const saved = useSavedMethod()
@@ -278,7 +232,6 @@ export default function BatchExtractionsPanel({
   // Carries a flagged field's context into the schema editor after "Edit
   // schema" is chosen from the review grid (schema-issue-flagging) — a
   // client-side hand-off, not persisted state.
-  const [pendingSchemaEditDraft, setPendingSchemaEditDraft] = useState<string | null>(null)
   const [stabilisingChosenSchema, setStabilisingChosenSchema] = useState(false)
   const [stabiliseChosenSchemaError, setStabiliseChosenSchemaError] = useState<string | null>(null)
   // Guided next-step nudge (guided-pilot-extraction-workflow): fires right
@@ -540,24 +493,6 @@ export default function BatchExtractionsPanel({
     return () => window.clearInterval(interval)
   }, [batches.value, suggestions.value])
 
-  // Reports a Batch Extraction the moment it finishes running. Skipped
-  // whenever its own review grid is already open — the grid's header already
-  // shows this live, so a popup on top would just be noise.
-  useEffect(() => {
-    for (const batch of batches.value ?? []) {
-      const previous = previousExecutionStatus.current.get(batch.batchExtractionId)
-      const current = batch.executionStatus
-      previousExecutionStatus.current.set(batch.batchExtractionId, current)
-      const wasRunning = previous === 'RUNNING' || previous === 'QUEUED'
-      // A batch never fails as a whole: it completes once every member has settled.
-      const nowTerminal = current === 'COMPLETED'
-      const gridAlreadyOpenForThisBatch =
-        screen === 'grid' && openBatchExtractionId === batch.batchExtractionId
-      if (wasRunning && nowTerminal && !gridAlreadyOpenForThisBatch)
-        setFinishedBatchReport(batch)
-    }
-  }, [batches.value, screen, openBatchExtractionId])
-
   useEffect(() => {
     const refresh = () => {
       if (pendingRefreshes.current === 0)
@@ -572,7 +507,7 @@ export default function BatchExtractionsPanel({
     batchList.find(
       (batch) => batch.batchExtractionId === openBatchExtractionId,
     ) ?? null
-  const onBatchScreen = screen === 'members' || screen === 'grid'
+  const onBatchScreen = screen === 'members'
   const pinnedExtractionSchemaId = onBatchScreen
     ? (openBatch?.extractionSchemaId ?? null)
     : null
@@ -650,58 +585,15 @@ export default function BatchExtractionsPanel({
     return () => controller.abort()
   }, [projectContextId, pinnedExtractionSchemaId, pinnedSchemaRevisionId, pinnedBatchSchemaReload])
 
-  /** One spreadsheet over every Extraction Result this batch has produced. */
-  const exportOpenBatch = async (
-    format: ExportFormat,
-    choices?: ExportChoices,
-  ) => {
+  /** One bundle of every member's saved values at its own fixed result and decision cuts. */
+  const exportOpenBatch = async (format: ExportFormat) => {
     if (!openBatch) return
-    if(openBatch.members.some(member=>member.durableExtractionId)) {
-      const {downloadDurableBatch}=await import('../durableExport')
-      await downloadDurableBatch(openBatch.batchExtractionId,openBatch.members.map(member=>({sourceDocumentId:member.sourceDocumentId,
-        extractionId:member.durableExtractionId??null,
-        sourceRevisionId:member.sourceRepresentationRevisionId,status:member.executionStatus,failureMessage:member.executionFailureMessage})),format)
-      setExportCoverage({batchExtractionId:openBatch.batchExtractionId,message:'Exports retained durable values at fixed member snapshots, with producing schemas, corrections, Evidence and full provenance. Recall is unmeasured.'})
-      return
-    }
-    // Schema-led spreadsheet projection uses the batch's original schema.
-    if(currentPinnedBatchSchema?.schemaRevisionId!==openBatch.schemaRevisionId||!choices)return
-    const snapshot = await getBatchExtractionResults(
-      projectContextId,
-      openBatch.batchExtractionId,
-    )
-    if (snapshot.results.length === 0)
-      throw new Error(
-        'This Batch Extraction has produced no Extraction Result to export.',
-      )
-    const partial = snapshot.successfulResults < snapshot.totalMembers
-    const contested = snapshot.results.reduce((count, result) => count + (result.contested?.length ?? 0), 0)
-    setExportCoverage({
-      batchExtractionId: openBatch.batchExtractionId,
-      message: `Includes ${snapshot.successfulResults} of ${snapshot.totalMembers} Source Documents; ${snapshot.pending} pending, ${snapshot.failed} failed, ${snapshot.cancelled} cancelled.${
-        contested === 0 ? ''
-          : format === 'csv' ? ` ${contestedNotice(contested)}`
-            : ` ${contested} contested ${contested === 1 ? 'field is' : 'fields are'} left empty and listed on the Review notes sheet.`} Batch exports hold values only; open a Source Document for its Extraction and Evidence sheets.`,
-    })
-    await exportBatchExtractionResults(
-      snapshot.results.map((result) => ({
-        sourceDocumentId: result.sourceDocumentId,
-        sourceDocumentName: documentName(result.sourceDocumentId),
-        result: result.result,
-        ...(result.contested?.length ? {
-          contested: result.contested.map(({ resultPath: [, record, ...path], candidates }) => ({
-            record: Number(record), path, candidates,
-          })),
-        } : {}),
-      })),
-      {
-        format,
-        filename: `${openBatch.extractionSchemaName} revision ${openBatch.schemaRevisionNumber} batch ${openBatch.batchExtractionId.slice(0, 8)}${partial ? ' partial' : ''}`,
-        batchExtractionId: openBatch.batchExtractionId,
-        schemaNodes: currentPinnedBatchSchema.schemaNodes,
-        choices,
-      },
-    )
+    const { downloadDurableBatch } = await import('../durableExport')
+    await downloadDurableBatch(openBatch.batchExtractionId, openBatch.members.map((member) => ({
+      sourceDocumentId: member.sourceDocumentId, extractionId: member.extractionId,
+      sourceRevisionId: member.sourceRepresentationRevisionId, status: member.executionStatus,
+    })), format)
+    setExportCoverage({ batchExtractionId: openBatch.batchExtractionId, message: 'Exports retained durable values at fixed member snapshots, with producing schemas, corrections, Evidence and full provenance. Recall is unmeasured.' })
   }
   const recordBatch = useCallback((batch: BatchExtraction) => {
     historyGeneration.current += 1
@@ -928,45 +820,7 @@ export default function BatchExtractionsPanel({
     })
   }
 
-  const openGridReview = (batch: BatchExtraction) => {
-    onNavigate({
-      kind: 'project',
-      projectContextId,
-      tab: 'extractions',
-      batchExtractionId: batch.batchExtractionId,
-      view: 'grid',
-    })
-  }
-
-  /**
-   * "Edit schema" from a flagged field in the review grid: jumps to the
-   * preparation screen on the same Schema Revision and the same pilot
-   * documents, with the flag's context seeded into the schema chat draft
-   * (schema-issue-flagging). Committing a new revision there and running
-   * again re-extracts the same documents, satisfying "does not require the
-   * researcher to re-select pilot documents" without bespoke plumbing.
-   */
-  const editSchemaFieldFromGrid = (
-    batch: BatchExtraction,
-    context: { fieldPath: string; fieldLabel: string; note: string | null },
-  ) => {
-    setSelected(new Set(batch.members.map((member) => member.sourceDocumentId)))
-    setSchemaRevisionId(batch.schemaRevisionId)
-    setPreparingKind(
-      batch.members.length <= PILOT_BATCH_SELECTION_LIMIT ? 'pilot' : 'batch',
-    )
-    setPendingSchemaEditDraft(
-      `Fix the "${context.fieldLabel}" field${context.note ? `: ${context.note}` : '.'}`,
-    )
-    setRunFailure(null)
-    setRunFailureCode(null)
-    setPreparing(true)
-  }
-
-  const openBatchHasSuccessfulResult =
-    openBatch?.members.some((member) => member.durableExtractionId || member.latestExtraction !== null) ??
-    false
-  const priorRoundBatch = openBatch ? priorPilotRound(batchList, openBatch) : null
+  const openBatchHasSuccessfulResult = openBatch?.members.some((member) => member.reviewable) ?? false
   const alreadyReviewed =
     schemaRevisionId && schemaRevisionId !== SUGGEST_SCHEMA
       ? alreadyReviewedSourceDocumentIds(batchList, schemaRevisionId)
@@ -1195,11 +1049,7 @@ export default function BatchExtractionsPanel({
         </p>
       )}
 
-      <div
-        className={
-          screen === 'grid' ? 'flex flex-col' : 'min-h-[430px]'
-        }
-      >
+      <div className="min-h-[430px]">
         {screen === 'history' ? (
           batchesUnread ? (
             batchesUnread
@@ -1461,8 +1311,6 @@ export default function BatchExtractionsPanel({
                     : `Schema Revision ${chosenSchema.revisionNumber}`
                 }
                 registerController={setSavedSchemaController}
-                initialChatDraft={pendingSchemaEditDraft}
-                onChatDraftConsumed={() => setPendingSchemaEditDraft(null)}
               />
             )}
             {schemaRevisionId === SUGGEST_SCHEMA && (
@@ -1586,46 +1434,9 @@ export default function BatchExtractionsPanel({
           <p className="py-6 text-center text-xs text-ink-muted">
             That Batch Extraction is no longer listed.
           </p>
-        ) : screen === 'grid' && !openBatch.members.some(member=>member.durableExtractionId) ? (
-          <BatchExtractionReviewGrid
-            batch={openBatch}
-            schemaNodes={currentPinnedBatchSchema?.schemaNodes ?? null}
-            documentName={documentName}
-            projectContextId={projectContextId}
-            schemaStabilised={currentPinnedBatchSchema?.stabilisedAt != null}
-            priorRoundBatch={priorRoundBatch}
-            onBack={() => openMembers(openBatch)}
-            onOpenMember={(sourceDocumentId, extractionId) =>
-              onNavigate({
-                kind: 'document',
-                projectContextId,
-                sourceDocumentId,
-                extractionId,
-                fromBatchExtractionId: openBatch.batchExtractionId,
-              })
-            }
-            onMemberSaved={() => {
-              setReload((value) => value + 1)
-              onReviewCommitted?.()
-            }}
-            onEditSchemaField={(context) => editSchemaFieldFromGrid(openBatch, context)}
-            onStabilised={() => {
-              setPinnedBatchSchemaReload((value) => value + 1)
-              setStabiliseNudge(openBatch.schemaRevisionId)
-            }}
-          />
         ) : (
           <BatchExtractionMembers
             batch={openBatch}
-            pinnedSchema={
-              currentPinnedBatchSchema
-                ? {
-                    recordDescription:
-                      currentPinnedBatchSchema.recordDescription,
-                    schemaNodes: currentPinnedBatchSchema.schemaNodes,
-                  }
-                : null
-            }
             pinnedSchemaFailure={currentPinnedBatchSchemaFailure}
             hasSuccessfulResult={openBatchHasSuccessfulResult}
             coverageMessage={
@@ -1647,31 +1458,19 @@ export default function BatchExtractionsPanel({
               setPinnedBatchSchemaReload((value) => value + 1)
             }
             onRunAgain={() => void runOpenBatchAgain(openBatch)}
-            onOpenGridReview={() => openGridReview(openBatch)}
             onOpenMember={(sourceDocumentId, extractionId) =>
               onNavigate({
                 kind: 'document',
                 projectContextId,
                 sourceDocumentId,
                 extractionId,
+                // The document offers its way back here and the pilot round's next member.
+                fromBatchExtractionId: openBatch.batchExtractionId,
               })
             }
           />
         )}
       </div>
-      {finishedBatchReport && (
-        <BatchExtractionFinishedDialog
-          key={finishedBatchReport.batchExtractionId}
-          batch={finishedBatchReport}
-          projectContextId={projectContextId}
-          documentName={documentName}
-          onReviewNow={() => {
-            openGridReview(finishedBatchReport)
-            setFinishedBatchReport(null)
-          }}
-          onDismiss={() => setFinishedBatchReport(null)}
-        />
-      )}
       {stabiliseNudge && (
         <GuidedNextStep
           title="Schema approved"
@@ -1703,18 +1502,11 @@ function SavedSchemaEditor({
   chosenSchema,
   sourceDocumentName,
   registerController,
-  initialChatDraft,
-  onChatDraftConsumed,
 }: {
   projectContextId: string
   chosenSchema: SchemaRevision
   sourceDocumentName: string
   registerController: (controller: SchemaEditorController | null) => void
-  /** Seeds the schema chat input with a flagged field's context, so "Edit
-   *  schema" from the review grid arrives with that context already in the
-   *  draft (schema-issue-flagging). */
-  initialChatDraft?: string | null
-  onChatDraftConsumed?(): void
 }) {
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
@@ -1750,8 +1542,6 @@ function SavedSchemaEditor({
           onClearDraft={clearDraft}
           sourceDocumentName={sourceDocumentName}
           showRegenerate={false}
-          initialChatDraft={initialChatDraft}
-          onChatDraftConsumed={onChatDraftConsumed}
         />
       </section>
       {failure && (

@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react'
 import Panel from './ui/Panel'
 import type { ParsedDocument, ParsedEvidenceAnchor, TableCellEvidenceAnchor, TextEvidenceAnchor } from 'extraction/parsed-document'
 import { blockForAnchor, tableForAnchor } from 'extraction/parsed-document'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
 
 function groupByPage(anchors: ParsedEvidenceAnchor[]) {
   const groups = new Map<number, ParsedEvidenceAnchor[]>()
@@ -17,7 +16,7 @@ function Detail({ children }: { children: ReactNode }) {
   return <span className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">{children}</span>
 }
 
-function TextAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: TextEvidenceAnchor; document: ParsedDocument; onSelect: () => void; reviewedCount: number }) {
+function TextAnchor({ anchor, document, onSelect }: { anchor: TextEvidenceAnchor; document: ParsedDocument; onSelect: () => void }) {
   const block = blockForAnchor(document, anchor)
   const observation = anchor.producer_observations[0]
   const blockText = block && ('text' in block ? block.text : block.kind === 'list' ? block.items.join(' ') : block.kind === 'table' ? 'Whole table' : '')
@@ -31,13 +30,12 @@ function TextAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: Tex
         <Detail>block {anchor.block_id}</Detail>
         <Detail>UTF-8 bytes {anchor.markdown_span.start}–{anchor.markdown_span.end}</Detail>
         <Detail>{anchor.producer_observations.length} occurrence{anchor.producer_observations.length === 1 ? '' : 's'} · geometry verified</Detail>
-        {reviewedCount > 0 && <Detail>{reviewedCount} reviewed occurrence{reviewedCount === 1 ? '' : 's'}</Detail>}
       </div>
     </button>
   )
 }
 
-function TableAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: TableCellEvidenceAnchor; document: ParsedDocument; onSelect: () => void; reviewedCount: number }) {
+function TableAnchor({ anchor, document, onSelect }: { anchor: TableCellEvidenceAnchor; document: ParsedDocument; onSelect: () => void }) {
   const table = tableForAnchor(document, anchor)
   const cell = table?.cells.find((cell) => cell.cell_id === anchor.cell_id)
   const observation = anchor.producer_observations[0]
@@ -52,14 +50,13 @@ function TableAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: Ta
         <Detail>cell {anchor.canonical_row},{anchor.canonical_column}</Detail>
         {observation && <Detail>producer {observation.producer_ref ?? 'unidentified'} · {observation.row_offset},{observation.column_offset}</Detail>}
         <Detail>{observation?.bbox ? 'geometry verified' : 'geometry unavailable'}</Detail>
-        {reviewedCount > 0 && <Detail>{reviewedCount} reviewed occurrence{reviewedCount === 1 ? '' : 's'}</Detail>}
       </div>
       {table && <p className="mt-1.5 text-[11px] text-ink-muted">{table.continuation === 'derived_continuation' ? 'Reviewed continuation across physical pages' : 'Page-local table'} · {table.spans.length} page span{table.spans.length === 1 ? '' : 's'}</p>}
     </button>
   )
 }
 
-function EvidenceTab({ document, onSelectAnchor, reviewDecisions = [] }: { document: ParsedDocument | null; onSelectAnchor: (anchor: ParsedEvidenceAnchor) => void; reviewDecisions?: ExtractionAttempt['reviewDecisions'] }) {
+function EvidenceTab({ document, onSelectAnchor }: { document: ParsedDocument | null; onSelectAnchor: (anchor: ParsedEvidenceAnchor) => void }) {
   const [selectedPage, setSelectedPage] = useState(1)
   if (!document) {
     return <Panel><div className="rounded-xl border border-dashed border-line px-4 py-7 text-center"><p className="text-sm font-semibold text-ink">Source Evidence unavailable</p><p className="mt-1 text-xs leading-relaxed text-ink-muted">Complete parsing to inspect page-scoped Evidence anchors.</p></div></Panel>
@@ -79,10 +76,9 @@ function EvidenceTab({ document, onSelectAnchor, reviewDecisions = [] }: { docum
           {groups.map(([page]) => <option key={page} value={page}>{page}</option>)}
         </select>
       </label>}
-      {groups.length === 0 ? <div className="rounded-xl border border-dashed border-line px-4 py-7 text-center text-xs text-ink-muted">No Evidence anchors were published.</div> : groups.filter(([page]) => page === currentPage).map(([page, anchors]) => <section key={page} className="mb-4 last:mb-0"><h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">Physical page {page}</h3><div className="flex flex-col gap-2">{anchors.map((anchor) => {
-        const reviewedCount = reviewDecisions.find((decision) => decision.evidenceAnchorId === anchor.anchor_id)?.reviewedOccurrenceIds.length ?? 0
-        return anchor.kind === 'text' ? <TextAnchor key={anchor.anchor_id} anchor={anchor} document={document} reviewedCount={reviewedCount} onSelect={() => onSelectAnchor(anchor)} /> : <TableAnchor key={anchor.anchor_id} anchor={anchor} document={document} reviewedCount={reviewedCount} onSelect={() => onSelectAnchor(anchor)} />
-      })}</div></section>)}
+      {groups.length === 0 ? <div className="rounded-xl border border-dashed border-line px-4 py-7 text-center text-xs text-ink-muted">No Evidence anchors were published.</div> : groups.filter(([page]) => page === currentPage).map(([page, anchors]) => <section key={page} className="mb-4 last:mb-0"><h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">Physical page {page}</h3><div className="flex flex-col gap-2">{anchors.map((anchor) => anchor.kind === 'text'
+        ? <TextAnchor key={anchor.anchor_id} anchor={anchor} document={document} onSelect={() => onSelectAnchor(anchor)} />
+        : <TableAnchor key={anchor.anchor_id} anchor={anchor} document={document} onSelect={() => onSelectAnchor(anchor)} />)}</div></section>)}
     </Panel>
   )
 }

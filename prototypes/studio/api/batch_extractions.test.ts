@@ -38,8 +38,9 @@ const batch: BatchExtractionSnapshot = {
       sourceRepresentationRevisionId:
         '51000000-0000-4000-8002-000000000001',
       executionStatus: 'QUEUED',
-      failureMessage: null,
-      latestExtraction: null,
+      extractionId: '51000000-0000-4000-8006-000000000001',
+      reviewable: false,
+      currentReview: null,
     },
   ],
 }
@@ -48,12 +49,6 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
   const module: ExtractionModule = {
     runSingle: vi.fn<ExtractionModule['runSingle']>(),
     readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(),
-    cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(),
-    prepareReview: vi.fn<ExtractionModule['prepareReview']>(),
-    resetReview: vi.fn(async (_id, version) => ({ version: version + 1, decisions: [] })),
-    readReviewDraft: vi.fn(async () => ({ version: 0, decisions: [] })),
-    saveReviewDraft: vi.fn(async (_id, draft) => ({ ...draft, version: draft.version + 1 })),
-    finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(),
     readDocumentExtractions:
       vi.fn<ExtractionModule['readDocumentExtractions']>(),
     scheduleBatch: vi.fn<ExtractionModule['scheduleBatch']>(async () => ({
@@ -66,23 +61,6 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
       vi.fn<ExtractionModule['stabiliseSchemaRevision']>(),
     listBatches: vi.fn<ExtractionModule['listBatches']>(async () => [batch]),
     readBatch: vi.fn<ExtractionModule['readBatch']>(async () => batch),
-    readBatchResults: vi.fn<ExtractionModule['readBatchResults']>(async () => ({
-      batchExtractionId: BATCH,
-      executionStatus: 'COMPLETED',
-      totalMembers: 1,
-      successfulResults: 1,
-      pending: 0,
-      failed: 0,
-      cancelled: 0,
-      results: [
-        {
-          sourceDocumentId: DOCUMENT,
-          extractionId: '51000000-0000-4000-8006-000000000001',
-          result: { records: [{ title: 'Alpha', year: null }] },
-          contested: [{ resultPath: ['records', 0, 'year'], candidates: [1901, 1902] }],
-        },
-      ],
-    })),
     ...overrides,
   }
   return module
@@ -213,21 +191,11 @@ describe('/api/batch-extractions transport', () => {
       batchExtraction: expect.objectContaining({ batchExtractionId: BATCH }),
     })
 
+    // The old result projection is gone: each member is read and exported through its own durable cuts.
     const results = await handle(
-      new Request(
-        `http://test/api/batch-extractions/${BATCH}/results?projectContextId=${PROJECT}`,
-      ),
+      new Request(`http://test/api/batch-extractions/${BATCH}/results?projectContextId=${PROJECT}`),
     )
-    expect(results.status).toBe(200)
-    expect(module.readBatchResults).toHaveBeenCalledWith({
-      projectContextId: PROJECT,
-      batchExtractionId: BATCH,
-    })
-    expect(await results.json()).toMatchObject({
-      batchExtractionId: BATCH,
-      successfulResults: 1,
-      results: [{ sourceDocumentId: DOCUMENT, contested: [{ resultPath: ['records', 0, 'year'], candidates: [1901, 1902] }] }],
-    })
+    expect(results.status).toBe(404)
   })
 
   it('answers a batch with its derived member status and no job-era fields', async () => {
@@ -238,8 +206,9 @@ describe('/api/batch-extractions transport', () => {
         members: [
           {
             ...batch.members[0],
-            executionStatus: 'FAILED' as const,
-            failureMessage: 'This work stopped before it finished. Start it again.',
+            executionStatus: 'PAUSED' as const,
+            reviewable: true,
+            currentReview: { snapshotVersion: 2, feedbackVersion: 3, createdAt: new Date('2026-10-05T09:00:00.000Z'), schemaRevisionId: REVISION },
           },
         ],
       })),
@@ -258,11 +227,12 @@ describe('/api/batch-extractions transport', () => {
       createdAt: '2026-08-20T10:00:00.000Z',
       members: [
         {
+          extractionId: '51000000-0000-4000-8006-000000000001',
           sourceDocumentId: DOCUMENT,
           sourceRepresentationRevisionId: batch.members[0].sourceRepresentationRevisionId,
-          executionStatus: 'FAILED',
-          executionFailureMessage: 'This work stopped before it finished. Start it again.',
-          latestExtraction: null,
+          executionStatus: 'PAUSED',
+          reviewable: true,
+          currentReview: { snapshotVersion: 2, feedbackVersion: 3, createdAt: '2026-10-05T09:00:00.000Z', schemaRevisionId: REVISION },
         },
       ],
     })

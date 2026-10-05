@@ -4,7 +4,7 @@ import type { DurableHistory, DurablePage, DurableRead } from 'extraction/durabl
 import { durableRequest, durableRoot, readDurable, readDurableHistory } from './durableExtractionApi'
 
 export type Fixed={state:DurableRead;page:DurablePage;history:DurableHistory}
-export type BatchExportMember={extractionId:string|null;sourceDocumentId:string;sourceRevisionId:string;status:string;failureMessage:string|null}
+export type BatchExportMember={extractionId:string;sourceDocumentId:string;sourceRevisionId:string;status:string}
 export type BatchExportSnapshot={fixed:Fixed;values:DurablePage['values'];member:BatchExportMember}
 const encoded=(value:unknown)=>value===undefined?null:JSON.stringify(value)
 export function durableExportTables(fixed:Fixed,values:DurablePage['values']):{results:Table;versions:Table;reviews:Table;inputs:Table;processing:Table} {
@@ -63,7 +63,6 @@ export async function downloadDurableExport(fixed:Fixed,format:'xlsx'|'csv') {
 export async function downloadDurableBatch(batchId:string,members:readonly BatchExportMember[],format:'xlsx'|'csv'):Promise<boolean> {
   const durable:{state:DurableRead;page:DurablePage;member:BatchExportMember}[]=[]
   for(const member of members) {
-    if(!member.extractionId)continue
     const loaded=await readDurable(member.extractionId)
     durable.push({...loaded,member})
   }
@@ -83,7 +82,7 @@ export async function durableBatchExportBlob(batchId:string,members:readonly Bat
   const processing:Table={columns:['Source Document','Extraction','State','Failure','Snapshot','Feedback version','Source revision','Coverage'],rows:members.map(member=>{
     const saved=snapshots.find(snapshot=>snapshot.member.sourceDocumentId===member.sourceDocumentId)
     return {'Source Document':member.sourceDocumentId,'Extraction':member.extractionId,'State':saved?.fixed.page.status??member.status,
-      'Failure':member.failureMessage,'Snapshot':saved?.fixed.page.snapshotVersion??null,'Feedback version':saved?.fixed.page.feedbackVersion??null,
+      'Failure':saved?.fixed.state.failure?encoded(saved.fixed.state.failure):null,'Snapshot':saved?.fixed.page.snapshotVersion??null,'Feedback version':saved?.fixed.page.feedbackVersion??null,
       'Source revision':saved?.fixed.state.sourceRevisionId??member.sourceRevisionId,'Coverage':saved?encoded(saved.fixed.page.coverage):null}
   })}
   const blob=format==='xlsx'?await createXlsxBlob(workbookTable(results),[{sheet:'Processing',table:workbookTable(processing)},{sheet:'Provenance',table:provenanceTable(body)}]):new Blob([new Uint8Array(zipSync({'results.csv':strToU8(serializeCsv(results)),'processing.csv':strToU8(serializeCsv(processing)),'snapshot.json':strToU8(JSON.stringify(body))}))],{type:'application/zip'})

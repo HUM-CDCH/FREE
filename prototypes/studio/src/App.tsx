@@ -3,7 +3,6 @@ import {
   reportAuthenticationRequired,
 } from './auth/authenticatedFetch.ts'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { anchorOccurrences } from './evidenceNavigation'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -23,19 +22,20 @@ import { useEvidenceOverlays, type RailMarkState } from './useEvidenceOverlays'
 import MarkPopover from './MarkPopover'
 import DocumentMarkdown from './DocumentMarkdown'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
+import type { SavedReviewCut } from './durableReviewLinks'
 import { METHOD_CHANGED, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
-import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
+import type { ExtractionStrategy } from '../shared/extraction.contract'
 import { Button, SegmentedControl, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
 import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
-import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
+import { renameExtractionSchema } from './schemaRevisions'
 import { defaultSchemaName } from './schemaNames'
-import { strategyOf, type SchemaDefinition } from 'extraction/schema'
+import { strategyOf } from 'extraction/schema'
 import type { NavigableRoute } from './projectNavigation'
 import { browserStudioPath } from './studioUrl.js'
 import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
@@ -131,7 +131,10 @@ export type DocumentWorkspaceProps = {
   extractionSchema: DocumentSnapshot['extractionSchema']
   persistedExtraction: DocumentSnapshot['latestAttempt']
   latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
-  onOpenExtraction: (extractionId: string) => void
+  /** The explicit result/decision cut the route opened `persistedExtraction` on; absent opens its live cut. */
+  persistedReviewCut?: SavedReviewCut | null
+  /** Opens an Extraction, on `reviewCut` when one is named (a finalized review). */
+  onOpenExtraction: (extractionId: string, reviewCut?: SavedReviewCut) => void
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
   /** A run was refused because reprocessing superseded this Source Representation: read the document again, and
@@ -165,10 +168,6 @@ export type DocumentWorkspaceProps = {
 /** An admission refusal useExtraction reported through `onMethodChanged`: nothing was started. */
 type RunRefusal = { message: string; code: string }
 
-type PinnedAttemptSchema = SchemaDefinition & {
-  schemaRevisionId: string
-  revisionNumber: number
-}
 
 export function DocumentWorkspace({
   pdfUrl,
@@ -181,6 +180,7 @@ export function DocumentWorkspace({
   extractionSchema,
   persistedExtraction,
   latestReviewedExtraction = null,
+  persistedReviewCut = null,
   onOpenExtraction,
   onInitialResourceLoadFailure,
   onSourceSuperseded,
@@ -275,21 +275,6 @@ export function DocumentWorkspace({
   const [railTab, setRailTab] = useState<RailTab>(() => new URLSearchParams(window.location.search).has('value') ? 'results' : 'schema')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
-  // Extraction Schemas keyed by Schema Revision id, so any attempt — active,
-  // restored, or historical — resolves the exact revision it ran with.
-  const reopenedSchemas = useMemo(() => {
-    const known: Record<string, PinnedAttemptSchema> = {}
-    for (const reopenedAttempt of [persistedExtraction, latestReviewedExtraction])
-      if (reopenedAttempt)
-        known[reopenedAttempt.schemaRevisionId] = {
-          schemaRevisionId: reopenedAttempt.schemaRevisionId,
-          revisionNumber: reopenedAttempt.extractionSchema.revisionNumber,
-          recordDescription: reopenedAttempt.extractionSchema.recordDescription,
-          schemaNodes: reopenedAttempt.extractionSchema.schemaNodes,
-        }
-    return known
-  }, [persistedExtraction, latestReviewedExtraction])
-  const [knownSchemas, setKnownSchemas] = useState(reopenedSchemas)
   // A run started here offers "Review now" once it succeeds; restored or reconnected runs only say they finished. The
   // run is "started here" from the request on: `admittingRef` while its admission is awaited (an admission already
   // finished reaches onTerminal inside that await), then `pendingReportRef` by its identity.
@@ -312,7 +297,6 @@ export function DocumentWorkspace({
   if (renderedExtractionId !== persistedExtraction?.extractionId) {
     setRenderedExtractionId(persistedExtraction?.extractionId)
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
-    setKnownSchemas(known => ({...known, ...reopenedSchemas}))
     setResultPath(null)
   }
   if (renderedSourceRepresentationId !== sourceRepresentationId) {
@@ -321,7 +305,6 @@ export function DocumentWorkspace({
     setZoomPercent(100)
     setNextCatalogRecipe('')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
-    setKnownSchemas(reopenedSchemas)
     setResultPath(null)
     if (toast?.outlivesSwitch) consumeSwitch()
     else dismissToast()
@@ -331,11 +314,6 @@ export function DocumentWorkspace({
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
   const parsedDocument = docIndex.status === 'ready' ? docIndex.document : null
-  // A running Extraction's draft decisions name every occurrence of their anchor (results review redesign §5.1).
-  const occurrenceIdsByAnchor = useMemo(() => parsedDocument
-    ? new Map(parsedDocument.evidence_index.anchors.map((anchor) =>
-        [anchor.anchor_id, anchorOccurrences(anchor).map((occurrence) => occurrence.occurrence_id)]))
-    : null, [parsedDocument])
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
   }, [])
@@ -680,7 +658,6 @@ export function DocumentWorkspace({
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
     reviewTarget,
-    occurrenceIdsByAnchor,
     // Completion preserves the rail tab and inspected snapshot; it says so in one toast, whose "Review now" (a run started
     // here that succeeded) opens Results.
     onTerminal: (attempt, isRerun) => {
@@ -688,31 +665,26 @@ export function DocumentWorkspace({
       // stopped any other.
       const reported = admittingRef.current || pendingReportRef.current === attempt.extractionId
       if (reported) pendingReportRef.current = null
-      selectNextRunAfter(attempt)
-      if (attempt.failure?.code === 'cancelled')
-        showToast('Extraction cancelled — no result was saved')
+      resetNextRun()
+      if (attempt.executionStatus === 'STOPPED')
+        showToast('Extraction stopped — its saved values and decisions remain in Results')
       else if (attempt.executionStatus === 'FAILED')
-        showToast('Extraction failed — see details in Results')
+        showToast('Extraction failed — its saved values remain in Results, where Retry continues it')
       else
-        showCompletion(isRerun, reported && attempt.outcome === 'SUCCEEDED')
+        showCompletion(isRerun, reported)
     },
-    onError: () => showToast('Extraction failed — see details in Results'),
+    onError: (message) => showToast(message, { durationMs: 6000 }),
     onSuperseded,
     onMethodChanged: (message, code) => {
       refusalRef.current = { message, code }
     },
-    onReviewAccepted: onReviewFinalized,
   })
 
-  /**
-   * The one-shot boundaries choice for the next run once `attempt` is acknowledged or has ended: a failed Catalog
-   * attempt is run again with its own recipe; anything else returns to model discovery. Article or Catalog itself is
-   * the schema's saved record scope and never resets.
-   */
-  function selectNextRunAfter(attempt: ExtractionAttempt) {
-    const repeat = attempt.executionStatus === 'FAILED' && attempt.strategy === 'CATALOG'
-    setNextCatalogRecipe(repeat ? attempt.catalogRecipe ?? '' : '')
-  }
+  /** The boundaries choice is one-shot: once a run is acknowledged or ends, the next one returns to model discovery. A
+   *  failed Extraction continues through Retry in Results, never through a new run. Article or Catalog itself is the
+   *  schema's saved record scope and never resets. */
+  const resetNextRun = () => setNextCatalogRecipe('')
+
 
   // The Current Schema Revision is the acknowledged durable revision; unsaved
   // editor changes never move it, so they cannot mark a result as previous.
@@ -743,6 +715,14 @@ export function DocumentWorkspace({
     ? latestReviewedExtraction
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
+  // "Latest reviewed" opens its finalized result/decision pair, not that Extraction's later live cut; a routed cut
+  // applies to the routed Extraction only. Ordinary inspection opens the live cut.
+  const reviewedChoice = pinnedAttempt && pinnedAttempt.extractionId !== latestAttempt?.extractionId ? pinnedAttempt : null
+  const inspectionCut: SavedReviewCut | null = reviewedChoice?.finalizedReview
+    ? { snapshotVersion: reviewedChoice.finalizedReview.snapshotVersion, feedbackVersion: reviewedChoice.finalizedReview.feedbackVersion }
+    : !reviewedChoice && inspectedAttempt?.extractionId === persistedExtraction?.extractionId
+      ? persistedReviewCut
+      : null
   const [retainedSource,setRetainedSource]=useState<{id:string;source:PinnedExtractionSource}|null>(null)
   const [durableReviewProgress,setDurableReviewProgress]=useState<DurableReviewProgress|null>(null)
   const onPinnedDocument=useCallback((id:string,source:PinnedExtractionSource|null)=> {
@@ -751,34 +731,6 @@ export function DocumentWorkspace({
   const inspectionSource=retainedSource?.id===inspectedAttempt?.extractionId?retainedSource?.source:null
   const inspectionDocument=inspectionSource?.document??parsedDocument
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
-  const inspectedAttemptSchema =
-    inspectedAttempt ? knownSchemas[inspectedAttempt.schemaRevisionId] ?? null : null
-
-  // Any attempt whose revision is not yet known (e.g. one reconciled from a
-  // generated identity) reads it from the persisted revision chain.
-  const missingSchemaRevisionId =
-    inspectedAttempt && !inspectedAttemptSchema ? inspectedAttempt.schemaRevisionId : null
-  const extractionSchemaId = schemaSnap.extractionSchemaId
-  useEffect(() => {
-    if (!missingSchemaRevisionId || !extractionSchemaId) return
-    const controller = new AbortController()
-    getSchemaRevision(projectContextId, extractionSchemaId, missingSchemaRevisionId, controller.signal)
-      .then((revision) => {
-        if (controller.signal.aborted) return
-        setKnownSchemas((known) => ({
-          ...known,
-          [revision.schemaRevisionId]: {
-            schemaRevisionId: revision.schemaRevisionId,
-            revisionNumber: revision.revisionNumber,
-            recordDescription: revision.recordDescription,
-            schemaNodes: revision.schemaNodes,
-          },
-        }))
-      })
-      .catch(() => {})
-    return () => controller.abort()
-  }, [projectContextId, extractionSchemaId, missingSchemaRevisionId])
-
   // The rail's values as marks on the page; a mark selects its value in the rail, several open a popover (§7.2).
   const [railMarks, setRailMarks] = useState<RailMarkState | null>(null)
   const selectValueRef = useRef<((key: string) => void) | null>(null)
@@ -796,13 +748,6 @@ export function DocumentWorkspace({
     ...railMarks,
     onSelect: (keys: string[], mark: HTMLElement) => keys.length === 1 ? selectValueRef.current?.(keys[0]!) : setMarkChoice({ keys, mark }),
   }, [railMarks])
-  // Partial Evidence links paint as they arrive without moving the page being read.
-  const partialEvidenceLinks = useMemo(
-    () => extraction.state.status === 'running' && extraction.state.partial
-      ? extraction.state.partial.records.flatMap((record) => record.evidenceLinks)
-      : null,
-    [extraction.state],
-  )
   const selectEvidenceAnchor = useEvidenceOverlays({
     containerRef,
     viewerRef: pdfViewerRef,
@@ -811,7 +756,6 @@ export function DocumentWorkspace({
     marks,
     resultPath,
     active: effectiveRailOpen && railTab === 'results',
-    partialEvidenceLinks,
     dimLink: focusedEvidence,
   })
 
@@ -830,18 +774,8 @@ export function DocumentWorkspace({
       // The saved revision's own scope decides what a run is; admission refuses any other.
       if (revision.recordScope === null) throw new Error('Choose Article or Catalog in the schema header before extraction.')
       const strategy = strategyOf(revision.recordScope)
-      // The researcher asked for this run, so it is what they now inspect; its schema is known before the server
-      // acknowledges the attempt.
+      // The researcher asked for this run, so it is what they now inspect.
       setSelectedInspectionId(null)
-      setKnownSchemas((known) => ({
-        ...known,
-        [revision.schemaRevisionId]: {
-          schemaRevisionId: revision.schemaRevisionId,
-          revisionNumber: revision.revisionNumber,
-          recordDescription: revision.recordDescription,
-          schemaNodes: revision.schemaNodes,
-        },
-      }))
       const target = { sourceRepresentationId: targetSourceRepresentationId, schemaRevisionId: revision.schemaRevisionId }
       for (let round = 0; round < 2; round += 1) {
         // An Apply elsewhere aborts a read in flight, which then resolves null although the settings are ready: read
@@ -871,7 +805,7 @@ export function DocumentWorkspace({
         }
         if (!stillHere()) return
         if (acknowledged) {
-          selectNextRunAfter(acknowledged)
+          resetNextRun()
           // Finished when acknowledged, it has had its one completion toast (with "Review now") from onTerminal.
           if (acknowledged.executionStatus !== 'COMPLETED' && acknowledged.executionStatus !== 'FAILED')
             pendingReportRef.current = acknowledged.extractionId
@@ -966,8 +900,10 @@ export function DocumentWorkspace({
               : nextExtractionStrategy === null
                 ? 'Choose Article or Catalog in the schema header'
                 : null
-  const nativeControls=Boolean(inspectedAttempt?.durable)
-  const runLabel = nativeControls ? 'Extraction controls' : running ? (extraction.cancellationRequested ? 'Cancellation requested…' : '■ Stop extraction') : '▶ Run extraction'
+  // An Extraction that can still continue is controlled with Pause, Resume, Retry and Stop in Results; a completed or
+  // stopped one, or none, leaves Run to start a new Extraction.
+  const nativeControls = Boolean(inspectedAttempt && inspectedAttempt.executionStatus !== 'COMPLETED' && inspectedAttempt.executionStatus !== 'STOPPED')
+  const runLabel = nativeControls ? 'Extraction controls' : '▶ Run extraction'
   return (
     <div
       className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-canvas text-ink"
@@ -979,30 +915,13 @@ export function DocumentWorkspace({
       {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row, so the open Source Document's run action costs
           no extra vertical space. */}
       {/* The open document's tab carries the review's progress as a ring, and says it (§2.4). */}
-      {tabRingSlot && (extraction.hasResults || running) && createPortal((() => {
-        const partial = extraction.state.status === 'running' ? extraction.state.partial : null
-        if(nativeControls) {
-          const progress=durableReviewProgress?.extractionId===inspectedAttempt?.extractionId?durableReviewProgress:null
-          const fraction=progress&&progress.required>0?(progress.required-progress.toCheck)/progress.required:0
-          return <><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" className="order-first shrink-0">
-            <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-line"/>
-            <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-green" strokeDasharray={`${(fraction*44).toFixed(1)} 44`} transform="rotate(-90 9 9)"/>
-          </svg><span className="sr-only">{inspectedAttempt?.executionStatus.toLowerCase()}{progress?`, ${progress.toCheck} saved values to check in results ${progress.snapshotVersion}${progress.finalized?', this review is finalized':''}`:', loading saved review progress'}</span></>
-        }
-        const { requiredCount, untouchedCount, reviewedExtractionId } = extraction.review
-        const saved = Boolean(reviewedExtractionId || extraction.attempt?.reviewedAt)
-        const fraction = saved ? 1 : requiredCount === 0 ? 0 : (requiredCount - untouchedCount) / requiredCount
-        const said = running ? (partial ? `, reading records, ${partial.finished} of ${partial.discovered}` : ', reading records')
-          : saved ? ', review saved' : `, ${untouchedCount} values to check`
-        return (
-          <>
-            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" className="order-first shrink-0">
-              <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-line" />
-              <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-green" strokeDasharray={`${(fraction * 44).toFixed(1)} 44`} transform="rotate(-90 9 9)" />
-            </svg>
-            <span className="sr-only">{said}</span>
-          </>
-        )
+      {tabRingSlot && inspectedAttempt && createPortal((() => {
+        const progress=durableReviewProgress?.extractionId===inspectedAttempt.extractionId?durableReviewProgress:null
+        const fraction=progress&&progress.required>0?(progress.required-progress.toCheck)/progress.required:0
+        return <><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" className="order-first shrink-0">
+          <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-line"/>
+          <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" className="stroke-green" strokeDasharray={`${(fraction*44).toFixed(1)} 44`} transform="rotate(-90 9 9)"/>
+        </svg><span className="sr-only">{inspectedAttempt.executionStatus.toLowerCase()}{progress?`, ${progress.toCheck} saved values to check in results ${progress.snapshotVersion}${progress.finalized?', this review is finalized':''}`:', loading saved review progress'}</span></>
       })(), tabRingSlot)}
       {tabBarSlot && createPortal(
         <>
@@ -1022,18 +941,17 @@ export function DocumentWorkspace({
                   requested (then disabled). */}
               {/* One fixed width for Run and Stop, so the strip never shifts; progress is the Results badge's, not the button's (§2.4). */}
               <Button
-                variant={nativeControls?'secondary':running ? 'danger' : 'positive'}
+                variant={nativeControls ? 'secondary' : 'positive'}
                 size="md"
                 className="min-w-43 justify-center tabular-nums"
-                disabled={!nativeControls&&(running ? extraction.cancellationRequested : runExtractionUnavailable)}
+                disabled={!nativeControls && runExtractionUnavailable}
                 title={
-                  nativeControls ? 'Open Pause, Resume, Stop and revised inputs in Results' : running
-                    ? extraction.cancellationRequested ? 'Waiting for the Extraction to stop' : 'Cancel the active Extraction'
+                  nativeControls ? 'Open Pause, Resume, Stop and revised inputs in Results'
                     : runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
                       ? 'Find the catalogue entries and extract one record per entry'
                       : 'Extract one record from the whole document')
                 }
-                onClick={() => nativeControls ? (setRailOpen(true),setRailTab('results')) : (running ? void extraction.requestCancellation() : void runExtraction())}
+                onClick={() => nativeControls ? (setRailOpen(true), setRailTab('results')) : void runExtraction()}
               >
                 {runLabel}
               </Button>
@@ -1182,11 +1100,9 @@ export function DocumentWorkspace({
               extraction={extraction}
               inspection={{
                 attempt: inspectedAttempt,
+                cut: inspectionCut,
                 readOnly: inspectionReadOnly,
                 parsedDocument:inspectionDocument,
-                reviewDecisions: inspectedAttempt?.reviewDecisions ?? [],
-                pinnedSchema: inspectedAttemptSchema,
-                exportSchema: inspectedAttemptSchema,
               }}
               currentSchemaRevision={currentSchemaRevision}
               runUnavailableReason={runUnavailableReason}
@@ -1212,7 +1128,9 @@ export function DocumentWorkspace({
                     </select>
                   )}
                   {reviewedOnAnotherSource && latestReviewedExtraction && (
-                    <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId)}>Open latest reviewed</Button>
+                    <Button variant="secondary" onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
+                      ? { snapshotVersion: latestReviewedExtraction.finalizedReview.snapshotVersion, feedbackVersion: latestReviewedExtraction.finalizedReview.feedbackVersion }
+                      : undefined)}>Open latest reviewed</Button>
                   )}
                 </>
               }

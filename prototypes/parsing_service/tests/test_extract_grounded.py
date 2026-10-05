@@ -14,7 +14,7 @@ import pytest
 from kei_exp.kie.extract.grounded import EXTRACTION_VERSION
 from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.models import Router
-from kei_exp.kie.extract.run import ExtractRequest, StaleGeneration, extract
+from kei_exp.kie.extract.run import ExtractRequest, extract
 from tests.helpers import catalogue
 from tests.helpers.chat import FakeChat
 
@@ -283,13 +283,13 @@ def test_the_fingerprint_follows_schema_budget_and_tokenizer_but_one_segmentatio
     assert len({result["segmentation"]["fingerprint"] for result in (base, budget, tokenizer, schema)}) == 1
 
 
-def test_a_stale_generation_is_refused_before_any_call(tmp_path):
+
+def test_another_generation_is_refused_before_any_call(tmp_path):
     run_dir = catalogue.write("two-in-one-segment", tmp_path)
     chat = FakeChat(honest)
-    with pytest.raises(StaleGeneration):
+    with pytest.raises(ValueError, match="generation"):
         extract(run_dir, request(), chat, counter=WordCounter(), generation="another")
     assert chat.calls == []
-
 
 GLOSSED = {"pages": [{"page": 1, "units": [{"index": 1, "crops": [{"segments": [
     {"text": "Im Katalog verwendete Abkürzungen:", "label": "SectionHeader"},

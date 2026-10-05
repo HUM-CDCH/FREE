@@ -127,8 +127,18 @@ _Avoid_: extraction, output, response
 
 **Review Decision**:
 A researcher's choice to approve, edit, or reject a schema suggestion or
-extraction result.
-_Avoid_: status, vote
+extraction result. For an Extraction it is a revisioned correction of one saved
+value, bound to that value's stable identity and producing type, and saved in a
+numbered decision version of its Project.
+_Avoid_: status, vote, review draft
+
+**Finalized Review**:
+A researcher's explicit finalization of one named pair: an Extraction's result
+snapshot version and its Project's decision version. It never finalizes
+implicitly, never freezes later work, and a deliberately older pair may be
+finalized when it is clearly named. "Latest reviewed" opens the most recently
+finalized pair.
+_Avoid_: saved review, accepted result
 
 **Evidence**:
 Source material linked to an exact location in a source document and kept to show

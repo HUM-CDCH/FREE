@@ -1,7 +1,6 @@
 import type { DurablePage } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
-import type { ReviewDecisionInput } from '../shared/extraction.contract'
-import { linkOrigin } from './claimStates'
+import { linkOrigin } from './linkOrigin'
 import { evidenceCheck, type RailModel, type RailRow } from './reviewVocabulary'
 
 export type RetainedValue = DurablePage['values'][number]
@@ -28,7 +27,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
     kind, link, decision: value.processing === 'saved' ? {
       resultPath: value.path, evidenceAnchorId: link?.evidenceAnchorId ?? null, reviewedOccurrenceIds: [],
       action: action && action !== 'PENDING' ? action : 'APPROVED',
-      reviewedValue: action === 'EDITED' ? correction.value as ReviewDecisionInput['reviewedValue'] : null,
+      reviewedValue: action === 'EDITED' ? correction.value : null,
     } : null,
     chip: {text: value.grounding === 'provisional' ? 'provisional' : !link ? 'no model evidence' : `${page === null ? 'linked' : `p.${page}`}${origin === 'rule' ? ' · rule' : ''}${doubt ? ' · doubtful' : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},

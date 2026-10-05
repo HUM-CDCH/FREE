@@ -7,7 +7,7 @@ import requests
 from pydantic import BaseModel
 
 from kei_exp.failures import CODES, STEP_RETRY, KeiFailure, TransientBackendError, classify, failure_of, should_retry
-from kei_exp.kie.extract.run import StaleGeneration
+from kei_exp.kie.extract.run import RecordScopeViolation
 from kei_exp.pagefile import ResultError
 from kei_exp.transcription.types import ConversionError, IncompleteConversionError
 
@@ -55,9 +55,9 @@ def test_the_step_retry_policy_is_three_attempts_waiting_five_then_ten_seconds()
 @pytest.mark.parametrize("error, default, code", [
     (KeiFailure("too_many_pages", "2001 pages"), "conversion_failed", "too_many_pages"),
     (IncompleteConversionError("page 2 was cut off"), "conversion_failed", "conversion_incomplete"),
-    (http_error(503), "extraction_failed", "model_unavailable"),
+    (http_error(503), "conversion_failed", "model_unavailable"),
     (ConversionError("the model server has 'x' loaded"), "conversion_failed", "conversion_failed"),
-    (http_error(400), "extraction_failed", "extraction_failed"),
+    (http_error(400), "conversion_failed", "conversion_failed"),
 ])
 def test_a_final_step_error_maps_to_one_portable_code(error, default, code):
     found, reason = failure_of(error, default)
@@ -69,7 +69,7 @@ def test_a_validation_error_is_an_invalid_request():
         pages: int
     with pytest.raises(Exception) as caught:
         Body.model_validate({"pages": "many"})
-    assert failure_of(caught.value, "extraction_failed")[0] == "invalid_request"
+    assert failure_of(caught.value, "conversion_failed")[0] == "invalid_request"
 
 
 def test_every_failure_a_step_raises_survives_dbos_pickling():
@@ -77,9 +77,9 @@ def test_every_failure_a_step_raises_survives_dbos_pickling():
         json.loads("{bad")
     except json.JSONDecodeError as error:
         decode = error
-    for error in (KeiFailure("no_result", "none"), TransientBackendError("down"), http_error(503), decode,
-                  ConversionError("x"), IncompleteConversionError("y"), StaleGeneration("z"), ResultError("r"),
+    for error in (KeiFailure("source_missing", "none"), TransientBackendError("down"), http_error(503), decode,
+                  ConversionError("x"), IncompleteConversionError("y"), RecordScopeViolation("z"), ResultError("r"),
                   requests.exceptions.ChunkedEncodingError("broken")):
         back = pickle.loads(pickle.dumps(error))
         assert type(back) is type(error) and str(back) == str(error)
-    assert pickle.loads(pickle.dumps(KeiFailure("no_result", "none"))).code == "no_result"
+    assert pickle.loads(pickle.dumps(KeiFailure("source_missing", "none"))).code == "source_missing"

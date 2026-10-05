@@ -35,28 +35,28 @@ test('reads every status with one listWorkflows call per 500 IDs and never asks 
   const statuses = workflowStatusesOf(async (input) => {
     calls.push(input)
     // DBOS omits a workflow it no longer holds.
-    return input.workflowIDs.filter((id) => id !== 'extract:gone').map((workflowID) => ({ workflowID, status: `S-${workflowID}` }))
+    return input.workflowIDs.filter((id) => id !== 'ingest:gone').map((workflowID) => ({ workflowID, status: `S-${workflowID}` }))
   })
 
-  const few = await statuses(['extract:a', 'extract:gone', 'extract:b'])
-  assert.deepEqual(calls, [{ workflowIDs: ['extract:a', 'extract:gone', 'extract:b'], loadInput: false, loadOutput: false }])
-  assert.deepEqual([...few], [['extract:a', 'S-extract:a'], ['extract:b', 'S-extract:b']])
-  assert.equal(few.get('extract:gone'), undefined)
+  const few = await statuses(['ingest:a', 'ingest:gone', 'ingest:b'])
+  assert.deepEqual(calls, [{ workflowIDs: ['ingest:a', 'ingest:gone', 'ingest:b'], loadInput: false, loadOutput: false }])
+  assert.deepEqual([...few], [['ingest:a', 'S-ingest:a'], ['ingest:b', 'S-ingest:b']])
+  assert.equal(few.get('ingest:gone'), undefined)
 
   calls.length = 0
-  const ids = Array.from({ length: 1_001 }, (_, index) => `extract:${index}`)
+  const ids = Array.from({ length: 1_001 }, (_, index) => `ingest:${index}`)
   const many = await statuses(ids)
   assert.deepEqual(
     calls.map((call) => [call.workflowIDs.length, call.workflowIDs[0], call.loadInput, call.loadOutput]),
     [
-      [500, 'extract:0', false, false],
-      [500, 'extract:500', false, false],
-      [1, 'extract:1000', false, false],
+      [500, 'ingest:0', false, false],
+      [500, 'ingest:500', false, false],
+      [1, 'ingest:1000', false, false],
     ],
   )
   assert.deepEqual(calls.flatMap((call) => call.workflowIDs), ids)
   assert.equal(many.size, 1_001)
-  assert.equal(many.get('extract:1000'), 'S-extract:1000')
+  assert.equal(many.get('ingest:1000'), 'S-ingest:1000')
 
   calls.length = 0
   assert.equal((await statuses([])).size, 0)
@@ -68,12 +68,12 @@ test('a DBOS or store outage rejects instead of reading as a missing workflow', 
   const statuses = workflowStatusesOf(async () => {
     throw outage
   })
-  await assert.rejects(statuses(['extract:a']), (error) => error === outage)
+  await assert.rejects(statuses(['ingest:a']), (error) => error === outage)
 })
 
 test('the interrupted failure names no workflow and tells the researcher to start again', () => {
   assert.equal(INTERRUPTED_FAILURE.code, 'interrupted')
-  assert.doesNotMatch(INTERRUPTED_FAILURE.message, /extract:|suggest:|ingest:|reprocess:|kei-/)
+  assert.doesNotMatch(INTERRUPTED_FAILURE.message, /suggest:|ingest:|reprocess:|kei-/)
   assert.match(INTERRUPTED_FAILURE.message, /Start it again\.$/)
   assert.ok(Object.isFrozen(INTERRUPTED_FAILURE))
 })

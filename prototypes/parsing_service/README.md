@@ -22,11 +22,13 @@ listings and the files a run has published, and nothing else.
 
 The worker (`kei-worker worker`) is kei's DBOS application: name `kei`,
 application version `kei@1`, system schema `kei_dbos` in Studio's database
-`free`, connected as the restricted `kei` role. Studio enqueues `convert`,
-`extract` and `deleteRuns` by name with portable JSON (contract and examples in
-`tests/fixtures/contracts/`) on four lanes: `kei-convert-large`,
-`kei-convert-small` (a document of at most 30 pages), `kei-extract` (priority 1
-interactive before 10 batch) and `kei-gc`. Each lane's worker limit equals its
+`free`, connected as the restricted `kei` role. Studio enqueues `convert` and
+`deleteRuns` by name with portable JSON (contract and examples in
+`tests/fixtures/contracts/`), and durable Extraction attempts
+(`extractDurableV1`) with only their identities, on four lanes:
+`kei-convert-large`, `kei-convert-small` (a document of at most 30 pages),
+`kei-extract` (durable attempts, priority 1 interactive before 10 batch) and
+`kei-gc`. Each lane's worker limit equals its
 global limit, so a cancelled workflow whose native step is still running keeps
 its slot until the step returns.
 
@@ -35,17 +37,19 @@ One worker per slot: it holds `KEI_RUNS/.worker-<slot>.lock` for its lifetime
 boot timestamp, then launches DBOS, which migrates `kei_dbos` and recovers the
 slot's pending work (executor `kei-<slot>`). A crash re-executes the step that
 was running and reuses every checkpointed one. A cancel or a deadline stops a
-step at its next check (before model work, between pages while cutting, between
-Catalog entries and records); a running native call finishes first.
-Studio's `collectGarbage` names the conversions whose runs nothing references
+conversion at its next check (before model work, between pages while cutting); a
+running native call finishes first. A durable attempt stops at its coordination
+boundaries. Studio's `collectGarbage` names the conversions whose runs no
+surviving revision and no durable head (tombstoned heads included) references,
 and the kei history that may go. `deleteRuns` (`gc.py`, `boot.py`) deletes each
-run only once no kei workflow that could still write it is live or stopped
-since this worker booted, then that conversion's history; it also deletes the
-other kei history Studio names. A run waits until nothing in it was written
+run only once its conversion can no longer write (not live, not stopped since
+this worker booted), then that conversion's history; it also deletes the other
+kei history Studio names. A deleted durable graph's history goes through
+`deleteDurableHistoryV1` once its native calls are quiescent. A run waits until nothing in it was written
 for 24 h. kei never reads Studio's schemas.
 
-`KEI_RUNS` contains the runs' sources, canonical parse results and extraction
-results. It is durable service data: later Extractions need the original parse
+`KEI_RUNS` contains the runs' sources, canonical parse results and recipe
+segmentations; durable Extraction results live in the coordination schema. It is durable service data: later Extractions need the original parse
 generation. `KEI_SOURCE_INBOX` is where Studio stages source PDFs; kei only
 reads it. Model weights under `/models` are a separate cache. Debug files are
 never authoritative Evidence.
@@ -87,7 +91,7 @@ run would lose its result.
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
-| `KEI_CATALOG_CHUNKS` | Worker only: chunks a grounded Catalog's entries run in at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`) |
+| `KEI_CATALOG_CHUNKS` | Worker only: chunks a durable attempt plans a Catalog's entries in at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: optional model-call tracing to Phoenix and what it records ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)); unset, nothing is traced |
 
@@ -112,20 +116,10 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   one generation. Native Docling tables retain cells with row/column spans, raw
   parent-text offsets, and measured page boxes when available. Scan tables
   remain coarse until cell geometry has been independently evaluated.
-- `extract` takes `{run_id, generation, request: {schema, options}}` against a
-  complete parse of that generation and publishes its artifact at
-  `extractions/<extraction id>/result.json`, the extraction ID being its
-  workflow ID's suffix; `GET /api/runs/{id}/extractions/{extraction_id}` serves
-  it, and answers 404 until it is published (its status is the workflow's).
-  While it runs, `GET /api/runs/{id}/extractions/{extraction_id}/progress`
-  serves what the stage files beside the result say so far
-  (`kie/extract/progress.py`): each discovered record's stage (queued, reading,
-  candidates under verification, finished with its record, links and unresolved
-  contests), and for Article the root assembled over the contexts answered so
-  far and the links grounded so far; 404 until record work has started. Stage
-  files are written by rename, marked with their execution's token (a retried
-  step's files never mix with the previous attempt's) and skipped when
-  unreadable; a write that fails never fails the extraction. A request may name
+- Extraction runs only as durable attempts (`extractDurableV1`, below): the
+  attempt reads its pinned selection and source from the coordination schema,
+  and its saved values are retained there, never published beside the run or
+  served by this API. A request may name
   `start_page`, the page the researcher is reading: the unified Catalog reads
   the records nearest it first and Article its bounded value contexts, the
   artifact unchanged.
@@ -224,21 +218,17 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   windows that read the whole admitted text, and a window that cannot be read
   leaves its range unresolved rather than clipped. Candidates are verified by a
   separate reasoning request; unverified, partial or conflicting values stay
-  proposals. Before its first model call the step publishes
-  `extractions/<id>/catalog-execution.json` (pins and resolved budgets), then
-  `catalog-discovery.json`, then one `catalog-entry-<n>.v<version>.json` per
-  entry that finished without a failed call or undecided verdict, all
-  write-once and reused when the step runs again, beside a reading marker and a
-  candidates file per entry that only the progress route reads, so a retry after
-  a transient backend error asks only for unfinished entries; budgets the served
-  context no longer fits fail as `budget_refused`. A request the server refuses
+  proposals. The artifact carries the execution record (pins and resolved
+  budgets), the discovery record and each entry's work; nothing is written
+  beside the run, and durable execution resumes only from its committed call
+  outputs. A request the server refuses
   for itself (a non-transient HTTP error) fails only its window, which is halved
   or left failed and visible. A record the supplied source ends inside, with no
   unread text after it, ends `source_end` and does not make boundaries
   incomplete. A value printed in another cell of the table row whose cell the
   quote names is located in its own cell. The artifact embeds the execution and
   discovery records with their canonical digests, which Studio verifies.
-  `deleteRuns` removes them with the run. New admissions use it only where
+  New admissions use it only where
   Studio's `FREE_CATALOG_METHOD=unified` gate is on.
 
 The API is an internal processor and provides no researcher authentication.
@@ -252,8 +242,8 @@ experiments; it is historical rationale, not the FREE deployment runbook.
 
 `api.py` exposes the read-only HTTP operations; `runs.py` is a run's layout on
 disk. `workflows/` is kei's DBOS application: its configuration and lanes
-(`config.py`), the portable contracts (`contracts.py`), `convert`, `extract`,
-`deleteRuns` with the boot boundary (`gc.py`, `boot.py`), the slot lock
+(`config.py`), the portable contracts (`contracts.py`), `convert`, the durable
+Extraction workflows (`durable_extract.py`, `coordination.py`), `deleteRuns` with the boot boundary (`gc.py`, `boot.py`), the slot lock
 (`slot.py`) and the `kei-worker` CLI (`cli.py`); `failures.py` classifies what a
 step raised into a retry or a portable failure code. The OCR runner
 lives in `kie/stages/ocr.py`, with native/Surya/VLM adapters in `transcription/`.
@@ -331,10 +321,11 @@ The database-free conversion and extraction CLIs remain available through
 
 ## Durable interactive extraction candidate
 
-Protocol 1 adds explicitly named `extractDurableV1`, `extractionCallV1` and
-`deleteDurableHistoryV1` workflows on the existing extraction/GC lanes. Legacy
-`extract`, `extract_run`, `convert` and `deleteRuns` names, step sequences and
-`kei@1` remain unchanged. Admissions stay disabled in Studio pending the full
+Protocol 1's explicitly named `extractDurableV1`, `extractionCallV1` and
+`deleteDurableHistoryV1` workflows run on the kei-extract and kei-gc lanes; with
+`convert` and `deleteRuns` they are everything the worker registers. The
+non-durable `extract` workflow, its artifact and progress routes and its stage
+files were removed (ADR 0017, durable-only amendment). Admissions stay disabled in Studio pending the full
 [release matrix](../../docs/plans/2026-10-04-durable-interactive-extraction-release.md).
 
 The worker uses a separate pool of at most four short routine calls against

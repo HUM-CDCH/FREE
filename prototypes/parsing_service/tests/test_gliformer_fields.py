@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
-import requests
 from pydantic import ValidationError
 
 from kei_exp.kie.extract import gliformer, models, run, unified
@@ -124,12 +123,12 @@ def test_schema_keeps_material_guidance_without_synthesizing_a_boolean():
     assert "Leather, skins, hides and fur" in shape["record"]["children"]["leather_mentions"]["description"]
 
 
-def test_entry_isolation_raw_values_scores_and_durable_resume(tmp_path):
+def test_entry_isolation_raw_values_and_scores(tmp_path):
     source = evidence("200. Male with goatskin.\n204. Adult male with twigs and matting.\nVorwort summary")
     native = Native()
     router = Router(native, CountingChat(Model(source)))
     counters = {"fields": Counter(), "reasoning": WordCounter()}
-    result = run.dispatch(tmp_path, source, request(), router, counter=counters, extraction_id="native")
+    result = run.dispatch(tmp_path, source, request(), router, counter=counters)
     assert native.inputs == ["200. Male with goatskin.", "204. Adult male with twigs and matting."]
     raw = result["native_fields"]["windows"]
     assert result["records"] == raw[0]["output"]["record"] + raw[1]["output"]["record"]
@@ -144,15 +143,7 @@ def test_entry_isolation_raw_values_scores_and_durable_resume(tmp_path):
     assert result["processing"]["verification"]["enabled"] is False
     assert result["execution"]["effective"]["stages"]["entry"]["output_tokens"] == 0
     assert {call["stage"] for call in result["calls"]} == {"entry", "discovery"}
-    resumed = run.dispatch(tmp_path, source, request(), router, counter=counters, extraction_id="native")
-    assert len(native.inputs) == 2
-    assert resumed["records"] == result["records"]
-    assert resumed["native_fields"] == result["native_fields"]
-    assert resumed["fingerprint"] == result["fingerprint"]
-    changed = Counter()
-    changed.info = {"identity": {"revision": "different", "threshold": "0.05"}}
-    with pytest.raises(unified.BudgetRefused, match="tokenizer is no longer"):
-        run.dispatch(tmp_path, source, request(), router, counter={**counters, "fields": changed}, extraction_id="native")
+    assert not (tmp_path / "extractions").exists()
 
 
 def test_uncertain_end_is_not_sent_to_model():
@@ -162,28 +153,6 @@ def test_uncertain_end_is_not_sent_to_model():
     work = reader.entry(0, {"end": "unresolved", "ranges": []})
     assert native.inputs == [] and work.failed == 1 and work.native == []
 
-
-def test_backend_failure_resumes_only_the_unfinished_entry(tmp_path):
-    class Interrupted(Native):
-        failed = False
-
-        def structure(self, text, schema, identity):
-            if text.startswith("204.") and not self.failed:
-                self.failed = True
-                raise requests.Timeout("test interruption")
-            return super().structure(text, schema, identity)
-
-    source = evidence("200. Male with goatskin.\n204. Adult male.")
-    native = Interrupted()
-    router = Router(native, CountingChat(Model(source)))
-    counters = {"fields": Counter(), "reasoning": WordCounter()}
-    with pytest.raises(requests.Timeout):
-        run.dispatch(tmp_path, source, request(), router, counter=counters, extraction_id="resume")
-    assert (tmp_path / "extractions/resume" / unified.entry_name(0)).exists()
-    assert not (tmp_path / "extractions/resume" / unified.entry_name(1)).exists()
-    result = run.dispatch(tmp_path, source, request(), router, counter=counters, extraction_id="resume")
-    assert native.inputs == ["200. Male with goatskin.", "204. Adult male."]
-    assert len(result["records"]) == 6
 
 
 def test_native_health_listing_does_not_probe_a_chat_api(monkeypatch):
@@ -228,11 +197,10 @@ def test_native_artifact_contract(tmp_path, monkeypatch):
         monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: 100.0))
     requested = request()
     produced = run.dispatch(directory, source, requested, Router(Native(), CountingChat(Model(source))),
-                            counter={"fields": Counter(), "reasoning": WordCounter()}, extraction_id="native-contract")
-    fixture = {"extraction_id": "native-contract", "request": {
-        "run_id": source.run_id, "generation": source.generation, "request": {
-            "schema": SCHEMA, "options": {"strategy": "catalog", "models": {"fields": "gliformer"},
-                                          "unified": {"defaults": 1}}}},
+                            counter={"fields": Counter(), "reasoning": WordCounter()})
+    fixture = {"source": {"run_id": source.run_id, "generation": source.generation},
+               "request": {"schema": SCHEMA, "options": {"strategy": "catalog", "models": {"fields": "gliformer"},
+                                                         "unified": {"defaults": 1}}},
         "manifest": json.loads((directory / "result/result.json").read_text()),
         "pages": [json.loads((directory / "result/pages/1.json").read_text())], "artifact": produced}
     path = FIXTURES / "extract.gliformer.json"

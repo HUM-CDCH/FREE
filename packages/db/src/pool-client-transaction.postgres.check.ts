@@ -78,7 +78,7 @@ test('one pooled-client transaction commits or rolls back domain rows and DBOS e
       attributes: { projectContextId: owner, kind: 'check' },
     }
   }
-  const newWorkflowId = () => `extract:${randomUUID()}`
+  const newWorkflowId = () => `suggest:${randomUUID()}:1`
 
   await t.test('a rollback after domain writes and an enqueue leaves neither the row nor the workflow', async () => {
     const id = randomUUID()

@@ -63,24 +63,11 @@ test('garbage collection reads the scopes, revision references and package refer
     parserVersion: '1',
   })
   const schema = await orm.ExtractionSchema.create({ projectContextId: project.id, name: 'Schema' })
-  const schemaRevision = await orm.SchemaRevision.create({
-    extractionSchemaId: schema.id,
-    revisionNumber: 1,
-    origin: 'RESEARCHER_EDIT',
-    schemaTree: [],
-  })
   const suggestion = await orm.BatchSchemaSuggestion.create({
     projectContextId: project.id,
     selectionKey: `garbage-references-${randomUUID()}`,
     attempt: 2,
     outcome: 'SUCCEEDED',
-  })
-  const extraction = await orm.Extraction.create({
-    sourceDocumentId: document.id,
-    schemaRevisionId: schemaRevision.id,
-    sourceRepresentationRevisionId: revision.id,
-    strategy: 'whole_document',
-    outcome: null,
   })
 
   const references = createGarbageReferences(db)
@@ -90,19 +77,16 @@ test('garbage collection reads the scopes, revision references and package refer
     sourceRepresentationRevisionIds: [revision.id, randomUUID()],
     extractionSchemaIds: [schema.id, randomUUID()],
     batchSchemaSuggestionIds: [suggestion.id, randomUUID()],
-    extractionIds: [extraction.id, randomUUID()],
   }
 
-  await t.test('scopes reports existing rows and the state of suggestions and Extractions', async () => {
+  await t.test('scopes reports existing rows and the state of suggestions', async () => {
     const snapshot = await references.scopes(seededIds)
     assert.deepEqual([...snapshot.projectContexts], [project.id])
     assert.deepEqual([...snapshot.sourceDocuments], [document.id])
     assert.deepEqual([...snapshot.sourceRepresentationRevisions], [revision.id])
     assert.deepEqual([...snapshot.extractionSchemas], [schema.id])
     assert.deepEqual([...snapshot.suggestions.keys()], [suggestion.id])
-    assert.deepEqual([...snapshot.extractions.keys()], [extraction.id])
     assert.deepEqual(snapshot.suggestions.get(suggestion.id), { attempt: 2, settled: true })
-    assert.equal(snapshot.extractions.get(extraction.id)?.settled, false)
   })
 
   await t.test('unknown or malformed IDs are absent, and a failed read rejects', async () => {
@@ -137,7 +121,6 @@ test('garbage collection reads the scopes, revision references and package refer
     assert.equal(snapshot.sourceRepresentationRevisions.size, 0)
     assert.equal(snapshot.extractionSchemas.size, 0)
     assert.equal(snapshot.suggestions.size, 0)
-    assert.equal(snapshot.extractions.size, 0)
     assert.equal(await references.packageIsReferenced(seededPackage), false)
   })
 })

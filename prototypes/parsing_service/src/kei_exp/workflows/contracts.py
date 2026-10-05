@@ -1,8 +1,10 @@
 """The portable JSON kei's workflows take and return (spec, *Studio → kei handoff*, Contract).
 
-Studio's DBOS client enqueues `convert`, `extract` and `deleteRuns` by name with portable serialization, one JSON
-object each; each returns `{"ok": true, ...}` or `{"ok": false, "code", "reason", "retryable"}`. No PDF, page or
-artifact bytes enter workflow history. tests/fixtures/contracts/ holds the examples both sides check.
+Studio's DBOS client enqueues `convert` and `deleteRuns` by name with portable serialization, one JSON object each;
+each returns `{"ok": true, ...}` or `{"ok": false, "code", "reason", "retryable"}`. No PDF or page bytes enter
+workflow history. tests/fixtures/contracts/ holds the examples both sides check. Durable Extraction attempts
+(`extractDurableV1`) take only their identities and read everything else from the coordination schema
+(`durable_extract.py`).
 """
 from __future__ import annotations
 
@@ -12,10 +14,10 @@ from typing import Annotated, Literal
 from dbos import error as dbos_error
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from kei_exp.failures import CODES, REASON_CHARS, KeiFailure, failure_of
+from kei_exp.failures import CODES, REASON_CHARS, failure_of
 from kei_exp.runs import COMPONENT  # a file-layout rule; the DBOS-free API reads it from runs too
 
-CONVERT_PREFIX, EXTRACT_PREFIX, GC_PREFIX = "kei-convert:", "kei-extract:", "kei-gc:"
+CONVERT_PREFIX, GC_PREFIX = "kei-convert:", "kei-gc:"
 FailureCode = Literal[*CODES]  # the one list is failures.CODES
 RunId = Annotated[str, Field(pattern=COMPONENT.pattern)]
 ConvertWorkflowId = Annotated[str, Field(pattern=r"^kei-convert:.+$")]
@@ -47,27 +49,11 @@ class ConvertOk(_Contract):
     page_source: Literal["pdf", "ingest"]
 
 
-class ExtractInput(_Contract):
-    run_id: RunId
-    generation: str = Field(min_length=1)  # the parse the extraction was admitted against
-    request: dict                          # {schema, options}; validated as kie.extract.run.ExtractRequest
-
-
-class ExtractOk(_Contract):
-    ok: Literal[True]
-    run_id: RunId
-    extraction_id: RunId
-    generation: str = Field(min_length=1)
-    artifact_sha256: Sha256
-    model: str                   # the fields model: the model that read the values
-    models: dict[str, str]       # per role
-
-
 class DeleteRunsInput(_Contract):
     # A conversion's run goes, then the conversion's history once the run is gone: that history is the only index
     # through which Studio can name the run (it never computes run_id_for), so it goes only after the run.
     conversions: list[ConvertWorkflowId] = Field(default_factory=list)
-    history: list[str] = Field(default_factory=list)  # kei-extract: and kei-gc: workflows whose history may go
+    history: list[str] = Field(default_factory=list)  # kei-gc: workflows whose history may go
 
     @field_validator("history")
     @classmethod
@@ -116,10 +102,3 @@ def settled(steps: Callable[[], dict], *, default: str) -> dict:
     except Exception as error:  # noqa: BLE001 - every step failure becomes the typed outcome Studio records
         code, reason = failure_of(error, default)
         return failure(code, reason, retryable=False)
-
-
-def extraction_id_of(workflow_id: str) -> str:
-    extraction_id = workflow_id.removeprefix(EXTRACT_PREFIX)
-    if extraction_id == workflow_id or not COMPONENT.fullmatch(extraction_id):
-        raise KeiFailure("invalid_request", f"{workflow_id!r} is not {EXTRACT_PREFIX}<extraction id>")
-    return extraction_id

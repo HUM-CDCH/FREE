@@ -65,7 +65,7 @@ async function installArtifactRoutes(page: Page) {
   )
 }
 
-/** The same disposable-stack gate `canonical-evidence-lifecycle.spec.ts` uses. */
+/** The disposable-stack gate the deterministic stack specs share. */
 const withoutDatabase =
   !process.env.EXTRACTION_TEST_DATABASE_URL ||
   process.env.DATABASE_URL !== process.env.EXTRACTION_TEST_DATABASE_URL

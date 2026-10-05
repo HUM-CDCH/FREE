@@ -17,18 +17,18 @@ it('shows the project as a chip that opens its Sources tab, and no breadcrumb ro
   expect(screen.queryByRole('button', { name: 'Project actions' })).not.toBeInTheDocument()
 })
 
-it('offers Back to review grid in the chip menu when the document came from a review grid', () => {
-  const onBackToReviewGrid = vi.fn()
+it('offers Back to Batch Extraction in the chip menu when the document came from a Batch Extraction', () => {
+  const onBackToBatch = vi.fn()
   render(<DocumentTabBar projectName="Ellekilde" tabs={tabs} activeSourceDocumentId="doc-1" onActivate={vi.fn()} onClose={vi.fn()}
-    onNavigateProject={vi.fn()} onBackToReviewGrid={onBackToReviewGrid} slotRef={() => {}} />)
+    onNavigateProject={vi.fn()} onBackToBatch={onBackToBatch} slotRef={() => {}} />)
   fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Back to review grid' }))
-  expect(onBackToReviewGrid).toHaveBeenCalledOnce()
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Back to Batch Extraction' }))
+  expect(onBackToBatch).toHaveBeenCalledOnce()
 })
 
 it('shows no project chip until the project name is known', () => {
   render(<DocumentTabBar projectName={null} tabs={tabs} activeSourceDocumentId="doc-1" onActivate={vi.fn()} onClose={vi.fn()}
-    onNavigateProject={vi.fn()} onBackToReviewGrid={vi.fn()} slotRef={() => {}} />)
+    onNavigateProject={vi.fn()} onBackToBatch={vi.fn()} slotRef={() => {}} />)
   expect(screen.queryByRole('button', { name: /^Open project/ })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Project actions' })).not.toBeInTheDocument()
   expect(screen.getByRole('tablist', { name: 'Open Source Documents' })).toBeInTheDocument()

@@ -36,7 +36,7 @@ def test_a_real_model_finds_the_entries_and_accounts_for_every_character(tmp_pat
     run_dir = catalogue.write("continuations", tmp_path)
     request = run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {
         "strategy": "catalog", "unified": {"defaults": 1}, **({"models": models} if models else {})}})
-    result = run.extract(run_dir, request, chats_for(request.options), extraction_id="live")
+    result = run.extract(run_dir, request, chats_for(request.options))
     assert result["extraction_version"] == 3
     assert_links_resolve(result)
     assert_accounted(load(run_dir), result)
@@ -56,8 +56,3 @@ def test_a_real_model_finds_the_entries_and_accounts_for_every_character(tmp_pat
         for name, value in expected.items():  # a trailing period is normalisation, not a wrong value
             assert got.get(name) is None or str(got[name]).rstrip(".") == str(value), (name, got)
     assert result["completeness"]["processing"] is True, result["processing"]
-
-    again = run.extract(run_dir, request, chats_for(request.options), extraction_id="live")
-    assert again["discovery_sha256"] == result["discovery_sha256"]
-    assert again["execution_sha256"] == result["execution_sha256"]
-    assert len(again["records"]) == 4

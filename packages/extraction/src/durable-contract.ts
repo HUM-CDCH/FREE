@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { schemaNodeSchema } from './schema.js'
-import { evidenceAnchorIdOf, evidenceSchema, groundedEvidenceSchema, unifiedEvidenceSchema } from './kei-artifact.js'
+import { evidenceAnchorIdOf, evidenceSchema, groundedEvidenceSchema, unifiedEvidenceSchema } from './kei-evidence.js'
 
 export const DURABLE_EXTRACTION_PROTOCOL = 1 as const
 // Exposure is deliberately OFF. Completing a release matrix is an operator

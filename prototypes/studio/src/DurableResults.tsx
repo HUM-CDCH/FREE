@@ -18,7 +18,7 @@ import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './rev
 import { shownValue, stateLabel, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { RailMarkState } from './useEvidenceOverlays'
-import {savedCorrectionHref,savedReviewCut} from './durableReviewLinks'
+import {savedCorrectionHref,type SavedReviewCut} from './durableReviewLinks'
 import { keyAction } from './reviewKeys'
 
 type Value=DurablePage['values'][number]
@@ -141,7 +141,10 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
 
 /** Durable live review in the existing results rail. All lifecycle states
  * share the same retained snapshot and independent researcher decisions. */
-export function DurableResults({attempt,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized}:{attempt:ExtractionAttempt|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
+export function DurableResults({attempt,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized}:{attempt:ExtractionAttempt|null;
+  /** The explicit result/decision cut this view opens on, e.g. a finalized
+   * review or a saved-correction link; null opens the live cut. */
+  initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
   onResultPathChange?:(path:string[]|null)=>void;onFocusEvidence?:(link:EvidenceLink|null)=>void;
   onMarksChange?:(marks:RailMarkState|null)=>void;
   selectValueRef?:RefObject<((key:string)=>void)|null>;headerExtras?:React.ReactNode;
@@ -175,7 +178,7 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
   const [closedRecords,setClosedRecords]=useState<Set<string>>(()=>new Set())
   const selectedGeneration=useRef(0),linkedValue=useRef(new URLSearchParams(window.location.search).get('value'))
   const selectionFromMark=useRef<string|null>(null)
-  const linkedCut=useRef(savedReviewCut(window.location.search))
+  const linkedCut=useRef(initialCut)
   const model=useMemo(()=>page?durableRailModel(page,document):null,[page,document])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
   const selectValue=useCallback((key:string,fromMark=false)=> {
@@ -271,9 +274,17 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
   const saved=()=> {
     const next=focus?nextToCheck(queue,review?.value.id??null):null
     setReview(null);setEditing(false)
-    void selectPage(`${durableRoot(id)}/values?snapshotVersion=${page.snapshotVersion}`).then(nextPage=> {const value=nextPage?.values.find(value=>value.id===next);if(value&&nextPage)setReview({value,version:nextPage.snapshotVersion,feedbackVersion:nextPage.feedbackVersion})})
+    const read=selectPage(`${durableRoot(id)}/values?snapshotVersion=${page.snapshotVersion}`)
+    // Automatic advancement belongs to this save. A later explicit selection,
+    // close or navigation owns the review instead, with its open draft.
+    const owner=selectedGeneration.current
+    void read.then(nextPage=> {
+      if(owner!==selectedGeneration.current)return
+      const value=nextPage?.values.find(value=>value.id===next);if(value&&nextPage)setReview({value,version:nextPage.snapshotVersion,feedbackVersion:nextPage.feedbackVersion})
+    })
     void refresh()
   }
+  const closeReview=()=>{++selectedGeneration.current;setReview(null);setFocus(false)}
   const openNext=()=> {const next=nextToCheck(queue,review?.value.id??null);if(next)selectValue(next);else setReview(null)}
   const finalize=()=>void durableRequest(`${durableRoot(id)}/finalize`,{snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion}).then(async()=>{
     await selectPage(`${durableRoot(id)}/values?snapshotVersion=${page.snapshotVersion}&feedbackVersion=${page.feedbackVersion}`)
@@ -281,6 +292,12 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
     onReviewFinalized?.()
   }).catch(error=>setError(error.message))
   const exportSaved=(format:'xlsx'|'csv')=>void readDurableHistory(id).then(history=>import('./durableExport').then(module=>module.downloadDurableExport({state,page,history},format))).catch(error=>setError(error.message))
+  // The displayed cut is the one finalization names. Newer saved work stays
+  // visible as separate versions until the researcher selects it.
+  const cut=`results ${page.snapshotVersion} · decisions ${page.feedbackVersion}`
+  const newerResults=loaded.page.snapshotVersion>page.snapshotVersion?loaded.page.snapshotVersion:null
+  const newerDecisions=loaded.page.feedbackVersion>page.feedbackVersion?loaded.page.feedbackVersion:null
+  const finalizeLabel=!readOnly&&!page.finalization&&page.total>0?`Finalize ${cut}`:null
   const renderValue=(row:RailRow,pinned:boolean)=>row.key===review?.value.id&&review.version===page.snapshotVersion&&review.feedbackVersion===page.feedbackVersion?null:<ReviewRow row={row} selected={false} pinned={pinned} onSelect={()=>selectValue(row.key)} quote={null} canDecide={false} saved={readOnly} last={false}
     editing={false} node={null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
   return <div ref={keyboardRoot} className="flex h-full min-h-0 flex-col">
@@ -288,12 +305,12 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
       word:state.status.charAt(0)+state.status.slice(1).toLowerCase(),rest:`· ${state.counts.saved} calls saved · ${state.counts.inFlight} in flight`,
       failure:state.status==='FAILED'?'Processing did not finish. Saved values and decisions remain available; Retry continues failed or unfinished work.':undefined}}
       extras={headerExtras} counts={{...model.counts,...page.reviewCounts}} running={state.status!=='COMPLETED'&&state.status!=='STOPPED'} readOnlyNote={readOnly?'Inspecting saved values':undefined}
-      actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?'No saved values to review':null}:null,approveRest:null,
-        saveReview:!readOnly&&!page.finalization&&page.total>0&&page.reviewCounts.toCheck===0,list:focus}}
-      breakdown={`Snapshot ${page.snapshotVersion} · ${page.total} retained values · ${page.reviewCounts.approved} approved · ${page.reviewCounts.edited} edited · ${page.reviewCounts.rejected} rejected · Recall is unmeasured`}
+      actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?'No saved values to review':null}:null,
+        saveReview:page.reviewCounts.toCheck===0?finalizeLabel:null,list:focus}}
+      breakdown={`Results ${page.snapshotVersion} · decisions ${page.feedbackVersion} · ${page.total} retained values · ${page.reviewCounts.approved} approved · ${page.reviewCounts.edited} edited · ${page.reviewCounts.rejected} rejected · Recall is unmeasured`}
       chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen}
       onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onSchema={()=>setDetailsOpen(true)} onWhy={()=>setDetailsOpen(true)} onShowDetails={()=>setDetailsOpen(true)}
-      onOneByOne={()=>{setFocus(true);openNext()}} onApproveRest={()=>{}} onSaveReview={finalize} onList={()=>setFocus(false)}/>
+      onOneByOne={()=>{setFocus(true);openNext()}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
     <div className="shrink-0 space-y-2 border-b border-line p-3">
       {detailsOpen&&<div className="space-y-2 text-secondary"><p>Saved input selection {state.selection.ordinal}. Earlier values retain their own producing schema and settings. Processing and review completion are separate.</p>
         {state.failure&&<p>Recorded processing failure: {state.failure.code}</p>}</div>}
@@ -314,9 +331,11 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
       {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}
       {loaded.state.sourceRevisionId!==documentRevisionId&&<p className="text-secondary">Review uses the Source Representation saved with this Extraction.</p>}
-      <p className="text-compact text-ink-muted">Snapshot {page.snapshotVersion} · {page.total} retained values · saved input selection {state.selection.ordinal}. Recall is unmeasured.</p>
-      {page.finalization&&<p role="status" className="text-secondary">Finalized review · results {page.snapshotVersion} · decisions {page.feedbackVersion}. Later work and decisions remain separate.</p>}
-      {(state.snapshotVersion>page.snapshotVersion||loaded.page.feedbackVersion>page.feedbackVersion)&&<Button onClick={()=> {++readGenerations.current.snapshot;++selectedGeneration.current;setPage(loaded.page)}}>Show new saved results</Button>}
+      <p className="text-compact text-ink-muted">Selected {cut} · {page.total} retained values · saved input selection {state.selection.ordinal}. Recall is unmeasured.</p>
+      {page.finalization&&<p role="status" className="text-secondary">Finalized review · {cut}. Later work and decisions remain separate.</p>}
+      {(newerResults!==null||newerDecisions!==null)&&<div className="space-y-2"><p role="status" className="text-secondary">
+        Newer saved {[newerResults!==null&&`results ${newerResults}`,newerDecisions!==null&&`decisions ${newerDecisions}`].filter(Boolean).join(' and ')} exist. This view{finalizeLabel?' and its finalization stay':' stays'} on {cut}.</p>
+        <Button onClick={()=> {++readGenerations.current.snapshot;++selectedGeneration.current;setPage(loaded.page)}}>Show results {loaded.page.snapshotVersion} · decisions {loaded.page.feedbackVersion}</Button></div>}
     </div>
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
       <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${loaded.page.feedbackVersion}`}/>
@@ -325,7 +344,7 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
       {review&&<div className="space-y-2 border-b border-line pb-3">
         {(review.version!==page.snapshotVersion||review.feedbackVersion!==page.feedbackVersion)&&<p role="status" className="text-secondary">Your open review stays on results {review.version} and decisions {review.feedbackVersion}. Select a value below to review its displayed version.</p>}
         <ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={attempt.strategy==='ARTICLE'} value={review.value} snapshotVersion={review.version} document={document} onSaved={saved}
-          onClose={()=>{setReview(null);setFocus(false)}} onEvidence={onEvidence} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
+          onClose={closeReview} onEvidence={onEvidence} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
           menuOpen={menuOpen} detailsOpen={detailsOpen} onCloseOverlay={overlay=>overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
       </div>}
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values on this page. New saved work can be reviewed when it arrives.</p>}
@@ -333,7 +352,7 @@ export function DurableResults({attempt,document:currentDocument,documentRevisio
           selectedKey={review?.value.id??null} isOpen={record=>!closedRecords.has(record.key!)}
           onToggle={record=>setClosedRecords(previous=>{const next=new Set(previous);if(next.has(record.key!))next.delete(record.key!);else next.add(record.key!);return next})} renderRow={renderValue}/>}
       {page.next&&<Button onClick={()=>void selectPage(`${durableRoot(id)}/values?${new URLSearchParams(Object.entries(page.next!).map(([k,v])=>[k,String(v)]))}`)}>Next saved page</Button>}
-      {!readOnly&&!page.finalization&&page.total>0&&<Button onClick={finalize}>Finalize this snapshot</Button>}
+      {finalizeLabel&&<Button onClick={finalize}>{finalizeLabel}</Button>}
     </div>
   </div>
 }

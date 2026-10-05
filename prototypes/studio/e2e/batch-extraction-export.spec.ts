@@ -1,6 +1,4 @@
-import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { strFromU8, unzipSync } from 'fflate'
 import type { BatchExtractionSnapshot, ExtractionModule } from 'extraction'
 import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import {
@@ -38,20 +36,6 @@ const schemaTree = {
     { id: 'year', name: 'year', type: 'number' },
   ],
 }
-
-/** What each member's Extraction stored. Non-ASCII proves the encoding survives. */
-const results = [
-  {
-    sourceDocumentId: id.beretning,
-    extractionId: id.beretningExtraction,
-    result: { records: [{ place: 'Ellekilde', year: 1801 }] },
-  },
-  {
-    sourceDocumentId: id.fundliste,
-    extractionId: id.fundlisteExtraction,
-    result: { records: [{ place: 'Hørsholm', year: 1802 }] },
-  },
-]
 
 function readySuggestionDto(
   draft = schemaTree,
@@ -114,16 +98,9 @@ function batchDto(batch: BatchExtractionSnapshot) {
       sourceRepresentationRevisionId:
         member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
-      executionFailureMessage: member.failureMessage,
-      latestExtraction: member.latestExtraction && {
-        extractionId: member.latestExtraction.extractionId,
-        outcome: member.latestExtraction.outcome,
-        complete: member.latestExtraction.complete,
-        reviewable: member.latestExtraction.reviewable,
-        createdAt: member.latestExtraction.createdAt.toISOString(),
-        reviewedAt:
-          member.latestExtraction.reviewedAt?.toISOString() ?? null,
-      },
+      extractionId: member.extractionId,
+      reviewable: member.reviewable,
+      currentReview: member.currentReview && { ...member.currentReview, createdAt: member.currentReview.createdAt.toISOString() },
     })),
   }
 }
@@ -166,18 +143,7 @@ function createBatchFixtureHandler(
         batchExtractions: batches.map(batchDto),
       })
     }
-    const results =
-      /^\/api\/batch-extractions\/([^/]+)\/results$/.exec(
-        url.pathname,
-      )
     const projectContextId = url.searchParams.get('projectContextId')!
-    if (results)
-      return Response.json(
-        await extractions.readBatchResults({
-          projectContextId,
-          batchExtractionId: results[1]!,
-        }),
-      )
     const item = /^\/api\/batch-extractions\/([^/]+)$/.exec(
       url.pathname,
     )
@@ -221,17 +187,9 @@ function batchFixture(nested = false): {
     sourceDocumentId,
     sourceRepresentationRevisionId,
     executionStatus: finished ? ('COMPLETED' as const) : ('QUEUED' as const),
-    failureMessage: null,
-    latestExtraction: finished
-      ? {
-          extractionId,
-          outcome: 'SUCCEEDED' as const,
-          complete: true,
-          reviewable: true,
-          createdAt: at(44),
-          reviewedAt: null,
-        }
-      : null,
+    extractionId,
+    reviewable: finished,
+    currentReview: null,
   })
 
   const snapshot = (finished: boolean): BatchExtractionSnapshot => ({
@@ -328,12 +286,6 @@ function batchFixture(nested = false): {
   const extractions = {
     runSingle: unsupported,
     readExtractionAttempt: unsupported,
-    cancelSingle: unsupported,
-    prepareReview: unsupported,
-    resetReview: async (_id, version) => ({ version: version + 1, decisions: [] }),
-    readReviewDraft: async () => ({ version: 0, decisions: [] }),
-    saveReviewDraft: async (_id, draft) => ({ ...draft, version: draft.version + 1 }),
-    finalizeReview: unsupported,
     readDocumentExtractions: unsupported,
     scheduleSuggestedBatch: unsupported,
     stabiliseSchemaRevision: unsupported,
@@ -353,20 +305,6 @@ function batchFixture(nested = false): {
     async readBatch() {
       if (!batch) throw new Error('Batch Extraction not opened.')
       return batch
-    },
-    async readBatchResults() {
-      if (!batch) throw new Error('Batch Extraction not opened.')
-      const produced = batch.executionStatus === 'COMPLETED' ? results : []
-      return {
-        batchExtractionId: batch.batchExtractionId,
-        executionStatus: batch.executionStatus,
-        totalMembers: batch.members.length,
-        successfulResults: produced.length,
-        pending: batch.executionStatus === 'COMPLETED' ? 0 : batch.members.length,
-        failed: 0,
-        cancelled: 0,
-        results: produced,
-      }
     },
   } as ExtractionModule
   return { store, extractions }
@@ -431,33 +369,10 @@ async function openExtractions(page: Page): Promise<void> {
   await page.getByRole('tab', { name: 'Extractions' }).click()
 }
 
-/** One Source Document's own selection control, inside its row. */
-const documentCheckbox = (page: Page, name: string) =>
-  panel(page)
-    .getByRole('listitem')
-    .filter({ hasText: name })
-    .getByRole('checkbox')
-
 /** The prepare screen, over every Source Document in the Project Context. */
 async function prepareBatch(page: Page): Promise<void> {
   await panel(page).getByRole('button', { name: 'New Batch Extraction' }).click()
   await expect(panel(page).getByText('2 selected')).toBeVisible()
-}
-
-/** Opens the export popover on the member list and downloads the chosen format. */
-async function exportBatch(page: Page, format: 'Excel' | 'CSV') {
-  const trigger = panel(page).getByRole('button', { name: 'Export' })
-  await trigger.click()
-  const options = page.getByRole('dialog', { name: 'Export options' })
-  const rowsRepresent = options.getByLabel('Rows represent')
-  await expect(rowsRepresent).toHaveValue('$')
-  await expect(rowsRepresent).toBeFocused()
-  await expect(options.getByLabel('Other repeated fields')).toHaveValue('preserve')
-  const download = page.waitForEvent('download')
-  await options.getByRole('button', { name: format }).click()
-  const completed = await download
-  await expect(trigger).toBeFocused()
-  return completed
 }
 
 async function stubSharedSuggestionDraft(
@@ -541,103 +456,6 @@ async function expectBatchRunClearOfSession(page: Page): Promise<void> {
   await expect(run).toBeEnabled()
 }
 
-test('a Batch Extraction runs over selected Source Documents and exports one spreadsheet @deterministic', async ({
-  page,
-}) => {
-  await stubStudio(page)
-  await openExtractions(page)
-
-  // Open the batch over both Source Documents, through the saved Schema Revision.
-  await prepareBatch(page)
-  await expect(
-    panel(page).getByRole('combobox', { name: /Extraction Schema/ }),
-  ).toHaveValue(id.revision)
-  for (const name of Object.values(documentName))
-    await expect(documentCheckbox(page, name)).toBeChecked()
-  await panel(page).getByRole('button', { name: 'Run 2 Source Documents' }).click()
-
-  // The history row carries the batch from opened, through running, to finished.
-  const historyRow = panel(page).getByRole('button', {
-    name: /Places · Schema Revision 4/,
-  })
-  await expect(historyRow).toContainText('2 Source Documents · Article')
-  await expect(historyRow).toContainText(/Queued|Running/)
-  await expect(historyRow).toContainText('2 need review', { timeout: 15_000 })
-  const completionDialog = page.getByRole('dialog', { name: 'Pilot Extraction finished' })
-  await expect(completionDialog).toBeVisible()
-  await completionDialog.getByRole('button', { name: 'Dismiss', exact: true }).click()
-  await expect(completionDialog).toBeHidden()
-
-  // Every member is listed with what its own Extraction says.
-  await historyRow.click()
-  const members = panel(page).getByRole('list', { name: 'Batch Extraction members' })
-  await expect(members.getByRole('listitem')).toHaveCount(2)
-  await expect(members.getByRole('button', { name: /Beretning_Ellekilde_8_13\.pdf/ })).toContainText(
-    'Needs review',
-  )
-  await expect(members.getByRole('button', { name: /Fundliste_Ellekilde\.pdf/ })).toContainText(
-    'Needs review',
-  )
-
-  // Excel: one workbook over the whole batch, each row naming its Source Document.
-  const workbookDownload = await exportBatch(page, 'Excel')
-  expect(workbookDownload.suggestedFilename()).toMatch(
-    /^Places revision 4 batch [0-9a-f]{8}-batch-extraction-results\.xlsx$/,
-  )
-  const archive = unzipSync(new Uint8Array(await readFile((await workbookDownload.path())!)))
-  const workbook = Object.fromEntries(
-    Object.entries(archive).map(([path, bytes]) => [path, strFromU8(bytes)]),
-  )
-  expect(workbook['xl/workbook.xml']).toMatch(/<sheet[^>]*name="Results"/)
-  for (const value of [
-    'Source Document',
-    'Source Document ID',
-    'Batch Extraction ID',
-    'place',
-    'year',
-    documentName[id.beretning],
-    documentName[id.fundliste],
-    id.beretning,
-    id.fundliste,
-    'Ellekilde',
-    'Hørsholm',
-  ])
-    expect(workbook['xl/sharedStrings.xml']).toContain(value)
-  const sheet = workbook['xl/worksheets/sheet1.xml']!
-  // A header and one row per member, the years as numbers Excel can total.
-  expect(sheet.match(/<row/g)).toHaveLength(3)
-  expect(sheet).toContain('<autoFilter ref="A1:E3"/>')
-  expect(sheet).toMatch(/<v>1801<\/v>/)
-  expect(sheet).toMatch(/<v>1802<\/v>/)
-
-  // CSV: the same canonical table as text.
-  const csvDownload = await exportBatch(page, 'CSV')
-  expect(csvDownload.suggestedFilename()).toMatch(
-    /^Places revision 4 batch [0-9a-f]{8}-batch-extraction-results\.csv$/,
-  )
-  const [header, first, second] = (
-    await readFile((await csvDownload.path())!, 'utf8')
-  ).split('\r\n')
-  expect(header).toBe(
-    'Source Document,Source Document ID,Batch Extraction ID,place,year',
-  )
-  const firstCells = first!.split(',')
-  const secondCells = second!.split(',')
-  expect(firstCells).toEqual([
-    documentName[id.beretning],
-    id.beretning,
-    expect.stringMatching(/^[0-9a-f-]{36}$/),
-    'Ellekilde',
-    '1801',
-  ])
-  expect(secondCells).toEqual([
-    documentName[id.fundliste],
-    id.fundliste,
-    firstCells[2],
-    'Hørsholm',
-    '1802',
-  ])
-})
 
 test('Batch Builder Run stays operable at every required viewport and a 200% zoom-equivalent viewport @deterministic', async ({
   page,
@@ -747,231 +565,4 @@ test('two tabs expose and recover a durable Batch Schema Suggestion draft confli
   await expect(
     otherPage.getByRole('button', { name: 'Run 2 Source Documents' }),
   ).toBeEnabled()
-})
-
-test('the export stays unavailable until the batch has produced a result @deterministic', async ({
-  page,
-}) => {
-  await stubStudio(page)
-  await openExtractions(page)
-
-  await prepareBatch(page)
-  await panel(page).getByRole('button', { name: 'Run 2 Source Documents' }).click()
-
-  const historyRow = panel(page).getByRole('button', {
-    name: /Places · Schema Revision 4/,
-  })
-  await expect(historyRow).toContainText(/Queued|Running/)
-  await historyRow.click()
-
-  // No member has an Extraction yet, so there is nothing to project.
-  await expect(panel(page).getByRole('button', { name: 'Export' })).toBeDisabled()
-  await expect(panel(page)).not.toContainText('Hørsholm')
-  await expect(panel(page).getByRole('button', { name: 'Export' })).toBeEnabled({
-    timeout: 15_000,
-  })
-})
-
-test('the Batch review grid handles member failure, targeted reload, bulk decisions, edit, reject, and save @deterministic', async ({
-  page,
-}) => {
-  await stubStudio(page, true)
-  const batchExtractionId = '74000000-0000-4000-8005-000000000001'
-  const completedBatch: BatchExtractionSnapshot = {
-    batchExtractionId,
-    projectContextId: id.project,
-    schemaRevisionId: id.revision,
-    extractionSchemaId: id.schema,
-    extractionSchemaName: 'Places',
-    schemaRevisionNumber: 4,
-    strategy: 'ARTICLE',
-    executionStatus: 'COMPLETED',
-    createdAt: at(42),
-    members: [
-      {
-        sourceDocumentId: id.beretning,
-        sourceRepresentationRevisionId: id.beretningRevision,
-        executionStatus: 'COMPLETED',
-        failureMessage: null,
-        latestExtraction: {
-          extractionId: id.beretningExtraction,
-          outcome: 'SUCCEEDED',
-          complete: true,
-          reviewable: true,
-          createdAt: at(44),
-          reviewedAt: null,
-        },
-      },
-      {
-        sourceDocumentId: id.fundliste,
-        sourceRepresentationRevisionId: id.fundlisteRevision,
-        executionStatus: 'FAILED',
-        failureMessage: 'Grounding failed for this member.',
-        latestExtraction: null,
-      },
-    ],
-  }
-  const attempt = {
-    extractionId: id.beretningExtraction,
-    sourceDocumentId: id.beretning,
-    sourceRepresentationRevisionId: id.beretningRevision,
-    schemaRevisionId: id.revision,
-    strategy: 'ARTICLE' as const,
-    catalogRecipe: null,
-    executionStatus: 'COMPLETED' as const,
-    outcome: 'SUCCEEDED' as const,
-    complete: true,
-    modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-    diagnostics: {
-      phase: 'grounding' as const,
-      durationMs: 1,
-      modelCalls: 1,
-      finishReason: 'stop',
-      inputTokens: 1,
-      outputTokens: 1,
-      grounding: null,
-      catalog: null,
-    },
-    failure: null,
-    resultPayload: { records: [{ place: 'Ellekilde', year: 1801, finds: [{ material: 'Bronze' }, { material: 'Iron' }] }] },
-    evidenceLinks: [
-      { resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place' },
-      { resultPath: ['records', 0, 'year'], evidenceAnchorId: 'anchor-year' },
-      { resultPath: ['records', 0, 'finds', 0, 'material'], evidenceAnchorId: 'anchor-bronze' },
-      { resultPath: ['records', 0, 'finds', 1, 'material'], evidenceAnchorId: 'anchor-iron' },
-    ],
-    reviewable: true,
-    batchExtractionId,
-    createdAt: at(44).toISOString(),
-    reviewedAt: null as string | null,
-    reviewDecisions: [] as Array<Record<string, unknown>>,
-  }
-  const pendingReviewDecisions = [
-    {
-      resultPath: ['records', 0, 'place'],
-      evidenceAnchorId: 'anchor-place',
-      reviewedOccurrenceIds: ['occurrence-place'],
-      action: 'APPROVED' as const,
-      reviewedValue: null,
-    },
-    {
-      resultPath: ['records', 0, 'year'],
-      evidenceAnchorId: 'anchor-year',
-      reviewedOccurrenceIds: ['occurrence-year'],
-      action: 'APPROVED' as const,
-      reviewedValue: null,
-    },
-  ]
-  let extractionReads = 0
-  pendingReviewDecisions.push(...[0, 1].map((index) => ({
-    resultPath: ['records', 0, 'finds', index, 'material'],
-    evidenceAnchorId: index === 0 ? 'anchor-bronze' : 'anchor-iron',
-    reviewedOccurrenceIds: [`occurrence-material-${index}`],
-    action: 'APPROVED' as const,
-    reviewedValue: null,
-  })))
-  let savedReview: unknown = null
-  let reviewDraft = { version: 0, decisions: [] as Array<Record<string, unknown>> }
-
-  await page.route('**/api/batch-extractions**', async (route) => {
-    const url = new URL(route.request().url())
-    if (url.pathname.endsWith('/results'))
-      return route.fulfill({
-        json: {
-          batchExtractionId,
-          executionStatus: 'COMPLETED',
-          totalMembers: 2,
-          successfulResults: 1,
-          pending: 0,
-          failed: 1,
-          cancelled: 0,
-          results: [results[0]],
-        },
-      })
-    return route.fulfill({
-      json: url.pathname === '/api/batch-extractions'
-        ? { batchExtractions: [batchDto(completedBatch)] }
-        : { batchExtraction: batchDto(completedBatch) },
-    })
-  })
-  await page.route('**/api/extractions/**', async (route) => {
-    const request = route.request()
-    if (new URL(request.url()).pathname.endsWith('/review/draft')) {
-      const input = request.postDataJSON() as typeof reviewDraft
-      if (input.version !== reviewDraft.version)
-        return route.fulfill({ status: 409, json: { error: { message: 'Draft conflict' } } })
-      reviewDraft = { ...input, version: input.version + 1 }
-      return route.fulfill({ json: reviewDraft })
-    }
-    if (request.method() === 'POST') {
-      savedReview = request.postDataJSON()
-      attempt.reviewedAt = at(46).toISOString()
-      attempt.reviewDecisions = (savedReview as { reviewDecisions: Array<Record<string, unknown>> }).reviewDecisions
-        .map((decision) => ({ ...decision, createdAt: at(46).toISOString() }))
-      return route.fulfill({ json: attempt })
-    }
-    extractionReads += 1
-    if (extractionReads === 1)
-      return route.fulfill({
-        status: 503,
-        json: { error: { code: 'persistence_unavailable', message: 'Review data is temporarily unavailable.' } },
-      })
-    return route.fulfill({
-      json: { extraction: attempt, pendingReviewDecisions, reviewDraft },
-    })
-  })
-
-  await openExtractions(page)
-  await panel(page).getByRole('button', { name: /Places · Schema Revision 4/ }).click()
-  const members = panel(page).getByRole('list', { name: 'Batch Extraction members' })
-  await expect(members).toContainText('Grounding failed for this member.')
-  const reviewGrid = panel(page).getByRole('button', { name: 'Review grid' })
-  await expect(reviewGrid).toBeEnabled()
-  await reviewGrid.click()
-
-  await expect(page.getByText('Review data is temporarily unavailable.')).toBeVisible()
-  await panel(page).getByRole('button', { name: 'Retry',exact:true }).click()
-  await expect(page.getByText('Ellekilde', { exact: true })).toBeVisible()
-  await expect(page.getByText('4 of 4 required decisions remaining', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Approve remaining (4)', exact: true })).toHaveAccessibleDescription(/all loaded Source Documents.*rows hidden by a filter.*save automatically/)
-
-  await expect(page.getByRole('button', { name: /Save completed/ })).toHaveCount(0)
-  await page.getByText('Ellekilde', { exact: true }).click()
-  await page.getByRole('button', { name: 'Edit', exact: true }).click()
-  const placeInput = page.locator('input[value="Ellekilde"]')
-  await placeInput.fill('Milan')
-  await placeInput.press('Enter')
-  await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
-  await expect(page.getByText('3 of 4 required decisions remaining', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Needs review (1)', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Approve remaining (3)', exact: true })).toBeEnabled()
-  await page.getByRole('button', { name: 'All (2)', exact: true }).click()
-  await page.getByRole('button', { name: /Back to results/ }).click()
-  await panel(page).getByRole('button', { name: 'Review grid' }).click()
-  await expect(page.getByText('Milan', { exact: true })).toBeVisible()
-  await page.reload()
-  await expect(page.getByText('Milan', { exact: true })).toBeVisible()
-  await expect(page.getByText('3 of 4 required decisions remaining', { exact: true })).toBeVisible()
-  await page.getByText('1801', { exact: true }).click()
-  await page.getByRole('button', { name: 'Reject', exact: true }).click()
-  const material = page.getByRole('group', { name: 'material · Item 1', exact: true })
-  await material.getByRole('button', { name: 'Bronze', exact: true }).click()
-  await material.getByRole('button', { name: 'Edit', exact: true }).click()
-  await material.getByRole('textbox').fill('Copper')
-  await material.getByRole('textbox').press('Enter')
-  expect(savedReview).toBeNull()
-  await expect(page.getByText('1 of 4 required decisions remaining', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Approve remaining (1)', exact: true }).click()
-  await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
-  await expect(page.getByText('0 of 4 required decisions remaining', { exact: true })).toBeVisible()
-  expect(savedReview).toMatchObject({
-    reviewDecisions: expect.arrayContaining([
-      expect.objectContaining({ reviewedValue: 'Milan' }),
-      expect.objectContaining({ action: 'REJECTED' }),
-      expect.objectContaining({ resultPath: ['records', 0, 'finds', 0, 'material'], reviewedValue: 'Copper' }),
-      expect.objectContaining({ resultPath: ['records', 0, 'finds', 1, 'material'], action: 'APPROVED' }),
-    ]),
-  })
-  await page.getByRole('button', { name: /Back to results/ }).click()
-  await expect(panel(page).getByRole('list', { name: 'Batch Extraction members' })).toBeVisible()
 })

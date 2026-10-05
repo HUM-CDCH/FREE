@@ -61,9 +61,9 @@ describe('durable retained exports',()=> {
  })
  it('exports durable batches with all member states and independent producing schemas',async()=> {
    const members=[
-     {extractionId:'extraction',sourceDocumentId:'one',sourceRevisionId:'source',status:'RUNNING',failureMessage:null},
-     {extractionId:'second',sourceDocumentId:'two',sourceRevisionId:'second-source',status:'FAILED',failureMessage:'Provider failed'},
-     {extractionId:null,sourceDocumentId:'pending',sourceRevisionId:'pending-source',status:'QUEUED',failureMessage:null},
+     {extractionId:'extraction',sourceDocumentId:'one',sourceRevisionId:'source',status:'RUNNING'},
+     {extractionId:'second',sourceDocumentId:'two',sourceRevisionId:'second-source',status:'FAILED'},
+     {extractionId:'pending',sourceDocumentId:'pending',sourceRevisionId:'pending-source',status:'QUEUED'},
    ]
    const second={...fixed,state:{...fixed.state,extractionId:'second',sourceRevisionId:'second-source'},
      page:{...fixed.page,snapshotVersion:4,feedbackVersion:9,status:'FAILED'}} as Fixed

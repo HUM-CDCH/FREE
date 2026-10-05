@@ -198,12 +198,13 @@ it('opens a linked historical correction at its exact result and decision cuts',
   const current={...historical,snapshotVersion:3,feedbackVersion:4,values:[{...value,node:{...value.node,type:'number'},modelValue:42,correction:null,historicalCorrection:{extractionId:'extraction',valueId:'value',revision:2,snapshotVersion:1,feedbackVersion:2}}]}
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:3,selection:{id:'numeric',ordinal:2},counts:{saved:1,inFlight:0}},page:current} as never)
   vi.mocked(durableRequest).mockResolvedValue(historical)
+  // The document route parses the saved-correction link's cut and passes it as the explicit initial cut.
   render(<DurableResults attempt={{extractionId:'extraction',sourceDocumentId:'source',strategy:'ARTICLE'} as ExtractionAttempt} document={null}
-    currentSchema={null} onEvidence={()=>{}}/>)
+    currentSchema={null} onEvidence={()=>{}} initialCut={{snapshotVersion:1,feedbackVersion:2}}/>)
   await screen.findByRole('region',{name:'Review title'})
   expect(screen.getAllByText('Historical text correction').length).toBeGreaterThan(0)
   expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values?snapshotVersion=1&feedbackVersion=2',undefined,expect.any(AbortSignal))
-  expect(screen.getAllByText(/Snapshot 1 · 1 retained values/).every(element=>element.textContent?.includes('Snapshot 1'))).toBe(true)
+  expect(screen.getByText(/Selected results 1 · decisions 2 · 1 retained values/)).toBeVisible()
   expect(screen.queryByText('42')).toBeNull()
 })
 
@@ -277,4 +278,98 @@ it('keeps the last explicitly selected snapshot when an older selection finishes
   await act(async()=>finishOld({...latest,snapshotVersion:1,values:[{...latest.values[0],modelValue:'Old version'}]}))
   expect(screen.getByText('New version')).toBeVisible()
   expect(screen.queryByText('Old version')).toBeNull()
+})
+
+const reviewValue=(id:string,title:string)=>({id,recordId:'record',fieldId:id,path:['records',0,id],selectionId:'selection',schemaRevisionId:'schema',
+  node:{id,name:id,type:'string'},modelValue:title,evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null})
+const reviewPage=(snapshotVersion=1,feedbackVersion=0)=>({extractionId:'extraction',snapshotVersion,feedbackVersion,status:'PAUSED',finalization:null,
+  reviewCounts:{required:3,toCheck:3,approved:0,edited:0,rejected:0},values:[reviewValue('a','First title'),reviewValue('b','Second title'),reviewValue('c','Third title')],
+  total:3,next:null,coverage:{}} as unknown as DurablePage)
+const pausedState={extractionId:'extraction',projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
+  selection:{id:'selection',ordinal:1},pendingSelection:null,counts:{saved:3,inFlight:0}}
+
+/** Approves A in one-by-one review and holds the page read that the save starts; resolves it with A approved. */
+async function approveFirstAndHoldTheRefresh() {
+  const page=reviewPage(),reload=Promise.withResolvers<DurablePage>()
+  const parsedDocument=decodeParsedDocument(rawDocument),anchor=parsedDocument.evidence_index.anchors[0]!.anchor_id
+  // C is linked, so the document marks name it: the production mark selection goes through selectValueRef.
+  page.values[2]={...page.values[2],links:[{evidenceAnchorId:anchor,resultPath:['records',0,'c'],precision:'segment'}]} as never
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  vi.mocked(durableRequest).mockImplementation(async(_url,body)=>body?{revision:1}:reload.promise)
+  const selectValueRef={current:null as ((id:string)=>void)|null}
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={parsedDocument} currentSchema={null}
+    onEvidence={()=>{}} selectValueRef={selectValueRef}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'One by one'}))
+  fireEvent.keyDown(screen.getByRole('heading',{name:'First title'}),{key:'a'})
+  await screen.findByText(/You’re caught up/)
+  const saved={...reviewPage(1,1),values:page.values.map((value,index)=>index===0?{...value,correction:{revision:1,decision:{action:'APPROVED'}}}:value)} as never as DurablePage
+  saved.reviewCounts={required:3,toCheck:2,approved:1,edited:0,rejected:0}
+  return {selectValueRef,finishRefresh:()=>act(async()=>reload.resolve(saved))}
+}
+
+it('keeps a newer mark selection and its unsaved draft when the post-save page read finishes late',async()=> {
+  const {selectValueRef,finishRefresh}=await approveFirstAndHoldTheRefresh()
+  act(()=>selectValueRef.current?.('c'))
+  fireEvent.click(screen.getByRole('button',{name:/^Edit$/}))
+  fireEvent.change(screen.getByRole('textbox',{name:'Reviewed value'}),{target:{value:'Keep this unsaved draft'}})
+  await finishRefresh()
+  // The save's automatic advancement to B was superseded by the explicit selection of C.
+  expect(screen.getByRole('region',{name:'Review c'})).toBeVisible()
+  expect(screen.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('Keep this unsaved draft')
+  expect(screen.queryByRole('region',{name:'Review b'})).toBeNull()
+  expect(screen.queryByRole('heading',{name:'Second title'})).toBeNull()
+})
+
+it('opens nothing when the researcher closed their newer selection before the post-save read finished',async()=> {
+  const {selectValueRef,finishRefresh}=await approveFirstAndHoldTheRefresh()
+  act(()=>selectValueRef.current?.('c'))
+  fireEvent.click(screen.getByRole('button',{name:'Close value'}))
+  await finishRefresh()
+  expect(screen.queryByRole('region',{name:/^Review /})).toBeNull()
+  expect(screen.queryByRole('heading',{name:'Second title'})).toBeNull()
+})
+
+it('still advances to the next value when nothing newer was selected',async()=> {
+  const {finishRefresh}=await approveFirstAndHoldTheRefresh()
+  await finishRefresh()
+  expect(await screen.findByRole('heading',{name:'Second title'})).toBeVisible()
+})
+
+it('names the selected decisions and the newer saved decisions before an older pair is finalized',async()=> {
+  const page={...reviewPage(1,1),reviewCounts:{required:3,toCheck:0,approved:3,edited:0,rejected:0}} as DurablePage
+  page.values=page.values.map(value=>({...value,correction:{revision:1,feedbackVersion:1,decision:{action:'APPROVED'}}} as never))
+  const latest={...page,feedbackVersion:2,reviewCounts:{required:3,toCheck:0,approved:2,edited:1,rejected:0},
+    values:page.values.map((value,index)=>index===1?{...value,correction:{revision:2,feedbackVersion:2,decision:{action:'EDITED',value:'Correction from another session'}}}:value)} as never as DurablePage
+  vi.mocked(readDurable).mockResolvedValueOnce({state:pausedState,page} as never).mockResolvedValue({state:pausedState,page:latest} as never)
+  vi.mocked(durableRequest).mockImplementation(async(_url,body)=>body?{}:page)
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  expect(await screen.findByText(/Selected results 1 · decisions 1/)).toBeVisible()
+  // The live poll observes another session's correction; the result snapshot stays the same.
+  expect(await screen.findByText('Newer saved decisions 2 exist. This view and its finalization stay on results 1 · decisions 1.',undefined,{timeout:3500})).toBeVisible()
+  expect(screen.queryByText(/Newer saved results/)).toBeNull()
+  expect(screen.getByRole('button',{name:'Show results 1 · decisions 2'})).toBeVisible()
+  const finalize=screen.getAllByRole('button',{name:'Finalize results 1 · decisions 1'})
+  expect(finalize.length).toBeGreaterThan(0)
+  // Deliberately finalizing the older, clearly named pair stays valid.
+  fireEvent.click(finalize.at(-1)!)
+  await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/finalize',{snapshotVersion:1,feedbackVersion:1}))
+})
+
+it('opens an explicit finalized cut and names the later live work beside it',async()=> {
+  const current={...reviewPage(3,4)},historical={...reviewPage(1,2),finalization:{id:'final',snapshotVersion:1,feedbackVersion:2,createdAt:'2026-10-05T09:00:00.000Z'}}
+  vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,snapshotVersion:3},page:current} as never)
+  vi.mocked(durableRequest).mockResolvedValue(historical)
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} initialCut={{snapshotVersion:1,feedbackVersion:2}}
+    document={null} currentSchema={null} onEvidence={()=>{}} readOnly/>)
+  expect(await screen.findByText(/Selected results 1 · decisions 2 · 3 retained values/)).toBeVisible()
+  expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values?snapshotVersion=1&feedbackVersion=2',undefined,expect.any(AbortSignal))
+  expect(screen.getByText('Finalized review · results 1 · decisions 2. Later work and decisions remain separate.')).toBeVisible()
+  expect(screen.getByText(/Newer saved results 3 and decisions 4 exist/)).toBeVisible()
+})
+
+it('opens the live cut when no explicit cut is named',async()=> {
+  vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,snapshotVersion:3},page:reviewPage(3,4)} as never)
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} readOnly/>)
+  expect(await screen.findByText(/Selected results 3 · decisions 4/)).toBeVisible()
+  expect(durableRequest).not.toHaveBeenCalled()
 })

@@ -5,7 +5,8 @@ Run: uv run uvicorn kei_exp.api:app --port 8001   (vLLM holds :8000)
 Env: KEI_VLLM_URL (chat completions URL, default DEFAULT_URL); the run directory is KEI_RUNS, read by `runs`.
 
 Nothing here keeps state or opens a database: a route validates what HTTP gave it and serves a model listing or a
-file a run has published. A run's and an extraction's status are their kei workflows', which Studio reads from DBOS.
+file a run has published. A run's status is its kei workflow's, which Studio reads from DBOS; an Extraction's saved
+values are in the coordination schema, never served here.
 """
 from __future__ import annotations
 
@@ -22,7 +23,6 @@ from kei_exp import runs
 from kei_exp.files import load_dotenv
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.models import ROLES
-from kei_exp.kie.extract.progress import read_progress
 from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
 from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 from kei_exp.runtime import loaded_model
@@ -109,26 +109,3 @@ def run_page_result(run_id: str, number: int) -> FileResponse:
     if not path.exists():
         raise HTTPException(404, "no result for this page yet")
     return FileResponse(path, media_type="application/json")
-
-
-@app.get("/api/runs/{run_id}/extractions/{extraction_id}")
-def run_extraction(run_id: str, extraction_id: str) -> FileResponse:
-    """A published extraction artifact. Its status is its kei `extract` workflow's, which Studio reads from DBOS."""
-    if not runs.COMPONENT.fullmatch(extraction_id):  # runs, not workflows.contracts: that module imports dbos
-        raise HTTPException(404, "no such extraction")
-    path = run_dir(run_id) / "extractions" / extraction_id / "result.json"
-    if not path.is_file():
-        raise HTTPException(404, "no such extraction")
-    return FileResponse(path, media_type="application/json")
-
-
-@app.get("/api/runs/{run_id}/extractions/{extraction_id}/progress")
-def run_extraction_progress(run_id: str, extraction_id: str) -> dict:
-    """A running extraction's partial view (`kie.extract.progress`): the stage files kei has published so far, never
-    a model call and never the workflow's status. 404 until the first stage of record work exists."""
-    if not runs.COMPONENT.fullmatch(extraction_id):
-        raise HTTPException(404, "no such extraction")
-    document = read_progress(run_dir(run_id), extraction_id)
-    if document is None:
-        raise HTTPException(404, "no progress yet")
-    return document

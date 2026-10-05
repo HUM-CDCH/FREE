@@ -1,5 +1,6 @@
 """kei's lanes: a cancelled step keeps its lane's slot and only its lane's; deadlines behave like cancels; priority
-orders kei-extract; a large and a small conversion share one process without sharing state (spec, *Cancellation →
+orders kei-extract, where durable Extraction attempts run; a large and a small conversion share one process without
+sharing state (spec, *Cancellation →
 Physical capacity*, *Queues, deadlines*, *kei worker → Two conversions in one process*; M0R 4)."""
 import json
 import threading
@@ -11,19 +12,15 @@ from dbos import DBOS
 from kei_exp import runs, runtime
 from kei_exp.failures import KeiFailure
 from kei_exp.kie import runner
-from kei_exp.kie.extract import tokens
 from kei_exp.models import MODELS, Model
 from kei_exp.transcription.surya import settings_for
 from kei_exp.transcription.types import DEFAULT_URL
-from kei_exp.workflows import cancel, config, gc
-from kei_exp.workflows import extract as extract_workflow
+from kei_exp.workflows import cancel, config, durable_extract, gc
 from tests.helpers import kei as kei_helper
 from tests.helpers.contracts import convert_timeout_ms
 from tests.helpers.fake import registered
 from tests.helpers.pdfs import mask
-from tests.test_extract_grounded import CountingChat, WordCounter, honest
 
-GENERATION = "20260923T000000.000000Z-fixture0"
 # Longer than a held step needs to reach its gate after dequeue on a loaded host, so the deadline fires inside the
 # native-like call and never before it.
 DEADLINE_MS = 4000
@@ -48,12 +45,13 @@ def test_the_surya_check_bites_on_a_second_record_with_other_settings():
 
 @pytest.fixture
 def lanes(kei, monkeypatch):
-    """Blocking doubles on every lane, keyed by workflow ID through one gate: the OCR call (convert lanes), each chat
-    call (kei-extract) and deleteRuns' first status read (kei-gc), all on their step's own thread."""
+    """Blocking doubles on every lane, keyed by workflow ID through one gate: the OCR call (convert lanes), a durable
+    attempt's planning (kei-extract: it plans no call and acknowledges a boundary, with no coordination database) and
+    deleteRuns' first status read (kei-gc)."""
     gate = kei_helper.Gate()
     monkeypatch.setattr(runtime, "loaded_model", lambda url: (True, "fake/model"))
-    monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(lambda *a: gate() or honest(*a)))
-    monkeypatch.setattr(tokens, "counter_for", lambda client: WordCounter())
+    monkeypatch.setattr(durable_extract, "plan_next", lambda extraction, attempt: gate() or {"boundary": True})
+    monkeypatch.setattr(durable_extract, "acknowledge", lambda extraction, attempt, complete, failure: "PAUSED")
     still_converting = gc._still_converting
     monkeypatch.setattr(gc, "_still_converting", lambda boot_ms: gate() or still_converting(boot_ms))
     run_id = kei_helper.converted_run(kei.runs, "kei-convert:ingest:fixture:run")
@@ -65,20 +63,21 @@ def lanes(kei, monkeypatch):
 
 
 def job(kei, lane, workflow_id, run_id, *, timeout_ms=None, priority=None):
-    """One job on `lane` through Kei.enqueue: a one-page conversion, a Catalog extraction or an empty deleteRuns."""
+    """One job on `lane` through Kei.enqueue: a one-page conversion, a durable attempt or an empty deleteRuns."""
     if lane in (config.CONVERT_LARGE, config.CONVERT_SMALL):
         name = f"{workflow_id.rsplit(':', 1)[-1]}.pdf"
         sha = kei_helper.stage_pdf(kei.inbox, name, mask(every=7 + len(name)))
         return kei.enqueue("convert", lane, workflow_id,
                            kei_helper.convert_request(name, sha, model="fake", cut="none"), timeout_ms=timeout_ms)
     if lane == config.EXTRACT:
-        return kei.enqueue("extract", lane, workflow_id, kei_helper.extract_request(run_id, GENERATION),
+        return kei.enqueue("extractDurableV1", lane, workflow_id,
+                           {"protocol": 1, "extraction_id": workflow_id, "attempt_id": workflow_id},
                            priority=priority or config.PRIORITY_INTERACTIVE, timeout_ms=timeout_ms)
     return kei.enqueue("deleteRuns", lane, workflow_id, {"conversions": [], "history": []}, timeout_ms=timeout_ms)
 
 
 PREFIX = {config.CONVERT_LARGE: "kei-convert:", config.CONVERT_SMALL: "kei-convert:",
-          config.EXTRACT: "kei-extract:", config.GC: "kei-gc:"}
+          config.EXTRACT: "kei-durable:", config.GC: "kei-gc:"}
 
 
 @pytest.mark.parametrize("lane", list(config.QUEUES))
@@ -191,20 +190,20 @@ def test_a_deadline_counts_from_dequeue_and_is_the_enqueuers_budget(lanes):
 
 def test_kei_extract_runs_priority_1_before_10_with_fifo_ties(lanes):
     kei, gate, run_id = lanes
-    blockers = ["kei-extract:prio-b0", "kei-extract:prio-b1"]
+    blockers = ["kei-durable:prio-b0", "kei-durable:prio-b1"]
     for blocker in blockers:
         gate.hold(blocker)
         job(kei, config.EXTRACT, blocker, run_id)
     kei_helper.until(lambda: all(b in gate.entered for b in blockers), 30, "both extraction slots busy")
     order_in = [("prio-10a", 10), ("prio-10b", 10), ("prio-1a", 1), ("prio-10c", 10), ("prio-1b", 1)]
     for name, priority in order_in:
-        job(kei, config.EXTRACT, f"kei-extract:{name}", run_id, priority=priority)
+        job(kei, config.EXTRACT, f"kei-durable:{name}", run_id, priority=priority)
         time.sleep(0.02)  # distinct enqueue times for the FIFO ties
     gate.release(blockers[0])  # one slot frees; the other stays held
     for name, _ in order_in:
-        assert kei.wait(f"kei-extract:{name}", timeout=60).status == "SUCCESS", name
-    # One slot runs them one at a time, so the order of their (last) chat calls is the order they started.
-    started = sorted((gate.entered[f"kei-extract:{name}"], name) for name, _ in order_in)
+        assert kei.wait(f"kei-durable:{name}", timeout=60).status == "SUCCESS", name
+    # One slot runs them one at a time, so the order of their planning is the order they started.
+    started = sorted((gate.entered[f"kei-durable:{name}"], name) for name, _ in order_in)
     assert [name for _, name in started] == ["prio-1a", "prio-1b", "prio-10a", "prio-10b", "prio-10c"]
 
 

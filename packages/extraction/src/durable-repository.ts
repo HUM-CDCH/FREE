@@ -9,7 +9,7 @@ import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, dura
 import { correctionValueFits, fieldMeaning, adaptedCorrection } from './durable-feedback.js'
 import { refuseUnusableIdentityFields } from './postgres-admission.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
-import { groundedEvidenceLink, plainEvidenceLink, unifiedEvidenceLink } from './kei-artifact.js'
+import { groundedEvidenceLink, plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
 export class DurableConflict extends Error {
   constructor(message = 'The Extraction changed. Reload to review the saved state.') { super(message) }

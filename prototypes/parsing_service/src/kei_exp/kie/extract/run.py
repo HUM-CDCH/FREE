@@ -1,19 +1,18 @@
-"""One extraction: the request, the choice of the Extraction Strategy's implementation, and the artifact's publication.
+"""One extraction: the request and the choice of the Extraction Strategy's implementation.
 
-The artifact is one JSON file under the run directory. It carries everything a client needs to trust and use
-it: the parse generation and digest it was read from, the schema and options, the model and prompt version,
+The artifact carries everything a client needs to trust and use it: the parse generation and digest it was read from, the schema and options, the model and prompt version,
 and the fingerprint over all of those (so a repeat with the same inputs is the same extraction and a changed
 schema is another one, with no OCR rerun either way), the records, their evidence links into the canonical
 result, what stayed ungrounded, the issues, and every model call's cost.
 
 Every implementation has one call shape: the run directory, the evidence read from it, the validated request and a
 router, keyword-only `counter`, `chunks` and `before_entry`, returning the finished artifact. The unified Catalog's
-is `unified.extract` (version 3, `options.unified`), which also takes the extraction ID its records are published
-under; the legacy recipe Catalog's is `grounded.extract`, Article's `article.extract` and the legacy version 1
+is `unified.extract` (version 3, `options.unified`); the legacy recipe Catalog's is `grounded.extract`, Article's `article.extract` and the legacy version 1
 Catalog's `catalog.extract`; the last two assemble their version 1 artifact in `assembly.py`. `extract` chooses one
 from the request's task scope (`ExtractRequest.record_scope`: Article for "document", a Catalog for "records") and
 options, does not know what it does, and holds its result to the scope's cardinality (`dispatch`); no implementation
-imports this module.
+imports this module. Durable execution (`workflows/durable_extract.py`) calls `dispatch` over its pinned evidence;
+nothing here publishes a file.
 """
 from __future__ import annotations
 
@@ -26,7 +25,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from kei_exp.files import publish
 from kei_exp.kie.extract import article, catalog, grounded, unified
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.grounded import CatalogOptions
@@ -98,7 +96,7 @@ class Options(BaseModel):
 
 
 class ExtractRequest(BaseModel):
-    """The `request` of the `extract` workflow's input (`workflows.contracts.ExtractInput`), and the CLI's.
+    """The validated schema and options of a durable attempt's pinned selection, and the CLI's.
 
     A schema that declares `recordScope` fixes the strategy: "document" is Article's, "records" a Catalog's, and any
     other pairing is refused before a model call. One that declares none (the CLI, the research harness, a legacy
@@ -161,59 +159,41 @@ def _nodes(node):
 
 class RecordScopeViolation(ValueError):
     """An implementation returned a record count its task scope forbids: a document-scope (Article) result is
-    exactly one record. Never published; the worker reports it as `extraction_failed`, its reason starting
-    `record_scope_violation:`."""
+    exactly one record. Never retained; its message starts `record_scope_violation:`."""
 
-
-class StaleGeneration(ValueError):
-    """The run's result is no longer the parse generation this extraction was admitted against.
-
-    Terminal, not transient: another attempt reads the same rewritten result, and the passage identities this
-    extraction would publish (`p{page}_s{index}`, valid only within one generation) would not resolve in the
-    generation its client was told about. The client resubmits against the generation that is there now.
-    """
 
 
 def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, generation: str | None = None,
-            counter=None, chunks: int = 1, before_entry: Callable[[], None] | None = None,
-            extraction_id: str | None = None) -> dict:
-    """The artifact for `request` over the run's canonical result, from the implementation its options choose.
+            counter=None, chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
+    """The artifact for `request` over the run's canonical result, from the implementation its options choose (the
+    CLI and the research harness; durable execution checks its pinned generation and calls `dispatch`).
 
-    `generation` is the parse the caller admitted this extraction against, when it had one: the result on disk
-    must still be that generation, or nothing is extracted (`StaleGeneration`). The check is before the first
-    model call, so a run re-converted while the extraction sat in the queue costs no tokens. The CLI passes
-    none: it extracts from whatever the directory holds at the moment it is run.
-
-    `counter`, `chunks` and `before_entry` go to the implementation unchanged. `before_entry` is a hook whose error
-    ends the extraction (the worker's cooperative cancellation); each implementation says where it calls it. The
-    unified Catalog also receives `extraction_id`, the name its execution and discovery records are published under.
+    `generation`, when given, is the parse a replay was captured against: the result on disk must still be that
+    generation, or nothing is extracted (a ValueError before the first model call). The CLI passes none and reads
+    whatever the directory holds. `counter`, `chunks` and `before_entry` go to the implementation unchanged;
+    `before_entry` is a hook whose error ends the extraction, and each implementation says where it calls it.
     """
     evidence = load(run_dir)
     if generation is not None and evidence.generation != generation:
-        raise StaleGeneration(
-            f"the run's result is generation {evidence.generation!r}, not the {generation!r} this extraction was "
-            f"admitted against: it was re-converted in between, so submit this extraction again against the "
-            f"generation that is there now")
-    return dispatch(run_dir, evidence, request, chat, counter=counter, chunks=chunks, before_entry=before_entry,
-                    extraction_id=extraction_id)
+        raise ValueError(f"the run's result is generation {evidence.generation!r}, not {generation!r}")
+    return dispatch(run_dir, evidence, request, chat, counter=counter, chunks=chunks, before_entry=before_entry)
 
 
 def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, chat: Chat | Router, *, counter=None,
-             chunks: int = 1, before_entry: Callable[[], None] | None = None,
-             extraction_id: str | None = None) -> dict:
+             chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
     """The implementation the request's scope and options choose, over `evidence` already read, and its result held
     to the scope's cardinality: a document-scope result that is not exactly one record is a `RecordScopeViolation`,
-    never an artifact; a records-scope result may hold any number, none included. `extract` is the service's way in;
-    the research harness calls this with a case's own evidence (`run_dir` None: nothing is published, and a recipe,
-    which needs its run's segmentation, is refused by `grounded.extract`)."""
+    never an artifact; a records-scope result may hold any number, none included. Durable execution and the research
+    harness call this with evidence already read (the harness's `run_dir` None: a recipe, which needs its run's
+    segmentation, is refused by `grounded.extract`)."""
     chat = as_router(chat)
     scope = request.record_scope
     if scope == "document":
         result = article.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
-                                 before_entry=before_entry, extraction_id=extraction_id)
+                                 before_entry=before_entry)
     elif request.options.unified is not None:
         result = unified.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
-                                 before_entry=before_entry, extraction_id=extraction_id)
+                                 before_entry=before_entry)
     else:
         implementation = grounded.extract if request.options.catalog is not None else catalog.extract
         result = implementation(run_dir, evidence, request, chat, counter=counter, chunks=chunks,
@@ -223,15 +203,6 @@ def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, 
                                    f"and the {request.options.strategy!r} strategy returned {len(result['records'])}")
     return result
 
-
-def publish_extraction(run_dir: Path, extraction_id: str, result: dict) -> Path:
-    """`extractions/<id>/result.json` under the run, renamed into place."""
-    directory = run_dir / "extractions" / extraction_id
-    directory.mkdir(parents=True, exist_ok=True)
-    target = directory / "result.json"
-    with publish(target) as part:
-        part.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return target
 
 
 def main(argv: list[str] | None = None) -> int:

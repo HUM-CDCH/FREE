@@ -1,6 +1,10 @@
 # 0016: Review Decisions may be drafted on a running Extraction
 
-Date: 2026-10-04. Status: accepted; supersedes in part the Constraints of
+Date: 2026-10-04. Status: superseded on 2026-10-05 by the durable-only
+amendment of [ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md):
+the path/anchor Review Draft, its settlement reconciliation and the settled
+attempt's review authority were deleted with the non-durable execution path.
+Previously accepted; supersedes in part the Constraints of
 [the view-ordered streaming design](../superpowers/specs/2026-10-02-view-ordered-streaming-extraction-design.md)
 ("review, finalize and export read the settled attempt only") and its client
 plan's "the partial view offers no review controls". Spec:
@@ -77,3 +81,11 @@ rejection cannot silently transfer to changed model output. The review redesign
 is reused where compatible; path/anchor reconciliation is not applied
 to durable correction history. Neither existing DBOS application versions nor
 existing workflow step sequences change. Release admissions remain disabled.
+
+## Durable-only supersession (2026-10-05)
+
+The pre-production durable-only follow-up deleted the non-durable `runExtraction`
+execution, the Review Draft routes and store, settlement reconciliation and
+finalization of a settled attempt. Reviewing saved values while work continues
+remains a product decision, now provided only by durable corrections of stable
+saved values (ADR 0017). The decisions above describe removed code.

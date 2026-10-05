@@ -28,9 +28,8 @@ let kei: DBOSClient
 afterEach(async () => {
   for (const release of held.values()) release()
   held.clear()
-  await standIn.policy({ convert: 'auto', extract: 'auto' })
-  for (const work of await standIn.held()) await standIn.answer(work.workflowId,
-    work.workflow === 'convert' ? { convert: 'auto' } : { artifact: { generation: 'gen-1', model: 'fixture', models: {} } })
+  await standIn.policy({ convert: 'auto' })
+  for (const work of await standIn.held()) await standIn.answer(work.workflowId, { convert: 'auto' })
 })
 
 beforeAll(async () => {
@@ -44,8 +43,7 @@ beforeAll(async () => {
 afterAll(async () => {
   try {
     for (const release of held.values()) release()
-    for (const work of await standIn?.held() ?? []) await standIn.answer(work.workflowId,
-      work.workflow === 'convert' ? { convert: 'auto' } : { artifact: { generation: 'gen-1', model: 'fixture', models: {} } })
+    for (const work of await standIn?.held() ?? []) await standIn.answer(work.workflowId, { convert: 'auto' })
     await shutdownStudioDbos()
     await standIn?.stop()
     await kei?.destroy()
@@ -74,21 +72,16 @@ async function status(client: DBOSClient, id: string) {
   const [row] = await client.listWorkflows({ workflowIDs: [id], loadInput: false, loadOutput: false })
   return row?.status
 }
-async function children(owner: string, project: string, document: string, pdf: Uint8Array, extraction: string, reprocess: string) {
+async function child(owner: string, project: string, document: string, pdf: Uint8Array, parent: string) {
   const handoff = createKeiHandoff(studioDbos().kei, { pollIntervalMs: 50 })
-  await standIn.policy({ convert: 'hold', extract: 'hold' })
-  await handoff.submit({ workflow: 'extract', workflowId: `kei-extract:${extraction}`, queueName: 'kei-extract',
-    priority: 1, timeoutMs: 600_000, authenticatedUser: owner,
-    attributes: { projectContextId: project, sourceDocumentId: document },
-    request: { run_id: 'run-1', generation: 'gen-1', request: { schema: { recordDescription: 'One record.', schemaNodes: [], recordScope: 'document' }, options: {} } },
-  })
-  await handoff.submit({ workflow: 'convert', workflowId: `kei-convert:${reprocess}`, queueName: 'kei-convert-small',
+  await standIn.policy({ convert: 'hold' })
+  await handoff.submit({ workflow: 'convert', workflowId: `kei-convert:${parent}`, queueName: 'kei-convert-small',
     priority: 1, timeoutMs: 600_000, authenticatedUser: owner,
     attributes: { projectContextId: project, sourceDocumentId: document },
     request: { source: `${project}/${randomUUID()}.pdf`, source_sha256: createHash('sha256').update(pdf).digest('hex'),
       source_name: 'source.pdf', page_source: 'pdf', ingest: null, model: null, layout_model: null, cut: 'auto', debug: false },
   })
-  await until(async () => expect(await standIn.held()).toHaveLength(2))
+  await until(async () => expect((await standIn.held()).map((work) => work.workflowId)).toContain(`kei-convert:${parent}`))
 }
 
 describe('deletion cancels its live DBOS scope', () => {
@@ -100,20 +93,18 @@ describe('deletion cancels its live DBOS scope', () => {
     const snapshot = await store.getDocumentReopenSnapshot(project, document)
     await db.orm.public.BatchSchemaSuggestionSource.create({ batchSchemaSuggestionId: suggestion.id,
       sourceDocumentId: document, sourceRepresentationRevisionId: snapshot!.sourceRepresentation.sourceRepresentationId })
-    const extraction = randomUUID()
     const key = randomUUID()
-    const ids = [`extract:${extraction}`, `reprocess:${document}:${key}`, `suggest:${suggestion.id}:2`]
+    const ids = [`reprocess:${document}:${key}`, `suggest:${suggestion.id}:2`]
     for (const id of ids) await enqueue(id, owner, id.startsWith('suggest:')
       ? { projectContextId: project, batchSchemaSuggestionId: suggestion.id }
       : { projectContextId: project, sourceDocumentId: document })
-    await children(owner, project, document, pdf, extraction, ids[1]!)
+    await child(owner, project, document, pdf, ids[0]!)
 
     const response = await createSourceDocumentDeletion(store)(new Request(
       `http://test/api/project-contexts/${project}/source-documents/${document}`, { method: 'DELETE' }))
     expect(response.status, await response.clone().text()).toBe(204)
     for (const id of ids) expect(await status(studioDbos().admission, id)).toBe('CANCELLED')
-    expect(await status(kei, `kei-extract:${extraction}`)).toBe('CANCELLED')
-    expect(await status(kei, `kei-convert:${ids[1]}`)).toBe('CANCELLED')
+    expect(await status(kei, `kei-convert:${ids[0]}`)).toBe('CANCELLED')
     const interrupted = await db.orm.public.BatchSchemaSuggestion.select('outcome', 'failure', 'draft', 'draftVersion').first({ id: suggestion.id })
     expect(interrupted).toMatchObject({ outcome: 'FAILED', failure: { code: 'interrupted' }, draftVersion: 1 })
     expect(interrupted?.draft).toEqual({ recordDescription: 'Retained.', schemaNodes: [{ id: 'place', name: 'Place', type: 'string' }] })
@@ -122,38 +113,26 @@ describe('deletion cancels its live DBOS scope', () => {
 
   it('project deletion cancels its live Studio work and kei child', async () => {
     const { owner, store, project, document, pdf } = await fixture()
-    const extraction = randomUUID()
     const reprocess = `reprocess:${document}:${randomUUID()}`
-    await enqueue(`extract:${extraction}`, owner, { projectContextId: project, sourceDocumentId: document })
     await enqueue(reprocess, owner, { projectContextId: project, sourceDocumentId: document })
-    await children(owner, project, document, pdf, extraction, reprocess)
+    await child(owner, project, document, pdf, reprocess)
     const { DELETE } = createProjectContextWrites(store)
     const response = await DELETE(new Request(`http://test/api/project-contexts/${project}`, { method: 'DELETE' }))
     expect(response.status, await response.clone().text()).toBe(204)
-    expect(await status(studioDbos().admission, `extract:${extraction}`)).toBe('CANCELLED')
     expect(await status(studioDbos().admission, reprocess)).toBe('CANCELLED')
-    expect(await status(kei, `kei-extract:${extraction}`)).toBe('CANCELLED')
     expect(await status(kei, `kei-convert:${reprocess}`)).toBe('CANCELLED')
   })
 
   it('source deletion cancels an orphaned live kei child of a terminal Studio parent', async () => {
-    const { owner, store, project, document } = await fixture()
-    const extraction = randomUUID()
-    const parent = `extract:${extraction}`
-    const child = `kei-extract:${extraction}`
+    const { owner, store, project, document, pdf } = await fixture()
+    const parent = `reprocess:${document}:${randomUUID()}`
     await enqueue(parent, owner, { projectContextId: project, sourceDocumentId: document })
     await studioDbos().admission.cancelWorkflow(parent)
     expect(await status(studioDbos().admission, parent)).toBe('CANCELLED')
-    await standIn.policy({ extract: 'hold' })
-    await createKeiHandoff(studioDbos().kei).submit({ workflow: 'extract', workflowId: child,
-      queueName: 'kei-extract', priority: 1, timeoutMs: 600_000, authenticatedUser: owner,
-      attributes: { projectContextId: project, sourceDocumentId: document },
-      request: { run_id: 'run-1', generation: 'gen-1', request: { schema: { recordDescription: 'One record.', schemaNodes: [], recordScope: 'document' }, options: {} } },
-    })
-    await until(async () => expect(await standIn.held()).toHaveLength(1))
+    await child(owner, project, document, pdf, parent)
     const response = await createSourceDocumentDeletion(store)(new Request(
       `http://test/api/project-contexts/${project}/source-documents/${document}`, { method: 'DELETE' }))
     expect(response.status).toBe(204)
-    expect(await status(kei, child)).toBe('CANCELLED')
+    expect(await status(kei, `kei-convert:${parent}`)).toBe('CANCELLED')
   })
 })

@@ -151,7 +151,7 @@ test('schema: a researcher-approved schema revision is stored', async () => {
   state.schemaRevisionId = response.body.revision.schemaRevisionId
 })
 
-test('extraction: the canonical schema-guided path succeeds with evidence', { timeout: 600_000 }, async () => {
+test('extraction: with durable admissions off, starting an Extraction is refused and starts nothing', async () => {
   const configured = await session.api('/model_config', {
     method: 'PUT',
     body: JSON.stringify({
@@ -188,65 +188,10 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
       method: { models: null, settings: { article: null } },
     }),
   })
-  assert.equal(extraction.status, 201, JSON.stringify(extraction.body))
-  assert.ok(['QUEUED', 'RUNNING', 'COMPLETED'].includes(extraction.body.executionStatus))
-
-  const deadline = Date.now() + 600_000
-  let completed
-  while (Date.now() < deadline) {
-    const detail = await session.api(`/extractions/${state.extractionId}`)
-    assert.equal(detail.status, 200)
-    const attempt = detail.body.extraction
-    if (attempt.executionStatus === 'FAILED')
-      assert.fail(`Extraction failed: ${JSON.stringify(attempt.failure)}`)
-    if (attempt.executionStatus === 'COMPLETED') {
-      completed = attempt
-      break
-    }
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, 1_000))
-  }
-  assert.ok(completed, 'Extraction did not finish before the deadline')
-  assert.equal(completed.outcome, 'SUCCEEDED')
-
-  // The run produced Evidence links and reported its grounding diagnostic.
-  // That grounded and ungrounded together cover every populated value is a
-  // property of grounding.ts, pinned in packages/extraction/src/grounding.test.ts;
-  // asserting it here can only restate what the response already computed.
-  assert.ok(completed.evidenceLinks.length > 0)
-  assert.ok(Array.isArray(completed.diagnostics.grounding.ungroundedPaths))
-})
-
-test('review: partial review decisions are rejected (data integrity)', async () => {
-  const detail = await session.api(`/extractions/${state.extractionId}`)
-  assert.equal(detail.status, 200)
-  state.pendingReviewDecisions = detail.body.pendingReviewDecisions
-  assert.ok(state.pendingReviewDecisions.length > 0)
-
-  const partial = await session.api(`/extractions/${state.extractionId}/review`, {
-    method: 'POST',
-    body: JSON.stringify({
-      reviewDecisions: state.pendingReviewDecisions.slice(0, 1),
-    }),
-  })
-  assert.equal(partial.status, 422)
-})
-
-test('review: complete accept/reject decisions are stored', async () => {
-  const decisions = state.pendingReviewDecisions.map((decision, index) => ({
-    ...decision,
-    action: index === 0 ? 'REJECTED' : 'APPROVED',
-  }))
-  const response = await session.api(`/extractions/${state.extractionId}/review`, {
-    method: 'POST',
-    body: JSON.stringify({ reviewDecisions: decisions }),
-  })
-  assert.equal(response.status, 200, JSON.stringify(response.body))
-
-  const stored = await session.api(`/extractions/${state.extractionId}`)
-  assert.equal(
-    stored.body.extraction.reviewDecisions.length,
-    decisions.length,
-  )
+  // DURABLE_RELEASE_VERIFIED is false, so no deployment setting opens admission.
+  assert.equal(extraction.status, 409, JSON.stringify(extraction.body))
+  assert.equal(extraction.body.error.code, 'extraction_admissions_disabled')
+  assert.equal((await session.api(`/extractions/${state.extractionId}`)).status, 404)
 })
 
 /** A native-text PDF of `pages` pages (about 3,000 characters each), each opening with PAGESTARTnn (plus æøå) and closing with PAGEENDnn. */
@@ -381,10 +326,8 @@ test('durability: research state survives a normal restart', { timeout: 900_000 
     ),
     'project survived restart',
   )
-  const extraction = await fresh.api(`/extractions/${state.extractionId}`)
-  assert.equal(extraction.status, 200)
-  assert.equal(extraction.body.extraction.outcome, 'SUCCEEDED')
-  assert.ok(extraction.body.extraction.reviewDecisions.length > 0)
+  // The refused admission left nothing to recover.
+  assert.equal((await fresh.api(`/extractions/${state.extractionId}`)).status, 404)
 })
 
 test('projects: permanent deletion removes the owned graph', async () => {

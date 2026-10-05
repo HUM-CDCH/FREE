@@ -13,7 +13,7 @@ from kei_exp.kie.extract.calls import WHITESPACE_LOOP
 from kei_exp.kie.extract.llm import OpenAIChat, Reply
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.assembly import PROMPT_VERSION, fingerprint
-from kei_exp.kie.extract.run import ExtractRequest, extract, publish_extraction
+from kei_exp.kie.extract.run import ExtractRequest, extract
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.article import inventory
 from kei_exp.kie.extract.catalog import discover
@@ -412,10 +412,7 @@ def test_extract_composes_the_stages_into_a_complete_grounded_artifact(digital_p
     assert result["tokens"] == {"input": 10 * len(chat.calls), "output": 5 * len(chat.calls)}
     assert result["seconds"] >= 0 and result["started"]
     assert result["fingerprint"] == fingerprint(result, request, {"fields": chat.model, "reasoning": chat.model})
-    path = publish_extraction(tmp_path, "x-1", result)
-    assert path == tmp_path / "extractions" / "x-1" / "result.json"
-    assert json.loads(path.read_text(encoding="utf-8")) == result
-    assert not list((tmp_path / "extractions" / "x-1").glob("*.part"))
+    assert not (tmp_path / "extractions").exists()  # nothing is published beside the run
 
 
 def test_an_article_whose_document_states_nothing_is_one_empty_root_and_the_inventory_unit_reports_none():

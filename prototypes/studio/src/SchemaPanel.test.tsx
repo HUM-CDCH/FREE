@@ -1473,28 +1473,6 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
 })
 
-describe('SchemaPanel field context', () => {
-  it('focuses a renamed stable field with its old type while preserving an unsaved inline edit', () => {
-    const setup = setupController({ panelNodes: [{ id: 'title', name: 'heading', type: 'integer' }] })
-    const props = { schema: setup.schema, onClearDraft: vi.fn(), sourceDocumentName: 'test.pdf' }
-    const mounted = render(<SchemaPanel {...props} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit heading' }))
-    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'unsaved_name' } })
-    const before = setup.schema.snapshot().draft
-    mounted.rerender(<SchemaPanel {...props} fieldContext={{ extractionId: 'old-sample', schemaRevisionId: 'old-revision',
-      revisionNumber: 1, nodeId: 'title', nodeType: 'string', resultPaths: [['records', 0, 'title']] }} />)
-    expect(screen.getByDisplayValue('unsaved_name')).toBeInTheDocument()
-    expect(screen.getByText(/From Extraction old-sample.*string.*heading \(integer\)/)).toBeInTheDocument()
-    expect(setup.schema.snapshot().draft).toBe(before)
-    expect(setup.edits).toEqual([])
-    mounted.rerender(<SchemaPanel {...props} fieldContext={{ extractionId: 'old-sample', schemaRevisionId: 'old-revision',
-      revisionNumber: 1, nodeId: 'removed', nodeType: 'string', resultPaths: [['records', 0, 'heading']] }} />)
-    expect(screen.getByText(/This field was removed/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'View historical schema' })).toBeInTheDocument()
-    expect(screen.getByDisplayValue('unsaved_name')).toBeInTheDocument()
-    expect(setup.edits).toEqual([])
-  })
-})
 
 describe('SchemaPanel conflict recovery', () => {
   it('lets the researcher reload the winning Current Schema Revision', async () => {

@@ -5,7 +5,6 @@ import type { SchemaNode } from './schema.js'
 import sourceFixture from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with {type:'json'}
 import { decodeParsedDocument } from './parsed-document.js'
 import { durableValueSchema } from './durable-contract.js'
-import { keiExpEvidence } from './kei-exp-fixture.js'
 
 const text: SchemaNode = { id:'field-1', name:'title', type:'string', description:'A work title' }
 const source=decodeParsedDocument(sourceFixture)
@@ -51,7 +50,7 @@ test('an ungrounded correction retains the entire source without manufacturing l
 })
 test('model-anchor context remains separate from optional researcher Evidence',()=> {
   const anchor=source.evidence_index.anchors[0]
-  const modelEvidence=[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:keiExpEvidence()}]
+  const modelEvidence=[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:{path:['records',0,'title'],segment:'p1_s0',page:1,bbox_pt:[1,2,3,4] as [number,number,number,number],verbatim:true,hits:1,linked_by:'lexical' as const}}]
   const context=correctionSourceContext(source,'Full source',{...saved,evidence:modelEvidence},[])
   assert.equal(context.source.scope,'model-anchors')
   assert.equal(context.source.excerpts?.[0].text,'Grav 8')

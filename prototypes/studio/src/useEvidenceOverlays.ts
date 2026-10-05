@@ -8,7 +8,6 @@ import type { ExtractionAttempt } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import {
   anchorOccurrences,
-  reviewedAnchorOccurrences,
   type EvidenceOccurrence,
   verifiedEvidenceBbox,
 } from './evidenceNavigation'
@@ -28,15 +27,6 @@ export type RailMarkState = {
 /** The Results rail's values and selection, which the marks show and select. */
 export type RailMarks = Omit<RailMarkState,'selectableKeys'> & {
   onSelect: (keys: string[], mark: HTMLElement) => void
-}
-
-function reviewedOccurrenceIds(
-  attempt: Pick<ExtractionAttempt, 'reviewDecisions'> | null,
-  evidenceAnchorId: string,
-) {
-  return attempt?.reviewDecisions?.find(
-    (decision) => decision.evidenceAnchorId === evidenceAnchorId,
-  )?.reviewedOccurrenceIds
 }
 
 function appendOverlay(
@@ -161,23 +151,18 @@ export function useEvidenceOverlays({
   attempt,
   resultPath,
   active,
-  partialEvidenceLinks,
   dimLink = null,
   marks = null,
 }: {
   containerRef: RefObject<HTMLDivElement | null>
   viewerRef: RefObject<PDFViewer | null>
   parsedDocument: ParsedDocument | null
-  attempt: Pick<
-    ExtractionAttempt,
-    'extractionId' | 'executionStatus' | 'outcome' | 'evidenceLinks' | 'reviewDecisions'
-  > | null
+  attempt: Pick<ExtractionAttempt, 'extractionId'> | null
   resultPath: readonly string[] | null
   active: boolean
-  partialEvidenceLinks?: readonly EvidenceLink[] | null
   /** The one-by-one value's link: its page is dimmed around it when it is located to a cell or a segment. */
   dimLink?: EvidenceLink | null
-  /** The rail's values: links paint as marks that select them; without it, as plain highlights. */
+  /** The rail's saved values: model and correction Evidence paint as marks that select them. */
   marks?: RailMarks | null
 }) {
   const stopFocusedPaint = useRef<(() => void) | null>(null)
@@ -199,10 +184,7 @@ export function useEvidenceOverlays({
   useEffect(() => {
     const container = containerRef.current
     const viewer = viewerRef.current
-    const running = attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
-    const evidenceLinks = marks?.savedLinks ?? (attempt?.outcome === 'SUCCEEDED'
-      ? attempt.evidenceLinks ?? []
-      : running ? partialEvidenceLinks ?? null : null)?.map(link=>({key:JSON.stringify(link.resultPath),link,occurrenceIds:undefined})) ?? null
+    const evidenceLinks = marks?.savedLinks ?? null
     if (
       !container ||
       !parsedDocument ||
@@ -215,12 +197,6 @@ export function useEvidenceOverlays({
       return
     }
 
-    const reviewedByAnchor = new Map(
-      (attempt.reviewDecisions ?? []).map((decision) => [
-        decision.evidenceAnchorId,
-        decision.reviewedOccurrenceIds,
-      ]),
-    )
     const anchors = new Map(
       parsedDocument.evidence_index.anchors.map((anchor) => [
         anchor.anchor_id,
@@ -237,9 +213,9 @@ export function useEvidenceOverlays({
         if (!resultPath.every((segment, index) => segment === String(link.resultPath[index]))) continue
         const anchor = anchors.get(link.evidenceAnchorId)
         if (!anchor) continue
-        const reviewed = occurrenceIds ?? reviewedByAnchor.get(anchor.anchor_id)
         for (const occurrence of anchorOccurrences(anchor)) {
-          if (reviewed && !reviewed.includes(occurrence.occurrence_id)) continue
+          // Correction Evidence names its explicitly selected occurrences; model Evidence marks every occurrence.
+          if (occurrenceIds && !occurrenceIds.includes(occurrence.occurrence_id)) continue
           const entry = byOccurrence.get(occurrence.occurrence_id) ?? { occurrence, anchorId: anchor.anchor_id, keys: [],resultPath:link.resultPath }
           if (!entry.keys.includes(key)) entry.keys.push(key)
           byOccurrence.set(occurrence.occurrence_id, entry)
@@ -272,7 +248,7 @@ export function useEvidenceOverlays({
     return () => {
       viewer?.eventBus?.off('pagerendered', paint)
     }
-  }, [active, attempt, containerRef, marks, parsedDocument, partialEvidenceLinks, resultPath, viewerRef])
+  }, [active, attempt, containerRef, marks, parsedDocument, resultPath, viewerRef])
 
   useEffect(() => () => removeOverlays(containerRef.current, 'parsed-evidence-highlight'),
     [active, attempt?.extractionId, containerRef, parsedDocument])
@@ -295,10 +271,8 @@ export function useEvidenceOverlays({
       stopFocusedPaint.current = null
       removeOverlays(container, 'parsed-evidence-focus')
       if (!viewer || !container || !parsedDocument) return
-      const occurrences = reviewedAnchorOccurrences(
-        anchor,
-        reviewedOccurrenceIds(attempt, anchor.anchor_id),
-      )
+      // The rail narrows a correction's anchor to its selected occurrences before it asks.
+      const occurrences = anchorOccurrences(anchor)
       const firstOccurrence = occurrences[0]
       if (!firstOccurrence) return
       if (precision === 'input') {
@@ -325,6 +299,6 @@ export function useEvidenceOverlays({
       if (firstFocus) scrollOverlayIntoView(container, firstFocus)
       else viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     },
-    [attempt, containerRef, parsedDocument, viewerRef],
+    [containerRef, parsedDocument, viewerRef],
   )
 }

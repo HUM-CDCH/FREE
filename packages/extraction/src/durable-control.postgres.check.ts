@@ -38,16 +38,15 @@ test('native pilot finalization drives batch progress and unlocks only its produ
       [randomUUID(),id,head.selectionId,'a'.repeat(64),JSON.stringify([value])])
     await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=1,acknowledgement=\'COMPLETED\' WHERE id=$1',[id])
   }
-  const persistence=createResearcherExtractionPersistence(fixture.accountId,{enqueue:async()=>{},statuses:async()=>new Map(),cancel:async()=>{}},{database:createDisposableRuntime(source)})
+  const persistence=createResearcherExtractionPersistence(fixture.accountId,{enqueue:async()=>{},statuses:async()=>new Map()},{database:createDisposableRuntime(source)})
   const input={projectContextId:fixture.projectContextId,schemaRevisionId:fixture.revisions.article}
   assert.equal(await persistence.stabiliseSchemaRevision(input),'not-ready')
   const repository=createDurableRepository(fixture.accountId,source)
   await repository.saveCorrection(ids[0],'value',{snapshotVersion:1,expectedRevision:0,action:'APPROVED',evidence:[]},async()=>{})
   await repository.finalize(ids[0],{snapshotVersion:1,feedbackVersion:1})
   const batch=await persistence.readBatch({projectContextId:fixture.projectContextId,batchExtractionId:batchId})
-  assert.equal(batch?.members[0].latestExtraction,null)
-  assert.equal(batch?.members.filter(member=>member.durableReview).length,1)
-  assert.equal(batch?.members.find(member=>member.durableExtractionId===ids[0])?.durableReview?.schemaRevisionId,fixture.revisions.article)
+  assert.equal(batch?.members.filter(member=>member.currentReview).length,1)
+  assert.equal(batch?.members.find(member=>member.extractionId===ids[0])?.currentReview?.schemaRevisionId,fixture.revisions.article)
   assert.notEqual(await persistence.stabiliseSchemaRevision(input),'not-ready')
   assert.equal((await admin.query('SELECT "reviewedAt" FROM public.extraction WHERE id=$1',[ids[0]])).rows[0].reviewedAt,null)
   const revised=randomUUID()
@@ -144,12 +143,10 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   const runtime=createDisposableRuntime(source),references=createGarbageReferences(runtime)
   const extractionPersistence=createResearcherExtractionPersistence(fixture.accountId,{
     enqueue:async()=>{throw new Error('Unexpected extraction admission')},statuses:async()=>new Map(),
-    cancel:async()=>{throw new Error('A durable native call must drain')},
   },{database:runtime})
   assert.equal((await extractionPersistence.readExtractionAttempt(id))?.executionStatus,'PAUSED')
   assert.equal((await extractionPersistence.readExtractionAttempt(id))?.finalizedReview?.snapshotVersion,3)
   assert.equal((await extractionPersistence.readDocumentExtractions({sourceDocumentId:document.sourceDocumentId}))?.latestReviewed?.extractionId,id)
-  assert.equal(await extractionPersistence.cancelExtraction(id),'not-found')
   assert.equal((await admin.query('SELECT outcome FROM public.extraction WHERE id=$1',[id])).rows[0].outcome,null)
   state=await repository.read(id)
   await repository.command(id,{id:randomUUID(),expectedVersion:state.controlVersion,action:'resume'})

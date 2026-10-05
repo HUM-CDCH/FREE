@@ -1,14 +1,9 @@
 import { useId, useState, type ReactNode } from 'react'
-import type { SchemaDefinition } from 'extraction/schema'
-import type {
-  ExportChoices,
-  ExportFormat,
-} from 'extraction-result-export'
+import type { ExportFormat } from 'extraction-result-export'
 import {
   batchExtractionProgress,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
-import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import { Button, Pill } from '../ui'
 import { memberStatus, type StatusTone } from './batchExtractionStatus'
 
@@ -61,33 +56,6 @@ function RerunIcon() {
   )
 }
 
-function GridIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="13"
-      height="13"
-      viewBox="0 0 20 20"
-      fill="none"
-    >
-      <rect
-        x="3"
-        y="3"
-        width="14"
-        height="14"
-        rx="1.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M3 8.5h14M3 13h14M8.5 3v14M13 3v14"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-    </svg>
-  )
-}
-
 function DocumentIcon() {
   return (
     <svg
@@ -131,40 +99,15 @@ function batchStatus(batch: BatchExtraction): {
   tone: StatusTone
   running: boolean
 } {
-  const progress = batchExtractionProgress(batch)
-  if (batch.members.some((member) => member.durableExtractionId)) {
-    const counts = new Map<string, number>()
-    for (const member of batch.members)
-      counts.set(member.executionStatus, (counts.get(member.executionStatus) ?? 0) + 1)
-    const active = ['QUEUED', 'RUNNING', 'PAUSING', 'STOPPING'].some((state) => counts.has(state))
-    return {
-      label: [...counts].map(([state, count]) => `${count} ${state.toLowerCase()}`).join(' · '),
-      tone: counts.has('FAILED') ? 'danger' : active ? 'accent' : 'neutral',
-      running: active,
-    }
-  }
-  if (batch.executionStatus === 'QUEUED')
-    return { label: 'Queued', tone: 'neutral', running: true }
-  if (batch.executionStatus === 'RUNNING')
-    return {
-      label: `Running · ${progress.extracted} of ${progress.total} completed`,
-      tone: 'accent',
-      running: true,
-    }
-  // A batch never fails as a whole: its members do, and each says why.
-  const parts = [
-    progress.needsReview ? `${progress.needsReview} need review` : null,
-    progress.unreviewable
-      ? `${progress.unreviewable} with no reviewable result`
-      : null,
-    progress.failed ? `${progress.failed} failed` : null,
-  ].filter((part): part is string => part !== null)
-  if (parts.length === 0)
-    return { label: 'Reviewed', tone: 'success', running: false }
+  // Each member keeps its own lifecycle: a paused, failed or stopped member is counted as such, never as a result.
+  const counts = new Map<string, number>()
+  for (const member of batch.members)
+    counts.set(member.executionStatus, (counts.get(member.executionStatus) ?? 0) + 1)
+  const active = ['QUEUED', 'RUNNING', 'PAUSING', 'STOPPING'].some((state) => counts.has(state))
   return {
-    label: parts.join(' · '),
-    tone: progress.failed ? 'danger' : 'accent',
-    running: false,
+    label: [...counts].map(([state, count]) => `${count} ${state.toLowerCase()}`).join(' · '),
+    tone: counts.has('FAILED') ? 'danger' : active ? 'accent' : 'neutral',
+    running: active,
   }
 }
 
@@ -227,9 +170,7 @@ export function BatchExtractionHistory({
       {batches.map((batch) => {
         const status = batchStatus(batch)
         const progress = batchExtractionProgress(batch)
-        const completed = batch.members.some((member) => member.durableExtractionId)
-          ? batch.members.filter((member) => member.executionStatus === 'COMPLETED').length
-          : progress.extracted
+        const completed = progress.extracted
         const percent = progress.total > 0 ? (completed / progress.total) * 100 : 0
         return (
           <li key={batch.batchExtractionId}>
@@ -292,7 +233,6 @@ export function BatchExtractionHistory({
 
 export function BatchExtractionMembers({
   batch,
-  pinnedSchema,
   pinnedSchemaFailure,
   hasSuccessfulResult,
   coverageMessage,
@@ -304,11 +244,9 @@ export function BatchExtractionMembers({
   onExport,
   onRetrySchema,
   onRunAgain,
-  onOpenGridReview,
   onOpenMember,
 }: {
   batch: BatchExtraction
-  pinnedSchema: SchemaDefinition | null
   pinnedSchemaFailure: string | null
   hasSuccessfulResult: boolean
   coverageMessage: string | null
@@ -320,10 +258,9 @@ export function BatchExtractionMembers({
   /** The saved method Run again submits, with its loading, error and stale-settings refusal. */
   runAgainMethod: ReactNode
   documentName(sourceDocumentId: string): string
-  onExport(format: ExportFormat, choices?: ExportChoices): Promise<void>
+  onExport(format: ExportFormat): Promise<void>
   onRetrySchema(): void
   onRunAgain(): void
-  onOpenGridReview(): void
   onOpenMember(sourceDocumentId: string, extractionId: string): void
 }) {
   const status = batchStatus(batch)
@@ -336,34 +273,7 @@ export function BatchExtractionMembers({
         </p>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <StatusLine tone={status.tone} label={status.label} />
-          {batch.members.some(member=>member.durableExtractionId)
-            ? <RetainedBatchExport disabled={!hasSuccessfulResult} onExport={onExport}/>
-            : <ExtractionResultExportControl
-            schema={pinnedSchema}
-            disabled={!hasSuccessfulResult}
-            disabledReason={
-              !hasSuccessfulResult
-                ? 'No saved Extraction data is available to export.'
-                : null
-            }
-            onExport={onExport}
-          />}
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!hasSuccessfulResult || batch.members.some(member=>member.durableExtractionId)}
-            title={
-              batch.members.some(member=>member.durableExtractionId)
-                ? 'Open a member to review its saved typed values and producing inputs.'
-                : !hasSuccessfulResult
-                ? 'No successful Extraction Results are available to review.'
-                : undefined
-            }
-            onClick={onOpenGridReview}
-          >
-            <GridIcon />
-            Review grid
-          </Button>
+          <RetainedBatchExport disabled={!hasSuccessfulResult} onExport={onExport}/>
           <Button
             size="sm"
             variant="secondary"
@@ -418,15 +328,7 @@ export function BatchExtractionMembers({
               <button
                 className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[1fr_auto] items-center gap-6 rounded-xs px-2 py-3.5 text-left outline-none hover:bg-line/20 disabled:cursor-default disabled:hover:bg-transparent sm:grid-cols-[1fr_13rem_auto]"
                 type="button"
-                disabled={!member.durableExtractionId&&!member.latestExtraction}
-                onClick={() => {
-                  const id=member.durableExtractionId??member.latestExtraction?.extractionId
-                  if (id)
-                    onOpenMember(
-                      member.sourceDocumentId,
-                      id,
-                    )
-                }}
+                onClick={() => onOpenMember(member.sourceDocumentId, member.extractionId)}
               >
                 <span className="min-w-0">
                   <span className="flex min-w-0 items-center gap-2 text-ink-faint">

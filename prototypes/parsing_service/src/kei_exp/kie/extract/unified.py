@@ -2,14 +2,10 @@
 
 The request's `options.unified` pins the versioned defaults and any overrides of its five controls (input ceiling,
 reply reserve, overlap, heading context, verification). Before any model call the effective per-stage budgets are
-resolved from the served context and published write-once as `catalog-execution.json` beside the result; general
-record discovery (`discovery.py`) is then published write-once as `catalog-discovery.json`, and each finished entry's
-work as `catalog-entry-<index>.v<ENTRY_VERSION>.json`, bound to that discovery's digest. A re-executed step validates
-and reuses them, so it asks the model again only for entries not yet finished: budgets the serving environment can no
-longer honor, or records of other inputs, fail explicitly instead of being replaced. A request the server refuses is a
-failed call of its window; a backend that is not ready ends the step, whose retry resumes from the published records.
-An entry is finished, and published, only when every call it made succeeded and every verification was decided;
-otherwise its work stands in this artifact unpublished, so a retry asks again.
+resolved from the served context into the execution record; general record discovery (`discovery.py`) follows, and
+each entry's work is bound to that discovery's digest. All three live in the artifact. Durable execution resumes from
+its own committed call outputs (`retained.py`), never from files beside the run. A request the server refuses is a
+failed call of its window; a backend that is not ready ends the planning step.
 
 Every entry is read whole through counted windows of its own text (overlap within the entry), beside the record-free
 lines before it when heading context is on. The fields model returns `{value, quote}` candidates, and `_item_text`
@@ -45,9 +41,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from kei_exp.canonical import canonical_json
 from kei_exp.failures import TransientBackendError, classify
-from kei_exp.files import publish_once
 from kei_exp.kie.blocks import Span
-from kei_exp.kie.extract import discovery, gliformer, progress
+from kei_exp.kie.extract import discovery, gliformer
 from kei_exp.kie.extract.acceptance import Outcome, typed_value
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
@@ -65,9 +60,8 @@ from kei_exp.pagefile import PageTable
 EXTRACTION_VERSION = 3
 PROMPT_VERSION = 3  # 3: discovery places are one-line [line, kind, label] lists, start text only mid-line
 RECORD_VERSION = 1  # the execution record's layout
-# The entry records' layout and checks, versioned apart from the execution record so it can change without conflicting
-# executions. The version is in the record's file name, so after a bump a resumed extraction reads its entries again
-# instead of meeting an older record. 2: a value printed in the table row whose cell the quote names is literal there.
+# The entry records' layout and checks, versioned apart from the execution record.
+# 2: a value printed in the table row whose cell the quote names is literal there.
 # 3: that row is searched cell by cell (a cell spanning rows no longer widens it to them), and only for a quote found in
 # exactly one place.
 ENTRY_VERSION = 3
@@ -108,11 +102,7 @@ class BudgetRefused(ValueError):
     """The pinned budgets cannot be honored here, or no valid minimum request fits them. Nothing is clipped."""
 
 
-class RecordConflict(ValueError):
-    """A published execution or discovery record belongs to other inputs, or a different one was published first."""
-
-
-# --- budgets, calls and the write-once records -----------------------------------------------------------------------
+# --- budgets and calls -----------------------------------------------------------------------------------------------
 
 @dataclass
 class _Budget:
@@ -154,38 +144,11 @@ class _Budget:
 
 
 def digest(record: dict) -> str:
-    """The digest a record is published and embedded under: SHA-256 of its canonical JSON, the file's own bytes."""
+    """The digest a record is embedded under: SHA-256 of its canonical JSON."""
     return hashlib.sha256(canonical_json(record)).hexdigest()
 
 
-def _published(path: Path | None, make: Callable[[], dict], reusable: Callable[[dict], None]) -> dict:
-    """The record already at `path` once `reusable` accepts it; otherwise `make()`'s, published there write-once. A
-    published record is returned as its file holds it, so a re-execution that reuses it builds the same artifact."""
-    if path is not None and path.exists():
-        existing = json.loads(path.read_bytes())
-        reusable(existing)
-        return existing
-    record = make()
-    return _publish(path, record) if path is not None else record
-
-
-def _publish(path: Path, record: dict) -> dict:
-    """`record` published write-once at `path`, as its file holds it; a record another attempt published there first
-    is a conflict, never replaced or silently adopted."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        publish_once(path, data := canonical_json(record))
-    except FileExistsError as error:
-        raise RecordConflict(f"another attempt published a different {path.name} for this extraction") from error
-    return json.loads(data)
-
-
-IDENTITY = ("version", "extraction_id", "source", "schema_sha256", "method", "defaults", "models", "prompt_version",
-            "discovery_version")
-
-
-def _execution(extraction_id: str | None, evidence: Evidence, schema: Schema, options: UnifiedOptions,
-               chat: Router, counters: dict) -> dict:
+def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat: Router, counters: dict) -> dict:
     """The execution record: the pins, and each stage's effective budget resolved from its role's served context."""
     native = isinstance(chat.fields, gliformer.GLiFormerFields)
     stages = {}
@@ -199,7 +162,9 @@ def _execution(extraction_id: str | None, evidence: Evidence, schema: Schema, op
                                 f"model's served context of {context}")
         stages[stage] = {"role": ROLE[stage], "input_tokens": options.input_tokens or context - output,
                          "output_tokens": output}
-    return {"version": RECORD_VERSION, "extraction_id": extraction_id,
+    # `extraction_id` stays in the version 3 artifact's execution record, always null: durable attempts are named by
+    # the coordination schema, not by this record.
+    return {"version": RECORD_VERSION, "extraction_id": None,
             "source": {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest},
             "schema_sha256": digest(schema.model_dump(by_alias=True, exclude_none=True)),
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
@@ -208,33 +173,6 @@ def _execution(extraction_id: str | None, evidence: Evidence, schema: Schema, op
             "models": chat.models, "prompt_version": PROMPT_VERSION, "discovery_version": discovery.VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
-
-
-def _honorable(fresh: dict, counters: dict) -> Callable[[dict], None]:
-    def check(existing: dict) -> None:
-        if any(existing.get(key) != fresh[key] for key in IDENTITY):
-            raise RecordConflict("the published catalog-execution.json pins other inputs than this request")
-        for role, pinned in existing["tokenizers"].items():
-            if {**pinned, "context_tokens": None} != {**fresh["tokenizers"][role], "context_tokens": None}:
-                raise BudgetRefused(f"budget_unhonorable: the {role} tokenizer is no longer the one pinned")
-        for stage, budget in existing["effective"]["stages"].items():
-            context = counters[budget["role"]].context_tokens
-            if budget["input_tokens"] + budget["output_tokens"] > context:
-                raise BudgetRefused(f"budget_unhonorable: the pinned {stage} budget of {budget['input_tokens']} + "
-                                    f"{budget['output_tokens']} tokens exceeds the served context of {context}")
-    return check
-
-
-def _discovery_reusable(execution_sha256: str, evidence: Evidence) -> Callable[[dict], None]:
-    texts = {passage.id: passage.text for passage in (*evidence.passages, *evidence.withheld)}
-
-    def check(existing: dict) -> None:
-        if existing.get("version") != discovery.VERSION or existing.get("execution_sha256") != execution_sha256:
-            raise RecordConflict("the published catalog-discovery.json was made for another execution record")
-        for row in (*existing["ledger"], *(each for entry in existing["entries"] for each in entry["ranges"])):
-            if not 0 <= row["start"] < row["end"] <= len(texts.get(row["segment"], "")):
-                raise RecordConflict("the published catalog-discovery.json names text this source does not have")
-    return check
 
 
 def _call_json(call: Call) -> dict:
@@ -253,23 +191,6 @@ def _issue_json(issue: Issue) -> dict:
     return {**asdict(issue), "path": list(issue.path) if issue.path else None}
 
 
-def _issue_of(issue: dict) -> Issue:
-    return Issue(issue["code"], issue["detail"], issue["record"], tuple(issue["path"]) if issue["path"] else None)
-
-
-def entry_name(number: int) -> str:
-    """The entry record's file name, which carries its version: records of other versions are never read."""
-    return f"catalog-entry-{number}.v{ENTRY_VERSION}.json"
-
-
-def _entry_reusable(number: int, entry: dict, discovery_sha256: str) -> Callable[[dict], None]:
-    def check(existing: dict) -> None:
-        if (existing.get("version"), existing.get("discovery_sha256"), existing.get("index"),
-                existing.get("ranges")) != (ENTRY_VERSION, discovery_sha256, number, entry["ranges"]):
-            raise RecordConflict(f"the published {entry_name(number)} was made for another entry or discovery")
-    return check
-
-
 def work_order(entries: list[dict], pages: dict[str, int], start_page: int | None) -> list[int]:
     """Entry indices in the order they are read (design §4): by distance of each entry's first page from `start_page`,
     an entry whose page is unknown last, ties in source order; without a start page, source order. Assembly keeps
@@ -281,32 +202,14 @@ def work_order(entries: list[dict], pages: dict[str, int], start_page: int | Non
     return sorted(range(len(entries)), key=distance)
 
 
-def _candidates_stage(directory: Path, execution: str, check: Callable[[], None], number: int, entry: dict,
-                      discovery_sha256: str, nodes: list[Node], work: _Work) -> None:
-    """The entry's candidates after its values windows and before verification (design §2): the partial view shows
-    them as candidates, visibly so, and knows from `failed` whether a window left fields unknown. `read` never looks
-    at this file; a retried values call rewrites it. `check` runs first: what it raises (a cancel issued during the
-    entry's last window) ends the extraction before anything is written."""
-    check()
-    progress.write_stage(directory / progress.candidates_name(number), {
-        "version": progress.CANDIDATES_VERSION, "execution": execution, "index": number,
-        "discovery_sha256": discovery_sha256, "ranges": entry["ranges"],
-        "candidates": [{"path": list(each.path), "value": each.value, "quote": each.quote, "window": each.window}
-                       for each in work.found if each.kind == "candidate"],
-        "record": conform(_placed(work.found, "candidate"), nodes), "failed": work.failed})
-
-
 # --- extraction ----------------------------------------------------------------------------------------------------
 
 def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, counter=None, chunks: int = 1,
-            before_entry: Callable[[], None] | None = None, extraction_id: str | None = None) -> dict:
-    """The version 3 artifact for `request` (the validated `run.ExtractRequest`) over `evidence`. With an
-    `extraction_id` the execution, discovery and entry records are published under `run_dir` and reused on
-    re-execution; without one (the CLI) they live only in the artifact. `before_entry` is called before every model
-    call and before returning; what it raises ends the extraction. Entries run `chunks` at a time, nearest
-    `options.start_page` first (`work_order`), assembled in source order. An entry's reading marker and candidates
-    file are written only after `before_entry` again, unthrottled where it has a `strict` form, so a cancel issued
-    during a call refreshes no run's age."""
+            before_entry: Callable[[], None] | None = None) -> dict:
+    """The version 3 artifact for `request` (the validated `run.ExtractRequest`) over `evidence`; the execution,
+    discovery and entry records live only in the artifact (`run_dir` is not read). `before_entry` is called before
+    every model call and before returning; what it raises ends the extraction. Entries run `chunks` at a time, nearest
+    `options.start_page` first (`work_order`), assembled in source order."""
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     schema, options = request.schema_, request.options.unified
     if isinstance(chat.fields, gliformer.GLiFormerFields):
@@ -316,15 +219,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     counters = counter if isinstance(counter, dict) else (counters_for(chat) if counter is None
                                                            else dict.fromkeys(("fields", "reasoning"), counter))
     check = before_entry or (lambda: None)
-    strict = getattr(check, "strict", check)  # the worker's check unthrottled (`CancelCheck.strict`); else as is
     check()
-    directory = run_dir / "extractions" / extraction_id if run_dir is not None and extraction_id else None
-    # Not `execution`: that name is the execution record, assigned a few lines below.
-    stage_execution = (progress.started(directory, "catalog", request.options.start_page)
-                       if directory is not None else None)
-    fresh = _execution(extraction_id, evidence, schema, options, chat, counters)
-    execution = _published(directory / "catalog-execution.json" if directory else None, lambda: fresh,
-                           _honorable(fresh, counters))
+    execution = _execution(evidence, schema, options, chat, counters)
     execution_sha256 = digest(execution)
     effective = execution["effective"]
     budget = _Budget(chat, counters, effective["stages"], check)
@@ -339,8 +235,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                 "ledger": body["ledger"], "windows": body["windows"],
                 "issues": [_issue_json(issue) for issue in body["issues"]],
                 "calls": [_call_json(call) for call in body["calls"]]}
-    found = _published(directory / "catalog-discovery.json" if directory else None, discover,
-                       _discovery_reusable(execution_sha256, evidence))
+    found = discover()
     from kei_exp.kie.extract.retained import plan_records
     plan_records(chat,"unified-records",[entry["ranges"] for entry in found["entries"]])
     run = _Run(schema, budget, {passage.id: passage.text for passage in evidence.passages}, effective,
@@ -348,31 +243,11 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     halt = threading.Event()
     discovery_sha256 = digest(found)
 
-    def read(number: int, entry: dict) -> _Work:
-        """A published entry's work, or the entry read now: published only when nothing in it failed or stayed
-        undecided, so a retry of the step asks again for an entry a failed call or window left short. The reading
-        marker and the candidates file are the partial view's (design §2): written here, each after the unthrottled
-        check, read by no resume path."""
-        if directory is None:
-            return run.entry(number, entry)
-        path = directory / entry_name(number)
-        if path.exists():
-            return _work_of(_published(path, dict, _entry_reusable(number, entry, discovery_sha256)), run.nodes)
-        strict()  # the marker may follow the previous entry's last call: never written once cancelled
-        progress.write_stage(directory / progress.reading_name(number),
-                             {"version": progress.CANDIDATES_VERSION, "execution": stage_execution, "index": number})
-        work = run.entry(number, entry, on_candidates=partial(_candidates_stage, directory, stage_execution, strict,
-                                                              number, entry, discovery_sha256, run.nodes))
-        record = _entry_json(number, entry, discovery_sha256, work)
-        if work.failed or work.undecided or any(not call.ok for call in work.calls):
-            return _work_of(json.loads(canonical_json(record)), run.nodes)  # read as a published one is, unpublished
-        return _work_of(_publish(path, record), run.nodes)  # one published first meanwhile is a conflict
-
     def one(numbered: tuple[int, dict]) -> _Work | None:
         if halt.is_set():
             return None
         try:
-            work = read(*numbered)
+            work = run.entry(*numbered)
             if not work.failed and not work.undecided:
                 from kei_exp.kie.extract.retained import saved_record
                 number, entry = numbered
@@ -645,50 +520,6 @@ class _Work:
     native: list[dict] | None = None
 
 
-def _spans_from(rows: list[dict]) -> list[Span]:
-    return [Span(segment_id=row["segment"], start=row["start"], end=row["end"]) for row in rows]
-
-
-def _entry_json(number: int, entry: dict, discovery_sha256: str, work: _Work) -> dict:
-    """The entry record (`entry_name`): what one entry's windows produced, for the discovery it was
-    read from; a re-execution reuses it instead of asking again."""
-    found = [{"path": list(each.path), "value": each.value, "quote": each.quote, "window": each.window,
-              "spans": spans_json(each.spans), "alternatives": [spans_json(spans) for spans in each.alternatives],
-              "support": each.support, "kind": each.kind, "reason": each.reason,
-              "item": None if each.item is None else [list(each.item[0]), *each.item[1:]],
-              "anchor": None if each.anchor is None else [list(place) for place in each.anchor]}
-             for each in work.found]
-    return {"version": ENTRY_VERSION, "discovery_sha256": discovery_sha256, "index": number, "ranges": entry["ranges"],
-            "work": {"found": found, "record": work.record, "contest": work.contest, "items": work.items,
-                     "omitted": work.omitted, "calls": [_call_json(call) for call in work.calls],
-                     "issues": [_issue_json(issue) for issue in work.issues], "windows": work.windows,
-                     "failed": work.failed, "undecided": work.undecided,
-                     **({"native": work.native} if work.native is not None else {})}}
-
-
-def _found_of(rows: list[dict]) -> list[_Found]:
-    return [_Found(tuple(row["path"]), row["value"], row["quote"], row["window"], _spans_from(row["spans"]),
-                   [_spans_from(spans) for spans in row["alternatives"]], row["support"], row["kind"], row["reason"],
-                   None if row["item"] is None else (tuple(row["item"][0]), *row["item"][1:]),
-                   None if row["anchor"] is None else tuple(tuple(place) for place in row["anchor"]))
-            for row in rows]
-
-
-def _work_of(record: dict, nodes: list[Node]) -> _Work:
-    work = record["work"]
-    return _Work(_found_of(work["found"]), work["record"] if "native" in work else conform(work["record"], nodes),
-                 work["contest"], work["items"], work["omitted"], [_call_of(call) for call in work["calls"]],
-                 [_issue_of(issue) for issue in work["issues"]], work["windows"], work["failed"], work["undecided"],
-                 native=work.get("native"))
-
-
-def entry_links(record: dict, passages: dict) -> list[dict]:
-    """The evidence links a published entry record's accepted values make, exactly as `_artifact` writes them, so the
-    partial view converts them with the artifact's own code (design §3). `passages` maps segment ids to passages."""
-    return [_link(each, record["index"], passages) for each in _found_of(record["work"]["found"])
-            if each.kind == "accepted"]
-
-
 class _Run:
     def __init__(self, schema: Schema, budget: _Budget, texts: dict[str, str], effective: dict,
                  tables: dict[str, PageTable] | None = None):
@@ -725,7 +556,7 @@ class _Run:
         out.windows += len(replies)
         return replies
 
-    def entry(self, number: int, entry: dict, on_candidates: Callable[[_Work], None] | None = None) -> _Work:
+    def entry(self, number: int, entry: dict) -> _Work:
         out = _Work()
         if isinstance(self.budget.chat.fields, gliformer.GLiFormerFields):
             out.native = []
@@ -755,8 +586,6 @@ class _Run:
                 shown = (_position(units, first.segment, first.start), _position(units, last.segment, last.end))
                 found += _Checker(view, shown, index, self.nodes, self.tables).reply(answer)
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
-        if on_candidates is not None:
-            on_candidates(out)
         self._verify(number, replies, out)
         out.contest = self._settle(number, out, view)
         _renumbered(out.found)

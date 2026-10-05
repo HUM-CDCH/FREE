@@ -21,243 +21,47 @@ const completed = {
   schemaRevisionId: id('4'),
   strategy: 'ARTICLE',
   catalogRecipe: null,
+  requestedModels: null,
+  requestedSettings: { article: null },
   executionStatus: 'COMPLETED',
-  outcome: 'SUCCEEDED',
-  complete: true,
-  modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-  diagnostics: {
-    phase: 'grounding',
-    durationMs: 1,
-    modelCalls: 0,
-    finishReason: null,
-    inputTokens: null,
-    outputTokens: null,
-    grounding: null,
-    catalog: null,
-  },
-  failure: null,
-  resultPayload: { records: [{}] },
-  evidenceLinks: [],
-  reviewable: true,
+  finalizedReview: null,
   batchExtractionId: null,
   createdAt: '2026-08-10T00:00:00.000Z',
-  reviewedAt: null,
-  reviewDecisions: [],
 } as const
 
-describe('Article lifecycle contracts', () => {
-  it('accepts queued and running jobs only while they carry no values', () => {
-    const queued = {
-      ...completed,
-      executionStatus: 'QUEUED',
-      outcome: null,
-      complete: null,
-      modelAttribution: null,
-      diagnostics: null,
-      resultPayload: null,
-      evidenceLinks: null,
-      reviewable: false,
-    }
-    expect(extractionAttemptSchema.safeParse(queued).success).toBe(true)
-    expect(extractionAttemptSchema.safeParse({ ...queued, executionStatus: 'RUNNING' }).success).toBe(true)
-    expect(extractionAttemptSchema.safeParse({
-      ...queued,
-      executionStatus: 'RUNNING',
-      complete: true,
-      modelAttribution: completed.modelAttribution,
-      diagnostics: completed.diagnostics,
-      resultPayload: completed.resultPayload,
-    }).success).toBe(false)
-    expect(extractionAttemptSchema.safeParse({
-      ...queued,
-      executionStatus: 'RUNNING',
-      resultPayload: completed.resultPayload,
-    }).success).toBe(false)
+describe('durable Extraction contracts', () => {
+  it('carries every durable lifecycle state with no result, review or failure fields', () => {
+    for (const executionStatus of ['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'COMPLETED', 'FAILED'] as const)
+      expect(extractionAttemptSchema.parse({ ...completed, executionStatus }).executionStatus).toBe(executionStatus)
+    for (const removed of [{ resultPayload: null }, { evidenceLinks: [] }, { reviewDecisions: [] }, { reviewedAt: null },
+      { outcome: 'SUCCEEDED' }, { diagnostics: null }, { failure: null }, { durable: true }])
+      expect(extractionAttemptSchema.safeParse({ ...completed, ...removed }).success).toBe(false)
   })
 
-  it('accepts a strict completed empty attempt and rejects contradictory terminal fields', () => {
-    expect(extractionAttemptSchema.safeParse(completed).success).toBe(true)
-    expect(
-      extractionAttemptSchema.safeParse({
-        ...completed,
-        outcome: 'FAILED',
-        failure: { code: 'failed', message: 'Failed.' },
-      }).success,
-    ).toBe(false)
-    expect(
-      extractionRequestSchema.safeParse({
-        id: id('1'),
-        sourceRepresentationRevisionId: id('3'),
-        schemaRevisionId: id('4'),
-        strategy: 'ARTICLE',
-        method: ARTICLE_DEFAULTS,
-        result: {},
-      }).success,
-    ).toBe(false)
+  it('names its latest finalized result and decision cut, or null', () => {
+    const finalizedReview = { snapshotVersion: 3, feedbackVersion: 0, createdAt: '2026-10-05T09:00:00.000Z' }
+    expect(extractionAttemptSchema.parse({ ...completed, finalizedReview }).finalizedReview).toEqual(finalizedReview)
+    for (const wrong of [{ ...finalizedReview, snapshotVersion: 0 }, { ...finalizedReview, feedbackVersion: -1 }, { snapshotVersion: 3, feedbackVersion: 0 }])
+      expect(extractionAttemptSchema.safeParse({ ...completed, finalizedReview: wrong }).success).toBe(false)
   })
 
-  it('a COMPLETED attempt is a succeeded result with its evidence and diagnostics', () => {
-    expect(extractionAttemptSchema.safeParse(completed).success).toBe(true)
-    for (const missing of ['diagnostics', 'complete', 'modelAttribution', 'resultPayload', 'evidenceLinks'] as const)
-      expect(extractionAttemptSchema.safeParse({ ...completed, [missing]: null }).success).toBe(false)
-    expect(extractionAttemptSchema.safeParse({ ...completed, outcome: null }).success).toBe(false)
-    expect(extractionAttemptSchema.safeParse({
-      ...completed,
-      failure: { code: 'extraction_failed', message: 'Failed.' },
-    }).success).toBe(false)
+  it('names its Catalog recipe, or null, and its admitted settings', () => {
+    expect(extractionAttemptSchema.parse({ ...completed, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', requestedSettings: { recipe: null } }).catalogRecipe)
+      .toBe('numbered-catalogue-de@1')
+    expect(extractionAttemptSchema.safeParse({ ...completed, catalogRecipe: 'numbered-catalogue-de@1' }).success).toBe(false)
+    expect(extractionAttemptSchema.parse({ ...completed, requestedSettings: null }).requestedSettings).toBeNull()
+    expect(extractionAttemptSchema.safeParse({ ...completed, requestedSettings: { article: null, generic: null } }).success).toBe(false)
   })
+})
 
-  it('a failed, cancelled or interrupted attempt is FAILED with a failure and no result', () => {
-    const failed = {
-      ...completed,
-      executionStatus: 'FAILED',
-      outcome: null,
-      complete: null,
-      modelAttribution: null,
-      diagnostics: null,
-      resultPayload: null,
-      evidenceLinks: null,
-      reviewable: false,
-    }
-    for (const failure of [
-      { code: 'extraction_failed', message: 'The model was unreachable.' },
-      { code: 'cancelled', message: 'Extraction cancelled.' },
-      { code: 'interrupted', message: 'This work stopped before it finished. Start it again.' },
-    ]) {
-      expect(extractionAttemptSchema.safeParse({ ...failed, failure }).success).toBe(true)
-      // The job-era shape of a settled failure: COMPLETED with a FAILED or CANCELLED outcome.
-      for (const outcome of ['FAILED', 'CANCELLED'] as const)
-        expect(extractionAttemptSchema.safeParse({
-          ...failed,
-          executionStatus: 'COMPLETED',
-          outcome,
-          diagnostics: completed.diagnostics,
-          failure,
-        }).success).toBe(false)
-      expect(extractionAttemptSchema.safeParse({ ...failed, outcome: 'FAILED', failure }).success).toBe(false)
-      expect(extractionAttemptSchema.safeParse({
-        ...failed,
-        failure,
-        diagnostics: completed.diagnostics,
-      }).success).toBe(false)
-    }
-    expect(extractionAttemptSchema.safeParse({ ...failed, failure: null }).success).toBe(false)
-  })
+describe('Extraction request contracts', () => {
 
-  it('an attempt names its Catalog recipe, or null', () => {
-    const catalog = { ...completed, strategy: 'CATALOG' }
-    expect(extractionAttemptSchema.parse({ ...catalog, catalogRecipe: 'numbered-catalogue-de@1' }))
-      .toMatchObject({ catalogRecipe: 'numbered-catalogue-de@1' })
-    expect(extractionAttemptSchema.safeParse({ ...catalog, catalogRecipe: null }).success).toBe(true)
-    const unnamed: Partial<typeof catalog> = { ...catalog }
-    delete unnamed.catalogRecipe
-    expect(extractionAttemptSchema.safeParse(unnamed).success).toBe(false)
-    expect(extractionAttemptSchema.safeParse({ ...catalog, catalogRecipe: '../etc' }).success).toBe(false)
-    expect(extractionAttemptSchema.safeParse({ ...completed, catalogRecipe: 'numbered-catalogue-de@1' }).success)
-      .toBe(false)
-  })
 
-  it('requires exact reviewed-anchor coverage', () => {
-    expect(
-      extractionAttemptSchema.safeParse({
-        ...completed,
-        evidenceLinks: [
-          { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' },
-        ],
-        reviewedAt: '2026-08-10T00:01:00.000Z',
-      }).success,
-    ).toBe(false)
-  })
 
-  it('keys Review Decisions by result path when values share one Evidence anchor', () => {
-    const evidenceLinks = [
-      { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' },
-      { resultPath: ['records', 0, 'note'], evidenceAnchorId: 'anchor-1' },
-    ]
-    const reviewDecisions = evidenceLinks.map((link) => ({
-      ...link,
-      reviewedOccurrenceIds: ['occurrence-1'],
-      action: 'APPROVED',
-      reviewedValue: null,
-      createdAt: '2026-08-10T00:01:00.000Z',
-    }))
-    expect(extractionAttemptSchema.safeParse({
-      ...completed,
-      resultPayload: { records: [{ title: 'Title', note: 'Note' }] },
-      evidenceLinks,
-      reviewedAt: '2026-08-10T00:01:00.000Z',
-      reviewDecisions,
-    }).success).toBe(true)
-    expect(extractionAttemptSchema.safeParse({
-      ...completed,
-      resultPayload: { records: [{ title: 'Title', note: 'Note' }] },
-      evidenceLinks,
-      reviewedAt: '2026-08-10T00:01:00.000Z',
-      reviewDecisions: reviewDecisions.map((decision) => ({
-        ...decision,
-        resultPath: ['records', 0, 'title'],
-      })),
-    }).success).toBe(false)
-  })
 
-  it('accepts service Catalog results without local stage diagnostics and validates stored diagnostics', () => {
-    expect(
-      extractionRequestSchema.safeParse({
-        id: id('1'),
-        sourceRepresentationRevisionId: id('3'),
-        schemaRevisionId: id('4'),
-        strategy: 'CATALOG',
-        method: GENERIC_DEFAULTS,
-      }).success,
-    ).toBe(true)
 
-    // The service reports calls and issues, not the former local pipeline's stages.
-    expect(
-      extractionAttemptSchema.safeParse({
-        ...completed,
-        strategy: 'CATALOG',
-        modelAttribution: { provider: 'kei-exp', modelId: 'fixture' },
-      }).success,
-    ).toBe(true)
-    const stage = {
-      provenance: 'executed',
-      outcome: 'succeeded',
-      finishReason: 'stop',
-      calls: 1,
-      inputTokens: 1,
-      outputTokens: 1,
-      durationMs: 1,
-      failureCode: null,
-    } as const
-    const catalog = {
-      stages: (['document-values', 'discovery', 'record-values', 'grounding'] as const)
-        .map((name) => ({ ...stage, stage: name })),
-      records: [{
-        ...stage,
-        ordinal: 0,
-        boundary: {
-          startBlockId: 'block-1',
-          startContentIndex: 0,
-          endContentIndex: 2,
-          headingText: 'First',
-          headingLevel: 1,
-        },
-      }],
-    }
-    expect(
-      extractionAttemptSchema.safeParse({
-        ...completed,
-        strategy: 'CATALOG',
-        diagnostics: { ...completed.diagnostics, catalog },
-      }).success,
-    ).toBe(true)
-    expect(
-      extractionAttemptSchema.safeParse({
-        ...completed,
-        diagnostics: { ...completed.diagnostics, catalog },
-      }).success,
-    ).toBe(false)
-  })
+
+
 
   it('accepts fresh requests and refuses retry fields', () => {
     const normalized = extractionRequestSchema.parse({
@@ -283,13 +87,6 @@ describe('Article lifecycle contracts', () => {
     ).toBe(false)
   })
 
-  it('carries no retry lineage on attempts or diagnostics', () => {
-    expect(extractionAttemptSchema.safeParse({ ...completed, retryOfId: null }).success).toBe(false)
-    expect(extractionAttemptSchema.safeParse({
-      ...completed,
-      diagnostics: { ...completed.diagnostics, retry: null },
-    }).success).toBe(false)
-  })
 })
 
 describe('numbered-catalogue recipe contracts', () => {
@@ -335,38 +132,6 @@ describe('numbered-catalogue recipe contracts', () => {
     }))
   })
 
-  it('carries version 2 review material: span evidence, proposals, rejections, coverage and completeness', () => {
-    const grounding = {
-      linkedBy: 'key', provenance: 'token', textSpans: [{ segment: 'p1_s2', start: 28, end: 32 }],
-      keySpans: [{ segment: 'p1_s2', start: 23, end: 27 }], alternatives: [], heading: null, precision: 'segment',
-      raw: '1827', normalized: { value: 'Meßtischblatt 1827', rule: 'glossary',
-                                 keySpan: { segment: 'p1_s0', start: 0, end: 4 },
-                                 expansionSpan: { segment: 'p1_s0', start: 7, end: 20 } },
-    }
-    const grounded = {
-      recipe: 'numbered-catalogue-de@1', segmentationFingerprint: 'f',
-      budget: { inputTokens: 4096, outputTokens: 1024, tokenizer: { source: 'vllm:/tokenize' } },
-      segmentationDiagnostics: [],
-      normalization: { version: 1, rules: ['glossary'] },
-      recordBlocks: [{ block: 'b1', entry_label: '31' }],
-      proposed: [{ path: ['records', 0, 'site_name'], value: 'Eichdorf', quote: 'Eichdorf', key: null,
-                   provenance: 'positional', spans: [{ segment: 'p1_s2', start: 4, end: 12 }], alternatives: [], window: 0 }],
-      rejected: [{ path: ['records', 0, 'fundart'], value: 'Siedl.', quote: 'FA: Siedl.', key: 'FA:', provenance: 'token',
-                   spans: [], alternatives: [], window: 0, reason: 'quote_not_in_entry' }],
-      competitors: [],
-      coverage: { complete: false, unresolved: 1, lines: 12 },
-      completeness: { processing: true, coverage: false, grounding: true, recall: 'unmeasured' },
-    }
-    const parsed = extractionAttemptSchema.parse({
-      ...completed, strategy: 'CATALOG', complete: false,
-      resultPayload: { records: [{ mbl_old: 1827 }] },
-      evidenceLinks: [{ resultPath: ['records', 0, 'mbl_old'], evidenceAnchorId: 'a_p1_s2', verbatim: true,
-                        lexicalHits: 1, grounding }],
-      diagnostics: { ...completed.diagnostics, grounded },
-    })
-    expect(parsed.evidenceLinks![0].grounding).toEqual(grounding)
-    expect(parsed.diagnostics!.grounded).toEqual(grounded)
-  })
 })
 
 describe('Extraction Model Choice contracts', () => {
@@ -390,20 +155,6 @@ describe('Extraction Model Choice contracts', () => {
       expect(extractionModelChoiceSchema.safeParse(models).success).toBe(false)
   })
 
-  it('echoes the requested choice and the models kei-exp resolved per role beside the unchanged attribution', () => {
-    const parsed = extractionAttemptSchema.parse({
-      ...completed,
-      modelAttribution: { provider: 'kei-exp', modelId: 'numind/NuExtract3-FP8' },
-      requestedModels: { fields: 'nuextract' },
-      diagnostics: { ...completed.diagnostics, models: { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' } },
-    })
-    expect(parsed.requestedModels).toEqual({ fields: 'nuextract' })
-    expect(parsed.diagnostics!.models).toEqual({ fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' })
-    expect(extractionAttemptSchema.parse({ ...completed, requestedModels: null }).requestedModels).toBeNull()
-    expect(extractionAttemptSchema.safeParse({
-      ...completed, diagnostics: { ...completed.diagnostics, models: { fields: 'numind/NuExtract3-FP8' } },
-    }).success).toBe(false)
-  })
 
   it('reads the kei-exp deployment listing of extraction models, roles and defaults', () => {
     const listing = {
@@ -417,32 +168,5 @@ describe('Extraction Model Choice contracts', () => {
     expect(extractionModelListingSchema.safeParse({ ...listing, models: [{ ...listing.models[0], roles: ['planner'] }] }).success)
       .toBe(false)
     expect(extractionModelListingSchema.safeParse({ defaults: { fields: 'nuextract' }, models: [] }).success).toBe(false)
-  })
-})
-
-describe('Method used contracts', () => {
-  const effectiveMethod = { options: { strategy: 'article', article: { context: 'full', grounding: 'quoted' } }, versions: { prompt: 12, method: 1 } }
-  const eligibility = { allRecordLeaves: 3, eligibleRecordLeaves: 0, eligibleGrounding: 'not_applicable',
-    skipped: [{ resultPath: ['records', 0, 'year'], policy: 'unverified' }] }
-  const support = [{ resultPath: ['records', 0, 'title'], segment: 'p1_s0', cell: 'r0_c1', quote: 'Alpha', attribution: 'model_attested' }]
-
-  it('carries the admitted settings, or null for a run that predates them', () => {
-    expect(extractionAttemptSchema.parse({ ...completed, requestedSettings: { article: null } }).requestedSettings).toEqual({ article: null })
-    expect(extractionAttemptSchema.parse({ ...completed, requestedSettings: null }).requestedSettings).toBeNull()
-    expect(extractionAttemptSchema.safeParse({ ...completed, requestedSettings: { article: null, generic: null } }).success).toBe(false)
-  })
-
-  it('carries the effective method, schema-policy accounting and support proofs, or null, and nothing unknown', () => {
-    const diagnostics = { ...completed.diagnostics, effectiveMethod, eligibility, support }
-    expect(extractionAttemptSchema.parse({ ...completed, diagnostics }).diagnostics).toEqual(diagnostics)
-    const none = { ...completed.diagnostics, effectiveMethod: null, eligibility: null, support: null }
-    expect(extractionAttemptSchema.parse({ ...completed, diagnostics: none }).diagnostics).toEqual(none)
-    for (const wrong of [
-      { effectiveMethod: { ...effectiveMethod, versions: { prompt: 'v12' } } },
-      { eligibility: { ...eligibility, eligibleGrounding: 'fully_grounded' } },
-      { eligibility: { ...eligibility, skipped: [{ resultPath: ['records', 0, 'year'], policy: 'quoted' }] } },
-      { support: [{ ...support[0], start: -1 }] },
-      { support: [{ ...support[0], evidenceAnchorId: 'a_p1_s0' }] },
-    ]) expect(extractionAttemptSchema.safeParse({ ...completed, diagnostics: { ...completed.diagnostics, ...wrong } }).success).toBe(false)
   })
 })

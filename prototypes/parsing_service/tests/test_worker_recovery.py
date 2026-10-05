@@ -3,7 +3,6 @@ the step that was running; a stopped worker keeps its slot; a crash between a pu
 one consistent result (spec, *kei worker*, *Rules → Domain writes are idempotent*). No test in this module launches
 DBOS in the test process: that would be a second executor on the same queues."""
 import fcntl
-import hashlib
 import json
 import os
 import signal
@@ -16,7 +15,7 @@ from dbos import DBOSClient
 
 from kei_exp import runs
 from kei_exp.workflows import config
-from tests.helpers import catalogue, kei_worker
+from tests.helpers import kei_worker
 from tests.helpers import kei as kei_helper
 from tests.helpers import postgres as postgres_helper
 from tests.helpers.pdfs import mask
@@ -190,28 +189,6 @@ def test_a_stopped_worker_keeps_its_slot_and_gets_no_replacement(site):
         assert "slot slot-1 is held by another process" in refused.stdout + refused.stderr
     finally:
         running.resume()
-
-
-def test_an_extraction_killed_after_publishing_its_artifact_recovers_to_one_artifact(site):
-    paths, start, kei, _ = site
-    crashing = start(crash_after="artifact")
-    run_id = kei_helper.converted_run(paths["runs"], "kei-convert:ingest:p:x")
-    workflow_id = "kei-extract:x-1"
-    kei().enqueue("extract", config.EXTRACT, workflow_id, kei_helper.extract_request(run_id, catalogue.GENERATION),
-                  priority=config.PRIORITY_INTERACTIVE)
-    crashed(crashing, paths["control"], "artifact")
-    artifact = paths["runs"] / run_id / "extractions" / "x-1" / "result.json"
-    first_started = json.loads(artifact.read_text())["started"]  # published before the crash, never checkpointed
-    start()
-    status = final(kei(), workflow_id)
-    assert status.status == "SUCCESS" and status.output["ok"] is True
-    assert json.loads(artifact.read_text())["started"] != first_started  # the step ran again and republished
-    assert status.output["artifact_sha256"] == hashlib.sha256(artifact.read_bytes()).hexdigest()
-    assert [p.name for p in (paths["runs"] / run_id / "extractions").iterdir()] == ["x-1"]
-    assert [p.name for p in (paths["runs"] / run_id / "extractions" / "x-1").iterdir()] == ["result.json"]
-    assert not list((paths["runs"] / run_id).rglob("*.part"))
-    assert steps(kei(), workflow_id) == ["extract_run"]
-    assert kei().row(workflow_id)["recovery_attempts"] == 2
 
 
 def test_a_conversion_killed_after_publishing_its_result_recovers_to_the_published_generation(site):

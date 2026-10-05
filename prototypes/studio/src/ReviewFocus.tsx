@@ -1,10 +1,9 @@
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { ReviewDecisionAction, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { EvidenceQuote } from './evidenceQuote'
 import type { QueueItem } from './reviewQueue'
-import { linkOrigin } from './claimStates'
-import { DECISION_WORD, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
+import { linkOrigin } from './linkOrigin'
+import { DECISION_WORD, type ReviewAction, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
@@ -45,7 +44,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
   upNext: readonly QueueItem[]
   end: EndCard | null
   headingRef: Ref<HTMLHeadingElement>
-  onDecide: (action: ReviewDecisionAction, value?: ReviewDecisionInput['reviewedValue']) => void
+  onDecide: (action: ReviewAction, value?: unknown) => void
   onEdit: () => void
   onCancelEdit: () => void
   onUndo: () => void

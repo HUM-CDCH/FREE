@@ -12,6 +12,7 @@ import { ExtractionError } from './errors.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import {
   METHOD_CHANGED_MESSAGE,
+  refuseDisabledAdmission,
   type AdmitBatchMember,
   type refuseUnusableIdentityFields,
   type savedMethodStillCurrent,
@@ -48,8 +49,8 @@ export function semanticSuggestionTree(tree: unknown): unknown {
 }
 
 /**
- * Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff: the confirmed schema, the batch, one pending
- * Extraction per saved pin and each member's `runExtraction` workflow commit together on one pooled client. The members
+ * Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff: the confirmed schema, the batch, one durable
+ * Extraction per saved pin and each member's dispatch commit together on one pooled client. The members
  * keep the revisions saved with the suggestion, without a document lock: its fields were derived from those pins
  * (PR #140's documented exemption). Run needs a valid draft, at least one surviving member and no active attempt
  * (spec, *suggestSchemaBatch*), checked under the suggestion's row lock. A fresh handoff compares the researcher's saved
@@ -65,12 +66,10 @@ export async function persistSuggestedBatch(
     admitBatchMember: AdmitBatchMember
     savedMethodStillCurrent: typeof savedMethodStillCurrent
     refuseUnusableIdentityFields: typeof refuseUnusableIdentityFields
-    /** `created`: the handoff committed just now, so its members answer as just admitted, not from DBOS. */
     loadBatch: (
       orm: Database['orm'],
       projectContextId: string,
       batchExtractionId: string,
-      created: boolean,
     ) => Promise<DurableBatchExtraction | null>
     /** A unique violation on this handoff's own identities: a concurrent handoff of the suggestion committed first. */
     replayed: (error: unknown) => boolean
@@ -78,6 +77,7 @@ export async function persistSuggestedBatch(
     snapshot: (batch: DurableBatchExtraction) => ScheduleBatchResult['batch']
   }>,
 ): Promise<ScheduleBatchResult | null> {
+  refuseDisabledAdmission()
   const { execution, admitBatchMember, loadBatch, replayed, semanticSuggestionTree, snapshot } = helpers
   // A malformed intent is refused before any lock. A batch has no recipe, so Catalog uses the generic settings.
   const method = canonicalIntent(input.method, input.strategy, null)
@@ -250,7 +250,7 @@ export async function persistSuggestedBatch(
     return suggestion?.batchExtractionId ?? null
   })
   const batch = batchExtractionId
-    ? await loadBatch(database.orm, input.projectContextId, batchExtractionId, status === 'created')
+    ? await loadBatch(database.orm, input.projectContextId, batchExtractionId)
     : null
   if (!batch)
     throw new Error('Confirmed Batch Schema Suggestion could not be read.')

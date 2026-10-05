@@ -1,4 +1,5 @@
 import { assign, fromPromise, setup } from 'xstate'
+import { savedReviewCut, type SavedReviewCut } from './durableReviewLinks'
 import type { z } from 'zod'
 import {
   canonicalUuidSchema,
@@ -21,7 +22,6 @@ export type ProjectResource =
   | {
       tab: 'extractions'
       batchExtractionId?: string
-      view?: 'grid'
       /** Set right after approving a Schema Revision from the document
        *  workspace, so the Extractions tab opens straight into "Pilot
        *  Extraction" — a small Source Document selection pre-picked, on this
@@ -44,7 +44,10 @@ export type Route =
       projectContextId: string
       sourceDocumentId: string
       extractionId?: string
-      /** The Batch Extraction whose review grid opened this document, so the
+      /** The explicit result/decision cut to open the routed Extraction on (a
+       *  finalized review or saved-correction link); absent opens its live cut. */
+      reviewCut?: SavedReviewCut
+      /** The Batch Extraction whose members list opened this document, so the
        *  document view can offer a direct way back to it. Pure navigation
        *  metadata — never affects which document snapshot is fetched. */
       fromBatchExtractionId?: string
@@ -106,18 +109,6 @@ export function parseRoute(pathname: string, search = ''): Route {
       : { kind: 'badReference' }
   }
 
-  // The batch review grid is a distinct screen over one Batch Extraction, so
-  // it needs its own path shape ahead of the bare extractions match below.
-  const batchReview =
-    /^\/projects\/([^/]+)\/extractions\/([^/]+)\/review$/.exec(path)
-  if (batchReview) {
-    const [, projectContextId, batchExtractionId] = batchReview
-    return canonicalUuidSchema.safeParse(projectContextId).success &&
-      canonicalUuidSchema.safeParse(batchExtractionId).success
-      ? { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId, view: 'grid' }
-      : { kind: 'badReference' }
-  }
-
   // Extractions is the one tab with a resource of its own beneath it.
   const extractions = /^\/projects\/([^/]+)\/extractions(?:\/([^/]+))?$/.exec(
     path,
@@ -149,6 +140,7 @@ export function parseRoute(pathname: string, search = ''): Route {
     const extractionId = params.get('extractionId')
     const fromBatchExtractionId = params.get('fromBatchExtractionId')
     const fromSchemaBuilder = params.get('fromSchemaBuilder') === '1'
+    const reviewCut = extractionId ? savedReviewCut(params.toString()) : null
     return canonicalUuidSchema.safeParse(projectContextId).success &&
       canonicalUuidSchema.safeParse(sourceDocumentId).success &&
       (extractionId === null || canonicalUuidSchema.safeParse(extractionId).success) &&
@@ -159,6 +151,7 @@ export function parseRoute(pathname: string, search = ''): Route {
           projectContextId,
           sourceDocumentId,
           ...(extractionId ? { extractionId } : {}),
+          ...(reviewCut ? { reviewCut } : {}),
           ...(fromBatchExtractionId ? { fromBatchExtractionId } : {}),
           ...(fromSchemaBuilder ? { fromSchemaBuilder: true } : {}),
         }
@@ -176,6 +169,9 @@ export function href(route: NavigableRoute): string {
   if (route.kind === 'document') {
     const params = new URLSearchParams({
       ...(route.extractionId ? { extractionId: route.extractionId } : {}),
+      ...(route.extractionId && route.reviewCut
+        ? { snapshotVersion: String(route.reviewCut.snapshotVersion), feedbackVersion: String(route.reviewCut.feedbackVersion) }
+        : {}),
       ...(route.fromBatchExtractionId
         ? { fromBatchExtractionId: route.fromBatchExtractionId }
         : {}),
@@ -192,7 +188,7 @@ export function href(route: NavigableRoute): string {
   })
   return `${project}/extractions${
     route.batchExtractionId ? `/${route.batchExtractionId}` : ''
-  }${route.batchExtractionId && route.view === 'grid' ? '/review' : ''}${
+  }${
     params.size ? `?${params}` : ''
   }`
 }

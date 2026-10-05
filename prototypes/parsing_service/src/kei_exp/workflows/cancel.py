@@ -1,8 +1,8 @@
 """Cooperative cancellation inside a step. DBOS cannot interrupt a native call, and a cancelled workflow's running step
-keeps its lane's slot until it returns, so steps ask at their boundaries: twice before model work, at every spread of
-the ingest and every page event of the cut (on the step's own thread, never inside a transcriber's pool), and between
-the records of an extraction (before every Catalog entry, from its chunk threads too). A native call that is already
-running finishes first (spec, *Cancellation*).
+keeps its lane's slot until it returns, so a conversion asks at its boundaries: twice before model work, at every
+spread of the ingest and every page event of the cut (on the step's own thread, never inside a transcriber's pool). A
+native call that is already running finishes first (spec, *Cancellation*). Durable Extraction attempts stop at their
+coordination lease boundaries instead (`durable_extract`).
 
 A status read that fails is not a cancel: dbos 3.1.0 does not retry reads, so a PostgreSQL restart reaches the step
 here, and kei's fail-open policy (spec, *Cancellation*) keeps the work going; the next check reads again. DBOS's own
@@ -29,7 +29,7 @@ CHECKED = frozenset({"region", "phase", "spread"})  # the events a conversion's 
 class CancelCheck:
     def __init__(self, workflow_id: str, *, min_interval: float | None = None) -> None:
         # Off outside a DBOS workflow (the CLI, a unit test calling a step directly). Decided on the step's thread:
-        # a chunk thread carries no DBOS context, so the ID is kept here for reads from any thread.
+        # a worker thread carries no DBOS context, so the ID is kept here for reads from any thread.
         self._workflow_id = workflow_id if DBOS.workflow_id is not None else None
         self._owner = threading.get_ident()
         self._interval = MIN_INTERVAL if min_interval is None else min_interval
@@ -59,10 +59,6 @@ class CancelCheck:
             return
         if status is None or status.status == "CANCELLED":
             raise KeiFailure("cancelled", f"workflow {self._workflow_id} was cancelled")
-
-    def strict(self) -> None:
-        """The unthrottled check, for the moments a write must not follow a cancellation."""
-        self(force=True)
 
     def sink(self, emit: Emit) -> Emit:
         def checked(event: Event) -> None:

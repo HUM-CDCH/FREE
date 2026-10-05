@@ -5,7 +5,7 @@
  *  `kei stand-in serving <port>` once launched) and KEI_STAND_IN_FIXTURE (a directory with a version 5 `result.json`
  *  and `pages/<n>.json`; Studio's test/fixtures/kei-exp by default). SIGTERM closes the stand-in and exits 0.
  *
- *  Control: POST /control/policy (a StandInPolicy, merged into the current one; both start `'auto'`), GET /control/held
+ *  Control: POST /control/policy (a StandInPolicy, merged into the current one; it starts `'auto'`), GET /control/held
  *  (the decisions a `'hold'` parked, as HeldWork), POST /control/answer ({ workflowId } and a StandInAnswer), which
  *  releases one held decision and answers 404 when that workflow holds none, and GET /control/delete-runs (every
  *  `deleteRuns` request received, as KeiDeleteRunsRequest). `deleteRuns` always answers with the stand-in's default
@@ -16,17 +16,15 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
-import { keiExpArtifact } from '../kei-exp-fixture.js'
-import { KEI_FAILURE_CODES, type KeiConvertInput, type KeiExtractInput } from '../kei-handoff.js'
+import { KEI_FAILURE_CODES, type KeiConvertInput } from '../kei-handoff.js'
 import { launchKeiStandIn, type StandInConversion, type StandInDecision } from './kei-stand-in.js'
 import type { HeldWork, StandInAnswer, StandInPolicy } from './kei-stand-in-client.js'
 
 const DEFAULT_FIXTURE = fileURLToPath(new URL('../../../../prototypes/studio/test/fixtures/kei-exp/', import.meta.url))
 const failureSchema = z.object({ code: z.enum(KEI_FAILURE_CODES), reason: z.string(), retryable: z.boolean() }).strict()
 const ruleSchema = z.union([z.enum(['auto', 'hold']), z.object({ failure: failureSchema }).strict()])
-const policySchema = z.object({ convert: ruleSchema.optional(), extract: ruleSchema.optional() }).strict()
+const policySchema = z.object({ convert: ruleSchema.optional() }).strict()
 const answerSchema = z.union([
-  z.object({ workflowId: z.string().min(1), artifact: z.unknown() }).strict(),
   z.object({ workflowId: z.string().min(1), failure: failureSchema }).strict(),
   z.object({ workflowId: z.string().min(1), convert: z.literal('auto') }).strict(),
 ])
@@ -51,7 +49,7 @@ function readFixture(directory: string) {
 }
 
 const fixture = readFixture(process.env.KEI_STAND_IN_FIXTURE ?? DEFAULT_FIXTURE)
-let policy: Required<StandInPolicy> = { convert: 'auto', extract: 'auto' }
+let policy: Required<StandInPolicy> = { convert: 'auto' }
 const held = new Map<string, Held>()
 
 /** The stand-in plays kei, so it picks its own run ID rule; Studio reads the run ID from the output. */
@@ -60,29 +58,6 @@ function autoConversion(request: KeiConvertInput, workflowId: string): StandInDe
   manifest.recipe = { ...(manifest.recipe as Record<string, unknown> | undefined), source_sha256: request.source_sha256 }
   const digest = createHash('sha256').update(workflowId).digest('hex')
   return { output: { runId: `stand-in-${digest.slice(0, 16)}`, manifest, pages: fixture.pages } }
-}
-
-function autoExtraction(request: KeiExtractInput): StandInDecision<{ artifact: unknown }> {
-  const { schema, options } = request.request
-  const model = 'fixture/nuextract'
-  return {
-    output: {
-      artifact: keiExpArtifact({
-        run_id: request.run_id,
-        generation: request.generation,
-        strategy: options.strategy === 'catalog' ? 'catalog' : 'article',
-        schema: schema,
-        options: { model: null, models: null, ...options },
-        model,
-        models: { fields: model, reasoning: model },
-        complete: true,
-        // kei holds a result to its record scope: a document is exactly one root, records may be none.
-        records: schema.recordScope === 'document' ? [{}] : [],
-        evidence: [],
-        ungrounded: [],
-      }),
-    },
-  }
 }
 
 function hold<T>(
@@ -114,16 +89,6 @@ const standIn = await launchKeiStandIn({
       return hold('convert', workflowId, request, (answer) => {
         if ('failure' in answer) return { failure: answer.failure }
         if ('convert' in answer) return autoConversion(request, workflowId)
-        return undefined
-      })
-    },
-    async extract(request, workflowId) {
-      const rule = policy.extract
-      if (rule === 'auto') return autoExtraction(request)
-      if (rule !== 'hold') return rule
-      return hold('extract', workflowId, request, (answer) => {
-        if ('failure' in answer) return { failure: answer.failure }
-        if ('artifact' in answer) return { output: { artifact: answer.artifact } }
         return undefined
       })
     },

@@ -1,10 +1,10 @@
 """A real `kei-worker worker` process with this suite's doubles, for recovery tests.
 
-Child: `python -m tests.helpers.kei_worker [--crash-after result|artifact] -- worker --slot S --database-url URL`.
+Child: `python -m tests.helpers.kei_worker [--crash-after result] -- worker --slot S --database-url URL`.
 Doubles: the `fake` OCR record (tests/helpers/fake.py) served by a stand-in server; its native call writes
-$KEI_TEST_CONTROL/started-<n> and waits until $KEI_TEST_CONTROL/release exists; extraction talks to the scripted
-`honest` chat and counts words. `--crash-after` SIGKILLs this process right after the first publication of that kind
-(the result manifest, or an extraction artifact); $KEI_TEST_CONTROL/crashed makes it happen once.
+$KEI_TEST_CONTROL/started-<n> and waits until $KEI_TEST_CONTROL/release exists; token counts are words.
+`--crash-after result` SIGKILLs this process right after the first result manifest is published;
+$KEI_TEST_CONTROL/crashed makes it happen once.
 
 `holder` is the ownership tests' other process: one that holds a slot's lock and nothing else.
 """
@@ -37,9 +37,8 @@ def _install(control: Path, crash_after: str | None) -> contextlib.AbstractConte
     from kei_exp import runtime
     from kei_exp.kie.extract import tokens
     from kei_exp.kie.stages import ocr
-    from kei_exp.workflows import extract as extract_workflow
     from tests.helpers.fake import FakeTranscriber, registered
-    from tests.test_extract_grounded import CountingChat, WordCounter, honest
+    from tests.test_extract_grounded import WordCounter
 
     class Gated(FakeTranscriber):
         def transcribe(self, execution, crops, emit):
@@ -50,7 +49,6 @@ def _install(control: Path, crash_after: str | None) -> contextlib.AbstractConte
             return super().transcribe(execution, crops, emit)
 
     runtime.loaded_model = lambda url: (True, "fake/model")
-    extract_workflow.chats_for = lambda options: CountingChat(honest)
     tokens.counter_for = lambda client: WordCounter()
 
     def crashing(module, name, kind):
@@ -64,13 +62,12 @@ def _install(control: Path, crash_after: str | None) -> contextlib.AbstractConte
             return result
         setattr(module, name, wrapped)
     crashing(ocr, "write_result", "result")
-    crashing(extract_workflow, "publish_extraction", "artifact")
     return registered(Gated())
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--crash-after", choices=["result", "artifact"])
+    parser.add_argument("--crash-after", choices=["result"])
     parser.add_argument("worker_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     with _install(Path(os.environ["KEI_TEST_CONTROL"]), args.crash_after):  # for the process's lifetime
