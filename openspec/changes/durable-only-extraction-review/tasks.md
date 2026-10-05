@@ -4,7 +4,7 @@
 - [x] 1.2 Sync the deltas into `openspec/specs/` (main specs updated; `result-tree-navigator` removed)
 - [x] 1.3 `openspec validate durable-only-extraction-review --strict` and `openspec validate --specs` pass
 
-## 2. Implementation (local, uncommitted durable-only follow-up)
+## 2. Implementation (durable-only follow-up)
 
 - [x] 2.1 Delete the `ProjectStore` accept write, Review Draft routes/store and `ResultsTab`; Studio renders only `DurableResults`
 - [x] 2.2 Correction Evidence is checked against the pinned Source Representation (`api/durable_extractions.ts`)
