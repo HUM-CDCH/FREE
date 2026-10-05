@@ -33,9 +33,10 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
     'batch_extractions',
   ],
   [
-    /^\/api\/batch-schema-suggestions(?:\/[^/]+)?(?:\/(?:draft|run|retry))?$/,
+    /^\/api\/batch-schema-suggestions(?:\/[^/]+)?(?:\/(?:draft|run|retry|from-spreadsheet))?$/,
     'batch_schema_suggestions',
   ],
+  [/^\/api\/project-spreadsheets$/, 'project_spreadsheets'],
   [
     /^\/api\/project-contexts\/[^/]+\/source-representations\/[^/]+\/(?:pdf|markdown|source)$/,
     'source_representations',

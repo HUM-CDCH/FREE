@@ -1,17 +1,17 @@
 // use prisma-next
 types {
-  Uuid         = String @db.Uuid
+  Uuid = String @db.Uuid
   Timestamptz6 = DateTime @db.Timestamptz(6)
 }
 
 model ResearcherAccount {
-  id              Uuid         @id @default(uuid())
-  tenantId        Uuid
-  objectId        Uuid
-  displayName     String
-  createdAt       Timestamptz6 @default(now())
-  updatedAt       temporal.updatedAt()
-  projectContexts ProjectContext[]
+  id                 Uuid                 @id @default(uuid())
+  tenantId           Uuid
+  objectId           Uuid
+  displayName        String
+  createdAt          Timestamptz6         @default(now())
+  updatedAt          temporal.updatedAt()
+  projectContexts    ProjectContext[]
   modelConfiguration ModelConfiguration?
 
   @@unique([tenantId, objectId])
@@ -25,7 +25,7 @@ model ModelConfiguration {
   researcherAccountId Uuid              @id
   document            Json?
   updatedAt           Timestamptz6      @default(now())
-  researcherAccount   ResearcherAccount @relation(fields: [researcherAccountId], references: [id], onDelete: Cascade)
+  researcherAccount   ResearcherAccount @relation(fields:[researcherAccountId], references:[id], onDelete: Cascade)
 }
 
 enum ExtractionOutcome {
@@ -45,23 +45,56 @@ enum BatchSchemaSuggestionPhase {
   HETEROGENEOUS
 }
 
+enum BatchSchemaSuggestionSourceKind {
+  DOCUMENTS
+  SPREADSHEET
+}
+
+// Only meaningful for a SPREADSHEET-kind suggestion (null for DOCUMENTS):
+// SCHEMA seeds the schema and stops there; SCHEMA_AND_VALIDATE also
+// populates an evaluation corpus from the pinned spreadsheet version once
+// confirmed (spreadsheet-schema-suggestion design.md D1b).
+enum BatchSchemaSuggestionPurpose {
+  SCHEMA
+  SCHEMA_AND_VALIDATE
+}
+
 enum SuggestionAttemptOutcome {
   SUCCEEDED
   FAILED
 }
 
 model ProjectContext {
-  researcherAccountId Uuid
-  id                Uuid               @id @default(uuid())
-  name              String
-  createdAt         Timestamptz6       @default(now())
-  researcherAccount ResearcherAccount @relation(fields: [researcherAccountId], references: [id], onDelete: Restrict)
-  sourceDocuments   SourceDocument[]
-  extractionSchemas ExtractionSchema[]
-  batchExtractions  BatchExtraction[]
-  batchSchemaSuggestions BatchSchemaSuggestion[]
+  researcherAccountId        Uuid
+  id                         Uuid                        @id @default(uuid())
+  name                       String
+  createdAt                  Timestamptz6                @default(now())
+  researcherAccount          ResearcherAccount           @relation(fields:[researcherAccountId], references:[id], onDelete: Restrict)
+  sourceDocuments            SourceDocument[]
+  extractionSchemas          ExtractionSchema[]
+  batchExtractions           BatchExtraction[]
+  batchSchemaSuggestions     BatchSchemaSuggestion[]
+  projectSpreadsheetVersions ProjectSpreadsheetVersion[]
 
   @@index([researcherAccountId])
+}
+
+// One versioned, project-scoped spreadsheet slot: uploading again appends a
+// new immutable version rather than replacing one, mirroring SchemaRevision.
+// A project shares this one spreadsheet across every schema-suggestion action
+// that wants it, instead of each action carrying its own one-off upload.
+model ProjectSpreadsheetVersion {
+  id                     Uuid                    @id @default(uuid())
+  projectContextId       Uuid
+  revisionNumber         Int
+  originalFilename       String
+  columns                Json
+  createdAt              Timestamptz6            @default(now())
+  projectContext         ProjectContext          @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  batchSchemaSuggestions BatchSchemaSuggestion[]
+
+  @@unique([projectContextId, revisionNumber])
+  @@index([projectContextId, createdAt])
 }
 
 model SourceDocument {
@@ -71,7 +104,7 @@ model SourceDocument {
   mediaType              String
   originalName           String?
   createdAt              Timestamptz6                   @default(now())
-  projectContext         ProjectContext                 @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
+  projectContext         ProjectContext                 @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
   representations        SourceRepresentationRevision[]
   annotationSetRevisions AnnotationSetRevision[]
 
@@ -79,21 +112,21 @@ model SourceDocument {
 }
 
 model SourceRepresentationRevision {
-  id                     Uuid                       @id @default(uuid())
-  sourceDocumentId       Uuid
-  revisionNumber         Int
-  artifactReference      String
-  artifactSha256         String
-  contractVersion        String
-  preprocessId           String
-  parserName             String
-  parserVersion          String
-  reprocessKey           Uuid?
-  reprocessFingerprint   String?
-  createdAt              Timestamptz6               @default(now())
-  sourceDocument         SourceDocument             @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
-  annotationSetRevisions AnnotationSetRevision[]
-  extractions            Extraction[]
+  id                           Uuid                          @id @default(uuid())
+  sourceDocumentId             Uuid
+  revisionNumber               Int
+  artifactReference            String
+  artifactSha256               String
+  contractVersion              String
+  preprocessId                 String
+  parserName                   String
+  parserVersion                String
+  reprocessKey                 Uuid?
+  reprocessFingerprint         String?
+  createdAt                    Timestamptz6                  @default(now())
+  sourceDocument               SourceDocument                @relation(fields:[sourceDocumentId], references:[id], onDelete: Cascade)
+  annotationSetRevisions       AnnotationSetRevision[]
+  extractions                  Extraction[]
   batchSchemaSuggestionSources BatchSchemaSuggestionSource[]
 
   @@unique([sourceDocumentId, revisionNumber])
@@ -108,55 +141,73 @@ model AnnotationSetRevision {
   revisionNumber                 Int
   snapshot                       Json
   createdAt                      Timestamptz6                 @default(now())
-  sourceDocument                 SourceDocument               @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Cascade)
+  sourceDocument                 SourceDocument               @relation(fields:[sourceDocumentId], references:[id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields:[sourceRepresentationRevisionId], references:[id], onDelete: Cascade)
 
   @@unique([sourceDocumentId, revisionNumber])
 }
 
 model ExtractionSchema {
-  id                  Uuid                       @id @default(uuid())
-  projectContextId    Uuid
-  name                String
-  createdAt           Timestamptz6               @default(now())
-  projectContext      ProjectContext             @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
-  schemaRevisions     SchemaRevision[]
+  id               Uuid             @id @default(uuid())
+  projectContextId Uuid
+  name             String
+  createdAt        Timestamptz6     @default(now())
+  projectContext   ProjectContext   @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  schemaRevisions  SchemaRevision[]
 
   @@index([projectContextId])
 }
 
 model SchemaRevision {
-  id                         Uuid                       @id @default(uuid())
-  extractionSchemaId         Uuid
-  revisionNumber             Int
-  origin                     SchemaRevisionOrigin
-  schemaTree                 Json
+  id                 Uuid                 @id @default(uuid())
+  extractionSchemaId Uuid
+  revisionNumber     Int
+  origin             SchemaRevisionOrigin
+  schemaTree         Json
   // The definition's task scope: "document" (Article, one document-level object) or "records" (Catalog, a collection
   // of records); validated in code. Null is an undeclared legacy definition whose task selection was ambiguous.
-  recordScope                String?
-  modelAttribution           Json?
-  createdAt                  Timestamptz6               @default(now())
-  extractionSchema           ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
-  extractions                Extraction[]
-  batchExtractions           BatchExtraction[]
+  recordScope        String?
+  // When the researcher stabilised this revision for collection-scale
+  // extraction; null until stabilised (guided-pilot-extraction-workflow).
+  stabilisedAt       Timestamptz6?
+  modelAttribution   Json?
+  createdAt          Timestamptz6         @default(now())
+  extractionSchema   ExtractionSchema     @relation(fields:[extractionSchemaId], references:[id], onDelete: Cascade)
+  extractions        Extraction[]
+  batchExtractions   BatchExtraction[]
+  schemaIssueFlags   SchemaIssueFlag[]
 
   @@unique([extractionSchemaId, revisionNumber])
+}
+
+// A field the researcher flagged as problematic on a Schema Revision, with an
+// optional note. Resolved flags stay for audit; only open ones are listed.
+model SchemaIssueFlag {
+  id               Uuid           @id @default(uuid())
+  schemaRevisionId Uuid
+  fieldPath        String
+  note             String?
+  createdAt        Timestamptz6   @default(now())
+  resolvedAt       Timestamptz6?
+  schemaRevision   SchemaRevision @relation(fields:[schemaRevisionId], references:[id], onDelete: Cascade)
+
+  @@index([schemaRevisionId])
 }
 
 // One researcher-initiated Batch Extraction: one pinned Schema Revision and one
 // Extraction Strategy applied to a chosen set of Source Documents. Its member
 // Extractions, admitted with it, are the intended selection.
 model BatchExtraction {
-  id                Uuid                    @id @default(uuid())
+  id                Uuid           @id @default(uuid())
   projectContextId  Uuid
   schemaRevisionId  Uuid
   strategy          String
   // The one method every member was admitted with (members carry the same values). Null before this was recorded.
   requestedModels   Json?
   requestedSettings Json?
-  createdAt         Timestamptz6            @default(now())
-  projectContext    ProjectContext          @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
-  schemaRevision    SchemaRevision          @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
+  createdAt         Timestamptz6   @default(now())
+  projectContext    ProjectContext @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  schemaRevision    SchemaRevision @relation(fields:[schemaRevisionId], references:[id], onDelete: Cascade)
   extractions       Extraction[]
 
   @@unique([id, schemaRevisionId, strategy], map: "batch_extraction_pin_key")
@@ -168,22 +219,31 @@ model BatchExtraction {
 // runs. `phase` is the retained proposal's meaning, null before the first proposal. Execution status is derived from
 // the `suggest:<id>:<attempt>` workflow while `outcome` is null.
 model BatchSchemaSuggestion {
-  id                        Uuid                        @id @default(uuid())
-  projectContextId          Uuid
-  selectionKey              String                      @unique
-  attempt                   Int                         @default(1)
-  outcome                   SuggestionAttemptOutcome?
-  failure                   Json?
-  phase                     BatchSchemaSuggestionPhase?
-  proposal                  Json?
-  coverage                  Json?
-  draft                     Json?
-  draftVersion              Int                         @default(0)
-  confirmedSchemaRevisionId Uuid?                       @unique
-  batchExtractionId         Uuid?                       @unique
-  createdAt                 Timestamptz6                @default(now())
-  projectContext            ProjectContext              @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
-  sources                   BatchSchemaSuggestionSource[]
+  id                          Uuid                            @id @default(uuid())
+  projectContextId            Uuid
+  selectionKey                String                          @unique
+  attempt                     Int                             @default(1)
+  outcome                     SuggestionAttemptOutcome?
+  failure                     Json?
+  phase                       BatchSchemaSuggestionPhase?
+  proposal                    Json?
+  coverage                    Json?
+  draft                       Json?
+  draftVersion                Int                             @default(0)
+  // SPREADSHEET-kind suggestions are built synchronously from the project's
+  // shared spreadsheet slot; DOCUMENTS (the default) read Source Documents.
+  sourceKind                  BatchSchemaSuggestionSourceKind @default(DOCUMENTS)
+  purpose                     BatchSchemaSuggestionPurpose?
+  // Column name -> matching SchemaNode.id, captured when a SPREADSHEET-kind
+  // suggestion was created; null for DOCUMENTS.
+  columnFieldMapping          Json?
+  projectSpreadsheetVersionId Uuid?
+  projectSpreadsheetVersion   ProjectSpreadsheetVersion?      @relation(fields:[projectSpreadsheetVersionId], references:[id], onDelete: Restrict)
+  confirmedSchemaRevisionId   Uuid?                           @unique
+  batchExtractionId           Uuid?                           @unique
+  createdAt                   Timestamptz6                    @default(now())
+  projectContext              ProjectContext                  @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  sources                     BatchSchemaSuggestionSource[]
 
   @@index([projectContextId, createdAt])
 }
@@ -193,8 +253,8 @@ model BatchSchemaSuggestionSource {
   batchSchemaSuggestionId        Uuid
   sourceDocumentId               Uuid
   sourceRepresentationRevisionId Uuid
-  batchSchemaSuggestion          BatchSchemaSuggestion        @relation(fields: [batchSchemaSuggestionId], references: [id], onDelete: Cascade)
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId, sourceDocumentId], references: [id, sourceDocumentId], onDelete: Cascade, map: "batch_suggestion_source_representation_fkey")
+  batchSchemaSuggestion          BatchSchemaSuggestion        @relation(fields:[batchSchemaSuggestionId], references:[id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields:[sourceRepresentationRevisionId, sourceDocumentId], references:[id, sourceDocumentId], onDelete: Cascade, map: "batch_suggestion_source_representation_fkey")
 
   @@id([batchSchemaSuggestionId, sourceDocumentId])
   @@unique([batchSchemaSuggestionId, sourceDocumentId, sourceRepresentationRevisionId], map: "batch_suggestion_source_pin_key")
@@ -246,12 +306,12 @@ model Extraction {
   reviewedAt                     Timestamptz6?
   reviewDraft                    Json?
   reviewDraftVersion             Int                          @default(0)
-  schemaRevision                 SchemaRevision               @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
+  schemaRevision                 SchemaRevision               @relation(fields:[schemaRevisionId], references:[id], onDelete: Cascade)
   // The composite pin makes agreement a database guarantee: an Extraction can
   // only join a Batch Extraction that pinned the same Schema Revision and
   // Extraction Strategy. A null batch is a single-document Extraction.
-  batchExtraction                BatchExtraction?             @relation(fields: [batchExtractionId, schemaRevisionId, strategy], references: [id, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_batch_pin_fkey")
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId, sourceDocumentId], references: [id, sourceDocumentId], onDelete: Cascade)
+  batchExtraction                BatchExtraction?             @relation(fields:[batchExtractionId, schemaRevisionId, strategy], references:[id, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_batch_pin_fkey")
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields:[sourceRepresentationRevisionId, sourceDocumentId], references:[id, sourceDocumentId], onDelete: Cascade)
   reviews                        ExtractionReview[]
 
   @@unique([id, sourceDocumentId])
@@ -270,7 +330,7 @@ model ExtractionReview {
   revisionNumber Int
   decisionDigest String
   createdAt      Timestamptz6     @default(now())
-  extraction     Extraction       @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  extraction     Extraction       @relation(fields:[extractionId], references:[id], onDelete: Cascade)
   decisions      ReviewDecision[]
 
   @@unique([extractionId, revisionNumber])
@@ -291,7 +351,7 @@ model ReviewDecision {
   // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
   carriedFrom           Json?
   createdAt             Timestamptz6     @default(now())
-  extractionReview      ExtractionReview @relation(fields: [extractionReviewId], references: [id], onDelete: Cascade)
+  extractionReview      ExtractionReview @relation(fields:[extractionReviewId], references:[id], onDelete: Cascade)
 
   @@unique([extractionReviewId, resultPathKey])
 }

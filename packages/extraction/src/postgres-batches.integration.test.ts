@@ -67,7 +67,9 @@ describe('Extraction batches on disposable PostgreSQL', { skip: !fixture && 'set
 
   for (const size of [6, 50]) it(`admits one whole-document member per selected source for ${size} members beside legacy samples, and replays`, async (t) => {
     t.after(cleanup)
-    const project = await seedProject(ARTICLE_SCHEMA, Array.from({ length: size + 1 }, (_, index) => `${index}.pdf`))
+    // Collection scale: only a stabilised revision may admit a selection this large.
+    const project = await seedProject(ARTICLE_SCHEMA, Array.from({ length: size + 1 }, (_, index) => `${index}.pdf`),
+      undefined, 'document', new Date())
     const selected = project.documents.slice(0, size)
     selectedSources.clear(); selected.forEach((document) => selectedSources.add(document.sourceDocumentId))
     kei.holding = true
@@ -92,7 +94,9 @@ describe('Extraction batches on disposable PostgreSQL', { skip: !fixture && 'set
 
   for (const suggested of [false, true]) it(`a failure admitting member4 rolls back ${suggested ? 'suggested' : 'ordinary'} batch admission`, async (t) => {
     t.after(cleanup)
-    const project = await seedProject(ARTICLE_SCHEMA, Array.from({ length: 6 }, (_, index) => `${index}.pdf`))
+    // Collection scale, so the admission reaches the member rollback rather than the stabilisation gate.
+    const project = await seedProject(ARTICLE_SCHEMA, Array.from({ length: 6 }, (_, index) => `${index}.pdf`),
+      undefined, 'document', new Date())
     const selected = [...project.documents].sort((a, b) => a.sourceDocumentId.localeCompare(b.sourceDocumentId))
     selectedSources.clear(); selected.forEach((document) => selectedSources.add(document.sourceDocumentId))
     kei.holding = true

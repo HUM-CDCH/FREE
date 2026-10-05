@@ -18,6 +18,7 @@ const revision = {
   revisionNumber: 1,
   origin: 'researcher-edit' as const,
   createdAt: '2026-08-01T12:00:00.000Z',
+  stabilisedAt: null,
   recordDescription: 'One site record.',
   recordScope: 'records' as const,
   schemaNodes: [{ id: 'node-site', name: 'site', type: 'string' as const }],

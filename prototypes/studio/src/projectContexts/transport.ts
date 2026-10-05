@@ -46,6 +46,7 @@ export function provisionalSummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     schemaDraftCount: 0,
+    schemaStabilised: false,
     lastActivityAt: createdAt,
     runningBatch: null,
   }

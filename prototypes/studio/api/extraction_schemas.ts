@@ -112,6 +112,46 @@ export function createPatchExtractionSchema(
   }
 }
 
+export function createDeleteExtractionSchema(
+  store: Pick<ResearcherProjectStore, 'deleteExtractionSchema'>,
+) {
+  return async function DELETE(request: Request): Promise<Response> {
+    try {
+      const url = new URL(request.url)
+      const match = ITEM_ROUTE.exec(url.pathname)
+      const projectContextId = url.searchParams.get('projectContextId')
+      if (
+        !match ||
+        !canonicalUuidSchema.safeParse(match[1]).success ||
+        !projectContextId ||
+        !canonicalUuidSchema.safeParse(projectContextId).success
+      )
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'projectContextId and extractionSchemaId must be canonical lowercase UUIDs.',
+        )
+      const force = url.searchParams.get('force') === 'true'
+      const result = await store
+        .deleteExtractionSchema(projectContextId, match[1], force)
+        .catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
+      if (!result)
+        throw new ApiError(404, 'not_found', 'Extraction Schema was not found.')
+      if (result.status === 'has_extractions')
+        throw new ApiError(
+          409,
+          'extraction_schema_has_extractions',
+          'Delete every Extraction run against this Extraction Schema before deleting it.',
+        )
+      return new Response(null, { status: 204, headers: noStore })
+    } catch (error) {
+      return noStoreError(error)
+    }
+  }
+}
+
 if (extractionSchemaNameLimit !== EXTRACTION_SCHEMA_NAME_LIMIT)
   throw new Error('Extraction Schema name limits must match.')
 
@@ -123,5 +163,6 @@ export function createResearcherApiHandlers(
   return {
     GET: createGetExtractionSchemas(store),
     PATCH: createPatchExtractionSchema(store),
+    DELETE: createDeleteExtractionSchema(store),
   }
 }

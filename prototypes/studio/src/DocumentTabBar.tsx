@@ -13,6 +13,16 @@ export type DocumentTabBarProps = {
   /** Present only when this document was opened from a Batch Extraction's
    *  review grid — offers a direct way back to it. */
   onBackToReviewGrid?: () => void
+  /** Present only when this document was opened from a Batch Extraction
+   *  (a pilot round or any other batch) — review progress across that
+   *  batch's members, plus a way to jump straight to the next unreviewed
+   *  one without going back through the grid or member list. */
+  pilotRoundProgress?: {
+    reviewed: number
+    total: number
+    /** Absent once every member is reviewed. */
+    onNext?: () => void
+  }
   /** DocumentWorkspace (App.tsx) portals its run action and transient status
       into this node, so they share the tab-strip row instead of costing a
       second one. */
@@ -66,6 +76,7 @@ function DocumentTabBar({
   onClose,
   onNavigateProject,
   onBackToReviewGrid,
+  pilotRoundProgress,
   slotRef,
   ringSlotRef,
   navigationToggle,
@@ -129,6 +140,30 @@ function DocumentTabBar({
         )
       })}
       </div>
+        {pilotRoundProgress && (
+          <>
+            <span aria-hidden="true" className="text-ink-faint">
+              ·
+            </span>
+            <span className="shrink-0 text-ink-faint">
+              Reviewed {pilotRoundProgress.reviewed}/{pilotRoundProgress.total}
+            </span>
+            {pilotRoundProgress.onNext && (
+              <>
+                <span aria-hidden="true" className="text-ink-faint">
+                  ·
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 cursor-pointer font-semibold text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+                  onClick={pilotRoundProgress.onNext}
+                >
+                  Next document<span aria-hidden="true"> →</span>
+                </button>
+              </>
+            )}
+          </>
+        )}
       <div
         ref={slotRef}
         className="scrollbar-subtle flex w-full shrink-0 items-center gap-3 self-center overflow-x-auto border-t border-line px-3 py-2 sm:w-auto sm:border-t-0 sm:py-0"

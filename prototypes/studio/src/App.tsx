@@ -35,6 +35,7 @@ import type { DocumentSnapshot } from './projectContexts/transport'
 import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
 import { defaultSchemaName } from './schemaNames'
 import { strategyOf, type SchemaDefinition } from 'extraction/schema'
+import type { NavigableRoute } from './projectNavigation'
 import { browserStudioPath } from './studioUrl.js'
 import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
 
@@ -143,6 +144,21 @@ export type DocumentWorkspaceProps = {
   /** How long the first generation's automatic name may wait for its answer before the renames queued behind it go
       ahead (default 20 s; tests shorten it). */
   automaticRenameTimeoutMs?: number
+  /** Set when the Project Context page's "Build your schema from a document"
+   *  picker opened this document — offers a "Next step" control that saves
+   *  the schema and returns to the project's Schemas tab. */
+  fromSchemaBuilder?: boolean
+  onNavigate?: (route: NavigableRoute) => void
+  /** Fired once the "Approve schema and go to next step" flush durably
+   *  commits a Schema Revision — the caller's cue to refresh whatever
+   *  persisted project summary (phase, etc.) it's holding, since this
+   *  component has no reason to know about that store itself. */
+  onSchemaApproved?: () => void
+  /** Fired once a review is finalized (accepted) on this Extraction — like
+   *  `onSchemaApproved`, this can move the project's workflow phase
+   *  (extract -> validate), so the caller's persisted summary needs the
+   *  same refresh cue. */
+  onReviewFinalized?: () => void
 }
 
 /** An admission refusal useExtraction reported through `onMethodChanged`: nothing was started. */
@@ -170,6 +186,10 @@ export function DocumentWorkspace({
   tabBarSlot = null,
   tabRingSlot = null,
   automaticRenameTimeoutMs = 20_000,
+  fromSchemaBuilder = false,
+  onNavigate,
+  onSchemaApproved,
+  onReviewFinalized,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
@@ -192,6 +212,8 @@ export function DocumentWorkspace({
   })
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
+  // The "Approve schema and go to next step" flush is in flight.
+  const [confirmingSchema, setConfirmingSchema] = useState(false)
   // Renames of the schema run one at a time, in the order they were asked for, so the server keeps the last one asked;
   // each records the server's answer and shows it unless a later rename has started, which shows its own. A late
   // first-generation name can then never replace a rename the researcher made meanwhile: on screen by this order, on the
@@ -671,6 +693,7 @@ export function DocumentWorkspace({
     onMethodChanged: (message, code) => {
       refusalRef.current = { message, code }
     },
+    onReviewAccepted: onReviewFinalized,
   })
 
   /**
@@ -861,6 +884,45 @@ export function DocumentWorkspace({
     void schema.flush().catch(() => undefined)
   }
 
+  // "Approve schema and go to next step" (guided-pilot-extraction-workflow):
+  // flushes the draft to a durable Schema Revision — that revision is already
+  // what "saved to history" means here, there is no separate commit step —
+  // then hands the researcher to the Extractions tab pre-armed with this exact
+  // Revision, so the next thing they do is pick 2-3 Source Documents and run a
+  // pilot Batch Extraction. Stabilising the Revision itself is a later step:
+  // the server refuses to stabilise a Schema Revision until a pilot Extraction
+  // has been run and reviewed against it.
+  async function approveSchemaAndGoToNextStep() {
+    if (!onNavigate) return
+    setConfirmingSchema(true)
+    try {
+      const acknowledged = await schema.flush()
+      const revisionId =
+        acknowledged?.schemaRevisionId ??
+        schemaSnap.extractableSchemaRevisionId ??
+        undefined
+      // The persisted Schema Revision just moved this project's workflow phase
+      // (chat/approve -> extract) — the rail's project list only ever read that
+      // summary once, so without this it would keep showing the pre-approval
+      // phase until an unrelated write happened to refetch it.
+      onSchemaApproved?.()
+      onNavigate({
+        kind: 'project',
+        projectContextId,
+        tab: 'extractions',
+        ...(revisionId ? { pilotSchemaRevisionId: revisionId } : {}),
+      })
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : 'Could not save the Extraction Schema.',
+      )
+    } finally {
+      setConfirmingSchema(false)
+    }
+  }
+
   const runExtractionUnavailable =
     savingForRun ||
     running ||
@@ -927,25 +989,47 @@ export function DocumentWorkspace({
             <span className="shrink-0 text-compact font-medium text-danger" title={docIndex.message}>Indexing failed</span>
           )}
           <SchemaSaveStatus save={schemaSnap.save} onRetry={retrySchemaSave} className="max-w-72" />
-          {/* Run is the screen's one positive; while a run is active it is Stop, in danger, also once its cancellation is
-              requested (then disabled). */}
-          {/* One fixed width for Run and Stop, so the strip never shifts; progress is the Results badge's, not the button's (§2.4). */}
-          <Button
-            variant={running ? 'danger' : 'positive'}
-            size="md"
-            className="min-w-43 justify-center tabular-nums"
-            disabled={running ? extraction.cancellationRequested : runExtractionUnavailable}
-            title={
-              running
-                ? extraction.cancellationRequested ? 'Waiting for the Extraction to stop' : 'Cancel the active Extraction'
-                : runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
-                  ? 'Find the catalogue entries and extract one record per entry'
-                  : 'Extract one record from the whole document')
-            }
-            onClick={() => (running ? void extraction.requestCancellation() : void runExtraction())}
-          >
-            {runLabel}
-          </Button>
+          {/* While building a schema toward a pilot extraction, Run is the
+              wrong next action — the only step from here is approving the
+              schema, so it is left out entirely rather than shown disabled. */}
+          {!fromSchemaBuilder && (
+            <>
+              {/* Run is the screen's one positive; while a run is active it is Stop, in danger, also once its cancellation is
+                  requested (then disabled). */}
+              {/* One fixed width for Run and Stop, so the strip never shifts; progress is the Results badge's, not the button's (§2.4). */}
+              <Button
+                variant={running ? 'danger' : 'positive'}
+                size="md"
+                className="min-w-43 justify-center tabular-nums"
+                disabled={running ? extraction.cancellationRequested : runExtractionUnavailable}
+                title={
+                  running
+                    ? extraction.cancellationRequested ? 'Waiting for the Extraction to stop' : 'Cancel the active Extraction'
+                    : runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
+                      ? 'Find the catalogue entries and extract one record per entry'
+                      : 'Extract one record from the whole document')
+                }
+                onClick={() => (running ? void extraction.requestCancellation() : void runExtraction())}
+              >
+                {runLabel}
+              </Button>
+            </>
+          )}
+          {fromSchemaBuilder && (
+            <Button
+              variant="positive"
+              size="md"
+              disabled={confirmingSchema || schemaSnap.extractionSchemaId === null}
+              title={
+                schemaSnap.extractionSchemaId === null
+                  ? 'Generate a schema in the Schema tab first'
+                  : 'Save this Schema Revision, then pick 2-3 documents for a pilot extraction'
+              }
+              onClick={() => void approveSchemaAndGoToNextStep()}
+            >
+              {confirmingSchema ? 'Approving…' : 'Approve schema and go to next step'}
+            </Button>
+          )}
         </>,
         tabBarSlot,
       )}

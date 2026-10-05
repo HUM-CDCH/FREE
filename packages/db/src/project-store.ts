@@ -55,6 +55,8 @@ export type SchemaRevisionRecord = {
   origin: SchemaRevisionOrigin
   schemaTree: unknown
   recordScope: RecordScope | null
+  /** When the researcher stabilised this revision for collection-scale extraction; null until then. */
+  stabilisedAt: Date | null
   createdAt: Date
 }
 
@@ -84,6 +86,7 @@ type StoredSchemaRevision = {
   origin: 'SUGGESTION' | 'RESEARCHER_EDIT' | 'MODEL_EDIT'
   schemaTree: unknown
   recordScope?: string | null
+  stabilisedAt?: Date | null
   /** Selected only where a revision's source declaration is read: the append's head and the reopened revision. */
   modelAttribution?: unknown
   createdAt: Date
@@ -96,6 +99,7 @@ const revisionFields = [
   'origin',
   'schemaTree',
   'recordScope',
+  'stabilisedAt',
   'createdAt',
 ] as const
 
@@ -116,6 +120,7 @@ function schemaRevision(row: StoredSchemaRevision): SchemaRevisionRecord {
     origin: revisionOrigins[row.origin],
     schemaTree: row.schemaTree,
     recordScope: storedRecordScope(row.recordScope),
+    stabilisedAt: row.stabilisedAt ?? null,
     createdAt: row.createdAt,
   }
 }
@@ -161,6 +166,7 @@ async function ownedSchemaRevision(
       origin: fields.schemaRevision.origin,
       schemaTree: fields.schemaRevision.schemaTree,
       recordScope: fields.schemaRevision.recordScope,
+      stabilisedAt: fields.schemaRevision.stabilisedAt,
       modelAttribution: fields.schemaRevision.modelAttribution,
       createdAt: fields.schemaRevision.createdAt,
     }))
@@ -401,6 +407,10 @@ const suggestionFields = [
   'outcome',
   'failure',
   'phase',
+  'sourceKind',
+  'purpose',
+  'columnFieldMapping',
+  'projectSpreadsheetVersionId',
   'proposal',
   'coverage',
   'draft',
@@ -417,6 +427,10 @@ type StoredSuggestion = {
   outcome: 'SUCCEEDED' | 'FAILED' | null
   failure: unknown
   phase: BatchSchemaSuggestionPhase | null
+  sourceKind: BatchSchemaSuggestionSourceKind
+  purpose: BatchSchemaSuggestionPurpose | null
+  columnFieldMapping: unknown
+  projectSpreadsheetVersionId: string | null
   proposal: unknown
   coverage: unknown
   draft: unknown
@@ -510,6 +524,10 @@ async function loadBatchSchemaSuggestions(
       attempt: row.attempt,
       ...suggestionExecution(row, status.get(suggestWorkflowId(row.id, row.attempt))),
       phase: row.phase,
+      sourceKind: row.sourceKind,
+      purpose: row.purpose,
+      columnFieldMapping: row.columnFieldMapping ?? null,
+      projectSpreadsheetVersionId: row.projectSpreadsheetVersionId,
       proposal: row.proposal,
       coverage: row.coverage,
       draft: row.draft,
@@ -635,6 +653,33 @@ async function currentBatchMembers(
 
 export type BatchSchemaSuggestionPhase = 'READY' | 'HETEROGENEOUS'
 
+/** DOCUMENTS suggestions read Source Documents; SPREADSHEET ones are built from the project's spreadsheet slot. */
+export type BatchSchemaSuggestionSourceKind = 'DOCUMENTS' | 'SPREADSHEET'
+
+/** Only meaningful for a SPREADSHEET-kind suggestion: SCHEMA seeds the schema and stops there,
+ *  SCHEMA_AND_VALIDATE also starts a gold-standard validation corpus once confirmed. */
+export type BatchSchemaSuggestionPurpose = 'SCHEMA' | 'SCHEMA_AND_VALIDATE'
+
+/** One immutable version of a project's single shared spreadsheet slot. */
+export type ProjectSpreadsheetVersionRecord = {
+  projectSpreadsheetVersionId: string
+  projectContextId: string
+  revisionNumber: number
+  originalFilename: string
+  /** `SpreadsheetColumn[]`-shaped JSON: `{ columnName, values }[]`. */
+  columns: unknown
+  createdAt: Date
+}
+
+/** A field the researcher flagged as problematic on a Schema Revision. */
+export type SchemaIssueFlagRecord = {
+  schemaIssueFlagId: string
+  schemaRevisionId: string
+  fieldPath: string
+  note: string | null
+  createdAt: Date
+}
+
 /** One member pin and its revision's canonical package. */
 export type BatchSchemaSuggestionSourceRecord = {
   sourceDocumentId: string
@@ -652,6 +697,14 @@ export type BatchSchemaSuggestionRecord = {
   executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
   /** The retained proposal's meaning; null before the first proposal. */
   phase: BatchSchemaSuggestionPhase | null
+  /** DOCUMENTS suggestions read Source Documents; SPREADSHEET ones are built from the project's spreadsheet slot. */
+  sourceKind: BatchSchemaSuggestionSourceKind
+  /** Only set for a SPREADSHEET-kind suggestion; null for DOCUMENTS. */
+  purpose: BatchSchemaSuggestionPurpose | null
+  /** Column name -> matching SchemaNode.id; null for a DOCUMENTS-kind suggestion. */
+  columnFieldMapping: unknown | null
+  /** The spreadsheet version this suggestion was built from; null for DOCUMENTS. */
+  projectSpreadsheetVersionId: string | null
   proposal: unknown | null
   coverage: unknown | null
   draft: unknown | null
@@ -768,6 +821,21 @@ export type ResearcherProjectStore = {
     | { status: 'invalid' }
     | null
   >
+  /**
+   * A spreadsheet-derived suggestion has no document sources to run a model
+   * against: it is ready immediately, with `sourceKind: 'SPREADSHEET'` and an
+   * empty `sources` list, skipping the document SOURCES/MERGING phases.
+   */
+  createSpreadsheetSchemaSuggestion(
+    projectContextId: string,
+    /** A `SchemaDefinition`-shaped JSON value; parsed and validated by the caller. */
+    definition: unknown,
+    /** Column name -> the definition's matching `SchemaNode.id`, computed by the caller. */
+    columnFieldMapping: Record<string, string>,
+    /** The project spreadsheet version this suggestion was built from. */
+    projectSpreadsheetVersionId: string,
+    purpose: BatchSchemaSuggestionPurpose,
+  ): Promise<{ status: 'created'; suggestion: BatchSchemaSuggestionRecord } | null>
   getBatchSchemaSuggestion(
     projectContextId: string,
     batchSchemaSuggestionId: string,
@@ -840,6 +908,38 @@ export type ResearcherProjectStore = {
     extractionSchemaId: string,
     schemaRevisionId: string,
   ): Promise<SchemaRevisionRecord | null>
+  /** Appends a new version to the project's one shared spreadsheet slot — never replaces a prior version
+   *  (mirrors `appendSchemaRevision`). Null when the account does not own the Project Context. */
+  appendProjectSpreadsheetVersion(
+    projectContextId: string,
+    originalFilename: string,
+    /** `SpreadsheetColumn[]`-shaped JSON value. */
+    columns: unknown,
+  ): Promise<ProjectSpreadsheetVersionRecord | null>
+  /** The most recently appended spreadsheet version for this project, or null when none has been uploaded. */
+  getCurrentProjectSpreadsheet(
+    projectContextId: string,
+  ): Promise<ProjectSpreadsheetVersionRecord | null>
+  /** Refuses (`'has_extractions'`) rather than cascading through an Extraction Schema's Schema Revisions when any of
+   *  them has an Extraction — the cascade would silently delete Extraction rows with the schema. `force` skips that
+   *  check, for a researcher who has explicitly confirmed they want the Extractions gone too. */
+  deleteExtractionSchema(
+    projectContextId: string,
+    extractionSchemaId: string,
+    force?: boolean,
+  ): Promise<{ status: 'deleted' | 'has_extractions' } | null>
+  /** Idempotent per `(schemaRevisionId, fieldPath)`: re-flagging an already-open field updates it in place rather
+   *  than duplicating it. Null when the Schema Revision is not in an owned Project Context. */
+  flagSchemaField(
+    projectContextId: string,
+    schemaRevisionId: string,
+    fieldPath: string,
+    note?: string | null,
+  ): Promise<SchemaIssueFlagRecord | null>
+  listOpenSchemaIssueFlags(
+    projectContextId: string,
+    schemaRevisionId: string,
+  ): Promise<SchemaIssueFlagRecord[] | null>
   /** Whether the account owns the Project Context and, when named, the Extraction Schema still exists in it: the
    *  scope a model-operation listing or cancel is authorized against (spec, *Status and ownership*). */
   modelOperationScopeExists(projectContextId: string, extractionSchemaId: string | null): Promise<boolean>
@@ -1891,6 +1991,93 @@ export function createResearcherProjectStore(
       if (!suggestion) throw new Error('Persisted Batch Schema Suggestion could not be read.')
       return { status: admitted.status, suggestion }
     },
+    async createSpreadsheetSchemaSuggestion(
+      projectContextId,
+      definition,
+      columnFieldMapping,
+      projectSpreadsheetVersionId,
+      purpose,
+    ) {
+      const batchSchemaSuggestionId = randomUUID()
+      const created = await database.transaction(async ({ orm }) => {
+        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId)))
+          return 'missing' as const
+        await orm.public.BatchSchemaSuggestion.create({
+          id: batchSchemaSuggestionId,
+          projectContextId,
+          selectionKey: createHash('sha256')
+            .update(`spreadsheet:${batchSchemaSuggestionId}`)
+            .digest('hex'),
+          attempt: 1,
+          outcome: 'SUCCEEDED',
+          phase: 'READY',
+          sourceKind: 'SPREADSHEET',
+          purpose,
+          columnFieldMapping,
+          projectSpreadsheetVersionId,
+          proposal: definition,
+          draft: definition,
+        })
+        return { batchSchemaSuggestionId } as const
+      })
+      if (created === 'missing') return null
+      const suggestion = await loadBatchSchemaSuggestion(
+        database.orm,
+        JUST_ADMITTED,
+        projectContextId,
+        created.batchSchemaSuggestionId,
+      )
+      if (!suggestion)
+        throw new Error('Persisted Batch Schema Suggestion could not be read.')
+      return { status: 'created' as const, suggestion }
+    },
+    /** Appends a new version to the project's one shared spreadsheet slot; never replaces a prior version. */
+    async appendProjectSpreadsheetVersion(projectContextId, originalFilename, columns) {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
+        return null
+      return database.transaction(async ({ orm }) => {
+        const head = await orm.public.ProjectSpreadsheetVersion.where({
+          projectContextId,
+        })
+          .select('revisionNumber')
+          .orderBy((version) => version.revisionNumber.desc())
+          .first()
+        const revisionNumber = (head?.revisionNumber ?? 0) + 1
+        const created = await orm.public.ProjectSpreadsheetVersion.create({
+          projectContextId,
+          revisionNumber,
+          originalFilename,
+          columns,
+        })
+        return {
+          projectSpreadsheetVersionId: created.id,
+          projectContextId,
+          revisionNumber,
+          originalFilename,
+          columns,
+          createdAt: created.createdAt,
+        }
+      })
+    },
+    async getCurrentProjectSpreadsheet(projectContextId) {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
+        return null
+      const row = await database.orm.public.ProjectSpreadsheetVersion.where({
+        projectContextId,
+      })
+        .select('id', 'revisionNumber', 'originalFilename', 'columns', 'createdAt')
+        .orderBy((version) => version.revisionNumber.desc())
+        .first()
+      if (!row) return null
+      return {
+        projectSpreadsheetVersionId: row.id,
+        projectContextId,
+        revisionNumber: row.revisionNumber,
+        originalFilename: row.originalFilename,
+        columns: row.columns,
+        createdAt: row.createdAt,
+      }
+    },
     async getBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
       if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId))) return null
       return loadBatchSchemaSuggestion(database.orm, statuses, projectContextId, batchSchemaSuggestionId)
@@ -2254,6 +2441,116 @@ export function createResearcherProjectStore(
         ...revisionFields,
       ).first({ id: schemaRevisionId, extractionSchemaId })
       return row ? schemaRevision(row as StoredSchemaRevision) : null
+    },
+    async deleteExtractionSchema(projectContextId, extractionSchemaId, force) {
+      return database.transaction(async (transaction) => {
+        const { orm } = transaction
+        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId)))
+          return null
+        const schema = await orm.public.ExtractionSchema.select('id').first({
+          id: extractionSchemaId,
+          projectContextId,
+        })
+        if (!schema) return null
+        if (!force) {
+          const revisions = await orm.public.SchemaRevision.where({
+            extractionSchemaId,
+          })
+            .select('id')
+            .all()
+          if (revisions.length > 0) {
+            const extraction = await orm.public.Extraction.where((row) =>
+              row.schemaRevisionId.in(revisions.map((revision) => revision.id)),
+            )
+              .select('id')
+              .first()
+            if (extraction) return { status: 'has_extractions' as const }
+          }
+        }
+        await orm.public.ExtractionSchema.where({
+          id: extractionSchemaId,
+          projectContextId,
+        }).delete()
+        return { status: 'deleted' as const }
+      })
+    },
+    async flagSchemaField(projectContextId, schemaRevisionId, fieldPath, note) {
+      return database.transaction(async (transaction) => {
+        const { orm } = transaction
+        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId)))
+          return null
+        if (
+          !(await ownedSchemaRevision(
+            transaction,
+            researcherAccountId,
+            projectContextId,
+            schemaRevisionId,
+          ))
+        )
+          return null
+        const resolvedNote = note ?? null
+        const existing = await orm.public.SchemaIssueFlag.select('id').first({
+          schemaRevisionId,
+          fieldPath,
+          resolvedAt: null,
+        })
+        if (existing) {
+          const createdAt = new Date()
+          await orm.public.SchemaIssueFlag.where({ id: existing.id }).updateAll({
+            note: resolvedNote,
+            createdAt,
+          })
+          return {
+            schemaIssueFlagId: existing.id,
+            schemaRevisionId,
+            fieldPath,
+            note: resolvedNote,
+            createdAt,
+          }
+        }
+        const created = await orm.public.SchemaIssueFlag.create({
+          schemaRevisionId,
+          fieldPath,
+          note: resolvedNote,
+        })
+        return {
+          schemaIssueFlagId: created.id,
+          schemaRevisionId,
+          fieldPath,
+          note: resolvedNote,
+          createdAt: created.createdAt,
+        }
+      })
+    },
+    async listOpenSchemaIssueFlags(projectContextId, schemaRevisionId) {
+      return database.transaction(async (transaction) => {
+        const { orm } = transaction
+        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId)))
+          return null
+        if (
+          !(await ownedSchemaRevision(
+            transaction,
+            researcherAccountId,
+            projectContextId,
+            schemaRevisionId,
+          ))
+        )
+          return null
+        const rows = await orm.public.SchemaIssueFlag.where({
+          schemaRevisionId,
+          resolvedAt: null,
+        })
+          .select('id', 'schemaRevisionId', 'fieldPath', 'note', 'createdAt')
+          .orderBy((flag) => flag.createdAt.asc())
+          .all()
+        return rows.map((row) => ({
+          schemaIssueFlagId: row.id,
+          schemaRevisionId: row.schemaRevisionId,
+          fieldPath: row.fieldPath,
+          note: row.note,
+          createdAt: row.createdAt,
+        }))
+      })
     },
     async modelOperationScopeExists(projectContextId, extractionSchemaId) {
       return database.transaction(async ({ orm }) => {

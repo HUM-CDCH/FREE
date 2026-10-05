@@ -183,6 +183,7 @@ describe('durable schema record scope across reloads and navigation', () => {
     schemaNodes: definition.schemaNodes,
     recordScope: recordScope ?? ('document' as const),
     origin: 'researcher-edit' as const,
+    stabilisedAt: null,
     createdAt: '2026-08-01T12:00:00.000Z',
   })
 
@@ -267,6 +268,7 @@ describe('durable schema source declaration', () => {
   const saved = (revisionNumber: number, recordDescription: string) => ({
     ...revision(revisionNumber, recordDescription),
     origin: 'researcher-edit' as const,
+    stabilisedAt: null,
     createdAt: '2026-08-01T12:00:00.000Z',
   })
 

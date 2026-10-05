@@ -1,10 +1,13 @@
 import { z } from 'zod'
-import { BATCH_EXTRACTION_SELECTION_LIMIT } from 'extraction/batch'
+import {
+  BATCH_EXTRACTION_SELECTION_LIMIT,
+  PILOT_BATCH_SELECTION_LIMIT,
+} from 'extraction/batch'
 import { extractionMethodIntentSchema, settingsFit } from 'extraction/extraction-method'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 import { contestedValueSchema, extractionStrategySchema, methodRuleIssues } from './extraction.contract.js'
 
-export { BATCH_EXTRACTION_SELECTION_LIMIT }
+export { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT }
 
 /** A durable operation's execution lifecycle, distinct from research review. */
 export const projectOperationStatusSchema = z.enum([
@@ -161,6 +164,9 @@ export function batchExtractionProgress(batch: BatchExtraction) {
   return {
     total: batch.members.length,
     extracted: extracted.length,
+    // Every member that published an Extraction succeeded; a failure settles
+    // through `executionStatus` and never has one.
+    succeeded: extracted.length,
     pending: batch.members.filter(
       (member) =>
         member.executionStatus === 'QUEUED' ||

@@ -17,7 +17,7 @@ describe('PhaseProgress', () => {
       segment.classList.contains('bg-accent'),
     )
     expect(fills).toEqual([true, true, false, false, false])
-    expect(screen.getByText('Schema Chat')).toBeInTheDocument()
+    expect(screen.getByText('Create schema')).toBeInTheDocument()
     expect(screen.getByText('12 Aug')).toBeInTheDocument()
   })
 

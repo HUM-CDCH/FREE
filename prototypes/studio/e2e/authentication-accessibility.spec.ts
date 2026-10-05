@@ -152,6 +152,7 @@ test('switching Entra accounts does not retain the previous project rail @determ
         reviewedSourceDocumentCount: 0,
         staleSourceDocumentCount: 0,
         schemaDraftCount: 0,
+        schemaStabilised: false,
         lastActivityAt: '2026-08-24T00:00:00.000Z',
         runningBatch: null,
       },

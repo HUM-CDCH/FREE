@@ -40,6 +40,14 @@ export type ProjectContextsValue = {
   branches: Readonly<Record<string, ProjectBranch>>
   loadBranch: (projectContextId: string, retry?: boolean) => void
   retryList: () => void
+  /**
+   * Re-reads the list silently (unlike `retryList`, never flips `listState`
+   * to `loading`) — for a caller that just committed something the
+   * persisted `summary` (phase, `schemaStabilised`, counts, …) reflects,
+   * like approving a schema or stabilising a revision, so that summary
+   * doesn't sit stale until the next full reload.
+   */
+  refreshProjects: () => void
   /** Resolves to the acknowledged summary so the caller can navigate to it. */
   createProject: (
     name: string,
