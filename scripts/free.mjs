@@ -1,7 +1,7 @@
 // The FREE launcher: one entry point with an explicit target.
 //
-//   node scripts/free.mjs local [--entra] [--wifi] [--host=<ip>] [--firewall=on|off] [--phoenix]
-//   node scripts/free.mjs production [--phoenix]
+//   node scripts/free.mjs local [--entra] [--wifi] [--host=<ip>] [--firewall=on|off]
+//   node scripts/free.mjs production
 //
 // Compose owns the topology (compose.yaml plus compose.override.yaml or
 // compose.prod.yaml); this script only prepares what Compose cannot.
@@ -63,11 +63,9 @@ export function parseDevOptions(args) {
     host: null,
     firewall: true,
     revokeWifiAccess: false,
-    phoenix: false,
   }
   for (const argument of args) {
     if (argument === '--entra') options.entra = true
-    else if (argument === '--phoenix') options.phoenix = true
     else if (argument === '--wifi') options.wifi = true
     else if (argument.startsWith('--firewall='))
       options.firewall = onOff(argument.slice(11), '--firewall')
@@ -92,12 +90,7 @@ export function parseDevOptions(args) {
 
 export function parseProductionOptions(args) {
   if (args[0] === '--') args = args.slice(1)
-  const options = { phoenix: false }
-  for (const argument of args) {
-    if (argument === '--phoenix') options.phoenix = true
-    else throw new Error(`Unknown production option: ${argument}`)
-  }
-  return options
+  if (args.length > 0) throw new Error(`Unknown production option: ${args[0]}`)
 }
 
 function privateIpv4(address) {
@@ -286,6 +279,7 @@ function printReady(profile) {
       console.log(`  phone trust: install the mkcert root CA from ${caroot.stdout.trim()}`)
   }
   console.log('Press Ctrl+C to stop the stack.\n')
+  console.log('Phoenix model-call traces: http://localhost:6006 (loopback only).')
 }
 
 function loadDotEnv() {
@@ -389,7 +383,6 @@ export function developmentComposeFiles(profile) {
     'compose.yaml',
     'compose.override.yaml',
     ...(profile.entra ? ['compose.entra.yaml'] : []),
-    ...(profile.phoenix ? ['compose.phoenix.yaml'] : []),
   ]
 }
 
@@ -397,7 +390,6 @@ export function developmentComposeArguments(profile, gpuArguments = []) {
   return [
     'compose',
     ...(!profile.entra ? ['--profile', 'mock-oidc'] : []),
-    ...(profile.phoenix ? ['--profile', 'phoenix'] : []),
     ...developmentComposeFiles(profile).flatMap((file) => ['-f', file]),
     ...gpuArguments,
     // Compose rejects --no-build with --watch. The build step has already
@@ -441,8 +433,6 @@ export function developmentComposeEnvironment(
     STUDIO_ORIGIN: profile.origin,
     FREE_NGINX_BIND: profile.nginxBind,
     FREE_ENTRA_REAL: profile.entra ? '1' : '0',
-    // The optional shared Phoenix overlay exports Studio and worker traces.
-    FREE_PHOENIX: profile.phoenix ? '1' : '',
   })
   if (profile.entra) Object.assign(composeEnvironment, entraEnvironment)
   else
@@ -607,22 +597,12 @@ export function productionComposeFiles(environment) {
     'compose.yaml',
     'compose.prod.yaml',
     ...(environment.FREE_NGINX === 'container' ? ['compose.nginx.yaml'] : []),
-    ...(environment.FREE_PHOENIX === '1' ? ['compose.phoenix.yaml'] : []),
   ]
-}
-
-export function productionComposeEnvironment(options, environment = process.env) {
-  return {
-    ...environment,
-    // An inherited value cannot enable tracing without the collector flag.
-    FREE_PHOENIX: options.phoenix ? '1' : '',
-  }
 }
 
 export function productionComposeArguments(environment, gpuArguments = []) {
   return [
     'compose',
-    ...(environment.FREE_PHOENIX === '1' ? ['--profile', 'phoenix'] : []),
     ...productionComposeFiles(environment).flatMap((file) => ['-f', file]),
     ...gpuArguments,
     'up',
@@ -642,7 +622,7 @@ export function renderNginxLocations(template, values) {
 }
 
 async function productionMain(args) {
-  const options = parseProductionOptions(args)
+  parseProductionOptions(args)
   const dotEnv = loadDotEnv()
   if (dotEnv === null)
     throw new Error(
@@ -651,7 +631,7 @@ async function productionMain(args) {
   ensureCompatibleCompose()
   // Compose interpolation lets the process environment win over .env; validate
   // the same effective values.
-  const environment = productionComposeEnvironment(options, { ...dotEnv, ...process.env })
+  const environment = { ...dotEnv, ...process.env }
   const errors = validateProductionEnvironment(environment)
   if (errors.length > 0)
     throw new Error(['The .env deployment values are incomplete:', ...errors.map((error) => `  - ${error}`)].join('\n'))
@@ -676,8 +656,7 @@ async function productionMain(args) {
     environment,
   )
   if (process.exitCode !== 0) return
-  if (options.phoenix)
-    console.log('Phoenix model-call traces: http://localhost:6006 (loopback only).')
+  console.log('Phoenix model-call traces: http://localhost:6006 (loopback only).')
   if (!hostNginx) {
     console.log(`
 The services started and configured health checks passed; the bundled nginx terminates TLS.
