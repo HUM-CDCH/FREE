@@ -375,7 +375,10 @@ export async function setFeedbackIncluded(owner:string,projectId:string,input:{i
   const corrections=await repository.feedback(projectId)
   const selected=corrections.find(c=>c.id===input.id)
   if(!selected) throw new DurableNotFound('That correction was not found.')
-  return repository.saveCorrection(selected.extractionId,selected.valueId,{...selected.decision,expectedRevision:input.expectedRevision,included:input.included},async()=>{})
+  // Inclusion edits keep the same immutable source example; they do not
+  // reinterpret it against today's artifacts or drop its Evidence metadata.
+  return repository.saveCorrection(selected.extractionId,selected.valueId,{...selected.decision,expectedRevision:input.expectedRevision,included:input.included},
+    async()=>JSON.parse(selected.candidate.sourceContext) as Record<string,unknown>)
 }
 
 /** Tombstones retain their graph until no native writer or recoverable workflow

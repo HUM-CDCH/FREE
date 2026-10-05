@@ -203,7 +203,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     await page.getByRole('button',{name:'Exclude from guidance',exact:true}).click()
     await expect(page.getByRole('button',{name:'Include in guidance',exact:true})).toBeVisible()
     const guidance=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
-    expect(guidance.find((each:{active:boolean})=>each.active)).toMatchObject({revision:2,included:false,candidate:{value:corrected,grounded:false}})
+    expect(guidance.find((each:{active:boolean})=>each.active)).toMatchObject({revision:2,included:false,candidate:{value:corrected,grounded:false,sourceContext:correction.candidate.sourceContext}})
     expect(guidance.find((each:{id:string})=>each.id===correction.id).active).toBe(false)
     service.releaseExtraction();await complete(extractionB)
     const finished=await (await page.request.get(historyUrl)).json()
@@ -223,6 +223,11 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     const exported=JSON.parse(strFromU8(files['snapshot.json']))
     expect(exported.history.captures.find((each:{id:string})=>each.id===capture.id).request).toEqual(capture.request)
     await writeFile(info.outputPath('guidance-export-snapshot.json'),JSON.stringify(exported,null,2))
+    await page.getByRole('button',{name:'Include in guidance',exact:true}).click()
+    await expect(page.getByRole('button',{name:'Exclude from guidance',exact:true})).toBeVisible()
+    const reincluded=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
+    expect(reincluded.find((each:{active:boolean})=>each.active)).toMatchObject({revision:3,included:true,
+      candidate:{value:corrected,grounded:false,sourceContext:correction.candidate.sourceContext}})
     await page.screenshot({path:info.outputPath('native-guidance-attribution.png'),fullPage:true})
   } finally {service.releaseExtraction();await service.close()}
 })
