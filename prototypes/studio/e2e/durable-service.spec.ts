@@ -237,7 +237,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
       await page.goto(`/projects/${project}/documents/${sourceA.sourceDocumentId}?extractionId=${extractionA}&fromBatchExtractionId=${batchId}&value=${encodeURIComponent(value.id)}`)
       await page.locator('#rail-tab-results').click()
       await expect(page.getByText('Reviewed 0/2',{exact:true})).toBeVisible()
-      await page.getByRole('button',{name:'Save review',exact:true}).click()
+      await page.getByRole('button',{name:/^Finalize results \d+ · decisions \d+$/}).first().click()
       await expect(page.getByText('Reviewed 1/2',{exact:true})).toBeVisible()
       const batch=await (await page.request.get(`/api/batch-extractions/${batchId}?projectContextId=${project}`)).json()
       await writeFile(info.outputPath('native-pilot-review.json'),JSON.stringify(batch,null,2))
