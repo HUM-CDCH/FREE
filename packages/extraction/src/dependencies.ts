@@ -19,6 +19,8 @@ import type {
   ScheduleBatchInput,
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
+  StabiliseSchemaRevisionInput,
+  StabiliseSchemaRevisionResult,
 } from './types.js'
 import type { ReviewAuthority } from './review-rules.js'
 
@@ -74,6 +76,11 @@ export interface ExtractionPersistence extends ExtractionInputReader {
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult | null>
   scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult | null>
+  /** Marks a piloted Schema Revision stabilised, or reports why not: 'not-found' when the account does not own the
+   *  Project Context or revision, 'not-ready' when no pilot Extraction against it has been reviewed yet. */
+  stabiliseSchemaRevision(
+    input: StabiliseSchemaRevisionInput,
+  ): Promise<StabiliseSchemaRevisionResult | 'not-found' | 'not-ready'>
   listBatches(projectContextId: string, limit: number): Promise<readonly BatchExtractionSnapshot[] | null>
   readBatch(input: ReadBatchInput): Promise<BatchExtractionSnapshot | null>
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults | null>

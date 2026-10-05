@@ -46,6 +46,7 @@ function batchDto(batch: BatchExtractionSnapshot) {
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
       ...(member.durableExtractionId?{durableExtractionId:member.durableExtractionId}:{}),
+      ...(member.durableReview?{durableReview:{...member.durableReview,createdAt:member.durableReview.createdAt.toISOString()}}:{}),
       executionFailureMessage: member.failureMessage,
       latestExtraction: member.latestExtraction && {
         extractionId: member.latestExtraction.extractionId,
@@ -109,6 +110,13 @@ export function createResearcherApiHandlers(
           422,
           'invalid_batch_selection',
           'Use the Current Schema Revision and Source Documents in this Project Context with a Source Representation.',
+          { cause: error },
+        )
+      if (error instanceof ExtractionError && error.code === 'schema_not_stabilised')
+        throw new ApiError(
+          409,
+          'schema_not_stabilised',
+          'Stabilise this Schema Revision before running a Batch Extraction against it.',
           { cause: error },
         )
       unavailableUnlessNotFound(error, 'Project Context was not found.')

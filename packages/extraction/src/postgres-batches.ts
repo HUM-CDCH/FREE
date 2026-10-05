@@ -29,6 +29,7 @@ import type {
 
 type BatchMember = Readonly<{
   durableExtractionId?:string
+  durableReview?: BatchExtractionSnapshot['members'][number]['durableReview']
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   executionStatus: ExtractionExecutionStatus
@@ -71,6 +72,7 @@ export function snapshot(batch: DurableBatchExtraction): BatchExtractionSnapshot
       executionStatus: member.executionStatus,
       failureMessage: failureMessage(member.executionFailure),
       ...(member.durableExtractionId?{durableExtractionId:member.durableExtractionId}:{}),
+      ...(member.durableReview?{durableReview:member.durableReview}:{}),
       latestExtraction: member.latestExtraction,
     })),
   }
@@ -113,9 +115,10 @@ export async function loadBatches(
       .filter((row) => row.batchExtractionId === batch.id)
       .sort((left, right) => left.sourceDocumentId.localeCompare(right.sourceDocumentId))
       .map((read) => {
-        const { row, executionStatus, failure, durable } = derived.get(read.id)!
+        const { row, executionStatus, failure, durable, durableReview } = derived.get(read.id)!
         return {
           ...(durable?{durableExtractionId:row.id}:{}),
+          ...(durableReview?.schemaRevisionId===batch.schemaRevisionId?{durableReview}:{}),
           sourceDocumentId: row.sourceDocumentId,
           sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
           executionStatus,

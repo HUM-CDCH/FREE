@@ -12,7 +12,8 @@ afterEach(() => { cleanup(); vi.resetAllMocks() })
 
 it('preview and cancel save nothing; explicit confirmation keeps renamed IDs and uses ordinary initialization', async () => {
   const initialize = vi.fn(async (definition: SchemaDefinition) => ({ ...definition, extractionSchemaId: 'schema', schemaRevisionId: 'revision',
-    revisionNumber: 1, origin: 'researcher-edit' as const, createdAt: '2026-09-30T00:00:00Z', recordScope: null }))
+    revisionNumber: 1, origin: 'researcher-edit' as const, createdAt: '2026-09-30T00:00:00Z', recordScope: null,
+    stabilisedAt: null }))
   const schema = createSchemaEditorController(durableSchemaPersistence({ projectContextId: 'project', initial: null,
     initialize, append: vi.fn(), listRevisions: async () => [], getRevision: vi.fn() }))
   const column = { id: 'stable-import-id', column: 1, name: 'filename', type: 'string', include: true,

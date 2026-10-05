@@ -22,13 +22,13 @@ export type { ToastAction, ToastProps } from './Toast'
 export { default as Overline } from './Overline'
 export type { OverlineProps } from './Overline'
 export { default as PhaseProgress } from './PhaseProgress'
-export type {
-  PhaseProgressProps,
-  PhaseProgressTone,
-  WorkflowPhase,
-} from './PhaseProgress'
+export type { PhaseProgressProps } from './PhaseProgress'
+export { phaseLabels, phaseOrder } from './workflowPhases'
+export type { PhaseProgressTone, WorkflowPhase } from './workflowPhases'
 export { default as Panel } from './Panel'
 export type { PanelProps } from './Panel'
 export { default as ProgressBar } from './ProgressBar'
 export type { ProgressBarProps } from './ProgressBar'
 export { CheckIcon, PencilIcon, XIcon, StatusDot, UndoIcon } from './icons'
+export { default as GuidedNextStep } from './GuidedNextStep'
+export type { GuidedNextStepProps } from './GuidedNextStep'

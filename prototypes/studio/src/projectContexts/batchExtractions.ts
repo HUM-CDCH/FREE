@@ -10,6 +10,7 @@ import {
 } from '../../shared/batchExtraction.contract'
 import {
   batchSchemaSuggestionErrorResponseSchema,
+  batchSchemaSuggestionCreateFromSpreadsheetRequestSchema,
   batchSchemaSuggestionCreateRequestSchema,
   batchSchemaSuggestionDraftRequestSchema,
   batchSchemaSuggestionListResponseSchema,
@@ -18,8 +19,14 @@ import {
   batchSchemaSuggestionRunRequestSchema,
   type BatchSchemaSuggestion,
   type BatchSchemaSuggestionFailure,
+  type BatchSchemaSuggestionPurpose,
 } from '../../shared/batchSchemaSuggestion.contract'
 import type { ExtractionMethodIntent } from 'extraction/extraction-method'
+import {
+  projectSpreadsheetErrorResponseSchema,
+  projectSpreadsheetVersionResponseSchema,
+  type ProjectSpreadsheetVersion,
+} from '../../shared/projectSpreadsheet.contract'
 import type { SchemaDefinition } from 'extraction/schema'
 import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import { isRecord } from '../../shared/template'
@@ -59,14 +66,18 @@ async function read(url: string, init?: RequestInit): Promise<unknown> {
           parsed.data.error,
         )
     }
+    if (url.startsWith('/api/project-spreadsheets')) {
+      const parsed = projectSpreadsheetErrorResponseSchema.safeParse(value)
+      if (parsed.success) throw new Error(parsed.data.error.message)
+    }
     const error = isRecord(value) && isRecord(value.error) ? value.error : null
-    throw new BatchRequestError(
-      response.status,
-      typeof error?.code === 'string' ? error.code : null,
+    const message =
       typeof error?.message === 'string'
         ? error.message
-        : `Batch Extraction request failed (HTTP ${response.status}).`,
-    )
+        : `Batch Extraction request failed (HTTP ${response.status}).`
+    if (typeof error?.code === 'string')
+      throw new BatchRequestError(response.status, error.code, message)
+    throw new Error(message)
   }
   return value
 }
@@ -160,6 +171,79 @@ export async function createBatchSchemaSuggestion(
     }),
   ).batchSchemaSuggestion
 }
+/** Derives a schema suggestion from the project's current shared
+ *  spreadsheet (upload it first with `uploadProjectSpreadsheet`) — ready
+ *  immediately, no document sources involved (spreadsheet-schema-
+ *  suggestion spec). `separator` splits a column header into a nested
+ *  path when given (e.g. "." groups `measurement.temperature` under a
+ *  `measurement` object); omit it to keep every column flat.
+ *  `inferTypesFromValues` chooses whether each field's type is guessed
+ *  from its column's cell values (number/integer/enum/string) or every
+ *  field is left as a plain `string`, reading only the header row.
+ *  `purpose` chooses whether confirming the suggestion only seeds the
+ *  schema (`SCHEMA`) or also populates an Evaluation Corpus version from
+ *  this spreadsheet (`SCHEMA_AND_VALIDATE`). */
+export async function createSpreadsheetBatchSchemaSuggestion(
+  projectContextId: string,
+  purpose: BatchSchemaSuggestionPurpose,
+  inferTypesFromValues: boolean,
+  separator?: string,
+  signal?: AbortSignal,
+): Promise<BatchSchemaSuggestion> {
+  return batchSchemaSuggestionResponseSchema.parse(
+    await read('/api/batch-schema-suggestions/from-spreadsheet', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(
+        batchSchemaSuggestionCreateFromSpreadsheetRequestSchema.parse({
+          projectContextId,
+          separator,
+          inferTypesFromValues,
+          purpose,
+        }),
+      ),
+      signal,
+    }),
+  ).batchSchemaSuggestion
+}
+/** Appends a new version to the project's one shared spreadsheet slot —
+ *  never replaces a prior version. Used once per upload; the resulting
+ *  version is then reused by `createSpreadsheetBatchSchemaSuggestion` and,
+ *  later, gold-standard-corpus population, rather than re-uploaded each
+ *  time (project-level sharing, per spreadsheet-schema-suggestion design.md). */
+export async function uploadProjectSpreadsheet(
+  projectContextId: string,
+  file: File,
+  signal?: AbortSignal,
+): Promise<ProjectSpreadsheetVersion> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  form.append('projectContextId', projectContextId)
+  const parsed = projectSpreadsheetVersionResponseSchema.parse(
+    await read('/api/project-spreadsheets', {
+      method: 'POST',
+      headers: { accept: 'application/json' },
+      body: form,
+      signal,
+    }),
+  )
+  if (!parsed.projectSpreadsheetVersion)
+    throw new Error('The uploaded spreadsheet was not saved.')
+  return parsed.projectSpreadsheetVersion
+}
+
+/** The project's current spreadsheet version, or null if none has been
+ *  uploaded yet. */
+export async function getCurrentProjectSpreadsheet(
+  projectContextId: string,
+  signal?: AbortSignal,
+): Promise<ProjectSpreadsheetVersion | null> {
+  const query = new URLSearchParams({ projectContextId })
+  return projectSpreadsheetVersionResponseSchema.parse(
+    await read(`/api/project-spreadsheets?${query}`, { signal }),
+  ).projectSpreadsheetVersion
+}
+
 export async function listBatchSchemaSuggestions(
   projectContextId: string,
   signal?: AbortSignal,

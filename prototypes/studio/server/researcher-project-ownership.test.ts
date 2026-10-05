@@ -308,6 +308,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
         : ('researcher-edit' as const),
     schemaTree,
     recordScope: null,
+    stabilisedAt: null,
     createdAt: CREATED_AT,
   })
 
@@ -439,6 +440,12 @@ function twoAccountStoreFixture(): TwoAccountStores {
       listBatchSchemaSuggestions: vi.fn(async () => null),
       updateBatchSchemaSuggestionDraft: vi.fn(async () => null),
       retryBatchSchemaSuggestion: vi.fn(async () => null),
+      createSpreadsheetSchemaSuggestion: vi.fn(async () => null),
+      appendProjectSpreadsheetVersion: vi.fn(async () => null),
+      getCurrentProjectSpreadsheet: vi.fn(async () => null),
+      deleteExtractionSchema: vi.fn(async () => null),
+      flagSchemaField: vi.fn(async () => null),
+      listOpenSchemaIssueFlags: vi.fn(async () => null),
       initializeSchemaRevision: vi.fn(async (projectContextId, schemaTree) => {
         const relationship = owned(accountId, projectContextId)
         return relationship
@@ -695,6 +702,16 @@ function twoAccountStoreFixture(): TwoAccountStores {
       listBatches: vi.fn<ExtractionModule['listBatches']>(async (input) => {
         if (input.projectContextId !== relationship.projectId) throw notFound()
         return []
+      }),
+      stabiliseSchemaRevision: vi.fn<
+        ExtractionModule['stabiliseSchemaRevision']
+      >(async (input) => {
+        if (
+          input.projectContextId !== relationship.projectId ||
+          input.schemaRevisionId !== relationship.revisionId
+        )
+          throw notFound()
+        throw new Error('Authorized stabilisation is outside this test.')
       }),
       readBatch: vi.fn<ExtractionModule['readBatch']>(async (input) => {
         const ownedBatchId =

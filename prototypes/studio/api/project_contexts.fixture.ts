@@ -40,6 +40,7 @@ export function projectContextFixture(): ProjectStoreReads {
             reviewedSourceDocumentCount: 0,
             staleSourceDocumentCount: 0,
             schemaDraftCount: 0,
+            schemaStabilised: false,
             lastActivityAt: sourceDocument.createdAt,
             runningBatch: null,
           },

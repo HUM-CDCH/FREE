@@ -20,7 +20,7 @@ import {
   type DatabaseTransaction,
   type WorkflowStatuses,
 } from 'db'
-import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
+import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT } from './batch.js'
 import type { ExtractionExecution } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
@@ -325,6 +325,41 @@ export const SUGGESTED_BATCH_KEYS = [
  * (PR #140). The researcher's saved method is compared under the account configuration's lock after those, and pinned
  * once on the batch and every member.
  */
+/**
+ * A Schema Revision's stabilisation timestamp, or null when it carries none. The column arrives in a later release
+ * than the admission this gate belongs to, so a database migrated only as far as the record-scope release — which its
+ * own migration-history test does, running this admission against that schema — has no stabilised revisions to name.
+ */
+async function stabilisedAtOf(
+  orm: DatabaseOrm,
+  schemaRevisionId: string,
+): Promise<Date | null> {
+  try {
+    const row = await orm.public.SchemaRevision.select('stabilisedAt').first({
+      id: schemaRevisionId,
+    })
+    return row?.stabilisedAt ?? null
+  } catch (error) {
+    if (!isUndefinedColumn(error)) throw error
+    return null
+  }
+}
+
+/** PostgreSQL `undefined_column` (42703), through whatever the driver wrapped it in. */
+function isUndefinedColumn(error: unknown): boolean {
+  const seen = new Set<object>()
+  for (
+    let current = error;
+    current && typeof current === 'object' && !seen.has(current);
+    current = (current as { cause?: unknown }).cause
+  ) {
+    seen.add(current)
+    const candidate = current as { code?: unknown; sqlState?: unknown }
+    if (candidate.code === '42703' || candidate.sqlState === '42703') return true
+  }
+  return false
+}
+
 export async function admitBatchExtraction(
   database: Database,
   execution: ExtractionExecution,
@@ -360,7 +395,7 @@ export async function admitBatchExtraction(
       )
     return { disposition: 'replayed', batch: snapshot(batch) }
   }
-  let opened: 'created' | 'existing' | 'missing' | 'invalid' | 'method-changed'
+  let opened: 'created' | 'existing' | 'missing' | 'invalid' | 'method-changed' | 'unstabilised'
   try {
     opened = await withPoolClientTransaction(async (transaction, client) => {
       const { orm } = transaction
@@ -406,6 +441,14 @@ export async function admitBatchExtraction(
         .first()
       if (current?.id !== input.schemaRevisionId)
         return 'invalid' as const
+      // A pilot round may run against an unstabilised revision; a
+      // collection-scale selection may not, until the researcher has reviewed
+      // a pilot and stabilised the revision.
+      if (
+        selected.length > PILOT_BATCH_SELECTION_LIMIT &&
+        (await stabilisedAtOf(orm, input.schemaRevisionId)) === null
+      )
+        return 'unstabilised' as const
       // An equal selection replayed above; a new batch runs every member under the one strategy its revision's record
       // scope names, refused before any document is locked or member admitted.
       refuseRecordScope(
@@ -486,6 +529,11 @@ export async function admitBatchExtraction(
       'Use the Current Schema Revision and Source Documents in this Project Context with a Source Representation.',
     )
   if (opened === 'method-changed') throw new ExtractionError('method_changed', METHOD_CHANGED_MESSAGE)
+  if (opened === 'unstabilised')
+    throw new ExtractionError(
+      'schema_not_stabilised',
+      'Stabilise this Schema Revision before running a Batch Extraction against it.',
+    )
   if (opened === 'existing') return replayedBatch()
   const batch = await readBatchForResearcher(
     database,

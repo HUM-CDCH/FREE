@@ -8,6 +8,53 @@ import { createGarbageReferences } from '../../db/src/garbage-references.js'
 import { createDurableRepository,initializeDurableExtraction,DurableConflict,DurableNotFound,collectDeletedDurableGraphs,reconcileDurableAttempts } from './durable-repository.js'
 import { createResearcherExtractionPersistence } from './postgres-persistence.js'
 
+test('native pilot finalization drives batch progress and unlocks only its producing schema',async t=> {
+  const base=process.env.EXTRACTION_TEST_DATABASE_URL
+  if(!base)throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')
+  const target=await provisionDatabase(base,`free_test_native_pilot_${randomBytes(5).toString('hex')}`)
+  const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
+  t.after(async()=>{await source.end();await admin.end();await target.drop()})
+  await migrate(target.url);await admin.connect()
+  const fixture=await seedPreMigrationHistory(admin),batchId=randomUUID(),ids:string[]=[]
+  await admin.query('INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,\'ARTICLE\',$4)',
+    [batchId,fixture.projectContextId,fixture.revisions.article,{article:null}])
+  for(const document of [fixture.documents.d1,fixture.documents.d2]) {
+    const id=randomUUID();ids.push(id)
+    const representation=(await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
+    await admin.query('INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings","batchExtractionId") VALUES ($1,$2,$3,$4,\'ARTICLE\',$5,$6)',
+      [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null},batchId])
+    await admin.query('BEGIN')
+    try{await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,
+      schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,
+      requestedModels:null,requestedSettings:{article:null}});await admin.query('COMMIT')}catch(error){await admin.query('ROLLBACK');throw error}
+    const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+    const node=ARTICLE_TREE.schemaNodes[0]
+    const value={id:'value',recordId:'record',fieldId:node.id,path:['records',0,node.name],selectionId:head.selectionId,
+      schemaRevisionId:fixture.revisions.article,node,modelValue:'Saved native pilot',evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
+    await admin.query('INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,1,$3,$4,$5,\'{}\')',
+      [randomUUID(),id,head.selectionId,'a'.repeat(64),JSON.stringify([value])])
+    await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=1,acknowledgement=\'COMPLETED\' WHERE id=$1',[id])
+  }
+  const persistence=createResearcherExtractionPersistence(fixture.accountId,{enqueue:async()=>{},statuses:async()=>new Map(),cancel:async()=>{}},{database:createDisposableRuntime(source)})
+  const input={projectContextId:fixture.projectContextId,schemaRevisionId:fixture.revisions.article}
+  assert.equal(await persistence.stabiliseSchemaRevision(input),'not-ready')
+  const repository=createDurableRepository(fixture.accountId,source)
+  await repository.saveCorrection(ids[0],'value',{snapshotVersion:1,expectedRevision:0,action:'APPROVED',evidence:[]},async()=>{})
+  await repository.finalize(ids[0],{snapshotVersion:1,feedbackVersion:1})
+  const batch=await persistence.readBatch({projectContextId:fixture.projectContextId,batchExtractionId:batchId})
+  assert.equal(batch?.members[0].latestExtraction,null)
+  assert.equal(batch?.members.filter(member=>member.durableReview).length,1)
+  assert.equal(batch?.members.find(member=>member.durableExtractionId===ids[0])?.durableReview?.schemaRevisionId,fixture.revisions.article)
+  assert.notEqual(await persistence.stabiliseSchemaRevision(input),'not-ready')
+  assert.equal((await admin.query('SELECT "reviewedAt" FROM public.extraction WHERE id=$1',[ids[0]])).rows[0].reviewedAt,null)
+  const revised=randomUUID()
+  await admin.query('INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope") SELECT $1,"extractionSchemaId",2,\'RESEARCHER_EDIT\',"schemaTree\",\'document\' FROM public."schemaRevision" WHERE id=$2',[revised,fixture.revisions.article])
+  const state=await repository.read(ids[0])
+  const selected=await repository.saveSelection(ids[0],{expectedVersion:state.controlVersion,schemaRevisionId:revised,method:{models:null,settings:{article:null}}})
+  await repository.adoptSelection(ids[0],{expectedVersion:selected.controlVersion,selectionId:selected.selectionId,reprocessValueIds:[]})
+  assert.equal(await persistence.stabiliseSchemaRevision({...input,schemaRevisionId:revised}),'not-ready')
+})
+
 test('durable controls, concurrent corrections, fixed pages and deletion retain one owned Extraction',async t=> {
   const base=process.env.EXTRACTION_TEST_DATABASE_URL
   if(!base)throw new Error('Set EXTRACTION_TEST_DATABASE_URL to an explicit disposable free_test_* target.')

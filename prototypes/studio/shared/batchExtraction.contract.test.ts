@@ -177,6 +177,9 @@ describe('Batch Extraction contracts', () => {
     expect(batchExtractionProgress(batchExtractionSchema.parse(batch))).toEqual({
       total: 6,
       extracted: 2,
+      // Every member with a published Extraction succeeded; `failed` counts
+      // the members whose status settled without one.
+      succeeded: 2,
       pending: 2,
       failed: 2,
       reviewed: 1,

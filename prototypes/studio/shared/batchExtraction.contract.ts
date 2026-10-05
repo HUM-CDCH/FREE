@@ -1,10 +1,13 @@
 import { z } from 'zod'
-import { BATCH_EXTRACTION_SELECTION_LIMIT } from 'extraction/batch'
+import {
+  BATCH_EXTRACTION_SELECTION_LIMIT,
+  PILOT_BATCH_SELECTION_LIMIT,
+} from 'extraction/batch'
 import { extractionMethodIntentSchema, settingsFit } from 'extraction/extraction-method'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 import { contestedValueSchema, extractionStrategySchema, methodRuleIssues } from './extraction.contract.js'
 
-export { BATCH_EXTRACTION_SELECTION_LIMIT }
+export { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT }
 
 /** A durable operation's execution lifecycle, distinct from research review. */
 export const projectOperationStatusSchema = z.enum([
@@ -57,6 +60,8 @@ export type BatchExtractionRequest = z.infer<typeof batchExtractionRequestSchema
 const batchExtractionMemberSchema = z
   .object({
     durableExtractionId:canonicalUuidSchema.optional(),
+    durableReview:z.object({snapshotVersion:z.number().int().positive(),feedbackVersion:z.number().int().nonnegative(),
+      createdAt:z.iso.datetime(),schemaRevisionId:canonicalUuidSchema}).strict().optional(),
     sourceDocumentId: canonicalUuidSchema,
     sourceRepresentationRevisionId: canonicalUuidSchema,
     executionStatus: z.enum(['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'COMPLETED', 'FAILED']),
@@ -162,6 +167,9 @@ export function batchExtractionProgress(batch: BatchExtraction) {
   return {
     total: batch.members.length,
     extracted: extracted.length,
+    // Every member that published an Extraction succeeded; a failure settles
+    // through `executionStatus` and never has one.
+    succeeded: extracted.length,
     pending: batch.members.filter(
       (member) =>
         member.executionStatus === 'QUEUED' ||
@@ -170,7 +178,7 @@ export function batchExtractionProgress(batch: BatchExtraction) {
     // Failed, cancelled or interrupted: the member settled without a result.
     failed: batch.members.filter((member) => member.executionStatus === 'FAILED')
       .length,
-    reviewed: reviewed.length,
+    reviewed: reviewed.length+batch.members.filter(member=>member.durableReview).length,
     unreviewable: unreviewable.length,
     needsReview: extracted.length - reviewed.length - unreviewable.length,
   }

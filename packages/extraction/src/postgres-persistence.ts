@@ -28,6 +28,7 @@ import {
   loadDocumentExtractions,
   readAttemptRows,
   readRuntimeHeads,
+  readDurableReviews,
 } from './postgres-attempts.js'
 import {
   loadBatch,
@@ -68,6 +69,8 @@ import type {
   ScheduleBatchInput,
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
+  StabiliseSchemaRevisionInput,
+  StabiliseSchemaRevisionResult,
 } from './types.js'
 
 const SUPERSEDED_MESSAGE =
@@ -310,6 +313,62 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
       ownsResearcherBatch(transaction, this.researcherAccountId, input.projectContextId, input.batchExtractionId))
     if (!owned) return null
     return loadResults(this.database.orm, this.execution.statuses, input)
+  }
+
+  async stabiliseSchemaRevision(
+    input: StabiliseSchemaRevisionInput,
+  ): Promise<StabiliseSchemaRevisionResult | 'not-found' | 'not-ready'> {
+    return this.database.transaction(async ({ orm }) => {
+      const revision = await orm.public.SchemaRevision.select(
+        'id',
+        'extractionSchemaId',
+        'stabilisedAt',
+      ).first({ id: input.schemaRevisionId })
+      const schema = revision
+        ? await orm.public.ExtractionSchema.select('projectContextId').first({
+            id: revision.extractionSchemaId,
+          })
+        : null
+      if (!revision || !schema || schema.projectContextId !== input.projectContextId)
+        return 'not-found' as const
+      if (
+        !(await orm.public.ProjectContext.select('id').first({
+          id: input.projectContextId,
+          researcherAccountId: this.researcherAccountId,
+        }))
+      )
+        return 'not-found' as const
+      // Already stabilised: the recorded timestamp is the answer, and a
+      // repeated request never moves it.
+      if (revision.stabilisedAt)
+        return {
+          schemaRevisionId: revision.id,
+          stabilisedAt: revision.stabilisedAt.toISOString(),
+        }
+      // Stabilising unlocks collection-scale extraction, so it requires at
+      // least one pilot Extraction against this revision to be reviewed.
+      const reviewedPilot = await orm.public.Extraction.where({
+        schemaRevisionId: input.schemaRevisionId,
+      })
+        .where((extraction) => extraction.reviewedAt.isNotNull())
+        .select('id')
+        .first()
+      if (!reviewedPilot) {
+        const nativeIds=await orm.extraction_runtime.Head.where({projectId:input.projectContextId,deleted:false}).select('id').all()
+        const reviews=await readDurableReviews(orm,await readRuntimeHeads(orm,nativeIds.map(row=>row.id)))
+        if(![...reviews.values()].some(review=>review.schemaRevisionId===input.schemaRevisionId))return 'not-ready' as const
+      }
+      const stabilisedAt = new Date()
+      const updated = await orm.public.SchemaRevision.where({
+        id: input.schemaRevisionId,
+        stabilisedAt: null,
+      }).updateAll({ stabilisedAt })
+      if (updated.length !== 1) return 'not-ready' as const
+      return {
+        schemaRevisionId: input.schemaRevisionId,
+        stabilisedAt: stabilisedAt.toISOString(),
+      }
+    })
   }
 }
 

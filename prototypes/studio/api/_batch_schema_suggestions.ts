@@ -1,5 +1,28 @@
-import { parseBatchSuggestionDefinition, type SchemaDefinition } from 'extraction/schema'
+import {
+  parseBatchSuggestionDefinition,
+  templateToSchemaDefinition,
+  type SchemaDefinition,
+} from 'extraction/schema'
 import { ApiError } from './_http.js'
+
+function invalidModelOutput(error: unknown): never {
+  throw new ApiError(
+    502,
+    'invalid_model_output',
+    error instanceof Error
+      ? error.message
+      : 'The model returned an invalid Schema Suggestion.',
+  )
+}
+
+/** Reject, never strip, fields that are owned by canonical parser Evidence. */
+export function modelSuggestedDefinition(template: unknown): SchemaDefinition {
+  try {
+    return parseBatchSuggestionDefinition(templateToSchemaDefinition(template))
+  } catch (error) {
+    return invalidModelOutput(error)
+  }
+}
 
 export function sourceSuggestionFailure(error: unknown): {
   code:
@@ -36,4 +59,3 @@ export function validateEditableSuggestion(
     )
   }
 }
-

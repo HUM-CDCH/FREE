@@ -1453,6 +1453,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
       origin: 'suggestion',
       schemaTree: nodes('site'),
       recordScope: null,
+      stabilisedAt: null,
       createdAt: new Date('2026-08-01T12:01:00Z'),
     })
     assert.equal(
@@ -1482,6 +1483,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
       origin: 'researcher-edit',
       schemaTree: nodes('year'),
       recordScope: null,
+      stabilisedAt: null,
       createdAt: new Date('2026-08-01T12:01:00Z'),
     })
     assert.equal(database.tables.SchemaRevision.length, 2)
@@ -1507,6 +1509,7 @@ describe('ResearcherProjectStore Schema Revisions', () => {
         origin: 'suggestion',
         schemaTree: nodes('site'),
         recordScope: null,
+        stabilisedAt: null,
         createdAt: new Date('2026-08-01T12:00:00Z'),
       },
     })

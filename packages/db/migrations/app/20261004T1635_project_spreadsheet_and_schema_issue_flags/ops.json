@@ -1,0 +1,694 @@
+[
+  {
+    "id": "table.projectSpreadsheetVersion",
+    "label": "Create table \"projectSpreadsheetVersion\"",
+    "summary": "Creates table \"projectSpreadsheetVersion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "projectSpreadsheetVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"projectSpreadsheetVersion\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectSpreadsheetVersion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"projectSpreadsheetVersion\"",
+        "sql": "CREATE TABLE \"public\".\"projectSpreadsheetVersion\" (\n  \"columns\" jsonb NOT NULL,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"originalFilename\" text NOT NULL,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  \"revisionNumber\" int4 NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"projectSpreadsheetVersion\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectSpreadsheetVersion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.schemaIssueFlag",
+    "label": "Create table \"schemaIssueFlag\"",
+    "summary": "Creates table \"schemaIssueFlag\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "schemaIssueFlag"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"schemaIssueFlag\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaIssueFlag\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"schemaIssueFlag\"",
+        "sql": "CREATE TABLE \"public\".\"schemaIssueFlag\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"fieldPath\" text NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"note\" text,\n  \"resolvedAt\" timestamptz(6),\n  \"schemaRevisionId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"schemaIssueFlag\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaIssueFlag\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.batchSchemaSuggestion.columnFieldMapping",
+    "label": "Add column \"columnFieldMapping\" to \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "columnFieldMapping",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"columnFieldMapping\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "columnFieldMapping"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"columnFieldMapping\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD COLUMN \"columnFieldMapping\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"columnFieldMapping\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "columnFieldMapping"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.batchSchemaSuggestion.projectSpreadsheetVersionId",
+    "label": "Add column \"projectSpreadsheetVersionId\" to \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "projectSpreadsheetVersionId",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"projectSpreadsheetVersionId\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "projectSpreadsheetVersionId"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"projectSpreadsheetVersionId\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD COLUMN \"projectSpreadsheetVersionId\" \"uuid\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"projectSpreadsheetVersionId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "projectSpreadsheetVersionId"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.batchSchemaSuggestion.purpose",
+    "label": "Add column \"purpose\" to \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "purpose",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"purpose\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "purpose"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"purpose\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD COLUMN \"purpose\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"purpose\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "purpose"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.batchSchemaSuggestion.sourceKind",
+    "label": "Add column \"sourceKind\" to \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "sourceKind",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"sourceKind\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "sourceKind"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"sourceKind\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD COLUMN \"sourceKind\" text DEFAULT 'DOCUMENTS' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"sourceKind\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "sourceKind"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.schemaRevision.stabilisedAt",
+    "label": "Add column \"stabilisedAt\" to \"schemaRevision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "stabilisedAt",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"stabilisedAt\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "schemaRevision",
+          "stabilisedAt"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"stabilisedAt\"",
+        "sql": "ALTER TABLE \"public\".\"schemaRevision\" ADD COLUMN \"stabilisedAt\" timestamptz(6)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"stabilisedAt\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "schemaRevision",
+          "stabilisedAt"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.projectSpreadsheetVersion.projectSpreadsheetVersion_projectContextId_revisionNumber_key",
+    "label": "Add unique constraint on \"projectSpreadsheetVersion\" (projectContextId, revisionNumber)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "projectSpreadsheetVersion_projectContextId_revisionNumber_key",
+        "table": "projectSpreadsheetVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"projectSpreadsheetVersion_projectContextId_revisionNumber_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectSpreadsheetVersion_projectContextId_revisionNumber_key",
+          "public",
+          "\"public\".\"projectSpreadsheetVersion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"projectSpreadsheetVersion_projectContextId_revisionNumber_key\"",
+        "sql": "ALTER TABLE \"public\".\"projectSpreadsheetVersion\" ADD CONSTRAINT \"projectSpreadsheetVersion_projectContextId_revisionNumber_key\" UNIQUE (\"projectContextId\", \"revisionNumber\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"projectSpreadsheetVersion_projectContextId_revisionNumber_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectSpreadsheetVersion_projectContextId_revisionNumber_key",
+          "public",
+          "\"public\".\"projectSpreadsheetVersion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_sourceKind_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_sourceKind_check\" on \"batchSchemaSuggestion\".\"sourceKind\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_sourceKind_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_sourceKind_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_sourceKind_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_sourceKind_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_sourceKind_check\" CHECK (\"sourceKind\" IN ('DOCUMENTS', 'SPREADSHEET'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_sourceKind_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_sourceKind_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_purpose_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_purpose_check\" on \"batchSchemaSuggestion\".\"purpose\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_purpose_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_purpose_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_purpose_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_purpose_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_purpose_check\" CHECK (\"purpose\" IN ('SCHEMA', 'SCHEMA_AND_VALIDATE'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_purpose_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_purpose_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.batchSchemaSuggestion.batchSchemaSuggestion_projectSpreadsheetVersionId_idx",
+    "label": "Create index \"batchSchemaSuggestion_projectSpreadsheetVersionId_idx\" on \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "batchSchemaSuggestion_projectSpreadsheetVersionId_idx",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"batchSchemaSuggestion_projectSpreadsheetVersionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestion_projectSpreadsheetVersionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"batchSchemaSuggestion_projectSpreadsheetVersionId_idx\"",
+        "sql": "CREATE INDEX \"batchSchemaSuggestion_projectSpreadsheetVersionId_idx\" ON \"public\".\"batchSchemaSuggestion\" (\"projectSpreadsheetVersionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"batchSchemaSuggestion_projectSpreadsheetVersionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"batchSchemaSuggestion_projectSpreadsheetVersionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.projectSpreadsheetVersion.projectSpreadsheetVersion_projectContextId_createdAt_idx",
+    "label": "Create index \"projectSpreadsheetVersion_projectContextId_createdAt_idx\" on \"projectSpreadsheetVersion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "projectSpreadsheetVersion_projectContextId_createdAt_idx",
+        "table": "projectSpreadsheetVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"projectSpreadsheetVersion_projectContextId_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectSpreadsheetVersion_projectContextId_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"projectSpreadsheetVersion_projectContextId_createdAt_idx\"",
+        "sql": "CREATE INDEX \"projectSpreadsheetVersion_projectContextId_createdAt_idx\" ON \"public\".\"projectSpreadsheetVersion\" (\"projectContextId\", \"createdAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"projectSpreadsheetVersion_projectContextId_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectSpreadsheetVersion_projectContextId_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.projectSpreadsheetVersion.projectSpreadsheetVersion_projectContextId_idx",
+    "label": "Create index \"projectSpreadsheetVersion_projectContextId_idx\" on \"projectSpreadsheetVersion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "projectSpreadsheetVersion_projectContextId_idx",
+        "table": "projectSpreadsheetVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"projectSpreadsheetVersion_projectContextId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectSpreadsheetVersion_projectContextId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"projectSpreadsheetVersion_projectContextId_idx\"",
+        "sql": "CREATE INDEX \"projectSpreadsheetVersion_projectContextId_idx\" ON \"public\".\"projectSpreadsheetVersion\" (\"projectContextId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"projectSpreadsheetVersion_projectContextId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"projectSpreadsheetVersion_projectContextId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.schemaIssueFlag.schemaIssueFlag_schemaRevisionId_idx",
+    "label": "Create index \"schemaIssueFlag_schemaRevisionId_idx\" on \"schemaIssueFlag\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "schemaIssueFlag_schemaRevisionId_idx",
+        "table": "schemaIssueFlag"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"schemaIssueFlag_schemaRevisionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaIssueFlag_schemaRevisionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"schemaIssueFlag_schemaRevisionId_idx\"",
+        "sql": "CREATE INDEX \"schemaIssueFlag_schemaRevisionId_idx\" ON \"public\".\"schemaIssueFlag\" (\"schemaRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"schemaIssueFlag_schemaRevisionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"schemaIssueFlag_schemaRevisionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.projectSpreadsheetVersion.projectSpreadsheetVersion_projectContextId_fkey",
+    "label": "Add foreign key \"projectSpreadsheetVersion_projectContextId_fkey\" on \"projectSpreadsheetVersion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "projectSpreadsheetVersion_projectContextId_fkey",
+        "table": "projectSpreadsheetVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"projectSpreadsheetVersion_projectContextId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectSpreadsheetVersion_projectContextId_fkey",
+          "public",
+          "\"public\".\"projectSpreadsheetVersion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"projectSpreadsheetVersion_projectContextId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"projectSpreadsheetVersion\"\nADD CONSTRAINT \"projectSpreadsheetVersion_projectContextId_fkey\"\nFOREIGN KEY (\"projectContextId\")\nREFERENCES \"public\".\"projectContext\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"projectSpreadsheetVersion_projectContextId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "projectSpreadsheetVersion_projectContextId_fkey",
+          "public",
+          "\"public\".\"projectSpreadsheetVersion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.batchSchemaSuggestion.batchSchemaSuggestion_projectSpreadsheetVersionId_fkey",
+    "label": "Add foreign key \"batchSchemaSuggestion_projectSpreadsheetVersionId_fkey\" on \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "batchSchemaSuggestion_projectSpreadsheetVersionId_fkey",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"batchSchemaSuggestion_projectSpreadsheetVersionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_projectSpreadsheetVersionId_fkey",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"batchSchemaSuggestion_projectSpreadsheetVersionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\"\nADD CONSTRAINT \"batchSchemaSuggestion_projectSpreadsheetVersionId_fkey\"\nFOREIGN KEY (\"projectSpreadsheetVersionId\")\nREFERENCES \"public\".\"projectSpreadsheetVersion\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"batchSchemaSuggestion_projectSpreadsheetVersionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_projectSpreadsheetVersionId_fkey",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.schemaIssueFlag.schemaIssueFlag_schemaRevisionId_fkey",
+    "label": "Add foreign key \"schemaIssueFlag_schemaRevisionId_fkey\" on \"schemaIssueFlag\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "schemaIssueFlag_schemaRevisionId_fkey",
+        "table": "schemaIssueFlag"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"schemaIssueFlag_schemaRevisionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaIssueFlag_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"schemaIssueFlag\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"schemaIssueFlag_schemaRevisionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"schemaIssueFlag\"\nADD CONSTRAINT \"schemaIssueFlag_schemaRevisionId_fkey\"\nFOREIGN KEY (\"schemaRevisionId\")\nREFERENCES \"public\".\"schemaRevision\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"schemaIssueFlag_schemaRevisionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaIssueFlag_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"schemaIssueFlag\""
+        ]
+      }
+    ]
+  }
+]

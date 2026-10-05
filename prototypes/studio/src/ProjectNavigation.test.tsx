@@ -248,6 +248,7 @@ function projectSummary(
     reviewedSourceDocumentCount: number
     staleSourceDocumentCount: number
     schemaDraftCount: number
+    schemaStabilised: boolean
     lastActivityAt: string
     runningBatch: { completedMemberCount: number; memberCount: number } | null
   }> = {},
@@ -259,6 +260,7 @@ function projectSummary(
     reviewedSourceDocumentCount: 0,
     staleSourceDocumentCount: 0,
     schemaDraftCount: 0,
+    schemaStabilised: false,
     lastActivityAt: project.createdAt,
     runningBatch: null,
     ...overrides,
@@ -308,6 +310,8 @@ function studioFetch(
       return Response.json({ batchExtractions: [] })
     if (url.startsWith('/api/batch-schema-suggestions?'))
       return Response.json({ batchSchemaSuggestions: [] })
+    if (url.startsWith('/api/project-spreadsheets?'))
+      return Response.json({ projectSpreadsheetVersion: null })
     if (url.endsWith(projectContextId)) return Response.json(branch)
     return projectListResponse([project])
   })
@@ -594,7 +598,7 @@ describe('Studio home', () => {
     const chatting = within(
       await home().findByRole('button', { name: 'Chatting' }),
     )
-    expect(chatting.getByText('Schema Chat')).toBeInTheDocument()
+    expect(chatting.getByText('Create schema')).toBeInTheDocument()
 
     const running = within(home().getByRole('button', { name: 'Running' }))
     expect(running.getByText('Extraction running')).toBeInTheDocument()
@@ -1221,11 +1225,15 @@ describe('Project Context navigation', () => {
     expect(sourceNames()).toHaveLength(1)
     expect(sourceNames()[0]).toContain('Historical.pdf')
 
+    // Sources is first in tab order (docs -> schema -> extraction), so the
+    // next tab over is Schemas.
     fireEvent.keyDown(within(page).getByRole('tab', { name: 'Sources' }), {
-      key: 'ArrowLeft',
+      key: 'ArrowRight',
     })
     expect(within(page).getByRole('tab', { name: 'Schemas' })).toHaveFocus()
-    expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
+    expect(
+      await within(page).findByText('Build your schema from a document'),
+    ).toBeInTheDocument()
     expect(
       within(page).getByRole('tabpanel', { name: 'Schemas' }),
     ).toHaveAttribute('tabindex', '0')
@@ -1245,7 +1253,9 @@ describe('Project Context navigation', () => {
       'aria-selected',
       'true',
     )
-    expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
+    expect(
+      await within(page).findByText('Build your schema from a document'),
+    ).toBeInTheDocument()
     expect(
       within(page).queryByLabelText('Filter sources'),
     ).not.toBeInTheDocument()
@@ -1259,7 +1269,7 @@ describe('Project Context navigation', () => {
     fireEvent.click(within(page).getByRole('tab', { name: 'Extractions' }))
     expect(location.pathname).toBe(`/projects/${projectContextId}/extractions`)
     expect(
-      await within(page).findByText('No Batch Extractions yet.'),
+      await within(page).findByText(/No Batch Extractions yet\./),
     ).toBeInTheDocument()
 
     // Reselecting the open tab must not push an entry Back would have to undo.
@@ -1273,7 +1283,9 @@ describe('Project Context navigation', () => {
 
     back(`/projects/${projectContextId}/schemas`)
     await within(page).findByRole('tab', { name: 'Schemas', selected: true })
-    expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
+    expect(
+      await within(page).findByText('Build your schema from a document'),
+    ).toBeInTheDocument()
   })
 
   it('opens the Sources tab for a Source Document list path', async () => {
@@ -1370,10 +1382,12 @@ describe('Project Context navigation', () => {
 
     const page = await openProjectPage()
     fireEvent.click(within(page).getByRole('tab', { name: 'Schemas' }))
-    expect(await within(page).findByText('Loading schemas…')).toBeInTheDocument()
 
     pending.resolve(
       failureResponse('persistence_unavailable', 'Schema storage is unavailable.', 503),
+    )
+    fireEvent.click(
+      await within(page).findByRole('button', { name: 'Schema history' }),
     )
     expect(await within(page).findByRole('alert')).toHaveTextContent(
       'Could not load schemas. persistence_unavailable: Schema storage is unavailable.',
@@ -1438,6 +1452,9 @@ describe('Project Context navigation', () => {
     const page = await screen.findByRole('region', { name: 'Project' })
     await within(page).findByRole('heading', { name: project.name })
     fireEvent.click(within(page).getByRole('tab', { name: 'Schemas' }))
+    fireEvent.click(
+      await within(page).findByRole('button', { name: 'Schema history' }),
+    )
     await within(page).findByText('Places')
     fireEvent.click(
       within(page).getByRole('button', { name: 'Rename schema Places' }),

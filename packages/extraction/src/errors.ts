@@ -16,6 +16,10 @@ export type ExtractionErrorCode =
   | 'batch_conflict'
   | 'batch_not_ready'
   | 'batch_failed'
+  /** The Schema Revision has no reviewed pilot Extraction yet, so it cannot be stabilised for a collection run. */
+  | 'schema_not_ready_to_stabilise'
+  /** The Schema Revision is not stabilised, so a collection-scale Batch Extraction may not run against it. */
+  | 'schema_not_stabilised'
   | 'catalog_discovery_failed'
   | 'catalog_no_records'
   | 'cancelled'

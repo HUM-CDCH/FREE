@@ -354,6 +354,7 @@ export type ReviewDraft = Readonly<{
 
 export type BatchExtractionMemberSnapshot = Readonly<{
   durableExtractionId?:string
+  durableReview?: Readonly<{snapshotVersion:number;feedbackVersion:number;createdAt:Date;schemaRevisionId:string}>
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   executionStatus: ExtractionExecutionStatus
@@ -405,6 +406,16 @@ export type ScheduleSuggestedBatchInput = Readonly<{
 export type ScheduleBatchResult = Readonly<{
   disposition: BatchDisposition
   batch: BatchExtractionSnapshot
+}>
+
+export type StabiliseSchemaRevisionInput = Readonly<{
+  projectContextId: string
+  schemaRevisionId: string
+}>
+
+export type StabiliseSchemaRevisionResult = Readonly<{
+  schemaRevisionId: string
+  stabilisedAt: string
 }>
 
 export type ListBatchesInput = Readonly<{
@@ -459,6 +470,9 @@ export interface ExtractionModule {
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult>
   scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult>
+  /** Marks a piloted Schema Revision stabilised, unlocking collection-scale Batch Extraction against it.
+   *  Requires at least one already-reviewed pilot Extraction against that revision. */
+  stabiliseSchemaRevision(input: StabiliseSchemaRevisionInput): Promise<StabiliseSchemaRevisionResult>
   listBatches(input: ListBatchesInput): Promise<readonly BatchExtractionSnapshot[]>
   readBatch(input: ReadBatchInput): Promise<BatchExtractionSnapshot>
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults>

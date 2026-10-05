@@ -13,6 +13,7 @@ const OPERATION = '51000000-0000-4000-8009-0000000000f1'
 const revision: SchemaRevisionRecord = {
   schemaRevisionId: SCHEMA_REVISION, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'researcher-edit',
   schemaTree: { recordDescription: 'One report.', schemaNodes: [] }, recordScope: 'document', createdAt: new Date('2026-08-01T12:00:00.000Z'),
+  stabilisedAt: null,
 }
 const PROPOSED = { status: 'proposed', fields: {}, additions: [], issues: [] }
 type Store = Pick<ResearcherProjectStore, 'researcherAccountId' | 'getSourceRepresentation' | 'getSchemaRevision'>

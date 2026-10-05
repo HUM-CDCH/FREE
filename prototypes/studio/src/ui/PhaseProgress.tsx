@@ -1,13 +1,10 @@
 import type { ReactNode } from 'react'
-
-export type WorkflowPhase =
-  | 'ingest'
-  | 'chat'
-  | 'approve'
-  | 'extract'
-  | 'validate'
-
-export type PhaseProgressTone = 'progress' | 'running' | 'validated' | 'stale'
+import {
+  phaseLabels,
+  phaseOrder,
+  type PhaseProgressTone,
+  type WorkflowPhase,
+} from './workflowPhases'
 
 export type PhaseProgressProps = {
   phase: WorkflowPhase
@@ -18,22 +15,6 @@ export type PhaseProgressProps = {
   /** Small right-hand text, e.g. a `<time>` reading "12 Aug 2026". Running shows its count instead. */
   timestamp?: ReactNode
   className?: string
-}
-
-const phaseOrder: readonly WorkflowPhase[] = [
-  'ingest',
-  'chat',
-  'approve',
-  'extract',
-  'validate',
-]
-
-const phaseLabels: Record<WorkflowPhase, string> = {
-  ingest: 'Ingest',
-  chat: 'Schema Chat',
-  approve: 'Approve schema',
-  extract: 'Extract',
-  validate: 'Validate',
 }
 
 /**

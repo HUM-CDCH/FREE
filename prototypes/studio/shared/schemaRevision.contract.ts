@@ -23,6 +23,11 @@ export const schemaRevisionSchema = z
     revisionNumber: z.number().int().positive(),
     origin: schemaRevisionOriginSchema,
     createdAt: timestamp,
+    /** Null while this revision is still in the piloting state; set once a
+     *  researcher stabilises it (guided-workflow-phases). Reads as null when
+     *  absent, so a revision read from a deployment that predates the column
+     *  is simply unstabilised rather than unreadable. */
+    stabilisedAt: timestamp.nullable().default(null),
     recordDescription: recordDescriptionSchema,
     /**
      * The definition's task scope, the one authority for Article (`document`: one document-level object) or Catalog

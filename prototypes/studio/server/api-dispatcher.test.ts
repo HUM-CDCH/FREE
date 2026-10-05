@@ -47,6 +47,7 @@ describe('eager API dispatcher', () => {
       extractions: scopedModule(),
       batch_extractions: scopedModule(),
       batch_schema_suggestions: scopedModule(),
+      project_spreadsheets: scopedModule(),
       source_representations: scopedModule(),
       model_operations: scopedModule(),
     })
@@ -90,6 +91,11 @@ describe('eager API dispatcher', () => {
         '/api/batch-schema-suggestions/suggestion/retry',
         'batch_schema_suggestions',
       ],
+      [
+        '/api/batch-schema-suggestions/from-spreadsheet',
+        'batch_schema_suggestions',
+      ],
+      ['/api/project-spreadsheets', 'project_spreadsheets'],
       [
         '/api/project-contexts/project/source-representations/representation/pdf',
         'source_representations',

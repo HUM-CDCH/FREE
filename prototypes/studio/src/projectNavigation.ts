@@ -18,7 +18,18 @@ import { browserStudioPath } from './studioUrl.js'
 export type ProjectResource =
   | { tab: 'sources' }
   | { tab: 'schemas' }
-  | { tab: 'extractions'; batchExtractionId?: string; view?: 'grid' }
+  | {
+      tab: 'extractions'
+      batchExtractionId?: string
+      view?: 'grid'
+      /** Set right after approving a Schema Revision from the document
+       *  workspace, so the Extractions tab opens straight into "Pilot
+       *  Extraction" — a small Source Document selection pre-picked, on this
+       *  exact Revision — instead of the researcher having to find and
+       *  re-pick it from the history screen. Pure navigation metadata —
+       *  never affects which Batch Extractions are fetched. */
+      pilotSchemaRevisionId?: string
+    }
 
 export type ProjectRoute = {
   kind: 'project'
@@ -37,6 +48,12 @@ export type Route =
        *  document view can offer a direct way back to it. Pure navigation
        *  metadata — never affects which document snapshot is fetched. */
       fromBatchExtractionId?: string
+      /** Set when the Project Context page's "Build your schema from a
+       *  document" picker opened this document, so the document view can
+       *  offer a way back to the project's Schemas tab once a schema is
+       *  saved. Pure navigation metadata — never affects which document
+       *  snapshot is fetched. */
+      fromSchemaBuilder?: boolean
     }
   | { kind: 'badReference' }
 
@@ -107,14 +124,19 @@ export function parseRoute(pathname: string, search = ''): Route {
   )
   if (extractions) {
     const [, projectContextId, batchExtractionId] = extractions
+    const params = new URLSearchParams(search || inlineSearch)
+    const pilotSchemaRevisionId = params.get('pilotSchemaRevisionId')
     return canonicalUuidSchema.safeParse(projectContextId).success &&
       (batchExtractionId === undefined ||
-        canonicalUuidSchema.safeParse(batchExtractionId).success)
+        canonicalUuidSchema.safeParse(batchExtractionId).success) &&
+      (pilotSchemaRevisionId === null ||
+        canonicalUuidSchema.safeParse(pilotSchemaRevisionId).success)
       ? {
           kind: 'project',
           projectContextId,
           tab: 'extractions',
           ...(batchExtractionId ? { batchExtractionId } : {}),
+          ...(pilotSchemaRevisionId ? { pilotSchemaRevisionId } : {}),
         }
       : { kind: 'badReference' }
   }
@@ -126,6 +148,7 @@ export function parseRoute(pathname: string, search = ''): Route {
     const params = new URLSearchParams(search || inlineSearch)
     const extractionId = params.get('extractionId')
     const fromBatchExtractionId = params.get('fromBatchExtractionId')
+    const fromSchemaBuilder = params.get('fromSchemaBuilder') === '1'
     return canonicalUuidSchema.safeParse(projectContextId).success &&
       canonicalUuidSchema.safeParse(sourceDocumentId).success &&
       (extractionId === null || canonicalUuidSchema.safeParse(extractionId).success) &&
@@ -137,6 +160,7 @@ export function parseRoute(pathname: string, search = ''): Route {
           sourceDocumentId,
           ...(extractionId ? { extractionId } : {}),
           ...(fromBatchExtractionId ? { fromBatchExtractionId } : {}),
+          ...(fromSchemaBuilder ? { fromSchemaBuilder: true } : {}),
         }
       : { kind: 'badReference' }
   }
@@ -155,14 +179,22 @@ export function href(route: NavigableRoute): string {
       ...(route.fromBatchExtractionId
         ? { fromBatchExtractionId: route.fromBatchExtractionId }
         : {}),
+      ...(route.fromSchemaBuilder ? { fromSchemaBuilder: '1' } : {}),
     })
     return `${project}/documents/${route.sourceDocumentId}${params.size ? `?${params}` : ''}`
   }
   if (route.tab === 'sources') return project
   if (route.tab === 'schemas') return `${project}/schemas`
+  const params = new URLSearchParams({
+    ...(route.pilotSchemaRevisionId
+      ? { pilotSchemaRevisionId: route.pilotSchemaRevisionId }
+      : {}),
+  })
   return `${project}/extractions${
     route.batchExtractionId ? `/${route.batchExtractionId}` : ''
-  }${route.batchExtractionId && route.view === 'grid' ? '/review' : ''}`
+  }${route.batchExtractionId && route.view === 'grid' ? '/review' : ''}${
+    params.size ? `?${params}` : ''
+  }`
 }
 
 /** Only `opening` reads, and `routing` holds document routes until containment. */

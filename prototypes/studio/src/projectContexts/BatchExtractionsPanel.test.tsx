@@ -13,6 +13,7 @@ import {
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { exportBatchExtractionResults } from 'extraction-result-export'
+import { PILOT_BATCH_SELECTION_LIMIT } from '../../shared/batchExtraction.contract'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
 import type { NavigableRoute } from '../projectNavigation'
 import {
@@ -126,6 +127,7 @@ const chosenRevision = (recordScope: 'document' | 'records' | null = 'document')
   createdAt: '2026-08-14T10:00:00.000Z',
   recordDescription: 'One place record.',
   recordScope,
+  stabilisedAt: null as string | null,
   schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
 })
 
@@ -178,6 +180,10 @@ function readySuggestion(overrides: Record<string, unknown> = {}) {
     attempt: 1,
     executionStatus: 'COMPLETED',
     phase: 'READY',
+    sourceKind: 'DOCUMENTS',
+    purpose: null,
+    columnFieldMapping: null,
+    projectSpreadsheetVersionId: null,
     proposal: suggestedDefinition,
     sourceCoverage: null,
     draft: suggestedDefinition,
@@ -220,6 +226,7 @@ function RoutedPanel({
       sourceDocuments={sourceDocuments}
       openBatchExtractionId={open}
       openBatchExtractionView={view}
+      pilotSchemaRevisionId={null}
       onNavigate={(route) => {
         if (route.kind === 'project' && route.tab === 'extractions') {
           setOpen(route.batchExtractionId ?? null)
@@ -356,6 +363,7 @@ describe('BatchExtractionsPanel', () => {
             revisionNumber: 1,
             origin: 'researcher-edit',
             createdAt: '2026-08-14T10:00:00.000Z',
+            stabilisedAt: null,
             recordDescription: 'One record.',
             recordScope: 'document',
             schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
@@ -446,7 +454,14 @@ describe('BatchExtractionsPanel', () => {
               },
             ],
           })
-        const chosen = chosenSchemaRead(url)
+        // Stabilised, so this test's 50/51 boundary is the only thing
+        // gating Run — independent of the newer stabilise-for-collection-
+        // scale rule (guided-workflow-phases), which is exercised by its
+        // own tests instead.
+        const chosen = chosenSchemaRead(url, {
+          ...chosenRevision(),
+          stabilisedAt: '2026-08-14T10:00:00.000Z',
+        })
         if (chosen) return chosen
         throw new Error(`Unexpected request: ${url}`)
       }),
@@ -456,6 +471,10 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
     const checkboxes = await screen.findAllByRole('checkbox')
     expect(checkboxes).toHaveLength(51)
+    // The chosen Schema Revision (stabilised, per this fixture) loads
+    // independently of the document checkboxes; wait for it so the later
+    // Run-enabled assertions aren't racing that fetch.
+    await screen.findByText(/This schema is approved for batch extraction/)
     expect(screen.getByText(/takes at most 50/)).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Run 51 Source Documents' }),
@@ -475,6 +494,177 @@ describe('BatchExtractionsPanel', () => {
     expect(
       screen.getByRole('button', { name: 'Suggest common fields' }),
     ).toBeDisabled()
+  })
+
+  it('pre-selects a schema and up to 3 Source Documents when starting a Pilot Extraction', async () => {
+    const manyDocuments = Array.from({ length: 6 }, (_, index) => ({
+      sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
+      name: `Source ${String(index + 1).padStart(2, '0')}.pdf`,
+      pageCount: 1,
+    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+          return response({
+            revision: {
+              schemaRevisionId,
+              extractionSchemaId: batch.extractionSchemaId,
+              revisionNumber: 1,
+              origin: 'researcher-edit',
+              createdAt: '2026-08-14T10:00:00.000Z',
+              stabilisedAt: null,
+              recordDescription: 'One place record.',
+              schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+            },
+          })
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel(vi.fn(), null, manyDocuments)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pilot Extraction' }))
+    expect(await screen.findAllByRole('checkbox')).toHaveLength(6)
+    expect(screen.getByText('3 selected')).toBeInTheDocument()
+    // The checkbox's accessible name includes the trailing page-count text
+    // ("Source 01.pdf 1 page"), so these match on the filename prefix.
+    for (const name of [/^Source 01\.pdf/, /^Source 02\.pdf/, /^Source 03\.pdf/])
+      expect(screen.getByRole('checkbox', { name })).toBeChecked()
+    for (const name of [/^Source 04\.pdf/, /^Source 05\.pdf/, /^Source 06\.pdf/])
+      expect(screen.getByRole('checkbox', { name })).not.toBeChecked()
+    expect(
+      within(screen.getByLabelText('Extraction Schema')).getByRole('option', {
+        name: /Places/,
+        selected: true,
+      }),
+    ).toBeInTheDocument()
+
+    // Still free to change: unchecking one and checking another works
+    // exactly like the manual selection flow.
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Source 01\.pdf/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Source 04\.pdf/ }))
+    expect(screen.getByText('3 selected')).toBeInTheDocument()
+  })
+
+  it('disables Run for a collection-scale selection against an unstabilised Schema Revision, and enables it once stabilised', async () => {
+    const manyDocuments = Array.from(
+      { length: PILOT_BATCH_SELECTION_LIMIT + 1 },
+      (_, index) => ({
+        sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
+        name: `Source ${String(index + 1).padStart(2, '0')}.pdf`,
+        pageCount: 1,
+      }),
+    )
+    let stabilisedAt: string | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+          return response({
+            revision: {
+              schemaRevisionId,
+              extractionSchemaId: batch.extractionSchemaId,
+              revisionNumber: 1,
+              origin: 'researcher-edit',
+              createdAt: '2026-08-14T10:00:00.000Z',
+              stabilisedAt,
+              recordDescription: 'One place record.',
+              recordScope: 'document',
+              schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+            },
+          })
+        if (url === '/api/stabilise_schema_revision') {
+          stabilisedAt = '2026-08-14T11:00:00.000Z'
+          return response({ schemaRevisionId, stabilisedAt })
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel(vi.fn(), null, manyDocuments)
+
+    // "New Batch Extraction" pre-selects every Source Document, which is
+    // already over the pilot limit for this fixture.
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await screen.findAllByRole('checkbox')
+    const selectionCount = manyDocuments.length
+    expect(
+      await screen.findByText(/isn.t approved for batch extraction yet/),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', {
+        name: `Run ${selectionCount} Source Documents`,
+      }),
+    ).toBeDisabled()
+
+    // Deselecting down to a pilot-sized selection re-enables Run without
+    // needing the schema to be stabilised.
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /^Source 06\.pdf/ }),
+    )
+    expect(
+      screen.getByRole('button', {
+        name: `Run ${selectionCount - 1} Source Documents`,
+      }),
+    ).toBeEnabled()
+
+    // Re-select the full set, then approve for batch extraction — Run
+    // enables at the collection scale too, without changing the selection.
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /^Source 06\.pdf/ }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Approve for batch extraction' }),
+    )
+    expect(
+      await screen.findByText(/is approved for batch extraction/),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', {
+        name: `Run ${selectionCount} Source Documents`,
+      }),
+    ).toBeEnabled()
   })
 
   it('selects every source document by default and toggles the full selection', async () => {
@@ -531,6 +721,7 @@ describe('BatchExtractionsPanel', () => {
               revisionNumber: 2,
               origin: 'researcher-edit',
               createdAt: '2026-08-14T10:01:00.000Z',
+              stabilisedAt: null,
               recordDescription: definition.recordDescription,
               recordScope: definition.recordScope ?? 'document',
               schemaNodes: definition.schemaNodes,
@@ -570,6 +761,7 @@ describe('BatchExtractionsPanel', () => {
               revisionNumber: 1,
               origin: 'researcher-edit',
               createdAt: '2026-08-14T10:00:00.000Z',
+              stabilisedAt: null,
               recordDescription: 'One place record.',
               recordScope: 'document',
               schemaNodes: [
@@ -2128,8 +2320,10 @@ describe('BatchExtractionsPanel', () => {
     const sourcesHeading = screen.getByRole('heading', {
       name: 'Source Documents',
     })
+    // Source Documents now comes before the Extraction Schema picker (and so
+    // before whatever schema-slot content it drives), not after.
     expect(
-      suggested.compareDocumentPosition(sourcesHeading) &
+      sourcesHeading.compareDocumentPosition(suggested) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
 
@@ -2535,6 +2729,7 @@ describe('BatchExtractionsPanel', () => {
       revisionNumber: 1,
       origin: 'researcher-edit',
       createdAt: '2026-08-14T10:00:00.000Z',
+      stabilisedAt: null,
       recordDescription: 'One place record.',
       recordScope: 'document',
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
@@ -2628,6 +2823,7 @@ describe('BatchExtractionsPanel', () => {
             revisionNumber: 1,
             origin: 'researcher-edit',
             createdAt: '2026-08-14T10:00:00.000Z',
+            stabilisedAt: null,
             recordDescription: 'One place record.',
             recordScope: 'document',
             schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
@@ -2672,6 +2868,7 @@ describe('BatchExtractionsPanel', () => {
       revisionNumber: 1,
       origin: 'researcher-edit',
       createdAt: '2026-08-14T10:00:00.000Z',
+      stabilisedAt: null,
       recordDescription: 'One place record.',
       recordScope: 'document',
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
@@ -2818,6 +3015,7 @@ describe('BatchExtractionsPanel', () => {
       revisionNumber: 1,
       origin: 'researcher-edit',
       createdAt: '2026-08-14T10:00:00.000Z',
+      stabilisedAt: null,
       recordDescription: 'One place record.',
       recordScope: 'document',
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
@@ -2888,6 +3086,7 @@ describe('BatchExtractionsPanel', () => {
             revisionNumber: 1,
             origin: 'researcher-edit',
             createdAt: '2026-08-14T10:00:00.000Z',
+            stabilisedAt: null,
             recordDescription: 'One place record.',
             recordScope: 'document',
             schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],

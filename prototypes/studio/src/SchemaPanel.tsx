@@ -99,6 +99,12 @@ export type SchemaPanelProps = {
     onChange: (id: string) => void
     disabled?: boolean
   } | null
+  /** Seeds the chat draft with context handed off from elsewhere (e.g. a
+   *  flagged field in the review grid — schema-issue-flagging). Applied once
+   *  per distinct value, then `onChatDraftConsumed` fires so the caller can
+   *  clear it without the panel re-seeding on its own re-renders. */
+  initialChatDraft?: string | null
+  onChatDraftConsumed?: () => void
 }
 
 type DragState = {
@@ -389,6 +395,8 @@ function SchemaPanel({
   fieldContext = null,
   recordScope,
   boundaries,
+  initialChatDraft,
+  onChatDraftConsumed,
 }: SchemaPanelProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const nodes =
@@ -435,6 +443,14 @@ function SchemaPanel({
     chatAbortRef.current?.abort()
     chatAbortRef.current = null
   }, [])
+  useEffect(() => {
+    if (!initialChatDraft) return
+    setChatInput(initialChatDraft)
+    onChatDraftConsumed?.()
+    // Fires once per distinct draft value; `onChatDraftConsumed` clears the
+    // caller's state so this effect doesn't re-seed on unrelated re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialChatDraft])
   const [view, setView] = useState<'fields' | 'code'>('fields')
   /** Groups the researcher closed. Every other group shows its children, wherever it first appears (§6). */
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())

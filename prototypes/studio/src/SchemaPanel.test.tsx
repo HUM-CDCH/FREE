@@ -52,6 +52,7 @@ const schemaHistory: SchemaRevisionSummary[] = [
     origin: 'researcher-edit',
     createdAt: '2026-08-01T12:01:00.000Z',
     recordScope: 'document',
+    stabilisedAt: null,
     summary: '1 renamed',
   },
   {
@@ -61,6 +62,7 @@ const schemaHistory: SchemaRevisionSummary[] = [
     origin: 'suggestion',
     recordScope: null,
     createdAt: '2026-08-01T12:00:00.000Z',
+    stabilisedAt: null,
     summary: 'Initial schema',
   },
 ]
@@ -1510,6 +1512,7 @@ describe('SchemaPanel conflict recovery', () => {
       revisionNumber: 2,
       origin: 'researcher-edit',
       createdAt: '2026-08-01T12:01:00.000Z',
+      stabilisedAt: null,
       recordDescription: 'One rival record.',
       schemaNodes: [{ id: 'rival', name: 'rival', type: 'string' }],
     }

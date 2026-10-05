@@ -65,6 +65,9 @@ type UseExtractionOptions = {
   /** Admission refused the run's method or scope (`code`: a changed saved method, a pending migration, a record-scope
    *  refusal): nothing started. The caller re-reads the saved method on `METHOD_CHANGED`. */
   onMethodChanged?: (message: string, code: string) => void
+  /** Fired once a review is finalized (accepted) — the caller's cue that
+   *  this can move the project's workflow phase (extract -> validate). */
+  onReviewAccepted?: () => void
   initialAttempt?: ExtractionAttempt | null
   reviewTarget?: ReviewTarget | null
   /**
@@ -185,6 +188,7 @@ export function useExtraction({
   onError,
   onSuperseded,
   onMethodChanged,
+  onReviewAccepted,
   initialAttempt = null,
   reviewTarget = null,
   documentKey = '',
@@ -738,6 +742,7 @@ export function useExtraction({
       forgetReviewDraft(attempt.extractionId)
       setDraftError(null)
       setAttempt(finalized)
+      onReviewAccepted?.()
       return true
     } catch (error) {
       if (saveScopeRef.current !== scope) return false
