@@ -1351,7 +1351,7 @@ test('import → whole source → review → collection review @deterministic', 
   await page.goto(e2eStudioPath(`/projects/${projectContextId}/extractions`))
   await page.getByRole('button', { name: 'New Batch Extraction' }).click()
   await page.getByRole('button', { name: 'Run 1 Source Document', exact: true }).click()
-  const completion = page.getByRole('dialog', { name: 'Batch Extraction finished' })
+  const completion = page.getByRole('dialog', { name: 'Pilot Extraction finished' })
   await expect(completion).toBeVisible({ timeout: 20_000 })
   await completion.getByRole('button', { name: 'Review now', exact: true }).click()
   // Finalize waits while anything is pending. Every fixture value is grounded, so the grid saves the member review
