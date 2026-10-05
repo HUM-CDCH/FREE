@@ -14,10 +14,16 @@
 - [x] 2.6 Local unit/component tests, typechecks and eslint pass for the above (session 3, 2026-10-05)
 - [x] 2.7 Project summaries count a finalized Extraction as extracted and reviewed whatever its processing state
 
-## 3. Infrastructure acceptance (not run; required before archive)
+- [x] 2.8 Remove the complete admission gate and its refusal API/UI handling
+- [x] 2.9 Verify successful single and batch admission, replay and enqueue rollback in PostgreSQL
+- [ ] 2.10 Verify late save responses, both Latest reviewed routes and older-pair finalization in the browser
 
-- [ ] 3.1 `packages/extraction` and `packages/db` `test:postgres`, including `durable-readers.postgres.check.ts` and `durable-control.postgres.check.ts`
+- [x] 2.11 Initialize worker coordination before DBOS launch and close it before process exit
+
+## 3. Infrastructure acceptance (required before archive)
+
+- [x] 3.1 `packages/extraction` and `packages/db` `test:postgres`, including `durable-readers.postgres.check.ts` and `durable-control.postgres.check.ts`
 - [ ] 3.2 Studio PostgreSQL tests and Playwright e2e on the durable routes (`durable-service.spec.ts`)
-- [ ] 3.3 Root `pnpm test:system` and `pnpm test:safety` against Compose
-- [ ] 3.4 Spark acceptance with admissions still OFF, recorded on an exact commit
+- [x] 3.3 Root `pnpm test:system` and `pnpm test:safety` against Compose
+- [ ] 3.4 Spark acceptance recorded on an exact commit (not authorized in this follow-up)
 - [ ] 3.5 Independent review of the exact commit; archive this change only after 3.1–3.4 pass, with `openspec archive durable-only-extraction-review --skip-specs` (the main specs are already synced; re-applying the REMOVED deltas would fail)

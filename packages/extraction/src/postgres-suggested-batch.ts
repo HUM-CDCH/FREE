@@ -12,7 +12,6 @@ import { ExtractionError } from './errors.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import {
   METHOD_CHANGED_MESSAGE,
-  refuseDisabledAdmission,
   type AdmitBatchMember,
   type refuseUnusableIdentityFields,
   type savedMethodStillCurrent,
@@ -77,7 +76,6 @@ export async function persistSuggestedBatch(
     snapshot: (batch: DurableBatchExtraction) => ScheduleBatchResult['batch']
   }>,
 ): Promise<ScheduleBatchResult | null> {
-  refuseDisabledAdmission()
   const { execution, admitBatchMember, loadBatch, replayed, semanticSuggestionTree, snapshot } = helpers
   // A malformed intent is refused before any lock. A batch has no recipe, so Catalog uses the generic settings.
   const method = canonicalIntent(input.method, input.strategy, null)

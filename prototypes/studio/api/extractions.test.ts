@@ -146,7 +146,6 @@ describe('/api/extractions transport', () => {
   })
 
   it.each([
-    ['extraction_admissions_disabled', 409],
     ['method_changed', 409],
     ['catalog_migration_required', 409],
     ['record_scope_required', 409],
@@ -296,16 +295,12 @@ describe('/api/extractions transport', () => {
     })
   })
 
-  it('refuses a new Extraction while durable admissions are disabled, with nothing started', async () => {
-    const module = extractionModule({
-      runSingle: vi.fn<ExtractionModule['runSingle']>().mockRejectedValue(new ExtractionError('extraction_admissions_disabled',
-        'Starting new Extractions is unavailable until the durable extraction release is verified. Nothing was started; saved Extractions remain available.')),
-    })
+  it('admits a new durable Extraction and returns its saved identity', async () => {
+    const module = extractionModule()
     const response = await handlerFor(module)(request(fresh))
-    // A definite refusal, never the retryable outage answer an uncertain admission gets.
-    expect(response.status).toBe(409)
-    expect(await response.json()).toEqual({ error: { code: 'extraction_admissions_disabled',
-      message: 'Starting new Extractions is unavailable until the durable extraction release is verified. Nothing was started; saved Extractions remain available.' } })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ extractionId: fresh.id, executionStatus: 'QUEUED' })
+    expect(module.runSingle).toHaveBeenCalledOnce()
   })
 
   it('reads one durable Extraction, and answers a missing or another researcher\'s one as not found', async () => {

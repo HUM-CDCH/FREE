@@ -325,8 +325,11 @@ Protocol 1's explicitly named `extractDurableV1`, `extractionCallV1` and
 `deleteDurableHistoryV1` workflows run on the kei-extract and kei-gc lanes; with
 `convert` and `deleteRuns` they are everything the worker registers. The
 non-durable `extract` workflow, its artifact and progress routes and its stage
-files were removed (ADR 0017, durable-only amendment). Admissions stay disabled in Studio pending the full
-[release matrix](../../docs/plans/2026-10-04-durable-interactive-extraction-release.md).
+files were removed (ADR 0017, durable-only amendment). Studio admits new durable
+Extractions directly. Admission commits the Extraction, its coordination head
+and its dispatch workflow together. The current follow-up must pass its own
+[release checks](../../openspec/changes/durable-only-extraction-review/tasks.md)
+before deployment.
 
 The worker uses a separate pool of at most four short routine calls against
 `extraction_runtime`, through an explicit allowlist. Its restricted role cannot

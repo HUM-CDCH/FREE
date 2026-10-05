@@ -2,7 +2,7 @@ import { ExtractionError } from 'extraction'
 import { ApiError } from './_http.js'
 
 /**
- * How a start answers admission's refusal, single, batch and suggested batch alike: disabled admissions, a stale start view, or a
+ * How a start answers admission's refusal, single, batch and suggested batch alike: a stale start view or a
  * strategy the schema's saved record scope does not name, is a refreshable conflict, identity fields the pinned schema
  * cannot key records by are the researcher's to change, and a saved configuration admission cannot read is a server
  * fault whose contents are never echoed. Null for any other error, which the route maps itself.
@@ -10,9 +10,6 @@ import { ApiError } from './_http.js'
 export function methodRefusal(error: unknown): ApiError | null {
   if (!(error instanceof ExtractionError)) return null
   switch (error.code) {
-    // The hard durable admission gate is off: a definite refusal with nothing written, never a retryable outage.
-    case 'extraction_admissions_disabled':
-      return new ApiError(409, 'extraction_admissions_disabled', error.message, { cause: error })
     case 'method_changed':
       return new ApiError(409, 'method_changed', error.message, { cause: error })
     // Legacy Catalog preferences wait for the researcher's explicit migration: refreshable once it is applied.

@@ -8,6 +8,7 @@ import {
 } from '../../../packages/db/src/project-store.js'
 import { createGetDocumentReopen } from '../api/document_reopen.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
+import { batchExtractionSchema } from '../shared/batchExtraction.contract.js'
 import {
   DEMO_DOCUMENT_ID,
   DEMO_PROJECT_ID,
@@ -920,7 +921,7 @@ test.describe('rail navigation', () => {
   }) => {
     await stubStudio(page)
     const BATCH = '00000000-0000-4000-8000-0000000001b1'
-    const batchExtraction = {
+    const batchExtraction = batchExtractionSchema.parse({
       batchExtractionId: BATCH,
       projectContextId: ELLEKILDE,
       schemaRevisionId: '00000000-0000-4000-8000-0000000001b2',
@@ -932,14 +933,15 @@ test.describe('rail navigation', () => {
       createdAt: '2026-08-14T10:42:00.000Z',
       members: [
         {
+          extractionId: '00000000-0000-4000-8000-0000000001b4',
           sourceDocumentId: BERETNING,
           sourceRepresentationRevisionId: REPRESENTATIONS[BERETNING],
           executionStatus: 'COMPLETED',
-          executionFailureMessage: null,
-          latestExtraction: null,
+          reviewable: false,
+          currentReview: null,
         },
       ],
-    }
+    })
     // The resource tabs read past the persisted Project Context reads that
     // `stubStudio` composes, so each answers its own empty or seeded list.
     await page.route('**/api/extraction-schemas**', (route) =>

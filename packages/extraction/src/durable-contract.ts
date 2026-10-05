@@ -3,10 +3,6 @@ import { schemaNodeSchema } from './schema.js'
 import { evidenceAnchorIdOf, evidenceSchema, groundedEvidenceSchema, unifiedEvidenceSchema } from './kei-evidence.js'
 
 export const DURABLE_EXTRACTION_PROTOCOL = 1 as const
-// Exposure is deliberately OFF. Completing a release matrix is an operator
-// action; loading new readers or starting DBOS cannot enable admissions.
-export const DURABLE_RELEASE_VERIFIED = false
-export const durableAdmissionsEnabled = () => DURABLE_RELEASE_VERIFIED && process.env.FREE_DURABLE_EXTRACTION_ADMISSIONS === '1'
 export const durableCommandSchema = z.object({
   id: z.uuid(), expectedVersion: z.number().int().nonnegative(),
   action: z.enum(['pause', 'resume', 'stop', 'retry', 'editing', 'discard']),

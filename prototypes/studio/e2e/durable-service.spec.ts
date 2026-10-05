@@ -3,7 +3,7 @@ import {readFile,writeFile} from 'node:fs/promises'
 import {expect,test,type Page} from '@playwright/test'
 import {strFromU8,unzipSync} from 'fflate'
 import {withPoolClientTransaction} from 'db'
-import {initializeDurableExtraction,DURABLE_RELEASE_VERIFIED} from 'extraction/durable'
+import {initializeDurableExtraction} from 'extraction/durable'
 import type {SchemaNode} from 'extraction/schema'
 import {E2E_ORIGIN,loginResearcher} from './auth.js'
 import {cataloguePdf,numberedCataloguePdf,startRealService} from './realService.js'
@@ -32,7 +32,7 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
   const settings={[method]:method==='unified'?{defaults:1}:method==='article'&&options.articleContext
     ?{context:options.articleContext,context_tokens:8192}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
-  // its owned guarded stack. Use the normal initializer with admission OFF.
+  // its owned guarded stack. Use the normal initializer to seed saved producer data.
   await withPoolClientTransaction(async(_tx,client)=>{
     const representation=(await client.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1',[sourceRevisionId])).rows[0]
     await client.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"catalogRecipe","requestedModels","requestedSettings") VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -48,7 +48,6 @@ for(const method of methods) {
     // The counted hold belongs to the deterministic provider. Real-model
     // interoperability is a separate run without exact answer/count assertions.
     test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'The drain assertion needs the counted provider hold.')
-    expect(DURABLE_RELEASE_VERIFIED).toBe(false)
     const service=await startRealService(testInfo.outputPath('durable-worker.log'))
     try {
       await loginResearcher(page,randomUUID())
@@ -300,7 +299,6 @@ for(const method of ['article','unified'] as const) {
   test(`native ${method} retains real provider requests and saved output`,async({page},info)=>{
     test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')
     test.skip(method==='unified'&&!process.env.FREE_REAL_GLIFORMER_URL,'Requires the real native fields server.')
-    expect(DURABLE_RELEASE_VERIFIED).toBe(false)
     const service=await startRealService(info.outputPath('durable-live-worker.log'))
     try {
       await loginResearcher(page,randomUUID())

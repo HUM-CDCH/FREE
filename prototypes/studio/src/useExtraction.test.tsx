@@ -2,7 +2,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
-import { ADMISSIONS_DISABLED, EXTRACTION_UNAVAILABLE, MONITOR_DISCONNECTED, useExtraction } from './useExtraction'
+import { EXTRACTION_UNAVAILABLE, MONITOR_DISCONNECTED, useExtraction } from './useExtraction'
 
 const target = { sourceRepresentationId: '51000000-0000-4000-8002-000000000001', schemaRevisionId: '51000000-0000-4000-8005-000000000001' }
 const method = { models: null, settings: { article: null } }
@@ -65,18 +65,17 @@ describe('durable Extraction admission', () => {
     expect(result.current.canRun).toBe(false)
   })
 
-  it('reports disabled admissions as a refusal that started nothing, and offers Run again', async () => {
-    server({ post: () => Response.json({ error: { code: ADMISSIONS_DISABLED,
-      message: 'Starting new Extractions is unavailable until the durable extraction release is verified. Nothing was started; saved Extractions remain available.' } }, { status: 409 }) })
+  it('acknowledges durable admission with its queued identity', async () => {
+    server({ post: body => Response.json(attempt(body.id), { status: 201 }) })
     const { result, onMethodChanged, onError } = render()
-    let acknowledged: ExtractionAttempt | null = attempt('placeholder')
+    let acknowledged: ExtractionAttempt | null = null
     await act(async () => { acknowledged = await result.current.runExtraction(method, target) })
-    expect(acknowledged).toBeNull()
-    expect(onMethodChanged).toHaveBeenCalledWith(expect.stringContaining('Nothing was started'), ADMISSIONS_DISABLED)
+    expect(acknowledged).toMatchObject({ executionStatus: 'QUEUED' })
+    expect(onMethodChanged).not.toHaveBeenCalled()
     expect(onError).not.toHaveBeenCalled()
-    expect(result.current.attempt).toBeNull()
+    expect(result.current.attempt).toEqual(acknowledged)
     expect(result.current.monitorError).toBeNull()
-    expect(result.current.canRun).toBe(true)
+    expect(result.current.canRun).toBe(false)
   })
 
   it('reports a superseded source without failing, and any other refusal with the server\'s words', async () => {

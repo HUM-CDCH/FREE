@@ -30,7 +30,11 @@ _pool: CoordinationPool | None = None
 def configure(url: str):
     global _pool
     pool = CoordinationPool(url)
-    pool.ready()
+    try:
+        pool.ready()
+    except BaseException:
+        pool.close()
+        raise
     _pool = pool
 
 

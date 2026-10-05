@@ -1,10 +1,11 @@
 import { expect,test,type Page } from '@playwright/test'
-import { randomUUID } from 'node:crypto'
+import { createHash,randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { unzipSync, strFromU8 } from 'fflate'
 import { canonicalPackageStore,pool,withPoolClientTransaction } from 'db'
 import { packCanonicalPackage } from '../../../packages/db/src/artifact-store.js'
 import { initializeDurableExtraction } from 'extraction/durable'
+import type { DurableValue } from 'extraction/durable-contract'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import { prepareInteractiveDocument,INTERACTIVE_SCHEMA_NODES } from './interactiveStack.js'
 import { E2E_ORIGIN,loginResearcher } from './auth.js'
@@ -56,7 +57,7 @@ test('every durable API rejects unauthenticated and foreign owners, wrong origin
   } finally {await otherContext.close();await anonymous.close();await fixture.close()}
 })
 
-// Admissions remain disabled. This fixture publishes retained work into this
+// This fixture publishes retained work directly into its
 // runner's guarded disposable database; every browser read/write is authenticated.
 test('saved live review survives reload, rejects another owner and exports its fixed snapshot',async({page,browser})=> {
   page.on('pageerror',error=>console.error('durable browser error:',error.message))
@@ -113,12 +114,12 @@ test('saved live review survives reload, rejects another owner and exports its f
     const ownState=await page.request.get(`/api/extractions/${id}/durable`)
     expect((await ownState.json()).extractionId).toBe(id)
     expect((await pool.query('SELECT count(*)::int AS n FROM extraction_runtime.correction WHERE "extractionId"=$1',[id])).rows[0].n).toBe(1)
-    await page.getByRole('button',{name:'Finalize this snapshot'}).click()
+    await page.getByRole('button',{name:'Finalize results 1 · decisions 1',exact:true}).first().click()
     await expect(page.getByRole('alert')).toContainText('Review each saved value')
     await page.getByRole('button',{name:/To check year 2026/}).click()
     await page.getByRole('button',{name:'Approve',exact:true}).click()
     await expect(page.getByRole('button',{name:/Approved year 2026/})).toBeVisible()
-    await page.getByRole('button',{name:'Finalize this snapshot'}).click()
+    await page.getByRole('button',{name:'Finalize results 1 · decisions 2',exact:true}).first().click()
     await expect(page.getByText('Finalized review · results 1 · decisions 2.',{exact:false})).toBeVisible()
     await page.reload()
     await page.locator('#rail-tab-results').click()
@@ -303,10 +304,9 @@ for(const status of ['PAUSED','FAILED','STOPPED'] as const) {
       const second=await savedExtraction(secondSource,nodes,['Second saved title'],status,{schemaRevisionId:first.schemaRevisionId})
       await pool.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,[batchId,fixture.projectContextId,first.schemaRevisionId,{article:null}])
       await pool.query(`UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])`,[batchId,[first.id,second.id]])
-      // Even a direct grid link keeps native typed decisions on member routes.
-      await page.goto(`/projects/${fixture.projectContextId}/extractions/${batchId}/review`)
+      await page.goto(`/projects/${fixture.projectContextId}/extractions/${batchId}`)
       await expect(page.getByText(`2 ${status.toLowerCase()}`,{exact:true})).toBeVisible()
-      await expect(page.getByRole('button',{name:'Review grid',exact:true})).toBeDisabled()
+      await expect(page.getByRole('button',{name:'Review grid',exact:true})).toHaveCount(0)
       const members=page.getByRole('list',{name:'Batch Extraction members'})
       await expect(members.getByRole('button')).toHaveCount(2)
       await expect(members.getByRole('button').first()).toBeEnabled()
@@ -338,12 +338,12 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     const stopped=await savedExtraction(stoppedSource,nodes,['Stopped retained title'],'STOPPED',{schemaRevisionId:first.schemaRevisionId})
     await pool.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,[batchId,fixture.projectContextId,first.schemaRevisionId,{article:null}])
     await pool.query(`UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])`,[batchId,[first.id,empty.id,stopped.id]])
-    await page.goto(`/projects/${fixture.projectContextId}/extractions/${batchId}/review`)
+    await page.goto(`/projects/${fixture.projectContextId}/extractions/${batchId}`)
     const summary=page.getByText(/1 paused/)
     await expect(summary).toContainText('1 failed');await expect(summary).toContainText('1 stopped')
     const members=page.getByRole('list',{name:'Batch Extraction members'})
     await expect(members.getByRole('button')).toHaveCount(3)
-    await expect(page.getByRole('button',{name:'Review grid',exact:true})).toBeDisabled()
+    await expect(page.getByRole('button',{name:'Review grid',exact:true})).toHaveCount(0)
     await page.getByRole('button',{name:'Export',exact:true}).click()
     const downloading=page.waitForEvent('download')
     await page.getByRole('menuitem',{name:'Export CSV bundle',exact:true}).click()
@@ -602,4 +602,108 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     await expect(page.getByText(/Your open review stays/)).toHaveCount(0)
     await expect(page).toHaveURL(/snapshotVersion=1&feedbackVersion=3/)
   } finally {await second?.close();await fixture.close()}
+})
+
+/** Another producer publication in this runner's owned disposable database. */
+async function appendSavedTitle(extractionId:string,title:string) {
+  await withPoolClientTransaction(async(_tx,client)=> {
+    const head=(await client.query<{snapshotVersion:number;selectionId:string}>('SELECT * FROM extraction_runtime.head WHERE id=$1 FOR UPDATE',[extractionId])).rows[0]
+    const previous=(await client.query<{values:DurableValue[];coverage:unknown}>('SELECT values,coverage FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[extractionId,head.snapshotVersion])).rows[0]
+    const values=previous.values.map(value=>({...value,modelValue:title})),serialized=JSON.stringify(values)
+    await client.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [randomUUID(),extractionId,head.snapshotVersion+1,head.selectionId,createHash('sha256').update(serialized).digest('hex'),serialized,previous.coverage])
+    await client.query('UPDATE extraction_runtime.head SET "snapshotVersion"="snapshotVersion"+1 WHERE id=$1',[extractionId])
+  })
+}
+
+for(const source of ['same source','new source revision'] as const) {
+  test(`Latest reviewed opens its finalized pair after later work on the ${source}`,async({page})=> {
+    const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+    try {
+      const nodes=[{id:'title',name:'title',type:'string' as const}]
+      const reviewed=await savedExtraction(fixture,nodes,['Finalized title'])
+      const root=`/api/extractions/${reviewed.id}/durable`,headers={Origin:E2E_ORIGIN}
+      const correction=await page.request.post(`${root}/values/title`,{headers,data:{expectedRevision:0,snapshotVersion:1,action:'APPROVED'}})
+      expect(correction.ok(),await correction.text()).toBe(true)
+      const finalized=await page.request.post(`${root}/finalize`,{headers,data:{snapshotVersion:1,feedbackVersion:1}})
+      expect(finalized.ok(),await finalized.text()).toBe(true)
+      await appendSavedTitle(reviewed.id,'Later unfinalized title')
+      let currentFixture=fixture
+      if(source==='new source revision') {
+        const nextRevision=randomUUID()
+        await pool.query(`INSERT INTO public."sourceRepresentationRevision" (id,"sourceDocumentId","revisionNumber","artifactReference","artifactSha256","contractVersion","preprocessId","parserName","parserVersion")
+          SELECT $1,"sourceDocumentId",2,"artifactReference","artifactSha256","contractVersion",$2,'fixture','2'
+          FROM public."sourceRepresentationRevision" WHERE id=$3`,[nextRevision,`kei-exp:e2e-${nextRevision}:g1`,fixture.sourceRepresentationRevisionId])
+        currentFixture={...fixture,sourceRepresentationRevisionId:nextRevision}
+      }
+      const current=await savedExtraction(currentFixture,nodes,['Current attempt title'],'PAUSED',{schemaRevisionId:reviewed.schemaRevisionId})
+      await fixture.open();await page.locator('#rail-tab-results').click()
+      await expect(page.getByText('Current attempt title',{exact:true})).toBeVisible()
+      if(source==='same source')await page.getByRole('combobox',{name:'Extraction snapshot'}).selectOption(reviewed.id)
+      else {
+        await page.getByRole('button',{name:'Open latest reviewed',exact:true}).click()
+        await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
+        await page.locator('#rail-tab-results').click()
+      }
+      await expect(page.getByText('Finalized review · results 1 · decisions 1. Later work and decisions remain separate.',{exact:true})).toBeVisible()
+      await expect(page.getByText('Newer saved results 2 exist.',{exact:false})).toBeVisible()
+      await page.getByRole('button',{name:'All',exact:true}).click()
+      await expect(page.getByText('Finalized title',{exact:true})).toBeVisible()
+      await expect(page.getByText('Later unfinalized title',{exact:true})).toHaveCount(0)
+      expect((await (await page.request.get(`${root}/values`)).json()).snapshotVersion).toBe(2)
+      expect((await (await page.request.get(`/api/extractions/${current.id}/durable/values`)).json()).values[0].modelValue).toBe('Current attempt title')
+      if(source==='new source revision') {
+        await page.reload();await page.locator('#rail-tab-results').click()
+        await expect(page.getByText('Finalized review · results 1 · decisions 1. Later work and decisions remain separate.',{exact:true})).toBeVisible()
+      }
+    } finally {await fixture.close()}
+  })
+}
+
+test('a late post-save page response keeps the newer field and its unsaved browser draft',async({page})=> {
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  const held=Promise.withResolvers<void>(),requested=Promise.withResolvers<void>()
+  try {
+    const nodes=[{id:'title',name:'title',type:'string' as const},{id:'second',name:'second',type:'string' as const},{id:'third',name:'third',type:'string' as const}]
+    const {id}=await savedExtraction(fixture,nodes,['Original title','Second value','Third value'])
+    await fixture.open();await page.locator('#rail-tab-results').click()
+    await page.getByRole('button',{name:/To check title Original title/}).click()
+    await page.getByRole('button',{name:'Edit',exact:true}).click()
+    await page.getByRole('textbox',{name:'Reviewed value'}).fill('Saved title')
+    await page.route(`**/api/extractions/${id}/durable/values?*`,async route=> {
+      const response=await route.fetch();requested.resolve();await held.promise;await route.fulfill({response})
+    })
+    await page.getByRole('button',{name:'Save edit',exact:true}).click();await requested.promise
+    await page.getByRole('button',{name:/To check third Third value/}).click()
+    const review=page.getByRole('region',{name:'Review third',exact:true})
+    await review.getByRole('button',{name:'Edit',exact:true}).click()
+    await review.getByRole('textbox',{name:'Reviewed value'}).fill('Keep this unsaved draft')
+    held.resolve()
+    await expect(page.getByText('Selected results 1 · decisions 1',{exact:false})).toBeVisible()
+    await expect(review.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('Keep this unsaved draft')
+    const saved=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()).values
+    expect(saved.find((value:{id:string})=>value.id==='title').correction.decision.value).toBe('Saved title')
+    expect(saved.find((value:{id:string})=>value.id==='third').correction).toBeNull()
+  } finally {held.resolve();await fixture.close()}
+})
+
+test('feedback-only lag names the older pair before browser finalization',async({page})=> {
+  const fixture=await prepareInteractiveDocument(page,{hasKey:false})
+  try {
+    const {id}=await savedExtraction(fixture,[{id:'title',name:'title',type:'string'}],['Original title'])
+    const root=`/api/extractions/${id}/durable`,headers={Origin:E2E_ORIGIN}
+    expect((await page.request.post(`${root}/values/title`,{headers,data:{expectedRevision:0,snapshotVersion:1,action:'APPROVED'}})).ok()).toBe(true)
+    await page.goto(`${fixture.url}?extractionId=${id}&snapshotVersion=1&feedbackVersion=1`)
+    await page.locator('#rail-tab-results').click()
+    await expect(page.getByText('Selected results 1 · decisions 1',{exact:false})).toBeVisible()
+    expect((await page.request.post(`${root}/values/title`,{headers,data:{expectedRevision:1,snapshotVersion:1,action:'EDITED',value:'Newer decision'}})).ok()).toBe(true)
+    await expect(page.getByText('Newer saved decisions 2 exist.',{exact:false})).toBeVisible()
+    await page.getByRole('button',{name:'Finalize results 1 · decisions 1',exact:true}).first().click()
+    await expect(page.getByText('Finalized review · results 1 · decisions 1. Later work and decisions remain separate.',{exact:true})).toBeVisible()
+    const older=(await (await page.request.get(`${root}/values?snapshotVersion=1&feedbackVersion=1`)).json())
+    expect(older.finalization).toMatchObject({snapshotVersion:1,feedbackVersion:1})
+    const live=(await (await page.request.get(`${root}/values`)).json())
+    expect(live.feedbackVersion).toBe(2)
+    expect(live.values[0].correction.decision.value).toBe('Newer decision')
+  } finally {await fixture.close()}
 })

@@ -38,7 +38,8 @@ review model the code now implements, with no legacy compatibility obligation.
 
 ### New Capabilities
 
-None.
+- `durable-extraction-admission`: successful admission commits durable work
+  directly, with no release gate.
 
 ### Modified Capabilities
 
@@ -56,5 +57,7 @@ None.
   (`saveCorrection`, `finalize`, `page`), `prototypes/studio/api/durable_extractions.ts`
   (pinned-source Evidence check), `prototypes/studio/src/DurableResults.tsx`,
   `App.tsx`/`AppFrame.tsx`/`projectNavigation.ts` (review-cut routing).
-- No API, dependency or database migration change. Admissions remain hard OFF
-  (`DURABLE_RELEASE_VERIFIED=false`); this change does not authorize enablement.
+- No dependency or database migration change. Remove the disabled-admission
+  error and its API/UI handling. Valid requests admit durable work directly.
+  Merging this implementation removes the admission block. The current source
+  still requires infrastructure acceptance before deployment.

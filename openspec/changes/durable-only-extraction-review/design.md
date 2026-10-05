@@ -6,8 +6,8 @@ their producing input selection and field node; researcher decisions are
 revisioned corrections (`extraction_runtime.correction`) that advance the
 Project's decision version (`feedbackHead`). A finalization
 (`extraction_runtime.finalization`) names one result snapshot version and one
-decision version. This change only realigns two living specifications with that
-implemented model.
+decision version. This change realigns the living specifications with that implemented model.
+The user then required removal of the complete admission gate.
 
 ## Goals / Non-Goals
 
@@ -15,9 +15,10 @@ implemented model.
 - State the review requirements the durable code enforces today, at the
   boundaries where it enforces them.
 - Retire requirements whose only implementation was deleted.
+- Admit durable work directly, without a release flag or environment switch.
 
 **Non-Goals:**
-- New behavior, legacy compatibility, a migration, or enabling admissions.
+- Legacy compatibility, a database migration, or production enablement.
 - Independent child decisions inside composite fields, or bulk decisions.
 - Rewriting dated validation evidence or archived changes.
 
@@ -36,8 +37,13 @@ implemented model.
 - **Navigator retired.** The breadcrumb/back-forward navigator was removed by
   the results-review redesign before PR #185; its spec is removed in full.
 
+- **Admission is the durable success path.** Remove the complete gate and its
+  refusal API/UI handling. Commit the public row, durable head, dispatch and
+  workflow enqueue together. Keep replay and rollback checks in PostgreSQL.
+  The black-box Compose test must observe admission and durable completion.
+
 ## Risks / Trade-offs
 
-- The durable model's PostgreSQL, browser and Spark acceptance remains unrun for
-  the durable-only diff → tasks keep those checks open; this change must not be
-  archived until they pass on an exact commit.
+- Merging the implementation removes the admission block. Its PostgreSQL,
+  browser, Compose and Spark acceptance must be recorded on the current source.
+  Keep missing checks open and do not archive the change before they pass.

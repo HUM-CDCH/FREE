@@ -1,6 +1,6 @@
 # 0017: Durable Extraction control and call checkpoints
 
-Date: 2026-10-04. Status: accepted direction, implemented and verified in the isolated admission-disabled candidate under [Map durable interactive extraction and project-wide feedback](https://github.com/HUM-CDCH/FREE/issues/169). Production deployment/enablement remains a separate unapproved action.
+Date: 2026-10-04. Status: accepted direction, implemented and verified in the isolated candidate under [Map durable interactive extraction and project-wide feedback](https://github.com/HUM-CDCH/FREE/issues/169). Production deployment/enablement remains a separate unapproved action.
 
 One researcher-visible Extraction must survive cooperative pause, revised settings, retries, and live review without losing completed work. DBOS remains the durable executor, but an attempt that returns at a pause boundary is runtime-successful while the Extraction remains Paused; DBOS messages alone also cannot establish which committed correction context a new call captured. Use immutable linked execution selections and a restricted PostgreSQL coordination schema for durable controls, call captures/checkpoints, and feedback publication, with DBOS enqueue/recovery driving attempts rather than defining researcher-visible lifecycle.
 
@@ -26,10 +26,9 @@ implementation or compatibility shim. Admission, readers, review, finalization
 and exports now use the durable model alone. The non-durable `runExtraction`
 workflow and its registration, path/anchor Review Drafts and settlement, the
 review/draft/reset/cancel routes, the batch review grid and the old result and
-batch exports were deleted. While `DURABLE_RELEASE_VERIFIED` is false every new
-single, Batch and suggested-Batch admission is refused before any row is
-written; saved durable Extractions stay readable, controllable, reviewable and
-exportable. A public Extraction row without a live coordination head is not
+batch exports were deleted. Successful admission now commits the Extraction,
+its durable head and its workflow enqueue in one transaction. Saved durable
+Extractions remain readable, controllable, reviewable and exportable. A public Extraction row without a live coordination head is not
 listed or opened. No historical migration or table drop was made. The Parsing
 Service's `extract` workflow, its artifact and progress routes, the stage files
 and write-once records it published beside a run, and its `kei-extract:`
@@ -46,6 +45,17 @@ living `canonical-evidence-lifecycle` specification and the retired
 `result-tree-navigator` specification were reconciled with this model by the
 OpenSpec change `durable-only-extraction-review`, which stays open until its
 infrastructure acceptance passes.
+
+## Admission amendment
+
+Amendment, 2026-10-05: the user required removal of the whole admission gate.
+Valid requests now admit durable Extractions directly. There is no release flag,
+environment switch, disabled-admission error, or non-durable fallback.
+PostgreSQL checks cover successful single and batch admission, replay and enqueue
+rollback. The Compose contract checks HTTP 201 followed by durable COMPLETED.
+Merging this implementation removes the admission block. This follow-up must
+pass its own infrastructure checks before deployment. The older validation and
+plan records remain unchanged and describe their own source cuts.
 
 ## Candidate implementation and integration status
 
@@ -74,7 +84,8 @@ boundary so cancellation alone never proves quiescence.
 The completed PR 183 report satisfied the requested Spark wait. Guarded tests
 then ran in a private Spark checkout, with disposable databases and isolated
 resources. The integrated candidate passed lifecycle/recovery, shared review,
-exports, deletion and selected real-provider checks. Admissions remain hard OFF;
-no production database migration, merge, deployment or enablement is authorized.
+exports, deletion and selected real-provider checks at that earlier source cut.
+The current follow-up removes the admission block. No production database
+migration, merge or deployment is authorized by this work.
 See the [integration evidence](../validation/2026-10-04-durable-review-integration-verification.md)
 for exact source cuts, conditional skips and independent review.

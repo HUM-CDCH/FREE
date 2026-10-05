@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
-import { DURABLE_RELEASE_VERIFIED, durableAdmissionsEnabled } from './durable-contract.js'
-import type { ExtractionExecution } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { createKeiExpClient } from './kei-exp.js'
-import { admitBatchExtraction, admitBatchMember, admitInteractiveExtraction } from './postgres-admission.js'
-import { persistSuggestedBatch } from './postgres-suggested-batch.js'
 
 const json = (body: unknown, status = 200, headers?: Record<string, string>) => Response.json(body, { status, headers })
 
@@ -69,50 +64,5 @@ describe('kei-exp model listings', () => {
     for (const invalid of [json(withoutDefaults), json({ ...listing, models: { ...listing.models, ocr: [{ key: 'surya' }] } }), new Response('not json')])
       await assert.rejects(client(invalid).listIngestionModels(), { code: 'invalid_model_output' })
     await assert.rejects(client(json(withoutDefaults)).listIngestionModels(), { message: 'kei-exp returned an invalid ingestion model listing.' })
-  })
-})
-
-describe('the hard durable admission gate', () => {
-  /** Every port throws: a refused admission must reach none of them, so nothing is written or enqueued. */
-  const untouched = (what: string) => () => { throw new Error(`${what} was reached while admissions are off.`) }
-  const execution: ExtractionExecution = { enqueue: untouched('enqueue'), statuses: untouched('statuses') }
-  const database = new Proxy({}, { get: (_target, key) => untouched(`database.${String(key)}`)() }) as never
-  const method = { models: null, settings: { article: null } } as never
-  const disabled = (error: unknown) =>
-    error instanceof ExtractionError && error.code === 'extraction_admissions_disabled' && error.message.includes('Nothing was started')
-
-  it('is off at release verification, and an environment setting cannot open it', () => {
-    const previous = process.env.FREE_DURABLE_EXTRACTION_ADMISSIONS
-    process.env.FREE_DURABLE_EXTRACTION_ADMISSIONS = '1'
-    try {
-      assert.equal(DURABLE_RELEASE_VERIFIED, false)
-      assert.equal(durableAdmissionsEnabled(), false)
-    } finally {
-      if (previous === undefined) delete process.env.FREE_DURABLE_EXTRACTION_ADMISSIONS
-      else process.env.FREE_DURABLE_EXTRACTION_ADMISSIONS = previous
-    }
-  })
-
-  it('refuses a single Extraction before any transaction, row or workflow', async () => {
-    await assert.rejects(admitInteractiveExtraction(execution, randomUUID(), {
-      kind: 'fresh', extractionId: randomUUID(), sourceRepresentationRevisionId: randomUUID(), schemaRevisionId: randomUUID(),
-      strategy: 'ARTICLE', method,
-    }), disabled)
-  })
-
-  it('refuses a Batch Extraction, a suggested batch and a lone member before any of them is written', async () => {
-    await assert.rejects(admitBatchExtraction(database, execution, randomUUID(), {
-      projectContextId: randomUUID(), schemaRevisionId: randomUUID(), strategy: 'ARTICLE', method,
-      sourceDocumentIds: [randomUUID()], repetition: 'create-new',
-    }), disabled)
-    await assert.rejects(persistSuggestedBatch(database, randomUUID(), {
-      projectContextId: randomUUID(), batchSchemaSuggestionId: randomUUID(), strategy: 'ARTICLE', method,
-    }, { execution } as never), disabled)
-    const orm = new Proxy({}, { get: (_target, key) => untouched(`orm.${String(key)}`)() }) as never
-    await assert.rejects(admitBatchMember(orm, {} as never, execution, {
-      owner: randomUUID(), projectContextId: randomUUID(), extractionSchemaId: randomUUID(), schemaRevisionId: randomUUID(),
-      strategy: 'ARTICLE', requestedModels: null, requestedSettings: { article: null } as never, batchExtractionId: randomUUID(),
-      sourceDocumentId: randomUUID(), sourceRepresentationRevisionId: randomUUID(), preprocessId: 'kei-exp:run:g1',
-    }), disabled)
   })
 })

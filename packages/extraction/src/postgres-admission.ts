@@ -3,8 +3,7 @@
  * commit each row, its durable coordination head and its dispatch reconciliation on one pooled client (ADR 0012:
  * row-backed work is enqueued in the same transaction as its rows; ADR 0017: the durable head owns the visible
  * lifecycle). New work pins the document's current revision under its row lock; a repeated request replays, and a
- * different one under the same identity conflicts. While the durable release is unverified, every admission is refused
- * before any row is written.
+ * different one under the same identity conflicts. Every successful admission uses durable execution.
  */
 
 import { createHash, randomUUID } from 'node:crypto'
@@ -39,7 +38,6 @@ import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
 import { refuseRecordScope, storedRecordScope } from './record-scope.js'
 import { parseExtractionSchema, type RecordScope } from './schema.js'
-import { durableAdmissionsEnabled } from './durable-contract.js'
 import { initializeDurableExtraction, DURABLE_RECONCILE } from './durable-repository.js'
 import { EXTRACTION_QUEUE, extractionAttributes } from './workflows.js'
 import type {
@@ -52,15 +50,6 @@ import type {
 
 const EXTRACTION_KEY = 'extraction_pkey'
 const BATCH_KEY = 'batchExtraction_pkey'
-
-export const ADMISSIONS_DISABLED_MESSAGE =
-  'Starting new Extractions is unavailable until the durable extraction release is verified. Nothing was started; saved Extractions remain available.'
-
-/** The hard admission gate: while it is off, no Extraction, batch or member row and no workflow is created. */
-export function refuseDisabledAdmission(): void {
-  if (!durableAdmissionsEnabled())
-    throw new ExtractionError('extraction_admissions_disabled', ADMISSIONS_DISABLED_MESSAGE)
-}
 
 export const METHOD_CHANGED_MESSAGE =
   'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
@@ -230,7 +219,6 @@ export async function admitInteractiveExtraction(
   input: RunSingleInput,
   attempt = 0,
 ): Promise<'created' | 'replayed' | 'conflict' | 'superseded' | 'method-changed' | 'missing'> {
-  refuseDisabledAdmission()
   try {
     return await withPoolClientTransaction(async (transaction, client) => {
       const pins = await resolveAdmission(transaction, researcherAccountId, input)
@@ -357,7 +345,6 @@ export async function admitBatchExtraction(
   researcherAccountId: string,
   input: ScheduleBatchInput,
 ): Promise<ScheduleBatchResult | null> {
-  refuseDisabledAdmission()
   const method = batchMethod(input)
   const batchExtractionId =
     input.repetition === 'create-new' ? randomUUID() : selectionId(input, method)
@@ -559,8 +546,6 @@ export async function admitBatchMember(
   execution: ExtractionExecution,
   member: BatchMemberAdmission,
 ): Promise<void> {
-  // Every caller refused a disabled admission before its transaction; this keeps a member from committing regardless.
-  refuseDisabledAdmission()
   const id = batchMemberExtractionId(member.batchExtractionId, member.sourceDocumentId)
   await orm.public.Extraction.create({
     id,
@@ -573,10 +558,10 @@ export async function admitBatchMember(
     requestedSettings: member.requestedSettings,
     batchExtractionId: member.batchExtractionId,
   })
-  const schema = await orm.public.SchemaRevision.select('schemaTree','recordScope').first({id:member.schemaRevisionId})
+  const schema = await orm.public.SchemaRevision.select('schemaTree').first({id:member.schemaRevisionId})
   if (!schema) throw new ExtractionError('invalid_extraction_pins','The selected Schema Revision is unavailable.')
   await initializeDurableExtraction(client,id,{...member,catalogRecipe:null,
-    schemaTree:{...parseExtractionSchema(schema.schemaTree),recordScope:schema.recordScope}})
+    schemaTree:schema.schemaTree})
   await execution.enqueue(client,{workflowName:DURABLE_RECONCILE,workflowID:`durable-dispatch:${id}`,
     queueName:EXTRACTION_QUEUE,authenticatedUser:member.owner,attributes:extractionAttributes(member)},id)
 }

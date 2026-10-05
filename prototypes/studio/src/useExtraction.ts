@@ -77,11 +77,9 @@ const SOURCE_REPRESENTATION_SUPERSEDED = 'source_representation_superseded'
 export const METHOD_CHANGED = 'method_changed'
 /** Legacy Catalog preferences wait for their migration: refreshable, like a changed method. */
 const MIGRATION_REQUIRED = 'catalog_migration_required'
-/** New Extraction admission is off until the durable release is verified: nothing was started. */
-export const ADMISSIONS_DISABLED = 'extraction_admissions_disabled'
 /** A strategy the schema's saved Article/Catalog scope does not name (or none saved): said like a changed method. */
 const ADMISSION_REFUSALS: ReadonlySet<string> = new Set([
-  METHOD_CHANGED, MIGRATION_REQUIRED, ADMISSIONS_DISABLED, 'record_scope_required', 'record_scope_mismatch',
+  METHOD_CHANGED, MIGRATION_REQUIRED, 'record_scope_required', 'record_scope_mismatch',
 ])
 
 /** The server's own words for a refusal: `ApiRequestError` prefixes its message with `<code>: `. */

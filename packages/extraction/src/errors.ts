@@ -1,7 +1,5 @@
 export type ExtractionErrorCode =
   | 'not_found'
-  /** New Extraction admission is unavailable until the durable release is verified; nothing was started. */
-  | 'extraction_admissions_disabled'
   | 'invalid_request'
   | 'invalid_extraction_pins'
   | 'extraction_id_conflict'

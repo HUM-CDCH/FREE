@@ -70,6 +70,8 @@ def test_the_worker_module_does_not_import_the_model_stack():
 
 
 def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monkeypatch):
+    from kei_exp.workflows import durable_extract
+
     order: list[str] = []
 
     @contextlib.contextmanager
@@ -92,6 +94,8 @@ def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monk
             order.append("destroy")
 
     monkeypatch.setattr(slot, "hold_slot", hold)
+    monkeypatch.setattr(durable_extract, "configure", lambda url: order.append("coordination"))
+    monkeypatch.setattr(durable_extract, "close_coordination", lambda: order.append("close coordination"))
     monkeypatch.setattr(boot, "database_clock_ms", lambda url: order.append("clock") or 1234)
     monkeypatch.setattr(cli, "DBOS", FakeDBOS)
     monkeypatch.setattr(config, "register_queues", lambda **_: order.append("queues"))
@@ -99,7 +103,7 @@ def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monk
     cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
               exit_process=lambda code: order.append(f"exit {code}"))
     # The process exits while it still holds the slot: no step thread outlives the lock (test_worker_recovery).
-    assert order == ["flock", "clock", "configure", "launch", "queues", "serving", "destroy", "exit 0", "release"]
+    assert order == ["flock", "coordination", "clock", "configure", "launch", "queues", "serving", "destroy", "close coordination", "exit 0", "release"]
     assert boot.timestamp_ms() == 1234
 
 
@@ -107,6 +111,8 @@ def _serve_until(monkeypatch, failing: str, error: BaseException, *,
                  destroy_error: BaseException | None = None) -> list[str]:
     """serve() over a fake slot and a fake DBOS whose `failing` step ("launch" or "queues") raises `error` (and whose
     destroy() raises `destroy_error`, when given)."""
+    from kei_exp.workflows import durable_extract
+
     order: list[str] = []
 
     @contextlib.contextmanager
@@ -137,7 +143,9 @@ def _serve_until(monkeypatch, failing: str, error: BaseException, *,
                 raise destroy_error
 
     monkeypatch.setattr(slot, "hold_slot", hold)
-    monkeypatch.setattr(boot, "database_clock_ms", lambda url: 1234)
+    monkeypatch.setattr(durable_extract, "configure", lambda url: step("coordination"))
+    monkeypatch.setattr(durable_extract, "close_coordination", lambda: step("close coordination"))
+    monkeypatch.setattr(boot, "database_clock_ms", lambda url: step("clock") or 1234)
     monkeypatch.setattr(boot, "_timestamp_ms", None)
     monkeypatch.setattr(cli, "DBOS", FakeDBOS)
     monkeypatch.setattr(config, "register_queues", lambda **_: step("queues"))
@@ -145,7 +153,7 @@ def _serve_until(monkeypatch, failing: str, error: BaseException, *,
         cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
                   exit_process=lambda code: order.append(f"exit {code}"))
     except BaseException as escaped:  # destroy's own error escapes once a test's exit_process has returned
-        if escaped is not destroy_error:
+        if escaped is not destroy_error and escaped is not error:
             raise
     return order
 
@@ -154,7 +162,7 @@ def _serve_until(monkeypatch, failing: str, error: BaseException, *,
 def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, capsys, failing):
     order = _serve_until(monkeypatch, failing, RuntimeError(f"{failing} failed"))
     # Launch recovers pending workflows, so their steps may run: the process exits before it frees the slot here too.
-    assert "serving" not in order and order[-3:] == ["destroy", "exit 1", "release"]
+    assert "serving" not in order and order[-4:] == ["destroy", "close coordination", "exit 1", "release"]
     assert capsys.readouterr().err == f"kei worker stopped: RuntimeError: {failing} failed\n"
 
 
@@ -162,14 +170,14 @@ def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, capsys, fa
 def test_an_interrupt_during_launch_destroys_dbos_and_exits_still_holding_the_slot(monkeypatch, capsys, interrupt):
     """A BaseException must not unwind the slot's `with` block while DBOS threads may still run steps."""
     order = _serve_until(monkeypatch, "launch", interrupt())
-    assert "serving" not in order and order[-3:] == ["destroy", "exit 1", "release"]
+    assert "serving" not in order and order[-4:] == ["destroy", "close coordination", "exit 1", "release"]
     assert capsys.readouterr().err.startswith(f"kei worker stopped: {interrupt.__name__}")
 
 
 def test_a_second_interrupt_inside_destroy_still_exits_holding_the_slot(monkeypatch, capsys):
     """A second Ctrl-C during launch lands before until() installs the signal handlers, possibly inside destroy()."""
     order = _serve_until(monkeypatch, "launch", KeyboardInterrupt(), destroy_error=KeyboardInterrupt())
-    assert order[-3:] == ["destroy", "exit 1", "release"]
+    assert order[-4:] == ["destroy", "close coordination", "exit 1", "release"]
     assert capsys.readouterr().err.startswith("kei worker stopped: KeyboardInterrupt")
 
 
@@ -281,3 +289,40 @@ def test_kei_launches_as_its_restricted_role_and_is_denied_on_public(database, t
         with psycopg.connect(owner, autocommit=True) as connection:
             connection.execute(f"DROP OWNED BY {role}")
             connection.execute(f"DROP ROLE {role}")
+
+
+def test_failed_coordination_readiness_closes_the_unpublished_pool(monkeypatch):
+    from kei_exp.workflows import durable_extract
+
+    closed = []
+
+    class FailedPool:
+        def __init__(self, url):
+            assert url == "postgresql://fixture"
+
+        def ready(self):
+            raise ValueError("incompatible coordination")
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(durable_extract, "CoordinationPool", FailedPool)
+    monkeypatch.setattr(durable_extract, "_pool", None)
+    with pytest.raises(ValueError, match="incompatible coordination"):
+        durable_extract.configure("postgresql://fixture")
+    assert closed == [True]
+    with pytest.raises(RuntimeError, match="not been initialized"):
+        durable_extract.coordinator()
+
+
+def test_coordination_close_failure_still_exits_before_releasing_the_slot(monkeypatch, capsys):
+    order = _serve_until(monkeypatch, "close coordination", RuntimeError("close failed"))
+    assert order[-3:] == ["close coordination", "exit 1", "release"]
+    assert capsys.readouterr().err == "kei worker stopped: RuntimeError: close failed\n"
+
+
+@pytest.mark.parametrize("failing", ["coordination", "clock"])
+def test_startup_failure_closes_coordination_without_starting_dbos(monkeypatch, failing):
+    order = _serve_until(monkeypatch, failing, RuntimeError("startup failed"))
+    assert "launch" not in order and "destroy" not in order
+    assert order[-2:] == ["close coordination", "release"]

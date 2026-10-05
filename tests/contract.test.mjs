@@ -140,6 +140,7 @@ test('schema: a researcher-approved schema revision is stored', async () => {
     body: JSON.stringify({
       projectContextId: state.projectId,
       recordDescription: 'A historical publication event',
+      recordScope: 'document',
       schemaNodes: [
         { id: 'author', name: 'author', type: 'string', description: 'Person or body named' },
         { id: 'year', name: 'year', type: 'number', description: 'Year mentioned' },
@@ -151,7 +152,7 @@ test('schema: a researcher-approved schema revision is stored', async () => {
   state.schemaRevisionId = response.body.revision.schemaRevisionId
 })
 
-test('extraction: with durable admissions off, starting an Extraction is refused and starts nothing', async () => {
+test('extraction: a durable Extraction is admitted and completes', { timeout: 300_000 }, async () => {
   const configured = await session.api('/model_config', {
     method: 'PUT',
     body: JSON.stringify({
@@ -188,10 +189,26 @@ test('extraction: with durable admissions off, starting an Extraction is refused
       method: { models: null, settings: { article: null } },
     }),
   })
-  // DURABLE_RELEASE_VERIFIED is false, so no deployment setting opens admission.
-  assert.equal(extraction.status, 409, JSON.stringify(extraction.body))
-  assert.equal(extraction.body.error.code, 'extraction_admissions_disabled')
-  assert.equal((await session.api(`/extractions/${state.extractionId}`)).status, 404)
+  assert.equal(extraction.status, 201, JSON.stringify(extraction.body))
+  assert.equal(extraction.body.extractionId, state.extractionId)
+  const deadline = Date.now() + 280_000
+  let saved
+  while (Date.now() < deadline) {
+    const read = await session.api(`/extractions/${state.extractionId}`)
+    assert.equal(read.status, 200, JSON.stringify(read.body))
+    saved = read.body.extraction
+    if (['COMPLETED', 'FAILED', 'STOPPED'].includes(saved.executionStatus)) break
+    await new Promise(resolve => setTimeout(resolve, 1_000))
+  }
+  assert.equal(saved?.executionStatus, 'COMPLETED', JSON.stringify(saved))
+  const values = await session.api(`/extractions/${state.extractionId}/durable/values`)
+  assert.equal(values.status, 200, JSON.stringify(values.body))
+  assert.ok(values.body.snapshotVersion > 0)
+  assert.ok(values.body.values.length > 0)
+  assert.ok(values.body.values.some(value => value.node.name === 'year' && value.modelValue === 1666))
+  state.completedExtraction = saved
+  state.savedValues = values.body
+
 })
 
 /** A native-text PDF of `pages` pages (about 3,000 characters each), each opening with PAGESTARTnn (plus æøå) and closing with PAGEENDnn. */
@@ -326,8 +343,12 @@ test('durability: research state survives a normal restart', { timeout: 900_000 
     ),
     'project survived restart',
   )
-  // The refused admission left nothing to recover.
-  assert.equal((await fresh.api(`/extractions/${state.extractionId}`)).status, 404)
+  const retained = await fresh.api(`/extractions/${state.extractionId}`)
+  assert.equal(retained.status, 200, JSON.stringify(retained.body))
+  assert.deepEqual(retained.body.extraction, state.completedExtraction)
+  const values = await fresh.api(`/extractions/${state.extractionId}/durable/values?snapshotVersion=${state.savedValues.snapshotVersion}&feedbackVersion=${state.savedValues.feedbackVersion}`)
+  assert.equal(values.status, 200, JSON.stringify(values.body))
+  assert.deepEqual(values.body, state.savedValues)
 })
 
 test('projects: permanent deletion removes the owned graph', async () => {
