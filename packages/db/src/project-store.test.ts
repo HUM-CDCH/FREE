@@ -667,6 +667,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       reviewedSourceDocumentCount: 0,
       staleSourceDocumentCount: 0,
       schemaDraftCount: 0,
+      schemaStabilised: false,
       lastActivityAt: new Date('2026-08-01T11:02:00Z'),
       runningBatch: null,
     })

@@ -960,7 +960,7 @@ test.describe('rail navigation', () => {
     const tab = (name: string) =>
       projectPage(page).getByRole('tab', { name, exact: true })
     await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
-    await expect(projectPage(page).getByText('No schemas yet.')).toBeVisible()
+    await expect(projectPage(page).getByRole('heading', { name: 'Build your schema from a document' })).toBeVisible()
     await page.reload()
     await expect(page).toHaveURL(`/projects/${ELLEKILDE}/schemas`)
     await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
