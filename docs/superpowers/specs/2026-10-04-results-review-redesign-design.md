@@ -709,7 +709,7 @@ decision (§3.3 item 5, §4.3 item 4, the labels "… and save review"). Rules:
   finished records (running) is painted on its page while the Results tab is
   active: `--color-ev-ghost` fill with a 2px `--color-ev` bottom border;
   dotted for a rule link, dashed for a doubtful one; a decided value's mark
-  keeps a 1px border and no fill; the selected (or current) value's mark has
+  keeps its fill with a 1px border; the selected (or current) value's mark has
   a `--color-ev-soft` fill and a 2px `--color-accent` outline. One colour for
   Evidence (DESIGN.md: evidence blue for evidence marks only); today's
   per-field colours go. The "Evidence marks" switch in the document toolbar
