@@ -5,6 +5,7 @@ import type { SchemaNode } from './schema.js'
 import sourceFixture from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with {type:'json'}
 import { decodeParsedDocument } from './parsed-document.js'
 import { durableValueSchema } from './durable-contract.js'
+import { keiExpEvidence } from './kei-exp-fixture.js'
 
 const text: SchemaNode = { id:'field-1', name:'title', type:'string', description:'A work title' }
 const source=decodeParsedDocument(sourceFixture)
@@ -47,6 +48,16 @@ test('an ungrounded correction retains the entire source without manufacturing l
   const candidate={id:'correction',fieldId:text.id,meaning:fieldMeaning(text),node:text,value:'Corrected',sourceContext:JSON.stringify(context),grounded:false}
   assert.deepEqual(selectFeedback({nodes:[text],candidates:[candidate],fits:()=>false}).omissions,[{id:'correction',reason:'budget'}])
   assert.deepEqual(selectFeedback({nodes:[text],candidates:[candidate],fits:()=>true}).examples,[candidate])
+})
+test('model-anchor context remains separate from optional researcher Evidence',()=> {
+  const anchor=source.evidence_index.anchors[0]
+  const modelEvidence=[{anchorId:anchor.anchor_id,occurrenceIds:[],producer:keiExpEvidence()}]
+  const context=correctionSourceContext(source,'Full source',{...saved,evidence:modelEvidence},[])
+  assert.equal(context.source.scope,'model-anchors')
+  assert.equal(context.source.excerpts?.[0].text,'Grav 8')
+  assert.deepEqual(context.modelEvidence,modelEvidence)
+  assert.deepEqual(context.correctionEvidence,[])
+  assert.equal(context.modelGrounding,'ungrounded')
 })
 test('compatibility preserves renames and excludes changed meaning or type for each target', () => {
   const candidate = {id:'c1',fieldId:text.id,meaning:fieldMeaning(text),value:'A corrected title',sourceContext:'Own source',grounded:false,node:text}
