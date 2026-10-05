@@ -264,3 +264,9 @@
 .evidence-mark:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 /* The "Evidence marks" switch hides every mark but the selected one. */
 .evidence-marks-off .evidence-mark:not(.selected) { display: none; }
+/* On the PDF a mark lies over the page's own text, so an alpha fill of a pale token washes the ink out. Multiply
+   tints the paper and never lightens the ink, however many marks stack. */
+.pdf-viewer .evidence-mark,
+.pdf-viewer .parsed-evidence-focus { mix-blend-mode: multiply; }
+.pdf-viewer .evidence-mark:not(.decided) { background: var(--color-ev-soft); }
+.pdf-viewer .evidence-mark.selected { background: color-mix(in srgb, var(--color-ev) 20%, var(--color-ev-soft)); }
