@@ -63,7 +63,7 @@ describe('focused Evidence navigation', () => {
       viewerRef: { current: { scrollPageIntoView: vi.fn() } as never },
       parsedDocument,
       attempt: null,
-     
+
       resultPath: null,
       active: false,
     }))

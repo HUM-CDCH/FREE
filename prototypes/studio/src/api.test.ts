@@ -503,4 +503,3 @@ describe('decoders', () => {
     expect(decodeSchemaDone({ template: {}, raw: '{}', pages: null })).toMatchObject({ sourceCoverage: null })
   })
 })
-

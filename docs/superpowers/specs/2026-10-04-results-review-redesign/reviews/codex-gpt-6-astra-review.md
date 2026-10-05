@@ -30,6 +30,6 @@ Reviewed the current screenshots, prototype markup/CSS, and production contracts
 
 15. **Low — ReviewFlow, hierarchy and tokens (`ReviewFlow.dc.html:98`, `:101`, `:234`, `:344`).** The rail adds 11.5/13.5/14.5/20/26px typography, raw colours, and several competing progress/navigation treatments beyond DESIGN.md’s four-size rail scale. **Fix:** use shared tokens, reduce focus mode to one progress summary and one navigation treatment, and keep the single filled primary reserved for the active review action.
 
-A+C removes diagnostic clutter, but the header and expanded row still need consolidation.  
-The rail/document connection remains a one-page demonstration, not a defined evidence-navigation flow.  
+A+C removes diagnostic clutter, but the header and expanded row still need consolidation.\
+The rail/document connection remains a one-page demonstration, not a defined evidence-navigation flow.\
 Do not port it wholesale: resolve evidence semantics, save/undo behavior, and narrow-width interaction first.
