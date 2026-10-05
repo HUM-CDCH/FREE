@@ -8,11 +8,11 @@
 **/*.pyc
 **/.env
 **/.env.*
-!**/.env.example
 **/*.log
 **/.design-sync
 
 .git
+.certs
 .pnpm-store
 .omo
 .worktrees
