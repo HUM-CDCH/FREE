@@ -3,7 +3,7 @@
 Date: 2026-10-05.
 Status: local code checks passed. Infrastructure acceptance remains open.
 Origin: [PR #185](https://github.com/HUM-CDCH/FREE/pull/185).
-Change: [durable-only-extraction-review](../../openspec/changes/durable-only-extraction-review/proposal.md).
+Change: [durable-only-extraction-review](../../openspec/changes/archive/2026-10-06-durable-only-extraction-review/proposal.md).
 
 The source review covers commit `9675e9901c0c605c90e6454e0d331e39eda25fee`.
 Its base is `2c4469e2098491d50c37bc0401d5f7f1f5125fe5` on `dev`.
@@ -88,7 +88,7 @@ The following checks did not run:
 - Root Compose system and safety tests.
 - Spark acceptance and release verification.
 
-The [OpenSpec tasks](../../openspec/changes/durable-only-extraction-review/tasks.md) keep infrastructure acceptance open.
+The [OpenSpec tasks](../../openspec/changes/archive/2026-10-06-durable-only-extraction-review/tasks.md) keep infrastructure acceptance open.
 The main specifications now describe the durable review contract.
 The change remains active until acceptance passes.
 

@@ -78,5 +78,5 @@ supersedes the admission-disabled statement above. Valid requests admit durable
 Extractions directly, with no release flag or environment switch; legacy
 Extraction workflows and readers were removed. PostgreSQL, browser, Compose
 and exact-commit Spark acceptance in the
-[active OpenSpec tasks](../../openspec/changes/durable-only-extraction-review/tasks.md)
+[recorded OpenSpec tasks](../../openspec/changes/archive/2026-10-06-durable-only-extraction-review/tasks.md)
 must pass before merging this follow-up. Deployment remains a separate action.

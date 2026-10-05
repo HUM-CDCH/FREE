@@ -4,6 +4,10 @@ Date: 2026-10-06 (Europe/Rome). Status: **A–D implemented; requested Python
 tiers and deterministic checks below passed on Baratheon. Full merge acceptance
 remains open in the active OpenSpec tasks.**
 
+This records the repair verification phase. The subsequently completed
+[Baratheon merge acceptance](2026-10-06-pr188-merge-acceptance.md) supersedes
+the remaining-acceptance status below; the original results retain their source cuts.
+
 Review: `/tmp/free-pr185-opus55/opus-review-a7a0919b.md` and its adjacent JSON,
 against `a7a0919b235c877d7c4e044aabb42953f6c9e2e4`.
 Verified implementation commit: `b6b3cbe2e8c755585db135050494400867dfb942`.
@@ -102,7 +106,7 @@ no remaining concrete defect in the reviewed changes.
 The current-source full Compose `test:system`, complete standard/recovery browser
 matrix, live-model Article/unified acceptance and final independent candidate
 review remain tracked in
-[the active tasks](../../openspec/changes/durable-only-extraction-review/tasks.md).
+[the recorded tasks](../../openspec/changes/archive/2026-10-06-durable-only-extraction-review/tasks.md).
 Earlier dated evidence is historical and is not counted as acceptance of this
 candidate. The PR remains Draft. No merge, archive or production deployment is
 part of this verification.

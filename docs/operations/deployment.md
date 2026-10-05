@@ -579,8 +579,8 @@ Before starting either replacement image, finish or cancel these workflows
 using the deployed images. This applies to `node scripts/free.mjs production`
 as well as an external release wrapper: the in-repository launcher does not
 perform this drain. Preserve the previous images and use the deployment's
-complete Compose arguments in every command below, including GPU/tracing
-overlays when enabled.
+complete Compose arguments in every command below, including GPU and nginx
+overlays when used. Tracing is part of the base topology.
 
 1. **Close access and inventory.** Close the researcher-facing host route, or
    stop the bundled `nginx` service, and stop any external API callers. This

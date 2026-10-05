@@ -242,7 +242,7 @@ registration and rotation:
 
 Every Extraction is a protocol-1 durable Extraction governed by
 [ADR 0017](docs/adr/0017-durable-extraction-control-and-call-checkpoints.md) and
-[the active acceptance work](openspec/changes/durable-only-extraction-review/tasks.md);
+[the completed acceptance work](openspec/changes/archive/2026-10-06-durable-only-extraction-review/tasks.md);
 there is one execution, review and export path. Valid requests admit new durable
 single, Batch and suggested-Batch Extractions. Each admission commits its public
 row, durable coordination head and workflow enqueue in one transaction.
@@ -283,7 +283,9 @@ exportable when paused, failed or stopped; there is no batch-wide review grid.
 
 Durable admission is enabled by this implementation. Merging it therefore
 requires PostgreSQL, browser, Compose and exact-commit Spark acceptance recorded
-in [the active OpenSpec change](openspec/changes/durable-only-extraction-review/tasks.md).
+in [the completed OpenSpec change](openspec/changes/archive/2026-10-06-durable-only-extraction-review/tasks.md).
+The current [Baratheon merge acceptance](docs/validation/2026-10-06-pr188-merge-acceptance.md)
+records the integrated runtime, live providers and exploratory UI checks.
 Earlier [integration evidence](docs/validation/2026-10-04-durable-review-integration-verification.md)
 identifies its own source cuts and does not establish acceptance of this source.
 Production migration, merge and deployment remain separate operator actions.

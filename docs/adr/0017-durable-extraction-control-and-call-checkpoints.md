@@ -44,8 +44,9 @@ pairs is finalized, and as reviewed once a pair is finalized, whatever its
 processing state. The
 living `canonical-evidence-lifecycle` specification and the retired
 `result-tree-navigator` specification were reconciled with this model by the
-OpenSpec change `durable-only-extraction-review`, which stays open until its
-infrastructure acceptance passes.
+OpenSpec change `durable-only-extraction-review`. Its completed infrastructure
+and exploratory acceptance is recorded in the
+[2026-10-06 merge acceptance](../validation/2026-10-06-pr188-merge-acceptance.md).
 
 ## Admission amendment
 
@@ -54,8 +55,8 @@ Valid requests now admit durable Extractions directly. There is no release flag,
 environment switch, disabled-admission error, or non-durable fallback.
 This amendment supersedes the admission-disabled clauses in ADRs 0012 and
 0015 and the pre-production scope amendment above. Exact-commit Spark
-acceptance is a merge prerequisite in the active
-[OpenSpec tasks](../../openspec/changes/durable-only-extraction-review/tasks.md).
+acceptance is a merge prerequisite in the recorded
+[OpenSpec tasks](../../openspec/changes/archive/2026-10-06-durable-only-extraction-review/tasks.md).
 PostgreSQL checks cover successful single and batch admission, replay and enqueue
 rollback. The Compose contract checks HTTP 201 followed by durable COMPLETED.
 Merging this implementation removes the admission block. This follow-up must
