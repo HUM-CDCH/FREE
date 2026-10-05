@@ -309,7 +309,7 @@ export function useEvidenceOverlays({
           const focus = appendOverlay(container, parsedDocument, occurrence, {
             className: 'parsed-evidence-focus',
             border: '2px solid var(--color-accent)',
-            background: 'color-mix(in srgb, var(--color-ev-soft) 60%, transparent)',
+            background: 'var(--color-ev-soft)',
           })
           if (focus) firstFocus ??= focus
         }
