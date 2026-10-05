@@ -1,6 +1,6 @@
 # Durable interactive Extraction: implementation specification
 
-Date: 2026-10-04. Status: implementation in progress in the isolated candidate; admissions OFF. Planning baseline: `a1ae85b7ce500aa57ffd4025453c4703665daca7`. Review: [planning review record](2026-10-04-durable-interactive-extraction-review.md). Current checks and remaining integration/release work: [implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md).
+Date: 2026-10-04; updated 2026-10-05. Status: implemented in the isolated candidate; guarded Spark verification and independent Standards/Spec code and evidence reviews passed; admissions OFF. Planning baseline: `a1ae85b7ce500aa57ffd4025453c4703665daca7`. Review: [planning review record](2026-10-04-durable-interactive-extraction-review.md). Verification evidence: [implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md).
 
 Destination: an implementation-ready contract and coherent end-to-end change sequence for [Map durable interactive extraction and project-wide feedback](https://github.com/HUM-CDCH/FREE/issues/169). This asset adds implementation mechanics; product decisions remain authoritative in the named resolution comments. Do not infer a new policy from a toy prototype or legacy behavior.
 

@@ -195,6 +195,10 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   The root's reply may use the served context its counted input leaves (at
   least 4,096 tokens), since a long list is restated item by item; a bounded
   context keeps as many reply tokens as its request counts.
+  Durable calls fit whole correction examples above that required reply floor,
+  then allocate spare capacity to the reply. The captured request records its
+  exact examples, tokenizer identity, effective ceiling and reply allowance;
+  guidance edits never recompose a started call or unchanged-selection retry.
   `record_chars` and `discovery_chars` apply only to generic Catalog. Array-item
   recall and semantic correctness still need evaluation; `complete` is not a
   recall score.

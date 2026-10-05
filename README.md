@@ -262,9 +262,12 @@ recorded capture time. Batch members retain independent cuts and remain openable
 and exportable when paused, failed or stopped.
 
 The existing extraction implementation remains available while this candidate’s
-admissions are disabled. Durable admission stays disabled through integration
-with the review redesign,
-guarded release checks, and required E2E verification on baratheon Spark.
+admissions are disabled. The integrated candidate passed its guarded checks and
+required E2E verification on baratheon Spark; exact cuts, conditional skips and
+review are recorded in the
+[integration evidence](docs/validation/2026-10-04-durable-review-integration-verification.md).
+Durable admissions remain hard OFF after verification. This work does not
+authorize a production migration, merge, deployment or enablement.
 
 
 FREE sends the pinned schema and the Source Document's run ID to the included

@@ -1,6 +1,6 @@
 # Durable interactive Extraction implementation evidence
 
-Date: 2026-10-04. Status: implementation in progress; release capability OFF.
+Date: 2026-10-04; updated 2026-10-05. Status: implemented candidate; guarded Spark matrix passed; independent Standards/Spec code and evidence reviews complete; release capability OFF.
 Origin: [issue 169](https://github.com/HUM-CDCH/FREE/issues/169).
 Worktree: `/tmp/free-durable-extraction-implementation`.
 Branch: `feat/durable-interactive-extraction`.
@@ -22,9 +22,11 @@ Migrations preceding this feature remain unchanged.
 The observations below retain the record of earlier candidate revisions. Their
 legacy-reader checks and proposed legacy work are superseded by this amendment;
 they are not current release requirements. The removal's current checks are
-recorded in the final section. All-feature Spark E2E and review-design integration
-remain outstanding; the user’s instruction to wait for the other agent remains
-in force. The independent integration-risk assessment is now available at
+recorded in the final section. Review-design integration is implemented;
+all-feature Spark E2E is recorded in the final integration verification section.
+The results-review agent's PR 183 completion report satisfied the user's wait
+condition before this session provisioned private Spark verification resources.
+The independent integration-risk assessment is available at
 `/tmp/free-durable-review-integration-risk.md`; its original compatibility
 recommendations must be reconciled with this later scope amendment.
 
@@ -447,3 +449,84 @@ user's wait request is still honored pending confirmation that testing has
 finished. No Spark test, remote mutation, merge, deployment or production
 enablement has occurred. All-feature Spark evidence and final release review
 remain required. Admissions remain hard OFF.
+
+## Combined review follow-up
+
+The [integration verification record](2026-10-04-durable-review-integration-verification.md)
+maps the nine active risks to the current shared-rail candidate and its remaining
+Spark acceptance. `13cdb971` fixes same-source Extraction navigation, scalar
+parser errors, scoped keyboard review, fixed historical correction links,
+captured-guidance inspection, prior-decision Undo and whole-value conflict
+comparison. `17a8817b` adds the real queued-Pause/queue-capacity scenario.
+
+The full Studio recheck passed 2,171 tests; safety passed 29; typechecking passed.
+All thirteen real-worker lifecycle scenarios passed. Eight browser cases passed
+across the combined attempt and classified targeted reruns, including the
+previously failing eight-state navigation case. This is local evidence; no
+all-green combined Spark run or release approval is claimed. Independent
+follow-up review found two additional keyboard defects (untouched Z and edit
+cancel focus/priority); their regression fixes and final check evidence are
+recorded with the subsequent commit.
+
+## Final PR 183 reconciliation
+
+The results-review stack is reconciled through `2cacd73aa793accb7e18ecfa60942c4bcbd405c8`
+without merging. Original draft/reconnect behavior, document marks, source
+precision, list focus and narrow-header fixes are preserved. Native decisions
+remain under durable authority. `e2944e98` fixes cross-scope review loading and
+shared keyboard priority; `27a394cc` keeps menu Escape available during saves;
+`c5b9e3d9` preserves explicit native document-navigation intent. Independent
+bounded Spec and Standards reviews confirmed the earlier findings resolved.
+
+The full Studio suite passed 2,208 tests before the last mark fixes; their focused
+recheck passed 247 tests. The expanded lifecycle browser case saves/reloads
+corrections in every state; actual 344px/264px/mobile geometry passed and its
+screenshots were inspected. Stopped-batch, delayed acknowledgement and complete
+UTF-8 Markdown/value-link cases passed together in a later isolated rerun.
+Failures and exact source boundaries remain classified in the
+[integration record](2026-10-04-durable-review-integration-verification.md).
+The final combined recheck is recorded there after execution.
+
+These local observations preceded the Spark handoff. The local browser fixtures
+do not prove worker drain/recovery; thirteen native DBOS scenarios provide that
+separate evidence. Current guarded Spark execution is recorded in the
+[integration record](2026-10-04-durable-review-integration-verification.md).
+Admissions remain hard OFF; the existing checkout and its unrelated skill
+changes remain untouched. This feature has not been merged or deployed.
+
+## Guarded Spark completion (2026-10-05)
+
+The [integration evidence](2026-10-04-durable-review-integration-verification.md)
+records exact source cuts, owned resources, commands, all failed/skipped attempts
+and the V01–V22 risk matrix (V03 superseded). The four coherent implementation
+boundaries are complete. The user-removed historical compatibility is absent;
+`f91a3e22` also removes the last two native source-identity fallbacks.
+
+Spark passed root typechecking/lint, all Node unit tiers including 2,220 Studio
+checks, 29 safety checks, 56 database/68 Studio/113 Extraction PostgreSQL checks,
+1,446 Python unit checks, 56 Python PostgreSQL checks and seven Python service/
+recovery checks. The Extraction tier includes thirteen actual DBOS lifecycle
+scenarios and five SIGKILL recovery boundaries. Conditional private-source skips
+are explicitly classified, with no inferred success.
+
+Browser evidence: 77 standard shared-review cases, three opt-in unified
+preferences, five actual Studio restart cases, 22 full real-service cases,
+seven native worker controls/guidance/deletion cases at `7dffc780`, two actual Qwen/
+GLiFormer native-provider cases at the same cut, and all fourteen retained-rail/
+access cases together at `1788fcbb`. Native worker checks exercise every method;
+seeded retained-head cases are not claimed as worker drain/recovery proof.
+
+Final Spec evidence review required the joined UI correction-to-provider
+journey, which exposed an Article budgeting defect and explicit-settings
+serialization failure. Both are fixed: required full/bounded reply floors are
+preserved, compatible ungrounded examples reach the actual provider, and nested
+method serializers retain ownership of optional fields. The two joined full/
+bounded journeys, current 1,446 unit checks and all 113 Extraction PostgreSQL
+checks pass at `7dffc780`. Complete Standards and Spec code and final evidence
+reviews found no remaining material finding or important required acceptance
+gap. Both reviewers independently inspected the exact Spark source cut, logs,
+guidance artifacts and exported snapshots on 2026-10-05. The owned disposable
+Spark PostgreSQL container and volume were removed after verification; the
+private checkout and artifacts remain available for review.
+`DURABLE_RELEASE_VERIFIED=false` remains unchanged. This feature branch is neither
+merged nor deployed; no production database was used for testing.

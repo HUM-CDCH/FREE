@@ -1,6 +1,6 @@
 # Durable interactive Extraction: migration and release
 
-Date: 2026-10-04. Status: candidate implementation and guarded disposable checks in progress; release acceptance incomplete and admissions OFF. Planning baseline: `a1ae85b7ce500aa57ffd4025453c4703665daca7`. Review: [planning review record](2026-10-04-durable-interactive-extraction-review.md). Observed checks and remaining work: [implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md). No runtime database, deployment, merge, or production enablement is authorized by this candidate's checks.
+Date: 2026-10-04; updated 2026-10-05. Status: isolated candidate implemented; guarded Spark execution and independent Standards/Spec code and evidence reviews passed; admissions OFF. Planning baseline: `a1ae85b7ce500aa57ffd4025453c4703665daca7`. Review: [planning review record](2026-10-04-durable-interactive-extraction-review.md). Observed checks: [implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md). No runtime database, deployment, merge, or production enablement is authorized by this candidate's checks.
 
 Origin: [Define migration, recovery verification, and release compatibility](https://github.com/HUM-CDCH/FREE/issues/176), child of [Map durable interactive extraction and project-wide feedback](https://github.com/HUM-CDCH/FREE/issues/169). Product decisions remain in their linked resolution comments; this asset defines release mechanics and required evidence.
 
@@ -74,7 +74,7 @@ Implementation owners run the narrow unit/contract tier first, then guarded data
 | Partial review/finalization | Live valid edits saved all states; incomplete review never silently finalizes; finalization tied to fixed producing-result snapshot. |
 | Export and pagination | Partial/stopped/failed data included; snapshot consistent under concurrent appends/edits; CSV bundle/XLSX preserve revision metadata, historic corrections, evidence statuses, proposals; no skipped/duplicated pages. |
 | Retention/deletion | Source/result/Evidence/review/feedback references protect paused and terminal artifacts; shared references remain protected; explicit deletion fences writers; only true orphans collected. |
-| History/role migration | Fresh and forward-upgrade fixtures converge; old pins/artifacts/reviews byte-preserved; kei denied public, Studio dbos, direct coordination access, unauthorized routines, and stale-fence writes. |
+| Current schema/worker roles | Fresh disposable schema and authored migrations converge; current durable pins, checkpoints and corrections survive restart; kei denied public, Studio dbos, direct coordination access, unauthorized routines, and stale-fence writes. Historical compatibility and legacy upgrades are outside the amended scope. |
 
 Cover Article and generic, recipe, and unified Catalog with at least one multi-call case each, including configured Catalog concurrency. Use deterministic model stubs for boundary/crash assertions; reserve real-model service checks for protocol/evidence interoperability, not exact stochastic values. Use durable completed, failed, paused, stopped, and queued/running attempts; mixed deployment versions and legacy upgrade scenarios are outside this feature.
 

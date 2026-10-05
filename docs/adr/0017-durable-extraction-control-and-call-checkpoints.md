@@ -1,6 +1,6 @@
 # 0017: Durable Extraction control and call checkpoints
 
-Date: 2026-10-04. Status: proposed for implementation; approved planning direction under [Map durable interactive extraction and project-wide feedback](https://github.com/HUM-CDCH/FREE/issues/169). Current production contracts remain unchanged until implementation.
+Date: 2026-10-04. Status: accepted direction, implemented and verified in the isolated admission-disabled candidate under [Map durable interactive extraction and project-wide feedback](https://github.com/HUM-CDCH/FREE/issues/169). Production deployment/enablement remains a separate unapproved action.
 
 One researcher-visible Extraction must survive cooperative pause, revised settings, retries, and live review without losing completed work. DBOS remains the durable executor, but an attempt that returns at a pause boundary is runtime-successful while the Extraction remains Paused; DBOS messages alone also cannot establish which committed correction context a new call captured. Use immutable linked execution selections and a restricted PostgreSQL coordination schema for durable controls, call captures/checkpoints, and feedback publication, with DBOS enqueue/recovery driving attempts rather than defining researcher-visible lifecycle.
 
@@ -43,7 +43,10 @@ terminal states and deletion drain. Deleted graphs are fenced atomically with
 public cascade deletion; native-history cleanup uses the Parsing worker's boot
 boundary so cancellation alone never proves quiescence.
 
-Implementation and release verification remain in progress. Spark E2E runs wait
-for the results-review agent to finish; no shared Spark environment, runtime
-database, deployment or production feature enablement is authorized by this
-candidate. See [implementation evidence](../validation/2026-10-04-durable-interactive-extraction-implementation.md).
+The completed PR 183 report satisfied the requested Spark wait. Guarded tests
+then ran in a private Spark checkout, with disposable databases and isolated
+resources. The integrated candidate passed lifecycle/recovery, shared review,
+exports, deletion and selected real-provider checks. Admissions remain hard OFF;
+no production database migration, merge, deployment or enablement is authorized.
+See the [integration evidence](../validation/2026-10-04-durable-review-integration-verification.md)
+for exact source cuts, conditional skips and independent review.
