@@ -81,7 +81,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
         {value.correction&&value.correction.decision.action!=='PENDING'&&<Button onClick={()=>decide('PENDING')}>Mark pending</Button>}
         <label className="flex gap-2 text-secondary"><input type="checkbox" checked={state.context.draft.included}
           onChange={event=>send({type:'edit',draft:{...state.context.draft,included:event.target.checked}})}/>Let the model learn from this edit</label>
-        <p className="text-compact text-ink-muted">Guidance teaches a pattern; it does not supply another document’s facts. Evidence is optional.</p>
+        <p className="text-compact text-ink-muted">The model learns the pattern, not this document’s facts. Evidence is optional.</p>
         <label className="block text-secondary">Link correction Evidence from this source
           <select className={`${inputClass} mt-1`} value={state.context.draft.evidence[0]?JSON.stringify([state.context.draft.evidence[0].anchorId,state.context.draft.evidence[0].occurrenceIds[0]]):''} onChange={event=> {
             const selected=event.target.value?JSON.parse(event.target.value) as [string,string]:null
@@ -142,11 +142,11 @@ function ProducingMethod({ordinal,requested,effective}:{ordinal:number;requested
 const savedAt=(at:unknown)=>at?new Date(String(at)).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}):null
 
 /** Saved versions in plain words; the exact producing inputs and calls stay one disclosure away for audit. */
-function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackVersion?:number)=>void}) {
-  const [history,setHistory]=useState<DurableHistory|null>(null),[error,setError]=useState<string|null>(null)
-  return <details className="rounded-md border border-line bg-surface p-3" onToggle={event=> {
-    if(event.currentTarget.open&&!history)void readDurableHistory(id).then(setHistory).catch(e=>setError(e.message))
-  }}>
+function History({id,shown,onSnapshot}:{id:string;shown:boolean;onSnapshot:(version:number,feedbackVersion?:number)=>void}) {
+  const [history,setHistory]=useState<DurableHistory|null>(null),[error,setError]=useState<string|null>(null),[open,setOpen]=useState(true)
+  // The full history (with every call's request) is read only once its tab is shown.
+  useEffect(()=>{if(shown&&open&&!history)void readDurableHistory(id).then(setHistory).catch(e=>setError(e.message))},[id,shown,open,history])
+  return <details open={open} className="rounded-md border border-line bg-surface p-3" onToggle={event=>setOpen(event.currentTarget.open)}>
     <summary className="cursor-pointer text-secondary font-semibold">Saved versions</summary>
     {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
     {history&&<div className="space-y-3 pt-2 text-secondary">
@@ -156,7 +156,7 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
           <span>Results {finalization.snapshotVersion}{savedAt(finalization.createdAt)&&<span className="text-ink-muted"> · {savedAt(finalization.createdAt)}</span>}</span>
           <Button aria-label={`Open finalized review of results ${finalization.snapshotVersion}`} onClick={()=>onSnapshot(finalization.snapshotVersion,finalization.feedbackVersion)}>Open</Button>
         </li>)}</ul></section>}
-      <section aria-label="Results"><h3 className="m-0 text-compact font-semibold">Results</h3>
+      <section aria-label="Saved results"><h3 className="m-0 text-compact font-semibold">Results</h3>
         {history.snapshots.length===0?<p className="m-0 text-compact text-ink-muted">Nothing saved yet.</p>:
         <ul className="m-0 list-none space-y-1 p-0">{[...history.snapshots].reverse().map(snapshot=><li key={snapshot.id} className="flex items-center justify-between gap-2">
           <span>Results {snapshot.version} <span className="text-ink-muted">· {snapshot.values.length} {snapshot.values.length===1?'value':'values'}</span></span>
@@ -168,7 +168,7 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
           const effective=history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined
           const previous=history.selections.find(each=>each.ordinal===selection.ordinal-1)
           return <li key={selection.id}>
-            {selection.ordinal===1?'First inputs':`Revised inputs ${selection.ordinal}`}
+            {selection.ordinal===1?'First inputs':`Changed inputs (version ${selection.ordinal})`}
             <span className="text-ink-muted">{savedAt(selection.createdAt)&&` · ${savedAt(selection.createdAt)}`} · {effective?`model ${(effective.models.fields??Object.values(effective.models)[0])?.model??'not recorded'}`:'model not recorded yet'}{previous&&previous.schemaRevisionId!==selection.schemaRevisionId?' · schema changed':''}</span>
           </li>})}</ul></section>}
       <details><summary className="cursor-pointer text-compact text-ink-muted">Technical details (for audit)</summary>
@@ -202,7 +202,7 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
 
 /** Durable live review in the existing results rail. All lifecycle states
  * share the same retained snapshot and independent researcher decisions. */
-export function DurableResults({attempt,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
   /** The explicit result/decision cut this view opens on, e.g. a finalized
    * review or a saved-correction link; null opens the live cut. */
   initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
@@ -214,7 +214,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void;
   onReviewFinalized?:()=>void;
   /** The History tab's body: guidance and saved versions render there, not in Results. */
-  historySlot?:HTMLElement|null;onShowResults?:()=>void;onShowHistory?:()=>void;
+  historySlot?:HTMLElement|null;historyShown?:boolean;onShowResults?:()=>void;onShowHistory?:()=>void;
 }) {
   const id=attempt?.extractionId
   const keyboardRoot=useRef<HTMLDivElement>(null)
@@ -323,7 +323,8 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       if(!controller.signal.aborted)timer=setTimeout(()=>void poll(),1500)}
     void poll();return()=> {++generations.live;++generations.snapshot;controller.abort();clearTimeout(timer)}
   },[refresh])
-  if(!loaded||!page||!attempt||!id||!model) return <p role={error?'alert':'status'} className="p-3 text-secondary">{error??'Loading saved extraction results…'}</p>
+  if(!loaded||!page||!attempt||!id||!model) return <><p role={error?'alert':'status'} className="p-3 text-secondary">{error??'Loading saved extraction results…'}</p>
+    {historySlot&&createPortal(<p className="p-3 text-secondary">{error??'Loading…'}</p>,historySlot)}</>
   const state=loaded.state,terminal=state.status==='STOPPED'||state.status==='STOPPING'
   const idle=['PAUSED','FAILED','COMPLETED'].includes(state.status)
   const command=async(action:string)=> {
@@ -407,11 +408,11 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
         <Button onClick={()=> {++readGenerations.current.snapshot;++selectedGeneration.current;setPage(loaded.page)}}>Show results {loaded.page.snapshotVersion} · decisions {loaded.page.feedbackVersion}</Button></div>}
     </div>
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-      {state.pendingSelection&&unfit>0&&<p role="status" className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending schema and won’t be shown to the model.{' '}
+      {state.pendingSelection&&unfit>0&&<p className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending schema and won’t be shown to the model.{' '}
         {onShowHistory&&<button type="button" className="cursor-pointer text-accent underline" onClick={onShowHistory}>See corrections</button>}</p>}
       {historySlot&&createPortal(<div className="space-y-3 p-3">
-        <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${loaded.page.feedbackVersion}`} onIncompatible={setUnfit}/>
-        <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} onSnapshot={(version,feedback)=>{void selectPage(`${durableRoot(id)}/values?snapshotVersion=${version}${feedback===undefined?'':`&feedbackVersion=${feedback}`}`);onShowResults?.()}}/>
+        <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${loaded.page.feedbackVersion}`} onIncompatible={setUnfit} initiallyOpen/>
+        <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} onSnapshot={(version,feedback)=>{void selectPage(`${durableRoot(id)}/values?snapshotVersion=${version}${feedback===undefined?'':`&feedbackVersion=${feedback}`}`);onShowResults?.()}}/>
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
       {review&&<div className="space-y-2 border-b border-line pb-3">

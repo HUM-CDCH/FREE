@@ -269,6 +269,7 @@ function RightRail({
           onReviewFinalized={onReviewFinalized}
           onPinnedDocument={onPinnedDocument}
           historySlot={historySlot}
+          historyShown={activeTab === 'history'}
           onShowResults={() => onTabChange('results')}
           onShowHistory={() => onTabChange('history')}
         /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">

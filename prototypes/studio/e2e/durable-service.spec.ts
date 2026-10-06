@@ -197,7 +197,6 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     // A later project-guidance edit affects future captures, never this started call.
     await page.goto(`/projects/${project}/documents/${sourceB.sourceDocumentId}?extractionId=${extractionB}`)
     await page.locator('#rail-tab-history').click()
-    await page.getByText(/^Corrections the model learns from/).click()
     await expect(page.getByText('In use',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Stop using',exact:true}).click()
     await expect(page.getByRole('button',{name:'Use',exact:true})).toBeVisible()

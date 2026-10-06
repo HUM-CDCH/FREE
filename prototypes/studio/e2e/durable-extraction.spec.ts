@@ -278,7 +278,6 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     await page.getByRole('button',{name:'Correction Evidence',exact:true}).click()
     await expect(page.locator('.parsed-evidence-highlight')).toHaveCount(1)
     await page.locator('#rail-tab-history').click()
-    await page.getByText(/^Corrections the model learns from/).click()
     await expect(page.getByText('In use · Has evidence',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Stop using',exact:true}).click()
     await expect(page.getByRole('button',{name:'Use',exact:true})).toBeVisible()
@@ -295,7 +294,6 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     await expect(page.getByText(/1 saved correction doesn’t fit the pending schema/)).toBeVisible()
     await page.getByRole('button',{name:'Apply changes',exact:true}).click()
     await page.locator('#rail-tab-history').click()
-    await page.getByText(/^Corrections the model learns from/).click()
     await expect(page.getByText(/1 correction doesn’t fit this schema/)).toBeVisible()
     await page.locator('#rail-tab-results').click()
     const stillSaved=(await (await page.request.get(valueUrl)).json()).values[0]
@@ -620,7 +618,6 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
     expect(history.corrections.map((correction:{revision:number})=>correction.revision)).toEqual([1,2,3,4])
     await second.locator('#rail-tab-history').click()
-    await second.getByText(/^Corrections the model learns from/).click()
     // Corrections list newest first: revisions 4, 3, 2, 1.
     const historical=await second.getByRole('link',{name:'Open in document',exact:true}).nth(1).getAttribute('href')
     await page.goto(historical!);await page.locator('#rail-tab-results').click()

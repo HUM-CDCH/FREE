@@ -109,6 +109,7 @@ describe('RightRail Results', () => {
     renderRail({ tab: 'history', extraction: { ...defaultController, attempt } })
     expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true')
     expect(vi.mocked(DurableResults).mock.lastCall![0].historySlot).toBe(screen.getByRole('tabpanel'))
+    expect(vi.mocked(DurableResults).mock.lastCall![0].historyShown).toBe(true)
   })
 
   it('says how to start when there is no Extraction, and offers Reconnect for an unanswered admission', () => {
