@@ -1,0 +1,75 @@
+[
+  {
+    "id": "column.extraction_runtime.callFailure.recoverable",
+    "label": "Add column \"recoverable\" to \"callFailure\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "column",
+        "name": "recoverable",
+        "table": "callFailure"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"recoverable\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "extraction_runtime",
+          "callFailure",
+          "recoverable"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"recoverable\"",
+        "sql": "ALTER TABLE \"extraction_runtime\".\"callFailure\" ADD COLUMN \"recoverable\" bool DEFAULT false NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"recoverable\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "extraction_runtime",
+          "callFailure",
+          "recoverable"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "extraction-runtime.bounded-discovery-recovery",
+    "label": "Allow bounded unified fallback for output-limit replies",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "callFailure"
+      }
+    },
+    "precheck": [
+      {
+        "description": "attempt-local failure policy exists",
+        "sql": "SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_schema='extraction_runtime' AND table_name='callFailure' AND column_name='recoverable') AS ok"
+      }
+    ],
+    "execute": [
+      {
+        "description": "install bounded recovery without changing worker privileges",
+        "sql": "CREATE OR REPLACE FUNCTION extraction_runtime.commit_output(p_extraction uuid, p_attempt uuid, epoch integer,\n  p_capture uuid, input_digest text, output jsonb) RETURNS jsonb\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog\nAS $$\nDECLARE h extraction_runtime.head; c extraction_runtime.capture; o extraction_runtime.checkpoint; d text; recover boolean; f extraction_runtime.\"callFailure\";\nBEGIN\n  h := extraction_runtime.authorized(p_extraction, p_attempt, epoch);\n  SELECT * INTO c FROM extraction_runtime.capture WHERE id = p_capture AND \"extractionId\" = p_extraction;\n  IF NOT FOUND OR c.\"reservationAttemptId\" <> p_attempt OR c.\"reservationEpoch\" <> epoch\n     OR NOT EXISTS (SELECT FROM extraction_runtime.input i WHERE i.id = p_capture AND i.digest = input_digest) THEN\n    RAISE EXCEPTION 'output authorization or digest mismatch' USING ERRCODE = '40001';\n  END IF;\n  d := extraction_runtime.content_hash(output);\n  SELECT * INTO o FROM extraction_runtime.checkpoint WHERE id = p_capture;\n  IF FOUND THEN\n    IF o.\"inputDigest\" <> input_digest OR o.\"outputDigest\" <> d THEN\n      RAISE EXCEPTION 'checkpoint conflict' USING ERRCODE = '23505';\n    END IF;\n    RETURN to_jsonb(o);\n  END IF;\n  SELECT * INTO f FROM extraction_runtime.\"callFailure\" WHERE \"captureId\"=p_capture AND \"attemptId\"=p_attempt;\n  IF FOUND THEN\n    IF f.\"inputDigest\"<>input_digest OR f.\"outputDigest\"<>d THEN RAISE EXCEPTION 'failure response conflict' USING ERRCODE='23505'; END IF;\n    RETURN to_jsonb(f);\n  END IF;\n  IF NOT c.\"inFlight\" THEN RAISE EXCEPTION 'call was not started' USING ERRCODE = '40001'; END IF;\n  -- PAUSE and STOP deliberately allow outputs admitted before their command.\n  IF coalesce(output->>'formatRefused','false')<>'true' AND EXISTS (\n    SELECT FROM jsonb_array_elements(output->'calls') call WHERE call->>'ok'='false' AND coalesce(call->>'recovered','false')<>'true'\n  ) THEN\n    -- Only the unified planner has a bounded split fallback. A truncated\n    -- discovery/entry reply remains attempt-local failure history, never a\n    -- reusable checkpoint. Other errors still halt new admission.\n    recover := EXISTS (SELECT FROM extraction_runtime.effective e WHERE e.id=c.\"selectionId\"\n      AND jsonb_typeof(e.configuration->'options'->'unified')='object') AND NOT EXISTS (\n      SELECT FROM jsonb_array_elements(output->'calls') call\n      WHERE call->>'ok'='false' AND coalesce(call->>'recovered','false')<>'true'\n        AND (call->>'finish' IS DISTINCT FROM 'length'\n             OR coalesce(call->>'stage','') NOT IN ('discovery','entry'))\n    );\n    INSERT INTO extraction_runtime.\"callFailure\" (\"captureId\",\"attemptId\",\"inputDigest\",\"outputDigest\",output,recoverable)\n      VALUES (p_capture,p_attempt,input_digest,d,output,recover) RETURNING * INTO f;\n    UPDATE extraction_runtime.capture SET \"inFlight\"=false WHERE id=p_capture;\n    IF NOT recover THEN\n      UPDATE extraction_runtime.head SET intent=CASE WHEN intent='STOP' THEN 'STOP' ELSE 'PAUSE' END WHERE id=p_extraction;\n    END IF;\n    RETURN to_jsonb(f);\n  END IF;\n  INSERT INTO extraction_runtime.checkpoint (id,\"inputDigest\",\"outputDigest\",output) VALUES (p_capture, input_digest, d, output) RETURNING * INTO o;\n  UPDATE extraction_runtime.capture SET \"inFlight\" = false WHERE id = p_capture;\n  RETURN to_jsonb(o);\nEND $$;\n\n"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "bounded recovery is installed under its restricted definer",
+        "sql": "SELECT EXISTS (SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE n.nspname='extraction_runtime' AND p.proname='commit_output' AND p.prosecdef AND r.rolname='free_extraction_runtime' AND strpos(pg_get_functiondef(p.oid),'recover :=')>0) AS ok"
+      }
+    ]
+  }
+]

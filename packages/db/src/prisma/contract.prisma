@@ -174,6 +174,9 @@ namespace extraction_runtime {
     inputDigest String
     outputDigest String
     output Json
+    // A bounded planner fallback may consume this reply within its attempt.
+    // Historical failures keep their existing terminal policy.
+    recoverable Boolean @default(false)
     capture Capture @relation(fields: [captureId], references: [id], onDelete: Cascade)
     @@id([captureId, attemptId])
   }

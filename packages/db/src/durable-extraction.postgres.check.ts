@@ -18,7 +18,7 @@ test('the durable-first upgrade converges with pilot-first without rewriting his
     const before = await snapshotHistory(owner)
     assert.deepEqual((await migrate(target.url, '20261004T1351_durable_retry_history')).applied,
       ['20261004T1159_durable_extraction', '20261004T1351_durable_retry_history'])
-    assert.deepEqual((await migrate(target.url)).applied, ['20261005T0831_pilot_after_durable'])
+    assert.deepEqual((await migrate(target.url)).applied, ['20261005T0831_pilot_after_durable','20261005T2213_remove_batch_schema_suggestion_purpose','20261006T0813_bounded_discovery_recovery'])
     assert.deepEqual(await snapshotHistory(owner), before)
     assert.deepEqual((await migrate(target.url)).applied, [])
     assert.equal((await owner.query('SELECT extraction_runtime.capabilities() AS value')).rows[0].value.protocol, 1)
@@ -51,7 +51,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   await owner.connect()
   const history = await seedPreMigrationHistory(owner)
   const before = await snapshotHistory(owner)
-  assert.deepEqual((await migrate(target.url)).applied, ['20261004T1635_project_spreadsheet_and_schema_issue_flags','20261005T0832_durable_after_pilot'])
+  assert.deepEqual((await migrate(target.url)).applied, ['20261004T1635_project_spreadsheet_and_schema_issue_flags','20261005T0832_durable_after_pilot','20261005T2213_remove_batch_schema_suggestion_purpose','20261006T0813_bounded_discovery_recovery'])
   assert.deepEqual(await snapshotHistory(owner), before)
   assert.deepEqual((await migrate(target.url)).applied, [])
   await ensureKeiRole(owner, { role, schema, password })
@@ -149,6 +149,46 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   assert.equal(await invoke('begin_call',[extraction,retry,retryLease.epoch,failedId]),true)
   await invoke('commit_output',[extraction,retry,retryLease.epoch,failedId,retained.input.digest,{parsed:{flag:false},calls:[{ok:true}]}])
   assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime."callFailure" WHERE "captureId"=$1',[failedId])).rows[0].n,1)
+  // Only output-limit failures supported by the pinned bounded planner may
+  // continue. Committing admitted work never clears a researcher's intent.
+  for (const policy of [
+    {unified:true,stage:'discovery',finish:'length',intent:'RUN',recoverable:true},
+    {unified:true,stage:'discovery',finish:'length',intent:'PAUSE',recoverable:true},
+    {unified:true,stage:'entry',finish:'length',intent:'STOP',recoverable:true},
+    {unified:false,stage:'discovery',finish:'length',intent:'RUN',recoverable:false},
+    {unified:true,stage:'verify',finish:'length',intent:'RUN',recoverable:false},
+    {unified:true,stage:'discovery',finish:'stop',intent:'RUN',recoverable:false},
+    {unified:true,stage:'discovery',finish:null,intent:'RUN',recoverable:false},
+    {unified:true,stage:'discovery',finish:'length',intent:'RUN',recoverable:false,mixed:true},
+  ]) {
+    const id=randomUUID(),selected=randomUUID(),active=randomUUID(),captureId=randomUUID()
+    await owner.query(`INSERT INTO extraction_runtime.head
+      (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"controlVersion","pendingResume",acknowledgement,"attemptId",fence,"leaseEpoch",generation,"snapshotVersion",deleted)
+      VALUES ($1,$2,$3,$4,'CATALOG',$5,'RUN',0,false,'QUEUED',$6,1,0,1,0,false)`,
+      [id,history.projectContextId,randomUUID(),{runId:'source',generation:'g1'},selected,active])
+    await owner.query(`INSERT INTO extraction_runtime.selection (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
+      VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`,[selected,id,history.revisions.catalog,'a'.repeat(64),{recordDescription:'record',schemaNodes:[flagNode]}])
+    await owner.query(`INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,1,$4)`,[active,id,selected,`test:${active}`])
+    const lease=await invoke('claim',[id,active,randomUUID()])
+    const configuration={models:{fields:provider,reasoning:provider},options:policy.unified?{unified:{defaults:1}}:{},planner:1,protocols:{calls:1,source:'records'}}
+    await invoke('resolve_selection',[id,active,lease.epoch,configuration])
+    const savedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'record',
+      {plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'policy'}],coverage:{}}])
+    await invoke('capture_unit',[id,active,lease.epoch,captureId,'policy',{...descriptor,planDigest:savedPlan.digest}])
+    const frozen=await invoke('finalize_input',[id,active,lease.epoch,captureId,body])
+    assert.equal(await invoke('begin_call',[id,active,lease.epoch,captureId]),true)
+    await owner.query('UPDATE extraction_runtime.head SET intent=$2 WHERE id=$1',[id,policy.intent])
+    const output={parsed:null,recoverable:true,calls:[{ok:false,stage:policy.stage,finish:policy.finish},
+      ...(policy.mixed?[{ok:false,stage:'discovery',finish:'stop'}]:[])]}
+    const committed=await invoke('commit_output',[id,active,lease.epoch,captureId,frozen.digest,output])
+    assert.equal(committed.recoverable,policy.recoverable,JSON.stringify(policy))
+    assert.deepEqual(await invoke('commit_output',[id,active,lease.epoch,captureId,frozen.digest,output]),committed)
+    assert.equal((await invoke('read_call',[id,active,lease.epoch,captureId])).checkpoint.recoverable,policy.recoverable)
+    assert.equal((await owner.query('SELECT intent FROM extraction_runtime.head WHERE id=$1',[id])).rows[0].intent,
+      policy.recoverable?policy.intent:policy.intent==='STOP'?'STOP':'PAUSE')
+    assert.equal((await owner.query('SELECT count(*)::int AS n FROM extraction_runtime.checkpoint WHERE id=$1',[captureId])).rows[0].n,0)
+    await assert.rejects(owner.query('UPDATE extraction_runtime."callFailure" SET recoverable=false WHERE "captureId"=$1',[captureId]),(e:{code?:string})=>e.code==='55000')
+  }
   const denied = await owner.query(`SELECT has_schema_privilege('free_extraction_runtime', 'public', 'USAGE') AS allowed`)
   assert.equal(denied.rows[0].allowed, false)
 })

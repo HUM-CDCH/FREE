@@ -21,5 +21,7 @@ test('the durable expansion preserves the complete public contract and advances 
   assert.equal(pilotBridge.to,durableBridge.to)
   const removePurpose=JSON.parse(readFileSync(resolve(root,'20261005T2213_remove_batch_schema_suggestion_purpose/migration.json'),'utf8'))
   assert.equal(removePurpose.from,durableBridge.to)
-  assert.equal(ref.hash,removePurpose.to)
+  const recovery=JSON.parse(readFileSync(resolve(root,'20261006T0813_bounded_discovery_recovery/migration.json'),'utf8'))
+  assert.equal(recovery.from,removePurpose.to)
+  assert.equal(ref.hash,recovery.to)
 })
