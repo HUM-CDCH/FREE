@@ -23,6 +23,8 @@ recipe, a language, a numbering convention or a field name.
 """
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -236,10 +238,13 @@ def _observe(answer: dict, window: Window, texts: dict[str, str], labels: list[s
 
 
 def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
-             ask: Callable[..., dict | None], *, overlap: int, splits: int) -> dict | None:
+             ask: Callable[..., dict | None], *, overlap: int, splits: int,
+             progress: Callable[[list[dict], list[dict]], None] | None = None) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
-    `ask(record, system, user, schema, calls, issues)` makes one counted call."""
+    `ask(record, system, user, schema, calls, issues)` makes one counted call. Before each call, `progress` is given
+    the record starts the windows read so far found and the lines the next window labels: a view of the run while it
+    reads, never an input to discovery."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     system = DISCOVERY.format(description=description)
 
@@ -256,6 +261,8 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     while queue:
         window, depth = queue.pop(0)
         user, labels = _render(window, texts)
+        if progress is not None:
+            progress(record_starts(seen), ranges_json(window.primary))
         answer = ask(None, system, user, _reply(labels), calls, issues)
         observed = _observe(answer, window, texts, labels, issues) if answer is not None else None
         if observed is None and len(window.primary) > 1 and depth < splits:
@@ -266,6 +273,43 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         seen.append(observed or _Seen(window, False, []))
     return {**_assemble(seen, evidence, texts), "windows": [_window_json(each) for each in seen],
             "issues": issues, "calls": calls}
+
+
+def record_starts(seen: Sequence[_Seen]) -> list[dict]:
+    """The record starts the windows read so far found, each by its segment and printed label."""
+    return [{"segment": each.window.primary[index].segment, "label": label}
+            for each in seen for index, _, kind, label in each.places if kind == "record"]
+
+
+class StreamedPlaces:
+    """The places a discovery reply has completed while it is still generated, for display only: discovery reads
+    the saved reply alone (`_observe`). A place is complete once its list closes; nothing is repaired."""
+
+    def __init__(self) -> None:
+        self.text, self.at, self.places = "", None, []
+        self._decoder = json.JSONDecoder(strict=False)  # source lines may hold control characters, as `parse_json`
+
+    def feed(self, delta: str) -> bool:
+        """Whether `delta` completed another place."""
+        self.text += delta
+        if self.at is None:
+            start = re.search(r'"places"\s*:\s*\[', self.text)
+            if start is None:
+                return False
+            self.at = start.end()
+        before = len(self.places)
+        while True:
+            at = self.at
+            while at < len(self.text) and self.text[at] in " \t\r\n,":
+                at += 1
+            if at >= len(self.text) or self.text[at] == "]":
+                break
+            try:
+                place, self.at = self._decoder.raw_decode(self.text, at)
+            except json.JSONDecodeError:
+                break
+            self.places.append(place)
+        return len(self.places) > before
 
 
 def _where(window: Window) -> str:

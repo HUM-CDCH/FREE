@@ -41,8 +41,8 @@ export type RailRow = {
   /** The run-time decision was not kept at settlement (§5.3). */
   changed: boolean
   page: number | null
-  /** Retained values can be reviewed without a model Evidence link. */
-  retained?: { reviewable: boolean; source: string; attribution: string }
+  /** Retained values can be reviewed without a model Evidence link; `source` replaces a linked row's own words. */
+  retained?: { reviewable: boolean; source?: string; attribution?: string }
 }
 
 export type RailRecord = {

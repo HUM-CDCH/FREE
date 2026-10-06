@@ -63,6 +63,24 @@ Merging this implementation removes the admission block. This follow-up must
 pass its own infrastructure checks before deployment. The older validation and
 plan records remain unchanged and describe their own source cuts.
 
+## Live results amendment
+
+Amendment, 2026-10-06: the researcher asked for the pre-durable feedback loop
+back. The results rail follows the latest saved results while a run reads,
+instead of staying on the first saved cut; only an explicitly opened cut (a
+finalized review, a saved-correction link, History's "Open") stays put. A
+finished unified Catalog entry, and each Article grounding batch, retains its
+verified Evidence links at once, so values are marked on the source as they
+are read. Pause, Resume, Retry and Stop take the run button's place.
+
+Discovery's reply is streamed by the transport only: the captured request is
+sent unchanged plus the provider's `stream` and usage options, and the call is
+read, checked and committed exactly as an unstreamed one (a server that ignores
+the stream answers once and is read as before). While it is generated, the
+worker shows the places it has completed, and the planner the record starts
+earlier windows found, as DBOS events Studio reads for display only; nothing in
+a run reads them back, and failing to write them never fails a call.
+
 ## Candidate implementation and integration status
 
 The candidate lives on `feat/durable-interactive-extraction`, based on current

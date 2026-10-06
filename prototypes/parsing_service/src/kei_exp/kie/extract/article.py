@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from kei_exp.kie.extract.assembly import (ARTICLE_VERSION, artifact, document_values, ground_records,
-                                          grounding_accounting, unchecked)
+                                          grounding_accounting, link_json, unchecked)
 from kei_exp.kie.extract.calls import Call, complete
 from kei_exp.kie.extract.contexts import (GROUPING_VERSION, Context, assemble_document, partition, reconcile_values,
                                           sharing)
@@ -108,9 +108,16 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                              f"{extracted.calls[-1].error}")
     calls += extracted.calls
     issues += extracted.issues
+    grounded: list = []
+    def retained_links(batch):
+        # Each grounding batch's links are retained at once, so the source shows them while the run goes on.
+        grounded.extend(batch)
+        if batch:
+            from kei_exp.kie.extract.retained import saved_record
+            saved_record(chat, extracted.slices[0][1], "document", links=[link_json(link) for link in grounded])
     support = ground_records(extracted.slices, schema, chat, check=check, budget=options.record_chars,
         counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,
-        value_contexts=extracted.value_contexts, origins=extracted.origins)
+        value_contexts=extracted.value_contexts, origins=extracted.origins, on_batch=retained_links)
     links = support.links
     calls += support.calls
     issues += support.issues

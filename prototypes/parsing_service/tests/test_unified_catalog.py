@@ -963,3 +963,12 @@ def test_the_defaults_and_option_bounds_match_the_shared_fixture():
     for options in shared["invalid"]:
         with pytest.raises(ValueError):
             unified.UnifiedOptions.model_validate(options)
+
+
+def test_record_starts_name_the_segment_and_label_of_each_record_a_read_window_found():
+    from kei_exp.kie.extract.discovery import Window, _Seen, record_starts
+    from kei_exp.kie.extract.windows import Unit
+    window = Window((Unit("p1_s0", 0, 10), Unit("p1_s1", 0, 8)))
+    seen = [_Seen(window, True, [(0, 0, "record", "1"), (1, 3, "other", None), (1, 4, "record", None)]),
+            _Seen(window, False, [])]
+    assert record_starts(seen) == [{"segment": "p1_s0", "label": "1"}, {"segment": "p1_s1", "label": None}]

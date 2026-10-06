@@ -225,10 +225,12 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     effective = execution["effective"]
     budget = _Budget(chat, counters, effective["stages"], check)
 
+    from kei_exp.kie.extract.retained import discovering
+
     def discover() -> dict:
         body = discovery.discover(evidence, schema.record_description, partial(budget.fits, "discovery"),
                                   partial(budget.ask, "discovery"), overlap=effective["overlap"],
-                                  splits=effective["splits"])
+                                  splits=effective["splits"], progress=partial(discovering, chat))
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
         return {"version": discovery.VERSION, "execution_sha256": execution_sha256, "entries": body["entries"],
@@ -236,12 +238,14 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                 "issues": [_issue_json(issue) for issue in body["issues"]],
                 "calls": [_call_json(call) for call in body["calls"]]}
     found = discover()
+    discovering(chat, None, None)
     from kei_exp.kie.extract.retained import plan_records
     plan_records(chat,"unified-records",[entry["ranges"] for entry in found["entries"]])
     run = _Run(schema, budget, {passage.id: passage.text for passage in evidence.passages}, effective,
                {passage.id: passage.table for passage in evidence.passages if passage.table is not None})
     halt = threading.Event()
     discovery_sha256 = digest(found)
+    passages = {passage.id: passage for passage in evidence.passages}
 
     def one(numbered: tuple[int, dict]) -> _Work | None:
         if halt.is_set():
@@ -251,7 +255,10 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             if not work.failed and not work.undecided:
                 from kei_exp.kie.extract.retained import saved_record
                 number, entry = numbered
-                saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"])
+                # A finished entry's accepted values are verified: their links are the final artifact's, so the
+                # researcher sees them on the source while the other entries are still read.
+                saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"],
+                             links=[_link(each, number, passages) for each in work.found if each.kind == "accepted"])
             return work
         except BaseException:
             halt.set()

@@ -65,6 +65,7 @@ class CapturePlanner:
         self.pending = {}
         self.historical = lease.call("historical_coverage")
         self.scopes = {}
+        self.discovery = None  # discovery's progress while its next window is called (retained.discovering)
         self._ordinals = {}
         self._lock = threading.Lock()
 

@@ -22,6 +22,13 @@ def reuse_record(router, scope, *, record=0):
     return router.runtime.reuse_record(scope,record=record)
 
 
+def discovering(router, found, lines):
+    """Discovery's record starts so far and the lines of the window it reads next, shown while the durable run
+    reads (None once discovery is done). A view only: nothing is retained."""
+    if getattr(router,"runtime",None) is not None:
+        router.runtime.discovery = None if found is None else {"found": found, "lines": lines}
+
+
 def plan_records(router, stage, scopes):
     if getattr(router,"runtime",None) is not None:
         router.runtime.plan_records(stage,scopes)
@@ -82,12 +89,13 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
                 evidence.append({"anchorId": "a_" + link["segment"] + ("_" + link["cell"] if link.get("cell") else ""),
                                  "occurrenceIds": [], "producer": link})
         # Composite values need leaf-by-leaf accounting before being called
-        # grounded. Partial stage values carry no inferred Evidence.
+        # grounded. A value published before the run completes stays
+        # provisional even with its Evidence shown: adoption re-reads its record.
         grounded = bool(evidence) and node["type"] not in ("object", "array")
         values.append({"id": digest([record_id, node["id"]]), "recordId": record_id, "fieldId": node["id"],
                        "path": ["records", record, node["name"]], "selectionId": selection["id"],
                        "schemaRevisionId": selection["schemaRevisionId"], "node": node, "modelValue": value,
-                       "evidence": evidence, "grounding": "grounded" if grounded else "ungrounded" if complete else "provisional",
+                       "evidence": evidence, "grounding": ("grounded" if grounded else "ungrounded") if complete else "provisional",
                        "processing": "saved" if value is not None else "absent" if complete or node["name"] in produced else "unprocessed", "lineage": lineage})
     publication = digest([selection["id"], scope, values, complete, primary, metadata, proposals])
     identity = str(UUID(publication[:32], version=5))

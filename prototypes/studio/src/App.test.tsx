@@ -309,7 +309,8 @@ function durableRead(url: string, status: ExtractionAttempt['executionStatus'] =
     reviewCounts: { required: 1, toCheck: 1, approved: 0, edited: 0, rejected: 0 }, values: [value], total: 1, next: null, coverage: {} })
   return Response.json({ protocol: 1, projectId: reopened.projectContextId, extractionId, status, controlVersion: 1, pendingResume: false,
     selection: { id: value.selectionId, ordinal: 1 }, pendingSelection: null, source: {}, sourceRevisionId: reopened.sourceRepresentationId,
-    snapshotVersion: cut.snapshotVersion, counts: { saved: 1, inFlight: 0, pending: 0 }, failure: null })
+    snapshotVersion: cut.snapshotVersion, feedbackVersion: cut.feedbackVersion, counts: { saved: 1, inFlight: 0, pending: 0 }, failure: null,
+    records: null, reading: [] })
 }
 
 /** A RUNNING attempt the stubbed server acknowledges for the reopened document's current revision. */
@@ -401,9 +402,10 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     await waitFor(() => expect(order).toEqual(['refresh', 'post']))
     extractionResponse.resolve(Response.json({ ...runningAttempt('51000000-0000-4000-8006-000000000031') }, { status: 201 }))
-    expect(await screen.findByRole('button', { name: 'Extraction controls' })).toBeEnabled()
-    // An admitted Extraction is controlled in Results (Pause, Resume, Stop); the tab strip opens them.
-    expect(screen.getByRole('button', { name: 'Extraction controls' }).className).not.toMatch(/(^|\s)bg-green(\s|$)/)
+    expect(await screen.findByRole('button', { name: '❚❚ Pause extraction' })).toBeEnabled()
+    // An admitted Extraction is paused or stopped where it was run; Pause is not the screen's positive.
+    expect(screen.getByRole('button', { name: '❚❚ Pause extraction' }).className).not.toMatch(/(^|\s)bg-green(\s|$)/)
+    expect(screen.getByRole('button', { name: '■ Stop' })).toBeEnabled()
   })
 
   // Decision 04: a run started here that succeeds says so in one toast with "Review now"; a run this page only reopened
@@ -431,7 +433,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     if (origin === 'started here') {
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-      expect(await screen.findByRole('button', { name: 'Extraction controls' })).toBeEnabled()
+      expect(await screen.findByRole('button', { name: '❚❚ Pause extraction' })).toBeEnabled()
     }
     expect(await screen.findByText(/complete — review it in the Results tab$/, undefined, { timeout: 4_000 })).toBeVisible()
     expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
@@ -469,7 +471,8 @@ describe('reopened Source Document workspace', () => {
       finalizedReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-10-05T00:00:00.000Z' } }} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Extraction controls' }))
+    await screen.findByRole('button', { name: '❚❚ Pause extraction' })
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(await screen.findByText('Ellekilde')).toBeVisible()
     if (inspection === 'the rail collapses') fireEvent.click(screen.getByTitle('Collapse panel'))
     else if (inspection === 'Latest reviewed is inspected') {
@@ -504,12 +507,37 @@ describe('reopened Source Document workspace', () => {
     }))
     render(<DocumentWorkspace {...reopened} persistedExtraction={latest} latestReviewedExtraction={reviewed} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'Extraction controls' }))
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     fireEvent.change(await screen.findByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: reviewed.extractionId } })
-    expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    // The latest can still continue: the run button stays its control, whatever is inspected.
+    expect(screen.queryByRole('button', { name: '▶ Run extraction' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: { PAUSED: '▶ Resume extraction', FAILED: '↻ Retry extraction', PAUSING: 'Pausing…', STOPPING: 'Stopping…' }[status] })).toBeInTheDocument()
     expect(posts).toEqual([])
   })
+
+  it('pauses the latest Extraction from the run button and offers Resume once its calls are saved', async () => {
+    const latest = { ...reopened.persistedExtraction!, executionStatus: 'RUNNING' as const }
+    let status: ExtractionAttempt['executionStatus'] = 'RUNNING'
+    const commands: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/durable/control') && init?.method === 'POST') {
+        commands.push(JSON.parse(String(init.body)))
+        status = 'PAUSING'
+        return Promise.resolve(Response.json({ controlVersion: 2, status, pendingResume: false }))
+      }
+      if (url === `/api/extractions/${latest.extractionId}`) return Promise.resolve(Response.json({ extraction: { ...latest, executionStatus: status } }))
+      return Promise.resolve(durableRead(url, status) ?? (url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Beretning')))
+    }))
+    render(<DocumentWorkspace {...reopened} persistedExtraction={latest} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '❚❚ Pause extraction' }))
+    expect(await screen.findByRole('button', { name: 'Pausing…' })).toBeDisabled()
+    expect(commands).toEqual([expect.objectContaining({ expectedVersion: 1, action: 'pause' })])
+    status = 'PAUSED'
+    expect(await screen.findByRole('button', { name: '▶ Resume extraction' }, { timeout: 4_000 })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '▶ Run extraction' })).not.toBeInTheDocument()
+  }, 6_000)
 
   it('shows uncertain re-run admission beside prior results and reconnects the original identity after a page change', async () => {
     const posts: Array<{ id: string; startPage: number }> = []
@@ -679,7 +707,7 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     await waitFor(() => expect(posts).toHaveLength(1))
     expect(saved.refresh).toHaveBeenCalledTimes(2)
-    expect(await screen.findByRole('button', { name: 'Extraction controls' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: '❚❚ Pause extraction' })).toBeEnabled()
     expect(screen.queryByText('Saved advanced settings could not be read. Nothing was started.')).not.toBeInTheDocument()
   })
 
@@ -2725,7 +2753,8 @@ describe('reopened Source Document workspace', () => {
       'fetch',
       vi.fn((input: string | URL | Request, init?: RequestInit) => {
         const url = String(input)
-        const durable = durableRead(url, 'RUNNING')
+        // Only the other document's run is running; this document's own Extraction stays completed.
+        const durable = durableRead(url, url.includes(runningAttempt.extractionId) ? 'RUNNING' : 'COMPLETED')
         if (durable) return Promise.resolve(durable)
         if (url.endsWith('/source'))
           return Promise.resolve(Response.json(parsedDocument))
@@ -2775,18 +2804,15 @@ describe('reopened Source Document workspace', () => {
     )
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: 'Extraction controls' }),
+        screen.getByRole('button', { name: '❚❚ Pause extraction' }),
       ).toBeInTheDocument(),
     )
-    expect(
-      screen.getByRole('button', { name: 'Extraction controls' }),
-    ).toBeInTheDocument()
     // The record scope is the schema's own, and is locked while the run is active.
     expect(screen.getByLabelText('Record scope')).toBeDisabled()
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     // The durable reader owns the running Extraction's status in Results.
     expect(await screen.findByText('Ellekilde')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Extraction controls' })).toHaveTextContent(/^Extraction controls$/)
+    expect(screen.getByRole('button', { name: '❚❚ Pause extraction' })).toHaveTextContent(/^❚❚ Pause extraction$/)
 
     mounted.rerender(
       <StrictMode>
@@ -2804,7 +2830,7 @@ describe('reopened Source Document workspace', () => {
     )
     await new Promise((resolve) => window.setTimeout(resolve, 2_100))
     expect(
-      screen.queryByRole('button', { name: 'Extraction controls' }),
+      screen.queryByRole('button', { name: '❚❚ Pause extraction' }),
     ).not.toBeInTheDocument()
   }, 8_000)
 
@@ -2979,14 +3005,13 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     expect(resultsRunActions()).toEqual([])
   })
 
-  it('hands a failed Extraction to Retry in Results rather than a new run', async () => {
+  it('hands a failed Extraction to Retry rather than a new run', async () => {
     const attempt = attemptOn(earlierRepresentationId, { executionStatus: 'FAILED' })
     stubWorkspace({}, 'FAILED')
     await renderView(pinnedView(attempt))
     expect(screen.queryByRole('button', { name: '▶ Run extraction' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Extraction controls' }))
-    expect(screen.getByRole('tab', { name: /^Results/ })).toHaveAttribute('aria-selected', 'true')
-    expect(await screen.findByRole('button', { name: 'Retry' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '↻ Retry extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '■ Stop' })).toBeEnabled()
   })
 
   it.each([
@@ -3071,7 +3096,7 @@ describe('updated latest reviewed extraction', () => {
   }
   const finalizedA = { ...reopened.persistedExtraction!, extractionId: '51000000-0000-4000-8006-000000000008', executionStatus: 'PAUSED' as const,
     finalizedReview: { snapshotVersion: 1, feedbackVersion: 2, createdAt: '2026-08-08T00:00:00.000Z' } }
-  const finalizedCut = (id: string) => `/api/extractions/${id}/durable/values?snapshotVersion=1&feedbackVersion=2`
+  const finalizedCut = (id: string) => `/api/extractions/${id}/durable/values?limit=500&snapshotVersion=1&feedbackVersion=2`
 
   it('refreshes the historical choice after rerender', async () => {
     stubLatestReviewed()
@@ -3090,13 +3115,14 @@ describe('updated latest reviewed extraction', () => {
     render(<DocumentWorkspace {...reopened} latestReviewedExtraction={finalizedA} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    // Ordinary inspection of the latest attempt reads its live cut.
-    expect(await screen.findByText(/Selected results 3 · decisions 4/)).toBeVisible()
+    // Ordinary inspection of the latest attempt follows its live cut.
+    expect(await screen.findByText('Ellekilde')).toBeVisible()
+    expect(screen.queryByText(/Showing saved results/)).not.toBeInTheDocument()
     fireEvent.change(await screen.findByRole('combobox', { name: 'Extraction snapshot' }), { target: { value: finalizedA.extractionId } })
-    expect(await screen.findByText(/Selected results 1 · decisions 2/)).toBeVisible()
+    expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
     expect(requests).toContain(finalizedCut(finalizedA.extractionId))
-    // The later unfinalized work in the same visible Extraction is named beside the finalized cut.
-    expect(screen.getByText(/Newer saved results 3 and decisions 4 exist/)).toBeVisible()
+    // The later unfinalized work in the same visible Extraction is one click away.
+    expect(screen.getByRole('button', { name: 'Show the latest results' })).toBeVisible()
     expect(requests.some((url) => url.includes(`/api/extractions/${reopened.persistedExtraction!.extractionId}/durable/values?`) && url.includes('feedbackVersion'))).toBe(false)
   })
 
@@ -3106,7 +3132,8 @@ describe('updated latest reviewed extraction', () => {
     render(<DocumentWorkspace {...reopened} persistedExtraction={latest} latestReviewedExtraction={latest} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(await screen.findByText(/Selected results 3 · decisions 4/)).toBeVisible()
+    expect(await screen.findByText('Ellekilde')).toBeVisible()
+    expect(screen.queryByText(/Showing saved results/)).not.toBeInTheDocument()
     expect(requests.some((url) => url.includes('feedbackVersion='))).toBe(false)
   })
 
@@ -3126,7 +3153,7 @@ describe('updated latest reviewed extraction', () => {
     render(<DocumentWorkspace {...reopened} persistedExtraction={finalizedA} persistedReviewCut={{ snapshotVersion: 1, feedbackVersion: 2 }} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(await screen.findByText(/Selected results 1 · decisions 2/)).toBeVisible()
+    expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
     expect(requests).toContain(finalizedCut(finalizedA.extractionId))
   })
 })

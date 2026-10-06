@@ -25,7 +25,7 @@ it('reviews saved ungrounded and provisional whole typed values without inventin
   expect(row.kind).toBe('to-check')
   expect(row.retained?.reviewable).toBe(true)
   expect(row.value).toEqual(original)
-  expect(row.retained?.attribution).toContain('producing-schema'.slice(0,8))
+  expect(row.retained?.source).toBe('Evidence is still being checked')
   expect(durableRailModel({values:[saved]} as DurablePage,null).records[0].rows).toHaveLength(1)
   expect(durableRailRow(value({processing:'unprocessed'}),null).retained?.reviewable).toBe(false)
 })
@@ -37,6 +37,24 @@ it('keeps a rule link factual and a researcher correction independent of model E
   expect(row.value).toBe(true)
   expect(row.extracted).toBe(false)
   expect(row.kind).toBe('edited')
-  expect(row.retained?.source).toBe('Linked by rule; no verifier checked it')
-  expect(row.chip?.style).toBe('rule')
+  // A linked value keeps the shared row's own words ("p.{n} · Linked by rule…").
+  expect(row.retained?.source).toBeUndefined()
+  expect(row.chip).toEqual({text:'linked · rule',style:'rule'})
+})
+
+it('shows a linked value saved while the run goes on as linked, not as still being checked',()=> {
+  const row=durableRailRow(value({grounding:'provisional',node:{id:'flag',name:'flag',type:'string'},
+    links:[{resultPath:['records',0,'flag'],evidenceAnchorId:'own-anchor',verbatim:true,lexicalHits:1,grounding:{linkedBy:'verification'}}] as never}),null)
+  expect(row.retained?.source).toBeUndefined()
+  expect(row.chip).toEqual({text:'linked',style:'link'})
+})
+
+it('lists the records discovery found as queued or reading until their values are saved, nearest the start page first',()=> {
+  const saved=value({path:['records',2,'flag']})
+  const model=durableRailModel({values:[saved]} as DurablePage,null,{records:[{ordinal:0,page:1},{ordinal:1,page:4},{ordinal:2,page:5}],
+    reading:new Set([1]),fields:['flag','note'],startPage:5})
+  expect(model.records.map(record=>[record.label,record.state])).toEqual([['Record 3','finished'],['Record 2','reading'],['Record 1','queued']])
+  expect(model.records[1]!.rows.map(row=>[row.name,row.kind])).toEqual([['flag','reading'],['note','reading']])
+  expect(model.records[2]!.rows).toEqual([])
+  expect(model.counts).toMatchObject({toCheck:1,required:1,notReviewable:0})
 })

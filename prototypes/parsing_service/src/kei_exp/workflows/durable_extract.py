@@ -9,6 +9,8 @@ from dataclasses import asdict
 
 from dbos import DBOS, SetWorkflowID, WorkflowSerializationFormat
 
+from kei_exp.kie.extract.discovery import StreamedPlaces
+
 from kei_exp import runs
 from kei_exp.kie.extract import calls
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall
@@ -49,6 +51,31 @@ def coordinator() -> CoordinationPool:
     if _pool is None:
         raise RuntimeError("Extraction coordination has not been initialized")
     return _pool
+
+
+def show(key, value):
+    """Progress Studio shows while the run reads, as this workflow's DBOS event. Display only: it is never read back
+    by the run, and failing to write it never fails a call."""
+    try:
+        DBOS.set_event(key, value, serialization_type=WorkflowSerializationFormat.PORTABLE)
+    except Exception:
+        pass
+
+
+class Shown:
+    """A discovery reply's places as they are generated, shown at most every half second and once complete."""
+
+    def __init__(self):
+        self.places, self.at = StreamedPlaces(), 0.0
+
+    def feed(self, delta):
+        from time import monotonic
+        if self.places.feed(delta) and monotonic() - self.at >= 0.5:
+            self.at = monotonic()
+            show("places", self.places.places)
+
+    def done(self):
+        show("places", self.places.places)
 
 
 def failed_output(output):
@@ -142,7 +169,10 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
             body.pop("max_whitespace",None)
             if http_request is None:
                 raise ValueError("capture lacks the exact HTTP request")
-            client=CapturedChat(request["provider"],http_request)
+            # Discovery's reply is streamed so the records it finds show while it is generated (transport only: the
+            # saved request is sent unchanged, and the call is read and saved as an unstreamed one).
+            shown=Shown() if body["stage"]=="discovery" else None
+            client=CapturedChat(request["provider"],http_request,on_text=shown.feed if shown else None)
         if not lease.call("begin_call", capture):
             return {"ok": True, "boundary": True}
         try:
@@ -151,6 +181,8 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
                 attempts=[call]
             else:
                 parsed, attempts = calls.complete(client, **body, counter=PinnedCounter(request["budget"]))
+                if shown:
+                    shown.done()
             output = {"parsed": parsed, "calls": [asdict(call) for call in attempts]}
         except FormatRefused:
             output={"formatRefused":True,"parsed":None,"calls":[asdict(calls.Call(body["stage"],body["record"],None,None,
@@ -206,6 +238,8 @@ def plan_next(extraction: str, attempt: str) -> dict:
         try:
             result = dispatch(directory, evidence, request, router, chunks=config.CATALOG_CHUNKS)
         except NeedsCall:
+            if planner.discovery is not None:
+                show("discovery", {**planner.discovery, "captures": sorted(planner.pending)})
             return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key])}
         except Boundary:
             return {"boundary": True}

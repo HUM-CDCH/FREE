@@ -1,5 +1,6 @@
 """Provider failures and persistence failures stop admission before compilation."""
 import inspect
+import json
 from dataclasses import asdict
 from copy import deepcopy
 from types import SimpleNamespace
@@ -115,3 +116,87 @@ def test_truncated_discovery_response_allows_the_planner_to_split_its_window(mon
     result = inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
     assert result == {"ok": True, "capture": "capture"}
     assert events == (["read_call"] if checkpoint else ["read_call", "begin_call", "commit_output"])
+
+
+class Streamed:
+    """A provider's server-sent reply: one data line per piece, then the finish, the usage and [DONE]."""
+    status_code = 200
+    text = ""
+    headers = {"content-type": "text/event-stream; charset=utf-8"}
+
+    def __init__(self, reply, *, size=7, prompt=120):
+        pieces = [reply[at:at + size] for at in range(0, len(reply), size)]
+        self.lines = [f"data: {json.dumps({'choices': [{'delta': {'content': piece}, 'finish_reason': None}]})}".encode()
+                      for piece in pieces]
+        self.lines += [b"", f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': 'stop'}]})}".encode(),
+                       f"data: {json.dumps({'choices': [], 'usage': {'prompt_tokens': prompt, 'completion_tokens': 40}})}".encode(),
+                       b"data: [DONE]"]
+
+    def __enter__(self): return self
+    def __exit__(self, *_): pass
+    def raise_for_status(self): pass
+    def iter_lines(self): return iter(self.lines)
+
+
+REPLY = '{"places":[["L1","record","1"],["L2","record","2","Valley\\tfinds"]],"begins_inside_record":false,"ends_inside_record":false}'
+
+
+def test_streamed_places_are_only_the_closed_ones():
+    from kei_exp.kie.extract.discovery import StreamedPlaces
+    places, completed = StreamedPlaces(), []
+    for at in range(0, len(REPLY), 5):
+        if places.feed(REPLY[at:at + 5]):
+            completed.append(len(places.places))
+    assert places.places == json.loads(REPLY)["places"]
+    assert completed == [1, 2]
+
+
+def test_discovery_reply_streams_its_places_and_saves_the_unstreamed_output(monkeypatch):
+    from kei_exp.kie.extract import captured_provider
+    posted, shown, committed = [], [], {}
+    def post(url, json, timeout, stream=False):
+        posted.append((url, json, stream))
+        return Streamed(REPLY)
+    monkeypatch.setattr(captured_provider.requests, "post", post)
+    monkeypatch.setattr(worker, "show", lambda key, value: shown.append((key, deepcopy(value))))
+    saved_request = {"model": "fixture/model", "messages": [{"role": "user", "content": "[L1] 1. Hill"}]}
+    class Lease:
+        def __init__(self, *_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def call(self, routine, *args):
+            if routine == "read_call":
+                return {"checkpoint": None, "intent": "RUN", "input": {"digest": "fixed", "request": {"composer": 1,
+                    "provider": {"url": "http://model/v1/chat/completions", "timeout": 5, "model": "fixture/model",
+                                 "adapter": "instruct", "adapterVersion": 1, "maxTokens": 4096},
+                    "budget": {"context": 32768, "counted": 120, "reserve": 4096},
+                    "body": {"stage": "discovery", "record": None, "system": "s", "user": "u", "schema": {},
+                             "max_tokens": 4096, "max_whitespace": None, "httpRequest": deepcopy(saved_request)}}}}
+            if routine == "begin_call": return True
+            if routine == "commit_output":
+                committed["output"] = args[2]
+                return {"output": args[2]}
+    monkeypatch.setattr(worker, "Lease", Lease)
+    monkeypatch.setattr(worker, "coordinator", lambda: None)
+    result = inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
+    assert result == {"ok": True, "capture": "capture"}
+    # Only the transport asks for the stream: the saved request is otherwise sent as it was captured.
+    assert posted == [("http://model/v1/chat/completions", {**saved_request, "stream": True,
+                       "stream_options": {"include_usage": True}}, True)]
+    assert committed["output"]["parsed"] == json.loads(REPLY)
+    assert committed["output"]["calls"][0] | {"seconds": 0} == asdict(Call("discovery", None, 120, 40, 0, "stop", True,
+                                                                         None, 120, 32768, 4096))
+    assert shown[-1] == ("places", json.loads(REPLY)["places"])
+
+
+def test_a_server_that_ignores_the_stream_is_read_as_the_unstreamed_reply(monkeypatch):
+    from kei_exp.kie.extract import captured_provider
+    class Whole(Streamed):
+        headers = {"content-type": "application/json"}
+        def json(self):
+            return {"choices": [{"message": {"content": REPLY}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 120, "completion_tokens": 40}}
+    monkeypatch.setattr(captured_provider.requests, "post", lambda *_, **__: Whole(REPLY))
+    pieces = []
+    reply = captured_provider.CapturedChat({"url": "http://model", "timeout": 5, "model": "m"}, {}, on_text=pieces.append).complete()
+    assert (reply.text, reply.finish, reply.input_tokens, pieces) == (REPLY, "stop", 120, [])

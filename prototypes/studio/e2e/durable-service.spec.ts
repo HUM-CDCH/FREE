@@ -68,7 +68,7 @@ for(const method of methods) {
       await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}`)
       await page.locator('#rail-tab-results').click()
       const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
-      await rail.getByRole('button',{name:'Pause',exact:true}).click()
+      await page.getByRole('button',{name:'❚❚ Pause extraction',exact:true}).click()
       await expect(rail.getByText('Pausing',{exact:true})).toBeVisible()
       expect((await state()).counts.inFlight).toBeGreaterThan(0)
       const before=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
@@ -84,7 +84,7 @@ for(const method of methods) {
         return head.status
       },{timeout:60_000}).toBe('PAUSED')
       expect((await state()).counts.inFlight).toBe(0)
-      await rail.getByRole('button',{name:'Resume',exact:true}).click()
+      await page.getByRole('button',{name:'▶ Resume extraction',exact:true}).click()
       await expect.poll(async()=>{
         const head=await state()
         if(head.status==='FAILED')throw new Error(JSON.stringify(head.failure))
@@ -238,7 +238,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
       await page.goto(`/projects/${project}/documents/${sourceA.sourceDocumentId}?extractionId=${extractionA}&fromBatchExtractionId=${batchId}&value=${encodeURIComponent(value.id)}`)
       await page.locator('#rail-tab-results').click()
       await expect(page.getByText('Reviewed 0/2',{exact:true})).toBeVisible()
-      await page.getByRole('button',{name:/^Finalize results \d+ · decisions \d+$/}).first().click()
+      await page.getByRole('button',{name:'Save review',exact:true}).click()
       await expect(page.getByText('Reviewed 1/2',{exact:true})).toBeVisible()
       const batch=await (await page.request.get(`/api/batch-extractions/${batchId}?projectContextId=${project}`)).json()
       await writeFile(info.outputPath('native-pilot-review.json'),JSON.stringify(batch,null,2))

@@ -21,12 +21,12 @@ import {
 import { useEvidenceOverlays, type RailMarkState } from './useEvidenceOverlays'
 import MarkPopover from './MarkPopover'
 import DocumentMarkdown from './DocumentMarkdown'
-import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
+import { durableRequest, durableRoot, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import type { SavedReviewCut } from './durableReviewLinks'
 import { ADMISSION_UNCERTAIN, METHOD_CHANGED, useExtraction } from './useExtraction'
 import { useToast } from './useToast'
 import { savedMethodFor, useSavedMethod } from './savedMethod'
-import type { ExtractionStrategy } from '../shared/extraction.contract'
+import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
 import { Button, SegmentedControl, Spinner, Toast } from './ui'
 import { PageNavigation } from './PageNavigation'
 import { createThumbnailRenderer } from './PageThumbnails'
@@ -259,6 +259,7 @@ export function DocumentWorkspace({
     )
   }
   const [savingForRun, setSavingForRun] = useState(false)
+  const [controlling, setControlling] = useState(false)
   // The page the viewer shows (pdf.js `pagechanging`).
   const [currentPage, setCurrentPage] = useState(1)
   const [pagesOpen, setPagesOpen] = useState(true)
@@ -834,6 +835,24 @@ export function DocumentWorkspace({
     }
   }
 
+  /** Pause, Resume, Retry or Stop the latest Extraction from the run button's place (results review redesign §2.4). The
+   *  command names the control version it was read at; the monitor follows the work it resumes. */
+  async function controlExtraction(action: 'pause' | 'resume' | 'retry' | 'stop') {
+    const id = latestAttempt?.extractionId
+    if (!id || controlling) return
+    setControlling(true)
+    try {
+      const { controlVersion } = await durableRequest<{ controlVersion: number }>(durableRoot(id))
+      const { status } = await durableRequest<{ status: ExtractionAttempt['executionStatus'] }>(`${durableRoot(id)}/control`,
+        { id: crypto.randomUUID(), expectedVersion: controlVersion, action })
+      extraction.acceptDurableStatus(id, status)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'The Extraction could not be changed.', { durationMs: 6000 })
+    } finally {
+      setControlling(false)
+    }
+  }
+
   /** The save failure's Retry: a flush saves the latest draft and scope again. A new failure shows as the status. */
   function retrySchemaSave() {
     void schema.flush().catch(() => undefined)
@@ -908,12 +927,17 @@ export function DocumentWorkspace({
                 : extraction.monitorError
                   ? 'Reconnect to check the original Extraction before starting another.'
                   : !extraction.canRun
-                    ? 'The latest Extraction can still continue. Open Latest attempt in Results to Resume, Retry or Stop it.'
+                    ? 'The latest Extraction can still continue: pause, resume or stop it above.'
                     : null
-  // An Extraction that can still continue is controlled with Pause, Resume, Retry and Stop in Results; a completed or
-  // stopped one, or none, leaves Run to start a new Extraction.
-  const nativeControls = Boolean(inspectedAttempt && inspectedAttempt.executionStatus !== 'COMPLETED' && inspectedAttempt.executionStatus !== 'STOPPED')
-  const runLabel = nativeControls ? 'Extraction controls' : '▶ Run extraction'
+  // The latest Extraction, while it can still continue, takes the run button's place: Pause while it runs, Resume or
+  // Retry once it stops short, and Stop beside them. A completed or stopped one, or none, leaves Run.
+  const controlStatus = latestAttempt && latestAttempt.executionStatus !== 'COMPLETED' && latestAttempt.executionStatus !== 'STOPPED'
+    ? latestAttempt.executionStatus : null
+  const control = controlStatus === 'PAUSED' ? { label: '▶ Resume extraction', action: 'resume' as const }
+    : controlStatus === 'FAILED' ? { label: '↻ Retry extraction', action: 'retry' as const }
+      : controlStatus === 'PAUSING' ? { label: 'Pausing…', action: null }
+        : controlStatus === 'STOPPING' ? { label: 'Stopping…', action: null }
+          : { label: '❚❚ Pause extraction', action: 'pause' as const }
   return (
     <div
       className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-canvas text-ink"
@@ -949,22 +973,39 @@ export function DocumentWorkspace({
             <>
               {/* Run is the screen's one positive; while a run is active it is Stop, in danger, also once its cancellation is
                   requested (then disabled). */}
-              {/* One fixed width for Run and Stop, so the strip never shifts; progress is the Results badge's, not the button's (§2.4). */}
-              <Button
-                variant={nativeControls ? 'secondary' : 'positive'}
-                size="md"
-                className="min-w-43 justify-center tabular-nums"
-                disabled={!nativeControls && runExtractionUnavailable}
-                title={
-                  nativeControls ? 'Open Pause, Resume, Stop and revised inputs in Results'
-                    : runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
-                      ? 'Find the catalogue entries and extract one record per entry'
-                      : 'Extract one record from the whole document')
-                }
-                onClick={() => nativeControls ? (setRailOpen(true), setRailTab('results')) : void runExtraction()}
-              >
-                {runLabel}
-              </Button>
+              {/* One fixed width for Run, Pause and Resume, so the strip never shifts; progress is the Results badge's, not the
+                  button's (§2.4). */}
+              {controlStatus ? (
+                <>
+                  {controlStatus !== 'STOPPING' && (
+                    <Button variant="outline-danger" size="md" disabled={controlling} title="Stop the extraction; its saved values and decisions stay"
+                      onClick={() => void controlExtraction('stop')}>■ Stop</Button>
+                  )}
+                  <Button
+                    variant={control.action === 'resume' || control.action === 'retry' ? 'positive' : 'secondary'}
+                    size="md"
+                    className="min-w-43 justify-center tabular-nums"
+                    disabled={controlling || control.action === null}
+                    title={control.action === 'pause' ? 'Pause after the calls in flight; their work is saved' : undefined}
+                    onClick={() => control.action && void controlExtraction(control.action)}
+                  >
+                    {control.label}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="positive"
+                  size="md"
+                  className="min-w-43 justify-center tabular-nums"
+                  disabled={runExtractionUnavailable}
+                  title={runUnavailableReason ?? (nextExtractionStrategy === 'CATALOG'
+                    ? 'Find the catalogue entries and extract one record per entry'
+                    : 'Extract one record from the whole document')}
+                  onClick={() => void runExtraction()}
+                >
+                  ▶ Run extraction
+                </Button>
+              )}
             </>
           )}
           {fromSchemaBuilder && (

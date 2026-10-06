@@ -8,7 +8,6 @@ function recordState(record: RailRecord): { text: string; busy: boolean; done: b
   if (record.state === 'reading') return { text: 'Reading…', busy: true, done: false }
   if (record.state === 'checking') return { text: `Checking ${record.rows.length} values`, busy: true, done: false }
   return record.toCheck > 0 ? { text: `${record.toCheck} to check`, busy: false, done: false }
-    : record.retained ? {text:'saved values checked',busy:false,done:record.rows.every(row=>row.retained?.reviewable)}
     : { text: 'all checked', busy: false, done: true }
 }
 
@@ -63,7 +62,9 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
               className="flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
               <DisclosureGlyph open={open} />
               <b className="min-w-10 truncate text-content text-ink">{record.label}</b>
-              <span className="min-w-0 truncate text-secondary text-ink-muted">Record {record.index + 1}{record.page === null ? '' : ` · p.${record.page}`}</span>
+              <span className="min-w-0 truncate text-secondary text-ink-muted">
+                {[record.label === `Record ${record.index + 1}` ? null : `Record ${record.index + 1}`, record.page === null ? null : `p.${record.page}`].filter(Boolean).join(' · ')}
+              </span>
               <span className="flex-1" />
               <span className={`flex shrink-0 items-center gap-1 text-compact tabular-nums ${state.busy || record.state === 'queued' ? 'font-medium text-ink-muted' : 'text-ink'}`}>
                 {state.busy && <SpinnerGlyph className="size-3.5 text-ink" />}{state.done && <ApprovedGlyph />}{state.text}
