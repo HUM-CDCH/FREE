@@ -477,3 +477,33 @@ it('opens the live cut when no explicit cut is named',async()=> {
   expect(screen.queryByText(/Showing saved results/)).toBeNull()
   expect(readValues).not.toHaveBeenCalled()
 })
+
+it('opens a settled catalogue at its first record to check and at the linked value, and keeps a toggle',async()=>{
+  const value=(record:number,modelValue:string|null)=>({id:`r${record}:title`,recordId:`r${record}`,fieldId:'title',path:['records',record,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue,evidence:[],links:[],grounding:modelValue===null?'provisional':'ungrounded',processing:modelValue===null?'absent':'saved',lineage:[],correction:null,historicalCorrection:null})
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:3,toCheck:3,approved:0,edited:0,rejected:0},
+    values:[value(0,null),value(1,'Second'),value(2,'Third'),value(3,'Fourth')],total:4,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'FAILED',controlVersion:1,snapshotVersion:1,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[{id:'title',name:'title',type:'string'}]},resolved:{startPage:null}},pendingSelection:null,
+    counts:{saved:4,inFlight:0},records:null,reading:[]}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  window.history.replaceState(null,'','/?value=r3%3Atitle')
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  const header=(record:number)=>within(screen.getByRole('region',{name:new RegExp(`^Record ${record},`)})).getAllByRole('button')[0]!
+  await waitFor(()=>expect(header(4)).toHaveAttribute('aria-expanded','true'))
+  expect(header(1)).toHaveAttribute('aria-expanded','false')
+  expect(header(2)).toHaveAttribute('aria-expanded','true')
+  expect(header(3)).toHaveAttribute('aria-expanded','false')
+  fireEvent.click(header(3))
+  fireEvent.click(header(2))
+  expect(header(3)).toHaveAttribute('aria-expanded','true')
+  expect(header(2)).toHaveAttribute('aria-expanded','false')
+  // Reviewing a value in a record the researcher opened keeps it open after the review moves on.
+  fireEvent.click(screen.getByRole('button',{name:/title Third/}))
+  fireEvent.click(header(2))
+  fireEvent.click(screen.getByRole('button',{name:/title Second/}))
+  expect(header(3)).toHaveAttribute('aria-expanded','true')
+  // A retried run reads again, so its records open as they are read.
+  vi.mocked(readDurable).mockResolvedValue({state:{...state,status:'RUNNING',controlVersion:2},page} as never)
+  await waitFor(()=>expect(header(1)).toHaveAttribute('aria-expanded','true'),{timeout:3_000})
+})

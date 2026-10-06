@@ -12,7 +12,11 @@ application behavior for the host nginx into `.nginx/free-studio-locations.conf`
 and builds the images. After a successful build it stops Studio and the parsing
 API/worker with a 60-second grace period, then runs
 `docker compose -f compose.yaml -f compose.prod.yaml up --no-build -d --wait`.
-It returns after services start and configured health checks pass. The launcher
+It returns after services start and configured health checks pass. Every built
+image carries `org.opencontainers.image.revision` set to the last commit of its
+build context (suffixed `-dirty` when tracked files there changed), so an
+unchanged context is not rebuilt or recreated; after startup the launcher prints
+each built service's revision as `current` or `STALE (expected <sha>)`. The launcher
 requires Node.js 24, Docker, and an installed workspace
 (`pnpm install --frozen-lockfile`). It reads FREE's configuration helpers.
 

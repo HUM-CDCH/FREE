@@ -13,8 +13,16 @@
 # nginx), the trusted proxy peer, the Studio process command, and the database
 # credentials all come from the chosen overlay, so skipping the overlay fails
 # instead of silently running with development defaults.
+
+# Every built image records the last commit of its build context; the
+# production launcher sets one variable per context and reports each service
+# after startup. An unchanged context keeps its label, so its image ID too.
+x-parsing-labels: &parsing-labels
+  org.opencontainers.image.revision: "${FREE_REVISION_PARSING:-unknown}"
+
 x-parsing-build: &parsing-build
   context: prototypes/parsing_service
+  labels: *parsing-labels
 
 x-tracing-environment: &tracing-environment
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://phoenix:6006/v1/traces
@@ -102,6 +110,7 @@ services:
     build:
       context: prototypes/parsing_service
       dockerfile: Dockerfile.eval-watcher
+      labels: *parsing-labels
     profiles: ["eval"]
     init: true
     environment:
@@ -137,6 +146,8 @@ services:
     build:
       context: .
       dockerfile: prototypes/studio/Dockerfile
+      labels:
+        org.opencontainers.image.revision: "${FREE_REVISION_STUDIO:-unknown}"
     environment:
       <<: *tracing-environment
       NODE_ENV: production
