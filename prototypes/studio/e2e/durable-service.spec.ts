@@ -6,7 +6,7 @@ import {withPoolClientTransaction} from 'db'
 import {initializeDurableExtraction} from 'extraction/durable'
 import type {SchemaNode} from 'extraction/schema'
 import {E2E_ORIGIN,loginResearcher} from './auth.js'
-import {cataloguePdf,numberedCataloguePdf,startRealService} from './realService.js'
+import {cataloguePdf,numberedCataloguePdf,startRealService,textPdf} from './realService.js'
 import {admit,settle} from './sourceIngestion.js'
 
 const siteNodes:SchemaNode[]=[{id:'site',name:'site',type:'verbatim-string'},{id:'finds',name:'finds',type:'verbatim-string'},{id:'year',name:'year',type:'integer'}]
@@ -14,7 +14,7 @@ const methods=['article','generic','recipe','unified'] as const
 type Method=typeof methods[number]
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
-  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer';reasoning:'instruct'}}={}) {
+  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'}}={}) {
   const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
   const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
   const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
@@ -342,3 +342,125 @@ for(const method of ['article','unified'] as const) {
     } finally {await service.close()}
   })
 }
+
+const liveSites=['Hill','Valley','Coast','Ridge','Marsh','Ford','Moor','Heath','Grove','Brook','Cliff','Dune','Glen','Bay','Fen','Holm']
+const liveFinds=['pottery','flint','copper','bone','amber','glass','iron','bronze']
+/** Sixteen numbered entries, four a page, after a heading that is no record. */
+function liveCataloguePages(): string[][] {
+  const lines=liveSites.map((site,index)=>`${index+1}. ${site}: ${liveFinds[index%liveFinds.length]} dated ${1801+index}.`)
+  return [['Site catalogue',...lines.slice(0,3)],...Array.from({length:Math.ceil((lines.length-3)/4)},(_,page)=>lines.slice(3+page*4,7+page*4))]
+}
+
+// ADR 0017's live results on a real worker and reasoning server; live-results-evidence.json keeps what the researcher
+// saw and what the model received.
+test('native unified live results: discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume',async({page},info)=>{
+  test.setTimeout(30*60_000)
+  test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')
+  const service=await startRealService(info.outputPath('live-results-worker.log'))
+  const shot=(name:string)=>page.screenshot({path:info.outputPath(`${name}.png`)})
+  const timeline:unknown[]=[]
+  try {
+    await loginResearcher(page,randomUUID())
+    const project=(await (await page.request.post('/api/project-contexts',{headers:{Origin:E2E_ORIGIN},data:{name:'Live results catalogue'}})).json()).projectContext.projectContextId as string
+    const ingestion=await settle(page,project,await admit(page,project,textPdf(liveCataloguePages()),'live-catalogue.pdf'),300_000)
+    if(ingestion.status!=='succeeded')throw new Error(`Live source was not published: ${JSON.stringify(ingestion)}`)
+    const sourceId=ingestion.sourceDocumentId
+    // The reasoning server also reads the fields: its values carry verification links, so Evidence is highlighted.
+    const id=await seedNative(page,project,sourceId,'unified',{models:{fields:'instruct',reasoning:'instruct'}})
+    await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}`)
+    await page.locator('#rail-tab-results').click()
+    const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
+    const state=async()=>(await page.request.get(`/api/extractions/${id}/durable`)).json()
+    const values=async()=>(await page.request.get(`/api/extractions/${id}/durable/values?limit=500`)).json()
+    await service.reconcileDurable()
+
+    // 1. Discovery: the record starts it has found so far, on the rail and on the source.
+    let found=0
+    await expect.poll(async()=>{
+      const head=await state()
+      if(head.status==='FAILED')throw new Error(JSON.stringify(head.failure))
+      timeline.push({at:Date.now(),status:head.status,records:head.records?.length??null,found:head.discovery?.found?.length??null})
+      if(head.records===null&&head.discovery?.found?.length>found)found=head.discovery.found.length
+      return found>0||head.records!==null
+    },{timeout:600_000,intervals:[300]}).toBe(true)
+    if(found>0) {
+      await expect(rail.getByText('Finding records',{exact:true})).toBeVisible({timeout:5_000}).catch(()=>{})
+      await shot('01-discovery')
+    }
+
+    // 2. The planned records, queued and read in turn.
+    await expect.poll(async()=>(await state()).records!==null,{timeout:600_000,intervals:[500]}).toBe(true)
+    await expect(rail.getByRole('region',{name:/^Record \d+, (Queued|Reading…)$/}).first()).toBeVisible()
+    await shot('02-records-planned')
+
+    // 3. Values and their Evidence while the run still reads.
+    await expect.poll(async()=>{
+      const [head,saved]=await Promise.all([state(),values()])
+      return head.status==='RUNNING'&&saved.values.some((value:{links:unknown[]})=>value.links.length>0)
+    },{timeout:600_000,intervals:[500]}).toBe(true)
+    await expect.poll(async()=>page.locator('.parsed-evidence-highlight').count(),{timeout:30_000}).toBeGreaterThan(0)
+    const midRun={status:(await state()).status,highlights:await page.locator('.parsed-evidence-highlight').count(),
+      read:await rail.getByRole('region',{name:/^Record \d+, \d+ to check$/}).count(),waiting:await rail.getByRole('region',{name:/^Record \d+, (Queued|Reading…)$/}).count()}
+    expect(midRun.status).toBe('RUNNING')
+    await shot('03-highlights-while-reading')
+
+    // 4. A fix on the go: an edit saved now is an example in a later call's request.
+    await rail.getByRole('button',{name:/^To check finds /}).first().click()
+    await rail.getByRole('button',{name:'Edit',exact:true}).click()
+    await rail.getByRole('textbox',{name:'Reviewed value'}).fill('Corrected finds sentinel')
+    await rail.getByRole('button',{name:'Save edit',exact:true}).click()
+    let correctionVersion=0
+    await expect.poll(async()=>{
+      const saved=(await values()).values.find((value:{correction:{decision:{value:unknown}}|null})=>value.correction?.decision.value==='Corrected finds sentinel')
+      correctionVersion=saved?.correction?.feedbackVersion??0
+      return correctionVersion
+    },{timeout:30_000}).toBeGreaterThan(0)
+    await shot('04-edited-mid-run')
+
+    // 5. Pause and resume from the run button.
+    await page.getByRole('button',{name:'❚❚ Pause extraction',exact:true}).click()
+    await expect(page.getByRole('button',{name:'▶ Resume extraction',exact:true})).toBeVisible({timeout:600_000})
+    await shot('05-paused')
+    const paused=await values()
+    await page.getByRole('button',{name:'▶ Resume extraction',exact:true}).click()
+    await expect(page.getByRole('button',{name:/❚❚ Pause extraction|Pausing…/})).toBeVisible({timeout:60_000})
+
+    // 6. Completion.
+    await expect.poll(async()=>{
+      const head=await state()
+      if(head.status==='FAILED')throw new Error(JSON.stringify(head.failure))
+      return head.status
+    },{timeout:1_200_000,intervals:[1000]}).toBe('COMPLETED')
+    await expect(rail.getByText('Completed',{exact:true})).toBeVisible({timeout:30_000})
+    await shot('06-completed')
+
+    const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
+    type Capture={id:string;feedbackVersion:number;descriptor:{stage:string};request:{examples:{value:unknown}[];body:{httpRequest:Record<string,unknown>}}|null;output:{parsed:unknown}|null}
+    const captures:Capture[]=history.captures
+    const guided=captures.filter(capture=>capture.request?.examples.some(example=>example.value==='Corrected finds sentinel'))
+    expect(guided.length).toBeGreaterThan(0)
+    expect(guided.every(capture=>capture.feedbackVersion>=correctionVersion)).toBe(true)
+    const discovery=captures.filter(capture=>capture.descriptor.stage==='discovery')
+    expect(discovery.length).toBeGreaterThan(0)
+    // The captured request is the exact unstreamed one; only the transport asked for the stream.
+    expect(discovery.every(capture=>!('stream' in (capture.request?.body.httpRequest??{})))).toBe(true)
+    const events=await withPoolClientTransaction(async(_tx,client)=>{
+      const attempts=(await client.query('SELECT id,"workflowId" FROM extraction_runtime.attempt WHERE "extractionId"=$1',[id])).rows
+      const workflows=[...attempts.map(attempt=>attempt.workflowId),...attempts.flatMap(attempt=>discovery.map(capture=>`kei-call:${attempt.id}:${capture.id}`))]
+      return (await client.query('SELECT workflow_uuid,key FROM kei_dbos.workflow_events WHERE workflow_uuid=ANY($1)',[workflows])).rows as {workflow_uuid:string;key:string}[]
+    })
+    const final=await values()
+    await writeFile(info.outputPath('live-results-evidence.json'),JSON.stringify({id,found,midRun,timeline,correctionVersion,events,
+      pausedValues:paused.values.length,finalValues:final.values.length,linked:final.values.filter((value:{links:unknown[]})=>value.links.length>0).length,
+      guided:guided.map(capture=>({id:capture.id,stage:capture.descriptor.stage,feedbackVersion:capture.feedbackVersion})),
+      discovery:discovery.map(capture=>({id:capture.id,output:capture.output?.parsed})),
+      calls:captures.map(capture=>({stage:capture.descriptor.stage,record:(capture.request?.body as {record?:number}|undefined)?.record,
+        feedbackVersion:capture.feedbackVersion,examples:capture.request?.examples.length??0,output:capture.output?.parsed})),
+      values:final.values.map((value:{path:unknown;modelValue:unknown;links:unknown[];grounding:string;processing:string})=>({path:value.path,value:value.modelValue,
+        linked:value.links.length>0,grounding:value.grounding,processing:value.processing}))},null,2))
+    expect(events.some(event=>event.key==='discovery')).toBe(true)
+    expect(events.some(event=>event.key==='places')).toBe(true)
+    expect(found,'discovery progress reached Studio while discovery ran').toBeGreaterThan(0)
+    expect(final.values.filter((value:{links:unknown[]})=>value.links.length>0).length).toBeGreaterThan(0)
+  } finally {await service.close()}
+})
