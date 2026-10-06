@@ -135,6 +135,8 @@ function RightRail({
     key: RailTab
     label: string
     badge?: { label: string } | null
+    /** An icon-only tab, so four tabs keep "Results" and its badge whole at the 264px rail. */
+    icon?: ReactNode
   }[] = [
     ...(showDeveloperUi
       ? [
@@ -157,7 +159,11 @@ function RightRail({
       badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null,
     },
     { key: 'results', label: 'Results', badge: resultsBadge },
-    ...(shown ? [{ key: 'history' as const, label: 'History' }] : []),
+    ...(shown ? [{ key: 'history' as const, label: 'History', icon: (
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v2.6h2.6M8 5v3l2 1.5" />
+      </svg>
+    ) }] : []),
   ]
 
   if (!open) {
@@ -181,12 +187,12 @@ function RightRail({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="@container flex shrink-0 items-stretch border-b border-line" role="tablist">
-        {tabs.map(({ key, label, badge }) => {
+        {tabs.map(({ key, label, badge, icon }) => {
           const active = activeTab === key
           return (
             <button
               key={key}
-              className={`flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
+              className={`flex min-w-0 ${icon ? 'flex-none px-3' : 'flex-1 px-1'} cursor-pointer items-center justify-center gap-1.5 border-b-2 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
                 active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
               }`}
               type="button"
@@ -195,10 +201,12 @@ function RightRail({
               aria-controls={`rail-panel-${key}`}
               id={`rail-tab-${key}`}
               onClick={() => onTabChange(key)}
+              aria-label={icon ? label : undefined}
+              title={icon ? label : undefined}
             >
               {/* At the 264px rail a worded badge shows its number only, so the label stays whole; truncating it is the
                   last resort. The badge keeps one line. */}
-              <span className="min-w-0 truncate">{label}</span>
+              {icon ?? <span className="min-w-0 truncate">{label}</span>}
               {badge && <TabBadge label={badge.label} active={active} />}
             </button>
           )
