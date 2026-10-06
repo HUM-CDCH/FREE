@@ -143,7 +143,11 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
         before=len(requests)
         with psycopg.connect(**fields) as admin:
             saved=admin.execute('SELECT count(*) FROM extraction_runtime.checkpoint WHERE id IN (SELECT id FROM extraction_runtime.capture WHERE "extractionId"=%s)',[case['id']]).fetchone()[0]
-            admin.execute('UPDATE extraction_runtime.head SET "leaseUntil"=clock_timestamp()-interval \'1 second\' WHERE id=%s',[case['id']])
+            # Exercise a real restart while the crashed process's lease still
+            # owns the committed-output/DBOS-ack gap. Other fault cases shorten
+            # the lease only to keep the rest of the matrix fast.
+            if case['fault']!='commit_output':
+                admin.execute('UPDATE extraction_runtime.head SET "leaseUntil"=clock_timestamp()-interval \'1 second\' WHERE id=%s',[case['id']])
         start('')
         status=until(lambda:(s:=client.retrieve_workflow(case['workflow']).get_status()).status in {'SUCCESS','ERROR'} and s)
         assert status.status=='SUCCESS',status.error
