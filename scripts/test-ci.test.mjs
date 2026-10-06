@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   CI_DATABASE_URLS,
+  ciSteps,
   ciTestScript,
+  runCi,
   skipsPython,
   validateCiEnvironment,
 } from './test-ci.mjs'
@@ -144,6 +146,55 @@ describe('CI without Python', () => {
       readFileSync(new URL('../prototypes/parsing_service/package.json', import.meta.url), 'utf8'),
     )
     assert.equal(parsing.scripts['install:python'], 'node ../../scripts/install-python.mjs')
+  })
+})
+
+describe('CI step reporting', () => {
+  const nodeEnvironment = () => ({ ...validEnvironment(), FREE_SKIP_PYTHON: '1' })
+  const nodeSteps = ['typecheck', 'lint', 'test:unit:node', 'test:safety', 'test:postgres:node', 'test:e2e']
+
+  function fakeRun(failing) {
+    const calls = []
+    const run = async (arguments_) => {
+      calls.push(arguments_.join(' '))
+      if (failing.includes(arguments_.at(-1))) throw new Error(`pnpm ${arguments_.join(' ')} exited with 1.`)
+    }
+    return { calls, run }
+  }
+
+  it('splits the chosen aggregate into its pnpm scripts', () => {
+    assert.deepEqual(ciSteps(nodeEnvironment()), nodeSteps)
+    assert.deepEqual(ciSteps(validEnvironment()), [
+      'typecheck', 'lint', 'test:unit', 'test:safety', 'test:postgres', 'test:e2e', 'test:service',
+    ])
+  })
+
+  it('runs every step after an early failure, lists failures, and rejects', async (t) => {
+    const log = t.mock.method(console, 'log', () => {})
+    t.mock.method(console, 'error', () => {})
+    const { calls, run } = fakeRun(['lint', 'test:postgres:node'])
+
+    await assert.rejects(runCi(nodeEnvironment(), run), /2 of 6 CI steps failed: lint, test:postgres:node\./)
+
+    assert.deepEqual(calls, ['--filter db db:init', '--filter db db:init', ...nodeSteps])
+    const output = log.mock.calls.map((call) => call.arguments.join(' ')).join('\n')
+    assert.match(output, /^ {2}PASS typecheck$/m)
+    assert.match(output, /^ {2}FAIL lint$/m)
+    assert.match(output, /^ {2}FAIL test:postgres:node$/m)
+    assert.match(output, /^ {2}PASS test:e2e$/m)
+  })
+
+  it('resolves when every step passes', async (t) => {
+    t.mock.method(console, 'log', () => {})
+    const { calls, run } = fakeRun([])
+    await runCi(nodeEnvironment(), run)
+    assert.equal(calls.length, 8)
+  })
+
+  it('stops before the test steps when a database cannot be migrated', async () => {
+    const { calls, run } = fakeRun(['db:init'])
+    await assert.rejects(runCi(nodeEnvironment(), run), /db:init exited with 1/)
+    assert.deepEqual(calls, ['--filter db db:init'])
   })
 })
 
