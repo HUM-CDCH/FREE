@@ -17,7 +17,7 @@ import ResultsMenu from './ResultsMenu'
 import { durableRailModel, durableRailRow, type RunProgress } from './durableRailModel'
 import { evidenceQuote } from './evidenceQuote'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
-import { shownValue, stateLabel, type RailModel, type RailRow, type ValueFilter } from './reviewVocabulary'
+import { shownValue, stateLabel, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { RailMarkState } from './useEvidenceOverlays'
 import {savedCorrectionHref,type SavedReviewCut} from './durableReviewLinks'
@@ -266,7 +266,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const [reprocess,setReprocess]=useState<Set<string>>(()=>new Set()),[notice,setNotice]=useState<string|null>(null)
   const [filter,setFilter]=useState<ValueFilter>('all')
   const [focus,setFocus]=useState(false),[detailsOpen,setDetailsOpen]=useState(false),[menuOpen,setMenuOpen]=useState(false)
-  const [closedRecords,setClosedRecords]=useState<Set<string>>(()=>new Set())
+  const [toggledRecords,setToggledRecords]=useState<ReadonlyMap<string,boolean>>(()=>new Map())
   const selectedGeneration=useRef(0),linkedValue=useRef(new URLSearchParams(window.location.search).get('value'))
   const selectionFromMark=useRef<string|null>(null)
   const linkedCut=useRef(initialCut)
@@ -280,20 +280,30 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     fields:(state.selection?.schemaTree?.schemaNodes??[]).filter((node:{valueSource?:unknown})=>!node.valueSource).map((node:{name:string})=>node.name),
     startPage:state.selection?.resolved?.startPage??null}:null,[state])
   const model=useMemo(()=>page?durableRailModel(page,document,pinned?null:progress):null,[page,document,progress,pinned])
+  // Records open as a run reads them; a settled Extraction opens only its first record with a value to check, chosen
+  // once so a decision doesn't close it (§3.1). The record holding the reviewed value always opens.
+  const [opening,setOpening]=useState<{live:boolean;first:string|undefined}|null>(null)
+  if(model&&state&&!opening)setOpening({live:ACTIVE.has(state.status),first:model.records.find(record=>record.toCheck>0)?.key})
+  // A resumed or retried run reads again: its records open as they are read, and stay open once it settles.
+  else if(opening&&!opening.live&&state&&ACTIVE.has(state.status))setOpening({...opening,live:true})
+  const reviewedRecord=review?.value.recordId
   // The record starts discovery has found while it still looks: marked on the source until the records are listed.
   const foundKey=JSON.stringify(state&&state.records===null?state.discovery?.found??[]:[])
   const found=useMemo(()=>JSON.parse(foundKey) as {segment:string}[],[foundKey])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
   const followRef=useRef({review,onFocusEvidence,onEvidence})
   useEffect(()=>{followRef.current={review,onFocusEvidence,onEvidence}})
+  // A chosen value shows in its record, whichever way the researcher last toggled it.
+  const reveal=(record:string)=>setToggledRecords(previous=>{if(previous.get(record)!==false)return previous;const next=new Map(previous);next.delete(record);return next})
   const selectValue=useCallback((key:string,fromMark=false)=> {
     selectionFromMark.current=fromMark&&focus?key:null
     const generation=++selectedGeneration.current
     const value=page?.values.find(each=>each.id===key)
+    if(value)reveal(value.recordId)
     if(value&&page)setReview(previous=>previous?.value.id===key&&previous.version===page.snapshotVersion&&previous.feedbackVersion===page.feedbackVersion?previous:{value,version:page.snapshotVersion,feedbackVersion:page.feedbackVersion})
     else if(page&&id)void durableRequest<DurablePage>(`${durableRoot(id)}/values/${encodeURIComponent(key)}?snapshotVersion=${page.snapshotVersion}&feedbackVersion=${page.feedbackVersion}`).then(result=> {
       if(generation!==selectedGeneration.current)return
-      if(result.values[0])setReview({value:result.values[0],version:result.snapshotVersion,feedbackVersion:result.feedbackVersion})
+      if(result.values[0]){reveal(result.values[0].recordId);setReview({value:result.values[0],version:result.snapshotVersion,feedbackVersion:result.feedbackVersion})}
       else setError('That value is not saved in this snapshot.')
     }).catch(error=>{if(generation===selectedGeneration.current)setError(error.message)})
   },[page,id,focus])
@@ -421,6 +431,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const valueReview=review&&<ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
     menuOpen={menuOpen} detailsOpen={detailsOpen} onCloseOverlay={overlay=>overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
+  const isOpen=(record:RailRecord)=>toggledRecords.get(record.key!)??(Boolean(opening?.live)||record.key===opening?.first||record.key===reviewedRecord)
   const renderValue=(row:RailRow,pinnedRow:boolean)=>inline&&row.key===review?.value.id?valueReview:<ReviewRow row={row} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} quote={null} canDecide={false} saved={readOnly}
     editing={false} node={null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
   return <div ref={keyboardRoot} className="relative flex h-full min-h-0 flex-col"
@@ -470,8 +481,8 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values. New ones can be reviewed as they arrive.</p>}
       {!focus&&(article&&page.total===0&&active?<p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">Reading the document…</p>
         :<ReviewList model={model} article={article} finding={!article&&page.total===0&&active&&!state.records} filter={filter}
-          selectedKey={review?.value.id??null} isOpen={record=>!closedRecords.has(record.key!)}
-          onToggle={record=>setClosedRecords(previous=>{const next=new Set(previous);if(next.has(record.key!))next.delete(record.key!);else next.add(record.key!);return next})} renderRow={renderValue}/>)}
+          selectedKey={review?.value.id??null} isOpen={isOpen}
+          onToggle={record=>setToggledRecords(previous=>new Map(previous).set(record.key!,!isOpen(record)))} renderRow={renderValue}/>)}
     </div>
   </div>
 }

@@ -16,6 +16,10 @@ import {
   validateSharedStudioConfiguration,
 } from 'studio-configuration'
 import {
+  BUILD_REVISIONS,
+  buildRevision,
+  builtServices,
+  formatServiceRevisions,
   developmentComposeArguments,
   developmentComposeEnvironment,
   developmentComposeFiles,
@@ -631,6 +635,74 @@ describe('production model-call tracing', () => {
         'up', '--no-build', '-d', '--wait',
       ])
     }
+  })
+})
+
+describe('production image revisions', () => {
+  const sha = '3dded2ee'.padEnd(40, '0')
+  const parsingSha = 'fc7d0353'.padEnd(40, '1')
+  // A fake checkout where HEAD changed only Studio and the dirty file is the
+  // Studio Dockerfile.
+  const checkout = (_command, args) => {
+    const paths = args.slice(args.indexOf('--') + 1)
+    const parsing = paths.every((path) => path.startsWith('prototypes/parsing_service'))
+    if (args[0] === 'log') return { status: 0, stdout: `${parsing ? parsingSha : sha}\n` }
+    return { status: 0, stdout: parsing ? '' : ' M prototypes/studio/Dockerfile\n' }
+  }
+
+  it('labels each build with the last commit of its context, dirty per context', () => {
+    assert.equal(buildRevision(BUILD_REVISIONS.FREE_REVISION_PARSING, checkout), parsingSha)
+    assert.equal(buildRevision(BUILD_REVISIONS.FREE_REVISION_STUDIO, checkout), `${sha}-dirty`)
+    assert.equal(buildRevision(['.'], () => ({ status: 128, stdout: '' })), 'unknown')
+    assert.equal(buildRevision(['missing'], () => ({ status: 0, stdout: '' })), 'unknown')
+    buildRevision(['prototypes/parsing_service'], (_command, args) => {
+      if (args[0] === 'status') assert.ok(args.includes('--untracked-files=no'))
+      assert.deepEqual(args.slice(-2), ['--', 'prototypes/parsing_service'])
+      return { status: 0, stdout: sha }
+    })
+  })
+
+  it('stamps every built service in compose.yaml with its context variable', () => {
+    const compose = readFileSync(new URL('../compose.yaml', import.meta.url), 'utf8')
+    for (const variable of Object.keys(BUILD_REVISIONS))
+      assert.ok(compose.includes(`org.opencontainers.image.revision: "\${${variable}:-unknown}"`), variable)
+  })
+
+  it('reports only services Compose builds, with their build inputs', () => {
+    const root = '/srv/free'
+    assert.deepEqual(builtServices(JSON.stringify({ services: {
+      db: { image: 'postgres:17' },
+      phoenix: { image: 'arizephoenix/phoenix' },
+      studio: { build: { context: root, dockerfile: 'prototypes/studio/Dockerfile' } },
+      eval_watcher: { build: { context: `${root}/prototypes/parsing_service`, dockerfile: 'Dockerfile.eval-watcher' } },
+      parsing_service: { build: { context: `${root}/prototypes/parsing_service` } },
+    } }), root), [
+      { service: 'studio', paths: ['.', 'prototypes/studio/Dockerfile'] },
+      { service: 'eval_watcher', paths: ['prototypes/parsing_service', 'prototypes/parsing_service/Dockerfile.eval-watcher'] },
+      { service: 'parsing_service', paths: ['prototypes/parsing_service'] },
+    ])
+  })
+
+  it('marks each running service current or stale against its build inputs', () => {
+    assert.deepEqual(formatServiceRevisions([
+      { service: 'studio', revision: sha, expected: sha },
+      { service: 'eval_watcher', revision: parsingSha, expected: parsingSha },
+      { service: 'parsing_worker', revision: '', expected: parsingSha },
+      { service: 'parsing_service', revision: sha, expected: parsingSha },
+    ]), [
+      'studio           3dded2ee  current',
+      'eval_watcher     fc7d0353  current',
+      'parsing_worker   unknown  STALE (expected fc7d0353)',
+      'parsing_service  3dded2ee  STALE (expected fc7d0353)',
+    ])
+    assert.deepEqual(
+      formatServiceRevisions([{ service: 'studio', revision: `${sha}-dirty`, expected: `${sha}-dirty` }]),
+      ['studio  3dded2ee-dirty  current'],
+    )
+    assert.deepEqual(
+      formatServiceRevisions([{ service: 'studio', revision: '<no value>', expected: 'unknown' }]),
+      ['studio  unknown  STALE (expected unknown)'],
+    )
   })
 })
 
