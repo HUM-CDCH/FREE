@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { passesFilter, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
+import { isDecidable, passesFilter, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import { ApprovedGlyph, DisclosureGlyph, SpinnerGlyph } from './ui/icons'
 
 /** A record header's right-hand state (§3.1), as text and as the section's accessible name. */
@@ -7,8 +7,11 @@ function recordState(record: RailRecord): { text: string; busy: boolean; done: b
   if (record.state === 'queued') return { text: 'Queued', busy: false, done: false }
   if (record.state === 'reading') return { text: 'Reading…', busy: true, done: false }
   if (record.state === 'checking') return { text: `Checking ${record.rows.length} values`, busy: true, done: false }
-  return record.toCheck > 0 ? { text: `${record.toCheck} to check`, busy: false, done: false }
-    : { text: 'all checked', busy: false, done: true }
+  if (record.toCheck > 0) return { text: `${record.toCheck} to check`, busy: false, done: false }
+  // Only a decision checks a value: a record of missing or unread values has nothing checked.
+  if (!record.rows.some((row) => isDecidable(row.kind)))
+    return { text: record.rows.every((row) => row.kind === 'missing') ? 'no values' : 'nothing to check', busy: false, done: false }
+  return { text: 'all checked', busy: false, done: true }
 }
 
 const section = 'overflow-hidden rounded-lg border border-line bg-surface'

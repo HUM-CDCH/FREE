@@ -367,6 +367,13 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       if(!controller.signal.aborted)timer=setTimeout(()=>void poll(),1500)}
     void poll();return()=> {++generations.live;++generations.snapshot;controller.abort();clearTimeout(timer)}
   },[refresh])
+  // The run button follows the workspace's own status reads; one that sees a change first (Pausing → Paused) is read
+  // here at once, not at the next poll, so the status line agrees with the button.
+  const workspaceStatus=attempt?.executionStatus
+  useEffect(()=> {
+    const shown=acceptedRead.current?.state.status
+    if(workspaceStatus&&shown&&shown!==workspaceStatus)void refresh().catch(()=>{})
+  },[workspaceStatus,refresh])
   if(!loaded||!page||!attempt||!id||!model||!state) return <><p role={error?'alert':'status'} className="p-3 text-secondary">{error??'Loading saved extraction results…'}</p>
     {historySlot&&createPortal(<p className="p-3 text-secondary">{error??'Loading…'}</p>,historySlot)}</>
   const terminal=state.status==='STOPPED'||state.status==='STOPPING'

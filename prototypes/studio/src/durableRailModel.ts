@@ -38,10 +38,13 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
       action: action && action !== 'PENDING' ? action : 'APPROVED',
       reviewedValue: action === 'EDITED' ? correction.value : null,
     } : null,
-    chip: {text: value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no evidence' : `${page === null ? 'linked' : `p.${page}`}${origin === 'rule' ? ' · rule' : ''}${doubt ? ' · doubtful' : ''}`,
+    // A missing value has no Evidence to check, during the run or after it (§1 Missing).
+    chip: {text: value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no evidence'
+      : `${page === null ? 'linked' : `p.${page}`}${origin === 'rule' ? ' · rule' : ''}${doubt ? ' · doubtful' : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},
     evidence: !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'No Evidence linked' : 'Not read yet',
-      detail: value.processing === 'saved' ? 'Check it against the source, then approve, edit or reject it.' : 'It can be reviewed once the run saves it.'} : null,
+      detail: value.processing === 'saved' ? 'Check it against the source, then approve, edit or reject it.'
+        : value.processing === 'absent' ? 'No value was extracted.' : 'It can be reviewed once the run saves it.'} : null,
     doubt, changed: false, page,
     retained: {reviewable: value.processing === 'saved', source,
       attribution: value.historicalCorrection ? 'An earlier correction does not fit this value; it stays saved.' : undefined},

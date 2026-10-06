@@ -49,6 +49,15 @@ it('shows a linked value saved while the run goes on as linked, not as still bei
   expect(row.chip).toEqual({text:'linked',style:'link'})
 })
 
+it('marks a missing value as missing while the run goes on and after it, never as still being checked',()=> {
+  for(const grounding of ['provisional','ungrounded'] as const) {
+    const row=durableRailRow(value({modelValue:null,processing:'absent',grounding}),null)
+    expect(row.kind).toBe('missing')
+    expect(row.chip).toEqual({text:'missing',style:'neutral'})
+    expect(row.evidence).toEqual({label:'No value',detail:'No value was extracted.'})
+  }
+})
+
 it('lists the records discovery found as queued or reading until their values are saved, nearest the start page first',()=> {
   const saved=value({path:['records',2,'flag']})
   const model=durableRailModel({values:[saved]} as DurablePage,null,{records:[{ordinal:0,page:1},{ordinal:1,page:4},{ordinal:2,page:5}],

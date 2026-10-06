@@ -70,6 +70,31 @@ it('shows the record starts discovery has found on the source while it still loo
   expect(onMarksChange.mock.calls.at(-1)![0].selectableKeys).toEqual(new Set())
 })
 
+it('reads the run again at once when the run button already shows a newer status, and names a record of missing values',async()=>{
+  const absent={id:'value',recordId:'first',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:null,evidence:[],links:[],grounding:'provisional',processing:'absent',lineage:[],correction:null,historicalCorrection:null}
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[absent],total:1,next:null,coverage:{}} as unknown as DurablePage
+  const state={extractionId:'extraction',projectId:'project',status:'PAUSING',controlVersion:1,snapshotVersion:1,feedbackVersion:0,
+    selection:{id:'original',ordinal:1,schemaTree:{schemaNodes:[{id:'title',name:'title',type:'string'}]},resolved:{startPage:null}},pendingSelection:null,
+    counts:{saved:1,inFlight:1},records:[{ordinal:0,page:1},{ordinal:1,page:2}],reading:[]}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  const attempt={extractionId:'extraction',strategy:'CATALOG',executionStatus:'PAUSING'} as ExtractionAttempt
+  vi.useFakeTimers()
+  try {
+    let view!:ReturnType<typeof render>
+    await act(async()=>{view=render(<DurableResults attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)})
+    expect(screen.getByText('Pausing')).toBeVisible()
+    // Only a decision checks a value: the record's one value is missing, so nothing in it was checked.
+    expect(screen.getByRole('region',{name:'Record 1, no values'})).toBeVisible()
+    expect(screen.queryByText('all checked')).toBeNull()
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,status:'PAUSED',counts:{saved:1,inFlight:0}},page} as never)
+    // The workspace's own read saw the pause first; the status line follows it without waiting for its next poll.
+    await act(async()=>{view.rerender(<DurableResults attempt={{...attempt,executionStatus:'PAUSED'}} document={null} currentSchema={null} onEvidence={()=>{}}/>)})
+    expect(screen.getByText('Paused')).toBeVisible()
+    expect(readDurable).toHaveBeenCalledTimes(2)
+  } finally {vi.useRealTimers()}
+})
+
 it('shows requested and effective methods with their producing selections, and names unresolved effective methods',async()=>{
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
