@@ -17,7 +17,7 @@
     "build": "pnpm --filter studio build",
     "test": "pnpm test:unit",
     "test:unit": "pnpm test:unit:node && pnpm --filter parsing-service test",
-    "test:unit:node": "node --test scripts/free.test.mjs scripts/test-ci.test.mjs scripts/install-python.test.mjs && pnpm --filter studio-configuration test && pnpm --filter studio test && pnpm --filter db test && pnpm --filter extraction test && pnpm --filter extraction-result-export test",
+    "test:unit:node": "node --test scripts/free.test.mjs scripts/test-ci.test.mjs scripts/install-python.test.mjs scripts/codegraph-prompt-hook.test.mjs && pnpm --filter studio-configuration test && pnpm --filter studio test && pnpm --filter db test && pnpm --filter extraction test && pnpm --filter extraction-result-export test",
     "test:safety": "node --test --test-concurrency=1 tests/safety.test.mjs",
     "test:postgres": "pnpm test:postgres:node && pnpm --filter parsing-service test:postgres",
     "test:postgres:node": "pnpm --filter db test:postgres && pnpm --filter extraction test:postgres && pnpm --filter studio test:postgres",
