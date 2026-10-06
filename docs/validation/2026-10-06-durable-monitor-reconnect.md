@@ -15,6 +15,13 @@ check at 09:03 UTC showed the attempt still running, 406 saved calls, snapshot
 completion claim. Studio server logs did not show a corresponding exception.
 The initial failed request's cause remains unidentified.
 
+A subsequent read-only check at 09:07 UTC confirmed this production attempt
+`COMPLETED`: 205 records, 1,025 root values, 454 populated values, all 454 with
+evidence, no provisional or failed values, no in-flight calls, and the final
+processing-complete proof. Phoenix's matching `extractDurableV1` span ended with
+status `OK` at 09:03:46 UTC. This verifies backend completion while the UI
+recovery issue remains unresolved.
+
 The primary monitor in `prototypes/studio/src/useExtraction.ts` pauses after
 any failed status read. `acceptDurableStatus` returns immediately for an unchanged
 lifecycle status, so a healthy `RUNNING` report cannot clear the warning or resume
@@ -77,8 +84,8 @@ both PostgreSQL upgrade paths, 90 database unit cases, and 1,403 Parsing Service
 cases. CI passed. The normal `free-deploy release` completed with a consistent
 backup, unchanged backup before/after data counts, healthy replacement application
 containers, preserved model and other protected services, and passing HTTP/auth
-gates. No release is needed for this documentation-only handoff. Final production
-Retry acceptance still needs observing through completion.
+gates. The user's authenticated production Retry subsequently completed as
+recorded above. No release is needed for this documentation-only handoff.
 
 Private source material, request bodies, Phoenix spans, credentials, and deployment
 inventory remain in ignored task artifacts. The original user's worktree was not

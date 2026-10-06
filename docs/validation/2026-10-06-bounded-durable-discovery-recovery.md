@@ -1,7 +1,7 @@
 # Bounded discovery recovery through durable extraction
 
-Status: implementation, exact document replay, and release verified; production
-Retry completion still pending at handoff.
+Status: implementation, exact document replay, release, and authenticated
+production Retry completion verified; remaining UI recovery issue handed off.
 Outcome: [PR #191](https://github.com/HUM-CDCH/FREE/pull/191).
 Follow-up: [monitor recovery reproduction and handoff](2026-10-06-durable-monitor-reconnect.md)
 and [issue #192](https://github.com/HUM-CDCH/FREE/issues/192).
@@ -57,9 +57,11 @@ unmeasured. Those model diagnostics remain subject to researcher review.
 The normal release completed successfully with a consistent backup, identical
 backup before/after data counts, healthy application containers, protected
 services preserved, and passing HTTP/auth gates. The user's subsequent production
-Retry was progressing without a recorded failure at handoff. Its final completion
-had not yet been observed. A reproduced Studio monitor recovery defect is tracked
-in the linked follow-up rather than being claimed fixed by this backend release.
+Retry completed with 205 records, 454 populated values all paired with evidence,
+no provisional or failed values, zero in-flight calls, and a final
+processing-complete proof. Its matching Phoenix workflow span ended with status
+`OK`. A reproduced Studio monitor recovery defect is tracked in the linked
+follow-up rather than being claimed fixed by this backend release.
 
 Private source material, requests, traces, credentials, and deployment inventory
 stay in ignored task artifacts and are excluded from this review record.
