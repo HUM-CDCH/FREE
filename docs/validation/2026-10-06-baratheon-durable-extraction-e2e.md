@@ -1,6 +1,7 @@
 # Baratheon durable extraction E2E — 2026-10-06
 
-Status: verified candidate; independent review and release pending. Base: deployed
+Status: independently reviewed fix; release acceptance is tracked in
+[PR #190](https://github.com/HUM-CDCH/FREE/pull/190). Base: deployed
 PR #188, `aeac8cf38b91f69ac5f5c7c83c6a679737b7cdf0`. User requested manual
 complete extraction, every new job feature, fixes, `free-deploy release` on
 Baratheon and retesting. Local serving with Baratheon models was explicitly authorized.
@@ -67,7 +68,15 @@ product source or commit.
   Final changed-area run after adding customized input cases: 3 files / 78 checks.
 - Native durable recovery wrapper: five Python crash scenarios passed under the
   guarded disposable PostgreSQL contract with actual DBOS worker processes.
-- Parser unit tier: verification environment completion recorded below.
+- Parser unit tier: 1,397 passed / 72 skipped / 86 deselected. Executed with
+  the isolated `.venv/bin/python -m pytest -q -m "not postgres and not live_model"`
+  after adding the missing locked tracing and grammar packages.
+- Final typecheck and lint passed after removing temporary harness source.
+- Bounded simplify/harden self-review: no further changes or unresolved findings.
+- Independent Standards review: PASS, zero findings. Independent Spec review:
+  PASS, zero findings. Both reviewed commit `6b32d646` against `aeac8cf3`,
+  verified named-cut/draft stability, canonical settings, SQL epoch fencing,
+  unchanged workflow sequences, and stable progress refresh callbacks.
 
 Failed verification attempts are retained in logs: initial `/tmp` quota failures,
 an unbounded Studio run starving PDF-worker deadlines (the unchanged PDF tests
@@ -81,7 +90,9 @@ harness attempts, without speculative product changes.
 
 ## Review and release outcome
 
-Pending. Production uses real Entra: authenticated manual execution above is
+Both independent code reviews passed. CI, release SHA and post-release acceptance
+are recorded in [PR #190](https://github.com/HUM-CDCH/FREE/pull/190).
+Production uses real Entra: authenticated manual execution above is
 local with real Baratheon models. Deployment verification must separately record
 release SHA, healthy runtime/auth protection, data preservation, model container
 identity preservation, and a fresh live-model extraction after release.
