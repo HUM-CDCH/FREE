@@ -200,6 +200,8 @@ it('refreshes project progress when a polled batch member completes',async()=>{
   render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
     openBatchExtractionId={batchExtractionId} pilotSchemaRevisionId={null} onNavigate={()=>{}} onProgressChange={onProgressChange}/>)
   await screen.findByText('1 completed · 1 running')
+  // The report runs in an effect after the render; clearing before it runs would count it as the completion's.
+  await waitFor(()=>expect(onProgressChange).toHaveBeenCalled())
   onProgressChange.mockClear()
   current={...current,executionStatus:'COMPLETED',members:batch.members.map(member=>publishedMember(member))}
   fireEvent(window,new Event('focus'))
