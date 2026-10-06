@@ -1,12 +1,7 @@
 import { appendFileSync } from 'node:fs'
 import { DBOS } from '@dbos-inc/dbos-sdk'
-import {
-  awaitWorkflowOutcome,
-  launchStudioDbos,
-  shutdownStudioDbos,
-  STUDIO_QUEUE,
-  studioDbos,
-} from '../../../server/dbos.js'
+import { launchStudioDbos, shutdownStudioDbos, STUDIO_QUEUE, studioDbos } from '../../../server/dbos.js'
+import { awaitWorkflowOutcome } from '../../../server/workflowOutcome.js'
 
 const WORKFLOW_NAME = 'lifecycleProbe'
 const WORKFLOW_ID = 'lifecycle-probe'

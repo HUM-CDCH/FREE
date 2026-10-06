@@ -4,7 +4,8 @@ import { createKeiHandoff } from 'extraction/kei-handoff'
 import { createCanonicalPackageStore } from '../../../../../packages/db/src/artifact-store.js'
 import { registerReprocessWorkflow } from '../../../api/_reprocess_workflow.js'
 import { createSourceDocumentReprocessing } from '../../../api/source_reprocess.js'
-import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
+import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
+import { awaitWorkflowOutcome } from '../../../server/workflowOutcome.js'
 import { ingestionStoreFor } from '../ingestion.js'
 
 function required(env: NodeJS.ProcessEnv, name: string): string {

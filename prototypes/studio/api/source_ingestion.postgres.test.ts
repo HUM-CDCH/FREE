@@ -11,7 +11,8 @@ import { dbosSteps } from 'extraction'
 import { createKeiHandoff, KEI_APPLICATION, keiConvertWorkflowId, type KeiConvertInput } from 'extraction/kei-handoff'
 import { spawnKeiStandIn, type KeiStandInProcess } from 'extraction/kei-stand-in-client'
 import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
-import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../server/dbos.js'
+import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../server/dbos.js'
+import { awaitWorkflowOutcome } from '../server/workflowOutcome.js'
 import { runWorkflowChild } from '../test/support/crash.js'
 import {
   chooseIngestionModels, ingestionStoreFor, publishFixtureParse, removeOwner, seedOwner, uploadRequest,

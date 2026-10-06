@@ -11,7 +11,8 @@ import { registerSchemaEditWorkflow, type SchemaEditPorts } from '../../api/_sch
 import { registerSchemaGenerationWorkflow, type SchemaGenerationPorts } from '../../api/_schema_generation_workflow.js'
 import { createPostEditSchema } from '../../api/edit_schema.js'
 import { createPostGenerateSchema } from '../../api/generate_schema.js'
-import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../server/dbos.js'
+import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../server/dbos.js'
+import { awaitWorkflowOutcome } from '../../server/workflowOutcome.js'
 import { suggestionResearcherStore } from './suggestionWorkflow.js'
 
 export function required(env: NodeJS.ProcessEnv, name: string): string {

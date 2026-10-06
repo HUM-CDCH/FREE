@@ -46,4 +46,25 @@ describe('development host lifecycle', () => {
 
     expect(server.ssrLoadModule).not.toHaveBeenCalled()
   })
+
+  it('asks for a restart when a module the running DBOS retains changes', async () => {
+    vi.useFakeTimers()
+    const server = middlewareModeServer()
+    server.environments.ssr.moduleGraph.getModulesByFile.mockReturnValue(new Set([{}]))
+    await createDevelopmentHost(server as never, async () => ({}))
+    const change = server.watcher.on.mock.calls.find(([event]) => event === 'change')![1] as (file: string) => void
+
+    try {
+      for (const file of ['server/dbos.ts', 'server/workflowOutcome.ts']) {
+        server.config.logger.warn.mockClear()
+        change(`/workspace/prototypes/studio/${file}`)
+        expect(server.config.logger.warn, file).toHaveBeenCalledOnce()
+      }
+      server.config.logger.warn.mockClear()
+      change('/workspace/prototypes/studio/server/app.ts')
+      expect(server.config.logger.warn).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

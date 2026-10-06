@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from 'node:util'
 import { Error as DBOSErrors, type DBOSClient } from '@dbos-inc/dbos-sdk'
 import { INTERRUPTED_FAILURE } from 'db'
-import { awaitWorkflowOutcome, STUDIO_QUEUE } from '../server/dbos.js'
+import { STUDIO_QUEUE } from '../server/dbos.js'
+import { awaitWorkflowOutcome } from '../server/workflowOutcome.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
 
 /** One model call's limit (spec: each call keeps a 10-minute timeout). */

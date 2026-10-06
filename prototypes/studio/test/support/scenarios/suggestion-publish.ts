@@ -1,6 +1,7 @@
 import { createCanonicalPackageStore } from '../../../../../packages/db/src/artifact-store.js'
 import { registerBatchSuggestionWorkflow } from '../../../api/_batch_suggestion_workflow.js'
-import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
+import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
+import { awaitWorkflowOutcome } from '../../../server/workflowOutcome.js'
 import { scriptedGenerate, suggestionPorts, suggestionResearcherStore } from '../suggestionWorkflow.js'
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
