@@ -124,7 +124,8 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
     with Lease(coordinator(), extraction, attempt) as lease:
         saved = lease.call("read_call", capture)
         if saved["checkpoint"] is not None:
-            return {"ok": not failed_output(saved["checkpoint"]["output"]), "capture": capture}
+            checkpoint = saved["checkpoint"]
+            return {"ok": not failed_output(checkpoint["output"]) or checkpoint.get("recoverable", False), "capture": capture}
         if saved["intent"] != "RUN":
             return {"ok": True, "boundary": True}
         finalized = saved["input"]
@@ -162,14 +163,16 @@ def invoke_capture(extraction: str, attempt: str, capture: str) -> dict:
         from time import sleep
         for retry in range(3):
             try:
-                lease.call("commit_output", capture, finalized["digest"], output)
+                committed = lease.call("commit_output", capture, finalized["digest"], output)
                 break
             except Exception:
                 if retry == 2:
                     lease.call("fail_call", capture)
                     raise RuntimeError("returned output could not be saved") from None
                 sleep(0.1 * (retry + 1))
-        return {"ok": not failed_output(output), "capture": capture}
+        # The fenced commit owns failure policy. Recoverable replies let the
+        # existing bounded planner split its window on the next replay.
+        return {"ok": not failed_output(output) or bool(committed and committed.get("recoverable")), "capture": capture}
 
 
 @DBOS.workflow(name="extractionCallV1", max_recovery_attempts=config.MAX_RECOVERY_ATTEMPTS,

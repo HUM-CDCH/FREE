@@ -33,7 +33,8 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
   const worker=new URL(target.url);worker.username=role;worker.password=password
   const cases:{method:string;terminal:string;id:string;attempt:string;workflow:string;source:unknown}[]=[]
   const scenarios=[...['article','generic','recipe','unified'].flatMap(method=>['complete','stop','failure'].map(terminal=>({method,terminal}))),
-    {method:'article',terminal:'queued-pause'},{method:'article',terminal:'after-queued-pause'}]
+    {method:'article',terminal:'queued-pause'},{method:'article',terminal:'after-queued-pause'},
+    {method:'unified',terminal:'truncation'},{method:'unified',terminal:'truncation-exhausted'}]
   for(const [index,{method,terminal}] of scenarios.entries()) {
     const schemaRevisionId=randomUUID(),id=randomUUID()
     const nodes=method==='recipe'?[
@@ -85,6 +86,6 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     {timeout:300000,maxBuffer:4*1024*1024}).catch((error:{stdout?:string;stderr?:string})=> {
       console.info(error.stdout);throw new Error('Guarded four-method lifecycle verification failed.')
     })
-  assert.match(stdout,/13 passed/)
+  assert.match(stdout,/15 passed/)
   console.info('Article, generic, recipe and unified native Pause/Resume/Stop/Retry and queued lane-release checks passed.')
 })

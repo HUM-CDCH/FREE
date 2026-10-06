@@ -55,7 +55,7 @@ def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
                 elif 'record boundaries' in system:parsed={'starts':['B1','B2','B3'],'end':None}
                 elif '### Claims' in user:parsed={key:{'label':'NONE','attribution':False} for key in schema['properties']}
                 else:parsed={'name':'Valley' if 'Valley' in user else 'Hill'}
-                output={'choices':[{'message':{'content':json.dumps(parsed)},'finish_reason':'length' if number==failed_at else 'stop'}],
+                output={'choices':[{'message':{'content':'{' if number==failed_at else json.dumps(parsed)},'finish_reason':'stop'}],
                     'usage':{'prompt_tokens':counted,'completion_tokens':10}}
             raw=json.dumps(output).encode();self.send_response(200);self.send_header('Content-Type','application/json')
             self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
@@ -140,6 +140,89 @@ def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
             assert admin.execute('SELECT outcome FROM public.extraction WHERE id=%s',[case['id']]).fetchone()[0] is None
     finally:
         release.set()
+        if process.poll() is None:process.terminate()
+        try:process.wait(timeout=10)
+        except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
+        log.close()
+        if client:client.destroy()
+        server.shutdown();server.server_close();thread.join(timeout=5)
+
+
+@pytest.mark.parametrize('max_width',[2,0])
+def test_truncated_discovery_is_saved_and_split_until_complete_or_exhausted(tmp_path,max_width):
+    fixture=json.loads(Path(FIXTURE).read_text())
+    fields=checked_conninfo(fixture['admin'])
+    terminal='truncation' if max_width else 'truncation-exhausted'
+    case=next(case for case in fixture['cases'] if case['terminal']==terminal)
+    source=tmp_path/'runs'/case['source']['runId']
+    texts=[f'{number}. Site{number}. Material: M{number}.' for number in range(1,9)]
+    catalogue.write({'transcriber':'native','pages':[{'page':1,'units':[{'index':0,'segments':texts}]}]},
+                    source,generation=case['source']['generation'])
+    (source/'params.json').write_text('{}')
+    model=Model(load(source))
+    widths=[];truncated=[]
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self,*_):pass
+        def do_POST(self):
+            body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            messages=body['messages'];counted=sum(len(message['content'].split()) for message in messages)+5
+            if self.path=='/tokenize':output={'count':counted,'max_model_len':32768}
+            else:
+                system,user=messages[0]['content'],messages[-1]['content']
+                schema=body['response_format']['json_schema']['schema']
+                discovery=system.startswith('You find where records begin')
+                width=len(schema['properties']['places']['items']['prefixItems'][0]['enum']) if discovery else 0
+                if discovery:widths.append(width)
+                cut=width>max_width
+                if cut:truncated.append(body)
+                output={'choices':[{'message':{'content':'{' if cut else json.dumps(model(system,user,schema))},
+                                   'finish_reason':'length' if cut else 'stop'}],
+                        'usage':{'prompt_tokens':counted,'completion_tokens':4096 if cut else 10}}
+            raw=json.dumps(output).encode();self.send_response(200);self.send_header('Content-Type','application/json')
+            self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+    server=ThreadingHTTPServer(('127.0.0.1',0),Provider)
+    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    log=open(tmp_path/'worker.log','w+')
+    serving=tmp_path/'serving'
+    env={**os.environ,'PYTHONPATH':'/test/src','KEI_RUNS':str(tmp_path/'runs'),
+         'MODEL_URL':f'http://127.0.0.1:{server.server_port}/v1/chat/completions','FAULT':'',
+         'CRASHED':str(tmp_path/'crashed'),'SERVING':str(serving),'DURABLE_RECOVERY_FIXTURE':FIXTURE}
+    process=subprocess.Popen([sys.executable,'-c',CHILD],env=env,stdout=log,stderr=log)
+    client=None
+    try:
+        until(lambda:serving.exists() or process.poll() is not None)
+        if process.poll() is not None:log.seek(0);raise AssertionError(log.read())
+        client=DBOSClient(system_database_url=fixture['worker'],dbos_system_schema='kei_dbos',application_name='kei')
+        client.enqueue({'workflow_name':'extractDurableV1','queue_name':'kei-extract','application_name':'kei',
+                        'workflow_id':case['workflow'],'serialization_type':WorkflowSerializationFormat.PORTABLE},
+                       {'protocol':1,'extraction_id':case['id'],'attempt_id':case['attempt']})
+        ended=until(lambda:(status:=client.retrieve_workflow(case['workflow']).get_status()).status in {'SUCCESS','ERROR'} and status,timeout=90)
+        assert ended.status=='SUCCESS',ended.error
+        response=requests.post(fixture['bridge'],json={'id':case['id']},
+                               headers={'Authorization':f"Bearer {fixture['token']}"},timeout=15)
+        assert response.ok,response.text
+        completed=response.json()
+        assert completed['state']['status']==('COMPLETED' if max_width else 'FAILED'),{
+            'failure':completed['history']['attempts'][-1]['failure'],
+            'recoverable':[failure.get('recoverable') for failure in completed['history']['failedCalls']],
+            'unified':[effective['configuration']['options'].get('unified') for effective in completed['history']['effective']],
+            'widths':widths}
+        assert widths[0]==8 and max(widths)>2 and 2 in widths
+        failures=completed['history']['failedCalls']
+        assert len(failures)==len(truncated)>0
+        assert all(failure['recoverable'] and failure['attemptId']==case['attempt'] for failure in failures)
+        assert len({json.dumps(body,sort_keys=True) for body in truncated})==len(truncated)
+        if max_width:
+            materials=[value['modelValue'] for value in completed['page']['values'] if value['node']['name']=='material']
+            assert sorted(materials)==[f'M{number}' for number in range(1,9)]
+        else:
+            assert widths.count(1)==8 and len(widths)==15
+            assert completed['history']['attempts'][-1]['failure']=={'code':'incomplete_processing'}
+            assert completed['state']['counts']['inFlight']==0
+        with psycopg.connect(**fields) as admin:
+            assert admin.execute('SELECT count(*) FROM extraction_runtime.checkpoint o JOIN extraction_runtime.capture c ON c.id=o.id WHERE c."extractionId"=%s AND EXISTS (SELECT FROM jsonb_array_elements(o.output->\'calls\') call WHERE call->>\'finish\'=\'length\')',[case['id']]).fetchone()[0]==0
+            assert admin.execute('SELECT outcome FROM public.extraction WHERE id=%s',[case['id']]).fetchone()[0] is None
+    finally:
         if process.poll() is None:process.terminate()
         try:process.wait(timeout=10)
         except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)

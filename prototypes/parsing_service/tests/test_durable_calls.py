@@ -1,5 +1,6 @@
 """Provider failures and persistence failures stop admission before compilation."""
 import inspect
+from dataclasses import asdict
 from copy import deepcopy
 from types import SimpleNamespace
 
@@ -86,3 +87,31 @@ def test_returned_output_is_retried_then_halts_admission_without_claiming_saved(
     with pytest.raises(RuntimeError,match="could not be saved"):
         inspect.unwrap(worker.invoke_capture)("extraction","attempt","capture")
     assert events==["read_call","begin_call","commit_output","commit_output","commit_output","fail_call"]
+
+
+@pytest.mark.parametrize("checkpoint", [False, True])
+def test_truncated_discovery_response_allows_the_planner_to_split_its_window(monkeypatch, checkpoint):
+    call = Call("discovery", None, 20395, 4096, 0.1, "length", False,
+                "the reply was cut off (finish_reason length)")
+    output = {"parsed": None, "calls": [asdict(call)]}
+    events = []
+    class Lease:
+        def __init__(self, *_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def call(self, routine, *args):
+            events.append(routine)
+            if routine == "read_call":
+                return {"checkpoint": {"output": output, "recoverable": True} if checkpoint else None, "intent": "RUN",
+                        "input": {"digest": "fixed", "request": {"composer": 1, "provider": {},
+                                  "budget": {"context": 32768, "counted": 20395},
+                                  "body": {"stage": "discovery", "record": None, "httpRequest": {}}}}}
+            if routine == "begin_call": return True
+            if routine == "commit_output": return {"output": output, "recoverable": True}
+    monkeypatch.setattr(worker, "Lease", Lease)
+    monkeypatch.setattr(worker, "coordinator", lambda: None)
+    monkeypatch.setattr(worker, "chat_for", lambda _: SimpleNamespace())
+    monkeypatch.setattr(worker.calls, "complete", lambda *_, **__: (None, [call]))
+    result = inspect.unwrap(worker.invoke_capture)("extraction", "attempt", "capture")
+    assert result == {"ok": True, "capture": "capture"}
+    assert events == (["read_call"] if checkpoint else ["read_call", "begin_call", "commit_output"])
