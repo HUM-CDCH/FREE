@@ -155,6 +155,31 @@ def test_guidance_examples_list_only_differing_fields(tmp_path: Path):
     )
 
 
+def test_guidance_counter_counts_the_block_the_chat_will_send():
+    class FakeCounter:
+        context_tokens = 1000
+
+        def __init__(self):
+            self.seen: list[str] = []
+
+        def request_tokens(self, system, user, schema=None):
+            self.seen.append(system)
+            return len(system)
+
+    counter = FakeCounter()
+    guided = iterative_eval.GuidanceCounter(counter, "\nEXTRA")
+    assert guided.request_tokens("sys", "user") == len("sys\nEXTRA")
+    assert guided.context_tokens == 1000
+    assert counter.seen == ["sys\nEXTRA"]
+
+
+def test_guidance_text_caps_the_examples_it_uses():
+    examples = [{"field": "f", "expected": "x" * 4000} for _ in range(5)]
+    capped = iterative_eval.capped_examples(examples, max_chars=8000)
+    assert 0 < len(capped) < len(examples)
+    assert len(iterative_eval.guidance_text(examples, max_chars=8000)) <= 8000
+
+
 def test_configured_pilot_entries_defaults_to_the_first_two(tmp_path: Path):
     entries = [{"key": key, "pdf": None, "run": None} for key in ("a", "b", "c")]
     assert [entry["key"] for entry in iterative_eval.configured_pilot_entries({}, entries)] == ["a", "b"]

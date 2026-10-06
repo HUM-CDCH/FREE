@@ -634,6 +634,21 @@ class GuidanceChat:
         return getattr(self.chat, name)
 
 
+class GuidanceCounter:
+    """The token counter of a guided chat: it counts the same block the chat
+    appends, so admission sees the prompt that is actually sent (an uncounted
+    block can push a request past the served context and get a bare 400)."""
+
+    def __init__(self, counter, guidance: str):
+        self.counter, self.guidance = counter, guidance
+
+    def request_tokens(self, system, user, schema=None):
+        return self.counter.request_tokens((system or "") + self.guidance, user, schema)
+
+    def __getattr__(self, name):
+        return getattr(self.counter, name)
+
+
 def _extract_document(run_dir: Path, request: ExtractRequest, providers: dict[str, dict], cell_dir: Path,
                       *, guidance: str = "") -> dict:
     """One extraction through the service's entrypoint, with resumable call captures beside the cell."""
@@ -642,6 +657,7 @@ def _extract_document(run_dir: Path, request: ExtractRequest, providers: dict[st
     counters = {role: counter_for(chat) for role, chat in clients.items()}
     captures = {role: Capture(chat, cell_dir / "calls", role) for role, chat in clients.items()}
     if guidance:
+        counters["fields"] = GuidanceCounter(counters["fields"], guidance)
         captures["fields"] = GuidanceChat(captures["fields"], guidance)
     return extract(run_dir, request, Router(**captures), counter=counters)
 
@@ -852,11 +868,25 @@ def guidance_examples(gold: dict, predictions: dict[str, dict | None], keys) -> 
     return examples
 
 
-def guidance_text(examples: list[dict]) -> str:
+DEFAULT_GUIDANCE_CHARS = 8000
+
+
+def capped_examples(examples: list[dict], *, max_chars: int = DEFAULT_GUIDANCE_CHARS) -> list[dict]:
+    """The leading examples that fit the guidance budget: many or long gold
+    values must not push the prompt past the context the model serves."""
+    kept: list[dict] = []
+    for example in examples:
+        candidate = [*kept, example]
+        if kept and len(GUIDANCE_HEADER + json.dumps(candidate, ensure_ascii=False, sort_keys=True)) > max_chars:
+            break
+        kept = candidate
+    return kept
+
+
+def guidance_text(examples: list[dict], *, max_chars: int = DEFAULT_GUIDANCE_CHARS) -> str:
     """The block appended to field-role prompts; empty when nothing changed."""
-    if not examples:
-        return ""
-    return GUIDANCE_HEADER + json.dumps(examples, ensure_ascii=False, sort_keys=True)
+    kept = capped_examples(examples, max_chars=max_chars)
+    return GUIDANCE_HEADER + json.dumps(kept, ensure_ascii=False, sort_keys=True) if kept else ""
 
 
 PIPELINE_ROUNDS = ("PILOT_1", "PILOT_2", "BATCH")
@@ -944,7 +974,7 @@ def run_pipeline(config: dict, root: Path) -> dict:
         keys = {entry["key"] for entry in subset}
         try:
             if label != "PILOT_1":
-                examples = guidance_examples(gold, predictions, pilot_keys)
+                examples = capped_examples(guidance_examples(gold, predictions, pilot_keys))
                 guidance = guidance_text(examples)
                 _write(output / "rounds" / label.lower() / "guidance.json", examples)
                 print(f"{label}: {len(examples)} guidance example(s)", flush=True)
