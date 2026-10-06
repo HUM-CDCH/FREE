@@ -196,11 +196,11 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
 
     // A later project-guidance edit affects future captures, never this started call.
     await page.goto(`/projects/${project}/documents/${sourceB.sourceDocumentId}?extractionId=${extractionB}`)
-    await page.locator('#rail-tab-results').click()
-    await page.getByText(/^Project guidance/).click()
-    await expect(page.getByText(/ungrounded · compatible for this target/)).toBeVisible()
-    await page.getByRole('button',{name:'Exclude from guidance',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Include in guidance',exact:true})).toBeVisible()
+    await page.locator('#rail-tab-history').click()
+    await page.getByText(/^Corrections the model learns from/).click()
+    await expect(page.getByText('In use',{exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'Stop using',exact:true}).click()
+    await expect(page.getByRole('button',{name:'Use',exact:true})).toBeVisible()
     const guidance=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
     expect(guidance.find((each:{active:boolean})=>each.active)).toMatchObject({revision:2,included:false,candidate:{value:corrected,grounded:false,sourceContext:correction.candidate.sourceContext}})
     expect(guidance.find((each:{id:string})=>each.id===correction.id).active).toBe(false)
@@ -215,6 +215,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     const retainedA=(await (await page.request.get(valueUrl)).json()).values[0]
     expect(retainedA.correction.decision.value).toEqual(corrected)
     expect(retainedA.correction.included).toBe(false)
+    await page.locator('#rail-tab-results').click()
     await page.getByRole('button',{name:'More result actions'}).click()
     const download=page.waitForEvent('download')
     await page.getByRole('menuitem',{name:'Export CSV bundle'}).click()
@@ -222,8 +223,9 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     const exported=JSON.parse(strFromU8(files['snapshot.json']))
     expect(exported.history.captures.find((each:{id:string})=>each.id===capture.id).request).toEqual(capture.request)
     await writeFile(info.outputPath('guidance-export-snapshot.json'),JSON.stringify(exported,null,2))
-    await page.getByRole('button',{name:'Include in guidance',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Exclude from guidance',exact:true})).toBeVisible()
+    await page.locator('#rail-tab-history').click()
+    await page.getByRole('button',{name:'Use',exact:true}).click()
+    await expect(page.getByRole('button',{name:'Stop using',exact:true})).toBeVisible()
     const reincluded=await (await page.request.get(`/api/project-contexts/${project}/feedback?target=${extractionB}`)).json()
     expect(reincluded.find((each:{active:boolean})=>each.active)).toMatchObject({revision:3,included:true,
       candidate:{value:corrected,grounded:false,sourceContext:correction.candidate.sourceContext}})

@@ -11,6 +11,9 @@ import { durableRequest, readDurable, readDurableHistory } from './durableExtrac
 
 vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),readDurable:vi.fn(),readDurableHistory:vi.fn(),durableRoot:(id:string)=>`/api/extractions/${id}/durable`}))
 afterEach(()=>{cleanup();vi.resetAllMocks();window.history.replaceState(null,'','/')})
+/** The rail's History tab body, which Results renders guidance and saved versions into. */
+const historySlot=()=>document.body.appendChild(document.createElement('div'))
+const openDetails=(summary:HTMLElement)=>{const details=summary.closest('details')!;details.open=true;fireEvent(details,new Event('toggle'));return details}
 
 it('follows saved results from an empty admission snapshot until a value is inspected',async()=>{
   const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
@@ -56,9 +59,12 @@ it('shows requested and effective methods with their producing selections, and n
       {id:'first',configuration:{models:{fields:provider('resolved-first','served-first'),reasoning:provider('reasoning-first','reasoner-first')},options:{article:{context:'bounded',context_tokens:8192}},planner:1,protocols:{calls:1,source:'document'}}},
     ],snapshots:[],finalizations:[],captures:[],
   } as never)
-  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  const history=(await screen.findByText('Saved history and producing inputs')).closest('details')!
-  history.open=true;fireEvent(history,new Event('toggle'))
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()}/>)
+  openDetails(await screen.findByText('Saved versions'))
+  expect(await screen.findByText(/model served-second · schema changed/)).toBeVisible()
+  expect(screen.getByText(/model not recorded yet · schema changed/)).toBeVisible()
+  expect(screen.getByRole('region',{name:'Inputs'})).not.toHaveTextContent(/schema-|resolved-/)
+  openDetails(screen.getByText('Technical details (for audit)'))
   await screen.findByText('Input selection 1 · schema schema-f')
   for (const ordinal of [1,2,3]) {
     const selection=screen.getByText(new RegExp(`^Input selection ${ordinal} · schema `)).closest('details')!
@@ -232,15 +238,14 @@ it('keeps an open draft during snapshot changes and starts a new editor for an e
   vi.mocked(readDurableHistory).mockResolvedValue({selections:[],finalizations:[],snapshots:[{id:'one',version:1,values:oldPage.values},{id:'two',version:2,values:newPage.values}]} as never)
   vi.mocked(durableRequest).mockImplementation(async(url,body)=>body?{revision:1}:url.includes('snapshotVersion=1')?oldPage:newPage)
   const view=render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt}
-    document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  const summary=await screen.findByText('Saved history and producing inputs')
-  const details=summary.closest('details')!;details.open=true;fireEvent(details,new Event('toggle'))
-  fireEvent.click(await screen.findByRole('button',{name:'Open snapshot 1'}))
+    document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()}/>)
+  openDetails(await screen.findByText('Saved versions'))
+  fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
   await screen.findByText('Original title')
   fireEvent.click(screen.getByRole('button',{name:/To check title/}))
   fireEvent.click(screen.getByRole('button',{name:'Edit'}))
   fireEvent.change(screen.getByRole('textbox',{name:'Reviewed value'}),{target:{value:'Unsaved historical draft'}})
-  fireEvent.click(screen.getByRole('button',{name:'Open snapshot 2'}))
+  fireEvent.click(screen.getByRole('button',{name:'Open results 2'}))
   await screen.findByText('42')
   expect(screen.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('Unsaved historical draft')
   fireEvent.click(screen.getByRole('button',{name:/To check title 42/}))
@@ -289,9 +294,9 @@ it('keeps the producing call guidance and budget omissions inspectable after exc
     id:'capture',selectionId:'selection',feedbackVersion:1,invoked:true,descriptor:{stage:'article'},inputDigest:'input',outputDigest:'output',output:{parsed:{title:'Result'}},candidates:[],
     request:{examples:[{id:'consumed',value:'Captured example'}],omissions:[{id:'oversized',reason:'budget'}],budget:{counted:200,context:256,reserve:56}},
   }]} as never)
-  const view=render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  const history=(await screen.findByText('Saved history and producing inputs')).closest('details')!
-  history.open=true;fireEvent(history,new Event('toggle'))
+  const view=render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()}/>)
+  openDetails(await screen.findByText('Saved versions'))
+  openDetails(await screen.findByText('Technical details (for audit)'))
   const call=(await screen.findByText('Call · article · input selection 1 · decisions 1')).closest('details')!
   call.open=true;fireEvent(call,new Event('toggle'))
   const guidance=screen.getByText('Consumed guidance and omitted candidates').closest('details')!
@@ -299,10 +304,9 @@ it('keeps the producing call guidance and budget omissions inspectable after exc
   const captured=guidance.querySelector('pre')!
   expect(captured).toHaveTextContent('Captured example')
   expect(captured).toHaveTextContent('"reason": "budget"')
-  const project=screen.getByText('Project guidance').closest('details')!
-  project.open=true;fireEvent(project,new Event('toggle'))
-  fireEvent.click(await screen.findByRole('button',{name:'Exclude from guidance'}))
-  await screen.findByRole('button',{name:'Include in guidance'})
+  openDetails(screen.getByText('Corrections the model learns from'))
+  fireEvent.click(await screen.findByRole('button',{name:'Stop using'}))
+  await screen.findByRole('button',{name:'Use'})
   expect(captured).toHaveTextContent('Captured example')
   expect(captured).toHaveTextContent('"reason": "budget"')
   view.unmount()
@@ -340,11 +344,10 @@ it('keeps the last explicitly selected snapshot when an older selection finishes
   vi.mocked(readDurableHistory).mockResolvedValue({selections:[],finalizations:[],snapshots:[{id:'one',version:1,values:[value]},{id:'two',version:2,values:[value]}]} as never)
   vi.mocked(durableRequest).mockImplementation(async url=>url.includes('snapshotVersion=1')?new Promise(resolve=>{finishOld=resolve}):latest)
   render(<DurableResults attempt={{extractionId:'extraction'} as ExtractionAttempt} document={null}
-    currentSchema={null} onEvidence={()=>{}}/>)
-  const summary=await screen.findByText('Saved history and producing inputs'),details=summary.closest('details')!
-  details.open=true;fireEvent(details,new Event('toggle'))
-  fireEvent.click(await screen.findByRole('button',{name:'Open snapshot 1'}))
-  fireEvent.click(screen.getByRole('button',{name:'Open snapshot 2'}))
+    currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()}/>)
+  openDetails(await screen.findByText('Saved versions'))
+  fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
+  fireEvent.click(screen.getByRole('button',{name:'Open results 2'}))
   await act(async()=>finishOld({...latest,snapshotVersion:1,values:[{...latest.values[0],modelValue:'Old version'}]}))
   expect(screen.getByText('New version')).toBeVisible()
   expect(screen.queryByText('Old version')).toBeNull()

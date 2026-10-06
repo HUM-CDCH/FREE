@@ -4,7 +4,7 @@ import type { RailMarkState } from './useEvidenceOverlays'
 import PanelToggleIcon from './PanelToggleIcon'
 import { Button } from './ui'
 import SchemaPanel, { type SchemaPanelProps } from './SchemaPanel'
-import { useCallback, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
+import { useCallback, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
@@ -15,7 +15,7 @@ import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import EvidenceTab from './EvidenceTab'
 import type { ParsedDocument, ParsedEvidenceAnchor } from 'extraction/parsed-document'
-export type RailTab = 'evidence' | 'schema' | 'results'
+export type RailTab = 'evidence' | 'schema' | 'results' | 'history'
 
 export type ExtractionInspection = {
   attempt: ExtractionAttempt | null
@@ -119,7 +119,6 @@ function RightRail({
     else onSelectEvidence({...anchor,producer_observations:anchor.producer_observations.filter(occurrence=>occurrenceIds.includes(occurrence.occurrence_id))},precision)
   },[parsedDocument,onSelectEvidence])
   const showDeveloperUi = isDeveloperUiEnabled()
-  const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
 
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const schemaReady = schemaSnap.view === 'editing'
@@ -127,6 +126,9 @@ function RightRail({
     ? countTemplateFields(nodesToTemplate(schemaSnap.draft!.schemaNodes))
     : 0
   const shown = inspection.attempt ?? extraction.attempt
+  const activeTab = (!showDeveloperUi && tab === 'evidence') || (!shown && tab === 'history') ? 'schema' : tab
+  // Results renders its guidance and saved versions into this tab's body.
+  const [historySlot, setHistorySlot] = useState<HTMLDivElement | null>(null)
   // The tab names the shown Extraction's lifecycle; its review counts live in the Results header.
   const resultsBadge = shown ? { label: shown.executionStatus.toLowerCase() } : null
   const tabs: {
@@ -155,6 +157,7 @@ function RightRail({
       badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null,
     },
     { key: 'results', label: 'Results', badge: resultsBadge },
+    ...(shown ? [{ key: 'history' as const, label: 'History' }] : []),
   ]
 
   if (!open) {
@@ -257,6 +260,8 @@ function RightRail({
           onReviewProgress={onReviewProgress}
           onReviewFinalized={onReviewFinalized}
           onPinnedDocument={onPinnedDocument}
+          historySlot={historySlot}
+          onShowResults={() => onTabChange('results')}
         /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
           <p className="m-0 text-content font-semibold text-ink">No results yet</p>
           <p className="mt-1.5 mb-0 max-w-[34ch] text-compact leading-snug text-ink-muted">
@@ -265,6 +270,7 @@ function RightRail({
           {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? 'Press ▶ Run extraction above.'}</p>}
         </div>}
       </div>
+      {shown && <div ref={setHistorySlot} id="rail-panel-history" aria-labelledby="rail-tab-history" role="tabpanel" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto" hidden={activeTab !== 'history'} />}
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import RightRail from './RightRail'
 import { DurableResults } from './DurableResults'
 import type { ExtractionController } from './useExtraction'
-import type { ExtractionInspection } from './RightRail'
+import type { ExtractionInspection, RailTab } from './RightRail'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import {
   createSchemaEditorController,
@@ -67,7 +67,7 @@ function renderRail({
   extraction = defaultController,
 }: {
   open?: boolean
-  tab?: 'evidence' | 'schema' | 'results'
+  tab?: RailTab
   inspection?: ExtractionInspection
   extraction?: ExtractionController
 } = {}) {
@@ -99,6 +99,16 @@ describe('RightRail Results', () => {
     const cut = { snapshotVersion: 1, feedbackVersion: 2 }
     renderRail({ tab: 'results', inspection: { ...defaultInspection, attempt, cut, readOnly: true } })
     expect(vi.mocked(DurableResults).mock.lastCall![0]).toMatchObject({ attempt, initialCut: cut, readOnly: true })
+  })
+
+  it('gives guidance and saved versions their own History tab, only when there is an Extraction', () => {
+    renderRail({ tab: 'history' })
+    expect(screen.queryByRole('tab', { name: 'History' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Schema/i })).toHaveAttribute('aria-selected', 'true')
+    cleanup()
+    renderRail({ tab: 'history', extraction: { ...defaultController, attempt } })
+    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true')
+    expect(vi.mocked(DurableResults).mock.lastCall![0].historySlot).toBe(screen.getByRole('tabpanel'))
   })
 
   it('says how to start when there is no Extraction, and offers Reconnect for an unanswered admission', () => {
