@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID } from 'node:crypto'
+import { existsSync, readdirSync } from 'node:fs'
 import { after, test } from 'node:test'
 import { Client } from 'pg'
 import { migrate, provisionDatabase, seedPreMigrationHistory, snapshotHistory } from './record-scope-history-fixture.js'
 import { ensureKeiRole, EXTRACTION_RUNTIME_ROUTINES } from './kei-role.js'
 
 const baseUrl = process.env.PROJECT_STORE_POSTGRES_URL
+// The durable-first and pilot-first paths out of start_page converge at `20261005T0832_durable_after_pilot`'s target;
+// every later migration is on the single shared chain both paths then apply, so it is read from disk, not listed here.
+const migrations = new URL('../migrations/app/', import.meta.url)
+const sharedChain = readdirSync(migrations)
+  .filter((name) => name > '20261005T0832_durable_after_pilot' && existsSync(new URL(`${name}/migration.json`, migrations))).sort()
 
 test('the durable-first upgrade converges with pilot-first without rewriting history', async () => {
   if (!baseUrl) throw new Error('Set PROJECT_STORE_POSTGRES_URL to an explicit disposable free_test_* target.')
@@ -18,7 +24,7 @@ test('the durable-first upgrade converges with pilot-first without rewriting his
     const before = await snapshotHistory(owner)
     assert.deepEqual((await migrate(target.url, '20261004T1351_durable_retry_history')).applied,
       ['20261004T1159_durable_extraction', '20261004T1351_durable_retry_history'])
-    assert.deepEqual((await migrate(target.url)).applied, ['20261005T0831_pilot_after_durable','20261005T2213_remove_batch_schema_suggestion_purpose','20261006T0813_bounded_discovery_recovery','20261006T0829_project_spreadsheet_gold_rows','20261006T0837_iterative_evaluation_rounds'])
+    assert.deepEqual((await migrate(target.url)).applied, ['20261005T0831_pilot_after_durable', ...sharedChain])
     assert.deepEqual(await snapshotHistory(owner), before)
     assert.deepEqual((await migrate(target.url)).applied, [])
     assert.equal((await owner.query('SELECT extraction_runtime.capabilities() AS value')).rows[0].value.protocol, 1)
@@ -51,7 +57,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
   await owner.connect()
   const history = await seedPreMigrationHistory(owner)
   const before = await snapshotHistory(owner)
-  assert.deepEqual((await migrate(target.url)).applied, ['20261004T1635_project_spreadsheet_and_schema_issue_flags','20261005T0832_durable_after_pilot','20261005T2213_remove_batch_schema_suggestion_purpose','20261006T0813_bounded_discovery_recovery','20261006T0829_project_spreadsheet_gold_rows','20261006T0837_iterative_evaluation_rounds'])
+  assert.deepEqual((await migrate(target.url)).applied, ['20261004T1635_project_spreadsheet_and_schema_issue_flags', '20261005T0832_durable_after_pilot', ...sharedChain])
   assert.deepEqual(await snapshotHistory(owner), before)
   assert.deepEqual((await migrate(target.url)).applied, [])
   await ensureKeiRole(owner, { role, schema, password })
