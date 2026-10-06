@@ -262,6 +262,7 @@ function RightRail({
           onPinnedDocument={onPinnedDocument}
           historySlot={historySlot}
           onShowResults={() => onTabChange('results')}
+          onShowHistory={() => onTabChange('history')}
         /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
           <p className="m-0 text-content font-semibold text-ink">No results yet</p>
           <p className="mt-1.5 mb-0 max-w-[34ch] text-compact leading-snug text-ink-muted">

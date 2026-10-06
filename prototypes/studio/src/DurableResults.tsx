@@ -169,7 +169,7 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
           const previous=history.selections.find(each=>each.ordinal===selection.ordinal-1)
           return <li key={selection.id}>
             {selection.ordinal===1?'First inputs':`Revised inputs ${selection.ordinal}`}
-            <span className="text-ink-muted">{savedAt(selection.createdAt)&&` · ${savedAt(selection.createdAt)}`} · {effective?.models.fields?`model ${effective.models.fields.model}`:'model not recorded yet'}{previous&&previous.schemaRevisionId!==selection.schemaRevisionId?' · schema changed':''}</span>
+            <span className="text-ink-muted">{savedAt(selection.createdAt)&&` · ${savedAt(selection.createdAt)}`} · {effective?`model ${(effective.models.fields??Object.values(effective.models)[0])?.model??'not recorded'}`:'model not recorded yet'}{previous&&previous.schemaRevisionId!==selection.schemaRevisionId?' · schema changed':''}</span>
           </li>})}</ul></section>}
       <details><summary className="cursor-pointer text-compact text-ink-muted">Technical details (for audit)</summary>
         <div className="space-y-3 pt-2">
@@ -202,7 +202,7 @@ function History({id,onSnapshot}:{id:string;onSnapshot:(version:number,feedbackV
 
 /** Durable live review in the existing results rail. All lifecycle states
  * share the same retained snapshot and independent researcher decisions. */
-export function DurableResults({attempt,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,onShowResults}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
   /** The explicit result/decision cut this view opens on, e.g. a finalized
    * review or a saved-correction link; null opens the live cut. */
   initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
@@ -214,12 +214,13 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   onReviewProgress?:(progress:DurableReviewProgress|null)=>void;
   onReviewFinalized?:()=>void;
   /** The History tab's body: guidance and saved versions render there, not in Results. */
-  historySlot?:HTMLElement|null;onShowResults?:()=>void;
+  historySlot?:HTMLElement|null;onShowResults?:()=>void;onShowHistory?:()=>void;
 }) {
   const id=attempt?.extractionId
   const keyboardRoot=useRef<HTMLDivElement>(null)
   const [loaded,setLoaded]=useState<Awaited<ReturnType<typeof readDurable>>|null>(null)
   const [page,setPage]=useState<DurablePage|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
+  const [unfit,setUnfit]=useState(0)
   const [pinnedDocument,setPinnedDocument]=useState<{revision:string;document:ParsedDocument}|null>(null)
   const document=loaded&&loaded.state.sourceRevisionId!==documentRevisionId
     ? pinnedDocument?.revision===loaded.state.sourceRevisionId?pinnedDocument.document:null : currentDocument
@@ -406,8 +407,10 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
         <Button onClick={()=> {++readGenerations.current.snapshot;++selectedGeneration.current;setPage(loaded.page)}}>Show results {loaded.page.snapshotVersion} · decisions {loaded.page.feedbackVersion}</Button></div>}
     </div>
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+      {state.pendingSelection&&unfit>0&&<p role="status" className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending schema and won’t be shown to the model.{' '}
+        {onShowHistory&&<button type="button" className="cursor-pointer text-accent underline" onClick={onShowHistory}>See corrections</button>}</p>}
       {historySlot&&createPortal(<div className="space-y-3 p-3">
-        <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${loaded.page.feedbackVersion}`}/>
+        <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${loaded.page.feedbackVersion}`} onIncompatible={setUnfit}/>
         <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} onSnapshot={(version,feedback)=>{void selectPage(`${durableRoot(id)}/values?snapshotVersion=${version}${feedback===undefined?'':`&feedbackVersion=${feedback}`}`);onShowResults?.()}}/>
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}

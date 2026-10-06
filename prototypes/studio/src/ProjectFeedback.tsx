@@ -4,11 +4,11 @@ import Button from './ui/Button'
 import {savedCorrectionHref, type SavedCorrectionLink} from './durableReviewLinks'
 
 type Correction=SavedCorrectionLink&{id:string;sourceDocumentId:string;revision:number;included:boolean;active:boolean;selectionId:string;targetCompatibility:string;candidate:{value:unknown;grounded:boolean;sourceContext:string;node?:{name:string}};decision:{action:string}}
-export function ProjectFeedback({projectId,target,revision,selection}:{projectId:string;target?:string;revision?:string;selection?:string}) {
+export function ProjectFeedback({projectId,target,revision,selection,onIncompatible}:{projectId:string;target?:string;revision?:string;selection?:string;onIncompatible?:(count:number)=>void}) {
   const url=`/api/project-contexts/${projectId}/feedback${target?`?target=${target}${selection?`&selection=${selection}`:''}`:''}`
-  return <FeedbackResource key={url} projectId={projectId} url={url} revision={revision} preview={Boolean(selection)}/>
+  return <FeedbackResource key={url} projectId={projectId} url={url} revision={revision} preview={Boolean(selection)} onIncompatible={onIncompatible}/>
 }
-function FeedbackResource({projectId,url,revision,preview}:{projectId:string;url:string;revision?:string;preview:boolean}) {
+function FeedbackResource({projectId,url,revision,preview,onIncompatible}:{projectId:string;url:string;revision?:string;preview:boolean;onIncompatible?:(count:number)=>void}) {
   const incompatibleId=useId()
   const [rows,setRows]=useState<Correction[]>([]),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState<string|null>(null)
   const [open,setOpen]=useState(preview)
@@ -24,6 +24,7 @@ function FeedbackResource({projectId,url,revision,preview}:{projectId:string;url
     return()=>controller.abort()
   },[url,open,revision])
   const incompatible=rows.filter(row=>row.active&&row.decision.action==='EDITED'&&row.targetCompatibility==='incompatible').length
+  useEffect(()=>{onIncompatible?.(incompatible)},[incompatible,onIncompatible])
   const firstIncompatible=rows.find(row=>row.active&&row.decision.action==='EDITED'&&row.targetCompatibility==='incompatible')?.id
   return <details open={open} className="rounded-md border border-line bg-surface p-3" onToggle={event=>setOpen(event.currentTarget.open)}>
     <summary className="cursor-pointer text-secondary font-semibold">{preview?'Corrections for the pending inputs':'Corrections the model learns from'}{open?` · ${rows.filter(r=>r.active&&r.included).length} in use${incompatible?` · ${incompatible} don’t fit`:''}`:''}</summary>

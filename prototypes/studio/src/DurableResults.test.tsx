@@ -313,6 +313,20 @@ it('keeps the producing call guidance and budget omissions inspectable after exc
 })
 
 
+it('warns in Results when pending inputs leave a saved correction unfit, and opens History',async()=>{
+  const page={snapshotVersion:1,feedbackVersion:1,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  const row={id:'unfit',extractionId:'extraction',sourceDocumentId:'source',valueId:'value',snapshotVersion:1,feedbackVersion:1,revision:1,
+    included:true,active:true,selectionId:'selection',targetCompatibility:'incompatible',candidate:{value:'Saved',sourceContext:'source',grounded:false,node:{name:'title'}},decision:{action:'EDITED'}}
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,selection:{id:'selection',ordinal:1},pendingSelection:{id:'pending',ordinal:2},counts:{saved:0,inFlight:0}},page} as never)
+  vi.mocked(durableRequest).mockImplementation(async url=>url.includes('feedback')?[row]:page)
+  const onShowHistory=vi.fn(),slot=historySlot()
+  render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={slot} onShowHistory={onShowHistory}/>)
+  expect(await screen.findByText(/1 saved correction doesn’t fit the pending schema/)).toBeVisible()
+  expect(within(slot).getByText('title:')).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:'See corrections'}))
+  expect(onShowHistory).toHaveBeenCalledOnce()
+})
+
 it('keeps a newer control acknowledgement when a pre-command poll arrives late',async()=> {
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:1,snapshotVersion:1,
