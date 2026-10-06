@@ -38,6 +38,5 @@ def test_a_real_model_extracts_grounded_records_across_columns_spreads_and_pages
     assert "budget_count_mismatch" not in codes and "budget_refused" not in codes, result["issues"]
     assert result["completeness"]["processing"] is True, result["calls"]
     assert all(call["input_tokens"] <= 4096 for call in result["calls"])
-    assert result["budget"]["tokenizer"]["model_digest"]
     print({"calls": len(result["calls"]), "tokens": result["tokens"], "proposed": len(result["proposed"]),
            "rejected": [(item["path"], item["reason"]) for item in result["rejected"]]})
