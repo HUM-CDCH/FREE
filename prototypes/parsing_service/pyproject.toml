@@ -47,6 +47,8 @@ build-backend = "uv_build"
 dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
+    # The iterative developer eval reads its golden standard from an Excel workbook.
+    "openpyxl>=3.1.5",
 ]
 
 [tool.ruff]

@@ -382,3 +382,38 @@ bounded result exactly, then compares all versus selected value units using only
 captured response subsequences. Both paired arms disable grounding. Tokenizer
 probes are cached, and unseen generation requests fail. Saved calls/tokens are
 counterfactual costs; replay is not a fresh latency or model-variability trial.
+
+## Iterative evaluation against a golden workbook
+
+`experiments/extraction/iterative_eval.py` is the developer loop for "pilot a few
+documents, then run the whole set": it reads a golden Excel sheet, extracts
+through the service's own entrypoint, and reports field-level precision, recall
+and F1 for a pilot of the first N documents and then for the whole set.
+
+```sh
+.venv/bin/python -m experiments.extraction.iterative_eval gold    CONFIG.json  # inspect how the sheet was read
+.venv/bin/python -m experiments.extraction.iterative_eval run     CONFIG.json  # pilot, then full; both scored
+.venv/bin/python -m experiments.extraction.iterative_eval report  CONFIG.json
+.venv/bin/python -m experiments.extraction.iterative_eval compare BASELINE.json CANDIDATE.json
+```
+
+The golden workbook is one sheet: each row is a document (the first column, or a
+header that names the file, identifies it) and each remaining column is a schema
+field. A cell holds one value, a JSON array, or newline-separated values. A
+prediction is counted per (document, field): true positives are values both
+claim, false positives are values only the extraction populated, false negatives
+are values only the gold claims, compared as multisets after NFKC, casefold and
+whitespace normalization, with numbers compared as numbers. The report lists
+micro P/R/F1 over all cells, a presence P/R/F1 (was the field populated at all),
+exact-cell accuracy and a per-field breakdown; `compare` turns two metrics
+artifacts into the improvement conclusion. Metric definitions live in the module
+docstring.
+
+Configuration and defaults are in `iterative-eval.example.json`. Documents are
+canonical runs: name existing runs in `runs`, let the harness reuse a run under
+`runs_root`, or point it at a PDF it parses first (a born-digital PDF needs no
+model server). Extraction uses the service's own `extract` entrypoint against
+the named `providers`; it never starts a service, supplies credentials or
+touches PostgreSQL. Each cell's model calls are captured under the output, so an
+interrupted run resumes from the exact saved requests and the full phase only
+extracts the documents the pilot did not.
