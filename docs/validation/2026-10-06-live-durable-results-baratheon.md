@@ -139,10 +139,13 @@ were inspected locally.
   requests, so the cause is not established.
 - **Status lag.** While pausing, the rail's status line can still show
   Pausing after the run button offers Resume and the tab says paused
-  (05-paused.png). They are separate reads.
+  (05-paused.png). They are separate reads. **Fixed in 9dd1eef1:** the rail
+  reads the run again as soon as the button shows another status.
 - **Misleading summary.** Record 2, all of whose values are absent, shows
   "all checked", although it holds nothing to check. While the run goes on,
   its absent values are marked "checking" (05-paused.png, 06-completed.png).
+  **Fixed in 9dd1eef1:** such a record reads "no values", and a missing value
+  is marked "missing". Unit tests cover both fixes; they were not re-run live.
 
 ## Production defaults
 
