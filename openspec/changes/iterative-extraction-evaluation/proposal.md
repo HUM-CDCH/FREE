@@ -28,6 +28,10 @@ gold answer sheet cannot be evaluated at all today.
 - Report, per round: value precision, recall and F1 (micro, macro and per
   field), evidence-anchor coverage (the share of grounded-eligible populated
   values carrying at least one locatable anchor), and shadow-reviewer effort.
+- Add a developer-only semantic judge beside the strict score: only the pairs
+  strict matching could not confirm go to the deployment's reasoning model,
+  which returns a structured verdict reported with its own precision, recall
+  and F1 and its judged/unjudged counts.
 - Run the pipeline and its scoring behind a developer-only deployment switch and
   show the three rounds and their metrics on a read-only developer surface; with
   the switch off, researcher-facing behavior and routes are unchanged.

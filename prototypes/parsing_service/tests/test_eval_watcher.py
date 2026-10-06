@@ -1,6 +1,8 @@
 """The developer evaluation watcher's pure decisions: gold columns -> schema, workbook, config."""
 from __future__ import annotations
 
+import json
+import uuid
 from pathlib import Path
 
 import pytest
@@ -64,6 +66,23 @@ def test_write_gold_workbook_round_trips_through_load_gold(tmp_path: Path) -> No
     ]
 
 
+def test_write_gold_workbook_strips_xml_illegal_characters(tmp_path: Path) -> None:
+    path = tmp_path / "gold.xlsx"
+    eval_watcher.write_gold_workbook(
+        path,
+        COLUMNS,
+        [{"filename": "a.pdf", "sample_name": "collagen\x0bdissolved", "amino_acid_hydroxyproline_value": "5"}],
+    )
+    gold = iterative_eval.load_gold(path)
+    assert gold["documents"]["a"][0]["sample_name"] == ["collagen dissolved"]
+
+
+def test_json_dumps_serializes_uuids_as_strings() -> None:
+    identifier = uuid.uuid4()
+    payload = json.loads(eval_watcher._json_dumps({"sourceDocumentId": identifier}))
+    assert payload["sourceDocumentId"] == str(identifier)
+
+
 def test_pipeline_config_carries_runs_identity_and_exhaustiveness(tmp_path: Path) -> None:
     config = eval_watcher.pipeline_config(
         eval_id="demo",
@@ -85,6 +104,16 @@ def test_pipeline_config_carries_runs_identity_and_exhaustiveness(tmp_path: Path
     assert "identity" not in eval_watcher.pipeline_config(
         eval_id="demo", schema_path="s", golden_path="g", documents=[], providers={}, output="o"
     )
+    bounded = eval_watcher.pipeline_config(
+        eval_id="demo",
+        schema_path="s",
+        golden_path="g",
+        documents=[],
+        providers={},
+        output="o",
+        options={"article": {"context": "bounded"}},
+    )
+    assert bounded["options"] == {"strategy": "article", "article": {"context": "bounded"}}
 
 
 def test_run_id_from_preprocess_reads_only_the_kei_run() -> None:
@@ -117,3 +146,7 @@ def test_providers_from_env_defaults_to_the_deployment_extraction_server() -> No
     })
     assert split["fields"] == {"base_url": "http://b:8000", "model": "f"}
     assert split["reasoning"] == {"base_url": "http://a:8000", "model": "m"}
+    full_url = eval_watcher.providers_from_env(
+        {"FREE_EVAL_FIELDS_URL": "http://b:8000/v1/chat/completions"}
+    )
+    assert full_url["fields"]["base_url"] == "http://b:8000"
