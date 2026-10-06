@@ -29,22 +29,6 @@ def publish(target: Path) -> Iterator[Path]:
         raise
 
 
-def publish_once(target: Path, data: bytes) -> None:
-    """`data` published at `target` write-once: linked into place, so a completed file is never replaced. An equal
-    file already there is kept (a repeat is a no-op); a different one raises FileExistsError. The sibling written
-    first is removed either way; one a crash leaves behind is never read."""
-    part = target.with_name(f"{target.name}.{secrets.token_hex(4)}.part")
-    try:
-        part.write_bytes(data)
-        try:
-            os.link(part, target)
-        except FileExistsError:
-            if target.read_bytes() != data:
-                raise
-    finally:
-        with suppress(OSError):
-            part.unlink(missing_ok=True)
-
 
 def load_dotenv(path: Path | None = None) -> None:
     """Load key-value pairs from a .env file into os.environ if not already set."""

@@ -103,29 +103,17 @@ describe('Batch start methods', () => {
 })
 
 describe('Batch Extraction contracts', () => {
-  const member = (index: number) => ({
+  const member = (index: number, executionStatus: string, reviewable = executionStatus !== 'QUEUED',
+    currentReview: { snapshotVersion: number; feedbackVersion: number; createdAt: string; schemaRevisionId: string } | null = null) => ({
+    extractionId: `51000000-0000-4000-8006-${String(index + 1).padStart(12, '0')}`,
     sourceDocumentId: sourceDocumentIds[index],
     sourceRepresentationRevisionId: `51000000-0000-4000-8002-${String(index + 1).padStart(12, '0')}`,
-  })
-  const succeeded = (index: number, reviewedAt: string | null = null) => ({
-    ...member(index),
-    executionStatus: 'COMPLETED',
-    executionFailureMessage: null,
-    latestExtraction: {
-      extractionId: `51000000-0000-4000-8006-${String(index + 1).padStart(12, '0')}`,
-      outcome: 'SUCCEEDED',
-      complete: true,
-      reviewable: true,
-      createdAt: '2026-09-26T10:00:01.000Z',
-      reviewedAt,
-    },
-  })
-  const withoutResult = (index: number, executionStatus: string, executionFailureMessage: string | null) => ({
-    ...member(index),
     executionStatus,
-    executionFailureMessage,
-    latestExtraction: null,
+    completed: executionStatus === 'COMPLETED',
+    reviewable,
+    currentReview,
   })
+  const review = { snapshotVersion: 1, feedbackVersion: 1, createdAt: '2026-09-26T10:05:00.000Z', schemaRevisionId }
   const batch = {
     batchExtractionId: '51000000-0000-4000-8007-000000000001',
     projectContextId,
@@ -137,65 +125,47 @@ describe('Batch Extraction contracts', () => {
     executionStatus: 'RUNNING',
     createdAt: '2026-09-26T10:00:00.000Z',
     members: [
-      succeeded(0),
-      succeeded(1, '2026-09-26T10:05:00.000Z'),
-      withoutResult(2, 'QUEUED', null),
-      withoutResult(3, 'RUNNING', null),
-      withoutResult(4, 'FAILED', 'The model was unreachable.'),
-      withoutResult(5, 'FAILED', 'This work stopped before it finished. Start it again.'),
+      member(0, 'COMPLETED'),
+      member(1, 'COMPLETED', true, review),
+      member(2, 'QUEUED'),
+      member(3, 'RUNNING'),
+      member(4, 'FAILED'),
+      member(5, 'PAUSED'),
     ],
   }
 
-  it('a batch and its members carry derived status and no job timing', () => {
+  it('a batch and its durable members carry derived status and no job timing or old result fields', () => {
     expect(batchExtractionSchema.safeParse(batch).success).toBe(true)
-    for (const jobField of [
-      { startedAt: null },
-      { finishedAt: null },
-      { executionFailureMessage: null },
-    ])
+    for (const jobField of [{ startedAt: null }, { finishedAt: null }, { executionFailureMessage: null }])
       expect(batchExtractionSchema.safeParse({ ...batch, ...jobField }).success).toBe(false)
     expect(batchExtractionSchema.safeParse(without(batch, 'executionStatus')).success).toBe(false)
 
     const [first] = batch.members
-    for (const jobField of [{ startedAt: null }, { finishedAt: null }])
-      expect(batchExtractionSchema.safeParse({ ...batch, members: [{ ...first, ...jobField }] }).success)
-        .toBe(false)
-    for (const required of ['executionStatus', 'executionFailureMessage', 'latestExtraction'] as const)
-      expect(batchExtractionSchema.safeParse({ ...batch, members: [without(first, required)] }).success).toBe(false)
-    // A member's Extraction is its published result; a failure is the member's own status.
-    expect(batchExtractionSchema.safeParse({
-      ...batch,
-      members: [{ ...first, latestExtraction: { ...first.latestExtraction, outcome: 'FAILED' } }],
-    }).success).toBe(false)
-    expect(batchExtractionSchema.safeParse({
-      ...batch,
-      members: [{ ...first, latestExtraction: { ...first.latestExtraction, failureMessage: null } }],
-    }).success).toBe(false)
+    for (const removed of [{ startedAt: null }, { executionFailureMessage: null }, { latestExtraction: null }, { durableExtractionId: first!.extractionId }])
+      expect(batchExtractionSchema.safeParse({ ...batch, members: [{ ...first, ...removed }] }).success).toBe(false)
+    for (const required of ['extractionId', 'executionStatus', 'completed', 'reviewable', 'currentReview'] as const)
+      expect(batchExtractionSchema.safeParse({ ...batch, members: [without(first!, required)] }).success).toBe(false)
   })
 
-  it('native completion and named reviews have consistent counts without treating paused work as success',()=> {
-    const native=(index:number,status:'COMPLETED'|'PAUSED'|'FAILED')=>({...withoutResult(index,status,null),
-      durableExtractionId:`51000000-0000-4000-8006-${String(index+1).padStart(12,'0')}`,durableReviewable:true})
-    const value=batchExtractionSchema.parse({...batch,members:[
-      {...native(0,'COMPLETED'),durableReview:{snapshotVersion:1,feedbackVersion:1,createdAt:'2026-09-26T10:05:00.000Z',schemaRevisionId}},
-      native(1,'COMPLETED'),native(2,'PAUSED'),native(3,'FAILED')]})
-    expect(batchExtractionProgress(value)).toMatchObject({total:4,extracted:2,succeeded:2,reviewed:1,needsReview:1,failed:1,unreviewable:0})
-    const empty=batchExtractionSchema.parse({...batch,members:[{...native(0,'COMPLETED'),durableReviewable:false}]})
-    expect(batchExtractionProgress(empty)).toMatchObject({succeeded:1,reviewed:0,needsReview:0,unreviewable:1})
-  })
-
-  it('progress counts pending, failed and interrupted members from their status', () => {
+  it('counts completion and finalized current cuts without treating paused work as success', () => {
     expect(batchExtractionProgress(batchExtractionSchema.parse(batch))).toEqual({
       total: 6,
       extracted: 2,
-      // Every member with a published Extraction succeeded; `failed` counts
-      // the members whose status settled without one.
       succeeded: 2,
       pending: 2,
-      failed: 2,
+      failed: 1,
       reviewed: 1,
       unreviewable: 0,
       needsReview: 1,
     })
+    const empty = batchExtractionSchema.parse({ ...batch, members: [member(0, 'COMPLETED', false)] })
+    expect(batchExtractionProgress(empty)).toMatchObject({ succeeded: 1, reviewed: 0, needsReview: 0, unreviewable: 1 })
+    // A finalized current cut counts as extracted while processing is paused.
+    const paused = batchExtractionSchema.parse({ ...batch, members: [member(0, 'PAUSED', true, review)] })
+    expect(batchExtractionProgress(paused)).toMatchObject({ extracted: 1, reviewed: 1, needsReview: 0 })
+    for (const executionStatus of ['STOPPED', 'PAUSED', 'RUNNING', 'FAILED']) {
+      const retained = batchExtractionSchema.parse({ ...batch, members: [{ ...member(0, executionStatus), completed: true }] })
+      expect(batchExtractionProgress(retained)).toMatchObject({ extracted: 1, reviewed: 0, needsReview: 1 })
+    }
   })
 })

@@ -46,16 +46,6 @@ describe('Project Context routes', () => {
       { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId },
     ],
     [
-      `/projects/${projectContextId}/extractions/${batchExtractionId}/review`,
-      {
-        kind: 'project',
-        projectContextId,
-        tab: 'extractions',
-        batchExtractionId,
-        view: 'grid',
-      },
-    ],
-    [
       `/projects/${projectContextId}/extractions/review`,
       { kind: 'badReference' },
     ],
@@ -90,15 +80,9 @@ describe('Project Context routes', () => {
     { kind: 'project', projectContextId, tab: 'schemas' },
     { kind: 'project', projectContextId, tab: 'extractions' },
     { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId },
-    {
-      kind: 'project',
-      projectContextId,
-      tab: 'extractions',
-      batchExtractionId,
-      view: 'grid',
-    },
     { kind: 'document', projectContextId, sourceDocumentId },
     { kind: 'document', projectContextId, sourceDocumentId, extractionId },
+    { kind: 'document', projectContextId, sourceDocumentId, extractionId, reviewCut: { snapshotVersion: 1, feedbackVersion: 2 } },
   ])('builds the canonical href for $kind routes', (route) => {
     expect(parseRoute(href(route))).toEqual(route)
   })
@@ -123,20 +107,24 @@ describe('Project Context routes', () => {
         batchExtractionId,
       }),
     ).toBe(`/projects/${projectContextId}/extractions/${batchExtractionId}`)
-    expect(
-      href({
-        kind: 'project',
-        projectContextId,
-        tab: 'extractions',
-        batchExtractionId,
-        view: 'grid',
-      }),
-    ).toBe(`/projects/${projectContextId}/extractions/${batchExtractionId}/review`)
-    // A grid view with no open Batch Extraction has nothing to append the
-    // suffix to, so it degrades to the plain extractions tab.
-    expect(
-      href({ kind: 'project', projectContextId, tab: 'extractions', view: 'grid' }),
-    ).toBe(`/projects/${projectContextId}/extractions`)
+  })
+
+  it('names an Extraction\'s result and decision cut only beside that Extraction', () => {
+    const cut = { snapshotVersion: 1, feedbackVersion: 2 }
+    expect(href({ kind: 'document', projectContextId, sourceDocumentId, extractionId, reviewCut: cut }))
+      .toBe(`/projects/${projectContextId}/documents/${sourceDocumentId}?extractionId=${extractionId}&snapshotVersion=1&feedbackVersion=2`)
+    // A cut without its Extraction names nothing to open, in either direction.
+    expect(href({ kind: 'document', projectContextId, sourceDocumentId, reviewCut: cut }))
+      .toBe(`/projects/${projectContextId}/documents/${sourceDocumentId}`)
+    expect(parseRoute(`/projects/${projectContextId}/documents/${sourceDocumentId}?snapshotVersion=1&feedbackVersion=2`))
+      .toEqual({ kind: 'document', projectContextId, sourceDocumentId })
+    // Both versions are needed; an incomplete or malformed cut opens the live cut.
+    expect(parseRoute(`/projects/${projectContextId}/documents/${sourceDocumentId}?extractionId=${extractionId}&snapshotVersion=1`))
+      .toEqual({ kind: 'document', projectContextId, sourceDocumentId, extractionId })
+  })
+
+  it('has no batch review grid route', () => {
+    expect(parseRoute(`/projects/${projectContextId}/extractions/${batchExtractionId}/review`)).toEqual({ kind: 'badReference' })
   })
 })
 

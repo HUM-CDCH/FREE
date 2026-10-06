@@ -65,7 +65,7 @@ export type InteractiveDocument = {
  */
 export async function prepareInteractiveDocument(
   page: Page,
-  options: { hasKey: boolean; key?: string; schema?: 'seeded' | 'none' },
+  options: { hasKey: boolean; key?: string; schema?: 'seeded' | 'none'; sourceDocument?: ParsedDocument },
 ): Promise<InteractiveDocument> {
   const model = await startScriptedModelServer()
   const accountId = randomUUID()
@@ -76,7 +76,7 @@ export async function prepareInteractiveDocument(
   const sourceRepresentationRevisionId = randomUUID()
   const extractionSchemaId = options.schema === 'none' ? null : randomUUID()
   const packageStore = createCanonicalPackageStore()
-  const seeded = await canonicalPackage('interactive.pdf')
+  const seeded = await canonicalPackage('interactive.pdf', options.sourceDocument)
   const descriptor = await packageStore.save(seeded.bytes)
 
   await db.orm.public.ResearcherAccount.create({

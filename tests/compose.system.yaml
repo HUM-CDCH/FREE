@@ -27,6 +27,11 @@ services:
       FREE_STUDIO_PROXY_ADDRESS: 172.31.251.0/24
 
 networks:
+  # Reserve both subnets so the automatic app pool cannot overlap the proxy on restart.
+  app:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
   proxy:
     ipam:
       config:

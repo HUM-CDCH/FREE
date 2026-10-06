@@ -60,17 +60,6 @@ const withoutIds = (current: ReadonlySet<string>, ids: Iterable<string>) => {
   return next
 }
 
-const scrollIntoViewOnce = (element: HTMLElement | null) => element?.scrollIntoView?.({ block: 'nearest' })
-const focusField = (element: HTMLElement | null) => { scrollIntoViewOnce(element); element?.focus({ preventScroll: true }) }
-
-export type FieldContext = {
-  extractionId: string
-  schemaRevisionId: string
-  revisionNumber: number | undefined
-  nodeId: string
-  nodeType: SchemaNode['type']
-  resultPaths: (string | number)[][]
-}
 
 const CONVERSATION_EMPTY = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
 
@@ -89,7 +78,6 @@ export type SchemaPanelProps = {
   showRegenerate?: boolean
   /** Reports edits visible in the panel that are not yet in its controller. */
   onPendingLocalEditChange?: (pending: boolean) => void
-  fieldContext?: FieldContext | null
   /** The Article/Catalog choice under the schema name; null until one is saved. */
   recordScope?: { value: RecordScope | null; onChange: (scope: RecordScope) => void; disabled?: boolean }
   /** How catalogue entries are found, beside the record scope; omitted or null where it does not apply. */
@@ -99,12 +87,6 @@ export type SchemaPanelProps = {
     onChange: (id: string) => void
     disabled?: boolean
   } | null
-  /** Seeds the chat draft with context handed off from elsewhere (e.g. a
-   *  flagged field in the review grid — schema-issue-flagging). Applied once
-   *  per distinct value, then `onChatDraftConsumed` fires so the caller can
-   *  clear it without the panel re-seeding on its own re-renders. */
-  initialChatDraft?: string | null
-  onChatDraftConsumed?: () => void
 }
 
 type DragState = {
@@ -392,17 +374,13 @@ function SchemaPanel({
   readOnly = false,
   showRegenerate = true,
   onPendingLocalEditChange,
-  fieldContext = null,
   recordScope,
   boundaries,
-  initialChatDraft,
-  onChatDraftConsumed,
 }: SchemaPanelProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const nodes =
     snap.historicalPreview?.schemaNodes ?? snap.draft?.schemaNodes ?? EMPTY_NODES
   const editorReadOnly = readOnly || snap.historicalPreview !== null
-  const contextNode = fieldContext && enumerateFieldPaths(nodes).find((field) => field.id === fieldContext.nodeId)?.node
   const instructions = useSchemaInstructions()
   // ── render state ──
   const [dragging, setDragging] = useState<DragState | null>(null)
@@ -443,14 +421,6 @@ function SchemaPanel({
     chatAbortRef.current?.abort()
     chatAbortRef.current = null
   }, [])
-  useEffect(() => {
-    if (!initialChatDraft) return
-    setChatInput(initialChatDraft)
-    onChatDraftConsumed?.()
-    // Fires once per distinct draft value; `onChatDraftConsumed` clears the
-    // caller's state so this effect doesn't re-seed on unrelated re-renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialChatDraft])
   const [view, setView] = useState<'fields' | 'code'>('fields')
   /** Groups the researcher closed. Every other group shows its children, wherever it first appears (§6). */
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
@@ -478,11 +448,6 @@ function SchemaPanel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const fieldListRef = useRef<HTMLDivElement>(null)
   const addFieldRef = useRef<HTMLButtonElement>(null)
-  useEffect(() => {
-    if (!fieldContext) return
-    const ancestors = schemaAncestorIds(nodes, new Set([fieldContext.nodeId]))
-    setCollapsedIds((current) => withoutIds(current, ancestors))
-  }, [fieldContext, nodes])
   const [recordDescriptionDraft, setRecordDescriptionDraft] = useState(
     () => snap.draft?.recordDescription ?? '',
   )
@@ -1168,7 +1133,7 @@ function SchemaPanel({
             onEditValues={() => { setEditing(editingOf(node)); setEditFocus('values'); setEditingError(null) }}
             onAddNote={() => { const next = openDescId === node.id ? null : node.id; if (next) setDescDraft(''); setOpenDescId(next) }}
             onDelete={() => deleteField(node, parentId, index)}
-            nodeRef={fieldContext?.nodeId === node.id ? focusField : undefined} />
+          />
         )}
         {openDescId === node.id && (
           <DescriptionEditForm existing={node.description ?? ''} value={descDraft} onChange={setDescDraft}
@@ -1421,11 +1386,6 @@ function SchemaPanel({
               {mutationError && <p className="mb-2 text-compact font-semibold text-danger" role="alert">{mutationError}</p>}
               {/* The list carries its rows' 8px bleed, so no row's box overflows it (§6, the 264px rail). */}
               <div ref={fieldListRef} role="list" aria-label="Schema fields" className="-mx-2 flex flex-col px-2">
-                {fieldContext && <div role="status" className="p-2 text-xs bg-accent-ghost">
-                  From Extraction {fieldContext.extractionId} · revision {fieldContext.revisionNumber ?? fieldContext.schemaRevisionId} · {fieldContext.nodeType}
-                  {contextNode ? ` → ${contextNode.name} (${contextNode.type}) in the current editor. Unsaved edits are retained.` : ' · This field was removed. No replacement was selected.'}
-                  {!contextNode && <Button onClick={() => void schema.previewHistoricalRevision(fieldContext.schemaRevisionId)}>View historical schema</Button>}
-                </div>}
                 {(pending ? pending.reviewNodes : nodes).map((node, i) => renderField(node, null, i))}
                 {provisionalField && editing?.id === provisionalField.id && (
                   <FieldEditForm

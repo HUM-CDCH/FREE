@@ -198,8 +198,6 @@ type ModelSpies = {
 
 type ExtractionEffects = {
   singleExecutions: string[]
-  reviewMutations: string[]
-  cancellations: string[]
   batchExecutions: string[]
   suggestedBatchExecutions: string[]
 }
@@ -605,8 +603,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
   }
   const extractionEffects: ExtractionEffects = {
     singleExecutions: [],
-    reviewMutations: [],
-    cancellations: [],
     batchExecutions: [],
     suggestedBatchExecutions: [],
   }
@@ -637,29 +633,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
           throw new Error('Authorized Extraction read is outside this test.')
         },
       ),
-      cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(async (extractionId) => {
-        const ownedExtractionId =
-          accountId === ids.accountA ? ids.extractionA : ids.extractionB
-        if (extractionId !== ownedExtractionId) throw notFound()
-        extractionEffects.cancellations.push(extractionId)
-        return 'cancellation-requested' as const
-      }),
-      prepareReview: vi.fn<ExtractionModule['prepareReview']>(async (extractionId) => {
-        const ownedExtractionId =
-          accountId === ids.accountA ? ids.extractionA : ids.extractionB
-        if (extractionId !== ownedExtractionId) throw notFound()
-        throw new Error('Authorized Extraction read is outside this test.')
-      }),
-      resetReview: vi.fn(async (_id, version) => ({ version: version + 1, decisions: [] })),
-    readReviewDraft: vi.fn(async () => ({ version: 0, decisions: [] })),
-    saveReviewDraft: vi.fn(async (_id, draft) => ({ ...draft, version: draft.version + 1 })),
-    finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(async (extractionId) => {
-        const ownedExtractionId =
-          accountId === ids.accountA ? ids.extractionA : ids.extractionB
-        if (extractionId !== ownedExtractionId) throw notFound()
-        extractionEffects.reviewMutations.push(extractionId)
-        throw new Error('Authorized Extraction review is outside this test.')
-      }),
       readDocumentExtractions: vi.fn<ExtractionModule['readDocumentExtractions']>(async (input) => {
         const ownedExtractionId =
           accountId === ids.accountA ? ids.extractionA : ids.extractionB
@@ -722,16 +695,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
         )
           throw notFound()
         throw new Error('Authorized Batch read is outside this test.')
-      }),
-      readBatchResults: vi.fn<ExtractionModule['readBatchResults']>(async (input) => {
-        const ownedBatchId =
-          accountId === ids.accountA ? ids.batchA : ids.batchB
-        if (
-          input.projectContextId !== relationship.projectId ||
-          input.batchExtractionId !== ownedBatchId
-        )
-          throw notFound()
-        throw new Error('Authorized Batch results are outside this test.')
       }),
     }
   }
@@ -1314,10 +1277,9 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
       extractionId: ids.extractionB,
     })
     expect(fixture.extractionEffects.singleExecutions).toEqual([])
-    expect(fixture.extractionEffects.reviewMutations).toEqual([])
   })
 
-  it('rejects mixed extraction pins, reads, review, and cancellation without execution or mutation', async () => {
+  it('rejects mixed extraction pins and reads without execution', async () => {
     const fixture = await appFixture()
 
     for (const [sourceRepresentationRevisionId, schemaRevisionId] of [
@@ -1348,41 +1310,10 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
       ),
       forbiddenB,
     )
-    await expectPrivateNotFound(
-      await api(
-        fixture,
-        ids.accountA,
-        `/api/extractions/${ids.extractionB}/review`,
-        jsonRequest('POST', {
-          reviewDecisions: [
-            {
-              resultPath: ['records', 0, 'title'],
-              evidenceAnchorId: 'foreign-anchor',
-              reviewedOccurrenceIds: ['foreign-occurrence'],
-              action: 'APPROVED',
-              reviewedValue: null,
-            },
-          ],
-        }),
-      ),
-      forbiddenB,
-    )
-    await expectPrivateNotFound(
-      await api(
-        fixture,
-        ids.accountA,
-        `/api/extractions/${ids.extractionB}`,
-        { method: 'DELETE' },
-      ),
-      forbiddenB,
-    )
-
     expect(fixture.extractionEffects.singleExecutions).toEqual([])
-    expect(fixture.extractionEffects.reviewMutations).toEqual([])
-    expect(fixture.extractionEffects.cancellations).toEqual([])
   })
 
-  it('rejects cross-owner Batch Extraction selection, catalog, item, and result identifiers', async () => {
+  it('rejects cross-owner Batch Extraction selection, catalog and item identifiers', async () => {
     const fixture = await appFixture()
 
     for (const [schemaRevisionId, sourceDocumentIds] of [
@@ -1418,14 +1349,6 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
         fixture,
         ids.accountA,
         `/api/batch-extractions/${ids.batchB}?projectContextId=${ids.projectA}`,
-      ),
-      forbiddenB,
-    )
-    await expectPrivateNotFound(
-      await api(
-        fixture,
-        ids.accountA,
-        `/api/batch-extractions/${ids.batchB}/results?projectContextId=${ids.projectA}`,
       ),
       forbiddenB,
     )

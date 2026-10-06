@@ -24,19 +24,6 @@ const pdf = join(scratch, 'source.pdf')
 writeFileSync(pdf, blankPdf(1))
 let standIn: KeiStandInProcess
 
-async function seedArticleSchema(projectContextId: string): Promise<string> {
-  const schemaId = randomUUID()
-  const revisionId = randomUUID()
-  await db.orm.public.ExtractionSchema.create({ id: schemaId, projectContextId, name: 'GC Article' })
-  await db.orm.public.SchemaRevision.create({ id: revisionId, extractionSchemaId: schemaId,
-    revisionNumber: 1, origin: 'SUGGESTION', recordScope: 'document',
-    schemaTree: { recordDescription: 'One record.', schemaNodes: [
-      { id: 'title-node', name: 'title', type: 'string' },
-    ] },
-  })
-  return revisionId
-}
-
 beforeAll(async () => {
   standIn = await spawnKeiStandIn({ databaseUrl: url, schema: schemas.keiSchema })
 })
@@ -53,6 +40,49 @@ afterAll(async () => {
 })
 
 describe('garbage collection across Studio processes', () => {
+  it('repairs a deletion crash by cancelling ingestion and kei work, then collecting their young history', async () => {
+    const names=testSchemas(),{owner,store}=await seedOwner()
+    const project=(await store.createProjectContext(`GC missed cancel ${randomUUID()}`)).projectContextId
+    const env={
+      DATABASE_URL:url,FREE_TEST_DBOS_SCHEMA:names.schema,FREE_TEST_KEI_SCHEMA:schemas.keiSchema,
+      FREE_TEST_EXECUTOR:names.executorId,FREE_TEST_ACCOUNT:owner,FREE_TEST_PROJECT:project,
+      FREE_TEST_PDF:pdf,FREE_SOURCE_INBOX:join(scratch,'missed-cancel-inbox'),
+      XDG_DATA_HOME:join(scratch,'missed-cancel-data'),KEI_EXP_URL:standIn.url,
+      GC_OBSERVATIONS:join(scratch,'missed-cancel-observations.json'),
+      FREE_CRASH_MARKER:join(scratch,'missed-cancel-first-run'),
+    }
+    await standIn.policy({convert:'hold'})
+    try {
+      const deleted=await runWorkflowChild('gc-missed-ingest-cancel',env)
+      expect(deleted.signal,deleted.output).toBe('SIGKILL')
+      const repaired=await runWorkflowChild('gc-missed-ingest-cancel',env)
+      expect(repaired.signal,repaired.output).toBe('SIGKILL')
+      const current=JSON.parse(readFileSync(env.GC_OBSERVATIONS,'utf8')) as {
+        ingestId:string;convertId:string;repaired:GarbageSummary;currentIngestStatus:string|null
+      }
+      expect(current.repaired.failedPhases).toEqual([])
+      expect(current.repaired.cancelledStudio).toContain(current.ingestId)
+      expect(current.repaired.cancelledKei).toContain(current.convertId)
+      expect(current.currentIngestStatus).toBe('CANCELLED')
+      const collected=await runWorkflowChild('gc-missed-ingest-cancel',env)
+      expect(collected,collected.output).toMatchObject({code:0,signal:null})
+      const next=JSON.parse(readFileSync(env.GC_OBSERVATIONS,'utf8')) as {
+        next:GarbageSummary;nextIngestStatus:string|null;orphanPayloads:number
+      }
+      expect(next.next.failedPhases).toEqual([])
+      expect(next.next.deletedStudioHistory).toBeGreaterThanOrEqual(1)
+      expect(next.nextIngestStatus).toBeNull()
+      expect(next.next.keiRequest?.conversions).toContain(current.convertId)
+      expect((await standIn.deleteRunsRequests()).some(({request})=>request.conversions.includes(current.convertId))).toBe(true)
+      expect(next.orphanPayloads).toBe(0)
+    } finally {
+      for(const work of await standIn.held())await standIn.answer(work.workflowId,{convert:'auto'})
+      await standIn.policy({convert:'auto'})
+      await dropSchemas(url,names.schema)
+      await removeOwner(owner)
+    }
+  })
+
   it('collects a staged orphan after a crash once old, while keeping a young staged source', async () => {
     const env = {
       DATABASE_URL: url, ...{
@@ -188,7 +218,9 @@ describe('garbage collection across Studio processes', () => {
       expect(during.keptFile).toBe(true)
       expect(during.removedLoser).toBe(true)
       expect(during.removedStagedSources).toBe(1)
-      expect(during.keiRequest?.conversions ?? []).toEqual([])
+      // Other cases share kei's schema and can leave stopped conversions for
+      // later sweeps. This live conversion must keep its staged source and run.
+      expect(during.keiRequest?.conversions ?? []).not.toContain(held[0]!.workflowId)
       await standIn.answer(held[0]!.workflowId, { convert: 'auto' })
       const final = await runWorkflowChild('gc-held-ingestion', env)
       expect(final).toMatchObject({ code: 0, signal: null })
@@ -206,154 +238,4 @@ describe('garbage collection across Studio processes', () => {
     }
   })
 
-  it('collects completed history while keeping a cancelled extraction until the next boot', async () => {
-    const names = testSchemas()
-    const { owner, store } = await seedOwner()
-    const project = (await store.createProjectContext(`GC ${randomUUID()}`)).projectContextId
-    const revision = await seedArticleSchema(project)
-    const completedId = randomUUID()
-    const cancelledId = randomUUID()
-    const data = join(scratch, 'deleted-data')
-    const env = {
-      DATABASE_URL: url, FREE_TEST_DBOS_SCHEMA: names.schema, FREE_TEST_KEI_SCHEMA: schemas.keiSchema,
-      FREE_TEST_EXECUTOR: names.executorId, FREE_TEST_ACCOUNT: owner, FREE_TEST_PROJECT: project,
-      FREE_TEST_SCHEMA_REVISION: revision,
-      FREE_TEST_COMPLETED_EXTRACTION: completedId, FREE_TEST_CANCELLED_EXTRACTION: cancelledId,
-      FREE_TEST_PDF: pdf, FREE_SOURCE_INBOX: join(scratch, 'deleted-inbox'),
-      XDG_DATA_HOME: data,
-      KEI_EXP_URL: standIn.url, GC_OBSERVATIONS: join(scratch, 'deleted-observations.json'),
-      FREE_CRASH_MARKER: join(scratch, 'deleted-first-run'),
-    }
-    await standIn.policy({ convert: 'auto', extract: 'auto' })
-    try {
-      const first = await runWorkflowChild('gc-deleted-project', env)
-      expect(first).toMatchObject({ code: 0, signal: null })
-      const second = await runWorkflowChild('gc-deleted-project', env)
-      expect(second).toMatchObject({ code: 0, signal: null })
-      const observed = JSON.parse(readFileSync(env.GC_OBSERVATIONS, 'utf8')) as {
-        convertId: string; current: GarbageSummary; next: GarbageSummary
-        currentIngestStatus: string | null; currentCompletedStatus: string | null
-        currentCancelledStatus: string | null; nextCancelledStatus: string | null
-        packageAvailable: boolean
-      }
-      expect(observed.current.failedPhases).toEqual([])
-      expect(observed.current.deletedStudioHistory).toBeGreaterThanOrEqual(2)
-      expect(observed.currentIngestStatus).toBeNull()
-      expect(observed.currentCompletedStatus).toBeNull()
-      expect(observed.currentCancelledStatus).toBe('CANCELLED')
-      expect(observed.current.keiRequest?.conversions ?? []).not.toContain(observed.convertId)
-      expect(observed.current.keiRequest?.history).toContain(`kei-extract:${completedId}`)
-      expect(observed.current.keiRequest?.history).not.toContain(`kei-extract:${cancelledId}`)
-      expect(observed.next.failedPhases).toEqual([])
-      expect(observed.next.deletedStudioHistory).toBeGreaterThanOrEqual(1)
-      expect(observed.nextCancelledStatus).toBeNull()
-      expect(observed.next.keiRequest?.conversions).toContain(observed.convertId)
-      expect(observed.next.keiRequest?.history).toContain(`kei-extract:${cancelledId}`)
-      expect(observed.next.keiRequest?.history).not.toContain(`kei-extract:${completedId}`)
-      expect(observed.packageAvailable).toBe(false)
-      const deadline = Date.now() + 20_000
-      let requests = await standIn.deleteRunsRequests()
-      while (!requests.some((request) => request.request.conversions.includes(observed.convertId)) && Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 50))
-        requests = await standIn.deleteRunsRequests()
-      }
-      expect(requests.some((request) => request.request.conversions.includes(observed.convertId))).toBe(true)
-    } finally {
-      for (const work of await standIn.held())
-        if (work.workflow === 'extract') await standIn.answer(work.workflowId, {
-          failure: { code: 'cancelled', reason: 'test cleanup', retryable: false },
-        })
-      await standIn.policy({ convert: 'auto', extract: 'auto' })
-      await dropSchemas(url, names.schema)
-      await removeOwner(owner)
-    }
-  })
-
-  it('keeps a run through a late kei handoff, then names its conversion after Studio restarts', async () => {
-    const names = testSchemas()
-    const { owner, store } = await seedOwner()
-    const project = (await store.createProjectContext(`GC ${randomUUID()}`)).projectContextId
-    const revisionId = await seedArticleSchema(project)
-    const env = {
-      DATABASE_URL: url, FREE_TEST_DBOS_SCHEMA: names.schema, FREE_TEST_KEI_SCHEMA: schemas.keiSchema,
-      FREE_TEST_EXECUTOR: names.executorId, FREE_TEST_ACCOUNT: owner, FREE_TEST_PROJECT: project,
-      FREE_TEST_EXTRACTION_ID: randomUUID(), FREE_TEST_SCHEMA_REVISION: revisionId,
-      FREE_TEST_PDF: pdf, FREE_SOURCE_INBOX: join(scratch, 'handoff-inbox'),
-      XDG_DATA_HOME: join(scratch, 'handoff-data'), KEI_EXP_URL: standIn.url,
-      GC_OBSERVATIONS: join(scratch, 'handoff-observations.json'),
-      GC_ENTERED: join(scratch, 'handoff-entered'), GC_LATCH: join(scratch, 'handoff-latch'),
-      FREE_CRASH_MARKER: join(scratch, 'handoff-first-run'),
-    }
-    await standIn.policy({ convert: 'auto', extract: 'hold' })
-    try {
-      const first = await runWorkflowChild('gc-late-handoff', env)
-      expect(first.signal, first.output).toBe('SIGKILL')
-      const second = await runWorkflowChild('gc-late-handoff', env)
-      expect(second, second.output).toMatchObject({ code: 0, signal: null })
-      const observed = JSON.parse(readFileSync(env.GC_OBSERVATIONS, 'utf8')) as {
-        convertId: string; childId: string
-        before: GarbageSummary; after: GarbageSummary; afterRestart: GarbageSummary
-        childStatus: string | null
-      }
-      expect(observed.before.failedPhases).toEqual([])
-      expect(observed.after.failedPhases).toEqual([])
-      expect(observed.afterRestart.failedPhases).toEqual([])
-      expect(observed.before.keiRequest?.conversions ?? []).not.toContain(observed.convertId)
-      expect(observed.after.keiRequest?.conversions ?? []).not.toContain(observed.convertId)
-      expect(observed.afterRestart.keiRequest?.conversions).toContain(observed.convertId)
-      expect(observed.after.cancelledKei).toContain(observed.childId)
-      expect(observed.childStatus).toBe('CANCELLED')
-    } finally {
-      for (const work of await standIn.held()) await standIn.answer(work.workflowId, {
-        failure: { code: 'cancelled', reason: 'released by test', retryable: false },
-      })
-      await standIn.policy({ extract: 'auto' })
-      await dropSchemas(url, names.schema)
-      await removeOwner(owner)
-    }
-  })
-
-  it('repairs a cancellation committed just before Studio was killed', async () => {
-    const names = testSchemas()
-    const { owner, store } = await seedOwner()
-    const project = (await store.createProjectContext(`GC ${randomUUID()}`)).projectContextId
-    const revisionId = await seedArticleSchema(project)
-    const extractionId = randomUUID()
-    const env = {
-      DATABASE_URL: url, FREE_TEST_DBOS_SCHEMA: names.schema, FREE_TEST_KEI_SCHEMA: schemas.keiSchema,
-      FREE_TEST_EXECUTOR: names.executorId, FREE_TEST_ACCOUNT: owner, FREE_TEST_PROJECT: project,
-      FREE_TEST_EXTRACTION_ID: extractionId, FREE_TEST_SCHEMA_REVISION: revisionId,
-      FREE_TEST_PDF: pdf, FREE_SOURCE_INBOX: join(scratch, 'missed-inbox'),
-      XDG_DATA_HOME: join(scratch, 'missed-data'), KEI_EXP_URL: standIn.url,
-      GC_OBSERVATIONS: join(scratch, 'missed-observations.json'),
-      FREE_CRASH_MARKER: join(scratch, 'missed-first-run'),
-    }
-    await standIn.policy({ convert: 'auto', extract: 'hold' })
-    try {
-      const first = await runWorkflowChild('gc-missed-cancel', env)
-      expect(first.signal, first.output).toBe('SIGKILL')
-      const second = await runWorkflowChild('gc-missed-cancel', env)
-      expect(second, second.output).toMatchObject({ code: 0, signal: null })
-      const observed = JSON.parse(readFileSync(env.GC_OBSERVATIONS, 'utf8')) as {
-        childId: string; beforeStudio: string | null; beforeKei: string | null
-        summary: GarbageSummary; afterStudio: string | null; afterKei: string | null
-        domainOutcome: string | null; domainFailureCode: string | null
-      }
-      expect(observed.beforeKei).toBe('PENDING')
-      expect(observed.summary.failedPhases).toEqual([])
-      if (observed.beforeStudio === 'PENDING')
-        expect(observed.summary.cancelledStudio).toContain(`extract:${extractionId}`)
-      expect(observed.summary.cancelledKei).toContain(observed.childId)
-      expect(observed.afterKei).toBe('CANCELLED')
-      expect(observed.domainOutcome).toBe('CANCELLED')
-      expect(observed.domainFailureCode).toBe('cancelled')
-    } finally {
-      for (const work of await standIn.held()) await standIn.answer(work.workflowId, {
-        failure: { code: 'cancelled', reason: 'released by test', retryable: false },
-      })
-      await standIn.policy({ extract: 'auto' })
-      await dropSchemas(url, names.schema)
-      await removeOwner(owner)
-    }
-  })
 })

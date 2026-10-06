@@ -8,14 +8,11 @@
     "./allowed-values": "./src/allowed-values.ts",
     "./batch": "./src/batch.ts",
     "./extraction-method": "./src/extraction-method.ts",
-    "./kei-exp-fixture": "./src/kei-exp-fixture.ts",
     "./kei-handoff": "./src/kei-handoff.ts",
     "./kei-stand-in": "./src/testing/kei-stand-in.ts",
     "./kei-stand-in-client": "./src/testing/kei-stand-in-client.ts",
     "./parsed-document": "./src/parsed-document.ts",
-    "./review-attention": "./src/review-attention.ts",
     "./schema": "./src/schema.ts",
-    "./native-fields": "./src/native-fields.ts",
     "./workflow-steps": "./src/workflow-steps.ts",
     "./workflows": "./src/workflows.ts",
     "./durable": "./src/durable.ts",
@@ -23,8 +20,8 @@
     "./durable-types": "./src/durable-types.ts"
   },
   "scripts": {
-    "test": "tsx --test src/module.test.ts src/parsed-document.test.ts src/kei-handoff.test.ts src/kei-artifact.test.ts src/partial-result.test.ts src/workflows.test.ts src/review-rules.test.ts src/review-attention.test.ts src/extraction-method.test.ts src/gliformer-compatibility.test.ts src/schema.test.ts src/record-scope.test.ts src/architecture.test.ts src/contested-values.test.ts src/claim-accounting.test.ts src/review-projection.test.ts src/durable-feedback.test.ts src/durable-contract.test.ts",
-    "test:postgres": "tsx --test --test-concurrency=1 src/*.integration.test.ts src/kei-handoff.postgres.test.ts src/durable-recovery.postgres.check.ts src/durable-control.postgres.check.ts src/durable-lifecycle.postgres.check.ts",
+    "test": "tsx --test src/module.test.ts src/parsed-document.test.ts src/kei-handoff.test.ts src/kei-evidence.test.ts src/extraction-method.test.ts src/gliformer-compatibility.test.ts src/schema.test.ts src/record-scope.test.ts src/architecture.test.ts src/durable-feedback.test.ts src/durable-contract.test.ts",
+    "test:postgres": "tsx --test --test-concurrency=1 src/kei-handoff.postgres.test.ts src/durable-recovery.postgres.check.ts src/durable-control.postgres.check.ts src/durable-lifecycle.postgres.check.ts src/durable-readers.postgres.check.ts src/durable-admission.postgres.check.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

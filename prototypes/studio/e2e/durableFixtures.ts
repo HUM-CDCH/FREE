@@ -8,7 +8,7 @@ import { decodeParsedDocument,type ParsedDocument } from 'extraction/parsed-docu
 import type { SchemaNode } from 'extraction/schema'
 import type { InteractiveDocument } from './interactiveStack.js'
 
-/** Saved producer data in the guarded browser database; admissions stay OFF. */
+/** Saved producer data in the guarded browser database, independent of processing. */
 export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNode[],modelValues:unknown[],status:'QUEUED'|'RUNNING'|'PAUSED'|'FAILED'|'STOPPED'|'COMPLETED'='PAUSED',options:{records?:unknown[][];schemaRevisionId?:string;intent?:'RUN'|'PAUSE'|'STOP';modelEvidence?:Readonly<Record<string,DurableValue['evidence']>>;empty?:boolean}={}) {
   const strategy=options.records?'CATALOG':'ARTICLE',settings=options.records?{generic:null}:{article:null}
   const id=randomUUID(),schemaRevisionId=options.schemaRevisionId??randomUUID(),tree={recordDescription:'One interactive record.',schemaNodes:nodes}

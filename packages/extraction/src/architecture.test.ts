@@ -18,8 +18,8 @@ test('serving code imports no experiment, validation report or Studio code', () 
       assert.doesNotMatch(specifier, /experiments|docs\/validation|prototypes\//, `${name} imports ${specifier}`)
 })
 
-test('execution reads the admitted method only: nothing on the workflow path touches the account configuration', () => {
-  for (const name of ['workflows.ts', 'workflow-steps.ts', 'postgres-workflow-store.ts', 'kei-artifact.ts', 'kei-handoff.ts'])
+test('execution reads the admitted method only: nothing on the durable execution path touches the account configuration', () => {
+  for (const name of ['workflows.ts', 'workflow-steps.ts', 'durable-repository.ts', 'durable-feedback.ts', 'kei-evidence.ts', 'kei-handoff.ts'])
     for (const account of ['lockModelConfiguration', 'ModelConfiguration', 'accountMethod', 'createModelConfigurationStore'])
       assert.ok(!read(name).includes(account), `${name} mentions ${account}`)
 })

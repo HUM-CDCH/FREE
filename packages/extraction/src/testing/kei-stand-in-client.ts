@@ -9,10 +9,10 @@ import type { KeiDeleteRunsRequest, StandInFailure } from './kei-stand-in.js'
 /** How the stand-in finishes each workflow: `'auto'` answers at once from the fixture, `'hold'` parks the decision
  *  until `answer`, `{ failure }` answers with that failure. A policy call changes only the workflows it names. */
 export type StandInRule = 'auto' | 'hold' | { failure: StandInFailure }
-export type StandInPolicy = { convert?: StandInRule; extract?: StandInRule }
-export type HeldWork = { workflowId: string; workflow: 'convert' | 'extract'; request: unknown }
-/** Releases a held decision: an extraction's artifact, a failure, or the `'auto'` conversion. */
-export type StandInAnswer = { artifact: unknown } | { failure: StandInFailure } | { convert: 'auto' }
+export type StandInPolicy = { convert?: StandInRule }
+export type HeldWork = { workflowId: string; workflow: 'convert'; request: unknown }
+/** Releases a held decision: a failure, or the `'auto'` conversion. */
+export type StandInAnswer = { failure: StandInFailure } | { convert: 'auto' }
 export type KeiStandInProcess = Readonly<{
   /** kei's read API (and the control routes under /control/). */
   url: string

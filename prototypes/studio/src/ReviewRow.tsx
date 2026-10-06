@@ -1,9 +1,8 @@
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { ReviewDecisionAction, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { EvidenceQuote } from './evidenceQuote'
-import { linkOrigin } from './claimStates'
-import { DECISION_WORD, groundingDetail, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
+import { linkOrigin } from './linkOrigin'
+import { DECISION_WORD, type ReviewAction, groundingDetail, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph, OneByOneGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
@@ -61,11 +60,9 @@ export type ReviewRowProps = {
   /** Decisions are open here: not saved, not saving, not a read-only attempt. */
   canDecide: boolean
   saved: boolean
-  /** This is the last value to check and its decision saves the review (§3.3 item 5). */
-  last: boolean
   editing: boolean
   node: SchemaNode | null
-  onDecide: (action: ReviewDecisionAction, value?: ReviewDecisionInput['reviewedValue']) => void
+  onDecide: (action: ReviewAction, value?: unknown) => void
   onEdit: () => void
   onCancelEdit: () => void
   onUndo: () => void
@@ -74,7 +71,7 @@ export type ReviewRowProps = {
 }
 
 /** One value (results review redesign §3.2), and when selected its expansion (§3.3): one tinted surface, no card. */
-export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, last, editing, node,
+export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quote, canDecide, saved, editing, node,
   onDecide, onEdit, onCancelEdit, onUndo, onReviewFromHere, onTypedEdit }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
@@ -128,24 +125,19 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
             </>
           )}
           {row.retained && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
-          {last && !row.retained && row.kind === 'to-check' && !saved && (
-            <p className="m-0 rounded-md bg-surface-muted px-2.5 py-2 text-secondary text-ink">
-              This is the last value to check. Your decision saves the review, and the review becomes read-only.
-            </p>
-          )}
           {editing ? (
             <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
               onTypedSave={onTypedEdit}
-              saveLabel={last ? 'Save edit and save review' : 'Save edit'} onSave={(value) => onDecide('EDITED', value)} />
+              saveLabel="Save edit" onSave={(value) => onDecide('EDITED', value)} />
           ) : row.kind === 'to-check' && canDecide ? (
             <div className="flex flex-wrap items-center gap-2">
               <div role="group" aria-label={`Decision for ${row.name}`} className="inline-flex h-7.5 overflow-hidden rounded-md border border-line bg-surface">
                 <button type="button" onClick={() => onDecide('APPROVED')} className="inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
-                  <ApprovedGlyph />{last ? 'Approve and save review' : 'Approve'}</button>
+                  <ApprovedGlyph />Approve</button>
                 <button type="button" onClick={onEdit} className="inline-flex cursor-pointer items-center gap-1.5 border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
                   <EditedGlyph />Edit</button>
                 <button type="button" onClick={() => onDecide('REJECTED')} className="inline-flex cursor-pointer items-center gap-1.5 border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
-                  <RejectedGlyph />{last ? 'Reject and save review' : 'Reject'}</button>
+                  <RejectedGlyph />Reject</button>
               </div>
               {onReviewFromHere && (
                 <Button variant="ghost" className="ml-auto @max-[300px]:ml-0 @max-[300px]:basis-full" onClick={onReviewFromHere}><OneByOneGlyph />Review from here</Button>

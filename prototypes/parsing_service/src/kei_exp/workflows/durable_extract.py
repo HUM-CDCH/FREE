@@ -1,4 +1,4 @@
-"""Named durable workflows; existing extract/extract_run steps are unchanged.
+"""kei's Extraction workflows: one durable attempt (`extractDurableV1`) per admitted attempt, on the kei-extract lane.
 
 A planning step yields immutable captures. One child workflow and step per
 provider request preserves outputs across the coordination/DBOS ack gap.
@@ -30,7 +30,11 @@ _pool: CoordinationPool | None = None
 def configure(url: str):
     global _pool
     pool = CoordinationPool(url)
-    pool.ready()
+    try:
+        pool.ready()
+    except BaseException:
+        pool.close()
+        raise
     _pool = pool
 
 
@@ -197,8 +201,7 @@ def plan_next(extraction: str, attempt: str) -> dict:
         if not evidence.passages:
             return {"historicalOnly":True}
         try:
-            from kei_exp.workflows.extract import CATALOG_CHUNKS
-            result = dispatch(directory, evidence, request, router, chunks=CATALOG_CHUNKS, extraction_id=None)
+            result = dispatch(directory, evidence, request, router, chunks=config.CATALOG_CHUNKS)
         except NeedsCall:
             return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key])}
         except Boundary:

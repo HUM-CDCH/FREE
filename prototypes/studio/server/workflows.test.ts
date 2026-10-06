@@ -33,7 +33,16 @@ describe('Studio workflow registration', () => {
     const names = registerWorkflow.mock.calls.map(([, config]) => config?.name)
     for (const name of names) expect(name).toEqual(expect.any(String))
     expect(names).toEqual([...STUDIO_WORKFLOW_NAMES])
-    expect(names).toEqual(['runExtraction', 'suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit', 'collectGarbage','reconcileDurableExtractions'])
+    expect(names).toEqual(['suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit', 'collectGarbage','reconcileDurableExtractions'])
+  })
+
+  it('registers the durable Extraction reconciler as its only Extraction workflow', async () => {
+    const { registerStudioWorkflows } = await import('./workflows.js')
+    registerStudioWorkflows()
+    const names = registerWorkflow.mock.calls.map(([, config]) => config?.name ?? '')
+    // No runExtraction or other execution workflow: Studio admits durable work and kei's extractDurableV1 runs it.
+    expect(names.filter((name) => /extract/i.test(name))).toEqual(['reconcileDurableExtractions'])
+    expect(names).not.toContain('runExtraction')
   })
 
   it('applies the named ten-minute schedule on gc without backfill', async () => {

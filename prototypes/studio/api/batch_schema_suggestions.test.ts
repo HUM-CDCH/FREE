@@ -74,12 +74,6 @@ function moduleForSuggestedBatch() {
   const module: ExtractionModule = {
     runSingle: vi.fn<ExtractionModule['runSingle']>(),
     readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(),
-    cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(),
-    prepareReview: vi.fn<ExtractionModule['prepareReview']>(),
-    resetReview: vi.fn(async (_id, version) => ({ version: version + 1, decisions: [] })),
-    readReviewDraft: vi.fn(async () => ({ version: 0, decisions: [] })),
-    saveReviewDraft: vi.fn(async (_id, draft) => ({ ...draft, version: draft.version + 1 })),
-    finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(),
     readDocumentExtractions:
       vi.fn<ExtractionModule['readDocumentExtractions']>(),
     scheduleBatch: vi.fn<ExtractionModule['scheduleBatch']>(),
@@ -92,7 +86,6 @@ function moduleForSuggestedBatch() {
       vi.fn<ExtractionModule['stabiliseSchemaRevision']>(),
     listBatches: vi.fn<ExtractionModule['listBatches']>(),
     readBatch: vi.fn<ExtractionModule['readBatch']>(),
-    readBatchResults: vi.fn<ExtractionModule['readBatchResults']>(),
   }
   return module
 }

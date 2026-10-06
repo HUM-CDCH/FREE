@@ -2,7 +2,6 @@ import { setTimeout as delay } from 'node:timers/promises'
 import type { DBOSClient, StepConfig } from '@dbos-inc/dbos-sdk'
 import { context, propagation } from '@opentelemetry/api'
 import { z } from 'zod'
-import { recordScopeSchema } from './schema.js'
 
 /** kei's lanes, priorities and identities (prototypes/parsing_service/src/kei_exp/workflows/config.py and contracts.py;
  *  pinned by tests/fixtures/contracts/). kei registers the queues; Studio only names one. */
@@ -17,11 +16,7 @@ export const CONVERSION_PRIORITY = KEI_PRIORITY.interactive
 export const SMALL_DOCUMENT_PAGES = 30
 /** kei's page limit (KEI_MAX_PAGES): the budget of a PDF whose pages pdf.js could not count. */
 export const UNCOUNTED_PAGE_BUDGET = 2000
-/** Measured from kei's dequeue; Studio's parents have no deadline and end with their child. */
-// Both strategies discover records and perform per-record extraction/grounding.
-export const EXTRACTION_TIMEOUT_MS = { ARTICLE: 10_800_000, CATALOG: 10_800_000 } as const
 const CONVERT_PREFIX = 'kei-convert:'
-const EXTRACT_PREFIX = 'kei-extract:'
 export const DELETE_RUNS = 'deleteRuns'
 export const GC_PREFIX = 'kei-gc:'
 /** One path component, kei's runs.COMPONENT; `$` without the m flag matches only at the very end in JavaScript. */
@@ -48,17 +43,7 @@ export function conversionTimeoutMs(pages: number | null): number {
   return Math.max(600_000, 3 * (20_000 + 6_300 * (pages ?? UNCOUNTED_PAGE_BUDGET)))
 }
 
-/** Studio's `runExtraction` workflow for one Extraction is `extract:<extractionId>`, the parent of
- *  `kei-extract:<extractionId>`. packages/db writes the prefix by hand (it sits below this package). */
-export const STUDIO_EXTRACT_PREFIX = 'extract:'
-const STUDIO_EXTRACT = /^extract:([^:]+)$/
-export const extractWorkflowId = (extractionId: string) => `${STUDIO_EXTRACT_PREFIX}${extractionId}`
-/** The Extraction a Studio workflow ID names; null for any other workflow (`kei-extract:…`, `suggest:…`). */
-export const extractionIdOfWorkflow = (workflowId: string): string | null =>
-  STUDIO_EXTRACT.exec(workflowId)?.[1] ?? null
-
 export const keiConvertWorkflowId = (parentWorkflowId: string) => `${CONVERT_PREFIX}${parentWorkflowId}`
-export const keiExtractWorkflowId = (extractionId: string) => `${EXTRACT_PREFIX}${extractionId}`
 /** One kei cleanup per sweep: re-enqueueing the same ID is a no-op in every state (M0 #1), so a recovered sweep asks once. */
 export const keiGcWorkflowId = (scheduledTime: Date) => `${GC_PREFIX}${scheduledTime.toISOString()}`
 
@@ -74,19 +59,6 @@ export const keiConvertOkSchema = z.object({
   ok: z.literal(true), run_id: runId, generation: z.string().min(1), page_count: z.number().int().positive(),
   source_sha256: sha256, page_source: pageSource,
 }).strict()
-export const keiExtractInputSchema = z.object({
-  run_id: runId, generation: z.string().min(1),
-  // The pinned tree with the revision's record scope beside it: admission guarantees a declared scope, and the
-  // Parsing Service echoes the schema it ran into its artifact.
-  request: z.object({
-    schema: z.looseObject({ recordDescription: z.string(), schemaNodes: z.array(z.unknown()), recordScope: recordScopeSchema }),
-    options: z.record(z.string(), z.unknown()),
-  }).strict(),
-}).strict()
-export const keiExtractOkSchema = z.object({
-  ok: z.literal(true), run_id: runId, extraction_id: runId, generation: z.string().min(1), artifact_sha256: sha256,
-  model: z.string().min(1), models: z.record(z.string(), z.string()),
-}).strict()
 /** Studio names conversions, never runs: kei derives each run from its conversion and deletes the conversion's history
  *  only once the run is gone, since that history is the only index through which Studio can name the run. */
 export const keiDeleteRunsInputSchema = z.object({
@@ -100,27 +72,24 @@ export const keiDeleteRunsOkSchema = z.object({
 }).strict()
 export const KEI_FAILURE_CODES = [
   'invalid_request', 'source_missing', 'source_mismatch', 'source_unreadable', 'too_many_pages', 'model_unavailable',
-  'conversion_failed', 'conversion_incomplete', 'no_result', 'stale_generation', 'extraction_failed', 'cancelled',
-  'budget_refused',
+  'conversion_failed', 'conversion_incomplete', 'cancelled',
 ] as const
 export const keiFailureSchema = z.object({
   ok: z.literal(false), code: z.enum(KEI_FAILURE_CODES), reason: z.string(), retryable: z.boolean(),
 }).strict()
 export type KeiConvertInput = z.infer<typeof keiConvertInputSchema>
 export type KeiConvertOk = z.infer<typeof keiConvertOkSchema>
-export type KeiExtractInput = z.infer<typeof keiExtractInputSchema>
-export type KeiExtractOk = z.infer<typeof keiExtractOkSchema>
 export type KeiDeleteRunsInput = z.infer<typeof keiDeleteRunsInputSchema>
 export type KeiDeleteRunsOk = z.infer<typeof keiDeleteRunsOkSchema>
 export type KeiFailureCode = (typeof KEI_FAILURE_CODES)[number]
 
 export type KeiSubmission = Readonly<{
-  workflow: 'convert' | 'extract'
+  workflow: 'convert'
   workflowId: string
   queueName: string
   priority: number
   timeoutMs: number
-  request: KeiConvertInput | KeiExtractInput
+  request: KeiConvertInput
   authenticatedUser: string
   /** The parent's attributes, so a scope's kei work is found like its Studio work. */
   attributes: Readonly<Record<string, unknown>>

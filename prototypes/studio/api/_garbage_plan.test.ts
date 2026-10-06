@@ -49,7 +49,6 @@ function scopes(
     revisions?: readonly string[]
     schemas?: readonly string[]
     suggestions?: Readonly<Record<string, { attempt: number; settled: boolean }>>
-    extractions?: Readonly<Record<string, { settled: boolean }>>
   } = {},
 ): ScopeSnapshot {
   return {
@@ -58,7 +57,6 @@ function scopes(
     sourceRepresentationRevisions: new Set(input.revisions ?? []),
     extractionSchemas: new Set(input.schemas ?? []),
     suggestions: new Map(Object.entries(input.suggestions ?? {})),
-    extractions: new Map(Object.entries(input.extractions ?? {})),
   }
 }
 
@@ -69,20 +67,22 @@ const byId = (...rows: WorkflowRow[]) => new Map(rows.map((entry) => [entry.work
 describe('rules shared by every plan', () => {
   it('a workflow is quiescent when absent, ended, or stopped before this boot', () => {
     expect(quiescent(undefined, BOOT)).toBe(true)
-    expect(quiescent(row('extract:x', 'SUCCESS'), BOOT)).toBe(true)
-    expect(quiescent(row('extract:x', 'ERROR'), BOOT)).toBe(true)
+    expect(quiescent(row('suggest:x:1', 'SUCCESS'), BOOT)).toBe(true)
+    expect(quiescent(row('suggest:x:1', 'ERROR'), BOOT)).toBe(true)
     for (const status of ['CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED']) {
-      expect(quiescent(row('extract:x', status, { updatedAt: BOOT - 1 }), BOOT)).toBe(true)
-      expect(quiescent(row('extract:x', status, { updatedAt: BOOT }), BOOT)).toBe(false)
-      expect(quiescent(row('extract:x', status, { updatedAt: BOOT + 1 }), BOOT)).toBe(false)
-      expect(quiescent(row('extract:x', status), BOOT)).toBe(false)
+      expect(quiescent(row('suggest:x:1', status, { updatedAt: BOOT - 1 }), BOOT)).toBe(true)
+      expect(quiescent(row('suggest:x:1', status, { updatedAt: BOOT }), BOOT)).toBe(false)
+      expect(quiescent(row('suggest:x:1', status, { updatedAt: BOOT + 1 }), BOOT)).toBe(false)
+      expect(quiescent(row('suggest:x:1', status), BOOT)).toBe(false)
     }
     for (const status of ['ENQUEUED', 'DELAYED', 'PENDING', 'SOMETHING_NEW'])
-      expect(quiescent(row('extract:x', status, { updatedAt: BOOT - 1 }), BOOT)).toBe(false)
+      expect(quiescent(row('suggest:x:1', status, { updatedAt: BOOT - 1 }), BOOT)).toBe(false)
   })
 
-  it('maps kei-extract and kei-convert IDs to their Studio parents and nothing else', () => {
-    expect(keiParentOf('kei-extract:x')).toBe('extract:x')
+  it('maps kei-convert IDs to their Studio parents; durable Extraction and any other kei workflow has none', () => {
+    expect(keiParentOf('kei-durable:h:a')).toBeNull()
+    expect(keiParentOf('kei-call:a:c')).toBeNull()
+    expect(keiParentOf('kei-extract:x')).toBeNull()
     expect(keiParentOf('kei-convert:ingest:p:a')).toBe('ingest:p:a')
     expect(keiParentOf('kei-convert:reprocess:d:k')).toBe('reprocess:d:k')
     expect(keiParentOf('kei-convert:')).toBeNull()
@@ -90,7 +90,7 @@ describe('rules shared by every plan', () => {
     expect(keiParentOf('other')).toBeNull()
   })
 
-  it('collects every scope an attribute or a workflow ID names', () => {
+  it('collects every scope an attribute or a suggestion workflow ID names; an extract: ID names no row', () => {
     expect(
       scopeIdsOf([
         row('extract:e1', 'PENDING'),
@@ -113,7 +113,6 @@ describe('rules shared by every plan', () => {
       sourceRepresentationRevisionIds: ['r1'],
       extractionSchemaIds: ['x1'],
       batchSchemaSuggestionIds: ['s1', 's2'],
-      extractionIds: ['e1'],
     })
   })
 })
@@ -123,13 +122,9 @@ describe('cancellation repair', () => {
     parents: ReadonlyMap<string, WorkflowRow> = new Map()) =>
     planCancellationRepair({ liveStudio, liveKei, parents, scopes: snapshot })
 
-  it('cancels a live runExtraction whose Extraction has an outcome or no longer exists', () => {
-    const [settled, gone, open] = [uuid('a'), uuid('b'), uuid('c')]
-    const plan = repair(
-      [settled, gone, open].map((id) => row(`extract:${id}`, 'PENDING', { attributes: SCOPE })),
-      scopes({ ...EVERY_SCOPE, extractions: { [settled]: { settled: true }, [open]: { settled: false } } }),
-    )
-    expect(plan).toEqual({ studio: [`extract:${settled}`, `extract:${gone}`], kei: [] })
+  it('never cancels an extract: workflow on domain grounds: Studio owns no such Extraction workflow', () => {
+    const id = uuid('a')
+    expect(repair([row(`extract:${id}`, 'PENDING', { attributes: SCOPE })], scopes(EVERY_SCOPE))).toEqual({ studio: [], kei: [] })
   })
 
   it('cancels a live suggestion attempt that is settled, superseded by a later attempt, or deleted', () => {
@@ -170,11 +165,13 @@ describe('cancellation repair', () => {
     const [stopping, open] = [uuid('a'), uuid('b')]
     const [ended, absent, cancelled, running] = [uuid('c'), uuid('d'), uuid('e'), uuid('f')]
     const plan = repair(
-      [row(`extract:${stopping}`, 'PENDING', { attributes: SCOPE }), row(`extract:${open}`, 'PENDING', { attributes: SCOPE })],
-      scopes({ ...EVERY_SCOPE, extractions: { [stopping]: { settled: true }, [open]: { settled: false } } }),
+      [row(`reprocess:${DOCUMENT}:${stopping}`, 'PENDING', { attributes: { ...SCOPE, sourceDocumentId: uuid('9') } }),
+        row(`reprocess:${DOCUMENT}:${open}`, 'PENDING', { attributes: SCOPE })],
+      scopes(EVERY_SCOPE),
       [
-        row(`kei-extract:${stopping}`, 'PENDING'),
-        row(`kei-extract:${open}`, 'PENDING'),
+        row(`kei-convert:reprocess:${DOCUMENT}:${stopping}`, 'PENDING'),
+        row(`kei-convert:reprocess:${DOCUMENT}:${open}`, 'PENDING'),
+        row(`kei-durable:${uuid('7')}:${uuid('8')}`, 'PENDING'),
         row(`kei-convert:ingest:${PROJECT}:${ended}`, 'ENQUEUED'),
         row(`kei-convert:ingest:${PROJECT}:${absent}`, 'PENDING'),
         row(`kei-convert:ingest:${PROJECT}:${cancelled}`, 'PENDING'),
@@ -188,20 +185,19 @@ describe('cancellation repair', () => {
       ),
     )
     expect(plan).toEqual({
-      studio: [`extract:${stopping}`],
+      studio: [`reprocess:${DOCUMENT}:${stopping}`],
       kei: [
         `kei-convert:ingest:${PROJECT}:${absent}`,
         `kei-convert:ingest:${PROJECT}:${cancelled}`,
         `kei-convert:ingest:${PROJECT}:${ended}`,
-        `kei-extract:${stopping}`,
+        `kei-convert:reprocess:${DOCUMENT}:${stopping}`,
       ].sort(),
     })
   })
 
   it('leaves live work alone while its domain row is open and its scope exists', () => {
-    const [extraction, suggestion, attempt] = [uuid('a'), uuid('b'), uuid('c')]
+    const [suggestion, attempt] = [uuid('b'), uuid('c')]
     const studio = [
-      row(`extract:${extraction}`, 'PENDING', { attributes: SCOPE }),
       row(`suggest:${suggestion}:1`, 'PENDING', { attributes: SCOPE }),
       row(`ingest:${PROJECT}:${attempt}`, 'ENQUEUED', { attributes: { projectContextId: PROJECT } }),
     ]
@@ -210,10 +206,9 @@ describe('cancellation repair', () => {
         studio,
         scopes({
           ...EVERY_SCOPE,
-          extractions: { [extraction]: { settled: false } },
           suggestions: { [suggestion]: { attempt: 1, settled: false } },
         }),
-        [row(`kei-extract:${extraction}`, 'PENDING'), row(`kei-convert:ingest:${PROJECT}:${attempt}`, 'PENDING')],
+        [row(`kei-convert:ingest:${PROJECT}:${attempt}`, 'PENDING')],
       ),
     ).toEqual({ studio: [], kei: [] })
   })
@@ -224,9 +219,8 @@ describe('a malformed or missing scope ID never condemns a workflow', () => {
   const upper = PROJECT.replace(/1/g, 'A').toUpperCase()
   const badVersion = `${'1'.repeat(8)}-${'1'.repeat(4)}-9${'1'.repeat(3)}-8${'1'.repeat(3)}-${'1'.repeat(12)}`
   const rows = (status: string, extra: Partial<WorkflowRow>) => [
-    row('extract:not-a-uuid', status, extra),
-    row(`extract:${uuid('a').toUpperCase()}`, status, extra),
     row('suggest:not-a-uuid:2', status, extra),
+    row(`suggest:${uuid('a').toUpperCase()}:2`, status, extra),
     row(`ingest:${upper}:${uuid('b')}`, status, { ...extra, attributes: { projectContextId: upper } }),
     row(`reprocess:x:${uuid('c')}`, status, { ...extra, attributes: { sourceDocumentId: badVersion } }),
     row(`edit:${uuid('d')}`, status, { ...extra, attributes: { projectContextId: 42, extractionSchemaId: 'schema' } }),
@@ -236,8 +230,8 @@ describe('a malformed or missing scope ID never condemns a workflow', () => {
   it('neither cancels the live workflow nor its kei child', () => {
     const plan = planCancellationRepair({
       liveStudio: rows('PENDING', {}),
-      liveKei: [row('kei-extract:not-a-uuid', 'PENDING')],
-      parents: new Map(),
+      liveKei: [row('kei-convert:ingest:not-a-uuid:x', 'PENDING')],
+      parents: byId(row('ingest:not-a-uuid:x', 'PENDING')),
       scopes: scopes(),
     })
     expect(plan).toEqual({ studio: [], kei: [] })
@@ -247,23 +241,7 @@ describe('a malformed or missing scope ID never condemns a workflow', () => {
     const plan = (completedAt: number) =>
       planStudioHistory({ rows: rows('SUCCESS', { completedAt }), scopes: scopes(), nowMs: NOW, bootTimestampMs: BOOT, policy: GC_POLICY })
     expect(plan(NOW - HOUR)).toEqual([])
-    expect(plan(NOW - 31 * DAY)).toHaveLength(7)
-  })
-
-  it("keeps a kei extraction's history while it is young", () => {
-    const history = (completedAt: number) =>
-      planKeiCleanup({
-        kei: [row('kei-extract:not-a-uuid', 'SUCCESS', { completedAt })],
-        parents: new Map(),
-        runHolders: [],
-        referencedPreprocessIds: new Set(),
-        extractions: new Map(),
-        nowMs: NOW,
-        bootTimestampMs: BOOT,
-        policy: GC_POLICY,
-      })
-    expect(history(NOW - HOUR)).toBeNull()
-    expect(history(NOW - 31 * DAY)).toEqual({ conversions: [], history: ['kei-extract:not-a-uuid'] })
+    expect(plan(NOW - 31 * DAY)).toHaveLength(6)
   })
 })
 
@@ -282,19 +260,19 @@ describe('Studio history', () => {
     const suggestion = row(`suggestion:${uuid('c')}`, 'SUCCESS', { completedAt: NOW - 25 * HOUR, attributes: SCOPE })
     const edit = row(`edit:${uuid('d')}`, 'ERROR', { completedAt: NOW - 25 * HOUR, attributes: SCOPE })
     const fresh = row(`edit:${uuid('e')}`, 'SUCCESS', { completedAt: NOW - 23 * HOUR, attributes: SCOPE })
-    const oldExtract = row(`extract:${old}`, 'SUCCESS', { completedAt: NOW - 31 * DAY, attributes: SCOPE })
-    const youngExtract = row(`extract:${young}`, 'SUCCESS', { completedAt: NOW - 25 * HOUR, attributes: SCOPE })
+    const oldAttempt = row(`suggest:${old}:1`, 'SUCCESS', { completedAt: NOW - 31 * DAY, attributes: SCOPE })
+    const youngAttempt = row(`suggest:${young}:1`, 'SUCCESS', { completedAt: NOW - 25 * HOUR, attributes: SCOPE })
     const deleted = history(
-      [suggestion, edit, fresh, oldExtract, youngExtract],
-      scopes({ ...EVERY_SCOPE, extractions: { [young]: { settled: true }, [old]: { settled: true } } }),
+      [suggestion, edit, fresh, oldAttempt, youngAttempt],
+      scopes({ ...EVERY_SCOPE, suggestions: { [young]: { attempt: 1, settled: true }, [old]: { attempt: 1, settled: true } } }),
     )
-    expect(deleted.sort()).toEqual([suggestion, edit, oldExtract].map((entry) => entry.workflowID).sort())
+    expect(deleted.sort()).toEqual([suggestion, edit, oldAttempt].map((entry) => entry.workflowID).sort())
   })
 
   it("deletes a deleted scope's settled history at any age", () => {
     const rows = [
       row(`ingest:${PROJECT}:${uuid('a')}`, 'SUCCESS', { completedAt: NOW - HOUR, attributes: { projectContextId: PROJECT } }),
-      row(`extract:${uuid('b')}`, 'ERROR', { completedAt: NOW - HOUR, attributes: SCOPE }),
+      row(`suggest:${uuid('b')}:2`, 'ERROR', { completedAt: NOW - HOUR, attributes: SCOPE }),
       row(`suggest:${uuid('c')}:1`, 'SUCCESS', { completedAt: NOW - HOUR, attributes: SCOPE }),
     ]
     expect(history(rows, scopes({ ...EVERY_SCOPE, projects: [] })).sort()).toEqual(rows.map((entry) => entry.workflowID).sort())
@@ -348,11 +326,12 @@ describe('Studio history', () => {
     expect(history(rows, scopes())).toEqual(rows.slice(0, 3).map(entry => entry.workflowID))
   })
 
-  it('never deletes live history or a workflow it does not own', () => {
+  it('never deletes live history or a workflow it does not own, extract: IDs included', () => {
     expect(
       history(
         [
-          row(`extract:${uuid('a')}`, 'PENDING', { completedAt: NOW - 60 * DAY }),
+          row(`suggest:${uuid('a')}:1`, 'PENDING', { completedAt: NOW - 60 * DAY }),
+          row(`extract:${uuid('b')}`, 'SUCCESS', { completedAt: NOW - 60 * DAY, attributes: SCOPE }),
           row('other:x', 'SUCCESS', { completedAt: NOW - 60 * DAY }),
           row('kei-gc:2026-01-01T00:00:00.000Z', 'SUCCESS', { completedAt: NOW - 60 * DAY }),
         ],
@@ -388,9 +367,7 @@ describe('kei runs and history', () => {
     planKeiCleanup({
       kei: [],
       parents: new Map(),
-      runHolders: [],
       referencedPreprocessIds: new Set(),
-      extractions: new Map(),
       nowMs: NOW,
       bootTimestampMs: BOOT,
       policy: GC_POLICY,
@@ -429,24 +406,14 @@ describe('kei runs and history', () => {
     })
   })
 
-  it('protects a run named by keiRunId of a live extraction or one stopped in this process', () => {
-    const holder = (status: string, updatedAt?: number) =>
-      row(`extract:${uuid('c')}`, status, { updatedAt, attributes: { ...SCOPE, keiRunId: 'run-1' } })
-    expect(cleanup({ kei: [converted()], runHolders: [holder('PENDING')] })).toBeNull()
-    expect(cleanup({ kei: [converted()], runHolders: [holder('CANCELLED', BOOT + 5)] })).toBeNull()
-    expect(cleanup({ kei: [converted()], runHolders: [holder('CANCELLED', BOOT - 5)] })).toEqual({
+  it('never names a conversion whose run a durable Extraction head pins, a tombstoned head included', () => {
+    // garbage-references reports every head's sourcePin as kei-exp:<run>:<generation> until the graph collector
+    // deletes the head after its native calls are quiescent.
+    expect(cleanup({ kei: [converted()], referencedPreprocessIds: new Set(['kei-exp:run-1:g1']) })).toBeNull()
+    expect(cleanup({ kei: [converted('run-2')], referencedPreprocessIds: new Set(['kei-exp:run-1:g1']) })).toEqual({
       conversions: [CONVERSION],
       history: [],
     })
-  })
-
-  it('protects a run while a kei-extract child naming it is live', () => {
-    const extraction = uuid('c')
-    const child = (status: string) =>
-      row(`kei-extract:${extraction}`, status, { completedAt: NOW - HOUR, attributes: { keiRunId: 'run-1' } })
-    const parents = byId(row(`extract:${extraction}`, 'PENDING'))
-    expect(cleanup({ kei: [converted(), child('PENDING')], parents })).toBeNull()
-    expect(cleanup({ kei: [converted(), child('ERROR')], parents })).toEqual({ conversions: [CONVERSION], history: [] })
   })
 
   it("names a conversion that ended MAX_RECOVERY_ATTEMPTS_EXCEEDED, for kei's own boot boundary to decide", () => {
@@ -456,22 +423,19 @@ describe('kei runs and history', () => {
     })
   })
 
-  it('names kei-extract history once its parent is quiescent and its Extraction is gone or 30 days old', () => {
-    const [gone, kept, old, running] = [uuid('b'), uuid('c'), uuid('d'), uuid('e')]
-    const plan = cleanup({
-      kei: [
-        row(`kei-extract:${gone}`, 'SUCCESS', { completedAt: NOW - HOUR }),
-        row(`kei-extract:${kept}`, 'SUCCESS', { completedAt: NOW - HOUR }),
-        row(`kei-extract:${old}`, 'ERROR', { completedAt: NOW - 31 * DAY }),
-        row(`kei-extract:${running}`, 'SUCCESS', { completedAt: NOW - 31 * DAY }),
-      ],
-      parents: byId(row(`extract:${kept}`, 'SUCCESS'), row(`extract:${running}`, 'PENDING')),
-      extractions: new Map([
-        [kept, { settled: true }],
-        [old, { settled: true }],
-      ]),
-    })
-    expect(plan).toEqual({ conversions: [], history: [`kei-extract:${gone}`, `kei-extract:${old}`].sort() })
+  it("leaves durable Extraction history to its graph collector and sweeps that collector's kei-gc runs after 24 h", () => {
+    const [head, attempt, capture] = [uuid('b'), uuid('c'), uuid('d')]
+    expect(
+      cleanup({
+        kei: [
+          row(`kei-durable:${head}:${attempt}`, 'SUCCESS', { completedAt: NOW - 60 * DAY }),
+          row(`kei-call:${attempt}:${capture}`, 'ERROR', { completedAt: NOW - 60 * DAY }),
+          row(`kei-extract:${head}`, 'SUCCESS', { completedAt: NOW - 60 * DAY }),
+          row(`kei-gc:durable:${head}:2:1`, 'SUCCESS', { completedAt: NOW - 25 * HOUR }),
+          row(`kei-gc:durable:${head}:3:2`, 'SUCCESS', { completedAt: NOW - 23 * HOUR }),
+        ],
+      }),
+    ).toEqual({ conversions: [], history: [`kei-gc:durable:${head}:2:1`] })
   })
 
   it('names kei-gc history after 24 h; never names a conversion under history', () => {
@@ -498,7 +462,7 @@ describe('kei runs and history', () => {
     for (let index = 0; index < 50; index += 1) {
       const suffix = uuid(pick(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']))
       const id = pick([`kei-convert:ingest:${PROJECT}:${suffix}`, `kei-convert:reprocess:${DOCUMENT}:${suffix}`,
-        `kei-extract:${suffix}`, `kei-gc:${index}`])
+        `kei-durable:${suffix}:${index}`, `kei-gc:${index}`])
       kei.push(row(id, pick(statuses), {
         completedAt: NOW - Math.floor(random() * 60) * DAY,
         output: random() < 0.5 ? ok(`run-${index % 5}`) : { ok: false },
@@ -510,7 +474,7 @@ describe('kei runs and history', () => {
     expect(plan).not.toBeNull()
     expect(plan!.history.length).toBeGreaterThan(0)
     expect(plan!.conversions.length).toBeGreaterThan(0)
-    for (const id of plan!.history) expect(id.startsWith('kei-extract:') || id.startsWith('kei-gc:')).toBe(true)
+    for (const id of plan!.history) expect(id.startsWith('kei-gc:')).toBe(true)
     for (const id of plan!.conversions) expect(id.startsWith('kei-convert:')).toBe(true)
     expect(keiDeleteRunsInputSchema.safeParse(plan).success).toBe(true)
   })

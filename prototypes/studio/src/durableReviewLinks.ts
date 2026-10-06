@@ -9,7 +9,10 @@ export function savedCorrectionHref(projectId:string,sourceDocumentId:string,cor
   return browserStudioPath(`/projects/${projectId}/documents/${sourceDocumentId}?${query}`)
 }
 
-export function savedReviewCut(search:string):{snapshotVersion:number;feedbackVersion:number}|null {
+export type SavedReviewCut={snapshotVersion:number;feedbackVersion:number}
+
+/** The explicit result/decision cut a document route names, if both are valid. */
+export function savedReviewCut(search:string):SavedReviewCut|null {
   const query=new URLSearchParams(search),snapshot=query.get('snapshotVersion'),feedback=query.get('feedbackVersion')
   if(!snapshot||!feedback||!/^\d+$/.test(snapshot)||!/^\d+$/.test(feedback))return null
   const snapshotVersion=Number(snapshot),feedbackVersion=Number(feedback)

@@ -28,42 +28,12 @@ const extraction: ExtractionAttemptSnapshot = {
   schemaRevisionNumber: 2,
   strategy: 'ARTICLE',
   catalogRecipe: null,
+  requestedModels: null,
+  requestedSettings: { article: null },
   executionStatus: 'COMPLETED',
-  outcome: 'SUCCEEDED',
-  complete: true,
-  modelAttribution: { provider: 'openai', modelId: 'fixture' },
-  diagnostics: {
-    phase: 'grounding',
-    durationMs: 1,
-    modelCalls: 1,
-    finishReason: 'stop',
-    inputTokens: 1,
-    outputTokens: 1,
-    ungroundedPaths: [],
-    groundingIssues: [],
-    groundingBatches: [],
-    unverifiedFields: [],
-    catalog: null,
-  },
-  result: { records: [{ title: 'Ellekilde' }] },
-  evidence: [
-    { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' },
-  ],
-  failure: null,
-  reviewable: true,
+  finalizedReview: { snapshotVersion: 1, feedbackVersion: 2, createdAt: new Date('2026-08-10T01:30:00Z') },
   batchExtractionId: null,
   createdAt: new Date('2026-08-10T01:00:00Z'),
-  reviewedAt: new Date('2026-08-10T01:30:00Z'),
-  reviewDecisions: [
-    {
-      resultPath: ['records', 0, 'title'],
-      evidenceAnchorId: 'anchor-1',
-      reviewedOccurrenceIds: ['occurrence-1'],
-      action: 'APPROVED',
-      reviewedValue: null,
-      createdAt: new Date('2026-08-10T01:30:00Z'),
-    },
-  ],
 }
 
 function snapshot(schemaTree: unknown = definition): DocumentReopenSnapshot {
@@ -205,14 +175,10 @@ describe('document reopen ExtractionModule projection', () => {
       extractionId,
       sourceRepresentationRevisionId: representationId,
       schemaRevisionId,
-      resultPayload: extraction.result,
+      executionStatus: 'COMPLETED',
     })
-    expect(body.latestReviewed?.reviewDecisions).toEqual(
-      extraction.reviewDecisions.map((decision) => ({
-        ...decision,
-        createdAt: decision.createdAt.toISOString(),
-      })),
-    )
+    // The latest reviewed Extraction names the finalized cut a reopen opens it on.
+    expect(body.latestReviewed?.finalizedReview).toEqual({ snapshotVersion: 1, feedbackVersion: 2, createdAt: '2026-08-10T01:30:00.000Z' })
     expect(
       body.latestAttempt?.sourceRepresentation.resources.sourcePdfUrl,
     ).toContain(

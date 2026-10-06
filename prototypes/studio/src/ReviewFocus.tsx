@@ -1,10 +1,9 @@
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { ReviewDecisionAction, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { EvidenceQuote } from './evidenceQuote'
 import type { QueueItem } from './reviewQueue'
-import { linkOrigin } from './claimStates'
-import { DECISION_WORD, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
+import { linkOrigin } from './linkOrigin'
+import { DECISION_WORD, type ReviewAction, shownValue, stateLabel, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
@@ -30,7 +29,7 @@ export type EndCard =
  * One by one (results review redesign §4.3): the same rail as a card for the current value, its record's queue,
  * its Evidence, the decision and what comes next; or, when the queue is exhausted, an end card (§4.5).
  */
-export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, last, editing, node, upNext, end,
+export default function ReviewFocus({ article, items, position, current, recordLabel, label, quote, editing, node, upNext, end,
   headingRef, onDecide, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onContinue, onBack, onTypedEdit }: {
   article: boolean
   items: readonly QueueItem[]
@@ -39,13 +38,12 @@ export default function ReviewFocus({ article, items, position, current, recordL
   recordLabel: string
   label: string
   quote: EvidenceQuote | null
-  last: boolean
   editing: boolean
   node: SchemaNode | null
   upNext: readonly QueueItem[]
   end: EndCard | null
   headingRef: Ref<HTMLHeadingElement>
-  onDecide: (action: ReviewDecisionAction, value?: ReviewDecisionInput['reviewedValue']) => void
+  onDecide: (action: ReviewAction, value?: unknown) => void
   onEdit: () => void
   onCancelEdit: () => void
   onUndo: () => void
@@ -102,7 +100,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         {editing ? (
           <ReviewedValueEditor node={node} initial={current.value} tall onCancel={onCancelEdit}
             onTypedSave={onTypedEdit}
-            saveLabel={last ? 'Save edit and save review' : 'Save edit and next'} onSave={(value) => onDecide('EDITED', value)} />
+            saveLabel="Save edit and next" onSave={(value) => onDecide('EDITED', value)} />
         ) : (
           <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{shownValue(current.value)}</h2>
         )}
@@ -122,15 +120,10 @@ export default function ReviewFocus({ article, items, position, current, recordL
           <DoubtGlyph /><span><b>Doubtful link.</b> {current.doubt}. Check that this is the right passage.</span>
         </div>
       )}
-      {!decided && last && (
-        <p className="m-0 rounded-md bg-surface-muted px-2.5 py-2 text-secondary text-ink">
-          This is the last value to check. Your decision saves the review, and the review becomes read-only.
-        </p>
-      )}
       {!decided && !editing && (
         <div className="grid grid-cols-2 gap-2">
           <Button variant="outline-positive" size="md" className="col-span-2 h-11" onClick={() => onDecide('APPROVED')}>
-            <ApprovedGlyph className="text-current" />{last ? 'Approve and save review' : 'Approve and next'} <Kbd>A</Kbd>
+            <ApprovedGlyph className="text-current" />Approve and next <Kbd>A</Kbd>
           </Button>
           <Button size="md" className="h-11 @max-[264px]:col-span-1" onClick={onEdit}><EditedGlyph className="text-current" />Edit <Kbd>E</Kbd></Button>
           <Button variant="outline-danger" size="md" className="h-11" onClick={() => onDecide('REJECTED')}><RejectedGlyph className="text-current" />Reject <Kbd>R</Kbd></Button>

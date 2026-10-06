@@ -103,7 +103,7 @@ def test_raised_errors_keep_the_failure_without_exporting_their_content(spans):
 
 def test_catalog_chunk_threads_stay_on_the_step_s_trace(spans):
     prelude = SimpleNamespace(evidence=None, schema=None, recipe=None, options=None, chat=None, counters={})
-    with calls._TRACER.start_as_current_span("extract_run") as step:
+    with calls._TRACER.start_as_current_span("planExtractionCallsV1") as step:
         pieces = grounded._in_chunks(prelude, [[(1, None)], [(2, None)]], None,
                                      lambda *_: trace.get_current_span().get_span_context().trace_id)
     assert [found for _, found in pieces] == [[step.get_span_context().trace_id]] * 2

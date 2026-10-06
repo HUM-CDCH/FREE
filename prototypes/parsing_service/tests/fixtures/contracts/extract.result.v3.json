@@ -1,64 +1,63 @@
 {
-  "extraction_id": "x-contract",
-  "request": {
+  "source": {
     "run_id": "run-contract",
-    "generation": "20260923T000000.000000Z-fixture0",
-    "request": {
-      "schema": {
-        "recordDescription": "One entry of a catalogue of finds.",
-        "schemaNodes": [
-          {
-            "id": "l",
-            "name": "label",
-            "type": "string",
-            "description": "the printed number or mark"
-          },
-          {
-            "id": "s",
-            "name": "site",
-            "type": "string"
-          },
-          {
-            "id": "m",
-            "name": "material",
-            "type": "string"
-          },
-          {
-            "id": "g",
-            "name": "gilded",
-            "type": "boolean"
-          },
-          {
-            "id": "f",
-            "name": "finds",
-            "type": "array",
-            "children": [
-              {
-                "id": "fn",
-                "name": "name",
-                "type": "string"
-              },
-              {
-                "id": "fc",
-                "name": "count",
-                "type": "integer"
-              }
-            ]
-          },
-          {
-            "id": "t",
-            "name": "title",
-            "type": "string",
-            "valueSource": "document"
-          }
-        ],
-        "recordScope": "records"
-      },
-      "options": {
-        "strategy": "catalog",
-        "unified": {
-          "defaults": 1
+    "generation": "20260923T000000.000000Z-fixture0"
+  },
+  "request": {
+    "schema": {
+      "recordDescription": "One entry of a catalogue of finds.",
+      "schemaNodes": [
+        {
+          "id": "l",
+          "name": "label",
+          "type": "string",
+          "description": "the printed number or mark"
+        },
+        {
+          "id": "s",
+          "name": "site",
+          "type": "string"
+        },
+        {
+          "id": "m",
+          "name": "material",
+          "type": "string"
+        },
+        {
+          "id": "g",
+          "name": "gilded",
+          "type": "boolean"
+        },
+        {
+          "id": "f",
+          "name": "finds",
+          "type": "array",
+          "children": [
+            {
+              "id": "fn",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "id": "fc",
+              "name": "count",
+              "type": "integer"
+            }
+          ]
+        },
+        {
+          "id": "t",
+          "name": "title",
+          "type": "string",
+          "valueSource": "document"
         }
+      ],
+      "recordScope": "records"
+    },
+    "options": {
+      "strategy": "catalog",
+      "unified": {
+        "defaults": 1
       }
     }
   },
@@ -264,193 +263,193 @@
     "started": "2026-09-29T12:00:00+00:00",
     "seconds": 0.0,
     "execution": {
-      "defaults": {
-        "headings": true,
-        "overlap": 1,
-        "reserves": {
-          "arbitration": 512,
-          "discovery": 4096,
-          "document": 2048,
-          "entry": 4096,
-          "verification": 2048
-        },
-        "splits": 6,
-        "verification": true
+      "version": 1,
+      "extraction_id": null,
+      "source": {
+        "run_id": "run-contract",
+        "generation": "20260923T000000.000000Z-fixture0",
+        "digest": "13fb4aedf49360bac12ed33738e31a730bc00032d7c95e08a3669ca3b3e4a5ca"
       },
-      "discovery_version": 3,
-      "effective": {
-        "headings": true,
-        "overlap": 1,
-        "splits": 6,
-        "stages": {
-          "arbitration": {
-            "input_tokens": 15872,
-            "output_tokens": 512,
-            "role": "reasoning"
-          },
-          "discovery": {
-            "input_tokens": 12288,
-            "output_tokens": 4096,
-            "role": "reasoning"
-          },
-          "document": {
-            "input_tokens": 14336,
-            "output_tokens": 2048,
-            "role": "fields"
-          },
-          "entry": {
-            "input_tokens": 12288,
-            "output_tokens": 4096,
-            "role": "fields"
-          },
-          "verification": {
-            "input_tokens": 14336,
-            "output_tokens": 2048,
-            "role": "reasoning"
-          }
-        },
-        "verification": true
-      },
-      "extraction_id": "x-contract",
+      "schema_sha256": "03fdb1e37c99bf5a615c986b72ac5f716f162857db57c16276e73e86115d4c1b",
       "method": {
         "defaults": 1
+      },
+      "defaults": {
+        "reserves": {
+          "discovery": 4096,
+          "entry": 4096,
+          "verification": 2048,
+          "arbitration": 512,
+          "document": 2048
+        },
+        "overlap": 1,
+        "headings": true,
+        "verification": true,
+        "splits": 6
+      },
+      "effective": {
+        "overlap": 1,
+        "headings": true,
+        "verification": true,
+        "splits": 6,
+        "stages": {
+          "discovery": {
+            "role": "reasoning",
+            "input_tokens": 12288,
+            "output_tokens": 4096
+          },
+          "entry": {
+            "role": "fields",
+            "input_tokens": 12288,
+            "output_tokens": 4096
+          },
+          "verification": {
+            "role": "reasoning",
+            "input_tokens": 14336,
+            "output_tokens": 2048
+          },
+          "arbitration": {
+            "role": "reasoning",
+            "input_tokens": 15872,
+            "output_tokens": 512
+          },
+          "document": {
+            "role": "fields",
+            "input_tokens": 14336,
+            "output_tokens": 2048
+          }
+        }
       },
       "models": {
         "fields": "fake/extractor",
         "reasoning": "fake/extractor"
       },
       "prompt_version": 3,
-      "schema_sha256": "03fdb1e37c99bf5a615c986b72ac5f716f162857db57c16276e73e86115d4c1b",
-      "source": {
-        "digest": "13fb4aedf49360bac12ed33738e31a730bc00032d7c95e08a3669ca3b3e4a5ca",
-        "generation": "20260923T000000.000000Z-fixture0",
-        "run_id": "run-contract"
-      },
+      "discovery_version": 3,
       "tokenizers": {
         "fields": {
-          "context_tokens": 16384,
+          "source": "words",
           "model": "fake/extractor",
           "model_digest": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
-          "source": "words",
-          "template_tokens": 5
+          "template_tokens": 5,
+          "context_tokens": 16384
         },
         "reasoning": {
-          "context_tokens": 16384,
+          "source": "words",
           "model": "fake/extractor",
           "model_digest": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
-          "source": "words",
-          "template_tokens": 5
+          "template_tokens": 5,
+          "context_tokens": 16384
         }
-      },
-      "version": 1
+      }
     },
-    "execution_sha256": "8c097d47a848f535e0cd2cd138936df1643a800a432b0238a444fae0fc926b53",
+    "execution_sha256": "c092e3ee849cb20d8c761ce81bc358d6ceb53618039a263b80ba1f3cd5efd16d",
     "discovery": {
-      "calls": [
-        {
-          "context_tokens": 16384,
-          "counted_input_tokens": 244,
-          "error": null,
-          "finish": "stop",
-          "input_tokens": 244,
-          "max_output_tokens": 4096,
-          "milliseconds": 0,
-          "ok": true,
-          "output_tokens": 5,
-          "record": null,
-          "recovered": false,
-          "stage": "discovery"
-        }
-      ],
+      "version": 3,
+      "execution_sha256": "c092e3ee849cb20d8c761ce81bc358d6ceb53618039a263b80ba1f3cd5efd16d",
       "entries": [
         {
-          "context": [
-            {
-              "end": 60,
-              "segment": "p1_s0",
-              "start": 0
-            }
-          ],
-          "end": "validated",
           "id": "p1_s1@0",
           "label": "12.",
           "ranges": [
             {
-              "end": 45,
               "segment": "p1_s1",
-              "start": 0
-            }
-          ]
-        },
-        {
-          "context": [
-            {
-              "end": 60,
-              "segment": "p1_s0",
-              "start": 0
+              "start": 0,
+              "end": 45
             }
           ],
-          "end": "validated",
+          "context": [
+            {
+              "segment": "p1_s0",
+              "start": 0,
+              "end": 60
+            }
+          ],
+          "end": "validated"
+        },
+        {
           "id": "p1_s2@0",
           "label": "第3号",
           "ranges": [
             {
-              "end": 32,
               "segment": "p1_s2",
-              "start": 0
+              "start": 0,
+              "end": 32
             }
-          ]
+          ],
+          "context": [
+            {
+              "segment": "p1_s0",
+              "start": 0,
+              "end": 60
+            }
+          ],
+          "end": "validated"
         }
       ],
-      "execution_sha256": "8c097d47a848f535e0cd2cd138936df1643a800a432b0238a444fae0fc926b53",
-      "issues": [],
       "ledger": [
         {
-          "disposition": "other",
-          "end": 60,
-          "entry": null,
           "segment": "p1_s0",
-          "start": 0
+          "start": 0,
+          "end": 60,
+          "disposition": "other",
+          "entry": null
         },
         {
-          "disposition": "entry",
-          "end": 45,
-          "entry": "p1_s1@0",
           "segment": "p1_s1",
-          "start": 0
+          "start": 0,
+          "end": 45,
+          "disposition": "entry",
+          "entry": "p1_s1@0"
         },
         {
-          "disposition": "entry",
-          "end": 32,
-          "entry": "p1_s2@0",
           "segment": "p1_s2",
-          "start": 0
+          "start": 0,
+          "end": 32,
+          "disposition": "entry",
+          "entry": "p1_s2@0"
         }
       ],
-      "version": 3,
       "windows": [
         {
-          "begins_inside_record": false,
-          "context_omitted": [],
-          "ends_inside_record": false,
-          "ok": true,
-          "places": 3,
           "primary": [
             {
-              "end": 60,
               "segment": "p1_s0",
-              "start": 0
+              "start": 0,
+              "end": 60
             },
             {
-              "end": 32,
               "segment": "p1_s2",
-              "start": 0
+              "start": 0,
+              "end": 32
             }
-          ]
+          ],
+          "ok": true,
+          "begins_inside_record": false,
+          "ends_inside_record": false,
+          "places": 3,
+          "context_omitted": []
+        }
+      ],
+      "issues": [],
+      "calls": [
+        {
+          "stage": "discovery",
+          "record": null,
+          "input_tokens": 244,
+          "output_tokens": 5,
+          "finish": "stop",
+          "ok": true,
+          "error": null,
+          "counted_input_tokens": 244,
+          "context_tokens": 16384,
+          "max_output_tokens": 4096,
+          "recovered": false,
+          "milliseconds": 0
         }
       ]
     },
-    "discovery_sha256": "0f02c4f0c3881b41ec3e7cc4a02afe1b2f3162a12399d1697445d1af5625f276",
+    "discovery_sha256": "032af19b6d7cf078e19ca4683b3f6d30a7d7ee37df0122734198f7f5352eff75",
     "records": [
       {
         "label": "12",
@@ -776,14 +775,14 @@
     "competitors": [],
     "items": [
       {
-        "observed": 1,
-        "partial": 0,
         "path": [
           "records",
           0,
           "finds"
         ],
-        "resolved": 1
+        "observed": 1,
+        "resolved": 1,
+        "partial": 0
       }
     ],
     "document": {
@@ -937,6 +936,6 @@
       "input": 980,
       "output": 30
     },
-    "fingerprint": "ee96a67d384220832e3c4d3ae2236ad72e83dfc88ce557edf59a0ededbb49a04"
+    "fingerprint": "3dd7bb88a3138d4080e59c63600440828a204a5c812831d920bb2b78346f1a82"
   }
 }

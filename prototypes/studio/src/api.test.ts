@@ -3,7 +3,6 @@ import {
   ApiRequestError,
   decodeSchemaDone,
   deleteModelOperation,
-  finalizeExtractionReview,
   readExtraction,
   readIngestionModels,
   requestExtraction,
@@ -33,33 +32,18 @@ function jsonResponse(body: unknown): Response {
 afterEach(() => vi.unstubAllGlobals())
 
 
-describe('Article extraction lifecycle client', () => {
-  it('posts only the operation identity and finalizes review by Extraction ID', async () => {
-    const extractionId = '11111111-1111-4111-8111-111111111111'
-    const representationId = '22222222-2222-4222-8222-222222222222'
-    const schemaRevisionId = '33333333-3333-4333-8333-333333333333'
-    const documentId = '44444444-4444-4444-8444-444444444444'
-    const attempt = {
-      extractionId,
-      sourceDocumentId: documentId,
-      sourceRepresentationRevisionId: representationId,
-      schemaRevisionId,
-      strategy: 'ARTICLE',
-      catalogRecipe: null,
-      executionStatus: 'COMPLETED',
-      outcome: 'SUCCEEDED',
-      complete: true,
-      modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
-      failure: null,
-      resultPayload: { records: [] },
-      evidenceLinks: [],
-      reviewable: true,
-      batchExtractionId: null,
-      createdAt: '2026-08-10T00:00:00.000Z',
-      reviewedAt: null,
-      reviewDecisions: [],
-    }
+describe('durable extraction admission client', () => {
+  const extractionId = '11111111-1111-4111-8111-111111111111'
+  const attempt = {
+    extractionId,
+    sourceDocumentId: '44444444-4444-4444-8444-444444444444',
+    sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
+    schemaRevisionId: '33333333-3333-4333-8333-333333333333',
+    strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: null,
+    executionStatus: 'QUEUED', finalizedReview: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z',
+  }
+
+  it('posts only the operation identity and its saved method', async () => {
     const submitted: Array<{ url: string; body: unknown }> = []
     vi.stubGlobal(
       'fetch',
@@ -69,54 +53,24 @@ describe('Article extraction lifecycle client', () => {
         return Promise.resolve(jsonResponse(attempt))
       }),
     )
-
     const method = { models: null, settings: { article: null } }
-    await requestExtraction({
-      id: extractionId,
-      sourceRepresentationRevisionId: representationId,
-      schemaRevisionId,
-      strategy: 'ARTICLE',
-      method,
-    })
-    await finalizeExtractionReview(extractionId, [])
-
-    expect(submitted).toEqual([
-      {
-        url: '/api/extractions',
-        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE', method },
-      },
-      {
-        url: `/api/extractions/${extractionId}/review`,
-        body: { reviewDecisions: [], expectedDraftVersion: 0 },
-      },
-    ])
+    await expect(requestExtraction({
+      id: extractionId, sourceRepresentationRevisionId: attempt.sourceRepresentationRevisionId,
+      schemaRevisionId: attempt.schemaRevisionId, strategy: 'ARTICLE', method,
+    })).resolves.toEqual(attempt)
+    expect(submitted).toEqual([{
+      url: '/api/extractions',
+      body: { id: extractionId, sourceRepresentationRevisionId: attempt.sourceRepresentationRevisionId, schemaRevisionId: attempt.schemaRevisionId, strategy: 'ARTICLE', method },
+    }])
   })
 
-  it('reads server-derived pending review decisions', async () => {
-    const extractionId = '11111111-1111-4111-8111-111111111111'
-    const response = {
-      extraction: {
-        extractionId,
-        sourceDocumentId: '44444444-4444-4444-8444-444444444444',
-        sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
-        schemaRevisionId: '33333333-3333-4333-8333-333333333333',
-        strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
-        modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-        diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
-        failure: null, resultPayload: { records: [] }, evidenceLinks: [],
-        reviewable: true, batchExtractionId: null,
-        createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
-      },
-      pendingReviewDecisions: [],
-    }
-    const fetch = vi.fn().mockResolvedValue(jsonResponse(response))
+  it('reads one durable Extraction and refuses the removed result and review fields', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ extraction: attempt }))
     vi.stubGlobal('fetch', fetch)
-
-    await expect(readExtraction(extractionId)).resolves.toEqual(response)
-    expect(fetch).toHaveBeenCalledWith(
-      `/api/extractions/${extractionId}`,
-      expect.objectContaining({ credentials: 'same-origin' }),
-    )
+    await expect(readExtraction(extractionId)).resolves.toEqual({ extraction: attempt })
+    expect(fetch).toHaveBeenCalledWith(`/api/extractions/${extractionId}`, expect.objectContaining({ credentials: 'same-origin' }))
+    fetch.mockResolvedValue(jsonResponse({ extraction: { ...attempt, resultPayload: null }, pendingReviewDecisions: [] }))
+    await expect(readExtraction(extractionId)).rejects.toThrow()
   })
 })
 

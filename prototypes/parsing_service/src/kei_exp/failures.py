@@ -26,8 +26,7 @@ TRANSIENT = ("unreachable", "connection refused", "connection reset", "timed out
 TRANSIENT_STATUS = (429, 502, 503, 504)
 
 CODES = ("invalid_request", "source_missing", "source_mismatch", "source_unreadable", "too_many_pages",
-         "model_unavailable", "conversion_failed", "conversion_incomplete", "no_result", "stale_generation",
-         "extraction_failed", "cancelled", "budget_refused")
+         "model_unavailable", "conversion_failed", "conversion_incomplete", "cancelled")
 REASON_CHARS = 2000
 
 
@@ -66,11 +65,11 @@ def classify(error: BaseException) -> BaseException:
 
 
 def should_retry(error: BaseException) -> bool:
-    """DBOS's retry predicate for `convert_run` and `extract_run`."""
+    """DBOS's retry predicate for `convert_run`."""
     return isinstance(classify(error), TransientBackendError)
 
 
-# The keyword arguments of both model steps: three attempts, waiting 5 s then 10 s.
+# The keyword arguments of the conversion step: three attempts, waiting 5 s then 10 s.
 STEP_RETRY = {"retries_allowed": True, "max_attempts": 3, "interval_seconds": 5.0, "backoff_rate": 2.0,
               "should_retry": should_retry}
 

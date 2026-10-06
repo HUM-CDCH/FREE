@@ -2,9 +2,11 @@
 
 Studio decides what is unreferenced; kei never reads Studio's schemas. Studio names conversions; kei derives their runs
 (runs.run_id_for), so a run whose conversion failed after prepare_run published it is found too. kei rechecks its own
-workflows: a run goes only when every kei workflow that writes it has ended and can no longer write, and nothing in it
-was written for 24 h. A conversion's history goes only once its run is gone, because that history is the only index
-through which Studio can name the run; other kei history Studio names goes once its workflow can no longer write.
+workflows: a run goes only when the conversion that wrote it has ended and can no longer write, and nothing in it was
+written for 24 h. Durable Extraction attempts only read runs; Studio keeps every run a durable head pins (tombstoned
+heads included) out of its request, and their own history goes with their graph (`durable_extract`). A conversion's
+history goes only once its run is gone, because that history is the only index through which Studio can name the run;
+other kei history Studio names goes once its workflow can no longer write.
 SUCCESS and ERROR ended with their steps. CANCELLED (explicit or deadline) and MAX_RECOVERY_ATTEMPTS_EXCEEDED can
 leave a native step writing until the kei process that ran it exits: such a workflow counts only once its updated_at
 (database clock) precedes this process's boot timestamp (boot.py). Every status is read before anything is deleted,
@@ -23,7 +25,7 @@ from pydantic import ValidationError
 
 from kei_exp import runs
 from kei_exp.workflows import boot
-from kei_exp.workflows.contracts import EXTRACT_PREFIX, DeleteRunsInput, DeleteRunsOk, failure
+from kei_exp.workflows.contracts import DeleteRunsInput, DeleteRunsOk, failure
 
 logger = logging.getLogger(__name__)
 ENDED = frozenset({"SUCCESS", "ERROR"})
@@ -43,49 +45,31 @@ def eligible(status, boot_ms: int) -> bool:
     return False
 
 
-def _may_write(name: str, boot_ms: int, *, load_input: bool) -> list:
+def _may_write(name: str, boot_ms: int) -> list:
     """The `name` workflows that may still write: live, or stopped at or after this boot."""
-    found = DBOS.list_workflows(name=name, status=[*LIVE, *STOPPED], load_input=load_input, load_output=False)
+    found = DBOS.list_workflows(name=name, status=[*LIVE, *STOPPED], load_input=False, load_output=False)
     return [status for status in found if not eligible(status, boot_ms)]
-
-
-def _run_named(status) -> str | None:
-    """The run an `extract` workflow's input names; None for an input that names none (it fails validation)."""
-    args = (status.input or {}).get("args") or ()
-    request = args[0] if args else None
-    return request.get("run_id") if isinstance(request, dict) else None
-
-
-def _still_extracting(boot_ms: int) -> set[str]:
-    """Runs an `extract` workflow that may still write reads. It may not have published anything under the run yet,
-    so the run directory cannot tell."""
-    return {run_id for status in _may_write("extract", boot_ms, load_input=True)
-            if (run_id := _run_named(status)) is not None}
 
 
 def _still_converting(boot_ms: int) -> set[str]:
     """Runs a `convert` workflow that may still write prepares: its `.prepare-<run>` staging is still in use."""
-    return {runs.run_id_for(status.workflow_id) for status in _may_write("convert", boot_ms, load_input=False)}
+    return {runs.run_id_for(status.workflow_id) for status in _may_write("convert", boot_ms)}
 
 
 def _writers(directory: Path) -> list[str]:
-    """The kei workflows that wrote this run: its conversion (params.json) and every published extraction."""
+    """The kei workflow that wrote this run: its conversion (params.json)."""
     params = json.loads((directory / "params.json").read_text(encoding="utf-8"))
     if not isinstance(params, dict):
         raise ValueError("params.json holds no object")  # noqa: TRY004 - bad file content, as for bad JSON
     workflow_id = params.get("workflow_id")
     if workflow_id is not None and not isinstance(workflow_id, str):
         raise ValueError("params.json names no workflow")
-    found = [workflow_id] if workflow_id else []
-    extractions = directory / "extractions"
-    if extractions.is_dir():
-        found += [f"{EXTRACT_PREFIX}{entry.name}" for entry in sorted(extractions.iterdir()) if entry.is_dir()]
-    return found
+    return [workflow_id] if workflow_id else []
 
 
 def _last_write(directory: Path) -> float:
     # Directory mtimes suffice: kei writes every file of a run by publish-by-rename (files.publish, the renamed result
-    # and extraction directories), and creating the sibling and renaming it both change the directory's mtime. A
+    # directory), and creating the sibling and renaming it both change the directory's mtime. A
     # writer that may still be inside a long write is caught by its status, not by this age.
     return max(path.stat().st_mtime for path in [directory, *directory.rglob("*")] if path.is_dir())
 
@@ -122,7 +106,7 @@ def delete_runs(request: dict) -> dict:
     # belongs to a conversion that is live now, and is never in this list. A run whose directory cannot be read is
     # kept and never stops the others: Studio asks for it again on every schedule.
     staged = sorted(runs.RUNS.glob(f"{PREPARE}*"))
-    converting, extracting = _still_converting(boot_ms), _still_extracting(boot_ms)
+    converting = _still_converting(boot_ms)
     writers, unreadable = {}, set()
     for run_id in requested:
         if (runs.RUNS / run_id).exists():
@@ -147,7 +131,7 @@ def delete_runs(request: dict) -> dict:
             kept_runs.append(run_id)
             continue
         if run_id in writers:
-            if run_id in extracting or not all(eligible(statuses.get(wid), boot_ms) for wid in writers[run_id]):
+            if not all(eligible(statuses.get(wid), boot_ms) for wid in writers[run_id]):
                 kept_runs.append(run_id)  # a kei workflow may still write it; checked before the walk below
                 continue
             try:

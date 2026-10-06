@@ -28,7 +28,7 @@ const rows = ['title', 'archaeological_context', 'sex', 'findings', 'kind', 'dep
 const pdfPath = fileURLToPath(new URL('../../../examples/1790-06-17-1.pdf', import.meta.url))
 const parsedDocumentPath = fileURLToPath(new URL('../src/assets/parsed_document.v2.json', import.meta.url))
 
-/** The same disposable-stack gate `canonical-evidence-lifecycle.spec.ts` uses. */
+/** The disposable-stack gate the deterministic stack specs share. */
 const withoutDatabase =
   !process.env.EXTRACTION_TEST_DATABASE_URL ||
   process.env.DATABASE_URL !== process.env.EXTRACTION_TEST_DATABASE_URL

@@ -456,7 +456,7 @@ function fakeDatabase(
   })
   return {
     tables,
-    orm: {...orm,extraction_runtime:{Head:collection('Head'),ArtifactReference:collection('ArtifactReference')}},
+    orm: {...orm,extraction_runtime:new Proxy({},{get:(_target,table:string)=>collection(table)})},
     transaction: async <T>(
       run: (tx: {
         orm: typeof orm
@@ -734,20 +734,31 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
         id: '51000000-0000-4000-8006-000000000001',
         sourceDocumentId: DOCUMENT,
         sourceRepresentationRevisionId: currentRepresentation,
-        outcome: 'SUCCEEDED',
+        batchExtractionId: null,
         createdAt: new Date('2026-08-03T10:00:00Z'),
-        reviewedAt: null,
       },
-      // An admitted Extraction without an outcome has extracted nothing yet.
+      // A durable Extraction that is still processing has not completed an extraction yet.
       {
         id: '51000000-0000-4000-8006-000000000002',
         sourceDocumentId: DOCUMENT,
         sourceRepresentationRevisionId: representations[0].id,
-        outcome: null,
+        batchExtractionId: null,
         createdAt: new Date('2026-08-03T11:00:00Z'),
-        reviewedAt: null,
+      },
+      // A public row without a live durable head is no Extraction a summary counts.
+      {
+        id: '51000000-0000-4000-8006-000000000003',
+        sourceDocumentId: DOCUMENT,
+        sourceRepresentationRevisionId: currentRepresentation,
+        batchExtractionId: null,
+        createdAt: new Date('2026-08-03T12:00:00Z'),
       },
     ]
+    database.tables.Head = [
+      { id: '51000000-0000-4000-8006-000000000001', acknowledgement: 'COMPLETED', deleted: false },
+      { id: '51000000-0000-4000-8006-000000000002', acknowledgement: 'RUNNING', deleted: false },
+    ]
+    database.tables.Finalization = []
     const extracted = await store.listProjectContexts(20)
     const extractedSummary = extracted.find(
       (item) => item.projectContextId === PROJECT,
@@ -762,8 +773,8 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       new Date('2026-08-03T10:00:00Z'),
     )
 
-    // Review moves the phase to validate and review activity forward.
-    database.tables.Extraction[0].reviewedAt = new Date('2026-08-04T10:00:00Z')
+    // A finalized review of one of its cuts moves the phase to validate and review activity forward.
+    database.tables.Finalization.push({ extractionId: '51000000-0000-4000-8006-000000000001', createdAt: new Date('2026-08-04T10:00:00Z') })
     const reviewed = await store.listProjectContexts(20)
     const reviewedSummary = reviewed.find(
       (item) => item.projectContextId === PROJECT,
@@ -792,41 +803,36 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
-  it('reports the open Batch Extraction with member progress from its Extractions and their DBOS status', async () => {
+  it('reports the open Batch Extraction with member progress from its durable heads, without reading DBOS', async () => {
     const database = fakeDatabase()
-    const statuses = new Map<string, string>()
     const asked: (readonly string[])[] = []
     const store = createResearcherProjectStore(RESEARCHER_A, database as never, {
       workflowStatuses: async (ids) => {
         asked.push(ids)
-        return statuses
+        return new Map()
       },
     })
     const batchId = '51000000-0000-4000-8007-000000000001'
-    const member = (index: number, outcome: string | null) => ({
+    const member = (index: number) => ({
       id: `51000000-0000-4000-8006-00000000010${index}`,
       batchExtractionId: batchId,
-      // The published member is the project's fixture document; the rest stand for other selected documents.
+      // The completed member is the project's fixture document; the rest stand for other selected documents.
       sourceDocumentId: index === 1 ? DOCUMENT : `51000000-0000-4000-8001-00000000010${index}`,
-      outcome,
+      sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
+      createdAt: new Date('2026-08-05T08:30:00Z'),
     })
+    const head = (index: number, acknowledgement: string) => ({ id: member(index).id, acknowledgement, deleted: false })
     database.tables.BatchExtraction = [
       {
         id: batchId,
         projectContextId: PROJECT,
-        createdAt: new Date('2026-08-05T08:00:00Z'),
+        createdAt: new Date('2026-08-05T09:00:00Z'),
       },
     ]
-    database.tables.Extraction = [
-      member(1, 'SUCCEEDED'),
-      member(2, 'FAILED'),
-      member(3, null),
-      member(4, null),
-      member(5, null),
-    ]
-    statuses.set('extract:51000000-0000-4000-8006-000000000103', 'PENDING')
-    statuses.set('extract:51000000-0000-4000-8006-000000000104', 'ENQUEUED')
-    // A member whose workflow is gone (or stopped) without an outcome is interrupted: finished, not running.
+    database.tables.Extraction = [member(1), member(2), member(3), member(4), member(5)]
+    // Completed, failed and stopped members are finished; paused and queued ones are not.
+    database.tables.Head = [head(1, 'COMPLETED'), head(2, 'FAILED'), head(3, 'STOPPED'), head(4, 'PAUSED'), head(5, 'QUEUED')]
+    database.tables.Finalization = []
 
     const running = await store.listProjectContexts(20)
     assert.deepEqual(
@@ -834,13 +840,8 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
         .runningBatch,
       { completedMemberCount: 3, memberCount: 5 },
     )
-    // One status read, for the members without an outcome only.
-    assert.deepEqual(asked, [[
-      'extract:51000000-0000-4000-8006-000000000103',
-      'extract:51000000-0000-4000-8006-000000000104',
-      'extract:51000000-0000-4000-8006-000000000105',
-    ]])
-    // Pending batch members are not published Extractions.
+    assert.deepEqual(asked, [])
+    // Only the completed member is an extracted Source Document.
     assert.equal(
       running.find((item) => item.projectContextId === PROJECT)?.summary
         .extractionCount,
@@ -848,8 +849,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
 
     // A finished batch stops reporting progress but remains activity.
-    database.tables.Extraction[2]!.outcome = 'SUCCEEDED'
-    statuses.set('extract:51000000-0000-4000-8006-000000000104', 'SUCCESS')
+    database.tables.Head = database.tables.Head.map((row) => ({ ...row, acknowledgement: row.acknowledgement === 'PAUSED' || row.acknowledgement === 'QUEUED' ? 'COMPLETED' : row.acknowledgement }))
     const finished = await store.listProjectContexts(20)
     const finishedSummary = finished.find(
       (item) => item.projectContextId === PROJECT,
@@ -857,25 +857,8 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     assert.equal(finishedSummary?.runningBatch, null)
     assert.deepEqual(
       finishedSummary?.lastActivityAt,
-      new Date('2026-08-05T08:00:00Z'),
+      new Date('2026-08-05T09:00:00Z'),
     )
-  })
-
-  it('requires workflow status for an unsettled batch member but lists settled batches without it', async () => {
-    const database = fakeDatabase()
-    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
-    const batchId = '51000000-0000-4000-8007-000000000001'
-    database.tables.BatchExtraction = [
-      { id: batchId, projectContextId: PROJECT, createdAt: new Date('2026-08-05T08:00:00Z') },
-    ]
-    database.tables.Extraction = [
-      { id: '51000000-0000-4000-8006-000000000101', batchExtractionId: batchId, sourceDocumentId: DOCUMENT, outcome: 'CANCELLED' },
-      { id: '51000000-0000-4000-8006-000000000102', batchExtractionId: batchId, sourceDocumentId: OTHER_DOCUMENT, outcome: null },
-    ]
-    await assert.rejects(store.listProjectContexts(20), /given no workflowStatuses/)
-    database.tables.Extraction[1]!.outcome = 'SUCCEEDED'
-    const listed = await store.listProjectContexts(20)
-    assert.equal(listed.find((item) => item.projectContextId === PROJECT)?.summary.runningBatch, null)
   })
 
   it('requires workflow status only while a Batch Schema Suggestion is unsettled', async () => {
@@ -894,6 +877,69 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     assert.equal(settled?.executionStatus, 'FAILED')
   })
 
+  it('counts a finalized stopped or failed Extraction as extracted and reviewed', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    database.tables.SourceRepresentationRevision[0].revisionNumber = 1
+    database.tables.SourceRepresentationRevision[1].revisionNumber = 2
+    database.tables.Extraction = [
+      {
+        id: '51000000-0000-4000-8006-000000000001',
+        sourceDocumentId: DOCUMENT,
+        sourceRepresentationRevisionId: database.tables.SourceRepresentationRevision[1].id,
+        batchExtractionId: null,
+        createdAt: new Date('2026-08-03T10:00:00Z'),
+      },
+    ]
+    database.tables.Head = [{ id: '51000000-0000-4000-8006-000000000001', acknowledgement: 'STOPPED', deleted: false }]
+    database.tables.Finalization = [{ extractionId: '51000000-0000-4000-8006-000000000001', createdAt: new Date('2026-08-04T10:00:00Z') }]
+
+    const summary = (await store.listProjectContexts(20)).find((item) => item.projectContextId === PROJECT)?.summary
+    assert.equal(summary?.phase, 'validate')
+    assert.equal(summary?.reviewedSourceDocumentCount, 1)
+    // Reviewed stays a subset of extracted ("N of M reviewed").
+    assert.equal(summary?.extractionCount, 1)
+    assert.equal(summary?.extractedSourceDocumentCount, 1)
+    assert.deepEqual(summary?.lastActivityAt, new Date('2026-08-04T10:00:00Z'))
+    const kinds = (await store.listRecentActivity(10)).map((event) => event.kind)
+    assert.ok(kinds.includes('review_decisions_stored'))
+    assert.ok(kinds.includes('extraction_appended'))
+
+    // Without a finalization a stopped Extraction is neither extracted nor reviewed.
+    database.tables.Finalization = []
+    const unreviewed = (await store.listProjectContexts(20)).find((item) => item.projectContextId === PROJECT)?.summary
+    assert.equal(unreviewed?.extractedSourceDocumentCount, 0)
+    assert.equal(unreviewed?.reviewedSourceDocumentCount, 0)
+    database.tables.Finalization = [{ extractionId: '51000000-0000-4000-8006-000000000001', createdAt: new Date('2026-08-04T10:00:00Z') }]
+
+    // A tombstoned head is no Extraction, whatever its finalizations.
+    database.tables.Head[0].deleted = true
+    const deleted = (await store.listProjectContexts(20)).find((item) => item.projectContextId === PROJECT)?.summary
+    assert.equal(deleted?.reviewedSourceDocumentCount, 0)
+  })
+
+  it('keeps completed work in extracted totals after Stop or adopting new inputs', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const id = '51000000-0000-4000-8006-000000000001'
+    database.tables.Extraction = [{ id, sourceDocumentId: DOCUMENT,
+      sourceRepresentationRevisionId: database.tables.SourceRepresentationRevision[1].id,
+      batchExtractionId: null, createdAt: new Date('2026-08-03T10:00:00Z') }]
+    database.tables.Attempt = [{ extractionId: id, outcome: 'COMPLETED' }]
+    database.tables.Finalization = []
+    for (const acknowledgement of ['COMPLETED', 'STOPPED', 'PAUSED', 'RUNNING', 'FAILED']) {
+      database.tables.Head = [{ id, acknowledgement, deleted: false }]
+      const summary = (await store.listProjectContexts(20)).find(item => item.projectContextId === PROJECT)?.summary
+      assert.equal(summary?.extractionCount, 1, acknowledgement)
+      assert.equal(summary?.extractedSourceDocumentCount, 1, acknowledgement)
+      assert.equal(summary?.reviewedSourceDocumentCount, 0, acknowledgement)
+      assert.ok((await store.listRecentActivity(10)).some(event => event.kind === 'extraction_appended'), acknowledgement)
+    }
+    database.tables.Head[0].deleted = true
+    const deleted = (await store.listProjectContexts(20)).find(item => item.projectContextId === PROJECT)?.summary
+    assert.equal(deleted?.extractedSourceDocumentCount, 0)
+  })
+
   it('lists persisted activity newest first, bounded, across owned projects only', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
@@ -901,27 +947,30 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       {
         id: '51000000-0000-4000-8006-000000000001',
         sourceDocumentId: DOCUMENT,
-        outcome: 'SUCCEEDED',
+        batchExtractionId: null,
         createdAt: new Date('2026-08-03T10:00:00Z'),
-        reviewedAt: new Date('2026-08-05T10:00:00Z'),
       },
       // A foreign researcher's Extraction never surfaces.
       {
         id: '51000000-0000-4000-8006-000000000002',
         sourceDocumentId: OTHER_DOCUMENT,
-        outcome: 'SUCCEEDED',
+        batchExtractionId: null,
         createdAt: new Date('2026-08-06T10:00:00Z'),
-        reviewedAt: null,
       },
-      // Nor does an admission that has published nothing yet.
+      // Nor does a durable Extraction that has not completed yet.
       {
         id: '51000000-0000-4000-8006-000000000003',
         sourceDocumentId: DOCUMENT,
-        outcome: null,
+        batchExtractionId: null,
         createdAt: new Date('2026-08-07T10:00:00Z'),
-        reviewedAt: null,
       },
     ]
+    database.tables.Head = [
+      { id: '51000000-0000-4000-8006-000000000001', acknowledgement: 'COMPLETED', deleted: false },
+      { id: '51000000-0000-4000-8006-000000000002', acknowledgement: 'COMPLETED', deleted: false },
+      { id: '51000000-0000-4000-8006-000000000003', acknowledgement: 'PAUSED', deleted: false },
+    ]
+    database.tables.Finalization = [{ extractionId: '51000000-0000-4000-8006-000000000001', createdAt: new Date('2026-08-05T10:00:00Z') }]
     database.tables.BatchExtraction = [
       {
         id: '51000000-0000-4000-8007-000000000001',

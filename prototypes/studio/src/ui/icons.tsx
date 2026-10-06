@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import type { ReviewDecision, ReviewDecisionInput } from '../../shared/extraction.contract'
 
 export function PencilIcon({ size = 13 }: { size?: number }) {
   return (
@@ -34,36 +33,6 @@ export function UndoIcon({ size = 13 }: { size?: number }) {
     </svg>
   )
 }
-
-// Explicit streaming states suppress unverified previews. Undefined keeps settled ungrounded previews;
-// the partial view always supplies an explicit state, including for missing metadata (Ruling 8).
-export function StatusDot({ decision, touched, label, tone }: { decision: ReviewDecision | ReviewDecisionInput | undefined; touched: boolean; label: string; tone: 'success' | 'stale' | 'danger' }) {
-  if (!decision) return <span className="w-3.5 shrink-0" />
-  if (!touched) {
-    return (
-      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center" title="Pending review">
-        <span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-line-strong" />
-      </span>
-    )
-  }
-  const timestamp = 'createdAt' in decision
-    ? new Date(decision.createdAt).toLocaleString()
-    : null
-  const toneClass = tone === 'success' ? 'bg-green' : tone === 'stale' ? 'bg-stale' : 'bg-danger'
-  return (
-    <span
-      className="flex h-3.5 w-3.5 shrink-0 items-center justify-center"
-      title={timestamp ? `${label} · ${timestamp}` : label}
-    >
-      <span className={`flex h-2.5 w-2.5 items-center justify-center rounded-full text-white ${toneClass}`}>
-        {tone === 'success' && <CheckIcon size={7} />}
-        {tone === 'stale' && <PencilIcon size={6} />}
-        {tone === 'danger' && <XIcon size={7} />}
-      </span>
-    </span>
-  )
-}
-
 
 /** A 16px stroke glyph in the current colour (the rail's glyphs, results review redesign §1). */
 function Glyph({ children, className = '', strokeWidth = 1.6 }: { children: ReactNode; className?: string; strokeWidth?: number }) {

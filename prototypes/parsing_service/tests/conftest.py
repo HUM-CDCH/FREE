@@ -100,6 +100,12 @@ def database(postgres: str) -> Iterator[str]:
 
 
 @pytest.fixture
+def coordination_database(database: str) -> Iterator[str]:
+    """A migrated database URL for a real worker, using its own restricted role."""
+    yield from postgres_helper.coordinated(database)
+
+
+@pytest.fixture
 def kei(database: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """kei's DBOS worker in this process on a fresh database (tests/helpers/kei.py). Release every blocked step
     before the test ends: DBOS.destroy() does not wait for step threads."""

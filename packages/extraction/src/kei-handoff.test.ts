@@ -33,18 +33,8 @@ function fakeClient(rows: Row[] = []) {
 test('every contract fixture parses with Studio\'s schema and round-trips', () => {
   const convertRequest = fixture('convert.input').request
   assert.deepEqual(handoff.keiConvertInputSchema.parse(convertRequest), convertRequest)
-  const fixtureRequest = fixture('extract.input').request
-  // Studio always sends the pinned revision's record scope beside the tree. A fixture request without one (which the
-  // service would derive from its strategy) gains the scope its strategy names; Studio's schema refuses it bare.
-  const extractRequest = { ...fixtureRequest, request: { ...fixtureRequest.request,
-    schema: { recordScope: fixtureRequest.request.options.strategy === 'article' ? 'document' : 'records', ...fixtureRequest.request.schema } } }
-  assert.deepEqual(handoff.keiExtractInputSchema.parse(extractRequest), extractRequest)
-  const { recordScope: _, ...bare } = extractRequest.request.schema
-  assert.equal(handoff.keiExtractInputSchema.safeParse({ ...extractRequest, request: { ...extractRequest.request, schema: bare } }).success, false)
   assert.deepEqual(handoff.keiConvertOkSchema.parse(fixture('convert.output.ok')), fixture('convert.output.ok'))
-  assert.deepEqual(handoff.keiExtractOkSchema.parse(fixture('extract.output.ok')), fixture('extract.output.ok'))
   assert.deepEqual(handoff.keiFailureSchema.parse(fixture('convert.output.failed')), fixture('convert.output.failed'))
-  assert.deepEqual(handoff.keiFailureSchema.parse(fixture('extract.output.failed')), fixture('extract.output.failed'))
 })
 
 test('ConvertOk has at least one page and a named generation, as kei\'s contract bounds them', () => {
@@ -62,7 +52,9 @@ test('Studio\'s lanes, priorities, prefixes and small-document threshold are the
   assert.equal(queues.application_name, handoff.KEI_APPLICATION)
   assert.deepEqual(Object.keys(queues.queues).sort(), Object.values(handoff.KEI_QUEUE).sort())
   assert.equal(queues.workflow_id_prefixes.convert, handoff.keiConvertWorkflowId(''))
-  assert.equal(queues.workflow_id_prefixes.extract, handoff.keiExtractWorkflowId(''))
+  // Durable Extraction attempts (`kei-durable:`) run on kei-extract; Studio submits no other kei extraction workflow.
+  assert.deepEqual(Object.keys(queues.workflow_id_prefixes).sort(), ['convert', 'deleteRuns'])
+  assert.equal(queues.workflow_id_prefixes.deleteRuns, handoff.GC_PREFIX)
   const convert = fixture('convert.input')
   assert.equal(convert.enqueue.priority, handoff.CONVERSION_PRIORITY)
   assert.equal(
@@ -70,9 +62,6 @@ test('Studio\'s lanes, priorities, prefixes and small-document threshold are the
     handoff.keiConvertWorkflowId('ingest:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222'),
   )
   assert.equal(convert.enqueue.application_name, handoff.KEI_APPLICATION)
-  const extract = fixture('extract.input')
-  assert.equal(extract.enqueue.workflow_id, handoff.keiExtractWorkflowId('33333333-3333-4333-8333-333333333333'))
-  assert.equal(extract.enqueue.queue_name, handoff.KEI_QUEUE.extract)
 })
 
 test('the conversion budget is deadlines.json\'s formula at every listed page count', () => {
@@ -83,14 +72,6 @@ test('the conversion budget is deadlines.json\'s formula at every listed page co
   assert.equal(fixture('convert.input').enqueue.workflow_timeout_ms, handoff.conversionTimeoutMs(3))
 })
 
-test('Article and Catalog have three-hour extraction deadlines', () => {
-  const deadlines = fixture('deadlines')
-  assert.deepEqual(handoff.EXTRACTION_TIMEOUT_MS, {
-    ARTICLE: deadlines.extract.article, CATALOG: deadlines.extract.catalog,
-  })
-  assert.equal(fixture('extract.input').enqueue.workflow_timeout_ms, handoff.EXTRACTION_TIMEOUT_MS.CATALOG)
-})
-
 test('30 pages convert on kei-convert-small, 31 and an uncounted PDF on kei-convert-large', () => {
   assert.equal(handoff.conversionLane(1), 'kei-convert-small')
   assert.equal(handoff.conversionLane(30), 'kei-convert-small')
@@ -99,15 +80,13 @@ test('30 pages convert on kei-convert-small, 31 and an uncounted PDF on kei-conv
   assert.equal(fixture('convert.input').enqueue.queue_name, handoff.conversionLane(fixture('convert.output.ok').page_count))
 })
 
-test('run and extraction IDs must fully match one path component', () => {
+test('run IDs must fully match one path component', () => {
   for (const id of ['run-0123456789abcdef01234567', '33333333-3333-4333-8333-333333333333', 'x-1'])
     assert.equal(handoff.KEI_RUN_ID.test(id), true, id)
   for (const id of ['../x', 'a/b', '.hidden', 'x\n', '', 'x y'])
     assert.equal(handoff.KEI_RUN_ID.test(id), false, JSON.stringify(id))
   const ok = fixture('convert.output.ok')
   assert.equal(handoff.keiConvertOkSchema.safeParse({ ...ok, run_id: 'run/../x' }).success, false)
-  const extracted = fixture('extract.output.ok')
-  assert.equal(handoff.keiExtractOkSchema.safeParse({ ...extracted, extraction_id: 'x\n' }).success, false)
 })
 
 test('a finished kei workflow settles by its output; cancelled, errored, exhausted, missing and malformed ones settle as typed failures', () => {
@@ -117,9 +96,6 @@ test('a finished kei workflow settles by its output; cancelled, errored, exhaust
   assert.deepEqual(failed, {
     ok: false, code: 'source_mismatch', reason: fixture('convert.output.failed').reason, retryable: false,
   })
-  const extractFailed = handoff.settleKei({ state: 'SUCCESS', output: fixture('extract.output.failed') }, handoff.keiExtractOkSchema)
-  assert.equal(extractFailed.ok, false)
-  assert.equal(!extractFailed.ok && extractFailed.code, 'stale_generation')
 
   const code = (poll: Parameters<typeof handoff.settleKei>[0]) => {
     const outcome = handoff.settleKei(poll, handoff.keiConvertOkSchema)
@@ -227,22 +203,22 @@ test('a poll reads the child until it is terminal or its window ends, and a canc
 
 test('submit enqueues the child portably by name, as kei\'s application, with its lane, priority, deadline, owner and the parent\'s attributes', async () => {
   const { client, calls } = fakeClient()
-  const request = fixture('extract.input').request
+  const request = fixture('convert.input').request
   const attributes = { projectContextId: 'p' }
   await handoff.createKeiHandoff(client).submit({
-    workflow: 'extract',
-    workflowId: 'kei-extract:x',
-    queueName: handoff.KEI_QUEUE.extract,
-    priority: handoff.KEI_PRIORITY.batch,
-    timeoutMs: handoff.EXTRACTION_TIMEOUT_MS.CATALOG,
+    workflow: 'convert',
+    workflowId: 'kei-convert:x',
+    queueName: handoff.KEI_QUEUE.convertLarge,
+    priority: handoff.CONVERSION_PRIORITY,
+    timeoutMs: handoff.conversionTimeoutMs(40),
     request,
     authenticatedUser: 'owner',
     attributes,
   })
   assert.deepEqual(calls.enqueued, [{
     options: {
-      workflowName: 'extract', queueName: 'kei-extract', workflowID: 'kei-extract:x', priority: 10,
-      workflowTimeoutMS: 10_800_000, applicationName: 'kei', authenticatedUser: 'owner',
+      workflowName: 'convert', queueName: 'kei-convert-large', workflowID: 'kei-convert:x', priority: 1,
+      workflowTimeoutMS: 816_000, applicationName: 'kei', authenticatedUser: 'owner',
       attributes: { projectContextId: 'p' },
     },
     args: [request],
@@ -313,15 +289,6 @@ test('keiRunOf reads kei-exp:<run>:<generation> and nothing else', () => {
   assert.deepEqual(handoff.keiRunOf('kei-exp:a.b_c-d:20260926'), { runId: 'a.b_c-d', generation: '20260926' })
   for (const id of ['kei-exp:run/x:g', 'kei-exp:run:', 'other:run:g', 'kei-exp::g', 'kei-exp:.run:g', 'kei-exp:run:g\n', 'kei-exp:run:g h', 'kei-exp:run'])
     assert.equal(handoff.keiRunOf(id), null, JSON.stringify(id))
-})
-
-test('an Extraction\'s Studio workflow is extract:<id>, and only such an ID names an Extraction', () => {
-  const id = '51000000-0000-4000-8000-000000000001'
-  assert.equal(handoff.STUDIO_EXTRACT_PREFIX, 'extract:')
-  assert.equal(handoff.extractWorkflowId(id), `extract:${id}`)
-  assert.equal(handoff.extractionIdOfWorkflow(handoff.extractWorkflowId(id)), id)
-  for (const other of [`kei-extract:${id}`, `suggest:${id}:1`, `reprocess:${id}:k`, 'extract:', `extract:${id}:1`, `xextract:${id}`])
-    assert.equal(handoff.extractionIdOfWorkflow(other), null, other)
 })
 
 test('keiGcWorkflowId names the schedule\'s instant', () => {

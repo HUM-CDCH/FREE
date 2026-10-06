@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { ExtractionError } from './errors.js'
-import { KEI_RUN_ID } from './kei-handoff.js'
 
 /** `GET /api/extraction-models` (kei-exp `api.py` `list_extraction_models`). */
 const modelListingSchema = z.object({
@@ -34,30 +33,15 @@ async function httpFailure(response: Response): Promise<string> {
   return `kei-exp returned HTTP ${response.status}: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`
 }
 
-export type {
-  KeiExpAnyArtifact, KeiExpArtifact, KeiExpCall, KeiExpEvidence, KeiExpGroundedArtifact, KeiExpGroundedEvidence,
-} from './kei-artifact.js'
 export type KeiExpModelListing = z.infer<typeof modelListingSchema>
 export type KeiExpIngestionModelListing = z.infer<typeof ingestionListingSchema>
 export interface KeiExpClient {
-  /** `GET /api/runs/{run}/extractions/{id}`: the artifact kei published, byte for byte (file-only since M3; 404 until
-   *  then). A server failure or a timeout is transient (ARTIFACT_READ_RETRY reads again); any other refusal is an
-   *  ExtractionError the Extraction fails with. */
-  readExtractionArtifact(runId: string, extractionId: string, signal?: AbortSignal): Promise<Uint8Array>
-  /** `GET /api/runs/{run}/extractions/{id}/progress` (kei-exp `api.py` `run_extraction_progress`): the progress document
-   *  of a running Extraction, or null while kei has published no stage of it (404) or the ids are outside kei's path
-   *  component. The read waits at most PROGRESS_TIMEOUT_MS; a slow or unreachable kei and a server failure throw a
-   *  transient error, and the caller shows no partial view (design §5). The document is validated by the caller. */
-  readExtractionProgress(runId: string, extractionId: string, signal?: AbortSignal): Promise<unknown | null>
   /** The extraction models kei-exp's deployment serves, the roles each may take, and its default per role. */
   listModels(signal?: AbortSignal): Promise<KeiExpModelListing>
   /** The OCR and layout models a new parse may run on, whether kei-exp's OCR server serves each now, and the default
    *  per role. */
   listIngestionModels(signal?: AbortSignal): Promise<KeiExpIngestionModelListing>
 }
-
-/** The two seconds a status read may wait for kei's progress: the client polls every two seconds. */
-export const PROGRESS_TIMEOUT_MS = 2_000
 
 export function createKeiExpClient({
   url,
@@ -90,55 +74,5 @@ export function createKeiExpClient({
   return {
     listModels: (signal) => readListing('/api/extraction-models', modelListingSchema, 'extraction model', signal),
     listIngestionModels: (signal) => readListing('/api/ingestion-models', ingestionListingSchema, 'ingestion model', signal),
-    async readExtractionArtifact(runId, extractionId, signal) {
-      if (!KEI_RUN_ID.test(runId) || !KEI_RUN_ID.test(extractionId))
-        throw new ExtractionError('invalid_model_output', 'kei-exp named an invalid run or extraction.')
-      let response: Response
-      try {
-        response = await fetchRequest(`${root}/api/runs/${runId}/extractions/${extractionId}`, {
-          method: 'GET', signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(30_000)]),
-        })
-      } catch (error) {
-        signal?.throwIfAborted()
-        // Unreachable or slow: kei's API may be restarting, so the read is tried again.
-        throw Object.assign(new Error('kei-exp could not be reached to read the extraction artifact.', { cause: error }), { transient: true })
-      }
-      if (response.status >= 500) throw Object.assign(new Error(await httpFailure(response)), { transient: true })
-      // kei answered SUCCESS with this artifact's hash, so a missing file will not appear later.
-      if (response.status === 404) {
-        await response.body?.cancel()
-        throw new ExtractionError('extraction_failed', 'kei-exp has no published artifact for this Extraction.')
-      }
-      if (!response.ok) throw new ExtractionError('invalid_model_output', await httpFailure(response))
-      return new Uint8Array(await response.arrayBuffer())
-    },
-    async readExtractionProgress(runId, extractionId, signal) {
-      if (!KEI_RUN_ID.test(runId) || !KEI_RUN_ID.test(extractionId)) return null
-      // A request or a body that fails, stalls past the timeout or is cut off is a transport failure: transient. The
-      // caller's own abort rejects with its reason.
-      const unreachable = (error: unknown) => {
-        signal?.throwIfAborted()
-        return Object.assign(new Error('kei-exp could not be reached to read the extraction progress.', { cause: error }), { transient: true })
-      }
-      let response: Response
-      try {
-        response = await fetchRequest(`${root}/api/runs/${runId}/extractions/${extractionId}/progress`, {
-          method: 'GET', signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(PROGRESS_TIMEOUT_MS)]),
-        })
-      } catch (error) {
-        throw unreachable(error)
-      }
-      if (response.status === 404) {
-        await response.body?.cancel()
-        return null
-      }
-      if (!response.ok) throw Object.assign(new Error(await httpFailure(response)), { transient: true })
-      let text: string
-      try { text = await response.text() }
-      catch (error) { throw unreachable(error) }
-      // A body that arrived but is not JSON is refused as the artifact read's is.
-      try { return JSON.parse(text) as unknown }
-      catch (error) { throw new ExtractionError('invalid_model_output', 'kei-exp returned invalid JSON.', { cause: error }) }
-    },
   }
 }

@@ -8,7 +8,7 @@ model {
     candidates = component 'Candidate selection' 'Article: every canonical anchor of the Source Representation. Catalog: only the anchors inside the record slice.' 'TypeScript'
     linking = component 'Evidence linking' '`groundExtraction`: one claim per populated value; the pinned model selects one candidate anchor per claim, or none. No score and no threshold.' 'TypeScript'
     lexical_check = component 'Lexical check' '`lexical.ts`: `verbatim` and `lexicalHits` on each Evidence link, computed without a model. A reviewer doubt, never an acceptance.' 'TypeScript'
-    review = component 'Review recording' '`recordReview`: validates each Review Decision against the persisted Evidence and appends a versioned ExtractionReview.' 'TypeScript'
+    review = component 'Correction recording' 'The durable repository appends each whole-field correction of a stable saved value against its revision; correction Evidence is optional and source-checked.' 'TypeScript'
 
     candidates -> linking 'Gives the batch its candidate anchors'
     linking -> lexical_check 'Checks each proposed link against the same candidates'
@@ -55,7 +55,7 @@ views {
   }
 
   dynamic view evidence_linking_vs_validation {
-    title 'From extracted values to Review Decisions — current'
+    title 'From extracted values to saved corrections — current'
     description '''
       The linking step ends when the Evidence links and their two lexical
       doubts are persisted. The validation step starts when the researcher
@@ -70,9 +70,9 @@ views {
     studio.extraction_module.lexical_check -> project_db 'Persist the Evidence links with verbatim and lexicalHits'
     studio.handlers -> studio.ui 'Show Results; flag "Value not found in the linked passage" and "Value also appears in N other passages"'
     researcher -> studio.ui 'Approve, edit, or reject each value; open the linked passage'
-    studio.ui -> studio.handlers 'POST /api/extractions/:id/reviews'
-    studio.handlers -> studio.extraction_module.review 'Record the Review Decisions'
-    studio.extraction_module.review -> project_db 'Create the versioned ExtractionReview and its Review Decisions'
+    studio.ui -> studio.handlers 'POST /api/extractions/:id/durable/values/:valueId'
+    studio.handlers -> studio.extraction_module.review 'Save the correction against its revision'
+    studio.extraction_module.review -> project_db 'Append the correction; earlier ones stay history'
   }
 
   view grounding_lab_policies of grounding_lab {

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { durableValueSchema } from './durable-contract.js'
 
@@ -15,4 +16,14 @@ test('retained model Evidence preserves leaf attribution and rejects a different
   assert.equal(durableValueSchema.safeParse({...value,evidence:[{...value.evidence[0],anchorId:'a_p2_s1'}]}).success,false)
   assert.equal(durableValueSchema.safeParse({...value,evidence:[{...value.evidence[0],producer:{...producer,path:['records',1,'work','title']}}]}).success,false)
   assert.equal(durableValueSchema.safeParse({...value,evidence:[{anchorId:'a_p1_s1',occurrenceIds:[]}]}).success,false)
+})
+
+test('Python version-3 producer Evidence satisfies the durable producer contract', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../../../prototypes/parsing_service/tests/fixtures/contracts/extract.result.v3.json', import.meta.url), 'utf8'))
+  assert.ok(fixture.artifact.evidence.length > 0)
+  for (const link of fixture.artifact.evidence) {
+    const producer = durableValueSchema.shape.evidence.element.shape.producer.parse(link)
+    assert.deepEqual(producer.path, link.path)
+    assert.equal(producer.segment, link.segment)
+  }
 })

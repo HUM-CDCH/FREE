@@ -10,5 +10,5 @@
   },
   "priorities": {"interactive": 1, "batch": 10},
   "small_document_pages": 30,
-  "workflow_id_prefixes": {"convert": "kei-convert:", "extract": "kei-extract:", "deleteRuns": "kei-gc:"}
+  "workflow_id_prefixes": {"convert": "kei-convert:", "deleteRuns": "kei-gc:"}
 }

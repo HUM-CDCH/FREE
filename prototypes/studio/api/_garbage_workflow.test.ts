@@ -10,7 +10,7 @@ const SCHEDULED = new Date(NOW)
 const emptyScopes = {
   projectContexts: new Set<string>(), sourceDocuments: new Set<string>(),
   sourceRepresentationRevisions: new Set<string>(), extractionSchemas: new Set<string>(),
-  suggestions: new Map(), extractions: new Map(),
+  suggestions: new Map(),
 }
 
 function fakePorts(studioRows: WorkflowRow[] = [], keiRows: WorkflowRow[] = []) {
@@ -68,6 +68,38 @@ function fakePorts(studioRows: WorkflowRow[] = [], keiRows: WorkflowRow[] = []) 
 }
 
 describe('collectGarbage', () => {
+  it('repairs orphaned ingest/reprocess work through each application client', async () => {
+    const project='51000000-0000-4000-8000-000000000001'
+    const ingest=`ingest:${project}:52000000-0000-4000-8000-000000000001`
+    const reprocess='reprocess:53000000-0000-4000-8000-000000000001:54000000-0000-4000-8000-000000000001'
+    const orphan=`kei-convert:ingest:${project}:55000000-0000-4000-8000-000000000001`
+    const children=[`kei-convert:${ingest}`,`kei-convert:${reprocess}`,orphan]
+    const fake=fakePorts([
+      {workflowID:ingest,status:'PENDING',attributes:{projectContextId:project},updatedAt:NOW},
+      {workflowID:reprocess,status:'ENQUEUED',attributes:{projectContextId:project},updatedAt:NOW},
+    ],children.map(workflowID=>({workflowID,status:'PENDING',updatedAt:NOW})))
+    const repaired=await repairCancellations(fake.ports)
+    expect(repaired).toEqual({studio:[ingest,reprocess].sort(),kei:children.sort()})
+    expect(fake.studio.cancelWorkflow.mock.calls.map(([id])=>id)).toEqual([ingest,reprocess].sort())
+    expect(fake.kei.cancelWorkflow.mock.calls.map(([id])=>id)).toEqual(children)
+    expect(fake.studio.cancelWorkflow.mock.calls.flat()).not.toContain(orphan)
+  })
+
+  it('collects a deleted project\'s young settled ingestion history and names its conversion', async () => {
+    const project='51000000-0000-4000-8000-000000000001'
+    const ingest=`ingest:${project}:52000000-0000-4000-8000-000000000001`
+    const conversion=`kei-convert:${ingest}`
+    const fake=fakePorts([
+      {workflowID:ingest,status:'SUCCESS',updatedAt:NOW-100,completedAt:NOW-100,
+        attributes:{projectContextId:project}},
+    ],[{workflowID:conversion,status:'SUCCESS',updatedAt:NOW-100,completedAt:NOW-100}])
+    expect(await collectStudioHistory(fake.ports,NOW)).toBe(1)
+    expect(fake.studio.deleteWorkflows).toHaveBeenCalledWith([ingest])
+    expect(await collectKei(fake.ports,NOW,'kei-gc:deleted-project')).toEqual({conversions:[conversion],history:[]})
+    expect(fake.keiHandoff.requestDeleteRuns).toHaveBeenCalledWith('kei-gc:deleted-project',
+      {conversions:[conversion],history:[]})
+  })
+
   it('reads the clock once and runs the five named phases in order', async () => {
     const fake = fakePorts()
     const result = await collectGarbageWorkflow(SCHEDULED, fake.ports)
@@ -85,6 +117,7 @@ describe('collectGarbage', () => {
   it('fails closed on reference errors, logs only the error class, and continues file phases', async () => {
     const fake = fakePorts()
     fake.references.scopes.mockRejectedValue(new Error('postgresql://u:secret@h/db'))
+    fake.references.referencedPreprocessIds.mockRejectedValue(new Error('postgresql://u:secret@h/db'))
     const result = await collectGarbageWorkflow(SCHEDULED, fake.ports)
     expect(result.failedPhases).toEqual(['repairCancellations', 'studioHistory', 'keiRunsAndHistory'])
     expect(fake.studio.cancelWorkflow).not.toHaveBeenCalled()
@@ -117,14 +150,15 @@ describe('collectGarbage', () => {
     const request = await collectKei(fake.ports, NOW, 'kei-gc:2026-09-26T12:00:00.000Z')
     expect(request).toEqual({ conversions: [conversionId], history: [] })
     expect(fake.keiHandoff.requestDeleteRuns).toHaveBeenCalledOnce()
-    expect(fake.calls.slice(0, 5)).toEqual([
-      'kei:list', 'studio:list', 'studio:list', 'references:preprocess', 'references:scopes',
-    ])
-    expect(fake.calls.at(-1)).toBe('kei:deleteRuns')
+    expect(fake.calls).toEqual(['kei:list', 'studio:list', 'references:preprocess', 'kei:deleteRuns'])
+    // Durable Extraction workflows are collected with their graph, never listed here.
+    expect(fake.kei.listWorkflows).toHaveBeenCalledWith({
+      workflowName: ['convert', 'deleteRuns', 'deleteDurableHistoryV1'], loadInput: false, loadOutput: true,
+    })
   })
 
   it('reads every repair dependency before cancelling and rechecks a planned cancellation', async () => {
-    const id = 'extract:51000000-0000-4000-8000-000000000001'
+    const id = 'suggest:51000000-0000-4000-8000-000000000001:1'
     const fake = fakePorts([{ workflowID: id, status: 'PENDING' }])
     fake.studio.listWorkflows.mockImplementation(async (query: Record<string, unknown>) => {
       fake.calls.push('studio:list')
@@ -134,12 +168,15 @@ describe('collectGarbage', () => {
     expect(result).toEqual({ studio: [], kei: [] })
     expect(fake.studio.cancelWorkflow).not.toHaveBeenCalled()
     expect(fake.calls.indexOf('references:scopes')).toBeLessThan(fake.calls.lastIndexOf('studio:list'))
+    expect(fake.kei.listWorkflows).toHaveBeenCalledWith({
+      workflowName: ['convert'], status: ['ENQUEUED', 'DELAYED', 'PENDING'], loadInput: false, loadOutput: false,
+    })
   })
 
   it('deletes at most 100 Studio histories per database call', async () => {
     const old = NOW - 31 * 24 * 3600_000
     const rows = Array.from({ length: 205 }, (_, i) => ({
-      workflowID: `extract:${i.toString(16).padStart(8, '0')}-0000-4000-8000-000000000001`,
+      workflowID: `ingest:51000000-0000-4000-8000-000000000001:${i.toString(16).padStart(8, '0')}-0000-4000-8000-000000000001`,
       status: 'SUCCESS', completedAt: old, updatedAt: old,
     }))
     const fake = fakePorts(rows)

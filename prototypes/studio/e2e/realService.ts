@@ -234,9 +234,6 @@ export async function startRealService(logFile: string,
     KEI_RUNS: runs,
     KEI_SOURCE_INBOX: inbox,
     KEI_SLOT: 'free-service-e2e',
-    // Initialize the restricted coordination reader/writer for seeded native
-    // fixtures without enabling Studio's production admission gate.
-    FREE_DURABLE_EXTRACTION_COORDINATION: '1',
     // No OCR server unless a real run names one: a scanned page then fails its ingestion explicitly.
     KEI_VLLM_URL: (process.env.FREE_REAL_EXTRACT_URL && process.env.FREE_REAL_OCR_URL) || 'http://127.0.0.1:1/v1/chat/completions',
     KEI_EXTRACT_URL: realUrl ?? fixture!.url,
@@ -339,7 +336,6 @@ export async function startRealService(logFile: string,
     studioWorkflows: (prefix: string) => studioClient.listWorkflows({
       workflow_id_prefix: prefix, loadInput: false, loadOutput: true,
     }),
-    cancelKeiWorkflow: (id: string) => keiClient.cancelWorkflow(id),
     collectGarbage: async (): Promise<GarbageSummary> =>
       (await studioClient.triggerSchedule('collectGarbage')).getResult() as Promise<GarbageSummary>,
     reconcileDurable: async () => (await studioClient.triggerSchedule('reconcileDurableExtractions')).getResult(),
@@ -364,9 +360,6 @@ export async function startRealService(logFile: string,
         return orphans
       } finally { await client.end() }
     },
-    keiExtractStepFinished: async (workflowID: string) =>
-      (await keiClient.listWorkflowSteps(workflowID))?.some((step) =>
-        step.name === 'extract_run' && step.completedAtEpochMs !== undefined) ?? false,
     async restart() { await Promise.all([stop(api), stop(worker)]); await boot() },
     async killWorker() { const running = worker; if (!running) throw new Error('Worker is not running.')
       running.child.kill('SIGKILL'); await running.exited

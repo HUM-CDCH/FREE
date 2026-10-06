@@ -4,9 +4,7 @@ import {
   batchExtractionListResponseSchema,
   batchExtractionOpenResponseSchema,
   batchExtractionResponseSchema,
-  batchExtractionResultsResponseSchema,
   type BatchExtraction,
-  type BatchExtractionResults,
 } from '../../shared/batchExtraction.contract'
 import {
   batchSchemaSuggestionErrorResponseSchema,
@@ -132,23 +130,6 @@ export async function getBatchExtraction(
   return batchExtractionResponseSchema.parse(
     await read(`/api/batch-extractions/${batchExtractionId}?${query}`, { signal }),
   ).batchExtraction
-}
-
-/**
- * The Extraction Results this Batch Extraction has produced, in member order.
- * Members without a result are absent, so the export never invents empty rows.
- */
-export async function getBatchExtractionResults(
-  projectContextId: string,
-  batchExtractionId: string,
-  signal?: AbortSignal,
-): Promise<BatchExtractionResults> {
-  const query = new URLSearchParams({ projectContextId })
-  return batchExtractionResultsResponseSchema.parse(
-    await read(`/api/batch-extractions/${batchExtractionId}/results?${query}`, {
-      signal,
-    }),
-  )
 }
 
 export async function createBatchSchemaSuggestion(

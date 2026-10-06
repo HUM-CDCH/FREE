@@ -1,5 +1,6 @@
-"""kei `deleteRuns`: a run goes only when every kei workflow that writes it can no longer write (spec, *kei runs and
-history*, *kei boot boundary*)."""
+"""kei `deleteRuns`: a run goes only when the conversion that writes it can no longer write (spec, *kei runs and
+history*, *kei boot boundary*). Durable Extraction attempts only read runs; Studio's head pins keep those runs out of
+the request."""
 import hashlib
 import itertools
 import os
@@ -12,7 +13,7 @@ from dbos import DBOS
 
 from kei_exp import runs
 from kei_exp.kie import runner
-from kei_exp.workflows import boot, cancel, config, contracts, gc
+from kei_exp.workflows import boot, cancel, config, contracts, durable_extract, gc
 from tests.helpers import kei as kei_helper
 from tests.helpers.pdfs import mask
 
@@ -76,21 +77,23 @@ def restart(kei):
     boot.set_timestamp(kei.db_now_ms())
 
 
-def settled_extraction(kei, workflow_id):
-    """A `kei-extract:` workflow that has ended: its input names no run, so it fails validation at once."""
-    assert kei.output(kei.enqueue("extract", config.EXTRACT, workflow_id, {"run_id": "run-none"}, priority=1))[
-        "code"] == "invalid_request"
+def settled_sweep(kei):
+    """A `kei-gc:` workflow that has ended: an empty deleteRuns."""
+    workflow_id = enqueue_delete(kei)
+    kei.output(workflow_id)
     return workflow_id
 
 
-def scripted_extractions(monkeypatch):
-    """Extractions answer from an honest chat double; one the returned gate holds stays inside its first call."""
-    from kei_exp.kie.extract import tokens
-    from kei_exp.workflows import extract as extract_workflow
-    from tests.test_extract_grounded import CountingChat, WordCounter, honest
+def held_attempt(kei, monkeypatch, workflow_id):
+    """A live durable attempt held inside its planning (no coordination database: it plans no call and acknowledges
+    a boundary once released); returns the gate."""
     gate = kei_helper.Gate()
-    monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(lambda *a: gate() or honest(*a)))
-    monkeypatch.setattr(tokens, "counter_for", lambda client: WordCounter())
+    monkeypatch.setattr(durable_extract, "plan_next", lambda extraction, attempt: gate() or {"boundary": True})
+    monkeypatch.setattr(durable_extract, "acknowledge", lambda extraction, attempt, complete, failure: "PAUSED")
+    gate.hold(workflow_id)
+    kei.enqueue("extractDurableV1", config.EXTRACT, workflow_id,
+                {"protocol": 1, "extraction_id": workflow_id, "attempt_id": workflow_id}, priority=1)
+    kei_helper.until(lambda: workflow_id in gate.entered, 30, "the live attempt")
     return gate
 
 
@@ -166,56 +169,10 @@ def test_a_run_with_a_cancelled_conversion_waits_for_a_kei_restart(kei, fake, co
     assert not (kei.runs / run_id).exists() and DBOS.get_workflow_status(workflow_id) is None
 
 
-def test_a_run_an_unfinished_extraction_reads_is_kept(kei, monkeypatch):
-    """Cancelled mid-extraction, before it published anything under extractions/: nothing in the run names it, yet
-    the boot boundary still protects the run (review focus 4)."""
-    from kei_exp.workflows import extract as extract_workflow
-    monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
-    gate, extraction_id, ended = scripted_extractions(monkeypatch), "kei-extract:x-9", []
-    gate.hold(extraction_id)
-    original = extract_workflow.extract
-
-    def extract(*args, **kwargs):
-        try:
-            return original(*args, **kwargs)
-        finally:
-            ended.append(True)
-    monkeypatch.setattr(extract_workflow, "extract", extract)
-    conversion = "kei-convert:ingest:p:c"
-    run_id = kei_helper.converted_run(kei.runs, conversion)
-    kei.enqueue("extract", config.EXTRACT, extraction_id,
-                kei_helper.extract_request(run_id, "20260923T000000.000000Z-fixture0"), priority=1)
-    kei_helper.until(lambda: extraction_id in gate.entered, 30, "the extraction's first call")
-    age(kei.runs / run_id)  # after it published the segmentation, so only the extraction can keep the run
-    published = kei.runs / run_id / "extractions"
-    try:
-        assert not published.exists()  # nothing under the run names this extraction
-        assert delete(kei, [conversion])["kept_runs"] == [run_id]   # live
-        DBOS.cancel_workflow(extraction_id)
-        assert delete(kei, [conversion])["kept_runs"] == [run_id]   # cancelled after boot, step still in its call
-    finally:
-        gate.release_all()
-    kei_helper.until(lambda: ended, 30, "the cancelled extraction returning")
-    assert kei.wait(extraction_id).status == "CANCELLED"
-    assert not published.exists()  # it stopped at its next entry check and published nothing
-    age(kei.runs / run_id)
-    restart(kei)  # the restart that proves the step has stopped
-    assert delete(kei, [conversion])["deleted_runs"] == [run_id]
-
-
 def test_history_goes_only_for_workflows_that_can_no_longer_write(kei, monkeypatch):
-    from tests.helpers import catalogue
-    gate = scripted_extractions(monkeypatch)
-    run_id = kei_helper.converted_run(kei.runs, "kei-convert:ingest:p:d")
-    done, live = "kei-extract:d-1", "kei-extract:e-1"
-    kei.output(kei.enqueue("extract", config.EXTRACT, done, kei_helper.extract_request(run_id, catalogue.GENERATION),
-                           priority=1))
-    swept = enqueue_delete(kei)
-    kei.output(swept)
-    gate.hold(live)
-    kei.enqueue("extract", config.EXTRACT, live, kei_helper.extract_request(run_id, catalogue.GENERATION), priority=1)
+    done, swept, live = settled_sweep(kei), settled_sweep(kei), "kei-durable:h-1:a-1"
+    gate = held_attempt(kei, monkeypatch, live)
     try:
-        kei_helper.until(lambda: live in gate.entered, 30, "the live extraction's first call")
         output = delete(kei, history=[done, live, swept])
         assert (output["deleted_history"], output["kept_history"]) == ([done, swept], [live])
         assert output["deleted_runs"] == output["kept_runs"] == []  # history names no run
@@ -267,13 +224,13 @@ def test_prepare_leftovers_go_once_their_conversion_can_no_longer_write(kei, fak
     assert left() == ["live"]  # never a live conversion's staging
 
 
-@pytest.mark.parametrize("read", ["convert", "extract", "statuses"])
+@pytest.mark.parametrize("read", ["convert", "statuses"])
 def test_a_failed_status_read_deletes_nothing(kei, fake, monkeypatch, read):
     """Whichever read fails, neither the eligible run, nor the leftover staging, nor the eligible history goes."""
     conversion = converted(kei, "kei-convert:ingest:p:l")
     run_id = kei.output(conversion)["run_id"]
     age(kei.runs / run_id)
-    finished = settled_extraction(kei, "kei-extract:m-1")
+    finished = settled_sweep(kei)
     leftover = staging(kei, "kei-convert:ingest:p:gone")
     original, reads = DBOS.list_workflows, []
 
@@ -349,34 +306,17 @@ def test_a_run_that_cannot_be_removed_is_kept_and_stops_nothing_else(kei, fake, 
 
 
 def test_a_history_id_named_twice_is_deleted_once(kei):
-    done = settled_extraction(kei, "kei-extract:t-1")
+    done = settled_sweep(kei)
     output = delete(kei, history=[done, done])
     assert (output["deleted_history"], output["kept_history"]) == ([done], [])
     assert DBOS.get_workflow_status(done) is None
 
 
-def test_a_published_extraction_is_one_of_the_runs_writers(kei, monkeypatch):
-    """extractions/<id>/ names its workflow, even once the `extract` listing no longer names the run."""
-    from kei_exp.kie.extract import tokens
-    from kei_exp.workflows import extract as extract_workflow
-    from tests.helpers import catalogue
-    from tests.test_extract_grounded import CountingChat, WordCounter, honest
-    monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(honest))
-    monkeypatch.setattr(tokens, "counter_for", lambda client: WordCounter())
-    conversion = "kei-convert:ingest:p:o"
-    run_id = kei_helper.converted_run(kei.runs, conversion)
-    extraction_id = "kei-extract:x-5"
-    kei.output(kei.enqueue("extract", config.EXTRACT, extraction_id,
-                           kei_helper.extract_request(run_id, catalogue.GENERATION), priority=1))
-    assert (kei.runs / run_id / "extractions" / "x-5" / "result.json").is_file()
-    monkeypatch.setattr(gc, "_still_extracting", lambda boot_ms: set())  # only the published directory remains
-    with psycopg.connect(kei.url, autocommit=True) as connection:  # as if cancelled in this boot while publishing
-        connection.execute("update kei_dbos.workflow_status set status = 'CANCELLED', updated_at = %s "
-                           "where workflow_uuid = %s", (kei.db_now_ms(), extraction_id))
-    age(kei.runs / run_id)
-    assert delete(kei, [conversion])["kept_runs"] == [run_id]
-    restart(kei)
-    assert delete(kei, [conversion])["deleted_runs"] == [run_id]
+def test_an_extractions_directory_names_no_writer(tmp_path):
+    """Only the conversion writes a run: nothing under extractions/ keeps it."""
+    (tmp_path / "params.json").write_text('{"workflow_id": "kei-convert:ingest:p:o"}', encoding="utf-8")
+    (tmp_path / "extractions" / "x-5").mkdir(parents=True)
+    assert gc._writers(tmp_path) == ["kei-convert:ingest:p:o"]
 
 
 def test_a_conversion_id_without_its_prefix_is_an_invalid_request(kei):

@@ -2,7 +2,7 @@ import { ExtractionError } from 'extraction'
 import { ApiError } from './_http.js'
 
 /**
- * How a start answers admission's refusal of the method it submitted, single and batch alike: a stale start view, or a
+ * How a start answers admission's refusal, single, batch and suggested batch alike: a stale start view or a
  * strategy the schema's saved record scope does not name, is a refreshable conflict, identity fields the pinned schema
  * cannot key records by are the researcher's to change, and a saved configuration admission cannot read is a server
  * fault whose contents are never echoed. Null for any other error, which the route maps itself.
@@ -23,6 +23,8 @@ export function methodRefusal(error: unknown): ApiError | null {
       return new ApiError(409, 'record_scope_mismatch', error.message, { cause: error })
     case 'invalid_identity_fields':
       return new ApiError(422, 'invalid_identity_fields', error.message, { cause: error })
+    case 'invalid_schema_revision':
+      return new ApiError(422, 'invalid_schema_revision', 'The selected Schema Revision is invalid.', { cause: error })
     case 'incompatible_extraction_model':
       return new ApiError(422, 'incompatible_extraction_model', error.message, { cause: error })
     case 'invalid_model_config':

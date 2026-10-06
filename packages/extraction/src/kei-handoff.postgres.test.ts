@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict'
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { setTimeout as delay } from 'node:timers/promises'
 import { after, before, test } from 'node:test'
 import { DBOSClient } from '@dbos-inc/dbos-sdk'
 import pg from 'pg'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
-import { keiExpArtifact } from './kei-exp-fixture.js'
 import {
   createKeiHandoff, KEI_APPLICATION, KEI_QUEUE, keiConvertOkSchema, keiConvertWorkflowId, keiDeleteRunsOkSchema,
-  keiExtractOkSchema, keiExtractWorkflowId, keiNotReady, settleKei, type KeiHandoff, type KeiPoll, type KeiSubmission,
+  keiNotReady, settleKei, type KeiHandoff, type KeiPoll, type KeiSubmission,
 } from './kei-handoff.js'
 import { spawnKeiStandIn, type KeiStandInProcess } from './testing/kei-stand-in-client.js'
 
@@ -59,23 +58,11 @@ after(async () => {
   }
 })
 
-function extractSubmission(extractionId: string, attributes: Record<string, unknown> = {}): KeiSubmission {
-  const { enqueue, request: fixture } = contract('extract.input')
-  // Studio always sends the revision's record scope beside the tree; a fixture without one gains its strategy's.
-  const request = { ...fixture, request: { ...fixture.request, schema: {
-    recordScope: fixture.request.options.strategy === 'article' ? 'document' : 'records', ...fixture.request.schema } } }
-  return {
-    workflow: 'extract', workflowId: keiExtractWorkflowId(extractionId), queueName: enqueue.queue_name,
-    priority: enqueue.priority, timeoutMs: enqueue.workflow_timeout_ms, request,
-    authenticatedUser: 'researcher@example.test', attributes,
-  }
-}
-
-function convertSubmission(workflowId: string): KeiSubmission {
+function convertSubmission(workflowId: string, attributes: Record<string, unknown> = {}): KeiSubmission {
   const { enqueue, request } = contract('convert.input')
   return {
     workflow: 'convert', workflowId, queueName: enqueue.queue_name, priority: enqueue.priority,
-    timeoutMs: enqueue.workflow_timeout_ms, request, authenticatedUser: 'researcher@example.test', attributes: {},
+    timeoutMs: enqueue.workflow_timeout_ms, request, authenticatedUser: 'researcher@example.test', attributes,
   }
 }
 
@@ -108,26 +95,23 @@ async function settled(workflowId: string): Promise<Exclude<KeiPoll, { state: 'l
   assert.fail(`${workflowId} stayed live.`)
 }
 
-const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
-
 test('submitting a child twice enqueues one kei workflow on its lane with its priority, deadline, owner and the parent\'s attributes', async () => {
-  await standIn.policy({ extract: 'hold' })
-  const extractionId = randomUUID()
-  const attributes = { projectContextId: randomUUID(), extractionId }
-  const submission = extractSubmission(extractionId, attributes)
+  await standIn.policy({ convert: 'hold' })
+  const attributes = { projectContextId: randomUUID(), sourceDocumentId: randomUUID() }
+  const submission = convertSubmission(ingestChild(), attributes)
   await handoff.submit(submission)
   await handoff.submit(submission)
   await heldFor(submission.workflowId)
   // Listed as a scope's kei work is found: by kei's prefix and the parent's attributes.
-  const rows = await client.listWorkflows({ workflow_id_prefix: keiExtractWorkflowId(''), attributes, loadInput: true })
+  const rows = await client.listWorkflows({ workflow_id_prefix: keiConvertWorkflowId(''), attributes, loadInput: true })
   assert.equal(rows.length, 1)
   const [row] = rows
   assert.equal(row?.workflowID, submission.workflowId)
-  assert.equal(row?.workflowName, 'extract')
+  assert.equal(row?.workflowName, 'convert')
   assert.equal(row?.status, 'PENDING')
-  assert.equal(row?.queueName, 'kei-extract')
+  assert.equal(row?.queueName, 'kei-convert-small')
   assert.equal(row?.priority, 1)
-  assert.equal(row?.timeoutMS, 10_800_000)
+  assert.equal(row?.timeoutMS, 600_000)
   assert.equal(typeof row?.deadlineEpochMS, 'number')
   assert.equal(row?.applicationName, 'kei')
   assert.equal(row?.authenticatedUser, 'researcher@example.test')
@@ -138,9 +122,8 @@ test('submitting a child twice enqueues one kei workflow on its lane with its pr
 })
 
 test('a poll returns live within its window while kei works, then the finished output', async () => {
-  await standIn.policy({ extract: 'hold' })
-  const extractionId = randomUUID()
-  const submission = extractSubmission(extractionId)
+  await standIn.policy({ convert: 'hold' })
+  const submission = convertSubmission(ingestChild())
   await handoff.submit(submission)
   await heldFor(submission.workflowId)
   const started = performance.now()
@@ -148,27 +131,18 @@ test('a poll returns live within its window while kei works, then the finished o
   const waited = performance.now() - started
   assert.ok(waited >= 2_900 && waited < 6_000, `the poll waited ${Math.round(waited)} ms`)
 
-  const { run_id, generation } = contract('extract.input').request
-  const artifact = keiExpArtifact({ run_id, generation })
-  await standIn.answer(submission.workflowId, { artifact })
+  await standIn.answer(submission.workflowId, { convert: 'auto' })
   const poll = await settled(submission.workflowId)
   assert.equal(poll.state, 'SUCCESS')
-  const outcome = settleKei(poll, keiExtractOkSchema)
+  const outcome = settleKei(poll, keiConvertOkSchema)
   assert.ok(outcome.ok, JSON.stringify(outcome))
-  assert.equal(outcome.value.extraction_id, extractionId)
-  assert.equal(outcome.value.run_id, run_id)
-  assert.equal(outcome.value.generation, generation)
-  assert.equal(outcome.value.model, artifact.model)
-  const response = await fetch(`${standIn.url}/api/runs/${run_id}/extractions/${extractionId}`)
-  assert.equal(response.status, 200)
-  const bytes = new Uint8Array(await response.arrayBuffer())
-  assert.equal(outcome.value.artifact_sha256, sha256(bytes))
-  assert.deepEqual(JSON.parse(new TextDecoder().decode(bytes)), artifact)
+  assert.equal(outcome.value.source_sha256, contract('convert.input').request.source_sha256)
+  assert.equal((await fetch(`${standIn.url}/api/runs/${outcome.value.run_id}/result`)).status, 200)
 })
 
 test('cancel stops a live kei workflow and leaves a finished one untouched', async () => {
-  await standIn.policy({ extract: 'hold' })
-  const live = extractSubmission(randomUUID())
+  await standIn.policy({ convert: 'hold' })
+  const live = convertSubmission(ingestChild())
   await handoff.submit(live)
   await heldFor(live.workflowId)
   await handoff.cancel(live.workflowId)
@@ -181,8 +155,8 @@ test('cancel stops a live kei workflow and leaves a finished one untouched', asy
   assert.equal((await statusOf(live.workflowId)).updatedAt, cancelledAt)
   await standIn.answer(live.workflowId, cleanup) // the held step returns and frees its lane
 
-  await standIn.policy({ extract: 'auto' })
-  const finished = extractSubmission(randomUUID())
+  await standIn.policy({ convert: 'auto' })
+  const finished = convertSubmission(ingestChild())
   await handoff.submit(finished)
   assert.equal((await settled(finished.workflowId)).state, 'SUCCESS')
   const before = await statusOf(finished.workflowId)
@@ -222,7 +196,7 @@ test('submitting before kei has migrated its schema fails with a kei-not-ready e
     systemDatabaseUrl: databaseUrl, systemDatabaseSchemaName: unmigratedSchema, applicationName: KEI_APPLICATION,
   })
   try {
-    const error = await createKeiHandoff(unmigrated).submit(extractSubmission(randomUUID())).then(
+    const error = await createKeiHandoff(unmigrated).submit(convertSubmission(ingestChild())).then(
       () => assert.fail('The submission reached a schema kei never migrated.'),
       (reason: unknown) => reason,
     )
@@ -255,12 +229,12 @@ test('a convert fixture request converts on the lane named in its fixture and re
 })
 
 test('a failure policy answers kei\'s typed failure, and kei\'s read routes list models and refuse what is absent or malformed', async () => {
-  const failure = { code: 'stale_generation', reason: 'the run moved on', retryable: false } as const
-  await standIn.policy({ extract: { failure } })
-  const submission = extractSubmission(randomUUID())
+  const failure = { code: 'source_unreadable', reason: 'the PDF could not be opened', retryable: false } as const
+  await standIn.policy({ convert: { failure } })
+  const submission = convertSubmission(ingestChild())
   await handoff.submit(submission)
-  assert.deepEqual(settleKei(await settled(submission.workflowId), keiExtractOkSchema), { ok: false, ...failure })
-  await standIn.policy({ extract: 'auto' })
+  assert.deepEqual(settleKei(await settled(submission.workflowId), keiConvertOkSchema), { ok: false, ...failure })
+  await standIn.policy({ convert: 'auto' })
 
   const models = await fetch(`${standIn.url}/api/models`)
   assert.equal(models.status, 200)
@@ -271,27 +245,27 @@ test('a failure policy answers kei\'s typed failure, and kei\'s read routes list
   assert.deepEqual(ingestion.defaults, { ocr: 'surya', layout: 'layout_heron_101' })
   for (const path of [
     '/api/runs/run-absent/result', '/api/runs/.hidden/result', '/api/runs/run-absent/pages/1',
-    '/api/runs/run-absent/pages/0', `/api/runs/run-absent/extractions/${randomUUID()}`,
-    '/api/runs/run-absent/extractions/.x', '/api/runs', '/api/unknown',
+    '/api/runs/run-absent/pages/0', '/api/runs', '/api/unknown',
   ])
     assert.equal((await fetch(`${standIn.url}${path}`)).status, 404, path)
   assert.equal((await fetch(`${standIn.url}/control/answer`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ workflowId: 'kei-extract:none', ...cleanup }),
+    body: JSON.stringify({ workflowId: 'kei-convert:none', ...cleanup }),
   })).status, 404)
 })
 
 test('a deleteRuns request reaches the stand-in on kei-gc, is recorded, and deletes only settled history', async () => {
-  await standIn.policy({ convert: 'auto', extract: 'hold' })
+  await standIn.policy({ convert: 'auto' })
   const converted = convertSubmission(ingestChild())
   await handoff.submit(converted)
   const conversion = settleKei(await settled(converted.workflowId), keiConvertOkSchema)
   assert.ok(conversion.ok, JSON.stringify(conversion))
-  const live = extractSubmission(randomUUID())
+  await standIn.policy({ convert: 'hold' })
+  const live = convertSubmission(ingestChild())
   await handoff.submit(live)
   await heldFor(live.workflowId)
 
-  const request = { conversions: [converted.workflowId], history: [live.workflowId] }
+  const request = { conversions: [converted.workflowId, live.workflowId], history: [] }
   const before = Date.now()
   await handoff.requestDeleteRuns('kei-gc:t1', request)
   await handoff.requestDeleteRuns('kei-gc:t1', request) // one cleanup per ID: the second enqueue is a no-op

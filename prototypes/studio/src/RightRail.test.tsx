@@ -2,75 +2,49 @@
 
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RightRail from './RightRail'
-import ResultsTab from './ResultsTab'
-import type { ParsedDocument } from 'extraction/parsed-document'
+import { DurableResults } from './DurableResults'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionInspection } from './RightRail'
-import type { ExtractionAttempt, PartialResult } from '../shared/extraction.contract'
-import type { SchemaRevision } from '../shared/schemaRevision.contract'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
 import {
   createSchemaEditorController,
   localSchemaPersistence,
   type SchemaEditorController,
 } from './currentSchemaRevision'
 
-vi.mock('./ResultsTab', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./ResultsTab')>()
-  return { ...actual, default: vi.fn(actual.default) }
-})
+vi.mock('./DurableResults', () => ({ DurableResults: vi.fn(() => <p>Durable results</p>) }))
 
 afterEach(() => {
   cleanup()
   vi.unstubAllEnvs()
+  vi.mocked(DurableResults).mockClear()
 })
 
 const defaultController: ExtractionController = {
-  state: { status: 'idle' },
   attempt: null,
+  admitting: false,
   canRun: true,
-  acceptDurableStatus:()=>{},
-  hasResults: false,
+  retryAdmission: null,
+  acceptDurableStatus: () => {},
   runExtraction: async () => null,
-  requestCancellation: async () => {},
-  cancellationRequested: false,
-  cancellationError: null,
   monitorError: null,
   reconnect: () => {},
-  review: {
-    available: false,
-    draftAvailable: false, decidedOn: new Map(), changedAfterReview: new Set(), settlement: null, discarded: null, draftRefused: null,
-    canAccept: false,
-    saving: false,
-    loading: false,
-    decisions: [],
-    requiredCount: 0,
-    untouchedCount: 0,
-    isTouched: () => false,
-    reviewedExtractionId: null,
-    error: null,
-    draftError: null,
-    draftSaving: false,
-    draftSaved: false,
-    retryDraft: () => {},
-    setDecision: () => ({ last: false }),
-    undo: () => ({ last: false }),
-    reload: () => {},
-    approveAll: () => {},
-    accept: async () => false,
-  },
 }
 
 const defaultInspection: ExtractionInspection = {
   attempt: null,
+  cut: null,
   readOnly: false,
   parsedDocument: null,
-  reviewDecisions: [],
-  pinnedSchema: null,
-  exportSchema: null,
 }
+
+const attempt = {
+  extractionId: 'extraction-1', sourceDocumentId: 'document-1', sourceRepresentationRevisionId: 'source-1',
+  schemaRevisionId: 'revision-1', strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: null,
+  executionStatus: 'PAUSED', finalizedReview: null, batchExtractionId: null, createdAt: '2026-10-05T00:00:00.000Z',
+} satisfies ExtractionAttempt
 
 function testSchema(): SchemaEditorController {
   return createSchemaEditorController(
@@ -116,73 +90,38 @@ function renderRail({
   )
 }
 
-describe('RightRail developer UI visibility', () => {
-  it('jumps from Results to the current draft while closing a historical preview', async () => {
-    const historical: SchemaRevision = { schemaRevisionId: 'revision-1', extractionSchemaId: 'schema-1', revisionNumber: 1,
-      origin: 'researcher-edit', createdAt: '2026-09-30T00:00:00Z', recordDescription: 'One record.', recordScope: null, stabilisedAt: null,
-      schemaNodes: [{ id: 'title', name: 'title', type: 'string' }, { id: 'gender', name: 'gender', type: 'string' }] }
-    const schema = createSchemaEditorController({ ...localSchemaPersistence({ onEdit: () => {} }), getRevision: async () => historical },
-      { initialDraft: historical })
-    schema.commit((nodes) => nodes.filter((node) => node.id !== 'title'), 'Removed title')
-    const draft = schema.snapshot().draft
-    await schema.previewHistoricalRevision(historical.schemaRevisionId)
-    const attempt: ExtractionAttempt = {
-      extractionId: 'extraction-1', sourceDocumentId: 'document-1', sourceRepresentationRevisionId: 'source-1',
-      schemaRevisionId: historical.schemaRevisionId, strategy: 'ARTICLE', catalogRecipe: null, batchExtractionId: null,
-      executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true, modelAttribution: null, diagnostics: null, failure: null,
-      resultPayload: { records: [{ title: 'Report' }] }, evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }],
-      reviewable: true, createdAt: historical.createdAt, reviewedAt: null, reviewDecisions: [],
-    }
-    function Rail() {
-      const [tab, setTab] = useState<'schema' | 'results'>('results')
-      return <RightRail open onToggle={() => {}} tab={tab} onTabChange={(next) => setTab(next === 'results' ? next : 'schema')}
-        schema={schema} onClearDraft={() => {}} extraction={{ ...defaultController, attempt, hasResults: true,
-          state: { status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0 } }}
-        inspection={{ ...defaultInspection, attempt, pinnedSchema: historical }} currentSchemaRevision={null}
-        sourceDocumentName="test.pdf" sourceRepresentationId="source-1" onSelectEvidence={() => {}} onResultPathChange={() => {}} />
-    }
-    render(<Rail />)
-    // The selected value's field opens in the schema from ⋯ (results review redesign §8).
-    fireEvent.click(screen.getByRole('button', { name: /title\s*Report/ }))
-    expect(screen.getByRole('button', { name: /title\s*Report/ })).toHaveTextContent('Report')
-    fireEvent.click(screen.getByRole('button', { name: 'More result actions' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit field title in the schema…' }))
-    expect(schema.snapshot().historicalPreview).toBeNull()
-    expect(schema.snapshot().draft).toEqual(draft)
-    expect(screen.getByText(/This field was removed. No replacement was selected/)).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Edit gender' })).toBeVisible()
+describe('RightRail Results', () => {
+  it('reviews every Extraction with the durable reader, at the live cut unless an explicit one is named', () => {
+    renderRail({ tab: 'results', extraction: { ...defaultController, attempt } })
+    expect(screen.getByText('Durable results')).toBeVisible()
+    expect(vi.mocked(DurableResults).mock.lastCall![0]).toMatchObject({ attempt, initialCut: null, readOnly: false })
+    cleanup()
+    const cut = { snapshotVersion: 1, feedbackVersion: 2 }
+    renderRail({ tab: 'results', inspection: { ...defaultInspection, attempt, cut, readOnly: true } })
+    expect(vi.mocked(DurableResults).mock.lastCall![0]).toMatchObject({ attempt, initialCut: cut, readOnly: true })
   })
 
-  it('a tab badge stays on one line at the 264px rail; the tab\'s label gives way first', () => {
-    renderRail({ extraction: { ...defaultController, hasResults: true, review: { ...defaultController.review, untouchedCount: 6 } } })
-    // (jsdom computes the name without the flex layout's space between the label and the badge.)
-    const results = screen.getByRole('tab', { name: /^Results\s*6 to check$/ })
-    // Under a 300px tab strip (the 264px rail) the badge shows its number only; its full words are its name and title,
-    // and "Results" stays whole.
-    const badge = within(results).getByRole('img', { name: '6 to check' })
-    expect(badge).toHaveAttribute('title', '6 to check')
+  it('says how to start when there is no Extraction, and offers Reconnect for an unanswered admission', () => {
+    const reconnect = vi.fn()
+    renderRail({ tab: 'results', extraction: { ...defaultController, monitorError: 'Unable to update status. The extraction may still be running.', reconnect } })
+    expect(screen.getByText('No results yet')).toBeVisible()
+    expect(screen.getByText('Press ▶ Run extraction above.')).toBeVisible()
+    expect(screen.getByRole('alert')).toHaveTextContent('may still be running')
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
+    expect(reconnect).toHaveBeenCalledOnce()
+    expect(DurableResults).not.toHaveBeenCalled()
+  })
+
+  it('names the shown Extraction\'s lifecycle in a badge that stays on one line', () => {
+    renderRail({ extraction: { ...defaultController, attempt } })
+    const results = screen.getByRole('tab', { name: /^Results\s*paused$/ })
+    const badge = within(results).getByRole('img', { name: 'paused' })
     expect(badge.className).toMatch(/(^|\s)whitespace-nowrap(\s|$)/)
-    expect(badge.className).toMatch(/(^|\s)shrink-0(\s|$)/)
-    expect(within(badge).getByText('6 to check').className).toMatch(/(^|\s)@max-\[300px\]:hidden(\s|$)/)
-    expect(within(badge).getByText('6').className).toMatch(/(^|\s)hidden(\s|$)/)
-    expect(within(badge).getByText('6').className).toMatch(/(^|\s)@max-\[300px\]:inline(\s|$)/)
-    expect(screen.getByRole('tablist').className).toMatch(/(^|\s)@container(\s|$)/)
-    const label = within(results).getByText('Results')
-    expect(label.className).toMatch(/(^|\s)min-w-0(\s|$)/)
-    expect(results.className).toMatch(/(^|\s)min-w-0(\s|$)/)
+    expect(within(results).getByText('Results').className).toMatch(/(^|\s)min-w-0(\s|$)/)
   })
+})
 
-  it('shows server record counts in the Results badge during extraction', () => {
-    const partial: PartialResult = { strategy: 'CATALOG', startedAtPage: 2, discovered: 48, finished: 7, records: [], document: null }
-    renderRail({ extraction: {
-      ...defaultController,
-      attempt: { executionStatus: 'RUNNING' } as ExtractionAttempt,
-      state: { status: 'running', step: 'extraction', partial },
-    } })
-    const results = screen.getByRole('tab', { name: /^Results\s*7 of 48$/ })
-    expect(within(results).getByRole('img', { name: '7 of 48' })).toHaveAttribute('title', '7 of 48')
-  })
-
+describe('RightRail developer UI visibility', () => {
   it('hides the Evidence tab by default', () => {
     renderRail({ open: true })
 
@@ -221,18 +160,5 @@ describe('RightRail developer UI visibility', () => {
     renderRail({ open: false })
 
     expect(screen.getByText('Evidence · Schema · Results')).toBeInTheDocument()
-  })
-})
-
-describe('RightRail evidence pages', () => {
-  it('hands the Results tab each Evidence anchor\'s first page, for the export\'s Evidence sheet', () => {
-    const parsedDocument = { evidence_index: { anchors: [
-      { anchor_id: 'a_p1_s1', producer_observations: [{ page_number: 1 }] },
-      { anchor_id: 'a_p3_s2', producer_observations: [{ page_number: 3 }, { page_number: 4 }] },
-    ] } } as unknown as ParsedDocument
-    renderRail({ tab: 'results', inspection: { ...defaultInspection, parsedDocument } })
-
-    const props = vi.mocked(ResultsTab).mock.lastCall![0]
-    expect(props.evidencePages).toEqual(new Map([['a_p1_s1', 1], ['a_p3_s2', 3]]))
   })
 })

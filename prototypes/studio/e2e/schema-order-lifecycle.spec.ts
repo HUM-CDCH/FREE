@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
-import { loginResearcher } from './auth.js'
+import { e2eStudioPath, loginResearcher } from './auth.js'
 
 const id = {
   account: '73000000-0000-4000-8000-000000000000',
@@ -65,7 +65,7 @@ async function installArtifactRoutes(page: Page) {
   )
 }
 
-/** The same disposable-stack gate `canonical-evidence-lifecycle.spec.ts` uses. */
+/** The disposable-stack gate the deterministic stack specs share. */
 const withoutDatabase =
   !process.env.EXTRACTION_TEST_DATABASE_URL ||
   process.env.DATABASE_URL !== process.env.EXTRACTION_TEST_DATABASE_URL
@@ -141,7 +141,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await loginResearcher(page, id.object)
 
   const reopened = await page.request.get(
-    `/api/project-contexts/${id.project}/source-documents/${id.document}/reopen`,
+    e2eStudioPath(`/api/project-contexts/${id.project}/source-documents/${id.document}/reopen`),
   )
   expect(reopened.ok()).toBe(true)
   const durable = (await reopened.json()) as {
@@ -152,7 +152,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   ])
 
   await installArtifactRoutes(page)
-  await page.goto(`/projects/${id.project}/documents/${id.document}`)
+  await page.goto(e2eStudioPath(`/projects/${id.project}/documents/${id.document}`))
   await page.getByRole('tab', { name: /^Schema / }).click()
   await page.getByRole('button', { name: 'Schema actions' }).click()
   const history = page.getByRole('menuitem', { name: 'History' })
@@ -164,7 +164,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await expect(page.getByRole('button', { name: '+ Add field' })).toHaveCount(0)
 
   const previewTimeline = await page.request.get(
-    `/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`,
+    e2eStudioPath(`/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`),
   )
   const previewBody = (await previewTimeline.json()) as {
     revisions: Array<{ revisionNumber: number }>
@@ -175,20 +175,20 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
 
   await expect.poll(async () => {
     const response = await page.request.get(
-      `/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`,
+      e2eStudioPath(`/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`),
     )
     const body = (await response.json()) as { revisions: Array<{ revisionNumber: number }> }
     return body.revisions[0]?.revisionNumber
   }).toBe(3)
 
   const timeline = await page.request.get(
-    `/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`,
+    e2eStudioPath(`/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`),
   )
   const latest = (await timeline.json()) as {
     revisions: Array<{ schemaRevisionId: string; revisionNumber: number }>
   }
   const restored = await page.request.get(
-    `/api/schema-revisions/${latest.revisions[0].schemaRevisionId}?projectContextId=${id.project}&extractionSchemaId=${id.schema}`,
+    e2eStudioPath(`/api/schema-revisions/${latest.revisions[0].schemaRevisionId}?projectContextId=${id.project}&extractionSchemaId=${id.schema}`),
   )
   const restoredBody = (await restored.json()) as { revision: { schemaNodes: unknown; recordScope: string | null } }
   expect(restoredBody.revision.schemaNodes).toEqual(historicalNodes)
@@ -200,7 +200,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   const freshPage = await freshContext.newPage()
   await loginResearcher(freshPage, id.object)
   await installArtifactRoutes(freshPage)
-  await freshPage.goto(`/projects/${id.project}/documents/${id.document}`)
+  await freshPage.goto(e2eStudioPath(`/projects/${id.project}/documents/${id.document}`))
   await freshPage.getByRole('tab', { name: /^Schema / }).click()
   await freshPage.getByRole('button', { name: 'Schema actions' }).click()
   const freshHistory = freshPage.getByRole('menuitem', { name: 'History' })

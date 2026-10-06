@@ -29,7 +29,6 @@ export type FieldRowProps = {
    *  targets, and the pointer moving from them onto this row must re-enter it. */
   onMouseEnter?: () => void
   onMouseLeave?: () => void
-  nodeRef?: (element: HTMLDivElement | null) => void
 }
 
 // Colours stay off the shared base: two utilities of one property resolve by stylesheet order, not class order. Worded,
@@ -177,7 +176,7 @@ function CollapseArrow({ expanded }: { expanded: boolean }) {
 /** One schema field's row (§6): grip, disclosure, then the name with its type and values pills (wrapping under the name
  *  when the line is too narrow) and proposal badges; the actions overlay the right edge on hover and focus-within. A
  *  note renders below in full. The panel owns recursion, drag targets and edit forms. */
-export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, dragActive = false, intoGroup, onStartDrag, onEdit, onEditValues, onAddNote, onDelete, onMouseEnter, onMouseLeave, nodeRef }: FieldRowProps) {
+export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, dragActive = false, intoGroup, onStartDrag, onEdit, onEditValues, onAddNote, onDelete, onMouseEnter, onMouseLeave }: FieldRowProps) {
   const diffStatus = change?.kind ?? (impliedRemoved ? 'removed' : null)
   const isDiff = diffStatus !== null
   const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-stale-soft' : ''
@@ -194,7 +193,6 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
       role="listitem"
       aria-label={node.name}
       tabIndex={0}
-      ref={nodeRef}
       className={`group -mx-2 rounded-[3px] border px-2 outline-none transition-[background,border,opacity] duration-150 ${
         intoGroup || dragging ? 'border-accent' : 'border-transparent'
       } ${intoGroup ? 'bg-accent-ghost' : ''} ${dragging ? 'opacity-40' : ''} ${diffBg}`}

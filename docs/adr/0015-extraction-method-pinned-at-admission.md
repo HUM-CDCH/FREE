@@ -73,3 +73,16 @@ rejection cannot silently transfer to changed model output. The review redesign
 is reused where compatible; path/anchor reconciliation is not applied
 to durable correction history. Neither existing DBOS application versions nor
 existing workflow step sequences change. Release admissions remain disabled.
+
+## Durable-only method and admission amendment (2026-10-06)
+
+The [durable-only and admission amendments in ADR 0017](0017-durable-extraction-control-and-call-checkpoints.md#durable-only-amendment)
+supersede the legacy `runExtraction`, nullable-method reader and
+admission-disabled clauses above. A producing input selection pins its
+requested method; the Parsing Service captures the effective models, options
+and protocol versions for that selection. Later immutable selections may be
+adopted at a paused boundary. Head-less historical rows are neither listed nor
+opened, and no reader for historical unrecorded methods is retained. Valid requests admit durable
+work directly. Exact-commit Spark acceptance in the
+[recorded OpenSpec tasks](../../openspec/changes/archive/2026-10-06-durable-only-extraction-review/tasks.md)
+is required before merge; deployment remains separate.

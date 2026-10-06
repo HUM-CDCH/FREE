@@ -16,6 +16,7 @@ import type { z } from 'zod'
 import RouteLoadBoundary from './RouteLoadBoundary.tsx'
 import { Button, EmptyState, ModalDialog, Spinner } from './ui'
 import { browserStudioPath } from './studioUrl.js'
+import type { SavedReviewCut } from './durableReviewLinks'
 
 const collapsedWidth = 46
 const navMin = 150
@@ -228,11 +229,15 @@ export default function AppFrame({
         extractionSchema: openDocument.extractionSchema,
         persistedExtraction: openDocument.latestAttempt,
         latestReviewedExtraction: openDocument.latestReviewed,
-        onOpenExtraction: (extractionId: string) => onNavigate({
+        persistedReviewCut: route.kind === 'document' && route.extractionId === openDocument.latestAttempt?.extractionId
+          ? route.reviewCut ?? null
+          : null,
+        onOpenExtraction: (extractionId: string, reviewCut?: SavedReviewCut) => onNavigate({
           kind: 'document',
           projectContextId: openDocument.projectContext.projectContextId,
           sourceDocumentId: openDocument.sourceDocument.sourceDocumentId,
           extractionId,
+          ...(reviewCut ? { reviewCut } : {}),
         }),
         // A run refused as superseded means this snapshot's Source Representation may be stale.
         onSourceSuperseded: onRefreshDocument,
@@ -339,13 +344,13 @@ export default function AppFrame({
     projects.find(
       (project) => project.projectContextId === routedProjectContextId,
     )?.name ?? null
-  const backToReviewGridBatchExtractionId =
+  const backToBatchExtractionId =
     route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
   const [reviewRevision,setReviewRevision]=useState(0)
   const reviewFinalized=useCallback(()=>{void refreshProjects();setReviewRevision(revision=>revision+1)},[refreshProjects])
   const pilotRoundProgress = usePilotRoundProgress(
     route.kind === 'document' ? route.projectContextId : null,
-    backToReviewGridBatchExtractionId,
+    backToBatchExtractionId,
     route.kind === 'document' ? route.sourceDocumentId : null,
     reviewRevision,
   )
@@ -535,20 +540,19 @@ export default function AppFrame({
                     : 'sources',
               })
             }
-            onBackToReviewGrid={
-              backToReviewGridBatchExtractionId
+            onBackToBatch={
+              backToBatchExtractionId
                 ? () =>
                     onNavigate({
                       kind: 'project',
                       projectContextId: routedProjectContextId,
                       tab: 'extractions',
-                      batchExtractionId: backToReviewGridBatchExtractionId,
-                      view: 'grid',
+                      batchExtractionId: backToBatchExtractionId,
                     })
                 : undefined
             }
             pilotRoundProgress={
-              pilotRoundProgress && backToReviewGridBatchExtractionId
+              pilotRoundProgress && backToBatchExtractionId
                 ? {
                     reviewed: pilotRoundProgress.reviewed,
                     total: pilotRoundProgress.total,
@@ -562,7 +566,7 @@ export default function AppFrame({
                             extractionId:
                               pilotRoundProgress.nextMember!.extractionId,
                             fromBatchExtractionId:
-                              backToReviewGridBatchExtractionId,
+                              backToBatchExtractionId,
                           })
                       : undefined,
                   }

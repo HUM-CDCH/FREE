@@ -1,5 +1,5 @@
 import { createInternalProjectWorkerStore, createResearcherProjectStore } from 'db'
-import { dbosSteps, registerExtractionWorkflow, RUN_EXTRACTION } from 'extraction'
+import { dbosSteps } from 'extraction'
 import { createKeiHandoff } from 'extraction/kei-handoff'
 import { canonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import {
@@ -7,7 +7,7 @@ import {
   SUGGEST_SCHEMA_BATCH,
   workerSuggestionStore,
 } from '../api/_batch_suggestion_workflow.js'
-import { extractionWorkflowPorts, KEI_EXP_URL } from '../api/_extractions.js'
+import { KEI_EXP_URL } from '../api/_extractions.js'
 import {
   INGEST_SOURCE,
   registerIngestionWorkflow,
@@ -28,7 +28,7 @@ import { registerDurableExtractionReconciler } from './durable-extraction-workfl
 /** Every Studio workflow's explicit name. A bundler renames unnamed functions (M0R 2: `job$1`), and a workflow started
  *  under one build must be recoverable by another. */
 export const STUDIO_WORKFLOW_NAMES: readonly string[] = [
-  RUN_EXTRACTION, SUGGEST_SCHEMA_BATCH, INGEST_SOURCE, REPROCESS_SOURCE, SUGGEST_SCHEMA, PROPOSE_SCHEMA_EDIT,
+  SUGGEST_SCHEMA_BATCH, INGEST_SOURCE, REPROCESS_SOURCE, SUGGEST_SCHEMA, PROPOSE_SCHEMA_EDIT,
   COLLECT_GARBAGE, DURABLE_RECONCILE,
 ]
 
@@ -54,7 +54,6 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
   if (registered) return
   registered = true
   // Ports are built per run, after launch: they hold the launched DBOS's kei client.
-  registerExtractionWorkflow(extractionWorkflowPorts)
   registerBatchSuggestionWorkflow(() => ({
     steps: dbosSteps,
     generate: generateSchemaWithModel,

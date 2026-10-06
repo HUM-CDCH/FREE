@@ -7,15 +7,11 @@ from pydantic import ValidationError
 
 from kei_exp import runs
 from kei_exp.failures import CODES, REASON_CHARS, KeiFailure
-from kei_exp.kie.extract.run import ExtractRequest
 from kei_exp.workflows import config, contracts
 from tests.helpers.contracts import convert_timeout_ms, fixture
-from tests.test_extract_grounded import SCHEMA
 
-INPUTS = {"convert": contracts.ConvertInput, "extract": contracts.ExtractInput,
-          "deleteRuns": contracts.DeleteRunsInput}
+INPUTS = {"convert": contracts.ConvertInput, "deleteRuns": contracts.DeleteRunsInput}
 OUTPUTS = {"convert.output.ok": contracts.ConvertOk, "convert.output.failed": contracts.Failure,
-           "extract.output.ok": contracts.ExtractOk, "extract.output.failed": contracts.Failure,
            "deleteRuns.output": contracts.DeleteRunsOk}
 
 
@@ -31,40 +27,11 @@ def test_each_input_fixture_is_a_valid_request_for_a_known_queue(workflow):
     assert data["enqueue"]["workflow_id"].startswith(queues["workflow_id_prefixes"][workflow])
 
 
-def test_the_extract_fixture_carries_a_request_kei_accepts():
-    body = fixture("extract.input")["request"]["request"]
-    request = ExtractRequest.model_validate(body)
-    assert body["schema"] == {**SCHEMA, "recordScope": "records"}  # Studio sends the revision's declared scope
-    assert request.record_scope == "records"
-    assert [node.name for node in request.schema_.nodes] == [node["name"] for node in SCHEMA["schemaNodes"]]
-    assert request.options.strategy == "catalog"
-    assert request.options.start_page == 2  # Studio sends the page the researcher was reading; kei orders its work by it
-    assert "start_page" not in request.options.dumped()
-    assert request.options.catalog is not None and request.options.catalog.recipe == "numbered-catalogue-de@1"
-
-
-def test_the_progress_fixture_is_a_valid_progress_document_with_one_entry_per_stage():
-    from kei_exp.kie.extract.progress import ProgressDocument
-    data = fixture("extract.progress")
-    document = ProgressDocument.model_validate(data)
-    assert document.model_dump(mode="json") == data
-    assert [entry.stage for entry in document.entries] == ["finished", "finished", "candidates", "reading", "queued"]
-    assert document.finished == 2 and document.discovered == len(document.entries)
-    assert [row.model_dump() for row in document.entries[1].contested] == [{"path": ["site"], "candidates": ["Bdorf", "Bdorf-Nord"]}]
-
-
-def test_the_article_progress_fixture_is_a_complete_article_document():
-    from kei_exp.kie.extract.progress import ProgressDocument
-    data = fixture("extract.progress.article")
-    document = ProgressDocument.model_validate(data)
-    assert document.model_dump(mode="json") == data
-    [entry] = document.entries
-    assert (document.strategy, document.discovered, document.finished, entry.stage) == ("article", 1, 0, "candidates")
-    assert document.document is not None and document.document.answered == document.document.of == len(document.document.contexts)
-    assert document.document.failed_contexts == 0 == entry.failed and document.document.grounding_batches == 2
-    assert [link.model_dump() for link in entry.evidence] == [link.model_dump() for link in document.document.links]
-    assert {link.linked_by for link in document.document.links} == {"model"}  # Article's links, not Catalog's verified ones
-    assert entry.record["year"] is None  # a field every context left null: empty once every context answered
+def test_studio_submits_only_conversion_and_cleanup_workflows():
+    """Durable Extraction attempts take only their identities (`extractDurableV1`); no fixture models another
+    extraction input or output."""
+    assert not hasattr(contracts, "ExtractInput") and not hasattr(contracts, "ExtractOk")
+    assert set(fixture("queues")["workflow_id_prefixes"]) == set(INPUTS)
 
 
 @pytest.mark.parametrize("name", OUTPUTS)
@@ -76,10 +43,9 @@ def test_each_output_fixture_validates(name):
 @pytest.mark.parametrize(("name", "change"), [
     ("convert.output.ok", {"page_count": 0}),
     ("convert.output.ok", {"generation": ""}),
-    ("extract.output.ok", {"generation": ""}),
 ])
 def test_an_output_without_pages_or_a_generation_is_refused(name, change):
-    """As strict as ExtractInput and Studio's zod mirror (M4): a published parse has a page and names its generation."""
+    """As strict as Studio's zod mirror (M4): a published parse has a page and names its generation."""
     with pytest.raises(ValidationError):
         OUTPUTS[name].model_validate({**fixture(name), **change})
 
@@ -95,15 +61,14 @@ def test_the_queue_fixture_is_the_worker_configuration():
     assert {name: (q["global_concurrency"], q["worker_concurrency"]) for name, q in queues["queues"].items()} == \
         {name: (limit, limit) for name, limit in config.QUEUES.items()}
     assert queues["priorities"] == {"interactive": config.PRIORITY_INTERACTIVE, "batch": config.PRIORITY_BATCH}
-    assert queues["workflow_id_prefixes"] == {"convert": contracts.CONVERT_PREFIX, "extract": contracts.EXTRACT_PREFIX,
-                                              "deleteRuns": contracts.GC_PREFIX}
+    assert queues["workflow_id_prefixes"] == {"convert": contracts.CONVERT_PREFIX, "deleteRuns": contracts.GC_PREFIX}
 
 
 def test_the_deadline_fixture_is_m0r4s_formula():
     deadlines = fixture("deadlines")
     assert [[pages, convert_timeout_ms(pages)] for pages, _ in deadlines["convert"]["cases"]] == \
         deadlines["convert"]["cases"]
-    assert deadlines["extract"] == {"article": 3 * 3_600_000, "catalog": 3 * 3_600_000}
+    assert set(deadlines) == {"convert"}
 
 
 @pytest.mark.parametrize("request_", [
@@ -115,12 +80,6 @@ def test_a_malformed_convert_request_is_refused(request_):
     with pytest.raises(ValidationError):
         contracts.ConvertInput.model_validate(request_)
 
-
-def test_run_and_extraction_ids_are_single_path_components():
-    assert contracts.extraction_id_of("kei-extract:x-1") == "x-1"
-    for bad in ("kei-extract:../x", "kei-extract:", "kei-convert:x", "kei-extract:a/b"):
-        with pytest.raises(contracts.KeiFailure):
-            contracts.extraction_id_of(bad)
 
 
 def test_the_delete_runs_fixture_names_a_conversion_and_the_run_kei_derives_from_it():
@@ -168,10 +127,10 @@ def test_exhausted_transient_retries_settle_as_a_retryable_backend_failure():
 
 
 def test_exhaustion_without_recorded_errors_settles_as_the_steps_own_failure():
-    exhausted = dbos_error.DBOSMaxStepRetriesExceeded("extract_run", 3, [])
-    settled = contracts.settled(raising(exhausted), default="extraction_failed")
-    assert (settled["code"], settled["retryable"]) == ("extraction_failed", True)
-    assert "extract_run" in settled["reason"]
+    exhausted = dbos_error.DBOSMaxStepRetriesExceeded("convert_run", 3, [])
+    settled = contracts.settled(raising(exhausted), default="conversion_failed")
+    assert (settled["code"], settled["retryable"]) == ("conversion_failed", True)
+    assert "convert_run" in settled["reason"]
 
 
 @pytest.mark.parametrize(("error", "code", "reason"), [
@@ -185,9 +144,9 @@ def test_a_refusal_or_a_failure_of_the_work_settles_as_not_retryable(error, code
 
 
 def test_a_settled_reason_is_bounded():
-    settled = contracts.settled(raising(KeiFailure("invalid_request", "x" * (REASON_CHARS + 50))), default="no_result")
+    settled = contracts.settled(raising(KeiFailure("invalid_request", "x" * (REASON_CHARS + 50))), default="conversion_failed")
     assert len(settled["reason"]) == REASON_CHARS
-    assert len(contracts.failure("no_result", "y" * (REASON_CHARS + 1), retryable=False)["reason"]) == REASON_CHARS
+    assert len(contracts.failure("conversion_failed", "y" * (REASON_CHARS + 1), retryable=False)["reason"]) == REASON_CHARS
 
 
 @pytest.mark.parametrize("error", [

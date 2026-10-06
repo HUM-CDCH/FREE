@@ -2,33 +2,28 @@ import { isDeveloperUiEnabled } from './developerUi'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { RailMarkState } from './useEvidenceOverlays'
 import PanelToggleIcon from './PanelToggleIcon'
-import SchemaPanel, { type FieldContext, type SchemaPanelProps } from './SchemaPanel'
-import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
+import { Button } from './ui'
+import SchemaPanel, { type SchemaPanelProps } from './SchemaPanel'
+import { useCallback, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
-import { enumerateFieldPaths, nodesToTemplate } from 'extraction/schema'
+import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
-import ResultsTab from './ResultsTab'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import { DurableResults } from './DurableResults'
+import type { SavedReviewCut } from './durableReviewLinks'
 import type { ExtractionController } from './useExtraction'
-import { resultsBadgeFor } from './resultsBadge'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import EvidenceTab from './EvidenceTab'
-import type { SchemaDefinition } from 'extraction/schema'
 import type { ParsedDocument, ParsedEvidenceAnchor } from 'extraction/parsed-document'
 export type RailTab = 'evidence' | 'schema' | 'results'
 
 export type ExtractionInspection = {
   attempt: ExtractionAttempt | null
+  /** The explicit result/decision cut to open `attempt` on; null opens its live cut. */
+  cut: SavedReviewCut | null
   readOnly: boolean
+  /** The inspected Extraction's pinned parsed document, or the open one while it is unknown. */
   parsedDocument: ParsedDocument | null
-  reviewDecisions: ExtractionAttempt['reviewDecisions']
-  pinnedSchema: (SchemaDefinition & {
-    revisionNumber?: number
-    schemaRevisionId?: string
-  }) | null
-  /** Extraction Schema of the inspected Extraction Result, current or historical. */
-  exportSchema: SchemaDefinition | null
 }
 
 type RightRailProps = {
@@ -115,19 +110,7 @@ function RightRail({
   onReviewProgress,
   onReviewFinalized,
 }: RightRailProps) {
-  const [fieldContext, setFieldContext] = useState<FieldContext | null>(null)
-  const editField = (nodeId: string, path: (string | number)[]) => {
-    const attempt = inspection.attempt
-    const pinned = inspection.pinnedSchema
-    if (!attempt || !pinned) return
-    const node = enumerateFieldPaths(pinned.schemaNodes).find((field) => field.id === nodeId)?.node
-    if (!node) return
-    schema.closeHistoricalPreview()
-    setFieldContext({ extractionId: attempt.extractionId, schemaRevisionId: attempt.schemaRevisionId,
-      revisionNumber: pinned.revisionNumber, nodeId, nodeType: node.type, resultPaths: [path] })
-    onTabChange('schema')
-  }
-  const { parsedDocument, reviewDecisions } = inspection
+  const { parsedDocument } = inspection
   const selectNativeEvidence=useCallback((id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=> {
     const anchor=parsedDocument?.evidence_index.anchors.find(each=>each.anchor_id===id)
     if(!anchor)return
@@ -138,17 +121,14 @@ function RightRail({
   const showDeveloperUi = isDeveloperUiEnabled()
   const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
 
-  // Each Evidence anchor's first page, for the export's Evidence sheet.
-  const evidencePages = useMemo(() => new Map(parsedDocument?.evidence_index.anchors.flatMap((anchor) => {
-    const page = anchor.producer_observations[0]?.page_number
-    return page === undefined ? [] : [[anchor.anchor_id, page] as const]
-  }) ?? []), [parsedDocument])
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const schemaReady = schemaSnap.view === 'editing'
   const schemaFieldCount = schemaReady
     ? countTemplateFields(nodesToTemplate(schemaSnap.draft!.schemaNodes))
     : 0
-  const resultsBadge = resultsBadgeFor(extraction)
+  const shown = inspection.attempt ?? extraction.attempt
+  // The tab names the shown Extraction's lifecycle; its review counts live in the Results header.
+  const resultsBadge = shown ? { label: shown.executionStatus.toLowerCase() } : null
   const tabs: {
     key: RailTab
     label: string
@@ -230,10 +210,19 @@ function RightRail({
         </button>
       </div>
 
+      {/* Status belongs to the latest run, including an unanswered re-run while prior results remain visible. */}
+      {extraction.monitorError && <div className="flex shrink-0 flex-col items-start gap-2 border-b border-line px-3 py-3">
+        <p role="alert" className="m-0 text-compact text-danger">{extraction.monitorError}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={extraction.reconnect}>Reconnect</Button>
+          {extraction.retryAdmission&&<Button onClick={()=>void extraction.retryAdmission?.()}>Retry original request</Button>}
+        </div>
+      </div>}
+
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
       {showDeveloperUi && (
         <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'evidence'}>
-          <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />
+          <EvidenceTab document={parsedDocument} onSelectAnchor={onSelectEvidence} />
         </div>
       )}
       <div id="rail-panel-schema" aria-labelledby="rail-tab-schema" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'schema'}>
@@ -247,13 +236,13 @@ function RightRail({
           onRenameSchema={onRenameSchema}
           recordScope={recordScope}
           boundaries={boundaries}
-          fieldContext={fieldContext}
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>
-        {(inspection.attempt ?? extraction.attempt)?.durable ? <DurableResults
-          key={(inspection.attempt ?? extraction.attempt)?.extractionId ?? 'none'}
-          attempt={inspection.attempt ?? extraction.attempt}
+        {shown ? <DurableResults
+          key={`${shown.extractionId}:${inspection.cut ? `${inspection.cut.snapshotVersion}:${inspection.cut.feedbackVersion}` : 'live'}`}
+          attempt={shown}
+          initialCut={inspection.cut}
           document={parsedDocument}
           documentRevisionId={sourceRepresentationId}
           currentSchema={currentSchemaRevision?.schemaRevisionId ?? null}
@@ -268,32 +257,13 @@ function RightRail({
           onReviewProgress={onReviewProgress}
           onReviewFinalized={onReviewFinalized}
           onPinnedDocument={onPinnedDocument}
-        /> : <ResultsTab
-          onEditField={editField}
-          key={inspection.attempt?.extractionId ?? 'none'}
-          controller={extraction}
-          inspectedAttempt={inspection.readOnly ? inspection.attempt ?? undefined : undefined}
-          readOnly={inspection.readOnly}
-          schemaReady={schemaReady}
-          parsedDocument={parsedDocument}
-          pinnedSchema={inspection.pinnedSchema}
-          exportSchema={inspection.exportSchema}
-          currentSchemaRevision={currentSchemaRevision}
-          runUnavailableReason={runUnavailableReason}
-          sourceDocumentName={sourceDocumentName}
-          evidencePages={evidencePages}
-          onResultPathChange={onResultPathChange}
-          onFocusEvidence={onFocusEvidence}
-          onMarksChange={onMarksChange}
-          selectValueRef={selectValueRef}
-          headerExtras={resultsHeaderExtras}
-          onSelectEvidence={(anchorId, precision) => {
-            const anchor = parsedDocument?.evidence_index.anchors.find(
-              (candidate) => candidate.anchor_id === anchorId,
-            )
-            if (anchor) onSelectEvidence(anchor, precision)
-          }}
-        />}
+        /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
+          <p className="m-0 text-content font-semibold text-ink">No results yet</p>
+          <p className="mt-1.5 mb-0 max-w-[34ch] text-compact leading-snug text-ink-muted">
+            {schemaReady ? 'Run extraction to apply the schema across the source document.' : 'Generate a schema in the Schema tab first, then run extraction.'}
+          </p>
+          {!inspection.readOnly && schemaReady && <p className="mt-1.5 mb-0 text-compact font-semibold text-ink">{runUnavailableReason ?? 'Press ▶ Run extraction above.'}</p>}
+        </div>}
       </div>
     </div>
   )

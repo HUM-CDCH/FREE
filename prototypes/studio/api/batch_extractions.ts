@@ -1,7 +1,6 @@
 import type { ResearcherProjectStore } from 'db'
 import {
   ExtractionError,
-  type BatchExtractionResults,
   type BatchExtractionSnapshot,
   type ScheduleBatchResult,
 } from 'extraction'
@@ -10,7 +9,6 @@ import {
   batchExtractionOpenResponseSchema,
   batchExtractionRequestSchema,
   batchExtractionResponseSchema,
-  batchExtractionResultsResponseSchema,
 } from '../shared/batchExtraction.contract.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import {
@@ -28,7 +26,6 @@ import { methodRefusal } from './_method_refusals.js'
 
 const COLLECTION_ROUTE = '/api/batch-extractions'
 const ITEM_ROUTE = /^\/api\/batch-extractions\/([0-9a-f-]+)$/
-const RESULTS_ROUTE = /^\/api\/batch-extractions\/([0-9a-f-]+)\/results$/
 
 function batchDto(batch: BatchExtractionSnapshot) {
   return {
@@ -42,21 +39,13 @@ function batchDto(batch: BatchExtractionSnapshot) {
     executionStatus: batch.executionStatus,
     createdAt: batch.createdAt.toISOString(),
     members: batch.members.map((member) => ({
+      extractionId: member.extractionId,
       sourceDocumentId: member.sourceDocumentId,
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
-      ...(member.durableExtractionId?{durableExtractionId:member.durableExtractionId}:{}),
-      ...(member.durableExtractionId?{durableReviewable:member.durableReviewable??false}:{}),
-      ...(member.durableReview?{durableReview:{...member.durableReview,createdAt:member.durableReview.createdAt.toISOString()}}:{}),
-      executionFailureMessage: member.failureMessage,
-      latestExtraction: member.latestExtraction && {
-        extractionId: member.latestExtraction.extractionId,
-        outcome: member.latestExtraction.outcome,
-        complete: member.latestExtraction.complete,
-        reviewable: member.latestExtraction.reviewable,
-        createdAt: member.latestExtraction.createdAt.toISOString(),
-        reviewedAt: member.latestExtraction.reviewedAt?.toISOString() ?? null,
-      },
+      reviewable: member.reviewable,
+      completed: member.completed,
+      currentReview: member.currentReview && { ...member.currentReview, createdAt: member.currentReview.createdAt.toISOString() },
     })),
   }
 }
@@ -186,37 +175,6 @@ export function createResearcherApiHandlers(
     )
   }
 
-  /**
-   * Every Extraction Result the batch has produced, in member order. The
-   * researcher's export reads one Batch Extraction as one spreadsheet.
-   */
-  const results = async (url: URL, batchExtractionId: string) => {
-    const projectContextId = url.searchParams.get('projectContextId')
-    if (
-      !projectContextId ||
-      !canonicalUuidSchema.safeParse(projectContextId).success ||
-      !canonicalUuidSchema.safeParse(batchExtractionId).success
-    )
-      throw new ApiError(
-        422,
-        'invalid_request',
-        'The Batch Extraction identity is invalid.',
-      )
-    let produced: BatchExtractionResults
-    try {
-      produced = await extractionModule.readBatchResults({
-        projectContextId,
-        batchExtractionId,
-      })
-    } catch (error) {
-      unavailableUnlessNotFound(error, 'Batch Extraction was not found.')
-    }
-    return json(
-      batchExtractionResultsResponseSchema.parse(produced),
-      { headers: noStore },
-    )
-  }
-
   const handle = async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url)
@@ -224,9 +182,6 @@ export function createResearcherApiHandlers(
         return await open(request)
       if (request.method === 'GET' && url.pathname === COLLECTION_ROUTE)
         return await list(url)
-      const resultsMatch = RESULTS_ROUTE.exec(url.pathname)
-      if (request.method === 'GET' && resultsMatch)
-        return await results(url, resultsMatch[1])
       const itemMatch = ITEM_ROUTE.exec(url.pathname)
       if (request.method === 'GET' && itemMatch)
         return await read(url, itemMatch[1])

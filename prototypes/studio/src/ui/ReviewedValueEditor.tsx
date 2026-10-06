@@ -1,7 +1,6 @@
 import { useId, useState } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { ReviewDecisionInput } from '../../shared/extraction.contract'
-import { parseReviewedValue } from '../reviewDecisions'
+import { parseReviewedValue } from '../reviewedValue'
 import { ApprovedGlyph } from './icons'
 import { schemaNodesToZod } from 'extraction/schema'
 
@@ -21,7 +20,7 @@ export default function ReviewedValueEditor({ node, initial, saveLabel, tall = f
   initial: unknown
   saveLabel: string
   tall?: boolean
-  onSave: (value: ReviewDecisionInput['reviewedValue']) => void
+  onSave: (value: unknown) => void
   /** Retained corrections use the complete producing type, including composites. */
   onTypedSave?: (value: unknown) => void
   onCancel: () => void

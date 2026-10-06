@@ -29,7 +29,7 @@ process.env.FREE_PLAYWRIGHT_SOURCE_INBOX ??= mkdtempSync(join(tmpdir(), 'free-e2
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'canonical-evidence-lifecycle.spec.ts',
+  testMatch: 'schema-order-lifecycle.spec.ts',
   workers: 1,
   globalTeardown: './e2e/globalTeardown.ts',
   use: { baseURL: origin },

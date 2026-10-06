@@ -1,11 +1,10 @@
 import { DBOS, type DBOSClient, type WorkflowStatus, type WorkflowStatusString } from '@dbos-inc/dbos-sdk'
 import {
-  canonicalPackageStore, createGarbageReferences, EMPTY_SCOPE_IDS, LIVE_WORKFLOW_STATUSES,
+  canonicalPackageStore, createGarbageReferences, LIVE_WORKFLOW_STATUSES,
   type CanonicalPackageStore, type GarbageReferences,
 } from 'db'
 import {
-  createKeiHandoff, keiConvertWorkflowId, keiGcWorkflowId, STUDIO_EXTRACT_PREFIX,
-  type KeiDeleteRunsInput, type KeiHandoff,
+  createKeiHandoff, keiConvertWorkflowId, keiGcWorkflowId, type KeiDeleteRunsInput, type KeiHandoff,
 } from 'extraction/kei-handoff'
 import { dbosSteps, isWorkflowCancellation, type WorkflowSteps } from 'extraction/workflow-steps'
 import { databaseClockMs, studioDbos } from '../server/dbos.js'
@@ -71,7 +70,7 @@ export async function repairCancellations(ports: GarbagePorts): Promise<{ studio
     workflow_id_prefix: [...STUDIO_WORKFLOW_PREFIXES], status: [...LIVE_STATUSES], ...NO_DATA,
   }))
   const liveKei = rows(await ports.kei.listWorkflows({
-    workflowName: ['convert', 'extract'], status: [...LIVE_STATUSES], ...NO_DATA,
+    workflowName: ['convert'], status: [...LIVE_STATUSES], ...NO_DATA,
   }))
   const parents = byId(await listed(ports.studio, unique(liveKei.map((row) => keiParentOf(row.workflowID)))))
   const scopes = await ports.references.scopes(scopeIdsOf(liveStudio))
@@ -99,21 +98,13 @@ export async function collectStudioHistory(ports: GarbagePorts, nowMs: number): 
 
 export async function collectKei(ports: GarbagePorts, nowMs: number, workflowId: string): Promise<KeiDeleteRunsInput | null> {
   const kei = rows(await ports.kei.listWorkflows({
-    workflowName: ['convert', 'extract', 'deleteRuns', 'deleteDurableHistoryV1'], loadInput: false, loadOutput: true,
+    workflowName: ['convert', 'deleteRuns', 'deleteDurableHistoryV1'], loadInput: false, loadOutput: true,
   }))
   // The parent must be quiescent before its reference read; that read then sees any final publication.
   const parents = byId(await listed(ports.studio, unique(kei.map((row) => keiParentOf(row.workflowID)))))
-  const runHolders = rows(await ports.studio.listWorkflows({
-    workflow_id_prefix: STUDIO_EXTRACT_PREFIX,
-    status: [...LIVE_STATUSES, 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'], ...NO_DATA,
-  }))
   const referencedPreprocessIds = await ports.references.referencedPreprocessIds()
-  const extractionIds = kei.filter((row) => row.workflowID.startsWith('kei-extract:'))
-    .map((row) => row.workflowID.slice('kei-extract:'.length))
-  const { extractions } = await ports.references.scopes({ ...EMPTY_SCOPE_IDS, extractionIds })
   const request = planKeiCleanup({
-    kei, parents, runHolders, referencedPreprocessIds, extractions, nowMs,
-    bootTimestampMs: ports.bootTimestampMs(), policy: ports.policy,
+    kei, parents, referencedPreprocessIds, nowMs, bootTimestampMs: ports.bootTimestampMs(), policy: ports.policy,
   })
   if (request) await ports.keiHandoff.requestDeleteRuns(workflowId, request)
   return request

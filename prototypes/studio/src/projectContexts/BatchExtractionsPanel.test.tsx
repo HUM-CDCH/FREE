@@ -12,8 +12,7 @@ import {
 } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { exportBatchExtractionResults } from 'extraction-result-export'
-import { PILOT_BATCH_SELECTION_LIMIT } from '../../shared/batchExtraction.contract'
+import { PILOT_BATCH_SELECTION_LIMIT, type BatchExtractionMember } from '../../shared/batchExtraction.contract'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
 import type { NavigableRoute } from '../projectNavigation'
 import {
@@ -44,11 +43,6 @@ vi.mock('../savedMethod', async (importOriginal) => ({
 }))
 const SERVICE_DEFAULTS = { models: null, settings: { article: null } }
 
-vi.mock('extraction-result-export', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('extraction-result-export')>()),
-  exportBatchExtractionResults: vi.fn(async () => {}),
-}))
-
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const schemaRevisionId = '51000000-0000-4000-8004-000000000001'
 const batchExtractionId = '51000000-0000-4000-8007-000000000001'
@@ -78,44 +72,32 @@ const batch = {
   createdAt: '2026-08-14T10:42:00.000Z',
   members: [
     {
+      extractionId,
       sourceDocumentId: failedDocumentId,
       sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
-      executionStatus: 'FAILED' as const,
-      executionFailureMessage: 'The provider rejected this document.',
-      latestExtraction: null,
+      executionStatus: 'FAILED' as BatchExtractionMember['executionStatus'],
+      completed: false,
+      reviewable: false,
+      currentReview: null as BatchExtractionMember['currentReview'],
     },
     {
+      extractionId: '51000000-0000-4000-8006-000000000002',
       sourceDocumentId: cancelledDocumentId,
       sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000002',
-      executionStatus: 'FAILED' as const,
-      executionFailureMessage: 'Extraction cancelled.',
-      latestExtraction: null,
+      executionStatus: 'STOPPED' as BatchExtractionMember['executionStatus'],
+      completed: false,
+      reviewable: false,
+      currentReview: null as BatchExtractionMember['currentReview'],
     },
   ],
 }
 
-/** `member` once its Extraction was published: COMPLETED, with its reviewable result by default. */
+/** `member` once its durable Extraction completed with saved values to review (by default). */
 function publishedMember(
   member: (typeof batch.members)[number],
-  extraction: { extractionId?: string; complete?: boolean; reviewable?: boolean } = {},
+  extraction: Partial<Pick<BatchExtractionMember, 'extractionId' | 'reviewable' | 'currentReview'>> = {},
 ) {
-  return {
-    ...member,
-    executionStatus: 'COMPLETED' as const,
-    executionFailureMessage: null,
-    latestExtraction: {
-      extractionId:
-        member.sourceDocumentId === failedDocumentId
-          ? extractionId
-          : '51000000-0000-4000-8006-000000000002',
-      outcome: 'SUCCEEDED' as const,
-      complete: true,
-      reviewable: true,
-      createdAt: '2026-08-14T10:44:00.000Z',
-      reviewedAt: null,
-      ...extraction,
-    },
-  }
+  return { ...member, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true, ...extraction }
 }
 
 /** The chosen schema's current revision: its saved record scope is the batch's strategy (an Article by default). */
@@ -219,18 +201,15 @@ function RoutedPanel({
   sourceDocuments?: typeof documents
 }) {
   const [open, setOpen] = useState<string | null>(batchExtractionId)
-  const [view, setView] = useState<'grid' | null>(null)
   return (
     <BatchExtractionsPanel
       projectContextId={projectContextId}
       sourceDocuments={sourceDocuments}
       openBatchExtractionId={open}
-      openBatchExtractionView={view}
       pilotSchemaRevisionId={null}
       onNavigate={(route) => {
         if (route.kind === 'project' && route.tab === 'extractions') {
           setOpen(route.batchExtractionId ?? null)
-          setView(route.view ?? null)
         }
         onNavigate(route)
       }}
@@ -1064,30 +1043,6 @@ describe('BatchExtractionsPanel', () => {
     expect(posted[0]).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 1 } } } })
   })
 
-  it('reads failed and cancelled members as Failed with their own message', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => response({ batchExtractions: [batch] })),
-    )
-    const onNavigate = renderPanel()
-
-    await screen.findByText('2 failed')
-    fireEvent.click(screen.getByRole('button', { name: /Places/ }))
-
-    const members = screen.getByRole('list', { name: 'Batch Extraction members' })
-    for (const [name, message] of [
-      [/Failed\.pdf/, 'The provider rejected this document.'],
-      [/Cancelled\.pdf/, 'Extraction cancelled.'],
-    ] as const) {
-      const member = within(members).getByRole('button', { name })
-      expect(member).toHaveTextContent('Failed')
-      expect(member).toHaveTextContent(message)
-      expect(member).toBeDisabled()
-    }
-    expect(onNavigate).not.toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'document' }),
-    )
-  })
 
   it('opens a published member result in the document workspace', async () => {
     vi.stubGlobal(
@@ -1098,7 +1053,7 @@ describe('BatchExtractionsPanel', () => {
     )
     const onNavigate = renderPanel()
 
-    await screen.findByText('1 need review · 1 failed')
+    await screen.findByText('1 completed · 1 stopped')
     fireEvent.click(screen.getByRole('button', { name: /Places/ }))
     fireEvent.click(screen.getByRole('button', { name: /Failed.pdf/ }))
     expect(onNavigate).toHaveBeenCalledWith({
@@ -1106,13 +1061,15 @@ describe('BatchExtractionsPanel', () => {
       projectContextId,
       sourceDocumentId: failedDocumentId,
       extractionId,
+      // The document offers its way back to this Batch Extraction and the pilot round's next member.
+      fromBatchExtractionId: batchExtractionId,
     })
   })
 
-  it('never labels an unreviewed Extraction with no reviewable result as reviewed', async () => {
+  it('never labels a completed member without saved values as reviewed', async () => {
     const reviewedEmptyBatch = {
       ...batch,
-      members: [publishedMember(batch.members[0], { complete: false, reviewable: false })],
+      members: [publishedMember(batch.members[0], { reviewable: false })],
     }
     vi.stubGlobal(
       'fetch',
@@ -1125,7 +1082,7 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.queryByText('Reviewed')).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /Failed.pdf/ }),
-    ).toHaveTextContent('No reviewable result')
+    ).toHaveTextContent('Completed')
   })
 
   it('opens at most one server-owned batch and does not cancel it on unmount', async () => {
@@ -1463,12 +1420,12 @@ describe('BatchExtractionsPanel', () => {
     await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
     fireEvent.click(await enabledRun('Run 1 Source Document'))
-    await screen.findByText('1 with no reviewable result')
+    await screen.findByText('1 completed')
     fireEvent.click(screen.getByRole('button', { name: /Places/ }))
 
     expect(
       screen.getByRole('button', { name: /Failed.pdf/ }),
-    ).toHaveTextContent('No reviewable result')
+    ).toHaveTextContent('Completed')
     expect(
       fetch.mock.calls.some(
         ([url, init]) => url === '/api/extractions' && init?.method === 'POST',
@@ -1592,7 +1549,7 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
     fireEvent.click(await enabledRun('Run 1 Source Document'))
 
-    await screen.findByText('1 with no reviewable result · 1 failed')
+    await screen.findByText('1 completed · 1 stopped')
     expect(
       fetch.mock.calls.some(
         ([url, init]) => url === '/api/extractions' && init?.method === 'POST',
@@ -1600,75 +1557,6 @@ describe('BatchExtractionsPanel', () => {
     ).toBe(false)
   })
 
-  it('keeps a Batch member with no result from opening an older Extraction', async () => {
-    const openedBatch = {
-      ...batch,
-      members: [
-        {
-          ...batch.members[0],
-          executionFailureMessage: 'This work stopped before it finished. Start it again.',
-        },
-        publishedMember(batch.members[1]),
-      ],
-    }
-    const fetch = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        if (url.startsWith('/api/batch-extractions?'))
-          return response({ batchExtractions: [] })
-        if (url.startsWith('/api/extraction-schemas?'))
-          return response({
-            extractionSchemas: [
-              {
-                extractionSchemaId: batch.extractionSchemaId,
-                name: 'Places',
-                createdAt: '2026-08-14T10:00:00.000Z',
-                currentRevision: {
-                  schemaRevisionId,
-                  revisionNumber: 1,
-                  origin: 'researcher-edit',
-                  createdAt: '2026-08-14T10:00:00.000Z',
-                },
-              },
-            ],
-          })
-        if (url === '/api/batch-extractions' && init?.method === 'POST')
-          return response({
-            batchExtraction: openedBatch,
-            disposition: 'created',
-          })
-        const chosen = chosenSchemaRead(url)
-        if (chosen) return chosen
-        throw new Error(`Unexpected request: ${url}`)
-      },
-    )
-    vi.stubGlobal('fetch', fetch)
-    const onNavigate = renderPanel()
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
-    )
-    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.click(screen.getByText('Failed.pdf').closest('label')!.querySelector('input')!)
-    fireEvent.click(await enabledRun('Run 1 Source Document'))
-
-    fireEvent.click(await screen.findByText('1 need review · 1 failed'))
-    const members = await screen.findByRole('list', {
-      name: 'Batch Extraction members',
-    })
-    const failedMember = within(members).getByRole('button', {
-      name: /Failed\.pdf/,
-    })
-    expect(failedMember).toHaveTextContent('Failed')
-    expect(failedMember).toBeDisabled()
-    fireEvent.click(failedMember)
-    // Opening this batch routed to it, so what must not happen is opening a
-    // Source Document for a member that produced no Extraction Result.
-    expect(onNavigate).not.toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'document' }),
-    )
-    expect(members).toHaveTextContent('This work stopped before it finished. Start it again.')
-  })
 
   it('opens the routed Batch Extraction without a click', async () => {
     vi.stubGlobal(
@@ -1842,6 +1730,36 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.queryByText(message, { exact: false })).not.toBeInTheDocument()
   })
 
+  it('explains a pinned Schema Revision failure and retries its Run again scope check', async () => {
+    let revisionReads = 0
+    const failure = 'The pinned Schema Revision could not be read.'
+    const refusal = 'Schema Revision 1 is saved as Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the schema and choose Article or Catalog there.'
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [batch] })
+      if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`)) {
+        revisionReads += 1
+        if (revisionReads === 1) throw new Error(failure)
+        return response({ revision: chosenRevision('records') })
+      }
+      if (url.startsWith('/api/schema-revisions?')) return response({ revisions: [] })
+      throw new Error(`Unexpected request: ${url}`)
+    }))
+    renderPanel(vi.fn(), batchExtractionId)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(failure)
+    expect(revisionReads).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Schema Revision' }))
+
+    const rerun = screen.getByRole('button', { name: 'Run again' })
+    await waitFor(() => expect(rerun).toHaveAccessibleDescription(refusal))
+    expect(rerun).toBeDisabled()
+    expect(revisionReads).toBe(2)
+    expect(screen.queryByText(failure)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry Schema Revision' })).not.toBeInTheDocument()
+  })
+
   it.each([
     ['its revision declares neither Article nor Catalog', chosenRevision(null), null,
       'Schema Revision 1 declares neither Article nor Catalog, so this Batch Extraction cannot run again as Article. Start a New Batch Extraction with the schema and choose Article or Catalog there.'],
@@ -1882,7 +1800,6 @@ describe('BatchExtractionsPanel', () => {
       members: batch.members.map((member) => ({
         ...member,
         executionStatus: 'QUEUED' as const,
-        latestExtraction: null,
       })),
     }
     const fetch = vi.fn(
@@ -2712,103 +2629,6 @@ describe('BatchExtractionsPanel', () => {
     expect(JSON.parse(String(run?.[1]?.body))).toEqual({ strategy: 'ARTICLE', method: SERVICE_DEFAULTS })
   })
 
-  it.each([
-    ['xlsx', false],
-    ['xlsx', true],
-    ['csv', true],
-  ] as const)('exports the whole Batch Extraction through its pinned Schema Revision (%s, contested=%s)', async (format, contested) => {
-    const succeededMember = publishedMember(batch.members[1])
-    const listedBatch = {
-      ...batch,
-      executionStatus: 'COMPLETED',
-      members: [batch.members[0], succeededMember],
-    }
-    const pinnedRevision = {
-      schemaRevisionId,
-      extractionSchemaId: batch.extractionSchemaId,
-      revisionNumber: 1,
-      origin: 'researcher-edit',
-      createdAt: '2026-08-14T10:00:00.000Z',
-      stabilisedAt: null,
-      recordDescription: 'One place record.',
-      recordScope: 'document',
-      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
-    }
-    const result = { records: [{ place: contested ? null : 'Rome' }] }
-    const candidates = ['Rome', 'Paris']
-    const fetch = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.startsWith('/api/batch-extractions?'))
-        return response({ batchExtractions: [listedBatch] })
-      if (
-        url.startsWith(
-          `/api/batch-extractions/${batchExtractionId}/results?`,
-        )
-      )
-        return response({
-          batchExtractionId,
-          executionStatus: 'COMPLETED',
-          totalMembers: 2,
-          successfulResults: 1,
-          pending: 0,
-          failed: 1,
-          cancelled: 0,
-          results: [
-            {
-              sourceDocumentId: cancelledDocumentId,
-              extractionId: succeededMember.latestExtraction.extractionId,
-              result,
-              ...(contested ? { contested: [{ resultPath: ['records', 0, 'place'], candidates }] } : {}),
-            },
-          ],
-        })
-      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
-        return response({ revision: pinnedRevision })
-      if (url.startsWith('/api/batch-schema-suggestions?'))
-        return response({ batchSchemaSuggestions: [] })
-      const chosen = chosenSchemaRead(url)
-      if (chosen) return chosen
-      throw new Error(`Unexpected request: ${url}`)
-    })
-    vi.stubGlobal('fetch', fetch)
-    renderPanel()
-
-    fireEvent.click(await screen.findByText('Places · Schema Revision 1'))
-    await screen.findByRole('list', { name: 'Batch Extraction members' })
-    const exportButton = screen.getByRole('button', { name: 'Export' })
-    await waitFor(() => expect(exportButton).toBeEnabled())
-
-    fireEvent.click(exportButton)
-    fireEvent.click(screen.getByRole('button', { name: format === 'xlsx' ? 'Excel' : 'CSV' }))
-
-    await waitFor(() =>
-      expect(exportBatchExtractionResults).toHaveBeenCalledWith(
-        [
-          {
-            sourceDocumentId: cancelledDocumentId,
-            sourceDocumentName: 'Cancelled.pdf',
-            result,
-            ...(contested ? { contested: [{ record: 0, path: ['place'], candidates }] } : {}),
-          },
-        ],
-        {
-          format,
-          filename: 'Places revision 1 batch 51000000 partial',
-          batchExtractionId,
-          schemaNodes: pinnedRevision.schemaNodes,
-          choices: { rowsRepresent: '$', otherRepeatedFields: 'preserve' },
-        },
-      ),
-    )
-    expect(
-      screen.getByText(
-        'Includes 1 of 2 Source Documents; 0 pending, 1 failed, 0 cancelled.' + (contested
-          ? format === 'xlsx' ? ' 1 contested field is left empty and listed on the Review notes sheet.'
-            : ' CSV leaves 1 contested field empty; their candidates are only in the Excel Review notes sheet and in Studio.'
-          : '') + ' Batch exports hold values only; open a Source Document for its Extraction and Evidence sheets.',
-      ),
-    ).toBeVisible()
-  })
 
   it('offers no export while no member has produced a result', async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL) => {
@@ -2842,315 +2662,14 @@ describe('BatchExtractionsPanel', () => {
     await screen.findByRole('list', { name: 'Batch Extraction members' })
 
     expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
-    expect(
-      screen.getByText(
-        'No saved Extraction data is available to export.',
-      ),
-    ).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Review grid' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Review grid' })).not.toBeInTheDocument()
     expect(
       fetch.mock.calls.some(([url]) =>
-        String(url).includes('/results?'),
+        String(url).includes('/durable'),
       ),
     ).toBe(false)
   })
 
-  it('opens the review grid, edits a field there, saves it, and returns to results', async () => {
-    const succeededMember = publishedMember(batch.members[1])
-    const listedBatch = {
-      ...batch,
-      executionStatus: 'COMPLETED' as const,
-      members: [batch.members[0], succeededMember],
-    }
-    const pinnedRevision = {
-      schemaRevisionId,
-      extractionSchemaId: batch.extractionSchemaId,
-      revisionNumber: 1,
-      origin: 'researcher-edit',
-      createdAt: '2026-08-14T10:00:00.000Z',
-      stabilisedAt: null,
-      recordDescription: 'One place record.',
-      recordScope: 'document',
-      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
-    }
-    const reviewedExtractionId = succeededMember.latestExtraction.extractionId
-    const attempt = {
-      extractionId: reviewedExtractionId,
-      sourceDocumentId: cancelledDocumentId,
-      sourceRepresentationRevisionId: succeededMember.sourceRepresentationRevisionId,
-      schemaRevisionId,
-      strategy: 'ARTICLE' as const,
-      catalogRecipe: null,
-      executionStatus: 'COMPLETED' as const,
-      outcome: 'SUCCEEDED' as const,
-      complete: true,
-      modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-      diagnostics: {
-        phase: 'grounding',
-        durationMs: 1,
-        modelCalls: 0,
-        finishReason: null,
-        inputTokens: null,
-        outputTokens: null,
-        grounding: null,
-        catalog: null,
-      },
-      failure: null,
-      resultPayload: { records: [{ place: 'Rome' }] },
-      evidenceLinks: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-1' }],
-      reviewable: true,
-      batchExtractionId,
-      createdAt: '2026-08-14T10:43:00.000Z',
-      reviewedAt: null,
-      reviewDecisions: [],
-    }
-    const pendingReviewDecisions = [
-      {
-        resultPath: ['records', 0, 'place'],
-        evidenceAnchorId: 'anchor-1',
-        reviewedOccurrenceIds: ['occurrence-1'],
-        action: 'APPROVED' as const,
-        reviewedValue: null,
-      },
-    ]
-    let reviewed = false
-    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (url.startsWith('/api/batch-extractions?'))
-        return response({
-          batchExtractions: [
-            reviewed
-              ? {
-                  ...listedBatch,
-                  members: [
-                    listedBatch.members[0],
-                    {
-                      ...succeededMember,
-                      latestExtraction: {
-                        ...succeededMember.latestExtraction,
-                        reviewedAt: '2026-08-14T10:45:00.000Z',
-                      },
-                    },
-                  ],
-                }
-              : listedBatch,
-          ],
-        })
-      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
-        return response({ revision: pinnedRevision })
-      if (url.startsWith('/api/batch-schema-suggestions?'))
-        return response({ batchSchemaSuggestions: [] })
-      if (url === `/api/extractions/${reviewedExtractionId}` && (init?.method ?? 'GET') === 'GET')
-        return response({ extraction: attempt, pendingReviewDecisions })
-      if (url === `/api/extractions/${reviewedExtractionId}/review/draft` && init?.method === 'POST') {
-        const draft = JSON.parse(String(init.body))
-        return response({ ...draft, version: draft.version + 1 })
-      }
-      if (url === `/api/extractions/${reviewedExtractionId}/review` && init?.method === 'POST') {
-        reviewed = true
-        return response({
-          ...attempt,
-          reviewedAt: '2026-08-14T10:45:00.000Z',
-          reviewDecisions: [
-            { ...pendingReviewDecisions[0], action: 'EDITED', reviewedValue: 'Milan', createdAt: '2026-08-14T10:45:00.000Z' },
-          ],
-        })
-      }
-      const chosen = chosenSchemaRead(url)
-      if (chosen) return chosen
-      throw new Error(`Unexpected request: ${url}`)
-    })
-    vi.stubGlobal('fetch', fetch)
-    renderPanel()
 
-    fireEvent.click(await screen.findByText('Places · Schema Revision 1'))
-    await screen.findByRole('list', { name: 'Batch Extraction members' })
-    const gridButton = screen.getByRole('button', { name: 'Review grid' })
-    await waitFor(() => expect(gridButton).toBeEnabled())
-    fireEvent.click(gridButton)
 
-    expect(await screen.findByText('Rome')).toBeVisible()
-
-    const zoomIn = screen.getByRole('button', { name: 'Zoom in' })
-    const zoomOut = screen.getByRole('button', { name: 'Zoom out' })
-    const zoomReset = screen.getByRole('button', { name: 'Fit columns to screen width' })
-    expect(zoomReset).toHaveTextContent('100%')
-    fireEvent.click(zoomIn)
-    fireEvent.click(zoomIn)
-    expect(zoomReset).toHaveTextContent('120%')
-    fireEvent.click(zoomOut)
-    expect(zoomReset).toHaveTextContent('110%')
-    fireEvent.click(zoomReset)
-    expect(zoomReset).toHaveTextContent('Fit')
-
-    fireEvent.click(screen.getByText('Rome'))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-    const input = screen.getByDisplayValue('Rome')
-    fireEvent.change(input, { target: { value: 'Milan' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    expect(screen.queryByRole('button', { name: /Save/ })).not.toBeInTheDocument()
-
-    await waitFor(() =>
-      expect(
-        fetch.mock.calls.some(
-          ([callUrl, callInit]) =>
-            String(callUrl) === `/api/extractions/${reviewedExtractionId}/review` &&
-            callInit?.method === 'POST' &&
-            JSON.parse(String(callInit.body)).reviewDecisions[0].reviewedValue === 'Milan',
-        ),
-      ).toBe(true),
-    )
-    await screen.findByText('Reviewed')
-
-    fireEvent.click(screen.getByRole('button', { name: /Back to results/ }))
-    await screen.findByRole('list', { name: 'Batch Extraction members' })
-  })
-
-  it('explains a pinned Schema Revision failure and retries it explicitly', async () => {
-    const succeededMember = publishedMember(batch.members[1])
-    const pinnedRevision = {
-      schemaRevisionId,
-      extractionSchemaId: batch.extractionSchemaId,
-      revisionNumber: 1,
-      origin: 'researcher-edit',
-      createdAt: '2026-08-14T10:00:00.000Z',
-      stabilisedAt: null,
-      recordDescription: 'One place record.',
-      recordScope: 'document',
-      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
-    }
-    let schemaReads = 0
-    const fetch = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.startsWith('/api/batch-extractions?'))
-        return response({
-          batchExtractions: [
-            {
-              ...batch,
-              executionStatus: 'COMPLETED',
-              members: [succeededMember],
-            },
-          ],
-        })
-      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`)) {
-        schemaReads += 1
-        if (schemaReads === 1) throw new Error('Schema storage is offline.')
-        return response({ revision: pinnedRevision })
-      }
-      if (url.startsWith('/api/batch-schema-suggestions?'))
-        return response({ batchSchemaSuggestions: [] })
-      const chosen = chosenSchemaRead(url)
-      if (chosen) return chosen
-      throw new Error(`Unexpected request: ${url}`)
-    })
-    vi.stubGlobal('fetch', fetch)
-    renderPanel()
-
-    fireEvent.click(await screen.findByText('Places · Schema Revision 1'))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Schema storage is offline.',
-    )
-    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Retry Schema Revision' }),
-    )
-
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled(),
-    )
-    expect(schemaReads).toBe(2)
-    expect(
-      screen.queryByRole('button', { name: 'Retry Schema Revision' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('preserves export choices while a Batch result read fails and retries', async () => {
-    vi.mocked(exportBatchExtractionResults).mockClear()
-    const succeededMember = publishedMember(batch.members[0])
-    let resultReads = 0
-    const fetch = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.startsWith('/api/batch-extractions?'))
-        return response({
-          batchExtractions: [
-            { ...batch, executionStatus: 'COMPLETED', members: [succeededMember] },
-          ],
-        })
-      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
-        return response({
-          revision: {
-            schemaRevisionId,
-            extractionSchemaId: batch.extractionSchemaId,
-            revisionNumber: 1,
-            origin: 'researcher-edit',
-            createdAt: '2026-08-14T10:00:00.000Z',
-            stabilisedAt: null,
-            recordDescription: 'One place record.',
-            recordScope: 'document',
-            schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
-          },
-        })
-      if (url.includes(`/batch-extractions/${batchExtractionId}/results?`)) {
-        resultReads += 1
-        return resultReads === 1
-          ? Response.json(
-              {
-                error: {
-                  code: 'persistence_unavailable',
-                  message: 'Batch Extraction results are unavailable.',
-                },
-              },
-              { status: 503 },
-            )
-          : response({
-              batchExtractionId,
-              executionStatus: 'COMPLETED',
-              totalMembers: 1,
-              successfulResults: 1,
-              pending: 0,
-              failed: 0,
-              cancelled: 0,
-              results: [
-                {
-                  sourceDocumentId: failedDocumentId,
-                  extractionId,
-                  result: { records: [{ place: 'Rome' }] },
-                },
-              ],
-            })
-      }
-      if (url.startsWith('/api/batch-schema-suggestions?'))
-        return response({ batchSchemaSuggestions: [] })
-      const chosen = chosenSchemaRead(url)
-      if (chosen) return chosen
-      throw new Error(`Unexpected request: ${url}`)
-    })
-    vi.stubGlobal('fetch', fetch)
-    renderPanel()
-
-    fireEvent.click(await screen.findByText('Places · Schema Revision 1'))
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled(),
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
-    fireEvent.change(screen.getByLabelText('Other repeated fields'), {
-      target: { value: 'omit' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Batch Extraction results are unavailable.',
-    )
-    expect(exportBatchExtractionResults).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
-    expect(screen.getByLabelText('Other repeated fields')).toHaveValue('omit')
-    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
-
-    await waitFor(() => expect(exportBatchExtractionResults).toHaveBeenCalledOnce())
-    expect(resultReads).toBe(2)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-  })
 })

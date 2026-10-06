@@ -14,7 +14,7 @@ function specifiers(source: string): string[] {
 }
 const research = (specifier: string) => /experiments\/extraction|docs\/validation/.test(specifier)
 /** The pure parts of the extraction package a browser may load; the runtime (its root, workflows, batch, kei) is not. */
-const BROWSER_EXTRACTION = new Set(['extraction/allowed-values', 'extraction/extraction-method', 'extraction/parsed-document', 'extraction/schema', 'extraction/review-attention', 'extraction/durable-types'])
+const BROWSER_EXTRACTION = new Set(['extraction/allowed-values', 'extraction/extraction-method', 'extraction/parsed-document', 'extraction/schema', 'extraction/durable-types'])
 const extractionRuntime = (specifier: string) =>
   (specifier === 'extraction' || specifier.startsWith('extraction/')) && !BROWSER_EXTRACTION.has(specifier)
 

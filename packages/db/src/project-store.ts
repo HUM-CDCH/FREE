@@ -391,6 +391,40 @@ export const suggestWorkflowId = (batchSchemaSuggestionId: string, attempt: numb
   `suggest:${batchSchemaSuggestionId}:${attempt}`
 
 /**
+ * The durable Extractions of these Source Documents (ADR 0017): a public Extraction row with a live coordination head.
+ * `completed` retains any completed attempt even after Stop or input adoption changes the head's status.
+ * `finished` is a COMPLETED, FAILED or STOPPED acknowledgement; `reviewedAt` is the latest named finalization of any of
+ * its result/decision cuts. A row without a live head is no Extraction these summaries count.
+ */
+async function durableExtractionFacts(database: Database, where: { documentIds?: readonly string[]; batchIds?: readonly string[] }) {
+  const rows = where.documentIds
+    ? where.documentIds.length === 0 ? [] : await database.orm.public.Extraction.where((row) => row.sourceDocumentId.in([...where.documentIds!]))
+      .select('id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'batchExtractionId', 'createdAt').all()
+    : (where.batchIds ?? []).length === 0 ? [] : await database.orm.public.Extraction.where((row) => row.batchExtractionId.in([...where.batchIds!]))
+      .select('id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'batchExtractionId', 'createdAt').all()
+  if (rows.length === 0) return []
+  const ids = rows.map((row) => row.id)
+  const heads = new Map((await database.orm.extraction_runtime.Head.where((head) => head.id.in(ids)).select('id', 'acknowledgement', 'deleted').all())
+    .filter((head) => !head.deleted).map((head) => [head.id, head.acknowledgement]))
+  const completed = new Set(heads.size === 0 ? [] : (await database.orm.extraction_runtime.Attempt
+    .where(row => row.extractionId.in([...heads.keys()])).where({ outcome: 'COMPLETED' })
+    .select('extractionId').all()).map(row => row.extractionId))
+  const finalizations = heads.size === 0 ? [] : await database.orm.extraction_runtime.Finalization.where((row) => row.extractionId.in([...heads.keys()]))
+    .select('extractionId', 'createdAt').all()
+  const reviewedAt = new Map<string, Date>()
+  for (const finalization of finalizations) {
+    const latest = reviewedAt.get(finalization.extractionId)
+    if (!latest || finalization.createdAt > latest) reviewedAt.set(finalization.extractionId, finalization.createdAt)
+  }
+  return rows.filter((row) => heads.has(row.id)).map((row) => {
+    const acknowledgement = heads.get(row.id)!
+    return { ...row, completed: acknowledgement === 'COMPLETED' || completed.has(row.id),
+      finished: acknowledgement === 'COMPLETED' || acknowledgement === 'FAILED' || acknowledgement === 'STOPPED',
+      reviewedAt: reviewedAt.get(row.id) ?? null }
+  })
+}
+
+/**
  * Whether a suggestion's current attempt is active: it has no outcome and its workflow is live (DBOS ENQUEUED, DELAYED
  * or PENDING). An attempt with no outcome whose workflow ended or is gone is interrupted, and counts as terminal for
  * retry, draft edits and Run alike. Read under the suggestion's row lock the answer is exact: a publication either
@@ -1296,22 +1330,11 @@ export function createResearcherProjectStore(
             )
               .select('id', 'sourceDocumentId', 'revisionNumber')
               .all()
-      // Only published results count: a pending, failed or cancelled Extraction extracted nothing.
-      const extractions =
-        documentIds.length === 0
-          ? []
-          : await database.orm.public.Extraction.where((extraction) =>
-              extraction.sourceDocumentId.in(documentIds),
-            )
-              // A legacy sample row (`requestedPages` set) is no document's result and counts in no summary.
-              .where({ outcome: 'SUCCEEDED', requestedPages: null })
-              .select(
-                'sourceDocumentId',
-                'sourceRepresentationRevisionId',
-                'createdAt',
-                'reviewedAt',
-              )
-              .all()
+      // A completed durable Extraction counts as extracted, and so does one with a finalization of any of its cuts,
+      // whatever its processing state: finalization is independent of processing, and a stopped, failed or paused
+      // Extraction keeps its reviewed result ("Latest reviewed" opens it too). Reviewed stays a subset of extracted.
+      const extractions = (await durableExtractionFacts(database, { documentIds }))
+        .filter((extraction) => extraction.completed || extraction.reviewedAt !== null)
       const schemas = await database.orm.public.ExtractionSchema.where(
         (schema) => schema.projectContextId.in(projectIds),
       )
@@ -1339,23 +1362,8 @@ export function createResearcherProjectStore(
       )
         .select('id', 'projectContextId', 'createdAt')
         .all()
-      // A batch's member Extractions are its selection; one that has no outcome takes its status from DBOS.
-      const members =
-        batches.length === 0
-          ? []
-          : await database.orm.public.Extraction.where((member) =>
-              member.batchExtractionId.in(batches.map((batch) => batch.id)),
-            )
-              .select('id', 'batchExtractionId', 'outcome')
-              .all()
-      const unsettled = members.filter((member) => member.outcome === null)
-      const memberStatuses =
-        unsettled.length === 0
-          ? null
-          : await statuses(
-              // `extract:<id>` is owned by extraction/kei-handoff extractWorkflowId; db sits below extraction.
-              unsettled.map((member) => `extract:${member.id}`),
-            )
+      // A batch's member Extractions are its selection; each is finished once its head acknowledges a terminal state.
+      const members = await durableExtractionFacts(database, { batchIds: batches.map((batch) => batch.id) })
 
       // The current representation of each Source Document is its highest
       // revision; its latest Extraction is the most recently created one.
@@ -1463,17 +1471,7 @@ export function createResearcherProjectStore(
           batchExtractionId,
           (totalMembers.get(batchExtractionId) ?? 0) + 1,
         )
-        // Settled, or stopped without an outcome: a finished workflow (SUCCESS) wrote one just now or never will.
-        // `extract:<id>` is owned by extraction/kei-handoff extractWorkflowId; db sits below extraction.
-        const execution =
-          member.outcome === null && memberStatuses
-            ? executionOf(memberStatuses.get(`extract:${member.id}`))
-            : null
-        if (
-          member.outcome !== null ||
-          execution === 'INTERRUPTED' ||
-          execution === 'REREAD'
-        )
+        if (member.finished)
           completedMembers.set(
             batchExtractionId,
             (completedMembers.get(batchExtractionId) ?? 0) + 1,
@@ -1547,16 +1545,8 @@ export function createResearcherProjectStore(
       const projectByDocument = new Map(
         documents.map((document) => [document.id, document.projectContextId]),
       )
-      const extractions =
-        documents.length === 0
-          ? []
-          : await database.orm.public.Extraction.where((extraction) =>
-              extraction.sourceDocumentId.in(documents.map((d) => d.id)),
-            )
-              // The activity feed leaves out legacy sample rows (`requestedPages` set) the same way.
-              .where({ outcome: 'SUCCEEDED', requestedPages: null })
-              .select('sourceDocumentId', 'createdAt', 'reviewedAt')
-              .all()
+      const extractions = (await durableExtractionFacts(database, { documentIds: documents.map((document) => document.id) }))
+        .filter((extraction) => extraction.completed || extraction.reviewedAt !== null)
       const schemas = await database.orm.public.ExtractionSchema.where(
         (schema) => schema.projectContextId.in(projectIds),
       )

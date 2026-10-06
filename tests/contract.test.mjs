@@ -140,6 +140,7 @@ test('schema: a researcher-approved schema revision is stored', async () => {
     body: JSON.stringify({
       projectContextId: state.projectId,
       recordDescription: 'A historical publication event',
+      recordScope: 'document',
       schemaNodes: [
         { id: 'author', name: 'author', type: 'string', description: 'Person or body named' },
         { id: 'year', name: 'year', type: 'number', description: 'Year mentioned' },
@@ -151,7 +152,7 @@ test('schema: a researcher-approved schema revision is stored', async () => {
   state.schemaRevisionId = response.body.revision.schemaRevisionId
 })
 
-test('extraction: the canonical schema-guided path succeeds with evidence', { timeout: 600_000 }, async () => {
+test('extraction: a durable Extraction is admitted and completes', { timeout: 300_000 }, async () => {
   const configured = await session.api('/model_config', {
     method: 'PUT',
     body: JSON.stringify({
@@ -189,64 +190,25 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
     }),
   })
   assert.equal(extraction.status, 201, JSON.stringify(extraction.body))
-  assert.ok(['QUEUED', 'RUNNING', 'COMPLETED'].includes(extraction.body.executionStatus))
-
-  const deadline = Date.now() + 600_000
-  let completed
+  assert.equal(extraction.body.extractionId, state.extractionId)
+  const deadline = Date.now() + 280_000
+  let saved
   while (Date.now() < deadline) {
-    const detail = await session.api(`/extractions/${state.extractionId}`)
-    assert.equal(detail.status, 200)
-    const attempt = detail.body.extraction
-    if (attempt.executionStatus === 'FAILED')
-      assert.fail(`Extraction failed: ${JSON.stringify(attempt.failure)}`)
-    if (attempt.executionStatus === 'COMPLETED') {
-      completed = attempt
-      break
-    }
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, 1_000))
+    const read = await session.api(`/extractions/${state.extractionId}`)
+    assert.equal(read.status, 200, JSON.stringify(read.body))
+    saved = read.body.extraction
+    if (['COMPLETED', 'FAILED', 'STOPPED'].includes(saved.executionStatus)) break
+    await new Promise(resolve => setTimeout(resolve, 1_000))
   }
-  assert.ok(completed, 'Extraction did not finish before the deadline')
-  assert.equal(completed.outcome, 'SUCCEEDED')
+  assert.equal(saved?.executionStatus, 'COMPLETED', JSON.stringify(saved))
+  const values = await session.api(`/extractions/${state.extractionId}/durable/values`)
+  assert.equal(values.status, 200, JSON.stringify(values.body))
+  assert.ok(values.body.snapshotVersion > 0)
+  assert.ok(values.body.values.length > 0)
+  assert.ok(values.body.values.some(value => value.node.name === 'year' && value.modelValue === 1666))
+  state.completedExtraction = saved
+  state.savedValues = values.body
 
-  // The run produced Evidence links and reported its grounding diagnostic.
-  // That grounded and ungrounded together cover every populated value is a
-  // property of grounding.ts, pinned in packages/extraction/src/grounding.test.ts;
-  // asserting it here can only restate what the response already computed.
-  assert.ok(completed.evidenceLinks.length > 0)
-  assert.ok(Array.isArray(completed.diagnostics.grounding.ungroundedPaths))
-})
-
-test('review: partial review decisions are rejected (data integrity)', async () => {
-  const detail = await session.api(`/extractions/${state.extractionId}`)
-  assert.equal(detail.status, 200)
-  state.pendingReviewDecisions = detail.body.pendingReviewDecisions
-  assert.ok(state.pendingReviewDecisions.length > 0)
-
-  const partial = await session.api(`/extractions/${state.extractionId}/review`, {
-    method: 'POST',
-    body: JSON.stringify({
-      reviewDecisions: state.pendingReviewDecisions.slice(0, 1),
-    }),
-  })
-  assert.equal(partial.status, 422)
-})
-
-test('review: complete accept/reject decisions are stored', async () => {
-  const decisions = state.pendingReviewDecisions.map((decision, index) => ({
-    ...decision,
-    action: index === 0 ? 'REJECTED' : 'APPROVED',
-  }))
-  const response = await session.api(`/extractions/${state.extractionId}/review`, {
-    method: 'POST',
-    body: JSON.stringify({ reviewDecisions: decisions }),
-  })
-  assert.equal(response.status, 200, JSON.stringify(response.body))
-
-  const stored = await session.api(`/extractions/${state.extractionId}`)
-  assert.equal(
-    stored.body.extraction.reviewDecisions.length,
-    decisions.length,
-  )
 })
 
 /** A native-text PDF of `pages` pages (about 3,000 characters each), each opening with PAGESTARTnn (plus æøå) and closing with PAGEENDnn. */
@@ -381,10 +343,12 @@ test('durability: research state survives a normal restart', { timeout: 900_000 
     ),
     'project survived restart',
   )
-  const extraction = await fresh.api(`/extractions/${state.extractionId}`)
-  assert.equal(extraction.status, 200)
-  assert.equal(extraction.body.extraction.outcome, 'SUCCEEDED')
-  assert.ok(extraction.body.extraction.reviewDecisions.length > 0)
+  const retained = await fresh.api(`/extractions/${state.extractionId}`)
+  assert.equal(retained.status, 200, JSON.stringify(retained.body))
+  assert.deepEqual(retained.body.extraction, state.completedExtraction)
+  const values = await fresh.api(`/extractions/${state.extractionId}/durable/values?snapshotVersion=${state.savedValues.snapshotVersion}&feedbackVersion=${state.savedValues.feedbackVersion}`)
+  assert.equal(values.status, 200, JSON.stringify(values.body))
+  assert.deepEqual(values.body, state.savedValues)
 })
 
 test('projects: permanent deletion removes the owned graph', async () => {

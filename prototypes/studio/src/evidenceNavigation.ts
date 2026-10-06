@@ -11,15 +11,6 @@ export function anchorOccurrences(anchor: ParsedEvidenceAnchor): EvidenceOccurre
   return anchor.producer_observations
 }
 
-export function reviewedAnchorOccurrences(
-  anchor: ParsedEvidenceAnchor,
-  reviewedOccurrenceIds?: readonly string[],
-): EvidenceOccurrence[] {
-  return anchorOccurrences(anchor).filter(
-    (occurrence) => !reviewedOccurrenceIds || reviewedOccurrenceIds.includes(occurrence.occurrence_id),
-  )
-}
-
 export function verifiedEvidenceBbox(
   document: ParsedDocument,
   occurrence: EvidenceOccurrence,

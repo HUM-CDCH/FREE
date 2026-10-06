@@ -1,27 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ResearcherProjectStore } from 'db'
 import {
   ExtractionError,
+  type ExtractionAttemptSnapshot,
   type ExtractionModule,
-  type ExtractionSnapshot,
 } from 'extraction'
 import { createResearcherApiHandlers } from './extractions.js'
 import type * as ExtractionsModule from './_extractions.js'
 import { extractionAttemptSchema, extractionReadResponseSchema } from '../shared/extraction.contract.js'
-import progressFixture from '../../parsing_service/tests/fixtures/contracts/extract.progress.json'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
-  readExtractionProgress: vi.fn<(runId: string, extractionId: string) => Promise<unknown | null>>(),
 }))
 
 vi.mock('./_extractions.js', async (importOriginal) => {
   const actual = await importOriginal<typeof ExtractionsModule>()
-  return {
-    ...actual,
-    createResearcherExtractions: runtime.createResearcherExtractions,
-    keiExpClient: { ...actual.keiExpClient, readExtractionProgress: runtime.readExtractionProgress },
-  }
+  return { ...actual, createResearcherExtractions: runtime.createResearcherExtractions }
 })
 
 const ACCOUNT = '51000000-0000-4000-8009-000000000001'
@@ -30,7 +24,7 @@ const DOCUMENT = '51000000-0000-4000-8001-000000000001'
 const REPRESENTATION = '51000000-0000-4000-8002-000000000001'
 const REVISION = '51000000-0000-4000-8004-000000000001'
 
-const snapshot: ExtractionSnapshot = {
+const attemptSnapshot: ExtractionAttemptSnapshot = {
   extractionId: EXTRACTION,
   sourceDocumentId: DOCUMENT,
   sourceRepresentationRevisionId: REPRESENTATION,
@@ -41,45 +35,13 @@ const snapshot: ExtractionSnapshot = {
   schemaRevisionNumber: 4,
   strategy: 'ARTICLE',
   catalogRecipe: null,
-  outcome: 'SUCCEEDED',
-  complete: true,
-  modelAttribution: { provider: 'openai', modelId: 'fixture' },
-  diagnostics: {
-    phase: 'persisting',
-    durationMs: 12,
-    modelCalls: 1,
-    finishReason: 'stop',
-    inputTokens: 10,
-    outputTokens: 4,
-    ungroundedPaths: [],
-    groundingIssues: [],
-    groundingBatches: [
-      {
-        resultPath: ['records', 0],
-        candidateCount: 1,
-        fallback: true,
-        outcome: 'succeeded',
-        finishReason: 'stop',
-        inputTokens: 3,
-        outputTokens: 1,
-        durationMs: 4,
-      },
-    ],
-    unverifiedFields: [],
-    catalog: null,
-  },
-  result: { records: [{ title: 'Alpha' }] },
-  evidence: [
-    { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-alpha' },
-  ],
-  failure: null,
-  reviewable: true,
+  requestedModels: null,
+  requestedSettings: { article: null },
+  executionStatus: 'QUEUED',
+  finalizedReview: null,
   batchExtractionId: null,
   createdAt: new Date('2026-08-20T10:00:00.000Z'),
-  reviewedAt: null,
-  reviewDecisions: [],
 }
-const attemptSnapshot = { ...snapshot, executionStatus: 'COMPLETED' as const }
 
 function extractionModule(overrides: Partial<ExtractionModule> = {}) {
   const module: ExtractionModule = {
@@ -90,41 +52,6 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
     readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(
       async () => attemptSnapshot,
     ),
-    cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(
-      async () => 'cancellation-requested',
-    ),
-    prepareReview: vi.fn<ExtractionModule['prepareReview']>(async () => ({
-      extraction: snapshot,
-      reviewDecisions: [
-        {
-          resultPath: ['records', 0, 'title'],
-          evidenceAnchorId: 'anchor-alpha',
-          reviewedOccurrenceIds: ['occurrence-alpha'],
-          action: 'APPROVED',
-          reviewedValue: null,
-        },
-      ],
-    })),
-    resetReview: vi.fn(async (_id, version) => ({ version: version + 1, decisions: [] })),
-    readReviewDraft: vi.fn(async () => ({ version: 0, decisions: [] })),
-    saveReviewDraft: vi.fn(async (_id, draft) => ({ ...draft, version: draft.version + 1 })),
-    finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(async () => ({
-      disposition: 'reviewed',
-      extraction: {
-        ...snapshot,
-        reviewedAt: new Date('2026-08-20T10:01:00.000Z'),
-        reviewDecisions: [
-          {
-            resultPath: ['records', 0, 'title'],
-            evidenceAnchorId: 'anchor-alpha',
-            reviewedOccurrenceIds: ['occurrence-alpha'],
-            action: 'APPROVED',
-            reviewedValue: null,
-            createdAt: new Date('2026-08-20T10:01:00.000Z'),
-          },
-        ],
-      },
-    })),
     readDocumentExtractions:
       vi.fn<ExtractionModule['readDocumentExtractions']>(),
     scheduleBatch: vi.fn<ExtractionModule['scheduleBatch']>(),
@@ -134,7 +61,6 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
       vi.fn<ExtractionModule['stabiliseSchemaRevision']>(),
     listBatches: vi.fn<ExtractionModule['listBatches']>(),
     readBatch: vi.fn<ExtractionModule['readBatch']>(),
-    readBatchResults: vi.fn<ExtractionModule['readBatchResults']>(),
     ...overrides,
   }
   return module
@@ -160,37 +86,7 @@ const fresh = {
 }
 
 describe('/api/extractions transport', () => {
-  beforeEach(() => runtime.readExtractionProgress.mockReset())
 
-  it('routes versioned resets and rejects malformed versions', async () => {
-    const module = extractionModule()
-    const handle = handlerFor(module)
-    const post = (body: unknown) => handle(new Request(`http://test/api/extractions/${EXTRACTION}/review/reset`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-    }))
-    const response = await post({ expectedDraftVersion: 2 })
-    expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(await response.json()).toEqual({ version: 3, decisions: [] })
-    expect(module.resetReview).toHaveBeenCalledWith(EXTRACTION, 2)
-    for (const body of [{}, { expectedDraftVersion: -1 }, { expectedDraftVersion: 1.5 }])
-      expect((await post(body)).status).toBe(422)
-    expect(module.resetReview).toHaveBeenCalledTimes(1)
-  })
-  it('routes versioned draft writes and rejects malformed drafts before the module', async () => {
-    const module = extractionModule()
-    const handle = handlerFor(module)
-    const post = (body: unknown) => handle(new Request(`http://test/api/extractions/${EXTRACTION}/review/draft`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-    }))
-    const response = await post({ version: 2, decisions: [] })
-    expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(module.saveReviewDraft).toHaveBeenCalledWith(EXTRACTION, { version: 2, decisions: [] })
-    expect(await response.json()).toEqual({ version: 3, decisions: [] })
-    expect((await post({ version: -1, decisions: [] })).status).toBe(422)
-    expect(module.saveReviewDraft).toHaveBeenCalledTimes(1)
-  })
 
   it('maps a fresh request to runSingle and preserves created/replayed status', async () => {
     const module = extractionModule()
@@ -199,19 +95,6 @@ describe('/api/extractions transport', () => {
     const created = await handle(request(fresh))
     expect(created.status).toBe(201)
     expect(created.headers.get('cache-control')).toBe('no-store')
-    await expect(created.clone().json()).resolves.toMatchObject({
-      diagnostics: {
-        phase: 'persisting',
-        grounding: {
-          batches: [
-            expect.objectContaining({
-              resultPath: ['records', 0],
-              candidateCount: 1,
-            }),
-          ],
-        },
-      },
-    })
     expect(module.runSingle).toHaveBeenCalledWith(
       {
         kind: 'fresh',
@@ -223,10 +106,8 @@ describe('/api/extractions transport', () => {
         startPage: null,
       },
     )
-    expect(await created.json()).toMatchObject({
-      extractionId: EXTRACTION,
-      resultPayload: snapshot.result,
-      evidenceLinks: snapshot.evidence,
+    expect(extractionAttemptSchema.parse(await created.json())).toMatchObject({
+      extractionId: EXTRACTION, executionStatus: 'QUEUED', finalizedReview: null,
     })
 
     vi.mocked(module.runSingle).mockResolvedValueOnce({
@@ -270,6 +151,7 @@ describe('/api/extractions transport', () => {
     ['record_scope_required', 409],
     ['record_scope_mismatch', 409],
     ['invalid_identity_fields', 422],
+    ['invalid_schema_revision', 422],
     ['incompatible_extraction_model', 422],
     ['invalid_model_config', 500],
   ] as const)('answers %s with %i', async (code, status) => {
@@ -322,18 +204,12 @@ describe('/api/extractions transport', () => {
     }))
   })
 
-  it('runs a fresh Extraction on the submitted Extraction Model Choice and echoes it beside the models each role ran on', async () => {
+  it('runs a fresh Extraction on the submitted Extraction Model Choice and echoes the admitted choice', async () => {
     const models = { fields: 'nuextract', reasoning: 'instruct' }
-    const used = { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' }
     const module = extractionModule({
       runSingle: vi.fn<ExtractionModule['runSingle']>(async () => ({
         disposition: 'created',
-        extraction: {
-          ...attemptSnapshot,
-          requestedModels: models,
-          modelAttribution: { provider: 'kei-exp', modelId: used.fields },
-          diagnostics: { ...snapshot.diagnostics, models: used },
-        },
+        extraction: { ...attemptSnapshot, requestedModels: models },
       })),
     })
     const method = { models, settings: { article: null } }
@@ -342,8 +218,6 @@ describe('/api/extractions transport', () => {
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fresh', method }))
     const body = extractionAttemptSchema.parse(await response.json())
     expect(body.requestedModels).toEqual(models)
-    expect(body.diagnostics?.models).toEqual(used)
-    expect(body.modelAttribution).toEqual({ provider: 'kei-exp', modelId: used.fields })
   })
 
   it('refuses a model choice outside the method before the module runs', async () => {
@@ -354,48 +228,6 @@ describe('/api/extractions transport', () => {
     expect(module.runSingle).not.toHaveBeenCalled()
   })
 
-  it('omits backend-only Catalog document values from strict API JSON', async () => {
-    const documentStage = {
-      stage: 'document-values' as const,
-      provenance: 'reused' as const,
-      outcome: 'succeeded' as const,
-      finishReason: 'stop',
-      calls: 0,
-      inputTokens: null,
-      outputTokens: null,
-      durationMs: 0,
-      failureCode: null,
-    }
-    const catalogSnapshot: ExtractionSnapshot = {
-      ...snapshot,
-      strategy: 'CATALOG',
-      diagnostics: {
-        ...snapshot.diagnostics,
-        catalog: {
-          stages: [documentStage],
-          records: [],
-          documentValues: { archive: 'internal-only' },
-        },
-      },
-    }
-    const module = extractionModule({
-      runSingle: vi.fn<ExtractionModule['runSingle']>(async () => ({
-        disposition: 'created',
-        extraction: { ...catalogSnapshot, executionStatus: 'COMPLETED' },
-      })),
-    })
-    const response = await handlerFor(module)(
-      request({ ...fresh, strategy: 'CATALOG', method: { models: null, settings: { generic: null } } }),
-    )
-    const body = extractionAttemptSchema.parse(await response.json())
-
-    expect(response.status).toBe(201)
-    expect(body.diagnostics!.catalog).toEqual({
-      stages: [documentStage],
-      records: [],
-    })
-    expect(body.diagnostics!.catalog).not.toHaveProperty('documentValues')
-  })
 
   it('refuses a targeted retry body from a stale page before scheduling anything', async () => {
     const module = extractionModule()
@@ -415,47 +247,6 @@ describe('/api/extractions transport', () => {
     expect(module.runSingle).not.toHaveBeenCalled()
   })
 
-  it('reads canonical review preparation and finalizes submitted decisions', async () => {
-    const module = extractionModule()
-    const handle = handlerFor(module)
-    const read = await handle(
-      new Request(`http://test/api/extractions/${EXTRACTION}`),
-    )
-    expect(read.status).toBe(200)
-    expect(await read.json()).toMatchObject({
-      pendingReviewDecisions: [
-        {
-          resultPath: ['records', 0, 'title'],
-          evidenceAnchorId: 'anchor-alpha',
-          reviewedOccurrenceIds: ['occurrence-alpha'],
-          action: 'APPROVED',
-          reviewedValue: null,
-        },
-      ],
-    })
-
-    const decisions = [
-      {
-        resultPath: ['records', 0, 'title'],
-        evidenceAnchorId: 'anchor-alpha',
-        reviewedOccurrenceIds: ['occurrence-alpha'],
-        action: 'APPROVED',
-        reviewedValue: null,
-      },
-    ]
-    const reviewed = await handle(
-      new Request(`http://test/api/extractions/${EXTRACTION}/review`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ reviewDecisions: decisions }),
-      }),
-    )
-    expect(reviewed.status).toBe(200)
-    expect(module.finalizeReview).toHaveBeenCalledWith(EXTRACTION, decisions, 0)
-    expect(await reviewed.json()).toMatchObject({
-      reviewedAt: '2026-08-20T10:01:00.000Z',
-    })
-  })
 
   it('passes the page the researcher was reading to admission, null when the request names none, and refuses a bad one', async () => {
     const module = extractionModule()
@@ -469,46 +260,7 @@ describe('/api/extractions transport', () => {
     expect(module.runSingle).toHaveBeenCalledTimes(2)
   })
 
-  it('reads a running job with kei\'s progress as a partial view, and without one when kei has none, is slow, or answers outside the contract', async () => {
-    const running = { ...attemptSnapshot, executionStatus: 'RUNNING' as const, outcome: null, complete: null, modelAttribution: null,
-      diagnostics: null, result: null, evidence: null, failure: null, reviewable: false, reviewedAt: null, reviewDecisions: [] }
-    const handler = handlerFor(extractionModule({ readExtractionAttempt: vi.fn(async () => running) }))
-    const read = async () => {
-      const response = await handler(new Request(`http://test/api/extractions/${EXTRACTION}`))
-      expect(response.status).toBe(200)
-      return extractionReadResponseSchema.parse(await response.json())
-    }
-    runtime.readExtractionProgress.mockResolvedValueOnce(progressFixture)
-    const shown = await read()
-    expect(runtime.readExtractionProgress).toHaveBeenCalledWith('run-1', EXTRACTION)
-    expect(shown.partial).toMatchObject({ strategy: 'CATALOG', startedAtPage: 1, discovered: 5, finished: 2 })
-    expect(shown.partial!.records.map((record) => record.state)).toEqual(['finished', 'finished', 'checking', 'reading', 'queued'])
-    expect(shown.partial!.records[0]!.values[JSON.stringify(['material'])]).toEqual({ value: 'Holz', state: 'grounded' })
-    expect(shown.partial!.records[1]!.values[JSON.stringify(['site'])]).toEqual({ value: null, state: 'contested', candidates: ['Bdorf', 'Bdorf-Nord'] })
-    runtime.readExtractionProgress.mockResolvedValueOnce(null)
-    expect((await read()).partial).toBeNull()
-    runtime.readExtractionProgress.mockRejectedValueOnce(Object.assign(new Error('timed out'), { transient: true }))
-    expect((await read()).partial).toBeNull()
-    runtime.readExtractionProgress.mockResolvedValueOnce({ version: 2 })
-    expect((await read()).partial).toBeNull()
-    // Inside kei's contract but outside Studio's wire contract (an empty link path): still null, still 200.
-    const emptyPath = structuredClone(progressFixture) as typeof progressFixture
-    ;(emptyPath.entries[0]!.evidence![0] as { path: unknown[] }).path = []
-    runtime.readExtractionProgress.mockResolvedValueOnce(emptyPath)
-    expect((await read()).partial).toBeNull()
-  })
 
-  it('never asks kei for progress unless the attempt is running', async () => {
-    const queued = { ...attemptSnapshot, executionStatus: 'QUEUED' as const, outcome: null, complete: null, modelAttribution: null,
-      diagnostics: null, result: null, evidence: null, failure: null, reviewable: false, reviewedAt: null, reviewDecisions: [] }
-    for (const attempt of [queued, attemptSnapshot]) {
-      const response = await handlerFor(extractionModule({ readExtractionAttempt: vi.fn(async () => attempt) }))(
-        new Request(`http://test/api/extractions/${EXTRACTION}`))
-      expect(response.status).toBe(200)
-      expect(extractionReadResponseSchema.parse(await response.json()).partial).toBeNull()
-    }
-    expect(runtime.readExtractionProgress).not.toHaveBeenCalled()
-  })
 
   it('refuses a run that still names sample pages', async () => {
     const module = extractionModule()
@@ -519,170 +271,57 @@ describe('/api/extractions transport', () => {
     expect(module.runSingle).not.toHaveBeenCalled()
   })
 
-  it('reads a running job with its Review Draft but no values, prepared decisions or review authority (ADR 0016); a failed one without either', async () => {
-    const running = {
-      ...attemptSnapshot,
-      executionStatus: 'RUNNING' as const,
-      outcome: null,
-      complete: null,
-      modelAttribution: null,
-      diagnostics: null,
-      result: null,
-      evidence: null,
-      failure: null,
-      reviewable: false,
-      reviewedAt: null,
-      reviewDecisions: [],
-    }
-    const draft = { version: 3, decisions: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1',
-      reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }] }
-    const runningModule = extractionModule({
-      readExtractionAttempt: vi.fn(async () => running),
-      readReviewDraft: vi.fn(async () => draft),
-    })
-    const runningResponse = await handlerFor(runningModule)(
-      new Request(`http://test/api/extractions/${EXTRACTION}`),
-    )
 
-    expect(runningResponse.status).toBe(200)
-    expect(await runningResponse.json()).toMatchObject({
-      extraction: {
-        executionStatus: 'RUNNING',
-        outcome: null,
-        resultPayload: null,
-        evidenceLinks: null,
-        reviewable: false,
-      },
-      pendingReviewDecisions: null,
-      reviewDraft: draft,
-    })
-    expect(runningModule.prepareReview).not.toHaveBeenCalled()
 
-    // Legacy-row fixture: a FAILED job carries the same null checkpoint values, plus a failure the reader
-    // passes through unfiltered (`postgres-attempts.ts`'s `settledAttempt` FAILED branch).
-    const failure = { code: 'legacy_failure', message: 'Legacy job failure.', phase: 'grounding' as const }
-    const failed = {
-      ...running,
-      executionStatus: 'FAILED' as const,
-      failure,
-    }
-    const failedModule = extractionModule({
-      readExtractionAttempt: vi.fn(async () => failed),
-    })
-    const failedResponse = await handlerFor(failedModule)(
-      new Request(`http://test/api/extractions/${EXTRACTION}`),
-    )
 
-    expect(failedResponse.status).toBe(200)
-    // The strict contract: extractionReadResponseSchema is what `read()` itself parses before responding.
-    const failedBody = extractionReadResponseSchema.parse(await failedResponse.json())
-    expect(failedBody).toMatchObject({
-      extraction: {
-        executionStatus: 'FAILED',
-        outcome: null,
-        resultPayload: null,
-        evidenceLinks: null,
-        reviewable: false,
-        failure: { code: failure.code, message: failure.message },
-      },
-      pendingReviewDecisions: null,
-    })
-    expect(failedModule.prepareReview).not.toHaveBeenCalled()
-    expect(failedModule.readReviewDraft).not.toHaveBeenCalled()
-  })
-
-  it('carries the decisions settlement did not keep as dropped', async () => {
-    const dropped = [{ resultPath: ['records', 3, 'title'], evidenceAnchorId: 'anchor-gone' }]
-    const module = extractionModule({ readReviewDraft: vi.fn(async () => ({ version: 2, decisions: [], dropped })) })
-    const response = await handlerFor(module)(new Request(`http://test/api/extractions/${EXTRACTION}`))
-    expect(response.status).toBe(200)
-    expect(extractionReadResponseSchema.parse(await response.json()).reviewDraft).toEqual({ version: 2, decisions: [], dropped })
-  })
-
-  it('reads a completed job whose stored diagnostics still hold the legacy retry key', async () => {
-    // Legacy-row fixture: Task 7 removed `diagnostics.retry` from the ExtractionDiagnostics type, but a
-    // COMPLETED row written before it can still hold `"retry": null` in its stored diagnostics JSON. Cast
-    // to simulate that stored shape without widening ExtractionDiagnostics itself.
-    const legacyDiagnostics = {
-      ...attemptSnapshot.diagnostics,
-      retry: null,
-    } as unknown as typeof attemptSnapshot.diagnostics
-    const legacyCompleted = { ...attemptSnapshot, diagnostics: legacyDiagnostics }
-    const module = extractionModule({
-      readExtractionAttempt: vi.fn(async () => legacyCompleted),
-    })
-    const response = await handlerFor(module)(
-      new Request(`http://test/api/extractions/${EXTRACTION}`),
-    )
-
-    expect(response.status).toBe(200)
-    const body = extractionReadResponseSchema.parse(await response.json())
-    expect(body.extraction.diagnostics).not.toHaveProperty('retry')
-    expect(body.extraction.resultPayload).toEqual(attemptSnapshot.result)
-    expect(body.pendingReviewDecisions).toEqual([
-      {
-        resultPath: ['records', 0, 'title'],
-        evidenceAnchorId: 'anchor-alpha',
-        reviewedOccurrenceIds: ['occurrence-alpha'],
-        action: 'APPROVED',
-        reviewedValue: null,
-      },
-    ])
-  })
-
-  it('uses bounded cancellation and domain-error HTTP mappings', async () => {
+  it('maps conflicts and an unavailable pinned source to their own answers', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)
-    const cancelled = await handle(
-      new Request(`http://test/api/extractions/${EXTRACTION}`, {
-        method: 'DELETE',
-      }),
-    )
-    expect(cancelled.status).toBe(202)
-    expect(await cancelled.json()).toEqual({ extractionId: EXTRACTION })
-
     vi.mocked(module.runSingle).mockRejectedValueOnce(
-      new ExtractionError(
-        'extraction_id_conflict',
-        'That Extraction ID is already bound.',
-      ),
+      new ExtractionError('extraction_id_conflict', 'That Extraction ID is already bound.'),
     )
     const conflict = await handle(request(fresh))
     expect(conflict.status).toBe(409)
-    expect(await conflict.json()).toEqual({
-      error: {
-        code: 'extraction_id_conflict',
-        message: 'That Extraction ID is already bound.',
-      },
-    })
-
+    expect(await conflict.json()).toEqual({ error: { code: 'extraction_id_conflict', message: 'That Extraction ID is already bound.' } })
     vi.mocked(module.runSingle).mockRejectedValueOnce(
-      new ExtractionError(
-        'source_representation_superseded',
-        'This document has been reprocessed. No new Extraction was started.',
-      ),
+      new ExtractionError('source_representation_superseded', 'This document has been reprocessed. No new Extraction was started.'),
     )
     const superseded = await handle(request(fresh))
     expect(superseded.status).toBe(409)
-    expect(await superseded.json()).toEqual({
-      error: {
-        code: 'source_representation_superseded',
-        message: 'This document has been reprocessed. No new Extraction was started.',
-      },
-    })
-
-    vi.mocked(module.prepareReview).mockRejectedValueOnce(
-      new ExtractionError('invalid_source_representation', 'Unavailable.'),
-    )
-    const unavailable = await handle(
-      new Request(`http://test/api/extractions/${EXTRACTION}`),
-    )
+    vi.mocked(module.runSingle).mockRejectedValueOnce(new ExtractionError('invalid_source_representation', 'Unavailable.'))
+    const unavailable = await handle(request(fresh))
     expect(unavailable.status).toBe(503)
     expect(await unavailable.json()).toEqual({
-      error: {
-        code: 'source_artifact_unavailable',
-        message: 'The pinned Source Representation is unavailable.',
-      },
+      error: { code: 'source_artifact_unavailable', message: 'The pinned Source Representation is unavailable.' },
     })
+  })
+
+  it('admits a new durable Extraction and returns its saved identity', async () => {
+    const module = extractionModule()
+    const response = await handlerFor(module)(request(fresh))
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ extractionId: fresh.id, executionStatus: 'QUEUED' })
+    expect(module.runSingle).toHaveBeenCalledOnce()
+  })
+
+  it('reads one durable Extraction, and answers a missing or another researcher\'s one as not found', async () => {
+    const module = extractionModule()
+    runtime.createResearcherExtractions.mockReturnValue(module)
+    const handlers = createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore)
+    const read = await handlers.GET(new Request(`http://test/api/extractions/${EXTRACTION}`))
+    expect(read.status).toBe(200)
+    expect(extractionReadResponseSchema.parse(await read.json())).toEqual({
+      extraction: expect.objectContaining({ extractionId: EXTRACTION, executionStatus: 'QUEUED' }),
+    })
+    vi.mocked(module.readExtractionAttempt).mockResolvedValueOnce(null)
+    expect((await handlers.GET(new Request(`http://test/api/extractions/${EXTRACTION}`))).status).toBe(404)
+  })
+
+  it('has no review, draft, reset or cancellation route: durable review and Stop live under /durable', async () => {
+    const handlers = handlerFor(extractionModule())
+    for (const path of ['review', 'review/draft', 'review/reset'])
+      expect((await handlers(new Request(`http://test/api/extractions/${EXTRACTION}/${path}`, { method: 'POST', body: '{}' }))).status).toBe(404)
+    const all = createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore)
+    expect('DELETE' in all).toBe(false)
   })
 })

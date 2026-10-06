@@ -4,12 +4,14 @@ PARSING_TEST_DATABASE_URL must identify postgres on loopback:5432 and a free_tes
 Each test gets its own free_test_parsing_* database. Container pause tests additionally require
 PARSING_TEST_POSTGRES_CONTAINER naming an isolated container labelled free.test=parsing.
 """
+import json
 import os
 import re
 import secrets
 import subprocess
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
@@ -118,3 +120,38 @@ def fresh(maintenance: str) -> Iterator[str]:
     finally:
         with psycopg.connect(maintenance, autocommit=True) as connection:
             connection.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name)))
+
+
+def coordinated(database: str) -> Iterator[str]:
+    """Migrate one disposable database and give its real worker the production restricted role.
+
+    Node owns the application migrations and role allowlist. No coordination or
+    workflow registration is replaced, so a child worker exercises its normal
+    unconditional protocol check before launching DBOS.
+    """
+    import psycopg
+    from psycopg import sql
+    from psycopg.conninfo import make_conninfo
+
+    # Guard before invoking Node or opening the administrative cleanup connection.
+    database = make_conninfo(**checked_conninfo(database))
+    role = f"free_test_parsing_{secrets.token_hex(6)}"
+    password = secrets.token_hex(24)
+    root = Path(__file__).resolve().parents[4]
+    try:
+        result = subprocess.run(
+            ["pnpm", "--filter", "db", "exec", "tsx", "src/parsing-coordination-fixture.ts"],
+            cwd=root, input=json.dumps({"databaseUrl": url(database), "role": role, "password": password}),
+            capture_output=True, text=True, timeout=120, check=False,
+        )
+        if result.returncode:
+            raise RuntimeError("Parsing Service coordination fixture bootstrap failed; install Node dependencies first")
+        yield url(database, user=role, password=password)
+    finally:
+        # Dependent fixtures stop every child/client before this runs. Roles are
+        # cluster-wide, so remove ownership and the unique role before fresh()
+        # drops this database. Never touch the deployment's kei role.
+        with psycopg.connect(database, autocommit=True) as connection:
+            if connection.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", [role]).fetchone():
+                connection.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(role)))
+                connection.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role)))

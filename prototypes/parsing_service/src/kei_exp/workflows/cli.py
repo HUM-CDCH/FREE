@@ -73,40 +73,42 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
     with slot.hold_slot(slot_name):
         logger.info("slot %s taken by pid %s", slot_name, os.getpid())
         import kei_exp.workflows.registered  # noqa: F401 - every workflow is registered before launch
-        if os.environ.get("FREE_DURABLE_EXTRACTION_COORDINATION") == "1":
-            from kei_exp.workflows.durable_extract import configure
+        from kei_exp.workflows.durable_extract import configure, close_coordination
+        # DBOS launch can recover native calls. Coordination must be ready first.
+        # Every exit keeps the slot until the process ends, even if cleanup fails.
+        try:
             configure(database_url)
-        boot.set_timestamp(boot.database_clock_ms(database_url))
-        # From here on DBOS may run steps (launch recovers this executor's pending workflows), and destroy() does not
-        # wait for them: their threads are not daemons, so returning would free the slot while they write on. Every
-        # way out therefore destroys DBOS and exits still holding the slot, which ends the steps with the process;
-        # only then does the kernel free the lock (spec, *kei worker*: held for the worker's lifetime; the boot
-        # boundary relies on it). Nothing is recorded after destroy: the interrupted workflows stay PENDING and
-        # recovery runs them.
-        if config.TRACES_ENDPOINT:  # each request a model call sends becomes a span under it
-            from opentelemetry.instrumentation.requests import RequestsInstrumentor
-            RequestsInstrumentor().instrument()
+            boot.set_timestamp(boot.database_clock_ms(database_url))
+            if config.TRACES_ENDPOINT:
+                from opentelemetry.instrumentation.requests import RequestsInstrumentor
+                RequestsInstrumentor().instrument()
+        except BaseException:
+            close_coordination()
+            raise  # DBOS has not started. main() reports startup errors without a hard exit.
         try:
             DBOS(config=config.dbos_config(database_url, slot_name))
             DBOS.launch()
             config.register_queues()
             logger.info("kei worker %s serving", config.executor_id(slot_name))
             until()
-        except BaseException as error:  # noqa: BLE001 - an interrupt too must destroy DBOS and exit holding the slot
+            DBOS.destroy()
+        except BaseException as error:  # noqa: BLE001 - an interrupt must not release the slot before process exit
             try:
                 DBOS.destroy()
-            finally:  # a second interrupt inside destroy() must not unwind the slot's `with` either
-                if os.environ.get("FREE_DURABLE_EXTRACTION_COORDINATION") == "1":
-                    from kei_exp.workflows.durable_extract import close_coordination
+            finally:
+                try:
                     close_coordination()
-                print(stopped(error, database_url), file=sys.stderr)
-                exit_process(1)
+                finally:
+                    print(stopped(error, database_url), file=sys.stderr)
+                    exit_process(1)
             return  # only a test's exit_process returns
-        DBOS.destroy()
-        if os.environ.get("FREE_DURABLE_EXTRACTION_COORDINATION") == "1":
-            from kei_exp.workflows.durable_extract import close_coordination
+        try:
             close_coordination()
-        exit_process(0)
+        except BaseException as error:
+            print(stopped(error, database_url), file=sys.stderr)
+            exit_process(1)
+        else:
+            exit_process(0)
 
 
 def stopped(error: BaseException, database_url: str) -> str:

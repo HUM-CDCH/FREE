@@ -53,8 +53,7 @@ export function usePilotRoundProgress(
         const next = ordered.find(
           (member) =>
             member.sourceDocumentId !== currentSourceDocumentId &&
-            (member.durableExtractionId ? member.durableReviewable!==false : member.latestExtraction) &&
-            !member.durableReview && !member.latestExtraction?.reviewedAt,
+            member.reviewable && !member.currentReview,
         )
         setState({
           key,
@@ -64,7 +63,7 @@ export function usePilotRoundProgress(
             nextMember: next
               ? {
                   sourceDocumentId: next.sourceDocumentId,
-                  extractionId: next.durableExtractionId??next.latestExtraction!.extractionId,
+                  extractionId: next.extractionId,
                 }
               : null,
           },

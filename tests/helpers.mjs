@@ -67,7 +67,7 @@ export async function waitForHealth(timeoutMs = 300_000) {
 
 /** Build and start the disposable system-test stack owned by this process. */
 export async function ensureStackUp() {
-  if (await healthy()) return
+  if (await healthy()) throw new Error('A server already owns the system-test endpoint. Refusing to reuse it.')
   ensureCertificates()
   compose(['up', '-d', '--build', '--wait'])
   await waitForHealth()

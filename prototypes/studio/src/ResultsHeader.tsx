@@ -1,11 +1,27 @@
 import type { ReactNode, Ref } from 'react'
 import type { RailCounts, ValueFilter } from './reviewVocabulary'
-import type { StatusLine } from './resultsHeaderCopy'
 import { Button, Pill } from './ui'
 import { ApprovedGlyph, InfoGlyph, ListGlyph, MoreGlyph, OneByOneGlyph, RejectedGlyph, SpinnerGlyph } from './ui/icons'
 
 const iconButton = 'inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-muted outline-none hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent aria-expanded:bg-surface-muted aria-expanded:text-ink'
 const linkButton = 'cursor-pointer rounded px-1 text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent'
+
+export type StatusMark = 'spinner' | 'stopped' | 'failed' | 'completed' | 'incomplete' | 'saved'
+
+/** The status line (results review redesign §2.1): a mark, a bold word and a muted rest, by state. */
+export type StatusLine = {
+  mark: StatusMark
+  word: string
+  rest: string
+  /** "Schema rev {r}" after the rest, a link to the drawer's Schema section. */
+  schemaRevision?: number
+  /** "Why?" after the rest, a link to the drawer's Extraction section. */
+  why?: boolean
+  /** A failed run's message, on a second line with "Show details". */
+  failure?: string
+  /** The date of a saved review, as the line's title. */
+  title?: string
+}
 
 function Mark({ mark }: { mark: StatusLine['mark'] }) {
   switch (mark) {
@@ -21,9 +37,8 @@ function Mark({ mark }: { mark: StatusLine['mark'] }) {
 export type HeaderActions = {
   /** "One by one": disabled with its reason as title, or null when enabled. */
   oneByOne: { disabled: string | null } | null
-  /** "Approve rest…", or in its place "Save review". */
-  approveRest: { disabled: string | null; expanded: boolean } | null
-  saveReview: boolean
+  /** The finalization action, labelled with the result and decision cut it names; null when it is not offered. */
+  saveReview: string | null
   /** In one-by-one the two give way to "List". */
   list: boolean
 }
@@ -35,7 +50,7 @@ export type HeaderActions = {
 export default function ResultsHeader({
   status, extras, schemaNote, alert, counts, running, readOnlyNote, actions, breakdown, chips, filter, onFilter,
   detailsOpen, menuOpen, detailsRef, menuRef, exportButton, onDetails, onMenu, onSchema, onWhy, onShowDetails,
-  onOneByOne, onApproveRest, onSaveReview, onList,
+  onOneByOne, onSaveReview, onList,
 }: {
   status: StatusLine
   extras?: ReactNode
@@ -61,7 +76,6 @@ export default function ResultsHeader({
   onWhy: () => void
   onShowDetails: () => void
   onOneByOne: () => void
-  onApproveRest: () => void
   onSaveReview: () => void
   onList: () => void
 }) {
@@ -127,11 +141,8 @@ export default function ResultsHeader({
               <Button size="md" className="h-8 font-semibold" disabled={actions.oneByOne.disabled !== null}
                 title={actions.oneByOne.disabled ?? undefined} onClick={onOneByOne}><OneByOneGlyph />One by one</Button>
             )}
-            {actions.saveReview ? (
-              <Button size="md" variant="outline-positive" className="h-8 font-semibold" onClick={onSaveReview}>Save review</Button>
-            ) : actions.approveRest && (
-              <Button size="md" variant="outline-positive" className="h-8 font-semibold" aria-expanded={actions.approveRest.expanded}
-                disabled={actions.approveRest.disabled !== null} title={actions.approveRest.disabled || undefined} onClick={onApproveRest}>Approve rest…</Button>
+            {actions.saveReview && (
+              <Button size="md" variant="outline-positive" className="h-8 font-semibold" onClick={onSaveReview}>{actions.saveReview}</Button>
             )}
           </div>
         </div>

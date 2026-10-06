@@ -1,8 +1,5 @@
 import { LIVE_WORKFLOW_STATUSES, type CanonicalPackageDescriptor, type ScopeIds, type ScopeSnapshot } from 'db'
-import {
-  extractionIdOfWorkflow, extractWorkflowId, GC_PREFIX, keiConvertOkSchema, keiRunOf, STUDIO_EXTRACT_PREFIX,
-  type KeiDeleteRunsInput,
-} from 'extraction/kei-handoff'
+import { GC_PREFIX, keiConvertOkSchema, keiRunOf, type KeiDeleteRunsInput } from 'extraction/kei-handoff'
 import { CANONICAL_UUID } from 'studio-configuration'
 import type { StagedSource } from './_source_inbox.js'
 
@@ -36,12 +33,11 @@ export const GC_POLICY: GarbagePolicy = {
   historyBatch: 1000,
 }
 export const TERMINAL_STATUSES = ['SUCCESS', 'ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'] as const
-export const STUDIO_WORKFLOW_PREFIXES = [STUDIO_EXTRACT_PREFIX, 'suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:'] as const
+export const STUDIO_WORKFLOW_PREFIXES = ['suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:'] as const
 export const SWEEP_PREFIX = 'sched-collectGarbage-'
 export const STUDIO_MAINTENANCE_PREFIXES = [SWEEP_PREFIX, 'studio:durable-reconcile:', 'sched-reconcileDurableExtractions-', 'durable-dispatch:'] as const
 const INTERACTIVE_PREFIXES = ['suggestion:', 'edit:']
 const KEI_CONVERT = 'kei-convert:'
-const KEI_EXTRACT = 'kei-extract:'
 const LIVE = LIVE_WORKFLOW_STATUSES
 const TERMINAL = new Set<string>(TERMINAL_STATUSES)
 const ENDED = new Set(['SUCCESS', 'ERROR'])
@@ -56,14 +52,14 @@ export function quiescent(row: WorkflowRow | undefined, bootTimestampMs: number)
   return STOPPED.has(row.status) && row.updatedAt !== undefined && row.updatedAt < bootTimestampMs
 }
 
+/** The Studio parent of a kei conversion. Durable Extraction workflows have no Studio parent: their graph's tombstone
+ *  and native-call quiescence decide their history (extraction/durable `collectDeletedDurableGraphs`). */
 export function keiParentOf(keiWorkflowId: string): string | null {
-  if (keiWorkflowId.startsWith(KEI_EXTRACT)) return extractWorkflowId(keiWorkflowId.slice(KEI_EXTRACT.length))
   if (keiWorkflowId.startsWith(KEI_CONVERT)) return keiWorkflowId.slice(KEI_CONVERT.length) || null
   return null
 }
 
 const endedAt = (row: WorkflowRow) => row.completedAt ?? row.updatedAt ?? Number.POSITIVE_INFINITY
-const text = (value: unknown) => (typeof value === 'string' ? value : undefined)
 const owned = (workflowId: string) =>
   [...STUDIO_MAINTENANCE_PREFIXES, ...STUDIO_WORKFLOW_PREFIXES].some((prefix) => workflowId.startsWith(prefix))
 
@@ -87,18 +83,13 @@ function scopeGone(row: WorkflowRow, scopes: ScopeSnapshot): boolean {
 
 /** The row a row-backed workflow publishes into is gone. */
 function rowGone(row: WorkflowRow, scopes: ScopeSnapshot): boolean {
-  const extraction = extractionIdOfWorkflow(row.workflowID)
   const suggestion = SUGGEST.exec(row.workflowID)
-  if (extraction !== null) return missing(scopes.extractions, extraction)
-  if (suggestion) return missing(scopes.suggestions, suggestion[1])
-  return false
+  return suggestion !== null && missing(scopes.suggestions, suggestion[1])
 }
 
 /** The domain already holds this attempt's outcome, or never will (spec, *Propagation is retried*). */
 function settled(row: WorkflowRow, scopes: ScopeSnapshot): boolean {
-  const extraction = extractionIdOfWorkflow(row.workflowID)
   const suggestion = SUGGEST.exec(row.workflowID)
-  if (extraction !== null) return canonical(extraction) && (scopes.extractions.get(extraction)?.settled ?? true)
   if (suggestion) {
     if (!canonical(suggestion[1])) return false
     const current = scopes.suggestions.get(suggestion[1])
@@ -114,7 +105,6 @@ export function scopeIdsOf(rows: readonly WorkflowRow[]): ScopeIds {
   const revisions = new Set<string>()
   const schemas = new Set<string>()
   const suggestions = new Set<string>()
-  const extractions = new Set<string>()
   const add = (set: Set<string>, value: unknown) => {
     if (typeof value === 'string') set.add(value)
   }
@@ -125,7 +115,6 @@ export function scopeIdsOf(rows: readonly WorkflowRow[]): ScopeIds {
     add(revisions, attributes.sourceRepresentationRevisionId)
     add(schemas, attributes.extractionSchemaId)
     add(suggestions, attributes.batchSchemaSuggestionId)
-    add(extractions, extractionIdOfWorkflow(row.workflowID))
     add(suggestions, SUGGEST.exec(row.workflowID)?.[1])
   }
   const sorted = (set: Set<string>) => [...set].sort()
@@ -135,7 +124,6 @@ export function scopeIdsOf(rows: readonly WorkflowRow[]): ScopeIds {
     sourceRepresentationRevisionIds: sorted(revisions),
     extractionSchemaIds: sorted(schemas),
     batchSchemaSuggestionIds: sorted(suggestions),
-    extractionIds: sorted(extractions),
   }
 }
 
@@ -197,9 +185,8 @@ function convertedRunOf(output: unknown): string | null {
 export function planKeiCleanup(input: {
   kei: readonly WorkflowRow[]
   parents: ReadonlyMap<string, WorkflowRow>
-  runHolders: readonly WorkflowRow[]
+  /** Surviving revisions' preprocess IDs and every durable head's pinned source, tombstoned heads included. */
   referencedPreprocessIds: ReadonlySet<string>
-  extractions: ReadonlyMap<string, { settled: boolean }>
   nowMs: number
   bootTimestampMs: number
   policy: GarbagePolicy
@@ -208,17 +195,6 @@ export function planKeiCleanup(input: {
   for (const preprocessId of input.referencedPreprocessIds) {
     const run = keiRunOf(preprocessId)?.runId
     if (run) referenced.add(run)
-  }
-  const protectedRuns = new Set<string>()
-  // Late handoffs: a Studio extraction that may still hand its run to kei keeps it (spec, *Late handoffs*) …
-  for (const holder of input.runHolders) {
-    const run = text(holder.attributes?.keiRunId)
-    if (run && !quiescent(holder, input.bootTimestampMs)) protectedRuns.add(run)
-  }
-  // … and so does a kei extraction reading it now ("cleanup rechecks the run's kei children before passing it on").
-  for (const row of input.kei) {
-    const run = text(row.attributes?.keiRunId)
-    if (run && row.workflowID.startsWith(KEI_EXTRACT) && LIVE.has(row.status)) protectedRuns.add(run)
   }
   const conversions: string[] = []
   const history: string[] = []
@@ -231,14 +207,9 @@ export function planKeiCleanup(input: {
     }
     const parentId = keiParentOf(row.workflowID)
     if (parentId === null || !quiescent(input.parents.get(parentId), input.bootTimestampMs)) continue
-    if (row.workflowID.startsWith(KEI_CONVERT)) {
-      const run = convertedRunOf(row.output) // null: failed or stopped, a run no revision can reference
-      if (run !== null && (referenced.has(run) || protectedRuns.has(run))) continue
-      conversions.push(row.workflowID)
-    } else {
-      if (missing(input.extractions, row.workflowID.slice(KEI_EXTRACT.length)) || age >= input.policy.backgroundRetentionMs)
-        history.push(row.workflowID)
-    }
+    const run = convertedRunOf(row.output) // null: failed or stopped, a run no revision or durable head can reference
+    if (run !== null && referenced.has(run)) continue
+    conversions.push(row.workflowID)
   }
   if (conversions.length === 0 && history.length === 0) return null
   return { conversions: conversions.sort(), history: history.sort() }

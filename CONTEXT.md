@@ -127,8 +127,18 @@ _Avoid_: extraction, output, response
 
 **Review Decision**:
 A researcher's choice to approve, edit, or reject a schema suggestion or
-extraction result.
-_Avoid_: status, vote
+extraction result. For an Extraction it is a revisioned correction of one saved
+value, bound to that value's stable identity and producing type, and saved in a
+numbered decision version of its Project.
+_Avoid_: status, vote, review draft
+
+**Finalized Review**:
+A researcher's explicit finalization of one named pair: an Extraction's result
+snapshot version and its Project's decision version. It never finalizes
+implicitly, never freezes later work, and a deliberately older pair may be
+finalized when it is clearly named. "Latest reviewed" opens the most recently
+finalized pair.
+_Avoid_: saved review, accepted result
 
 **Evidence**:
 Source material linked to an exact location in a source document and kept to show
@@ -162,7 +172,7 @@ A Researcher Account's saved choices, per Extraction Strategy, of how future Ext
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:
-What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (legacy Catalog only), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. The method of each producing input selection never changes after its admission; a durable interactive Extraction may adopt another immutable selection at a paused boundary. Execution reads its selected pinned method; Extraction details show it beside the options and protocol versions the Parsing Service reports for the run. Equal methods do not promise identical model output across runtime revisions.
+What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (legacy Catalog only), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version. The method of each producing input selection never changes after its admission; a durable interactive Extraction may adopt another immutable selection at a paused boundary. Execution reads its selected pinned method; Extraction details show the requested method beside the effective models, options and protocol versions the Parsing Service captured for that selection. Equal methods do not promise identical model output across runtime revisions.
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:
