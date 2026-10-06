@@ -9,3 +9,4 @@
 - For Parsing Service changes, read `prototypes/parsing_service/README.md` and
   its local `CLAUDE.md`.
 - For Studio changes, read `prototypes/studio/CLAUDE.md`.
+- Baratheon (Spark) verification of a commit → `scripts/baratheon-verify.sh`.
