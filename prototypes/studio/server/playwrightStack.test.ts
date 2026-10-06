@@ -10,6 +10,7 @@ import {
   acquirePlaywrightProjectLeaseForTest,
   playwrightViteArgumentsForTest,
   recoverPlaywrightStackForTest,
+  retryWhilePortIsHeldForTest,
   spawnSupervisedProcessForTest,
   superviseViteForTest,
   teardownPlaywrightStackForTest,
@@ -152,6 +153,21 @@ describe('Playwright stack leases', () => {
     await expect(
       acquirePlaywrightProjectLeaseForTest(composeProject),
     ).rejects.toThrow(/project lease/)
+  })
+})
+
+describe('Playwright stack Compose up', () => {
+  it('retries once when Docker still holds the port, and not on other failures', async () => {
+    const held = new Error('Error response from daemon: driver failed programming external connectivity on endpoint')
+    const flaky = vi.fn().mockRejectedValueOnce(held).mockResolvedValueOnce(undefined)
+    await retryWhilePortIsHeldForTest(flaky, 0)
+    expect(flaky).toHaveBeenCalledTimes(2)
+    const stillHeld = vi.fn().mockRejectedValue(held)
+    await expect(retryWhilePortIsHeldForTest(stillHeld, 0)).rejects.toBe(held)
+    expect(stillHeld).toHaveBeenCalledTimes(2)
+    const unhealthy = vi.fn().mockRejectedValue(new Error('container postgres is unhealthy'))
+    await expect(retryWhilePortIsHeldForTest(unhealthy, 0)).rejects.toThrow('unhealthy')
+    expect(unhealthy).toHaveBeenCalledTimes(1)
   })
 })
 
