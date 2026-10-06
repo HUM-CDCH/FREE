@@ -167,9 +167,10 @@ WHERE d."projectContextId" = %s
 ORDER BY d."createdAt"
 """
 
-ALREADY_EVALUATED = """
-SELECT 1 FROM "evaluationRound"
-WHERE "projectContextId" = %s AND "projectSpreadsheetVersionId" = %s LIMIT 1
+EVALUATION_HISTORY = """
+SELECT bool_or(status = 'SUCCEEDED') AS succeeded, max("createdAt") AS newest
+FROM "evaluationRound"
+WHERE "projectContextId" = %s AND "projectSpreadsheetVersionId" = %s
 """
 
 INSERT_ROUND = """
@@ -262,9 +263,12 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
 
 
 def once(*, database_url: str, eval_root: Path, providers: dict, strategy: str = "article",
-         identity=None, exhaustive: bool = True, limit: int | None = None) -> list[str]:
-    """Evaluate every ready Project Context that has no round for its current
-    gold version yet. Returns the pipeline run ids it started."""
+         identity=None, exhaustive: bool = True, limit: int | None = None,
+         retry_seconds: int = 900) -> list[str]:
+    """Evaluate every ready Project Context whose current gold version has no
+    succeeded round yet. A version that only failed is retried after
+    `retry_seconds`, so a fixed endpoint does not need a re-upload. Returns the
+    pipeline run ids it started."""
     import psycopg
     from psycopg.rows import dict_row
 
@@ -273,9 +277,15 @@ def once(*, database_url: str, eval_root: Path, providers: dict, strategy: str =
         for project in connection.execute(READY_PROJECTS).fetchall():
             if limit is not None and len(started) >= limit:
                 break
-            if connection.execute(ALREADY_EVALUATED,
-                                  (project["project_id"], project["version_id"])).fetchone():
+            history = connection.execute(
+                EVALUATION_HISTORY, (project["project_id"], project["version_id"])
+            ).fetchone()
+            if history and history["succeeded"]:
                 continue
+            if history and history["newest"] is not None and retry_seconds > 0:
+                failed_at = datetime.now(UTC) - history["newest"]
+                if failed_at.total_seconds() < retry_seconds:
+                    continue
             documents = connection.execute(PROJECT_DOCUMENTS, (project["project_id"],)).fetchall()
             if not documents:
                 continue
@@ -304,6 +314,8 @@ def main() -> None:
     parser.add_argument("--identity", action="append")
     parser.add_argument("--not-exhaustive", action="store_true")
     parser.add_argument("--interval", type=float, default=float(os.environ.get("FREE_EVAL_INTERVAL", "60")))
+    parser.add_argument("--retry-seconds", type=int,
+                        default=int(os.environ.get("FREE_EVAL_RETRY_SECONDS", "900")))
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     if not args.database_url:
@@ -311,7 +323,8 @@ def main() -> None:
     providers = providers_from_env(os.environ)
     while True:
         started = once(database_url=args.database_url, eval_root=args.eval_root, providers=providers,
-                       strategy=args.strategy, identity=args.identity, exhaustive=not args.not_exhaustive)
+                       strategy=args.strategy, identity=args.identity, exhaustive=not args.not_exhaustive,
+                       retry_seconds=args.retry_seconds)
         for run_id in started:
             print(f"evaluated {run_id}", flush=True)
         if args.once:

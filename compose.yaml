@@ -118,6 +118,7 @@ services:
       FREE_EVAL_ROOT: /app/eval-out
       FREE_EVAL_STRATEGY: "${FREE_EVAL_STRATEGY:-article}"
       FREE_EVAL_INTERVAL: "${FREE_EVAL_INTERVAL:-60}"
+      FREE_EVAL_RETRY_SECONDS: "${FREE_EVAL_RETRY_SECONDS:-900}"
       FREE_DEVELOPER_EVAL: "1"
       HF_HOME: /models/huggingface
     volumes:
