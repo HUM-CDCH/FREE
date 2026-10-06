@@ -151,6 +151,9 @@ services:
       # `unified` admits new Catalog Extractions on the unified Catalog method; unset keeps the legacy generic and
       # recipe Catalog. Its release gates (unify-catalog-extraction) must pass before a deployment sets it.
       FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"
+      # Developer-only evaluation: `1` exposes the read-only round panel and
+      # (with the production launcher) starts the eval_watcher profile.
+      FREE_DEVELOPER_EVAL: "${FREE_DEVELOPER_EVAL:-}"
       # A Claude Code connection spawns the `claude` CLI as a subprocess; it
       # authenticates from this env var (`claude setup-token`'s own output)
       # rather than an interactive login, since the CLI's usual credential

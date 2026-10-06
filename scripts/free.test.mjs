@@ -608,6 +608,14 @@ describe('production model-call tracing', () => {
     ])
   })
 
+  it('starts the developer evaluation profile only when the switch is on', () => {
+    assert.deepEqual(productionComposeArguments({ ...productionEnvironment, FREE_DEVELOPER_EVAL: '1' }), [
+      'compose', '-f', 'compose.yaml', '-f', 'compose.prod.yaml',
+      '--profile', 'eval',
+      'up', '--no-build', '-d', '--wait',
+    ])
+  })
+
   it('uses the base topology with either nginx topology and GPU access', () => {
     for (const nginx of ['host', 'container']) {
       const configured = {

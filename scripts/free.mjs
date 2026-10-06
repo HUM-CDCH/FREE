@@ -604,6 +604,9 @@ export function productionComposeArguments(environment, gpuArguments = []) {
   return [
     'compose',
     ...productionComposeFiles(environment).flatMap((file) => ['-f', file]),
+    // The developer evaluation watcher is opt-in; enabling the switch in .env
+    // starts its profile with the rest of the stack.
+    ...(environment.FREE_DEVELOPER_EVAL === '1' ? ['--profile', 'eval'] : []),
     ...gpuArguments,
     'up',
     '--no-build',
