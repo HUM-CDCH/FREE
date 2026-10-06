@@ -1,7 +1,10 @@
 # Bounded discovery recovery through durable extraction
 
-Status: implementation verified; live acceptance and release verification in progress.
+Status: implementation, exact document replay, and release verified; production
+Retry completion still pending at handoff.
 Outcome: [PR #191](https://github.com/HUM-CDCH/FREE/pull/191).
+Follow-up: [monitor recovery reproduction and handoff](2026-10-06-durable-monitor-reconnect.md)
+and [issue #192](https://github.com/HUM-CDCH/FREE/issues/192).
 
 A dense Catalog discovery reply reached its output limit. The unified planner
 already split unsuccessful discovery and entry windows, but durable call failure
@@ -35,15 +38,28 @@ Verification:
 - Both real PostgreSQL upgrade paths passed. Restricted-role execution, immutable
   history, Retry input reuse, mixed/fatal errors, unsupported methods/stages,
   and Pause/Stop intent preservation passed.
-- 88 database unit cases, database/extraction type checks, lint, and authored
+- 90 database unit cases, database/extraction type checks, lint, and authored
   migration graph/artifact checks passed.
+- The full Parsing Service suite passed: 1,403 passed, 72 skipped, and 88
+  deselected under the documented non-live-model/non-PostgreSQL selection.
+- Final CI passed after rebasing onto the incoming `dev` migrations.
 
 The live replay uses the canonical publication, pinned schema and default method
 settings of the reported failure. Its initial HTTP body matched the saved failed
 request exactly. It passed the initial truncation and saved a successful split
 reply. An interrupted test connection caused a later transport failure; Retry
-preserved the completed split checkpoint. Full completion and release acceptance
-will be recorded on the resulting pull request.
+preserved the completed split checkpoint. The completed replay retained those
+checkpoints across a worker restart and finished all 205 discovered records,
+with no provisional or failed values. Processing completeness and source
+accounting passed; boundary/evidence completeness did not, and recall remained
+unmeasured. Those model diagnostics remain subject to researcher review.
+
+The normal release completed successfully with a consistent backup, identical
+backup before/after data counts, healthy application containers, protected
+services preserved, and passing HTTP/auth gates. The user's subsequent production
+Retry was progressing without a recorded failure at handoff. Its final completion
+had not yet been observed. A reproduced Studio monitor recovery defect is tracked
+in the linked follow-up rather than being claimed fixed by this backend release.
 
 Private source material, requests, traces, credentials, and deployment inventory
 stay in ignored task artifacts and are excluded from this review record.

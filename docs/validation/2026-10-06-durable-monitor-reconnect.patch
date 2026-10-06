@@ -1,0 +1,31 @@
+diff --git a/prototypes/studio/src/useExtraction.test.tsx b/prototypes/studio/src/useExtraction.test.tsx
+index 8709ee64..8effd25e 100644
+--- a/prototypes/studio/src/useExtraction.test.tsx
++++ b/prototypes/studio/src/useExtraction.test.tsx
+@@ -147,6 +147,26 @@ describe('durable Extraction admission', () => {
+ })
+ 
+ describe('durable status ownership', () => {
++  it('a fresh durable status reconnects a failed monitor even when the lifecycle is unchanged', async () => {
++    vi.useFakeTimers()
++    const id='51000000-0000-4000-8006-000000000001'
++    let readable=false
++    const {reads,posts}=server({
++      post:body=>Response.json(attempt(body.id),{status:201}),
++      read:()=>readable?Response.json({extraction:attempt(id,'RUNNING')}):new Response('Bad gateway',{status:502}),
++    })
++    const {result,onTerminal}=render({initialAttempt:attempt(id,'RUNNING')})
++    await act(async()=> {await vi.advanceTimersByTimeAsync(2_100)})
++    expect(result.current.monitorError).toBe(MONITOR_DISCONNECTED)
++    readable=true
++    act(()=>result.current.acceptDurableStatus(id,'RUNNING'))
++    expect(result.current.monitorError).toBeNull()
++    await act(async()=> {await vi.advanceTimersByTimeAsync(2_100)})
++    expect(reads).toEqual([id,id])
++    expect(posts).toEqual([])
++    expect(onTerminal).not.toHaveBeenCalled()
++  })
++
+   it('shares durable status updates and stops the active monitor only once work becomes idle', async () => {
+     vi.useFakeTimers()
+     const { reads } = server({ post: (body) => Response.json(attempt(body.id), { status: 201 }) })
