@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import queue
 import threading
+from time import monotonic, sleep
 from uuid import uuid4
 
 import psycopg
@@ -66,7 +67,18 @@ class CoordinationPool:
 class Lease:
     def __init__(self, pool: CoordinationPool, extraction: str, attempt: str):
         self.pool, self.extraction, self.attempt = pool, extraction, attempt
-        self.state = pool.call("claim", extraction, attempt, pool.process)
+        # DBOS resumes before a crashed process's 30-second lease expires.
+        # Wait without holding a connection or stealing a live owner's epoch.
+        # Stale attempts and all other refusals still fail immediately.
+        deadline = monotonic() + 40
+        while True:
+            try:
+                self.state = pool.call("claim", extraction, attempt, pool.process)
+                break
+            except psycopg.errors.LockNotAvailable:
+                if monotonic() >= deadline:
+                    raise
+                sleep(0.25)
         self.epoch = self.state["epoch"]
         self._stop = threading.Event()
         self._error = None

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { activeMethod } from 'extraction/extraction-method'
+import { activeMethod, canonicalExtractionSettings } from 'extraction/extraction-method'
 import type { DurableRead } from 'extraction/durable-types'
 import type { ExtractionAttempt, ExtractionModelListing } from '../shared/extraction.contract'
 import type { ModelConfig } from '../shared/modelConfig.contract'
@@ -30,9 +30,9 @@ export function DurableInputs({attempt,state,currentSchema,onSaved,onEdited}:{
     if(initialized.current===selection.id)return
     initialized.current=selection.id
     const config:ModelConfig={connections:[],routes:{interaction:null,schemaSuggestion:null},ingestionModels:{},
-      extractionModels:used.models??{},extractionSettings:attempt.strategy==='ARTICLE'
+      extractionModels:used.models??{},extractionSettings:canonicalExtractionSettings(attempt.strategy==='ARTICLE'
         ? used.settings.article?{article:used.settings.article}:{}
-        : {catalog:used.settings}}
+        : {catalog:used.settings})}
     editor.initialize(config)
     setSchemaId(selection.schemaRevisionId)
   },[selection.id,selection.schemaRevisionId,used.models,used.settings,attempt.strategy,editor])
@@ -77,7 +77,8 @@ export function DurableInputs({attempt,state,currentSchema,onSaved,onEdited}:{
             defaultKey={listing?.defaults[role]} choices={listing?.models.filter(model=>model.roles.includes(role)).map(model=>({key:model.key,name:model.repo,serving:model.serving}))??null}
             unserved="Not serving" onChange={guard((key:string)=>editor.setExtractionModel(role,key))}/>
         </label>)}
-        <AdvancedTab draft={editor.draft} saved={editor.saved} editor={fenced} focusIssue={false} onIssueFocused={noProbe} unifiedCatalog={unified}/>
+        <AdvancedTab draft={editor.draft} saved={editor.saved} editor={fenced} focusIssue={false} onIssueFocused={noProbe} unifiedCatalog={unified}
+          extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'}/>
       </>}
       {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger">{issue.message}</p>)}
       <Button variant="positive" disabled={!editor.draft||editor.settingsIssues.length>0} onClick={()=>void save()}>Save pending inputs</Button>

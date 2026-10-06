@@ -21,7 +21,7 @@ function useOpenGuide() {
  *  settings" hands an Article draft to `onUseSettings` (the page's draft owner). */
 export function GuideProvider({ article, onUseSettings, children }: {
   article: ArticleSettings | undefined
-  onUseSettings: (article: ArticleSettings, name: string) => void
+  onUseSettings?: (article: ArticleSettings, name: string) => void
   children: ReactNode
 }) {
   const [opened, setOpened] = useState<Opened | null>(null)
@@ -31,7 +31,7 @@ export function GuideProvider({ article, onUseSettings, children }: {
       {opened && (
         <GuideDialog opened={opened} article={article} onTopic={(topic) => setOpened({ ...opened, topic })}
           onClose={() => setOpened(null)}
-          onUse={(point) => { onUseSettings(withStartingPoint(article, point), point.name); setOpened(null) }} />
+          onUse={onUseSettings?(point) => { onUseSettings(withStartingPoint(article, point), point.name); setOpened(null) }:undefined} />
       )}
     </GuideContext>
   )
@@ -56,7 +56,7 @@ export function HowThisWorksButton({ triggerRef }: { triggerRef?: RefObject<HTML
 
 function GuideDialog({ opened, article, onTopic, onClose, onUse }: {
   opened: Opened; article: ArticleSettings | undefined; onTopic: (topic: GuideTopicId | 'overview') => void
-  onClose: () => void; onUse: (point: StartingPoint) => void
+  onClose: () => void; onUse?: (point: StartingPoint) => void
 }) {
   const titleId = useId()
   const close = useRef<HTMLButtonElement>(null)
@@ -185,7 +185,7 @@ function changedChoices(article: ArticleSettings | undefined): number {
     (article[key] ?? undefined) !== (REFERENCE_ARTICLE[key] ?? undefined)).length
 }
 
-function Overview({ article, onUse }: { article: ArticleSettings | undefined; onUse: (point: StartingPoint) => void }) {
+function Overview({ article, onUse }: { article: ArticleSettings | undefined; onUse?: (point: StartingPoint) => void }) {
   const captionId = useId()
   const changed = changedChoices(article)
   return (
@@ -214,7 +214,7 @@ function Overview({ article, onUse }: { article: ArticleSettings | undefined; on
   )
 }
 
-function StartingPointCard({ point, article, onUse }: { point: StartingPoint; article: ArticleSettings | undefined; onUse: (point: StartingPoint) => void }) {
+function StartingPointCard({ point, article, onUse }: { point: StartingPoint; article: ArticleSettings | undefined; onUse?: (point: StartingPoint) => void }) {
   const titleId = useId()
   const changesId = useId()
   const [shown, setShown] = useState(false)
@@ -230,7 +230,7 @@ function StartingPointCard({ point, article, onUse }: { point: StartingPoint; ar
           ? <p>Your Article draft already uses these settings.</p>
           : <SettingsViews label="Starting point change" titles={delta.map((change) => change.label)}>{delta.map((change) => <p key={change.label}>{change.label}: {change.from} → {change.to}</p>)}</SettingsViews>}
       </div>
-      <button type="button" disabled={!shown || delta.length === 0} onClick={() => onUse(point)}
+      <button type="button" disabled={!onUse || !shown || delta.length === 0} onClick={() => onUse?.(point)}
         className="rounded-md border border-line px-2.5 py-1 text-[11.5px] font-semibold text-ink hover:bg-surface-muted disabled:text-ink-faint disabled:hover:bg-transparent disabled:hover:text-ink-faint">Use these settings</button>
     </section>
   )

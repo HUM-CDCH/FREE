@@ -337,7 +337,10 @@ The worker uses a separate pool of at most four short routine calls against
 `extraction_runtime`, through an explicit allowlist. Its restricted role cannot
 read application or Studio DBOS tables, directly access coordination tables, or
 invoke internal definer helpers. No pooled connection or transaction spans a
-provider call. The pool closes at worker shutdown.
+provider call. The pool closes at worker shutdown. After a process crash, native
+recovery waits up to 40 seconds for the previous process's 30-second lease to
+expire. A live owner keeps its epoch; stale attempts and non-lease refusals fail
+immediately. Recovery does not require operators to edit lease timestamps.
 
 Calls capture effective models/settings, tokenizer/composer versions, complete
 request bodies and guidance revisions before native execution. Successful

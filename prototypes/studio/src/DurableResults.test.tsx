@@ -12,6 +12,33 @@ import { durableRequest, readDurable, readDurableHistory } from './durableExtrac
 vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),readDurable:vi.fn(),readDurableHistory:vi.fn(),durableRoot:(id:string)=>`/api/extractions/${id}/durable`}))
 afterEach(()=>{cleanup();vi.resetAllMocks();window.history.replaceState(null,'','/')})
 
+it('follows saved results from an empty admission snapshot until a value is inspected',async()=>{
+  const value={id:'value',recordId:'document',fieldId:'title',path:['records',0,'title'],selectionId:'original',schemaRevisionId:'schema',
+    node:{id:'title',name:'title',type:'string'},modelValue:'Completed title',evidence:[],links:[],grounding:'ungrounded',processing:'saved',lineage:[],correction:null,historicalCorrection:null}
+  const empty={snapshotVersion:0,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  const completed={...empty,snapshotVersion:1,reviewCounts:{...empty.reviewCounts,required:1,toCheck:1},values:[value],total:1}
+  const state={extractionId:'extraction',projectId:'project',status:'RUNNING',controlVersion:0,snapshotVersion:0,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:0,inFlight:1}}
+  vi.mocked(readDurable).mockResolvedValue({state,page:empty} as never)
+  vi.useFakeTimers()
+  try {
+    await act(async()=>{render(<DurableResults attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)})
+    expect(screen.getByText(/Selected results 0 · decisions 0/)).toBeVisible()
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,status:'COMPLETED',snapshotVersion:1,counts:{saved:1,inFlight:0}},page:completed} as never)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(screen.getByText('Completed title')).toBeVisible()
+    expect(screen.getByText(/Selected results 1 · decisions 0 · 1 retained values/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button',{name:/To check title/}))
+    fireEvent.click(screen.getByRole('button',{name:'Edit'}))
+    fireEvent.change(screen.getByRole('textbox',{name:'Reviewed value'}),{target:{value:'My unsaved correction'}})
+    vi.mocked(readDurable).mockResolvedValue({state:{...state,status:'COMPLETED',snapshotVersion:2,counts:{saved:2,inFlight:0}},page:{...completed,snapshotVersion:2,values:[{...value,modelValue:'Newer title'}]}} as never)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(screen.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('My unsaved correction')
+    expect(screen.getByText(/Selected results 1 · decisions 0/)).toBeVisible()
+    expect(screen.getByText(/Newer saved results 2 exist/)).toBeVisible()
+  } finally {vi.useRealTimers()}
+})
+
 it('shows requested and effective methods with their producing selections, and names unresolved effective methods',async()=>{
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,

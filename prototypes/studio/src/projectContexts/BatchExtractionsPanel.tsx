@@ -160,6 +160,7 @@ export default function BatchExtractionsPanel({
   openBatchExtractionId,
   pilotSchemaRevisionId,
   onNavigate,
+  onProgressChange,
 }: {
   projectContextId: string
   sourceDocuments: readonly SourceDocument[]
@@ -169,6 +170,7 @@ export default function BatchExtractionsPanel({
    *  — opens straight into "Pilot Extraction" on this exact Revision. */
   pilotSchemaRevisionId: string | null
   onNavigate: (route: NavigableRoute) => void
+  onProgressChange?: () => void
 }) {
   const sourceDocumentIds = sourceDocuments.map(
     (document) => document.sourceDocumentId,
@@ -189,6 +191,13 @@ export default function BatchExtractionsPanel({
     value: null,
     failure: null,
   })
+  const progress = batches.value && JSON.stringify(batches.value.map(batch => [
+    batch.batchExtractionId, batch.executionStatus,
+    batch.members.map(member => [member.extractionId, member.executionStatus, member.completed, member.currentReview]),
+  ]))
+  useEffect(() => {
+    if (progress !== null) onProgressChange?.()
+  }, [progress, onProgressChange])
   const [reload, setReload] = useState(0)
   const [openingBatch, setOpeningBatch] = useState(false)
   // The account's saved method: a start submits what it saw, and admission refuses it if an Apply changed it since.

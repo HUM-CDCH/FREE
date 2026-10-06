@@ -186,6 +186,30 @@ function response(body: unknown) {
   return Response.json(body)
 }
 
+it('refreshes project progress when a polled batch member completes',async()=>{
+  let current={...batch,executionStatus:'RUNNING',members:[publishedMember(batch.members[0]),{...batch.members[1],executionStatus:'RUNNING'}]}
+  vi.stubGlobal('fetch',vi.fn(async(input:RequestInfo|URL)=>{
+    const url=String(input)
+    if(url.startsWith('/api/batch-extractions?'))return response({batchExtractions:[current]})
+    if(url.startsWith(`/api/batch-extractions/${batchExtractionId}?`))return response({batchExtraction:current})
+    if(url.startsWith('/api/batch-schema-suggestions?'))return response({batchSchemaSuggestions:[]})
+    if(url.startsWith('/api/extraction-schemas?'))return response({extractionSchemas:[]})
+    const schema=chosenSchemaRead(url);if(schema)return schema
+    throw new Error(`Unexpected request: ${url}`)
+  }))
+  const onProgressChange=vi.fn()
+  render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
+    openBatchExtractionId={batchExtractionId} pilotSchemaRevisionId={null} onNavigate={()=>{}} onProgressChange={onProgressChange}/>)
+  await screen.findByText('1 completed · 1 running')
+  onProgressChange.mockClear()
+  current={...current,executionStatus:'COMPLETED',members:batch.members.map(member=>publishedMember(member))}
+  fireEvent(window,new Event('focus'))
+  await screen.findByText('2 completed')
+  await waitFor(()=>expect(onProgressChange).toHaveBeenCalledOnce())
+  fireEvent(window,new Event('focus'))
+  await waitFor(()=>expect(onProgressChange).toHaveBeenCalledOnce())
+})
+
 /**
  * The panel is routed: the open Batch Extraction is a prop, and opening one is
  * a navigation. This stands in for the router so a click reaches the panel the

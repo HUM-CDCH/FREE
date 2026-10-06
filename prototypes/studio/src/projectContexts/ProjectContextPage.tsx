@@ -1004,6 +1004,7 @@ export default function ProjectContextPage({
                 : null
             }
             onNavigate={onNavigate}
+            onProgressChange={refreshProjects}
           />
           </>
         ) : tab === 'schemas' ? (

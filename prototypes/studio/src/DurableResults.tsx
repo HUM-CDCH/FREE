@@ -216,9 +216,13 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const selectedGeneration=useRef(0),linkedValue=useRef(new URLSearchParams(window.location.search).get('value'))
   const selectionFromMark=useRef<string|null>(null)
   const linkedCut=useRef(initialCut)
+  // Admission can mount this rail while it is hidden. Follow its live page
+  // until it has values to inspect or a named cut is selected, then keep that pair stable.
+  const cutPinned=useRef(initialCut!==null)
   const model=useMemo(()=>page?durableRailModel(page,document):null,[page,document])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
   const selectValue=useCallback((key:string,fromMark=false)=> {
+    cutPinned.current=true
     selectionFromMark.current=fromMark&&focus?key:null
     const generation=++selectedGeneration.current
     const value=page?.values.find(each=>each.id===key)
@@ -283,7 +287,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       next.state.controlVersion===previous.state.controlVersion && (next.state.snapshotVersion<previous.state.snapshotVersion ||
         next.state.snapshotVersion===previous.state.snapshotVersion && next.page.feedbackVersion<previous.page.feedbackVersion))) return
     acceptedRead.current=next
-    setLoaded(next);setPage(previous=>previous??initialPage);setError(null)
+    setLoaded(next);setPage(previous=>cutPinned.current||Boolean(previous?.total)?previous??initialPage:initialPage);setError(null)
   },[id])
   useEffect(()=> {
     const generations=readGenerations.current
@@ -302,6 +306,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     finally{setBusy(false)}
   }
   const selectPage=async(url:string)=> {
+    cutPinned.current=true
     ++selectedGeneration.current
     const generation=++readGenerations.current.snapshot
     try {const next=await durableRequest<DurablePage>(url);if(generation===readGenerations.current.snapshot){setPage(next);return next}

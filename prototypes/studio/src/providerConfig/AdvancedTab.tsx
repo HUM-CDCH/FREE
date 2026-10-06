@@ -28,6 +28,8 @@ type Props = {
   onIssueFocused: () => void
   /** The deployment admits new Catalog Extractions on the unified method: its one group replaces Generic and Recipe. */
   unifiedCatalog?: boolean
+  /** A pending input editor changes only the current Extraction's strategy. */
+  extractionStrategy?: AdvancedStrategy
 }
 
 /** The starting point last used, and the Article draft (with its number text) that Undo restores. `shown` is the
@@ -59,8 +61,8 @@ function requestEntries(value: unknown, path = ''): [string, unknown][] {
 
 /** Saved method settings for future Extractions, per strategy, in the page's one draft. Choosing which strategy's
  *  settings to edit never changes any Extraction's strategy. */
-export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false }: Props) {
-  const [strategy, setStrategy] = useState<AdvancedStrategy>('article')
+export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false, extractionStrategy }: Props) {
+  const [strategy, setStrategy] = useState<AdvancedStrategy>(extractionStrategy ?? 'article')
   const root = useRef<HTMLElement>(null)
   const guideTrigger = useRef<HTMLButtonElement>(null)
   const headingId = useId()
@@ -108,18 +110,18 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
   }
 
   return (
-    <GuideProvider article={draft.extractionSettings.article} onUseSettings={draftStartingPoint}>
+    <GuideProvider article={draft.extractionSettings.article} onUseSettings={extractionStrategy==='catalog'?undefined:draftStartingPoint}>
       <section ref={root} aria-labelledby={headingId} className="configuration-view advanced-settings flex min-w-0 flex-col gap-2 p-3 sm:p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 id={headingId} className="text-[13px] font-bold text-ink">Advanced extraction</h3>
           <HowThisWorksButton triggerRef={guideTrigger} />
         </div>
-        <p className="-mt-2 text-[11.5px] text-ink-faint">Applies to new Extractions in your Projects.</p>
+        <p className="-mt-2 text-[11.5px] text-ink-faint">{extractionStrategy?'Applies to this Extraction when the saved pending inputs are resumed.':'Applies to new Extractions in your Projects.'}</p>
         <div className="flex flex-wrap items-center justify-between gap-2">
         <fieldset className="flex flex-wrap items-center gap-2">
           <legend className="sr-only">Settings for</legend>
           <span aria-hidden="true" className="text-[11.5px] font-semibold text-ink-muted">Settings for:</span>
-          {STRATEGIES.map((option) => (
+          {STRATEGIES.filter(option=>!extractionStrategy||option.value===extractionStrategy).map((option) => (
             <label key={option.value} className="flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[12px] text-ink">
               <input type="radio" name={`${headingId}-strategy`} checked={strategy === option.value} onChange={() => setStrategy(option.value)} />
               {option.label}
