@@ -128,6 +128,31 @@ member SHALL be reported and SHALL NOT be counted as a correct prediction.
 - **THEN** the prediction is reported as an unscored extra and the convention is
   stated with the metrics
 
+### Requirement: A semantic judge layer scores only unconfirmed pairs
+
+With the developer judge enabled, FREE SHALL send each (document, field) pair
+that strict matching did not confirm to the reasoning provider, which SHALL
+return a structured verdict (`match`, `extra`, `uncertain`, and the gold values
+it found missing). The report SHALL present the judge's precision, recall and
+F1 beside the strict numbers together with judged and unjudged counts. A pair
+whose judge call fails SHALL stay unjudged rather than count as wrong.
+
+#### Scenario: A strict match is not judged
+
+- **WHEN** a pair matches strictly
+- **THEN** it counts as a true positive and no judge call is made for it
+
+#### Scenario: A non-exact pair is judged
+
+- **WHEN** strict matching leaves a pair unconfirmed
+- **THEN** the reasoning provider returns a verdict, and the pair contributes
+  that verdict's true positives, false positives and false negatives
+
+#### Scenario: A failed judge leaves the pair unjudged
+
+- **WHEN** the judge call fails or its reply cannot be read
+- **THEN** the pair is reported unjudged and is not counted as wrong
+
 ### Requirement: Evidence-anchor coverage is reported per round
 
 A round's report SHALL include evidence-anchor coverage: the share of populated,

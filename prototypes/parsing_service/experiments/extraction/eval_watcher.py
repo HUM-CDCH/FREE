@@ -22,6 +22,26 @@ from pathlib import Path
 
 FILENAME_COLUMN = "filename"
 
+# openpyxl refuses characters XML forbids in a worksheet; gold text copied from
+# a PDF can carry them, so each becomes a space (never a silent word join).
+_ILLEGAL_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _cell_value(value):
+    return _ILLEGAL_XML.sub(" ", value) if isinstance(value, str) else value
+
+
+def _json_dumps(value) -> str:
+    """JSON for a jsonb column: psycopg returns uuid and other DB-native values
+    as Python objects, so they become strings instead of failing serialization."""
+    return json.dumps(value, default=str, ensure_ascii=False)
+
+
+def _jsonb(value):
+    from psycopg.types.json import Jsonb
+
+    return Jsonb(value, dumps=_json_dumps)
+
 
 def _is_filename(column_name: str) -> bool:
     return column_name.strip().lower() == FILENAME_COLUMN
@@ -75,19 +95,19 @@ def write_gold_workbook(path: Path, columns, rows) -> None:
     sheet.title = "gold"
     sheet.append(names)
     for row in rows or []:
-        sheet.append([row.get(name, "") for name in names])
+        sheet.append([_cell_value(row.get(name, "")) for name in names])
     path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(path)
 
 
 def pipeline_config(*, eval_id: str, schema_path, golden_path, documents, providers, output,
                     runs=None, strategy: str = "article", exhaustive: bool = True,
-                    identity=None, options: dict | None = None) -> dict:
+                    identity=None, options: dict | None = None, judge: bool = True) -> dict:
     """The `iterative_eval pipeline` configuration for one Project Context."""
     config = {"id": eval_id, "schema": str(schema_path), "golden": str(golden_path),
               "documents": [str(document) for document in documents], "providers": providers,
               "output": str(output), "options": {"strategy": strategy, **(options or {})},
-              "exhaustive": exhaustive}
+              "exhaustive": exhaustive, "judge": {"enabled": judge}}
     if runs:
         config["runs"] = {str(key): str(value) for key, value in runs.items()}
     if identity:
@@ -114,9 +134,9 @@ def providers_from_env(environ) -> dict:
     extraction server unless a developer names a separate one."""
     chat_url = environ.get("KEI_EXTRACT_URL", "http://extraction_model:8000/v1/chat/completions")
     model = environ.get("KEI_EXTRACT_MODEL", "Qwen/Qwen3.8-27B-FP8")
-    return {"fields": {"base_url": environ.get("FREE_EVAL_FIELDS_URL") or base_url_of(chat_url),
+    return {"fields": {"base_url": base_url_of(environ.get("FREE_EVAL_FIELDS_URL") or chat_url),
                        "model": environ.get("FREE_EVAL_FIELDS_MODEL") or model},
-            "reasoning": {"base_url": environ.get("FREE_EVAL_REASONING_URL") or base_url_of(chat_url),
+            "reasoning": {"base_url": base_url_of(environ.get("FREE_EVAL_REASONING_URL") or chat_url),
                           "model": environ.get("FREE_EVAL_REASONING_MODEL") or model}}
 
 
@@ -147,9 +167,10 @@ WHERE d."projectContextId" = %s
 ORDER BY d."createdAt"
 """
 
-ALREADY_EVALUATED = """
-SELECT 1 FROM "evaluationRound"
-WHERE "projectContextId" = %s AND "projectSpreadsheetVersionId" = %s LIMIT 1
+EVALUATION_HISTORY = """
+SELECT bool_or(status = 'SUCCEEDED') AS succeeded, max("createdAt") AS newest
+FROM "evaluationRound"
+WHERE "projectContextId" = %s AND "projectSpreadsheetVersionId" = %s
 """
 
 INSERT_ROUND = """
@@ -180,18 +201,17 @@ def _host_run_directories(documents) -> tuple[list[str], list[dict]]:
         if directory is None:
             continue
         directories.append(str(directory))
-        pinned.append({"sourceDocumentId": document["document_id"],
+        pinned.append({"sourceDocumentId": str(document["document_id"]),
                        "filename": document["original_name"] or run_id})
     return directories, pinned
 
 
 def evaluate_project(connection, project, documents, *, eval_root: Path, providers,
-                     strategy: str = "article", identity=None, exhaustive: bool = True) -> str:
+                     strategy: str = "article", identity=None, exhaustive: bool = True,
+                     judge: bool = True, options: dict | None = None) -> str:
     """Run the fixed pipeline for one ready Project Context and record its three
     rounds. Rows start PENDING and end SUCCEEDED or FAILED, so an interrupted
     watcher leaves a visible PENDING marker instead of silence."""
-    from psycopg.types.json import Jsonb
-
     from .iterative_eval import run_pipeline
 
     work = eval_root / str(project["project_id"]) / str(project["version_id"])
@@ -208,14 +228,14 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
     config = pipeline_config(eval_id=f"eval-{project['project_id']}-{project['version_id']}",
                              schema_path=schema_path, golden_path=golden_path, documents=directories,
                              providers=providers, output=output, strategy=strategy, identity=identity,
-                             exhaustive=exhaustive)
+                             exhaustive=exhaustive, judge=judge, options=options)
     pipeline_run_id = str(uuid.uuid4())
     round_ids = {}
     for label in LABELS:
         round_ids[label] = str(uuid.uuid4())
         connection.execute(INSERT_ROUND, (
             round_ids[label], project["project_id"], project["version_id"], pipeline_run_id, label,
-            "PENDING", Jsonb(pinned), None, None, None, datetime.now(UTC), None))
+            "PENDING", _jsonb(pinned), None, None, None, datetime.now(UTC), None))
     connection.commit()
 
     try:
@@ -223,7 +243,7 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
     except Exception as error:  # noqa: BLE001 - a failed run is recorded, not lost
         for label in LABELS:
             connection.execute(FINISH_ROUND, ("FAILED", None,
-                                              Jsonb({"error_type": type(error).__name__, "error": str(error)}),
+                                              _jsonb({"error_type": type(error).__name__, "error": str(error)}),
                                               datetime.now(UTC), round_ids[label]))
         connection.commit()
         raise
@@ -237,16 +257,19 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
                 "request": manifest["request"], "guidanceSha256": status.get("guidance_sha256"),
                 "documents": status.get("documents")}
         connection.execute(FINISH_ROUND, (
-            status["status"], Jsonb(metrics) if metrics is not None else None,
-            Jsonb(failure) if failure else None, datetime.now(UTC), round_ids[label]))
+            status["status"], _jsonb(metrics) if metrics is not None else None,
+            _jsonb(failure) if failure else None, datetime.now(UTC), round_ids[label]))
     connection.commit()
     return pipeline_run_id
 
 
 def once(*, database_url: str, eval_root: Path, providers: dict, strategy: str = "article",
-         identity=None, exhaustive: bool = True, limit: int | None = None) -> list[str]:
-    """Evaluate every ready Project Context that has no round for its current
-    gold version yet. Returns the pipeline run ids it started."""
+         identity=None, exhaustive: bool = True, limit: int | None = None,
+         retry_seconds: int = 900, judge: bool = True, options: dict | None = None) -> list[str]:
+    """Evaluate every ready Project Context whose current gold version has no
+    succeeded round yet. A version that only failed is retried after
+    `retry_seconds`, so a fixed endpoint does not need a re-upload. Returns the
+    pipeline run ids it started."""
     import psycopg
     from psycopg.rows import dict_row
 
@@ -255,15 +278,25 @@ def once(*, database_url: str, eval_root: Path, providers: dict, strategy: str =
         for project in connection.execute(READY_PROJECTS).fetchall():
             if limit is not None and len(started) >= limit:
                 break
-            if connection.execute(ALREADY_EVALUATED,
-                                  (project["project_id"], project["version_id"])).fetchone():
+            history = connection.execute(
+                EVALUATION_HISTORY, (project["project_id"], project["version_id"])
+            ).fetchone()
+            if history and history["succeeded"]:
                 continue
+            if history and history["newest"] is not None and retry_seconds > 0:
+                failed_at = datetime.now(UTC) - history["newest"]
+                if failed_at.total_seconds() < retry_seconds:
+                    continue
             documents = connection.execute(PROJECT_DOCUMENTS, (project["project_id"],)).fetchall()
             if not documents:
                 continue
-            started.append(evaluate_project(connection, project, documents, eval_root=eval_root,
-                                            providers=providers, strategy=strategy, identity=identity,
-                                            exhaustive=exhaustive))
+            try:
+                started.append(evaluate_project(connection, project, documents, eval_root=eval_root,
+                                                providers=providers, strategy=strategy, identity=identity,
+                                                exhaustive=exhaustive, judge=judge, options=options))
+            except Exception as error:  # noqa: BLE001 - one project must not stop the others
+                connection.rollback()
+                print(f"project {project['project_id']} failed: {type(error).__name__}: {error}", flush=True)
     return started
 
 
@@ -282,14 +315,21 @@ def main() -> None:
     parser.add_argument("--identity", action="append")
     parser.add_argument("--not-exhaustive", action="store_true")
     parser.add_argument("--interval", type=float, default=float(os.environ.get("FREE_EVAL_INTERVAL", "60")))
+    parser.add_argument("--retry-seconds", type=int,
+                        default=int(os.environ.get("FREE_EVAL_RETRY_SECONDS", "900")))
+    parser.add_argument("--no-judge", action="store_true")
+    parser.add_argument("--options-json", default=os.environ.get("FREE_EVAL_OPTIONS_JSON", ""))
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     if not args.database_url:
         parser.error("set EVAL_WATCHER_DATABASE_URL (or DATABASE_URL) to the application database")
     providers = providers_from_env(os.environ)
+    judge = os.environ.get("FREE_EVAL_JUDGE", "1") != "0" and not args.no_judge
+    options = json.loads(args.options_json) if args.options_json.strip() else None
     while True:
         started = once(database_url=args.database_url, eval_root=args.eval_root, providers=providers,
-                       strategy=args.strategy, identity=args.identity, exhaustive=not args.not_exhaustive)
+                       strategy=args.strategy, identity=args.identity, exhaustive=not args.not_exhaustive,
+                       retry_seconds=args.retry_seconds, judge=judge, options=options)
         for run_id in started:
             print(f"evaluated {run_id}", flush=True)
         if args.once:

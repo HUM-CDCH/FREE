@@ -455,6 +455,17 @@ and the gold and guidance digests — so the three rounds can be read without
 opening each round's JSON. Metrics are per round; the per-field breakdown stays
 in each round's `report.md`. The Studio panel shows the same per-round table.
 
+Strict normalized matching is the primary score. Because a faithful value can
+still differ in wording, the harness sends only the pairs strict matching did
+not confirm to the deployment's reasoning model, which returns a structured
+verdict (`match` / `extra` / `uncertain`, plus the gold values it found missing).
+The judge layer reports its own precision, recall and F1 beside the strict
+numbers, with judged and unjudged counts; a pair whose judge call failed stays
+unjudged instead of counting as wrong. The judge runs with a pinned prompt
+version on the reasoning provider, records every request and verdict under
+`rounds/<label>/judge/`, and is developer-only: `FREE_EVAL_JUDGE=0` disables it.
+It is a diagnostic, not ground truth.
+
 ### Running the watcher on a developer deployment
 
 The Spark deployment runs the evaluator as a profile-gated Compose service, so
