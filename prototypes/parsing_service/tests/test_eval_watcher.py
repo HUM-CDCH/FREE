@@ -136,3 +136,7 @@ def test_providers_from_env_defaults_to_the_deployment_extraction_server() -> No
     })
     assert split["fields"] == {"base_url": "http://b:8000", "model": "f"}
     assert split["reasoning"] == {"base_url": "http://a:8000", "model": "m"}
+    full_url = eval_watcher.providers_from_env(
+        {"FREE_EVAL_FIELDS_URL": "http://b:8000/v1/chat/completions"}
+    )
+    assert full_url["fields"]["base_url"] == "http://b:8000"

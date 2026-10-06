@@ -134,9 +134,9 @@ def providers_from_env(environ) -> dict:
     extraction server unless a developer names a separate one."""
     chat_url = environ.get("KEI_EXTRACT_URL", "http://extraction_model:8000/v1/chat/completions")
     model = environ.get("KEI_EXTRACT_MODEL", "Qwen/Qwen3.8-27B-FP8")
-    return {"fields": {"base_url": environ.get("FREE_EVAL_FIELDS_URL") or base_url_of(chat_url),
+    return {"fields": {"base_url": base_url_of(environ.get("FREE_EVAL_FIELDS_URL") or chat_url),
                        "model": environ.get("FREE_EVAL_FIELDS_MODEL") or model},
-            "reasoning": {"base_url": environ.get("FREE_EVAL_REASONING_URL") or base_url_of(chat_url),
+            "reasoning": {"base_url": base_url_of(environ.get("FREE_EVAL_REASONING_URL") or chat_url),
                           "model": environ.get("FREE_EVAL_REASONING_MODEL") or model}}
 
 
