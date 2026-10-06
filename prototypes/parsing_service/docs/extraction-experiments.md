@@ -448,6 +448,13 @@ otherwise); unmatched records are reported, never counted as correct. The
 `exhaustive` flag (default true) decides whether a prediction with no gold
 counterpart is a false positive or an unscored extra.
 
+Each run also writes `metrics.csv` and `metrics.xlsx` beside the manifest: one
+row per round with every metric — micro precision, recall and F1, presence and
+exact accuracy, anchor coverage (raw and eligible), effort with its four counts,
+and the gold and guidance digests — so the three rounds can be read without
+opening each round's JSON. Metrics are per round; the per-field breakdown stays
+in each round's `report.md`. The Studio panel shows the same per-round table.
+
 ### Running the watcher on a developer deployment
 
 The Spark deployment runs the evaluator as a profile-gated Compose service, so

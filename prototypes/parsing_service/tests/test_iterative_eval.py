@@ -1,6 +1,7 @@
 """The developer iterative-eval harness: golden Excel, field-level P/R/F1, pilot->full, improvement."""
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
@@ -318,6 +319,41 @@ def test_score_aligns_catalog_records_by_the_identity_field():
     assert partial["unscored_extras"]["count"] == 2
 
 
+def test_metrics_row_is_one_row_per_round() -> None:
+    metrics = {
+        "micro": {"precision": 0.5, "recall": 0.6, "f1": 0.54},
+        "presence": {"precision": 1.0, "recall": 0.5, "f1": 0.67},
+        "exact_cells": {"accuracy": 0.25},
+        "documents_scored": 2,
+        "documents_failed": ["c"],
+        "anchor_coverage": {"eligible_link_rate": 0.9, "link_rate": 0.8},
+        "reviewer_effort": {"effort": 4, "edited": 1, "rejected": 1, "added": 1, "deleted": 1},
+    }
+    row = iterative_eval.metrics_row(
+        "PILOT_1",
+        {"status": "SUCCEEDED", "documents": ["a", "b"], "guidance_sha256": "g"},
+        metrics,
+        gold_sha256="gold",
+    )
+    assert row["Round"] == "PILOT_1"
+    assert row["F1"] == 0.54
+    assert row["Anchor coverage"] == 0.9
+    assert row["Effort"] == 4
+    assert row["Documents"] == 2 and row["Scored"] == 2 and row["Failed"] == 1
+
+
+def test_write_metrics_table_writes_csv_and_xlsx(tmp_path: Path) -> None:
+    rows = [
+        iterative_eval.metrics_row("PILOT_1", {"status": "SUCCEEDED", "documents": []}, None,
+                                   gold_sha256="g")
+    ]
+    iterative_eval.write_metrics_table(tmp_path, rows)
+    assert (tmp_path / "metrics.csv").is_file()
+    sheet = openpyxl.load_workbook(tmp_path / "metrics.xlsx").active
+    assert [cell.value for cell in sheet[1]][:2] == ["Round", "Status"]
+    assert sheet[2][0].value == "PILOT_1"
+
+
 def test_run_pipeline_runs_two_pilots_then_a_batch_with_guidance(tmp_path: Path, monkeypatch):
     (tmp_path / "schema.json").write_text(json.dumps(SCHEMA), encoding="utf-8")
     _golden_three(tmp_path)
@@ -369,6 +405,10 @@ def test_run_pipeline_runs_two_pilots_then_a_batch_with_guidance(tmp_path: Path,
     batch_metrics = json.loads((tmp_path / "pipe" / "rounds" / "batch" / "metrics.json").read_text())
     assert batch_metrics["anchor_coverage"]["eligible_link_rate"] == 0.0
     assert batch_metrics["reviewer_effort"]["effort"] >= 1
+    assert (tmp_path / "pipe" / "metrics.csv").is_file()
+    assert (tmp_path / "pipe" / "metrics.xlsx").is_file()
+    rows = list(csv.DictReader((tmp_path / "pipe" / "metrics.csv").open()))
+    assert [row["Round"] for row in rows] == ["PILOT_1", "PILOT_2", "BATCH"]
     assert json.loads((tmp_path / "pipe" / "manifest.json").read_text())["pilot_documents"] == ["paper-a", "paper-b"]
 
     iterative_eval.run_pipeline(config, tmp_path)  # every completed round cell is reused, not re-extracted

@@ -551,6 +551,62 @@ def render_comparison(report: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def metrics_row(label: str, status: dict, metrics: dict | None, *, gold_sha256: str | None) -> dict:
+    """One round's flat metrics row: the table's unit is one round, not a field."""
+    micro = (metrics or {}).get("micro") or {}
+    presence = (metrics or {}).get("presence") or {}
+    exact = (metrics or {}).get("exact_cells") or {}
+    coverage = (metrics or {}).get("anchor_coverage") or {}
+    effort = (metrics or {}).get("reviewer_effort") or {}
+    return {
+        "Round": label,
+        "Status": status.get("status"),
+        "Documents": len(status.get("documents") or []),
+        "Scored": (metrics or {}).get("documents_scored"),
+        "Failed": len((metrics or {}).get("documents_failed") or []),
+        "Precision": micro.get("precision"),
+        "Recall": micro.get("recall"),
+        "F1": micro.get("f1"),
+        "Presence precision": presence.get("precision"),
+        "Presence recall": presence.get("recall"),
+        "Presence F1": presence.get("f1"),
+        "Exact accuracy": exact.get("accuracy"),
+        "Anchor coverage": coverage.get("eligible_link_rate"),
+        "Anchor coverage (raw)": coverage.get("link_rate"),
+        "Effort": effort.get("effort"),
+        "Edited": effort.get("edited"),
+        "Rejected": effort.get("rejected"),
+        "Added": effort.get("added"),
+        "Deleted": effort.get("deleted"),
+        "Gold sha256": gold_sha256,
+        "Guidance sha256": status.get("guidance_sha256"),
+        "Error": status.get("error"),
+    }
+
+
+def write_metrics_table(output: Path, rows: list[dict]) -> None:
+    """The per-round metrics table a developer reads: one row per round, written
+    as both `metrics.csv` and `metrics.xlsx`."""
+    import csv
+
+    if not rows:
+        return
+    output.mkdir(parents=True, exist_ok=True)
+    with (output / "metrics.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    import openpyxl  # a developer dependency, kept out of the service runtime
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Rounds"
+    sheet.append(list(rows[0]))
+    for row in rows:
+        sheet.append(list(row.values()))
+    workbook.save(output / "metrics.xlsx")
+
+
 # --- running ----------------------------------------------------------------------------------------------------
 
 def _role_providers(config: dict) -> dict[str, dict]:
@@ -881,6 +937,7 @@ def run_pipeline(config: dict, root: Path) -> dict:
     _write(output / "config.json", config)
     existing = _runs_by_name(runs_root)
     rounds: list[dict] = []
+    table_rows: list[dict] = []
     predictions: dict[str, dict | None] = {}
     guidance = ""
     for label, subset in (("PILOT_1", pilot_entries), ("PILOT_2", pilot_entries), ("BATCH", entries)):
@@ -906,6 +963,7 @@ def run_pipeline(config: dict, root: Path) -> dict:
                       "guidance_sha256": digest(guidance.encode()),
                       "metrics": f"rounds/{label.lower()}/metrics.json",
                       "failed": metrics["documents_failed"]}
+            table_rows.append(metrics_row(label, status, metrics, gold_sha256=gold["sha256"]))
             predictions = results
             print(f"{label}: F1 {metrics['micro']['f1']} over {metrics['documents_scored']}/{len(keys)} documents",
                   flush=True)
@@ -913,6 +971,7 @@ def run_pipeline(config: dict, root: Path) -> dict:
             status = {"label": label, "status": "FAILED", "documents": [entry["key"] for entry in subset],
                       "guidance_sha256": digest(guidance.encode()),
                       "error_type": type(error).__name__, "error": str(error)}
+            table_rows.append(metrics_row(label, status, None, gold_sha256=gold["sha256"]))
             _write(output / "rounds" / label.lower() / "status.json", status)
             print(f"{label} FAILED: {error}", flush=True)
         else:
@@ -924,6 +983,7 @@ def run_pipeline(config: dict, root: Path) -> dict:
         "gold": {key: gold[key] for key in ("path", "sha256", "sheet")}, "schema": pin(schema_path),
         "documents": [entry["key"] for entry in entries], "pilot_documents": pilot_keys,
         "request": request.options.dumped(), "rounds": rounds}
+    write_metrics_table(output, table_rows)
     _write(output / "manifest.json", manifest)
     return manifest
 
