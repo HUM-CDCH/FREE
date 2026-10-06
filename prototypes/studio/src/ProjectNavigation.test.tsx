@@ -39,6 +39,8 @@ vi.mock('./savedMethod', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./savedMethod')>()),
   useSavedMethod: () => saved,
 }))
+// The developer evaluation panel is off unless FREE_DEVELOPER_EVAL is set; its read stays out of these fetch counts.
+vi.mock('./projectContexts/evaluationRounds', () => ({ readEvaluationRounds: async () => null }))
 
 vi.mock('./App', () => ({
   default: ({

@@ -208,7 +208,7 @@ def _host_run_directories(documents) -> tuple[list[str], list[dict]]:
 
 def evaluate_project(connection, project, documents, *, eval_root: Path, providers,
                      strategy: str = "article", identity=None, exhaustive: bool = True,
-                     judge: bool = True) -> str:
+                     judge: bool = True, options: dict | None = None) -> str:
     """Run the fixed pipeline for one ready Project Context and record its three
     rounds. Rows start PENDING and end SUCCEEDED or FAILED, so an interrupted
     watcher leaves a visible PENDING marker instead of silence."""
@@ -228,7 +228,7 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
     config = pipeline_config(eval_id=f"eval-{project['project_id']}-{project['version_id']}",
                              schema_path=schema_path, golden_path=golden_path, documents=directories,
                              providers=providers, output=output, strategy=strategy, identity=identity,
-                             exhaustive=exhaustive, judge=judge)
+                             exhaustive=exhaustive, judge=judge, options=options)
     pipeline_run_id = str(uuid.uuid4())
     round_ids = {}
     for label in LABELS:
@@ -265,7 +265,7 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
 
 def once(*, database_url: str, eval_root: Path, providers: dict, strategy: str = "article",
          identity=None, exhaustive: bool = True, limit: int | None = None,
-         retry_seconds: int = 900, judge: bool = True) -> list[str]:
+         retry_seconds: int = 900, judge: bool = True, options: dict | None = None) -> list[str]:
     """Evaluate every ready Project Context whose current gold version has no
     succeeded round yet. A version that only failed is retried after
     `retry_seconds`, so a fixed endpoint does not need a re-upload. Returns the
@@ -293,7 +293,7 @@ def once(*, database_url: str, eval_root: Path, providers: dict, strategy: str =
             try:
                 started.append(evaluate_project(connection, project, documents, eval_root=eval_root,
                                                 providers=providers, strategy=strategy, identity=identity,
-                                                exhaustive=exhaustive, judge=judge))
+                                                exhaustive=exhaustive, judge=judge, options=options))
             except Exception as error:  # noqa: BLE001 - one project must not stop the others
                 connection.rollback()
                 print(f"project {project['project_id']} failed: {type(error).__name__}: {error}", flush=True)
@@ -318,16 +318,18 @@ def main() -> None:
     parser.add_argument("--retry-seconds", type=int,
                         default=int(os.environ.get("FREE_EVAL_RETRY_SECONDS", "900")))
     parser.add_argument("--no-judge", action="store_true")
+    parser.add_argument("--options-json", default=os.environ.get("FREE_EVAL_OPTIONS_JSON", ""))
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     if not args.database_url:
         parser.error("set EVAL_WATCHER_DATABASE_URL (or DATABASE_URL) to the application database")
     providers = providers_from_env(os.environ)
     judge = os.environ.get("FREE_EVAL_JUDGE", "1") != "0" and not args.no_judge
+    options = json.loads(args.options_json) if args.options_json.strip() else None
     while True:
         started = once(database_url=args.database_url, eval_root=args.eval_root, providers=providers,
                        strategy=args.strategy, identity=args.identity, exhaustive=not args.not_exhaustive,
-                       retry_seconds=args.retry_seconds, judge=judge)
+                       retry_seconds=args.retry_seconds, judge=judge, options=options)
         for run_id in started:
             print(f"evaluated {run_id}", flush=True)
         if args.once:
