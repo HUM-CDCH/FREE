@@ -180,6 +180,50 @@ def test_provider_client_kwargs_bounds_only_the_fields_role():
     assert iterative_eval.DEFAULT_MAX_WHITESPACE == 16
 
 
+class _FakeReply:
+    def __init__(self, text: str, finish: str = "stop"):
+        self.text, self.finish = text, finish
+
+
+class _FakeCapture:
+    def __init__(self, replies: list):
+        self.replies, self.requests = list(replies), []
+
+    def complete(self, **request):
+        self.requests.append(request)
+        return self.replies.pop(0)
+
+
+def test_judge_pair_maps_a_verdict_to_counts():
+    payload = {
+        "extracted": [
+            {"value": "a", "verdict": "match"},
+            {"value": "b", "verdict": "extra"},
+            {"value": "c", "verdict": "uncertain"},
+        ],
+        "missing_gold": ["d"],
+    }
+    result = iterative_eval.judge_pair(
+        _FakeCapture([_FakeReply(json.dumps(payload))]), "f", ["a"], ["a", "b", "c"]
+    )
+    assert result == {"tp": 1, "fp": 1, "uncertain": 1, "fn": 1, "verdict": payload}
+
+
+def test_judge_pair_leaves_a_failed_judge_unjudged():
+    assert iterative_eval.judge_pair(_FakeCapture([_FakeReply("{}", finish="length")]), "f", ["a"], ["b"]) is None
+    assert iterative_eval.judge_pair(_FakeCapture([_FakeReply("not json")]), "f", ["a"], ["b"]) is None
+
+
+def test_judge_round_skips_pairs_strict_matching_already_confirmed():
+    gold = {"fields": ["f"], "documents": {"a": [{"f": ["x"]}]}}
+    predictions = {"a": {"records": [{"f": "x"}]}}
+    capture = _FakeCapture([])  # a judge call would raise IndexError
+    result = iterative_eval.judge_round(gold, predictions, ["a"], capture, {}, model="m")
+    assert capture.requests == []
+    assert result["judged"] == 1 and result["unjudged"] == 0
+    assert result["micro"]["tp"] == 1 and result["micro"]["f1"] == 1.0
+
+
 def test_guidance_text_caps_the_examples_it_uses():
     examples = [{"field": "f", "expected": "x" * 4000} for _ in range(5)]
     capped = iterative_eval.capped_examples(examples, max_chars=8000)

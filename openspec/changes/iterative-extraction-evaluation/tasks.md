@@ -45,3 +45,8 @@
 - [ ] 6.4 Review the final diff against the specs and design, resolve findings, and open the reviewable change per CONTRIBUTING.
 
 Outcome note: this change is developer-only and stays inert with `FREE_DEVELOPER_EVAL` unset; the researcher product contract is unchanged.
+
+## 7. Semantic judge layer (developer-only, added after review)
+
+- [x] 7.1 Add the strict-first judge: judge only non-exact pairs, return a structured `match`/`extra`/`uncertain` verdict with the missing gold values, pin the prompt version, capture every call, and leave a failed pair unjudged.
+- [x] 7.2 Report the judge's precision, recall and F1 with judged/unjudged counts beside the strict numbers in each round's report and the per-round table; `FREE_EVAL_JUDGE=0` disables it.

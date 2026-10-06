@@ -205,6 +205,19 @@ from the column name, so the same sheet always produces the same schema and the
 gold columns and extracted fields line up by construction. A richer schema is a
 later, explicit configuration, not a hidden inference.
 
+### D11: A dev-only judge layer scores only the pairs strict matching could not confirm
+
+Strict normalized matching stays the primary score. The harness sends each
+(document, field) pair strict matching did not confirm to the deployment's
+reasoning provider with a pinned prompt version and a strict JSON verdict
+(`match`/`extra`/`uncertain`, plus the gold values it found missing). A pair
+whose call fails stays unjudged rather than counting as wrong, and the judge
+layer reports its own precision, recall and F1 beside the strict numbers with
+judged and unjudged counts; every request and verdict is captured under the
+round. It is developer-only (`FREE_EVAL_JUDGE`, on by default for the watcher)
+and a diagnostic, never ground truth: the strict number remains the one
+comparable across runs.
+
 ## Risks / Trade-offs
 
 - Catalog record alignment is ambiguous → align first, report unmatched and

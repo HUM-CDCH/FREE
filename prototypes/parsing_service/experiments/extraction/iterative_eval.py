@@ -38,7 +38,7 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kei_exp.kie.extract.llm import OpenAIChat
+from kei_exp.kie.extract.llm import ModelOutputError, OpenAIChat, parse_json
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.run import ExtractRequest, extract
 from kei_exp.kie.extract.stages import leaves
@@ -474,6 +474,119 @@ def shadow_effort(gold: dict, predictions: dict[str, dict | None], keys) -> dict
             "interpretation": "Shadow review; no decision, correction or finalization is written."}
 
 
+JUDGE_PROMPT_VERSION = 1
+JUDGE_MAX_TOKENS = 1500
+JUDGE_VALUE_CHARS = 4000
+
+JUDGE_SYSTEM = (
+    "You compare one extracted field against its gold answer. Return strict JSON only. Two values match when they "
+    "are semantically equivalent: wording, word order, singular/plural, punctuation, casing and differently written "
+    "units do not matter. A gold value with no extracted counterpart is missing. An extracted value with no gold "
+    "counterpart is extra. Judge only the values given; never invent one. When equivalence is unclear, mark it "
+    "uncertain instead of matching it."
+)
+
+JUDGE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "extracted": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "value": {"type": "string"},
+                    "verdict": {"type": "string", "enum": ["match", "extra", "uncertain"]},
+                    "gold_value": {"type": ["string", "null"]},
+                },
+                "required": ["value", "verdict"],
+            },
+        },
+        "missing_gold": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["extracted", "missing_gold"],
+}
+
+
+def judge_prompt(field: str, gold_values: list, predicted_values: list) -> tuple[str, str]:
+    """The exact prompt one (document, field) pair is judged with. Values are
+    bounded so one very long cell cannot blow the judge's context."""
+    render = lambda values: json.dumps(values, ensure_ascii=False)[:JUDGE_VALUE_CHARS]
+    return JUDGE_SYSTEM, (f"Field: {field}\nGold values: {render(gold_values)}\n"
+                          f"Extracted values: {render(predicted_values)}")
+
+
+def judge_pair(capture, field: str, gold_values: list, predicted_values: list) -> dict | None:
+    """One pair's verdict as `{tp, fp, fn, uncertain, verdict}`, or None when the
+    judge failed (a refusal, a cut-off reply or unreadable JSON). A failed pair
+    stays unjudged rather than being counted as wrong."""
+    system, user = judge_prompt(field, gold_values, predicted_values)
+    try:
+        reply = capture.complete(system=system, user=user, schema=JUDGE_SCHEMA, max_tokens=JUDGE_MAX_TOKENS)
+    except Exception:  # noqa: BLE001 - an unreachable or refusing judge leaves the pair unjudged
+        return None
+    if reply.finish == "length":
+        return None
+    try:
+        verdict = parse_json(reply.text)
+    except ModelOutputError:
+        return None
+    if not isinstance(verdict, dict) or not isinstance(verdict.get("extracted"), list) \
+            or not isinstance(verdict.get("missing_gold"), list):
+        return None
+    items = [item for item in verdict["extracted"] if isinstance(item, dict)]
+    return {"tp": sum(1 for item in items if item.get("verdict") == "match"),
+            "fp": sum(1 for item in items if item.get("verdict") == "extra"),
+            "uncertain": sum(1 for item in items if item.get("verdict") == "uncertain"),
+            "fn": len(verdict["missing_gold"]), "verdict": verdict}
+
+
+def judge_round(gold: dict, predictions: dict[str, dict | None], keys, capture, options: dict, *,
+                model: str) -> dict:
+    """The semantic layer: strict matches count as true positives, and only the
+    pairs strict matching could not confirm go to the reasoning model's judge."""
+    fields = list(gold["fields"])
+    per_field = {field: {"tp": 0, "fp": 0, "fn": 0, "judged": 0, "unjudged": 0} for field in fields}
+    totals = {"tp": 0, "fp": 0, "fn": 0, "judged": 0, "unjudged": 0, "uncertain": 0}
+    verdicts = []
+    for key in sorted(keys):
+        artifact = predictions.get(key)
+        top, dotted = artifact_fields(artifact) if artifact else ({}, {})
+        for field in fields:
+            expected = [value for row in gold["documents"].get(key, []) for value in row.get(field, [])]
+            actual = list(dotted.get(field) or top.get(field) or [])
+            tp, fp, fn, exact = _counts(expected, actual, options)
+            verdict = None
+            if exact:
+                counts = {"tp": tp, "fp": 0, "fn": 0, "uncertain": 0}
+            else:
+                result = judge_pair(capture, field, expected, actual)
+                if result is None:
+                    totals["unjudged"] += 1
+                    per_field[field]["unjudged"] += 1
+                    verdicts.append({"document": key, "field": field, "gold": expected, "predicted": actual,
+                                     "status": "unjudged"})
+                    continue
+                verdict = result["verdict"]
+                counts = {name: result[name] for name in ("tp", "fp", "fn", "uncertain")}
+            for name in ("tp", "fp", "fn"):
+                totals[name] += counts[name]
+                per_field[field][name] += counts[name]
+            totals["judged"] += 1
+            totals["uncertain"] += counts["uncertain"]
+            per_field[field]["judged"] += 1
+            verdicts.append({"document": key, "field": field, "gold": expected, "predicted": actual,
+                             "status": "judged", **counts, "verdict": verdict})
+    return {"prompt_version": JUDGE_PROMPT_VERSION, "model": model,
+            "micro": _scores(totals["tp"], totals["fp"], totals["fn"]),
+            "judged": totals["judged"], "unjudged": totals["unjudged"], "uncertain": totals["uncertain"],
+            "per_field": {field: {**_scores(item["tp"], item["fp"], item["fn"]),
+                                  "judged": item["judged"], "unjudged": item["unjudged"]}
+                          for field, item in per_field.items()},
+            "verdicts": verdicts}
+
+
 def compare(baseline: dict, candidate: dict) -> dict:
     """How far `candidate` moved from `baseline`: overall and per-field deltas on precision, recall and F1."""
     def delta(metric: str, left: dict, right: dict) -> float | None:
@@ -522,6 +635,11 @@ def render(metrics: dict) -> str:
     if effort:
         lines.append(f"- Shadow reviewer effort {effort['effort']} (edited {effort['edited']}, "
                      f"rejected {effort['rejected']}, added {effort['added']}, deleted {effort['deleted']})")
+    judge = metrics.get("judge")
+    if judge and judge.get("micro"):
+        lines.append(f"- Judge (semantic) precision {percent(judge['micro']['precision'])} "
+                     f"recall {percent(judge['micro']['recall'])} F1 {percent(judge['micro']['f1'])} over "
+                     f"{judge['judged']} judged pair(s); {judge['unjudged']} unjudged")
     extras = metrics.get("unscored_extras")
     if extras and not extras["exhaustive"]:
         by_field = ", ".join(f"{field} {count}" for field, count in extras["by_field"].items() if count)
@@ -558,6 +676,8 @@ def metrics_row(label: str, status: dict, metrics: dict | None, *, gold_sha256: 
     exact = (metrics or {}).get("exact_cells") or {}
     coverage = (metrics or {}).get("anchor_coverage") or {}
     effort = (metrics or {}).get("reviewer_effort") or {}
+    judge = (metrics or {}).get("judge") or {}
+    judge_micro = judge.get("micro") or {}
     return {
         "Round": label,
         "Status": status.get("status"),
@@ -578,6 +698,11 @@ def metrics_row(label: str, status: dict, metrics: dict | None, *, gold_sha256: 
         "Rejected": effort.get("rejected"),
         "Added": effort.get("added"),
         "Deleted": effort.get("deleted"),
+        "Judge precision": judge_micro.get("precision"),
+        "Judge recall": judge_micro.get("recall"),
+        "Judge F1": judge_micro.get("f1"),
+        "Judged": judge.get("judged"),
+        "Unjudged": judge.get("unjudged"),
         "Gold sha256": gold_sha256,
         "Guidance sha256": status.get("guidance_sha256"),
         "Error": status.get("error"),
@@ -988,6 +1113,7 @@ def run_pipeline(config: dict, root: Path) -> dict:
     predictions: dict[str, dict | None] = {}
     guidance = ""
     max_whitespace = config.get("max_whitespace", DEFAULT_MAX_WHITESPACE)
+    judge_config = config.get("judge") or {}
     for label, subset in (("PILOT_1", pilot_entries), ("PILOT_2", pilot_entries), ("BATCH", entries)):
         keys = {entry["key"] for entry in subset}
         try:
@@ -1005,6 +1131,21 @@ def run_pipeline(config: dict, root: Path) -> dict:
             metrics["documents_failed"] = sorted(key for key in keys if results.get(key) is None)
             metrics["anchor_coverage"] = anchor_coverage(results)
             metrics["reviewer_effort"] = shadow_effort(gold, results, keys)
+            if judge_config.get("enabled"):
+                try:
+                    provider = providers["reasoning"]
+                    judge_chat = OpenAIChat(url=provider["base_url"].rstrip("/") + "/v1/chat/completions",
+                                            model=provider["model"], max_whitespace=DEFAULT_MAX_WHITESPACE)
+                    judge_capture = Capture(judge_chat,
+                                            output / "rounds" / label.lower() / "judge" / "calls", "judge")
+                    judged = judge_round(gold, results, keys, judge_capture, metrics_options,
+                                         model=provider["model"])
+                    verdicts = judged.pop("verdicts", [])
+                    metrics["judge"] = judged
+                    _write(output / "rounds" / label.lower() / "judge" / "verdicts.json", verdicts)
+                    print(f"{label}: judged {judged['judged']} pair(s), {judged['unjudged']} unjudged", flush=True)
+                except Exception as error:  # noqa: BLE001 - a judge failure must not fail the round
+                    metrics["judge"] = {"error_type": type(error).__name__, "error": str(error)}
             _write(output / "rounds" / label.lower() / "metrics.json", metrics)
             (output / "rounds" / label.lower() / "report.md").write_text(render(metrics), encoding="utf-8")
             status = {"label": label, "status": "SUCCEEDED" if not metrics["documents_failed"] else "FAILED",
