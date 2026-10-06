@@ -15,7 +15,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { isIP } from 'node:net'
 import { networkInterfaces } from 'node:os'
-import { resolve } from 'node:path'
+import { relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseEnv } from 'node:util'
 import { validateSharedStudioConfiguration } from 'studio-configuration'
@@ -624,6 +624,69 @@ export function renderNginxLocations(template, values) {
   ) => values[name])
 }
 
+// Each built image's org.opencontainers.image.revision label: the last commit
+// touching its build context, so an unchanged context keeps its image ID and
+// its containers are not recreated. Untracked files (the rendered nginx
+// include, operator notes) do not mark the inputs dirty.
+export const BUILD_REVISIONS = Object.freeze({
+  FREE_REVISION_STUDIO: ['.'],
+  FREE_REVISION_PARSING: ['prototypes/parsing_service'],
+})
+
+export function buildRevision(paths, execute = run) {
+  const git = (args) => execute('git', [...args, '--', ...paths], { capture: true, allowFailure: true })
+  const commit = git(['log', '-1', '--format=%H'])
+  if (commit.status !== 0 || !commit.stdout?.trim()) return 'unknown'
+  const status = git(['status', '--porcelain', '--untracked-files=no'])
+  const dirty = status.status !== 0 || status.stdout.trim() !== ''
+  return `${commit.stdout.trim()}${dirty ? '-dirty' : ''}`
+}
+
+// Built services with their build inputs (context plus Dockerfile) as
+// checkout-relative paths, from `docker compose config --format json`.
+export function builtServices(composeConfigJson, root = ROOT) {
+  return Object.entries(JSON.parse(composeConfigJson).services)
+    .filter(([, service]) => service.build)
+    .map(([service, { build }]) => ({
+      service,
+      paths: [build.context, ...(build.dockerfile ? [resolve(build.context, build.dockerfile)] : [])]
+        .map((path) => relative(root, resolve(root, path)) || '.'),
+    }))
+}
+
+const shortRevision = (revision) => revision.replace(/^([0-9a-f]{8})[0-9a-f]+/, '$1')
+
+// One line per service: name, the revision its image was built from, and
+// whether that is the revision of its build inputs in this checkout.
+export function formatServiceRevisions(services) {
+  const width = Math.max(...services.map(({ service }) => service.length))
+  return services.map(({ service, revision, expected }) => {
+    const label = revision && revision !== '<no value>' ? revision : 'unknown'
+    const state = label === expected && label !== 'unknown' ? 'current' : `STALE (expected ${shortRevision(expected)})`
+    return `${service.padEnd(width)}  ${shortRevision(label)}  ${state}`
+  })
+}
+
+function printServiceRevisions(compose, environment) {
+  const options = { capture: true, env: environment }
+  const services = builtServices(run('docker', [...compose, 'config', '--format', 'json'], options).stdout)
+  const ids = run('docker', [...compose, 'ps', '-q', ...services.map(({ service }) => service)], options)
+    .stdout.split(/\s+/).filter(Boolean)
+  if (ids.length === 0) return
+  const inspected = run('docker', [
+    'inspect', '--format',
+    '{{index .Config.Labels "com.docker.compose.service"}} {{index .Config.Labels "org.opencontainers.image.revision"}}',
+    ...ids,
+  ], options).stdout
+  const running = inspected.trim().split('\n').map((line) => {
+    const [service, revision] = line.trim().split(' ')
+    const expected = buildRevision(services.find((built) => built.service === service).paths)
+    return { service, revision, expected }
+  }).sort((left, right) => left.service.localeCompare(right.service))
+  console.log('\nImage revisions:')
+  for (const line of formatServiceRevisions(running)) console.log(`  ${line}`)
+}
+
 async function productionMain(args) {
   parseProductionOptions(args)
   const dotEnv = loadDotEnv()
@@ -653,12 +716,17 @@ async function productionMain(args) {
     console.log(`Rendered ${RENDERED_NGINX_LOCATIONS} for the host nginx.`)
   }
 
+  for (const [variable, paths] of Object.entries(BUILD_REVISIONS))
+    environment[variable] = buildRevision(paths)
   console.log('Starting the production stack (waits for health checks)...\n')
-  process.exitCode = await startComposeStack(
-    productionComposeArguments(environment, parsingGpuComposeArguments(environment)),
-    environment,
-  )
+  const upArguments = productionComposeArguments(environment, parsingGpuComposeArguments(environment))
+  process.exitCode = await startComposeStack(upArguments, environment)
   if (process.exitCode !== 0) return
+  try {
+    printServiceRevisions(upArguments.slice(0, upArguments.indexOf('up')), environment)
+  } catch (error) {
+    console.warn(`Could not report image revisions: ${error.message}`)
+  }
   console.log('Phoenix model-call traces: http://localhost:6006 (loopback only).')
   if (!hostNginx) {
     console.log(`

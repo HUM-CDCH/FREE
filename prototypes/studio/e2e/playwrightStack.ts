@@ -207,23 +207,29 @@ function readConfiguredStack(): PlaywrightStackConfiguration {
 function runCommand(
   command: string,
   args: string[],
-  options: { cwd: string; env?: NodeJS.ProcessEnv },
+  /** `teeStderr` still prints stderr and also adds its tail to the failure's message. */
+  options: { cwd: string; env?: NodeJS.ProcessEnv; teeStderr?: boolean },
 ): Promise<void> {
   const { promise, resolve: resolveCommand, reject: rejectCommand } =
     Promise.withResolvers<void>()
   const child = spawn(command, args, {
     cwd: options.cwd,
     env: options.env ?? process.env,
-    stdio: 'inherit',
+    stdio: ['inherit', 'inherit', options.teeStderr ? 'pipe' : 'inherit'],
     shell: false,
   })
+  let stderr = ''
+  child.stderr?.on('data', (chunk: Buffer) => {
+    process.stderr.write(chunk)
+    stderr = (stderr + chunk.toString()).slice(-4_000)
+  })
   child.once('error', rejectCommand)
-  child.once('exit', (code, signal) => {
+  child.once('close', (code, signal) => {
     if (code === 0) resolveCommand()
     else
       rejectCommand(
         new Error(
-          `${command} ${args.join(' ')} exited with ${code ?? signal ?? 'an unknown status'}.`,
+          `${command} ${args.join(' ')} exited with ${code ?? signal ?? 'an unknown status'}.${stderr ? `\n${stderr.trim()}` : ''}`,
         ),
       )
   })
@@ -258,20 +264,43 @@ async function composeDown(
 async function composeUp(
   configuration: PlaywrightStackConfiguration,
 ): Promise<void> {
-  await runCommand(
-    'docker',
-    [
-      ...composeArgs(configuration),
-      'up',
-      '--detach',
-      '--force-recreate',
-      '--wait',
-      '--wait-timeout',
-      String(readinessTimeoutMs / 1_000),
-    ],
-    { cwd: studioDirectory },
+  await retryWhilePortIsHeld(() =>
+    runCommand(
+      'docker',
+      [
+        ...composeArgs(configuration),
+        'up',
+        '--detach',
+        '--force-recreate',
+        '--wait',
+        '--wait-timeout',
+        String(readinessTimeoutMs / 1_000),
+      ],
+      { cwd: studioDirectory, teeStderr: true },
+    ),
   )
 }
+
+// Docker can still hold a port the previous stack released ("driver failed programming external connectivity").
+const portStillHeld =
+  /port is already allocated|failed programming external connectivity|address already in use/i
+
+/** Runs `up` again once, after `retryDelayMs`, when its failure says the port isn't free yet. */
+async function retryWhilePortIsHeld(
+  up: () => Promise<void>,
+  retryDelayMs = 3_000,
+): Promise<void> {
+  try {
+    await up()
+  } catch (error) {
+    if (!(error instanceof Error && portStillHeld.test(error.message)))
+      throw error
+    await delay(retryDelayMs)
+    await up()
+  }
+}
+
+export const retryWhilePortIsHeldForTest = retryWhilePortIsHeld
 
 function delay(milliseconds: number): Promise<void> {
   const { promise, resolve: resolveDelay } = Promise.withResolvers<void>()
