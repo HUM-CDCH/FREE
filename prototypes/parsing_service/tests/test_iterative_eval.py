@@ -173,6 +173,13 @@ def test_guidance_counter_counts_the_block_the_chat_will_send():
     assert counter.seen == ["sys\nEXTRA"]
 
 
+def test_provider_client_kwargs_bounds_only_the_fields_role():
+    assert iterative_eval.provider_client_kwargs("fields", 16) == {"max_whitespace": 16}
+    assert iterative_eval.provider_client_kwargs("reasoning", 16) == {}
+    assert iterative_eval.provider_client_kwargs("fields", 0) == {}
+    assert iterative_eval.DEFAULT_MAX_WHITESPACE == 16
+
+
 def test_guidance_text_caps_the_examples_it_uses():
     examples = [{"field": "f", "expected": "x" * 4000} for _ in range(5)]
     capped = iterative_eval.capped_examples(examples, max_chars=8000)
@@ -409,7 +416,7 @@ def test_run_pipeline_runs_two_pilots_then_a_batch_with_guidance(tmp_path: Path,
     }
     calls: list[tuple[str, str]] = []
 
-    def fake(run_dir, request, providers, cell_dir, *, guidance=""):
+    def fake(run_dir, request, providers, cell_dir, *, guidance="", max_whitespace=16):
         calls.append((run_dir.name, guidance))
         return artifacts[run_dir.name]
 

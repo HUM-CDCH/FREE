@@ -617,6 +617,20 @@ def _role_providers(config: dict) -> dict[str, dict]:
     return providers
 
 
+# The version 1 Catalog path recovers from a whitespace loop by re-sending the
+# schema as a grammar bounding whitespace between JSON tokens (catalog.py's
+# MAX_WHITESPACE). Article has no such recovery, so the harness sends the fields
+# role through the same bounded grammar by default: the loop becomes a served
+# reply instead of an unanswered root. Set `max_whitespace: 0` to disable it.
+DEFAULT_MAX_WHITESPACE = 16
+
+
+def provider_client_kwargs(role: str, max_whitespace) -> dict:
+    """The bounded grammar applies to the fields role only: its values calls are
+    the ones a whitespace loop can leave unanswered."""
+    return {"max_whitespace": max_whitespace} if role == "fields" and max_whitespace else {}
+
+
 class GuidanceChat:
     """The evaluation harness's own guidance seam: it appends a patterns-only
     correction block to the system prompt of its field-role value calls. The
@@ -650,10 +664,11 @@ class GuidanceCounter:
 
 
 def _extract_document(run_dir: Path, request: ExtractRequest, providers: dict[str, dict], cell_dir: Path,
-                      *, guidance: str = "") -> dict:
+                      *, guidance: str = "", max_whitespace=DEFAULT_MAX_WHITESPACE) -> dict:
     """One extraction through the service's entrypoint, with resumable call captures beside the cell."""
     clients = {role: OpenAIChat(url=provider["base_url"].rstrip("/") + "/v1/chat/completions",
-                                model=provider["model"]) for role, provider in providers.items()}
+                                model=provider["model"], **provider_client_kwargs(role, max_whitespace))
+               for role, provider in providers.items()}
     counters = {role: counter_for(chat) for role, chat in clients.items()}
     captures = {role: Capture(chat, cell_dir / "calls", role) for role, chat in clients.items()}
     if guidance:
@@ -912,7 +927,8 @@ def configured_pilot_entries(config: dict, entries: list[dict]) -> list[dict]:
 
 def _extract_round(label: str, entries: list[dict], config: dict, request: ExtractRequest,
                    providers: dict[str, dict], runs_root: Path, output: Path,
-                   existing: dict[str, Path], guidance: str) -> dict[str, dict | None]:
+                   existing: dict[str, Path], guidance: str,
+                   max_whitespace=DEFAULT_MAX_WHITESPACE) -> dict[str, dict | None]:
     """One round's documents, with resumable cells under rounds/<label>/cells."""
     results: dict[str, dict | None] = {}
     for index, entry in enumerate(entries, 1):
@@ -925,7 +941,8 @@ def _extract_round(label: str, entries: list[dict], config: dict, request: Extra
         run_dir = _ensure_run(entry, config, runs_root, existing)
         print(f"{label} {index}/{len(entries)} {entry['key']} extracting", flush=True)
         try:
-            artifact = _extract_document(run_dir, request, providers, cell_dir, guidance=guidance)
+            artifact = _extract_document(run_dir, request, providers, cell_dir, guidance=guidance,
+                                         max_whitespace=max_whitespace)
         except Exception as error:  # noqa: BLE001 - one failed document must not lose the rest of the round
             _write(cell_dir / "failure.json", {"error_type": type(error).__name__, "error": str(error),
                                                "at": datetime.now(UTC).isoformat()})
@@ -970,6 +987,7 @@ def run_pipeline(config: dict, root: Path) -> dict:
     table_rows: list[dict] = []
     predictions: dict[str, dict | None] = {}
     guidance = ""
+    max_whitespace = config.get("max_whitespace", DEFAULT_MAX_WHITESPACE)
     for label, subset in (("PILOT_1", pilot_entries), ("PILOT_2", pilot_entries), ("BATCH", entries)):
         keys = {entry["key"] for entry in subset}
         try:
@@ -978,7 +996,8 @@ def run_pipeline(config: dict, root: Path) -> dict:
                 guidance = guidance_text(examples)
                 _write(output / "rounds" / label.lower() / "guidance.json", examples)
                 print(f"{label}: {len(examples)} guidance example(s)", flush=True)
-            results = _extract_round(label, subset, config, request, providers, runs_root, output, existing, guidance)
+            results = _extract_round(label, subset, config, request, providers, runs_root, output, existing, guidance,
+                                     max_whitespace=max_whitespace)
             scored_gold = {"path": gold["path"], "sha256": gold["sha256"], "fields": gold["fields"],
                            "documents": {key: rows for key, rows in gold["documents"].items() if key in keys}}
             metrics = score(scored_gold, results, phase=label, eval_id=config.get("id", "eval"),
