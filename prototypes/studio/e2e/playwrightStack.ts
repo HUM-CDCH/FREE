@@ -382,9 +382,9 @@ function isProcessId(value: unknown): value is number {
   return Number.isSafeInteger(value) && Number(value) > 0
 }
 
-// Stay below Windows' default dynamic client-port range (49152–65535);
-// transient outbound connections must not make project ownership flaky.
-const projectLeasePortStart = 30_000
+// Stay below every default dynamic client-port range (Linux 32768–60999, Windows and macOS 49152–65535):
+// a transient outbound connection on a lease port makes project ownership fail with EADDRINUSE.
+const projectLeasePortStart = 20_000
 const projectLeasePortCount = 10_000
 
 function projectLeasePortForComposeProject(composeProject: string): number {
@@ -454,6 +454,8 @@ export function acquirePlaywrightPortLeaseForTest(
 ): Promise<PlaywrightPortLease> {
   return acquirePortLease(port)
 }
+
+export const projectLeasePortForTest = projectLeasePortForComposeProject
 
 export function acquirePlaywrightProjectLeaseForTest(
   composeProject: string,
