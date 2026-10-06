@@ -64,6 +64,17 @@ def test_write_gold_workbook_round_trips_through_load_gold(tmp_path: Path) -> No
     ]
 
 
+def test_write_gold_workbook_strips_xml_illegal_characters(tmp_path: Path) -> None:
+    path = tmp_path / "gold.xlsx"
+    eval_watcher.write_gold_workbook(
+        path,
+        COLUMNS,
+        [{"filename": "a.pdf", "sample_name": "collagen\x0bdissolved", "amino_acid_hydroxyproline_value": "5"}],
+    )
+    gold = iterative_eval.load_gold(path)
+    assert gold["documents"]["a"][0]["sample_name"] == ["collagen dissolved"]
+
+
 def test_pipeline_config_carries_runs_identity_and_exhaustiveness(tmp_path: Path) -> None:
     config = eval_watcher.pipeline_config(
         eval_id="demo",

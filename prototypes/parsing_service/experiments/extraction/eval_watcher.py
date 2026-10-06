@@ -22,6 +22,14 @@ from pathlib import Path
 
 FILENAME_COLUMN = "filename"
 
+# openpyxl refuses characters XML forbids in a worksheet; gold text copied from
+# a PDF can carry them, so each becomes a space (never a silent word join).
+_ILLEGAL_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _cell_value(value):
+    return _ILLEGAL_XML.sub(" ", value) if isinstance(value, str) else value
+
 
 def _is_filename(column_name: str) -> bool:
     return column_name.strip().lower() == FILENAME_COLUMN
@@ -75,7 +83,7 @@ def write_gold_workbook(path: Path, columns, rows) -> None:
     sheet.title = "gold"
     sheet.append(names)
     for row in rows or []:
-        sheet.append([row.get(name, "") for name in names])
+        sheet.append([_cell_value(row.get(name, "")) for name in names])
     path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(path)
 
@@ -261,9 +269,13 @@ def once(*, database_url: str, eval_root: Path, providers: dict, strategy: str =
             documents = connection.execute(PROJECT_DOCUMENTS, (project["project_id"],)).fetchall()
             if not documents:
                 continue
-            started.append(evaluate_project(connection, project, documents, eval_root=eval_root,
-                                            providers=providers, strategy=strategy, identity=identity,
-                                            exhaustive=exhaustive))
+            try:
+                started.append(evaluate_project(connection, project, documents, eval_root=eval_root,
+                                                providers=providers, strategy=strategy, identity=identity,
+                                                exhaustive=exhaustive))
+            except Exception as error:  # noqa: BLE001 - one project must not stop the others
+                connection.rollback()
+                print(f"project {project['project_id']} failed: {type(error).__name__}: {error}", flush=True)
     return started
 
 
