@@ -57,12 +57,12 @@ describe('POST /api/project-spreadsheets', () => {
     expect(body.projectSpreadsheetVersion.revisionNumber).toBe(1)
     expect(body.projectSpreadsheetVersion.originalFilename).toBe('gold.xlsx')
     expect(body.projectSpreadsheetVersion.columns).toEqual([
-      { columnName: 'species', values: ['Salmon', 'Cod'] },
+      { columnName: 'species' },
     ])
     expect(appendProjectSpreadsheetVersion).toHaveBeenCalledWith(
       projectContextId,
       'gold.xlsx',
-      [{ columnName: 'species', values: ['Salmon', 'Cod'] }],
+      [{ columnName: 'species' }],
     )
   })
 
@@ -98,7 +98,7 @@ describe('GET /api/project-spreadsheets', () => {
     expect(await response.json()).toEqual({ projectSpreadsheetVersion: null })
   })
 
-  it('returns the current version', async () => {
+  it('returns the current version, dropping cell values a pre-existing version stored', async () => {
     const getCurrentProjectSpreadsheet = vi.fn(
       async (): Promise<ProjectSpreadsheetVersionRecord> => ({
         projectSpreadsheetVersionId: '51000000-0000-4000-8010-000000000001',
@@ -117,6 +117,7 @@ describe('GET /api/project-spreadsheets', () => {
     const body = await response.json()
     expect(body.projectSpreadsheetVersion.revisionNumber).toBe(2)
     expect(body.projectSpreadsheetVersion.originalFilename).toBe('gold-v2.xlsx')
+    expect(body.projectSpreadsheetVersion.columns).toEqual([{ columnName: 'species' }])
   })
 
   it('rejects a missing projectContextId', async () => {

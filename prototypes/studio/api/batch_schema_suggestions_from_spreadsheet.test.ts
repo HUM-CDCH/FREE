@@ -21,7 +21,7 @@ const spreadsheetVersionId = '51000000-0000-4000-8010-000000000001'
 const now = new Date('2026-09-17T10:00:00.000Z')
 
 function currentSpreadsheet(
-  columns: { columnName: string; values: unknown[] }[],
+  columns: { columnName: string }[],
   overrides: Partial<ProjectSpreadsheetVersionRecord> = {},
 ): ProjectSpreadsheetVersionRecord {
   return {
@@ -46,7 +46,6 @@ function baseSuggestion(
     executionStatus: 'COMPLETED',
     phase: 'READY',
     sourceKind: 'SPREADSHEET',
-    purpose: 'SCHEMA',
     columnFieldMapping: { species: 'species-node-id' },
     projectSpreadsheetVersionId: spreadsheetVersionId,
     proposal: {
@@ -79,14 +78,6 @@ function createRequest(body: Record<string, unknown>) {
   return new Request('http://test/api/batch-schema-suggestions/from-spreadsheet', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ purpose: 'SCHEMA', inferTypesFromValues: true, ...body }),
-  })
-}
-
-function rawRequest(body: Record<string, unknown>) {
-  return new Request('http://test/api/batch-schema-suggestions/from-spreadsheet', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
 }
@@ -95,7 +86,7 @@ describe('POST /api/batch-schema-suggestions/from-spreadsheet', () => {
   it('builds a template from the project\'s current spreadsheet and creates a READY suggestion with no sources', async () => {
     const getCurrentProjectSpreadsheet = vi.fn(async () =>
       currentSpreadsheet([
-        { columnName: 'species', values: ['Salmon', 'Cod'] },
+        { columnName: 'species' },
       ]),
     )
     const createSpreadsheetSchemaSuggestion = vi.fn<
@@ -131,8 +122,8 @@ describe('POST /api/batch-schema-suggestions/from-spreadsheet', () => {
   it('splits a dot-separated header into a nested field when a separator is given', async () => {
     const getCurrentProjectSpreadsheet = vi.fn(async () =>
       currentSpreadsheet([
-        { columnName: 'measurement.temperature', values: [4.2, 3.8] },
-        { columnName: 'measurement.unit', values: ['C', 'F'] },
+        { columnName: 'measurement.temperature' },
+        { columnName: 'measurement.unit' },
       ]),
     )
     const createSpreadsheetSchemaSuggestion = vi.fn<
@@ -159,8 +150,8 @@ describe('POST /api/batch-schema-suggestions/from-spreadsheet', () => {
   it('rejects a column that is both a leaf and a group prefix, without calling the store', async () => {
     const getCurrentProjectSpreadsheet = vi.fn(async () =>
       currentSpreadsheet([
-        { columnName: 'measurement', values: ['x'] },
-        { columnName: 'measurement.temperature', values: [4.2] },
+        { columnName: 'measurement' },
+        { columnName: 'measurement.temperature' },
       ]),
     )
     const createSpreadsheetSchemaSuggestion = vi.fn()
@@ -193,7 +184,7 @@ describe('POST /api/batch-schema-suggestions/from-spreadsheet', () => {
 
   it('404s when the Project Context is not found (creating the suggestion fails after a spreadsheet is somehow found)', async () => {
     const getCurrentProjectSpreadsheet = vi.fn(async () =>
-      currentSpreadsheet([{ columnName: 'species', values: ['Salmon'] }]),
+      currentSpreadsheet([{ columnName: 'species' }]),
     )
     const createSpreadsheetSchemaSuggestion = vi.fn(async () => null)
     const handler = handlerFor({ getCurrentProjectSpreadsheet, createSpreadsheetSchemaSuggestion })
@@ -202,45 +193,10 @@ describe('POST /api/batch-schema-suggestions/from-spreadsheet', () => {
     expect(response.status).toBe(404)
   })
 
-  it('rejects a request with no purpose', async () => {
-    const createSpreadsheetSchemaSuggestion = vi.fn()
-    const handler = handlerFor({ createSpreadsheetSchemaSuggestion })
-    const response = await handler(rawRequest({ projectContextId }))
-    expect(response.status).toBe(422)
-    expect(createSpreadsheetSchemaSuggestion).not.toHaveBeenCalled()
-  })
-
-  it('passes SCHEMA_AND_VALIDATE through to the store and the response', async () => {
+  it('gives every field a plain string type, since only the header row was read', async () => {
     const getCurrentProjectSpreadsheet = vi.fn(async () =>
       currentSpreadsheet([
-        { columnName: 'filename', values: ['a.pdf'] },
-        { columnName: 'species', values: ['Salmon'] },
-      ]),
-    )
-    const createSpreadsheetSchemaSuggestion = vi.fn<
-      ResearcherProjectStore['createSpreadsheetSchemaSuggestion']
-    >(async (...args) => ({
-      status: 'created' as const,
-      suggestion: baseSuggestion({ purpose: args[4] as 'SCHEMA_AND_VALIDATE' }),
-    }))
-    const handler = handlerFor({ getCurrentProjectSpreadsheet, createSpreadsheetSchemaSuggestion })
-
-    const response = await handler(
-      createRequest({ projectContextId, purpose: 'SCHEMA_AND_VALIDATE' }),
-    )
-
-    expect(response.status).toBe(201)
-    const body = await response.json()
-    expect(body.batchSchemaSuggestion.purpose).toBe('SCHEMA_AND_VALIDATE')
-    expect(createSpreadsheetSchemaSuggestion.mock.calls[0]?.[4]).toBe(
-      'SCHEMA_AND_VALIDATE',
-    )
-  })
-
-  it('gives every field a plain string type when inferTypesFromValues is false', async () => {
-    const getCurrentProjectSpreadsheet = vi.fn(async () =>
-      currentSpreadsheet([
-        { columnName: 'temperature', values: [4.2, 3.8] },
+        { columnName: 'temperature' },
       ]),
     )
     const createSpreadsheetSchemaSuggestion = vi.fn<
@@ -251,24 +207,12 @@ describe('POST /api/batch-schema-suggestions/from-spreadsheet', () => {
     }))
     const handler = handlerFor({ getCurrentProjectSpreadsheet, createSpreadsheetSchemaSuggestion })
 
-    const response = await handler(
-      createRequest({ projectContextId, inferTypesFromValues: false }),
-    )
+    const response = await handler(createRequest({ projectContextId }))
 
     expect(response.status).toBe(201)
     const [, definition] = createSpreadsheetSchemaSuggestion.mock.calls[0]
     expect(
       (definition as { schemaNodes: { name: string; type: string }[] }).schemaNodes,
     ).toEqual([{ id: expect.any(String), name: 'temperature', type: 'string' }])
-  })
-
-  it('rejects a request with no inferTypesFromValues', async () => {
-    const createSpreadsheetSchemaSuggestion = vi.fn()
-    const handler = handlerFor({ createSpreadsheetSchemaSuggestion })
-    const response = await handler(
-      rawRequest({ projectContextId, purpose: 'SCHEMA' }),
-    )
-    expect(response.status).toBe(422)
-    expect(createSpreadsheetSchemaSuggestion).not.toHaveBeenCalled()
   })
 })

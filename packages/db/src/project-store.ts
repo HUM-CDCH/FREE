@@ -444,7 +444,6 @@ const suggestionFields = [
   'failure',
   'phase',
   'sourceKind',
-  'purpose',
   'columnFieldMapping',
   'projectSpreadsheetVersionId',
   'proposal',
@@ -464,7 +463,6 @@ type StoredSuggestion = {
   failure: unknown
   phase: BatchSchemaSuggestionPhase | null
   sourceKind: BatchSchemaSuggestionSourceKind
-  purpose: BatchSchemaSuggestionPurpose | null
   columnFieldMapping: unknown
   projectSpreadsheetVersionId: string | null
   proposal: unknown
@@ -561,7 +559,6 @@ async function loadBatchSchemaSuggestions(
       ...suggestionExecution(row, status.get(suggestWorkflowId(row.id, row.attempt))),
       phase: row.phase,
       sourceKind: row.sourceKind,
-      purpose: row.purpose,
       columnFieldMapping: row.columnFieldMapping ?? null,
       projectSpreadsheetVersionId: row.projectSpreadsheetVersionId,
       proposal: row.proposal,
@@ -692,17 +689,14 @@ export type BatchSchemaSuggestionPhase = 'READY' | 'HETEROGENEOUS'
 /** DOCUMENTS suggestions read Source Documents; SPREADSHEET ones are built from the project's spreadsheet slot. */
 export type BatchSchemaSuggestionSourceKind = 'DOCUMENTS' | 'SPREADSHEET'
 
-/** Only meaningful for a SPREADSHEET-kind suggestion: SCHEMA seeds the schema and stops there,
- *  SCHEMA_AND_VALIDATE also starts a gold-standard validation corpus once confirmed. */
-export type BatchSchemaSuggestionPurpose = 'SCHEMA' | 'SCHEMA_AND_VALIDATE'
-
 /** One immutable version of a project's single shared spreadsheet slot. */
 export type ProjectSpreadsheetVersionRecord = {
   projectSpreadsheetVersionId: string
   projectContextId: string
   revisionNumber: number
   originalFilename: string
-  /** `SpreadsheetColumn[]`-shaped JSON: `{ columnName, values }[]`. */
+  /** `SpreadsheetColumn[]`-shaped JSON: `{ columnName }[]` — header names
+   *  only; the upload never reads the rows below the header. */
   columns: unknown
   createdAt: Date
 }
@@ -735,8 +729,6 @@ export type BatchSchemaSuggestionRecord = {
   phase: BatchSchemaSuggestionPhase | null
   /** DOCUMENTS suggestions read Source Documents; SPREADSHEET ones are built from the project's spreadsheet slot. */
   sourceKind: BatchSchemaSuggestionSourceKind
-  /** Only set for a SPREADSHEET-kind suggestion; null for DOCUMENTS. */
-  purpose: BatchSchemaSuggestionPurpose | null
   /** Column name -> matching SchemaNode.id; null for a DOCUMENTS-kind suggestion. */
   columnFieldMapping: unknown | null
   /** The spreadsheet version this suggestion was built from; null for DOCUMENTS. */
@@ -870,7 +862,6 @@ export type ResearcherProjectStore = {
     columnFieldMapping: Record<string, string>,
     /** The project spreadsheet version this suggestion was built from. */
     projectSpreadsheetVersionId: string,
-    purpose: BatchSchemaSuggestionPurpose,
   ): Promise<{ status: 'created'; suggestion: BatchSchemaSuggestionRecord } | null>
   getBatchSchemaSuggestion(
     projectContextId: string,
@@ -2000,7 +1991,6 @@ export function createResearcherProjectStore(
       definition,
       columnFieldMapping,
       projectSpreadsheetVersionId,
-      purpose,
     ) {
       const batchSchemaSuggestionId = randomUUID()
       const created = await database.transaction(async ({ orm }) => {
@@ -2016,7 +2006,6 @@ export function createResearcherProjectStore(
           outcome: 'SUCCEEDED',
           phase: 'READY',
           sourceKind: 'SPREADSHEET',
-          purpose,
           columnFieldMapping,
           projectSpreadsheetVersionId,
           proposal: definition,

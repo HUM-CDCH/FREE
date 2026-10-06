@@ -40,9 +40,7 @@ it('preview and cancel save nothing; explicit confirmation keeps renamed IDs and
   await upload()
   const table = screen.getByRole('table')
   expect(within(table).getAllByRole('columnheader').map((header) => header.textContent))
-    .toEqual(['Include', 'Name', 'Type', 'Allowed values', 'Examples'])
-  expect(screen.getByRole('checkbox', { name: 'Column 1 allowed values' })).not.toBeChecked()
-  expect(within(table).getByText('A, B')).toBeVisible()
+    .toEqual(['Include', 'Name', 'Type'])
   fireEvent.change(screen.getByLabelText('Imported record description'), { target: { value: 'One codebook record.' } })
   fireEvent.change(screen.getByLabelText('Column 1 name'), { target: { value: 'identifier' } })
   expect(within(screen.getByRole('list', { name: 'Fields to import' })).getByRole('listitem')).toHaveTextContent('identifier — string')
@@ -216,24 +214,13 @@ it('before a record description it asks for one in words, never the raw validati
 })
 
 it('names the column an invalid field comes from', async () => {
-  const column = { id: 'kind-id', column: 1, name: 'kind', type: 'string', include: true, examples: ['date'], kinds: ['text'],
-    choices: ['date', 'place'], suggestedType: 'string' }
-  const { schema, upload } = previewSetup(undefined, [column])
+  const { schema, upload } = previewSetup()
   render(<SchemaImport schema={schema} disabled={false} open onClose={vi.fn()} />)
   await upload()
   fireEvent.change(screen.getByLabelText('Imported record description'), { target: { value: 'One codebook record.' } })
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Column 1 allowed values' }))
-  expect(screen.getByRole('alert')).toHaveTextContent(/^Column "kind": /)
+  fireEvent.change(screen.getByLabelText('Column 1 name'), { target: { value: '' } })
+  expect(screen.getByRole('alert')).toHaveTextContent(/^Column 1: /)
   expect(screen.getByRole('alert').textContent).not.toMatch(/[[{]/)
-})
-
-it('counts one choice as "1 value"', async () => {
-  const column = { id: 'site-id', column: 1, name: 'site', type: 'string', include: true, examples: ['Ellekilde'], kinds: ['text'],
-    choices: ['Ellekilde'], suggestedType: 'string' }
-  const { schema, upload } = previewSetup(undefined, [column])
-  render(<SchemaImport schema={schema} disabled={false} open onClose={vi.fn()} />)
-  await upload()
-  expect(screen.getByRole('checkbox', { name: 'Column 1 allowed values' }).closest('label')).toHaveTextContent(/^1 value$/)
 })
 
 it('previews every nested field with its full path and type', async () => {

@@ -71,7 +71,6 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
       executionStatus: suggestion.executionStatus,
       phase: suggestion.phase,
       sourceKind: suggestion.sourceKind,
-      purpose: suggestion.purpose,
       columnFieldMapping: suggestion.columnFieldMapping,
       projectSpreadsheetVersionId: suggestion.projectSpreadsheetVersionId,
       proposal:
@@ -158,7 +157,7 @@ export function createResearcherApiHandlers(
     )
     if (!parsed.success)
       throw new ApiError(422, 'invalid_request', 'The request is invalid.')
-    const { projectContextId, separator, purpose, inferTypesFromValues } = parsed.data
+    const { projectContextId, separator } = parsed.data
 
     const current = await store
       .getCurrentProjectSpreadsheet(projectContextId)
@@ -175,7 +174,6 @@ export function createResearcherApiHandlers(
     const built = buildSpreadsheetTemplate(
       current.columns as SpreadsheetColumn[],
       separator ?? null,
-      inferTypesFromValues,
     )
     if (!built.ok)
       throw new ApiError(
@@ -208,7 +206,6 @@ export function createResearcherApiHandlers(
         definition,
         mapping,
         current.projectSpreadsheetVersionId,
-        purpose,
       )
       .catch((cause) => {
         throw persistenceUnavailable(cause)

@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import pluralize from 'pluralize'
 import { SCALAR_FIELD_TYPES, type ScalarFieldType } from 'extraction/allowed-values'
 import type { SchemaNode } from 'extraction/schema'
 import type { SchemaEditorController } from './currentSchemaRevision'
@@ -96,10 +95,10 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
               value={description} onChange={(event) => setDescription(event.target.value)} /></label>
             <label className="flex items-center gap-1">Nesting separator <input aria-label="Nesting separator" className="w-32 rounded-[3px] border border-line px-1 py-0.5"
               value={separator} placeholder="Blank = flat fields" onChange={(event) => setSeparator(event.target.value)} /></label>
-            <p className="text-compact text-ink-muted">Flat mode keeps separators literal. In nested mode rename literal separators into unambiguous paths. Types are hints; allowed values require choosing each field.</p>
+            <p className="text-compact text-ink-muted">Flat mode keeps separators literal. In nested mode rename literal separators into unambiguous paths. Only the header row is read; every field starts as a string and its type is a hint you can change here.</p>
             <table className="w-full table-fixed text-compact">
                 <thead><tr className="text-left text-overline font-bold uppercase tracking-[0.12em] text-ink-muted">
-                  <th className="py-1">Include</th><th>Name</th><th>Type</th><th>Allowed values</th><th>Examples</th>
+                  <th className="py-1">Include</th><th>Name</th><th>Type</th>
                 </tr></thead>
                 <tbody>{columns.map((column, index) => {
                   const update = (change: Partial<ImportColumn>) => setColumns((current) => current.map((field, at) => at === index ? { ...field, ...change } : field))
@@ -107,14 +106,9 @@ export function SchemaImport({ schema, disabled, open, onClose, onImported }: {
                     <td className="py-1"><label className="inline-flex min-h-6 min-w-6 cursor-pointer items-center justify-center"><input type="checkbox" aria-label={`Include column ${column.column}`} checked={column.include} onChange={(event) => update({ include: event.target.checked })} /></label></td>
                     <td><input aria-label={`Column ${column.column} name`} className="w-full rounded-[3px] border border-line px-1 font-mono" value={column.name} onChange={(event) => update({ name: event.target.value })} /></td>
                     <td><select aria-label={`Column ${column.column} type`} className="rounded-[3px] border border-line px-1" value={column.type}
-                      onChange={(event) => update({ type: event.target.value as ScalarFieldType, enum: false })}>
+                      onChange={(event) => update({ type: event.target.value as ScalarFieldType })}>
                       {SCALAR_FIELD_TYPES.map((type) => <option key={type}>{type}</option>)}
                     </select></td>
-                    <td><label className="inline-flex min-h-6 items-center gap-1"><input type="checkbox" aria-label={`Column ${column.column} allowed values`}
-                      disabled={column.choices.length < 2} checked={column.enum ?? false}
-                      onChange={(event) => update({ enum: event.target.checked, type: 'string' })} />{pluralize('value', column.choices.length, true)}</label>
-                      <span className="line-clamp-2 break-words text-ink-muted" title={column.choices.join(', ')}>{column.choices.join(', ')}</span></td>
-                    <td className="break-words text-ink-muted">{column.kinds.join(', ')} · suggested {column.suggestedType} · {column.examples.join(' | ')}</td>
                   </tr>
                 })}</tbody>
               </table>

@@ -17,7 +17,6 @@ import {
   batchSchemaSuggestionRunRequestSchema,
   type BatchSchemaSuggestion,
   type BatchSchemaSuggestionFailure,
-  type BatchSchemaSuggestionPurpose,
 } from '../../shared/batchSchemaSuggestion.contract'
 import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import {
@@ -157,17 +156,11 @@ export async function createBatchSchemaSuggestion(
  *  immediately, no document sources involved (spreadsheet-schema-
  *  suggestion spec). `separator` splits a column header into a nested
  *  path when given (e.g. "." groups `measurement.temperature` under a
- *  `measurement` object); omit it to keep every column flat.
- *  `inferTypesFromValues` chooses whether each field's type is guessed
- *  from its column's cell values (number/integer/enum/string) or every
- *  field is left as a plain `string`, reading only the header row.
- *  `purpose` chooses whether confirming the suggestion only seeds the
- *  schema (`SCHEMA`) or also populates an Evaluation Corpus version from
- *  this spreadsheet (`SCHEMA_AND_VALIDATE`). */
+ *  `measurement` object); omit it to keep every column flat. Every field
+ *  is a plain `string` — the upload read the header row alone, so there
+ *  are no cell values to guess a type from. */
 export async function createSpreadsheetBatchSchemaSuggestion(
   projectContextId: string,
-  purpose: BatchSchemaSuggestionPurpose,
-  inferTypesFromValues: boolean,
   separator?: string,
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
@@ -179,8 +172,6 @@ export async function createSpreadsheetBatchSchemaSuggestion(
         batchSchemaSuggestionCreateFromSpreadsheetRequestSchema.parse({
           projectContextId,
           separator,
-          inferTypesFromValues,
-          purpose,
         }),
       ),
       signal,

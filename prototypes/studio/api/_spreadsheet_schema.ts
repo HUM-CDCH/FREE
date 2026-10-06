@@ -12,12 +12,13 @@ function isGoldFilenameColumn(columnName: string): boolean {
 
 export type SpreadsheetColumn = {
   columnName: string
-  values: unknown[]
 }
 
 /** Reads the first worksheet of an uploaded spreadsheet: the first row is
- *  column headers, every following row is one record. Blank header cells
- *  are skipped (no column produced for them). */
+ *  column headers. Only that header row is read — the cell values in the
+ *  rows below it are never read or retained, so an upload carries column
+ *  names alone. Blank header cells are skipped (no column produced for
+ *  them). */
 export async function parseSpreadsheetColumns(
   buffer: Buffer | ArrayBuffer,
 ): Promise<SpreadsheetColumn[]> {
@@ -26,70 +27,12 @@ export async function parseSpreadsheetColumns(
   const sheet = workbook.worksheets[0]
   if (!sheet) return []
 
-  const headerRow = sheet.getRow(1)
-  const headers: { columnIndex: number; columnName: string }[] = []
-  headerRow.eachCell({ includeEmpty: false }, (cell, columnIndex) => {
+  const headers: SpreadsheetColumn[] = []
+  sheet.getRow(1).eachCell({ includeEmpty: false }, (cell) => {
     const name = cell.text.trim()
-    if (name) headers.push({ columnIndex, columnName: name })
+    if (name) headers.push({ columnName: name })
   })
-
-  const columns: SpreadsheetColumn[] = headers.map((header) => ({
-    columnName: header.columnName,
-    values: [],
-  }))
-
-  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
-    const row = sheet.getRow(rowNumber)
-    headers.forEach((header, index) => {
-      const cell = row.getCell(header.columnIndex)
-      columns[index].values.push(cellValue(cell.value))
-    })
-  }
-  return columns
-}
-
-function cellValue(value: ExcelJS.CellValue): unknown {
-  if (value === null || value === undefined) return null
-  if (typeof value === 'object' && 'text' in value) return String(value.text)
-  if (typeof value === 'object' && 'result' in value) return value.result
-  return value
-}
-
-export type ColumnTypeInference =
-  | { type: 'number' | 'integer' }
-  | { type: 'enum'; allowedValues: string[] }
-  | { type: 'string' }
-
-const ENUM_MAX_DISTINCT_VALUES = 15
-
-function isPopulated(value: unknown): boolean {
-  return value !== null && value !== undefined && String(value).trim() !== ''
-}
-
-/** Infers one column's field type from its non-empty cell values: all
- *  numeric -> number/integer; a small, repeated set of distinct strings ->
- *  enum; otherwise plain string (design.md D1). */
-export function inferColumnType(values: readonly unknown[]): ColumnTypeInference {
-  const populated = values.filter(isPopulated)
-  if (populated.length === 0) return { type: 'string' }
-
-  const numbers = populated.map((value) => Number(value))
-  if (numbers.every((value) => Number.isFinite(value)))
-    return { type: numbers.every((value) => Number.isInteger(value)) ? 'integer' : 'number' }
-
-  const distinct = [...new Set(populated.map((value) => String(value).trim()))]
-  const isSmallRepeatedSet =
-    distinct.length >= 2 &&
-    distinct.length <= ENUM_MAX_DISTINCT_VALUES &&
-    distinct.length < populated.length
-  if (isSmallRepeatedSet) return { type: 'enum', allowedValues: distinct }
-
-  return { type: 'string' }
-}
-
-function templateValueFor(inference: ColumnTypeInference): unknown {
-  if (inference.type === 'enum') return inference.allowedValues
-  return inference.type
+  return headers
 }
 
 export type SpreadsheetTemplateResult =
@@ -111,14 +54,13 @@ export type SpreadsheetTemplateResult =
  * (`packages/extraction/src/schema.ts`) already accepts. When `separator`
  * is null/undefined, every column stays a flat top-level field, even if its
  * header contains a character that would otherwise be a separator
- * (design.md D1b). When `inferTypesFromValues` is false, every column
- * becomes a plain `string` field regardless of its cell values — the
- * researcher can opt out of reading anything but the header row.
+ * (design.md D1b). Every field is a plain `string`: the upload reads the
+ * header row alone, so there are no cell values to infer from — the
+ * researcher revises type hints in the review step.
  */
 export function buildSpreadsheetTemplate(
   columns: readonly SpreadsheetColumn[],
   separator: string | null,
-  inferTypesFromValues: boolean,
 ): SpreadsheetTemplateResult {
   // The "filename" column (case-insensitive) identifies which document a
   // row is about — never a schema field to extract, regardless of purpose
@@ -137,10 +79,7 @@ export function buildSpreadsheetTemplate(
   const template: Record<string, unknown> = {}
   const columnPaths = new Map<string, string[]>()
   for (const { column, path } of paths) {
-    const inference: ColumnTypeInference = inferTypesFromValues
-      ? inferColumnType(column.values)
-      : { type: 'string' }
-    setAtPath(template, path, templateValueFor(inference))
+    setAtPath(template, path, 'string')
     columnPaths.set(column.columnName, path)
   }
   return { ok: true, template, columnPaths }

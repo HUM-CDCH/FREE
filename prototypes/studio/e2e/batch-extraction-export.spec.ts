@@ -49,7 +49,6 @@ function readySuggestionDto(
     executionStatus: 'COMPLETED',
     phase: 'READY',
     sourceKind: 'DOCUMENTS',
-    purpose: null,
     columnFieldMapping: null,
     projectSpreadsheetVersionId: null,
     proposal: schemaTree,

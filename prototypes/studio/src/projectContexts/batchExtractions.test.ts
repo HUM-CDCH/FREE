@@ -25,7 +25,6 @@ const suggestion = {
   executionStatus: 'QUEUED',
   phase: 'READY',
   sourceKind: 'DOCUMENTS',
-  purpose: null,
   columnFieldMapping: null,
   projectSpreadsheetVersionId: null,
   proposal: definition,

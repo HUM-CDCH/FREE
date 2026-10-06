@@ -26,15 +26,6 @@ export const batchSchemaSuggestionCreateRequestSchema = z
   })
   .strict()
 
-export const batchSchemaSuggestionPurposeSchema = z.enum([
-  'SCHEMA',
-  'SCHEMA_AND_VALIDATE',
-])
-
-export type BatchSchemaSuggestionPurpose = z.infer<
-  typeof batchSchemaSuggestionPurposeSchema
->
-
 export const batchSchemaSuggestionCreateFromSpreadsheetRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
@@ -42,18 +33,6 @@ export const batchSchemaSuggestionCreateFromSpreadsheetRequestSchema = z
      *  `measurement.temperature` under a `measurement` object. Omit to
      *  keep every column flat. */
     separator: z.string().min(1).max(4).optional(),
-    /** `true` infers each field's type (number/integer/enum/string) from
-     *  its column's cell values; `false` reads only the header row and
-     *  gives every field a plain `string` type. */
-    inferTypesFromValues: z.boolean(),
-    /** `SCHEMA` seeds the schema and stops there; `SCHEMA_AND_VALIDATE`
-     *  also populates an Evaluation Corpus version from this project's
-     *  current spreadsheet once the suggestion is confirmed — reading the
-     *  "filename" column (case-insensitive) to resolve each row against a
-     *  Source Document, and every other column via the confirmed
-     *  column-to-field mapping. Not inferred from whether cells are
-     *  filled in (extraction-quality-evaluation design.md D1b). */
-    purpose: batchSchemaSuggestionPurposeSchema,
   })
   .strict()
 
@@ -115,8 +94,6 @@ export const batchSchemaSuggestionSchema = z
      *  ready immediately, skipping the SOURCES/MERGING phases (design.md
      *  D1b in openspec/changes/spreadsheet-schema-suggestion). */
     sourceKind: batchSchemaSuggestionSourceKindSchema,
-    /** Only set for a SPREADSHEET-kind suggestion; null for DOCUMENTS. */
-    purpose: batchSchemaSuggestionPurposeSchema.nullable(),
     /** Column name -> the matching `SchemaNode.id`, captured when a
      *  SPREADSHEET-kind suggestion was created; null for a DOCUMENTS-kind
      *  one. Lets a renamed field still be traced back to its source

@@ -261,15 +261,6 @@ enum BatchSchemaSuggestionSourceKind {
   SPREADSHEET
 }
 
-// Only meaningful for a SPREADSHEET-kind suggestion (null for DOCUMENTS):
-// SCHEMA seeds the schema and stops there; SCHEMA_AND_VALIDATE also
-// populates an evaluation corpus from the pinned spreadsheet version once
-// confirmed (spreadsheet-schema-suggestion design.md D1b).
-enum BatchSchemaSuggestionPurpose {
-  SCHEMA
-  SCHEMA_AND_VALIDATE
-}
-
 enum SuggestionAttemptOutcome {
   SUCCEEDED
   FAILED
@@ -444,7 +435,6 @@ model BatchSchemaSuggestion {
   // SPREADSHEET-kind suggestions are built synchronously from the project's
   // shared spreadsheet slot; DOCUMENTS (the default) read Source Documents.
   sourceKind                  BatchSchemaSuggestionSourceKind @default(DOCUMENTS)
-  purpose                     BatchSchemaSuggestionPurpose?
   // Column name -> matching SchemaNode.id, captured when a SPREADSHEET-kind
   // suggestion was created; null for DOCUMENTS.
   columnFieldMapping          Json?

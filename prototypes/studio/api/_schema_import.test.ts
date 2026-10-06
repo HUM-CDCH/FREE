@@ -11,22 +11,26 @@ async function workbook(rows: unknown[][], setup?: (sheet: ExcelJS.Worksheet) =>
   rows.forEach((row) => sheet.addRow(row)); setup?.(sheet)
   return new Uint8Array(await book.xlsx.writeBuffer())
 }
-const field = (name: string, column = 1): ImportColumn => ({ id: `column-${column}`, column, name, type: 'string', include: true,
-  examples: [], choices: ['A', 'B'], kinds: ['text'], suggestedType: 'string' })
+const field = (name: string, column = 1): ImportColumn => ({ id: `column-${column}`, column, name, type: 'string', include: true })
 
 describe('bounded workbook preview', () => {
-  it('requires sheet selection, leaves identifiers as strings and makes representations explicit', async () => {
+  it('requires sheet selection and reads the header row alone', async () => {
     const input = await workbook([['filename', 'id', 'rich', 'formula', 'date'], ['0012', 12, { richText: [{ text: 'Rich' }, { text: ' text' }] },
       { formula: '1+1', result: 2 }, new Date('2026-09-30T00:00:00Z')]], (sheet) => { sheet.getCell('B2').numFmt = '0000' })
     expect((await previewWorkbook(input, null, 1)).columns).toEqual([])
     const preview = await previewWorkbook(input, 'Codebook', 1)
-    expect(preview.columns[0]?.name).toBe('filename')
-    expect(preview.columns[0]?.examples).toEqual(['0012'])
-    expect(preview.columns[1]?.examples).toEqual(['0012'])
+    expect(preview.columns.map((column) => column.name)).toEqual(['filename', 'id', 'rich', 'formula', 'date'])
+    // Nothing below the header row is read, so every column starts as a
+    // plain string with no example or allowed value taken from those cells.
     expect(preview.columns.every((column) => column.type === 'string')).toBe(true)
-    expect(preview.columns[2]?.kinds).toContain('rich text (text only)')
-    expect(preview.columns[3]?.kinds).toContain('cached formula result')
-    expect(preview.columns[4]?.kinds).toContain('date (ISO)')
+  })
+  it('ignores rows above the chosen header row and everything below it', async () => {
+    const preview = await previewWorkbook(
+      await workbook([['A title that spans the sheet'], ['species', 'temperature'], ['Salmon', 4.2]]),
+      'Codebook',
+      2,
+    )
+    expect(preview.columns.map((column) => column.name)).toEqual(['species', 'temperature'])
   })
   it('accepts exactly 200 columns and 5,000 data rows and refuses the next cell', async () => {
     expect((await previewWorkbook(await workbook([Array.from({ length: 200 }, (_, i) => `field${i}`)]), 'Codebook', 1)).columns).toHaveLength(200)
@@ -34,9 +38,10 @@ describe('bounded workbook preview', () => {
     expect((await previewWorkbook(await workbook([['name'], ...Array.from({ length: 5000 }, () => ['row'])]), 'Codebook', 1)).columns).toHaveLength(1)
     await expect(previewWorkbook(await workbook([['name'], ...Array.from({ length: 5001 }, () => ['row'])]), 'Codebook', 1)).rejects.toThrow('5,000 data rows')
   })
-  it('refuses merged headers, unsupported cells and excessive decoded shared strings', async () => {
+  it('refuses merged headers and over-long shared strings, and ignores other data-row cells', async () => {
     await expect(previewWorkbook(await workbook([['a', 'b']], (sheet) => sheet.mergeCells('A1:B1')), 'Codebook', 1)).rejects.toThrow('Merged header A1:B1')
-    await expect(previewWorkbook(await workbook([['a'], [{ error: '#DIV/0!' }]]), 'Codebook', 1)).rejects.toThrow('Cell A2')
+    // A cell the preview no longer reads below the header cannot fail it.
+    expect((await previewWorkbook(await workbook([['a'], [{ error: '#DIV/0!' }]]), 'Codebook', 1)).columns).toHaveLength(1)
     await expect(previewWorkbook(await workbook([['a'], ['x'.repeat(IMPORT_LIMITS.cell + 1)]]), 'Codebook', 1)).rejects.toThrow('64 KiB')
     expect((await previewWorkbook(await workbook([['a'], ['x'.repeat(IMPORT_LIMITS.cell)]]), 'Codebook', 1)).columns).toHaveLength(1)
   })
@@ -82,15 +87,13 @@ describe('schema import confirmation', () => {
     expect(() => importDefinition([field('a'), field('b')], 'Records', '', new Map())).toThrow('duplicate node')
     expect(importDefinition([field('a.b')], 'Records', '', new Map()).schemaNodes[0]?.name).toBe('a.b')
   })
-  it('keeps IDs through rename/type edits and adds enums only when selected', () => {
+  it('keeps IDs through rename/type edits', () => {
     const columns = [field('id'), field('group.name', 2)], groups = new Map<string, string>()
     const first = importDefinition(columns, 'Records', '.', groups)
     columns[0]!.name = 'identifier'; columns[0]!.type = 'number'
     const second = importDefinition(columns, 'Records', '.', groups)
     expect(second.schemaNodes.map((node) => node.id)).toEqual(first.schemaNodes.map((node) => node.id))
     expect(first.schemaNodes[0]?.allowedValues).toBeUndefined()
-    columns[0]!.enum = true
-    expect(importDefinition(columns, 'Records', '.', groups).schemaNodes[0]?.allowedValues).toEqual(['A', 'B'])
   })
   it('keeps group identities through group renames and include/exclude edits', () => {
     const columns = [field('group.a'), field('group.b', 2)], groups = new Map<string, string>()

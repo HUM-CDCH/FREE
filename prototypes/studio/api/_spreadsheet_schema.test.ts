@@ -4,12 +4,11 @@ import { templateToNodes } from 'extraction/schema'
 import {
   buildSpreadsheetTemplate,
   columnFieldIds,
-  inferColumnType,
   parseSpreadsheetColumns,
 } from './_spreadsheet_schema.js'
 
 describe('parseSpreadsheetColumns', () => {
-  it('reads headers from the first row and values from every row after', async () => {
+  it('reads the header row and never reads the values below it', async () => {
     const workbook = new ExcelJS.Workbook()
     const sheet = workbook.addWorksheet('Sheet1')
     sheet.addRow(['filename', 'species', 'temperature'])
@@ -20,9 +19,22 @@ describe('parseSpreadsheetColumns', () => {
     const columns = await parseSpreadsheetColumns(buffer as unknown as ArrayBuffer)
 
     expect(columns).toEqual([
-      { columnName: 'filename', values: ['doc1.pdf', 'doc1.pdf'] },
-      { columnName: 'species', values: ['Salmon', 'Cod'] },
-      { columnName: 'temperature', values: [4.2, 3.8] },
+      { columnName: 'filename' },
+      { columnName: 'species' },
+      { columnName: 'temperature' },
+    ])
+  })
+
+  it('skips blank header cells without producing a column', async () => {
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.addRow(['species', null, 'temperature'])
+    sheet.addRow(['Salmon', 'ignored', 4.2])
+    const buffer = await workbook.xlsx.writeBuffer()
+
+    expect(await parseSpreadsheetColumns(buffer as unknown as ArrayBuffer)).toEqual([
+      { columnName: 'species' },
+      { columnName: 'temperature' },
     ])
   })
 
@@ -34,45 +46,14 @@ describe('parseSpreadsheetColumns', () => {
   })
 })
 
-describe('inferColumnType', () => {
-  it('infers a numeric column', () => {
-    expect(inferColumnType([4.2, 3.8, 5.0])).toEqual({ type: 'number' })
-  })
-
-  it('infers an integer column', () => {
-    expect(inferColumnType([1, 2, 3])).toEqual({ type: 'integer' })
-  })
-
-  it('infers an enum from a small, repeated set of distinct strings', () => {
-    expect(inferColumnType(['Salmon', 'Cod', 'Salmon', 'Trout', 'Cod'])).toEqual({
-      type: 'enum',
-      allowedValues: ['Salmon', 'Cod', 'Trout'],
-    })
-  })
-
-  it('infers plain string for many distinct free-text values', () => {
-    const values = Array.from({ length: 20 }, (_, i) => `Unique value ${i}`)
-    expect(inferColumnType(values)).toEqual({ type: 'string' })
-  })
-
-  it('ignores blank cells when inferring', () => {
-    expect(inferColumnType([4.2, null, '', 3.8])).toEqual({ type: 'number' })
-  })
-
-  it('defaults to string for an entirely empty column', () => {
-    expect(inferColumnType([null, '', undefined])).toEqual({ type: 'string' })
-  })
-})
-
 describe('buildSpreadsheetTemplate', () => {
-  const numericColumn = { columnName: 'temperature', values: [4.2, 3.8] }
-  const stringColumn = { columnName: 'notes', values: ['a', 'b'] }
+  const temperature = { columnName: 'temperature' }
+  const notes = { columnName: 'notes' }
 
-  it('builds a flat template with no separator', () => {
-    const result = buildSpreadsheetTemplate([numericColumn, stringColumn], null, true)
-    expect(result).toEqual({
+  it('builds a flat template of plain strings with no separator', () => {
+    expect(buildSpreadsheetTemplate([temperature, notes], null)).toEqual({
       ok: true,
-      template: { temperature: 'number', notes: 'string' },
+      template: { temperature: 'string', notes: 'string' },
       columnPaths: new Map([
         ['temperature', ['temperature']],
         ['notes', ['notes']],
@@ -81,30 +62,25 @@ describe('buildSpreadsheetTemplate', () => {
   })
 
   it('treats a dotted header as one literal flat field when no separator is given', () => {
-    const result = buildSpreadsheetTemplate(
-      [{ columnName: 'measurement.temperature', values: [4.2, 3.8] }],
-      null,
-      true,
-    )
-    expect(result).toEqual({
+    expect(buildSpreadsheetTemplate([{ columnName: 'measurement.temperature' }], null)).toEqual({
       ok: true,
-      template: { 'measurement.temperature': 'number' },
+      template: { 'measurement.temperature': 'string' },
       columnPaths: new Map([['measurement.temperature', ['measurement.temperature']]]),
     })
   })
 
   it('groups columns sharing a dot-separated prefix into a nested object', () => {
-    const result = buildSpreadsheetTemplate(
-      [
-        { columnName: 'measurement.temperature', values: [4.2, 3.8] },
-        { columnName: 'measurement.unit', values: ['C', 'F', 'C'] },
-      ],
-      '.',
-      true,
-    )
-    expect(result).toEqual({
+    expect(
+      buildSpreadsheetTemplate(
+        [
+          { columnName: 'measurement.temperature' },
+          { columnName: 'measurement.unit' },
+        ],
+        '.',
+      ),
+    ).toEqual({
       ok: true,
-      template: { measurement: { temperature: 'number', unit: ['C', 'F'] } },
+      template: { measurement: { temperature: 'string', unit: 'string' } },
       columnPaths: new Map([
         ['measurement.temperature', ['measurement', 'temperature']],
         ['measurement.unit', ['measurement', 'unit']],
@@ -115,11 +91,10 @@ describe('buildSpreadsheetTemplate', () => {
   it('reports a leaf/group conflict instead of silently resolving it', () => {
     const result = buildSpreadsheetTemplate(
       [
-        { columnName: 'measurement', values: ['x', 'y'] },
-        { columnName: 'measurement.temperature', values: [4.2, 3.8] },
+        { columnName: 'measurement' },
+        { columnName: 'measurement.temperature' },
       ],
       '.',
-      true,
     )
     expect(result.ok).toBe(false)
     expect(result.ok === false && result.conflicts).toEqual([
@@ -130,12 +105,11 @@ describe('buildSpreadsheetTemplate', () => {
   it('produces a template that round-trips through templateToNodes', () => {
     const result = buildSpreadsheetTemplate(
       [
-        { columnName: 'measurement.temperature', values: [4.2, 3.8] },
-        { columnName: 'measurement.unit', values: ['C', 'F', 'C'] },
-        { columnName: 'species', values: ['Salmon', 'Cod'] },
+        { columnName: 'measurement.temperature' },
+        { columnName: 'measurement.unit' },
+        { columnName: 'species' },
       ],
       '.',
-      true,
     )
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error('expected ok result')
@@ -143,44 +117,19 @@ describe('buildSpreadsheetTemplate', () => {
     const measurement = nodes.find((node) => node.name === 'measurement')
     expect(measurement?.type).toBe('object')
     expect(measurement?.children?.map((child) => child.name)).toEqual(['temperature', 'unit'])
-    expect(measurement?.children?.find((child) => child.name === 'unit')?.allowedValues).toEqual(['C', 'F'])
+    expect(measurement?.children?.every((child) => child.type === 'string')).toBe(true)
     expect(nodes.find((node) => node.name === 'species')?.type).toBe('string')
   })
 
   it('excludes a "filename" column (case-insensitive) from the template, regardless of purpose', () => {
     const result = buildSpreadsheetTemplate(
-      [
-        { columnName: 'Filename', values: ['a.pdf', 'b.pdf'] },
-        { columnName: 'species', values: ['Salmon', 'Cod'] },
-      ],
+      [{ columnName: 'Filename' }, { columnName: 'species' }],
       null,
-      true,
     )
     expect(result).toEqual({
       ok: true,
       template: { species: 'string' },
       columnPaths: new Map([['species', ['species']]]),
-    })
-  })
-
-  it('gives every field a plain string type when inferTypesFromValues is false, ignoring cell values', () => {
-    const result = buildSpreadsheetTemplate(
-      [
-        { columnName: 'measurement.temperature', values: [4.2, 3.8] },
-        { columnName: 'measurement.unit', values: ['C', 'F', 'C'] },
-        { columnName: 'species', values: ['Salmon', 'Cod'] },
-      ],
-      '.',
-      false,
-    )
-    expect(result).toEqual({
-      ok: true,
-      template: { measurement: { temperature: 'string', unit: 'string' }, species: 'string' },
-      columnPaths: new Map([
-        ['measurement.temperature', ['measurement', 'temperature']],
-        ['measurement.unit', ['measurement', 'unit']],
-        ['species', ['species']],
-      ]),
     })
   })
 })
@@ -189,11 +138,10 @@ describe('columnFieldIds', () => {
   it('maps each column to the id of the node its path resolved to', () => {
     const result = buildSpreadsheetTemplate(
       [
-        { columnName: 'measurement.temperature', values: [4.2] },
-        { columnName: 'species', values: ['Salmon'] },
+        { columnName: 'measurement.temperature' },
+        { columnName: 'species' },
       ],
       '.',
-      true,
     )
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error('expected ok result')
@@ -211,7 +159,7 @@ describe('columnFieldIds', () => {
   })
 
   it('must be computed once at creation time, before any rename — re-walking by name afterwards fails', () => {
-    const result = buildSpreadsheetTemplate([{ columnName: 'species', values: ['Salmon'] }], null, true)
+    const result = buildSpreadsheetTemplate([{ columnName: 'species' }], null)
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error('expected ok result')
     const nodes = templateToNodes(result.template)

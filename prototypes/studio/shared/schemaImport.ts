@@ -4,8 +4,7 @@ import type { ScalarFieldType } from 'extraction/allowed-values'
 export const IMPORT_LIMITS = { compressed: 5 * 1024 * 1024, expanded: 25 * 1024 * 1024, columns: 200, rows: 5000, cell: 64 * 1024 } as const
 
 export type ImportColumn = {
-  id: string; column: number; name: string; type: ScalarFieldType; include: boolean; enum?: boolean
-  examples: string[]; kinds: string[]; suggestedType: 'number' | 'string'; choices: string[]
+  id: string; column: number; name: string; type: ScalarFieldType; include: boolean
 }
 
 /** Maps, never property assignment with workbook headers. Leaf IDs survive every preview edit. */
@@ -21,9 +20,7 @@ export function importDefinition(columns: ImportColumn[], recordDescription: str
       const groupKey = JSON.stringify([column.id, index])
       if (existing?.children) { groups.set(groupKey, existing.id); children = existing.children; continue }
       let node: SchemaNode
-      if (leaf) node = column.enum
-        ? { id: column.id, name, type: 'string', allowedValues: column.choices }
-        : { id: column.id, name, type: column.type }
+      if (leaf) node = { id: column.id, name, type: column.type }
       else { if (!groups.has(groupKey) || ids.has(groups.get(groupKey)!)) groups.set(groupKey, mkId()); node = { id: groups.get(groupKey)!, name, type: 'object', children: [] } }
       if (ids.has(node.id)) throw new Error(`Column ${column.column}: duplicate node identity.`)
       ids.add(node.id); paths.set(key, node); children.push(node)
@@ -34,11 +31,6 @@ export function importDefinition(columns: ImportColumn[], recordDescription: str
   const parsed = schemaDefinitionSchema.safeParse({ recordDescription, schemaNodes: roots })
   if (!parsed.success) throw new Error(importIssueMessage(parsed.error.issues[0]!, roots, separator))
   return parsed.data
-}
-
-/** What a property's validation failure asks of the researcher, where the schema's own message is too terse. */
-const PROPERTY_WORDS: Record<string, string> = {
-  allowedValues: 'allowed values need at least two, none blank and none a field type name such as "date".',
 }
 
 /** The first validation issue in the researcher's words: a missing record description, or the issue named by the
@@ -55,7 +47,6 @@ function importIssueMessage(issue: { code: string; path: PropertyKey[]; message:
     names.push(node.name)
     level = node.children
   }
-  const property = issue.path.at(-1)
-  const words = (typeof property === 'string' && PROPERTY_WORDS[property]) || issue.message
+  const words = issue.message
   return names.length ? `Column "${names.join(separator || '.')}": ${words}` : words
 }

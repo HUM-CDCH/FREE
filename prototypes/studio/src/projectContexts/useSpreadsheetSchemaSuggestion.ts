@@ -1,9 +1,6 @@
 import { useRef } from 'react'
 import { useMachine } from '@xstate/react'
-import type {
-  BatchSchemaSuggestion,
-  BatchSchemaSuggestionPurpose,
-} from '../../shared/batchSchemaSuggestion.contract'
+import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
 import {
   BatchSchemaSuggestionRequestError,
   createSpreadsheetBatchSchemaSuggestion,
@@ -47,16 +44,12 @@ export function useSpreadsheetSchemaSuggestion({
   onRun(suggestion: BatchSchemaSuggestion): void
 }) {
   const pendingSeparator = useRef<string | undefined>(undefined)
-  const pendingPurpose = useRef<BatchSchemaSuggestionPurpose>('SCHEMA')
-  const pendingInferTypesFromValues = useRef(true)
 
   const [snapshot, send] = useMachine(batchSchemaSuggestionMachine, {
     input: {
       create: () =>
         createSpreadsheetBatchSchemaSuggestion(
           projectContextId,
-          pendingPurpose.current,
-          pendingInferTypesFromValues.current,
           pendingSeparator.current,
         ),
       retry: (batchSchemaSuggestionId, expectedAttempt) =>
@@ -95,19 +88,11 @@ export function useSpreadsheetSchemaSuggestion({
 
   /** Creates a suggestion from the project's current spreadsheet version.
    *  Call `uploadProjectSpreadsheet` first if none has been uploaded yet.
-   *  `purpose` chooses `SCHEMA` (seed the schema and stop) or
-   *  `SCHEMA_AND_VALIDATE` (also populate an Evaluation Corpus version
-   *  from this spreadsheet once the suggestion is confirmed).
-   *  `inferTypesFromValues` chooses whether field types are guessed from
-   *  the spreadsheet's cell values or every field is left as `string`,
-   *  reading only the header row. */
+   *  Every field is left as `string`: the upload read the header row
+   *  alone, so there are no cell values to guess a type from. */
   function createFromCurrentSpreadsheet(
-    purpose: BatchSchemaSuggestionPurpose,
-    inferTypesFromValues: boolean,
     separator?: string,
   ) {
-    pendingPurpose.current = purpose
-    pendingInferTypesFromValues.current = inferTypesFromValues
     pendingSeparator.current = separator
     send({
       type: 'selection.changed',

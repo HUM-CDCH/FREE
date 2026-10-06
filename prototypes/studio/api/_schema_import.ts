@@ -108,7 +108,7 @@ function inspectCells(files: Map<string, Uint8Array>, sheet: string, header: num
     parser.on('opentag', (tag) => { if (localName(tag.name) === 'si') sharedSize = 0 })
     parser.on('text', (text) => { sharedSize += bytes(text); if (sharedSize > IMPORT_LIMITS.cell) refuse('Shared string exceeds 64 KiB decoded cell limit.') })
   })
-  let reference = '', textSize = 0, inCell = false, numeric = false, inValue = false, raw = ''
+  let reference = '', textSize = 0, cellRow = 0, inCell = false, numeric = false, inValue = false, raw = ''
   const rawNumbers = new Map<string, string>()
   xml(files, sheet, (parser) => {
     parser.on('opentag', (tag) => {
@@ -119,7 +119,7 @@ function inspectCells(files: Map<string, Uint8Array>, sheet: string, header: num
         if (from!.row <= header && to!.row >= header) refuse(`Merged header ${tag.attributes.ref}: rename/unmerge the header columns.`)
       }
       if (name === 'c') {
-        reference = String(tag.attributes.r); const { row, column } = coordinate(reference)
+        reference = String(tag.attributes.r); const { row, column } = coordinate(reference); cellRow = row
         if (column > IMPORT_LIMITS.columns) refuse(`Row ${row}, column ${column}: exceeds 200 columns.`)
         if (row > header + IMPORT_LIMITS.rows) refuse(`Row ${row}, column ${column}: exceeds 5,000 data rows.`)
         textSize = 0; raw = ''; inCell = true; numeric = !tag.attributes.t || tag.attributes.t === 'n'
@@ -132,31 +132,31 @@ function inspectCells(files: Map<string, Uint8Array>, sheet: string, header: num
     })
     parser.on('closetag', (tag) => {
       if (localName(tag.name) === 'v') inValue = false
-      if (localName(tag.name) === 'c') { if (numeric && raw) rawNumbers.set(reference, raw); inCell = false }
+      // Raw numeric text is kept for the header row only: the rows below it
+      // never become column data, so their cell values are never retained.
+      if (localName(tag.name) === 'c') { if (numeric && raw && cellRow <= header) rawNumbers.set(reference, raw); inCell = false }
     })
   })
   return rawNumbers
 }
 
-function cellText(cell: ExcelJS.Cell, raw: string | undefined): { text: string; kind: string; numeric: boolean } {
-  let value = cell.value, kind = 'text'
+function cellText(cell: ExcelJS.Cell, raw: string | undefined): string {
+  let value = cell.value
   if (value && typeof value === 'object' && ('formula' in value || 'sharedFormula' in value)) {
     if (!('result' in value) || value.result === undefined) refuse(`Cell ${cell.address}: formula has no cached result.`)
-    value = value.result; kind = 'cached formula result'
+    value = value.result
   }
-  if (value == null) return { text: '', kind, numeric: false }
-  if (value instanceof Date) return { text: value.toISOString(), kind: `${kind === 'text' ? '' : kind + ' · '}date (ISO)`, numeric: false }
+  if (value == null) return ''
+  if (value instanceof Date) return value.toISOString()
   if (typeof value === 'object' && 'richText' in value)
-    return { text: value.richText.map((run) => run.text).join(''), kind: 'rich text (text only)', numeric: false }
-  if (typeof value === 'boolean') return { text: String(value), kind: 'boolean', numeric: false }
+    return value.richText.map((run) => run.text).join('')
+  if (typeof value === 'boolean') return String(value)
   if (typeof value === 'number') {
     const padded = /^0{2,}$/.test(cell.numFmt) && Number.isSafeInteger(value)
-    return { text: padded ? String(value).padStart(cell.numFmt.length, '0') : raw ?? String(value),
-      kind: padded ? 'formatted identifier' : kind === 'text' ? 'number' : kind,
-      numeric: !padded && Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value)) && (raw === undefined || String(value) === raw) }
+    return padded ? String(value).padStart(cell.numFmt.length, '0') : raw ?? String(value)
   }
   if (typeof value !== 'string') return refuse(`Cell ${cell.address}: unsupported cell representation.`)
-  return { text: value, kind, numeric: false }
+  return value
 }
 
 export async function previewWorkbook(input: Uint8Array, worksheet: string | null, headerRow: number) {
@@ -192,29 +192,23 @@ export async function previewWorkbook(input: Uint8Array, worksheet: string | nul
     else if (name === 'xl/sharedStrings.xml') ordered[name] = Buffer.from('<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>')
   const stream = Readable.from([zipSync(ordered, { level: 0 })])
   const reader = new ExcelJS.stream.xlsx.WorkbookReader(stream, { worksheets: 'emit', sharedStrings: 'cache', styles: 'cache', hyperlinks: 'ignore', entries: 'ignore' })
-  const columns: ImportColumn[] = [], numeric = new Map<number, boolean>(), choices = new Map<number, Set<string>>()
+  // Only the header row becomes columns: the rows below it are never read,
+  // so no example, allowed value or inferred type is taken from them.
+  const columns: ImportColumn[] = []
   try {
-    for await (const sheet of reader) for await (const row of sheet) {
-      if (row.number < headerRow) continue
-      if (row.number > headerRow + IMPORT_LIMITS.rows || row.cellCount > IMPORT_LIMITS.columns) refuse(`Row ${row.number}: workbook bounds exceeded.`)
-      for (let column = 1; column <= row.cellCount; column++) {
-        const cell = row.getCell(column), value = cellText(cell, rawNumbers.get(cell.address))
-        if (bytes(value.text) > IMPORT_LIMITS.cell) refuse(`Row ${row.number}, column ${column}: exceeds 64 KiB decoded cell limit.`)
-        if (row.number === headerRow) columns[column - 1] = { id: randomUUID(), column, name: value.text, type: 'string', include: true, examples: [], kinds: [value.kind], choices: [], suggestedType: 'string' }
-        else if (value.text !== '') {
-          const field = columns[column - 1]
-          if (!field) refuse(`Row ${row.number}, column ${column}: no header. Add a header or choose another row.`)
-          if (field.examples.length < 3) field.examples.push(value.text.slice(0, 160))
-          if (!field.kinds.includes(value.kind)) field.kinds.push(value.kind)
-          numeric.set(column, (numeric.get(column) ?? true) && value.numeric)
-          const unique = choices.get(column) ?? new Set<string>()
-          if (unique.size <= 20) unique.add(value.text)
-          choices.set(column, unique)
+    rows: for await (const sheet of reader) {
+      for await (const row of sheet) {
+        if (row.number < headerRow) continue
+        if (row.cellCount > IMPORT_LIMITS.columns) refuse(`Row ${row.number}: workbook bounds exceeded.`)
+        for (let column = 1; column <= row.cellCount; column++) {
+          const cell = row.getCell(column), name = cellText(cell, rawNumbers.get(cell.address))
+          if (bytes(name) > IMPORT_LIMITS.cell) refuse(`Row ${row.number}, column ${column}: exceeds 64 KiB decoded cell limit.`)
+          columns[column - 1] = { id: randomUUID(), column, name, type: 'string', include: true }
         }
+        break rows
       }
     }
   } finally { stream.destroy() }
   if (!columns.length) refuse(`Header row ${headerRow} is empty.`)
-  for (const field of columns) { field.suggestedType = numeric.get(field.column) ? 'number' : 'string'; const unique = choices.get(field.column); field.choices = unique && unique.size <= 20 ? [...unique] : [] }
   return { worksheets: sheets.map((sheet) => sheet.name), columns }
 }
