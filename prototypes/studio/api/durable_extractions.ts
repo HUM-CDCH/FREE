@@ -5,6 +5,27 @@ import { decodeParsedDocument } from 'extraction/parsed-document'
 import { z } from 'zod'
 import { ApiError, json, noStore, noStoreError, parseJsonRequest, persistenceUnavailable } from './_http.js'
 import { requestDurableReconciliation } from '../server/durable-extraction-workflow.js'
+import { studioDbos } from '../server/dbos.js'
+
+type DiscoveryRun={found:{segment:string;label:string|null}[];lines:{segment:string}[];captures:string[]}
+/** The record starts discovery has found while the run still looks for its records: the worker's progress events
+ *  (the windows read, then the places the window being read has generated so far). Display only, so a missing or
+ *  unreadable event reads as none. */
+export async function discoveryProgress(attempt:{id:string;workflowId:string}|null,
+  client?:Pick<ReturnType<typeof studioDbos>['kei'],'getEvent'>) {
+  if(!attempt)return null
+  try {
+    const events=client??studioDbos().kei
+    const run=await events.getEvent<DiscoveryRun>(attempt.workflowId,'discovery',0)
+    if(!run)return null
+    const streamed=await Promise.all(run.captures.map(capture=>events.getEvent<unknown[][]>(`kei-call:${attempt.id}:${capture}`,'places',0)))
+    const starts=streamed.flatMap(places=>places??[]).flatMap(place=> {
+      const line=typeof place[0]==='string'?run.lines[Number(place[0].slice(1))-1]:undefined
+      return line&&place[1]==='record'?[{segment:line.segment,label:typeof place[2]==='string'?place[2]:null}]:[]
+    })
+    return {found:[...run.found,...starts]}
+  } catch {return null}
+}
 
 /** Session/origin gates in server/app run before this researcher-scoped factory. */
 export function createResearcherApiHandlers(store: ResearcherProjectStore) {
@@ -28,7 +49,11 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
       if(!match) throw new ApiError(404,'not_found','API route not found.')
       const id=z.uuid().parse(match[1]), action=match[2]
       if(request.method==='GET') {
-        if(!action) return json(await repository.read(id),{headers:noStore})
+        if(!action) {
+          const state=await repository.read(id)
+          // While discovery still looks for the records, the ones it has found so far show on the source.
+          return json(state.status==='RUNNING'&&state.strategy==='CATALOG'&&state.records===null?{...state,discovery:await discoveryProgress(state.attempt)}:state,{headers:noStore})
+        }
         if(action==='source') {
           const head=await repository.read(id)
           const revision=await sourceRevision(head.sourceRevisionId)

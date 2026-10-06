@@ -31,6 +31,12 @@ function executionDefinition(raw:unknown) {
   return parseExtractionSchema(raw)
 }
 export const DURABLE_RECONCILE = 'reconcileDurableExtractions'
+/** The page a planned record starts on: its first source range's segment (`p{page}_s{n}`). */
+function firstPage(scope: unknown): number | null {
+  const segment = Array.isArray(scope) ? (scope[0] as { segment?: unknown } | undefined)?.segment : undefined
+  const page = typeof segment === 'string' ? /^p(\d+)_s\d+$/.exec(segment)?.[1] : undefined
+  return page === undefined ? null : Number(page)
+}
 
 /** No connection outlives this short transaction. READ COMMITTED plus the
  * locked feedback head gives admission its latest committed publication. */
@@ -102,14 +108,27 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
     read(id: string) { return owned(id, async (client,head) => {
       const selection = (await client.query('SELECT * FROM extraction_runtime.selection WHERE id=$1', [head.selectionId])).rows[0]
       const pendingSelection = head.pendingSelectionId ? (await client.query('SELECT * FROM extraction_runtime.selection WHERE id=$1', [head.pendingSelectionId])).rows[0] : null
-      const failure=head.attemptId?(await client.query('SELECT failure FROM extraction_runtime.attempt WHERE id=$1',[head.attemptId])).rows[0]?.failure??null:null
+      const attempt=head.attemptId?(await client.query('SELECT id,failure,"workflowId" FROM extraction_runtime.attempt WHERE id=$1',[head.attemptId])).rows[0] as {id:string;failure:{code:string}|null;workflowId:string}|undefined:undefined
+      const failure=attempt?.failure??null
       const counts = (await client.query(`SELECT count(*) FILTER (WHERE "inFlight")::int AS "inFlight",
         count(*) FILTER (WHERE o.id IS NOT NULL)::int AS saved,
         count(*) FILTER (WHERE o.id IS NULL)::int AS pending FROM extraction_runtime.capture c
         LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=$1`, [id])).rows[0]
-      return { protocol:1 as const, projectId:head.projectId, extractionId:id, status:durableStatus(head), controlVersion:head.controlVersion,
+      // The Catalog records the current selection reads, once discovery has found them, and those with a model call
+      // still unanswered: the rail lists each as queued, reading or read while the run goes on.
+      const plan = (await client.query(`SELECT manifest FROM extraction_runtime.plan WHERE "extractionId"=$1
+        AND stage IN ('unified-records','generic-records','recipe-records') AND manifest->>'selectionId'=$2
+        ORDER BY generation DESC LIMIT 1`, [id, head.selectionId])).rows[0]?.manifest as {units:{ordinal:number;scope:unknown}[]} | undefined
+      const reading = (await client.query(`SELECT DISTINCT (i.request->'body'->>'record')::int AS record FROM extraction_runtime.capture c
+        JOIN extraction_runtime.input i ON i.id=c.id LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id
+        WHERE c."extractionId"=$1 AND c."selectionId"=$2 AND o.id IS NULL AND jsonb_typeof(i.request->'body'->'record')='number'`,
+        [id, head.selectionId])).rows.map(row => row.record as number)
+      const records = plan ? plan.units.map(unit => ({ ordinal: unit.ordinal, page: firstPage(unit.scope) })) : null
+      const feedbackVersion = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0]?.version as number ?? 0
+      return { protocol:1 as const, projectId:head.projectId, extractionId:id, strategy:head.strategy, status:durableStatus(head), controlVersion:head.controlVersion,
         pendingResume:head.pendingResume, selection,pendingSelection, source:head.sourcePin,
-        sourceRevisionId:head.sourceRevisionId,snapshotVersion:head.snapshotVersion,counts,failure }
+        sourceRevisionId:head.sourceRevisionId,snapshotVersion:head.snapshotVersion,feedbackVersion,counts,failure,records,reading,
+        attempt:attempt?{id:attempt.id,workflowId:attempt.workflowId}:null }
     }) },
     command(id: string, raw: unknown) {
       const command = durableCommandSchema.parse(raw)

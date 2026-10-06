@@ -4,7 +4,7 @@ import { useMachine } from '@xstate/react'
 import type { DurablePage, DurableHistory } from 'extraction/durable-types'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { decodeParsedDocument, type ParsedDocument } from 'extraction/parsed-document'
-import { durableRequest, durableRoot, readDurable, readDurableHistory, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
+import { durableRequest, durableRoot, readDurable, readDurableHistory, readValues, type DurableState, type PinnedExtractionSource, type DurableReviewProgress } from './durableExtractionApi'
 import { durableReviewMachine } from './durableReviewMachine'
 import Button from './ui/Button'
 import { DurableInputs } from './DurableInputs'
@@ -12,11 +12,12 @@ import { ProjectFeedback } from './ProjectFeedback'
 import ReviewRow from './ReviewRow'
 import ReviewFocus from './ReviewFocus'
 import ReviewList from './ReviewList'
-import ResultsHeader from './ResultsHeader'
-import { durableRailModel, durableRailRow } from './durableRailModel'
+import ResultsHeader, { type StatusLine } from './ResultsHeader'
+import ResultsMenu from './ResultsMenu'
+import { durableRailModel, durableRailRow, type RunProgress } from './durableRailModel'
 import { evidenceQuote } from './evidenceQuote'
 import { nextToCheck, previousInRecord, queuePosition, reviewQueue } from './reviewQueue'
-import { shownValue, stateLabel, type RailRow, type ValueFilter } from './reviewVocabulary'
+import { shownValue, stateLabel, type RailModel, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { RailMarkState } from './useEvidenceOverlays'
 import {savedCorrectionHref,type SavedReviewCut} from './durableReviewLinks'
@@ -24,9 +25,35 @@ import { keyAction } from './reviewKeys'
 
 type Value=DurablePage['values'][number]
 const inputClass='w-full rounded-md border border-line bg-surface px-3 py-2 text-secondary text-ink focus-visible:outline-accent'
-function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,onSaved,onClose,onEvidence,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,onCloseOverlay,readOnly=false}:{
-  id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;onSaved:()=>void;onClose:()=>void;
-  onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
+const linkClass='cursor-pointer text-accent underline'
+/** Admitted work whose lifecycle can still change without a researcher's command. */
+const ACTIVE:ReadonlySet<string>=new Set(['QUEUED','RUNNING','PAUSING','STOPPING'])
+
+/** The status line (results review redesign §2.1) for a durable Extraction: its lifecycle, and how far the run is. */
+function statusLine(state:DurableState,model:RailModel,article:boolean,finalized:boolean):StatusLine {
+  const planned=state.records?.length??null,read=model.records.filter(record=>record.state==='finished').length
+  const found=state.discovery?.found.length??0
+  const kept=model.records.length+model.document.length>0
+  switch(state.status) {
+    case 'QUEUED': return {mark:'spinner',word:'Queued',rest:'· waiting for the extraction worker'}
+    case 'RUNNING': return article?{mark:'spinner',word:'Reading the document',rest:''}
+      :planned!==null?{mark:'spinner',word:'Reading records',rest:`· ${read} of ${planned}`}
+      :found>0?{mark:'spinner',word:'Finding records',rest:`· ${found} found so far`}:{mark:'spinner',word:'Starting',rest:'· finding records…'}
+    case 'PAUSING': return {mark:'spinner',word:'Pausing',rest:'· saving the calls in flight'}
+    case 'STOPPING': return {mark:'spinner',word:'Stopping',rest:'· the run ends after the current call'}
+    case 'PAUSED': return {mark:'incomplete',word:'Paused',rest:article||planned===null?'':`· ${read} of ${planned} records read`}
+    case 'STOPPED': return {mark:'stopped',word:'Stopped',rest:kept?'· its saved values stay':'· nothing to review'}
+    case 'FAILED': return {mark:'failed',word:'Failed',rest:'',failure:'Its saved values stay; Retry continues the unfinished work.'}
+    default: return finalized?{mark:'saved',word:'Review saved',rest:''}
+      :{mark:'completed',word:'Completed',rest:article?'· Article':`· Catalog · ${read===0?'no records found':`${read} ${read===1?'record':'records'}`}`}
+  }
+}
+
+function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,onFocus,queue,keyboardRoot,menuOpen,detailsOpen,onCloseOverlay,readOnly=false}:{
+  id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:()=>void;onClose:()=>void;
+  /** The results shown now hold another version of this value; the open review stays on its own. */
+  newer?:boolean;
+  focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
   queue:ReturnType<typeof reviewQueue>;readOnly?:boolean;
   onFocus:()=>void;
   keyboardRoot:RefObject<HTMLDivElement|null>;
@@ -42,6 +69,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   const busy=state.matches('saving')||state.matches('reloading')||state.matches('undoing')
   const quote=row.link&&document?evidenceQuote(document,row.link.evidenceAnchorId,row.link.grounding?.raw??null,value.modelValue):null
   const position=queuePosition(queue,value.id)
+  // An edit is guidance for the model's later calls by default (`reviewDraft`): the researcher's fix reaches its context.
   const decide=(action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING',edited?:unknown)=> {
     if(action==='EDITED')send({type:'edit',draft:{...state.context.draft,value:edited}})
     send({type:'save',action})
@@ -73,35 +101,29 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   return <section aria-label={`Review ${value.node.name}`} className="space-y-2">
     <fieldset disabled={busy||readOnly} className="m-0 min-w-0 border-0 p-0">
       {focus?<ReviewFocus {...common} article={article} current={row} items={position?.items??[]} position={position}
-        recordLabel={`Record ${position?.record??1}`} label={`Snapshot ${snapshotVersion}`} upNext={queue.filter(item=>item.key!==value.id&&item.row.kind==='to-check').slice(0,3)}
+        recordLabel={recordLabel} label={recordLabel} upNext={queue.filter(item=>item.key!==value.id&&item.row.kind==='to-check').slice(0,3)}
         end={null} headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo} onContinue={()=>onNext()} onBack={onClose}/>
         :<ReviewRow {...common} row={row} selected pinned={false} onSelect={onClose} canDecide={!busy&&!readOnly&&Boolean(row.retained?.reviewable)}
           saved={readOnly} onReviewFromHere={onFocus}/>}
-      {!readOnly&&<div className="space-y-2 border-t border-line px-3 pt-2">
-        {value.correction&&value.correction.decision.action!=='PENDING'&&<Button onClick={()=>decide('PENDING')}>Mark pending</Button>}
-        <label className="flex gap-2 text-secondary"><input type="checkbox" checked={state.context.draft.included}
-          onChange={event=>send({type:'edit',draft:{...state.context.draft,included:event.target.checked}})}/>Let the model learn from this edit</label>
-        <p className="text-compact text-ink-muted">The model learns the pattern, not this document’s facts. Evidence is optional.</p>
-        <label className="block text-secondary">Link correction Evidence from this source
+      {editing&&!readOnly&&document&&<details className="mx-3 mb-2 text-secondary">
+        <summary className="cursor-pointer text-compact text-ink-muted">Link Evidence for your edit (optional)</summary>
+        <label className="mt-1 block">Link correction Evidence from this source
           <select className={`${inputClass} mt-1`} value={state.context.draft.evidence[0]?JSON.stringify([state.context.draft.evidence[0].anchorId,state.context.draft.evidence[0].occurrenceIds[0]]):''} onChange={event=> {
             const selected=event.target.value?JSON.parse(event.target.value) as [string,string]:null
             send({type:'edit',draft:{...state.context.draft,evidence:selected?[{anchorId:selected[0],occurrenceIds:[selected[1]]}]:[]}})
-          }}><option value="">No correction Evidence linked</option>{document?.evidence_index.anchors.flatMap(anchor=>anchor.producer_observations.map(occurrence=><option key={`${anchor.anchor_id}:${occurrence.occurrence_id}`} value={JSON.stringify([anchor.anchor_id,occurrence.occurrence_id])}>Page {occurrence.page_number} · {anchor.anchor_id} · {occurrence.occurrence_id}</option>))}</select>
+          }}><option value="">No correction Evidence linked</option>{document.evidence_index.anchors.flatMap(anchor=>anchor.producer_observations.map(occurrence=><option key={`${anchor.anchor_id}:${occurrence.occurrence_id}`} value={JSON.stringify([anchor.anchor_id,occurrence.occurrence_id])}>Page {occurrence.page_number} · {anchor.anchor_id} · {occurrence.occurrence_id}</option>))}</select>
         </label>
-      </div>}
+      </details>}
     </fieldset>
-    {value.links.map((link,index)=><Button key={`${link.evidenceAnchorId}:${index}`} onClick={()=>onEvidence(link.evidenceAnchorId,undefined,link.precision)}>
-      Model Evidence · {link.resultPath.slice(2).join(' › ')}{link.precision==='input'?' · whole page':''}</Button>)}
-    {value.correction?.decision.evidence.map((evidence:{anchorId:string;occurrenceIds:string[]})=><Button key={evidence.anchorId} onClick={()=>onEvidence(evidence.anchorId,evidence.occurrenceIds)}>Correction Evidence</Button>)}
-    {value.historicalCorrection&&<p className="text-secondary">An incompatible correction remains saved. <a className="text-accent underline" href={savedCorrectionHref(projectId,sourceDocumentId,value.historicalCorrection)}>Open historical correction and review · revision {value.historicalCorrection.revision}</a></p>}
-    {state.context.error&&<div className="space-y-2"><p role="alert" className="text-secondary text-danger">{state.context.error}</p><Button disabled={busy} onClick={()=>send({type:'refresh'})}>Reload saved decision · keep my draft</Button></div>}
-    {(state.context.error||state.context.comparing)&&<section aria-label="Compare saved value and draft" className="space-y-2 rounded-md border border-line p-3 text-secondary">
+    {newer&&<p role="status" className="mx-3 text-compact text-stale-ink">A newer version of this value was saved. Close this one and open the value again to review it.</p>}
+    {value.historicalCorrection&&<p className="mx-3 text-compact"><a className={linkClass} href={savedCorrectionHref(projectId,sourceDocumentId,value.historicalCorrection)}>Open the earlier correction</a></p>}
+    {state.context.error&&<div className="mx-3 space-y-2"><p role="alert" className="text-secondary text-danger">{state.context.error}</p><Button disabled={busy} onClick={()=>send({type:'refresh'})}>Reload saved decision · keep my draft</Button></div>}
+    {(state.context.error||state.context.comparing)&&<section aria-label="Compare saved value and draft" className="mx-3 space-y-2 rounded-md border border-line p-3 text-secondary">
       <p className="text-compact text-ink-muted">Save replaces the whole field. Compare the saved value with your draft before retrying. Reinspect reordered arrays and changed shapes.</p>
       <dl className="space-y-1"><dt className="font-semibold">Saved value in this view</dt><dd className="m-0 break-words">{JSON.stringify(row.value)}</dd>
         <dt className="font-semibold">Your whole-value draft</dt><dd className="m-0 break-words">{JSON.stringify(state.context.draft.value)}</dd></dl>
     </section>}
-    {busy&&<p role="status" className="text-secondary">Saving your decision…</p>}
-    <Button onClick={onClose}>Close value</Button>
+    {busy&&<p role="status" className="mx-3 text-compact text-ink-muted">Saving your decision…</p>}
   </section>
 }
 
@@ -200,11 +222,15 @@ function History({id,shown,onSnapshot}:{id:string;shown:boolean;onSnapshot:(vers
   </details>
 }
 
-/** Durable live review in the existing results rail. All lifecycle states
- * share the same retained snapshot and independent researcher decisions. */
+/** Whether the results shown hold the same version of a value as the open review's. */
+const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify(a.modelValue)===JSON.stringify(b.modelValue)
+
+/** Durable live review in the results rail (results review redesign §2–§5): the latest saved values while the run
+ * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
+ * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
 export function DurableResults({attempt,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onEvidence,readOnly=false,onResultPathChange,onFocusEvidence,onMarksChange,selectValueRef,headerExtras,onStatusChange,onPinnedDocument,onReviewProgress,onReviewFinalized,historySlot,historyShown=false,onShowResults,onShowHistory}:{attempt:ExtractionAttempt|null;
   /** The explicit result/decision cut this view opens on, e.g. a finalized
-   * review or a saved-correction link; null opens the live cut. */
+   * review or a saved-correction link; null follows the latest saved results. */
   initialCut?:SavedReviewCut|null;document:ParsedDocument|null;documentRevisionId?:string;currentSchema:string|null;onEvidence:(id:string,occurrenceIds?:readonly string[],precision?:EvidenceLink['precision'])=>void;readOnly?:boolean;
   onResultPathChange?:(path:string[]|null)=>void;onFocusEvidence?:(link:EvidenceLink|null)=>void;
   onMarksChange?:(marks:RailMarkState|null)=>void;
@@ -217,6 +243,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   historySlot?:HTMLElement|null;historyShown?:boolean;onShowResults?:()=>void;onShowHistory?:()=>void;
 }) {
   const id=attempt?.extractionId
+  const article=attempt?.strategy==='ARTICLE'
   const keyboardRoot=useRef<HTMLDivElement>(null)
   const [loaded,setLoaded]=useState<Awaited<ReturnType<typeof readDurable>>|null>(null)
   const [page,setPage]=useState<DurablePage|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
@@ -237,19 +264,29 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   },[id,sourceRevisionId,documentRevisionId,onPinnedDocument])
   const [editing,setEditing]=useState(false),[review,setReview]=useState<{value:Value;version:number;feedbackVersion:number}|null>(null)
   const [reprocess,setReprocess]=useState<Set<string>>(()=>new Set()),[notice,setNotice]=useState<string|null>(null)
-  const [filter,setFilter]=useState<ValueFilter>('check')
+  const [filter,setFilter]=useState<ValueFilter>('all')
   const [focus,setFocus]=useState(false),[detailsOpen,setDetailsOpen]=useState(false),[menuOpen,setMenuOpen]=useState(false)
   const [closedRecords,setClosedRecords]=useState<Set<string>>(()=>new Set())
   const selectedGeneration=useRef(0),linkedValue=useRef(new URLSearchParams(window.location.search).get('value'))
   const selectionFromMark=useRef<string|null>(null)
   const linkedCut=useRef(initialCut)
-  // Admission can mount this rail while it is hidden. Follow its live page
-  // until it has values to inspect or a named cut is selected, then keep that pair stable.
-  const cutPinned=useRef(initialCut!==null)
-  const model=useMemo(()=>page?durableRailModel(page,document):null,[page,document])
+  // The view follows the latest saved results, so values and their Evidence appear while the run goes on. Only an
+  // explicitly opened cut (a finalized review, a saved-correction link, History's "Open") stays put.
+  const [pinned,setPinned]=useState(initialCut!==null)
+  const pinnedRef=useRef(pinned)
+  const pin=(value:boolean)=>{pinnedRef.current=value;setPinned(value)}
+  const state=loaded?.state
+  const progress=useMemo<RunProgress|null>(()=>state?{records:state.records,reading:new Set(state.status==='RUNNING'?state.reading:[]),
+    fields:(state.selection?.schemaTree?.schemaNodes??[]).filter((node:{valueSource?:unknown})=>!node.valueSource).map((node:{name:string})=>node.name),
+    startPage:state.selection?.resolved?.startPage??null}:null,[state])
+  const model=useMemo(()=>page?durableRailModel(page,document,pinned?null:progress):null,[page,document,progress,pinned])
+  // The record starts discovery has found while it still looks: marked on the source until the records are listed.
+  const foundKey=JSON.stringify(state&&state.records===null?state.discovery?.found??[]:[])
+  const found=useMemo(()=>JSON.parse(foundKey) as {segment:string}[],[foundKey])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
+  const followRef=useRef({review,onFocusEvidence,onEvidence})
+  useEffect(()=>{followRef.current={review,onFocusEvidence,onEvidence}})
   const selectValue=useCallback((key:string,fromMark=false)=> {
-    cutPinned.current=true
     selectionFromMark.current=fromMark&&focus?key:null
     const generation=++selectedGeneration.current
     const value=page?.values.find(each=>each.id===key)
@@ -260,7 +297,15 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       else setError('That value is not saved in this snapshot.')
     }).catch(error=>{if(generation===selectedGeneration.current)setError(error.message)})
   },[page,id,focus])
-  useEffect(()=>{if(page&&linkedValue.current){const key=linkedValue.current;linkedValue.current=null;selectValue(key)}},[page,selectValue])
+  // Choosing a value in the list, or opening a link to it, shows its Evidence on the source; one-by-one follows its
+  // own, and a mark's selection scrolls nothing (§7.2).
+  const choose=useCallback((key:string)=> {
+    selectValue(key)
+    const value=page?.values.find(each=>each.id===key),link=value?.links[0],own=value?.correction?.decision.evidence[0] as {anchorId:string;occurrenceIds:string[]}|undefined
+    if(link)followRef.current.onEvidence(link.evidenceAnchorId,undefined,link.precision)
+    else if(own)followRef.current.onEvidence(own.anchorId,own.occurrenceIds)
+  },[page,selectValue])
+  useEffect(()=>{if(page&&linkedValue.current){const key=linkedValue.current;linkedValue.current=null;choose(key)}},[page,choose])
   useEffect(()=>()=>{++selectedGeneration.current},[])
   useEffect(()=>{if(selectValueRef)selectValueRef.current=key=>selectValue(key,true);return()=>{if(selectValueRef)selectValueRef.current=null}},[selectValueRef,selectValue])
   useEffect(()=> {
@@ -269,16 +314,14 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     if(review){const row=durableRailRow(review.value,document),index=rows.findIndex(each=>each.key===row.key);if(index<0)rows.push(row);else rows[index]=row}
     const describe=new Map(rows.map(row=>[row.key,{name:row.name,value:shownValue(row.value),word:row.kind==='to-check'?null:stateLabel(row),style:row.chip?.style??'neutral',anchorId:row.link?.evidenceAnchorId??'',precision:row.link?.precision}]))
     const displayed=review?[...page.values.filter(value=>value.id!==review.value.id),review.value]:page.values
-    const savedLinks=displayed.flatMap(value=>[
+    const savedLinks=[...displayed.flatMap(value=>[
       ...value.links.map(link=>({key:value.id,link})),
       ...(value.correction?.decision.evidence??[]).map((evidence:{anchorId:string;occurrenceIds:string[]})=>({key:value.id,link:{resultPath:value.path,evidenceAnchorId:evidence.anchorId},occurrenceIds:evidence.occurrenceIds})),
-    ])
+    ]),...found.map((start,index)=>({key:`found:${index}`,link:{resultPath:['records',index],evidenceAnchorId:`a_${start.segment}`}}))]
     onMarksChange?.({describe,selected:review?.value.id??null,selectableKeys:new Set(rows.map(row=>row.key)),savedLinks})
-  },[model,page,onMarksChange,review,document])
+  },[model,page,onMarksChange,review,document,found])
   useEffect(()=>()=>{onMarksChange?.(null);onFocusEvidence?.(null);onResultPathChange?.(null)},[onMarksChange,onFocusEvidence,onResultPathChange])
   useEffect(()=>{onResultPathChange?.(review?review.value.path.map(String):[])},[review,onResultPathChange])
-  const followRef=useRef({review,onFocusEvidence,onEvidence})
-  useEffect(()=>{followRef.current={review,onFocusEvidence,onEvidence}})
   const currentLink=review?.value.links[0]??null
   const followKey=focus&&review&&document?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${review.version}:${review.value.id}:${currentLink?.evidenceAnchorId??''}:${currentLink?.precision??''}`:null
   useEffect(()=>{
@@ -288,7 +331,7 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     selectionFromMark.current=null
     if(followKey&&link&&!fromMark)onEvidence(link.evidenceAnchorId,undefined,link.precision)
   },[followKey])
-  const executionStatus=loaded?.state.status
+  const executionStatus=state?.status
   useEffect(()=>{if(id&&executionStatus)onStatusChange?.(id,executionStatus)},[id,executionStatus,onStatusChange])
   useEffect(()=> {
     if(id&&page)onReviewProgress?.({extractionId:id,snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion,
@@ -298,23 +341,24 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
   const readGenerations=useRef({live:0,snapshot:0})
   const acceptedRead=useRef<Awaited<ReturnType<typeof readDurable>>|null>(null)
   const refresh=useCallback(async(signal?:AbortSignal)=> {
-    if(!id) return
+    if(!id) return null
     const generation=++readGenerations.current.live
     let next:Awaited<ReturnType<typeof readDurable>>
-    try {next=await readDurable(id,signal)}
-    catch(error){if(signal?.aborted||generation!==readGenerations.current.live)return;throw error}
+    try {next=await readDurable(id,signal,acceptedRead.current)}
+    catch(error){if(signal?.aborted||generation!==readGenerations.current.live)return null;throw error}
     let initialPage=next.page
     if(!acceptedRead.current&&linkedCut.current) {
       const cut=linkedCut.current
-      initialPage=await durableRequest<DurablePage>(`${durableRoot(id)}/values?snapshotVersion=${cut.snapshotVersion}&feedbackVersion=${cut.feedbackVersion}`,undefined,signal)
+      initialPage=await readValues(id,{snapshotVersion:cut.snapshotVersion,feedbackVersion:cut.feedbackVersion},signal)
     }
-    if(signal?.aborted||generation!==readGenerations.current.live) return
+    if(signal?.aborted||generation!==readGenerations.current.live) return null
     const previous=acceptedRead.current
     if(previous && (next.state.controlVersion<previous.state.controlVersion ||
       next.state.controlVersion===previous.state.controlVersion && (next.state.snapshotVersion<previous.state.snapshotVersion ||
-        next.state.snapshotVersion===previous.state.snapshotVersion && next.page.feedbackVersion<previous.page.feedbackVersion))) return
+        next.state.snapshotVersion===previous.state.snapshotVersion && next.page.feedbackVersion<previous.page.feedbackVersion))) return previous.page
     acceptedRead.current=next
-    setLoaded(next);setPage(previous=>cutPinned.current||Boolean(previous?.total)?previous??initialPage:initialPage);setError(null)
+    setLoaded(next);setPage(previous=>pinnedRef.current?previous??initialPage:initialPage);setError(null)
+    return next.page
   },[id])
   useEffect(()=> {
     const generations=readGenerations.current
@@ -323,9 +367,17 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       if(!controller.signal.aborted)timer=setTimeout(()=>void poll(),1500)}
     void poll();return()=> {++generations.live;++generations.snapshot;controller.abort();clearTimeout(timer)}
   },[refresh])
-  if(!loaded||!page||!attempt||!id||!model) return <><p role={error?'alert':'status'} className="p-3 text-secondary">{error??'Loading saved extraction results…'}</p>
+  // The run button follows the workspace's own status reads; one that sees a change first (Pausing → Paused) is read
+  // here at once, not at the next poll, so the status line agrees with the button.
+  const workspaceStatus=attempt?.executionStatus
+  useEffect(()=> {
+    const shown=acceptedRead.current?.state.status
+    if(workspaceStatus&&shown&&shown!==workspaceStatus)void refresh().catch(()=>{})
+  },[workspaceStatus,refresh])
+  if(!loaded||!page||!attempt||!id||!model||!state) return <><p role={error?'alert':'status'} className="p-3 text-secondary">{error??'Loading saved extraction results…'}</p>
     {historySlot&&createPortal(<p className="p-3 text-secondary">{error??'Loading…'}</p>,historySlot)}</>
-  const state=loaded.state,terminal=state.status==='STOPPED'||state.status==='STOPPING'
+  const terminal=state.status==='STOPPED'||state.status==='STOPPING'
+  const active=ACTIVE.has(state.status)
   const idle=['PAUSED','FAILED','COMPLETED'].includes(state.status)
   const command=async(action:string)=> {
     setBusy(true);setError(null)
@@ -333,63 +385,65 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
     catch(e){setError(e instanceof Error?e.message:'Unable to save control.');return false}
     finally{setBusy(false)}
   }
-  const selectPage=async(url:string)=> {
-    cutPinned.current=true
+  const selectPage=async(query:Record<string,number>)=> {
+    pin(true)
     ++selectedGeneration.current
     const generation=++readGenerations.current.snapshot
-    try {const next=await durableRequest<DurablePage>(url);if(generation===readGenerations.current.snapshot){setPage(next);return next}
+    try {const next=await readValues(id,query);if(generation===readGenerations.current.snapshot){setPage(next);return next}
       return null}
     catch(error){if(generation===readGenerations.current.snapshot)setError(error instanceof Error?error.message:'Unable to load the saved snapshot.');return null}
   }
+  const showLatest=()=>{pin(false);++readGenerations.current.snapshot;++selectedGeneration.current;setPage(loaded.page)}
+  // A saved decision moves one-by-one to the next value at once (§4.3); the saved results and counts follow.
   const saved=()=> {
     const next=focus?nextToCheck(queue,review?.value.id??null):null
     setReview(null);setEditing(false)
-    const read=selectPage(`${durableRoot(id)}/values?snapshotVersion=${page.snapshotVersion}`)
-    // Automatic advancement belongs to this save. A later explicit selection,
-    // close or navigation owns the review instead, with its open draft.
-    const owner=selectedGeneration.current
-    void read.then(nextPage=> {
-      if(owner!==selectedGeneration.current)return
-      const value=nextPage?.values.find(value=>value.id===next);if(value&&nextPage)setReview({value,version:nextPage.snapshotVersion,feedbackVersion:nextPage.feedbackVersion})
-    })
+    if(pinnedRef.current)void selectPage({snapshotVersion:page.snapshotVersion})
     void refresh()
+    if(next)selectValue(next)
   }
   const closeReview=()=>{++selectedGeneration.current;setReview(null);setFocus(false)}
   const openNext=()=> {const next=nextToCheck(queue,review?.value.id??null);if(next)selectValue(next);else setReview(null)}
   const finalize=()=>void durableRequest(`${durableRoot(id)}/finalize`,{snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion}).then(async()=>{
-    await selectPage(`${durableRoot(id)}/values?snapshotVersion=${page.snapshotVersion}&feedbackVersion=${page.feedbackVersion}`)
-    setError(null);setNotice('This saved review snapshot is finalized.')
+    await selectPage({snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion})
+    setError(null);setNotice('Review saved.')
     onReviewFinalized?.()
   }).catch(error=>setError(error.message))
   const exportSaved=(format:'xlsx'|'csv')=>void readDurableHistory(id).then(history=>import('./durableExport').then(module=>module.downloadDurableExport({state,page,history},format))).catch(error=>setError(error.message))
-  // The displayed cut is the one finalization names. Newer saved work stays
-  // visible as separate versions until the researcher selects it.
-  const cut=`results ${page.snapshotVersion} · decisions ${page.feedbackVersion}`
-  const newerResults=loaded.page.snapshotVersion>page.snapshotVersion?loaded.page.snapshotVersion:null
-  const newerDecisions=loaded.page.feedbackVersion>page.feedbackVersion?loaded.page.feedbackVersion:null
-  const finalizeLabel=!readOnly&&!page.finalization&&page.total>0?`Finalize ${cut}`:null
-  const renderValue=(row:RailRow,pinned:boolean)=>row.key===review?.value.id&&review.version===page.snapshotVersion&&review.feedbackVersion===page.feedbackVersion?null:<ReviewRow row={row} selected={false} pinned={pinned} onSelect={()=>selectValue(row.key)} quote={null} canDecide={false} saved={readOnly}
+  const counts={...model.counts,...page.reviewCounts}
+  const canSave=!readOnly&&!active&&!page.finalization&&page.total>0&&page.reviewCounts.toCheck===0
+  const latest=loaded.page.snapshotVersion===page.snapshotVersion&&loaded.page.feedbackVersion===page.feedbackVersion
+  const recordOf=(key:string)=>model.records.find(record=>record.rows.some(row=>row.key===key))?.label??'Document'
+  // The open review stays in its row while newer results arrive (moving it would lose an open edit); only a value the
+  // results shown do not hold opens above the list.
+  const shownVersion=review?page.values.find(value=>value.id===review.value.id):undefined
+  const inline=Boolean(shownVersion)
+  const valueReview=review&&<ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
+    recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
+    menuOpen={menuOpen} detailsOpen={detailsOpen} onCloseOverlay={overlay=>overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
+  const renderValue=(row:RailRow,pinnedRow:boolean)=>inline&&row.key===review?.value.id?valueReview:<ReviewRow row={row} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} quote={null} canDecide={false} saved={readOnly}
     editing={false} node={null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>
-  return <div ref={keyboardRoot} className="flex h-full min-h-0 flex-col">
-    <ResultsHeader status={{mark:['QUEUED','RUNNING','PAUSING','STOPPING'].includes(state.status)?'spinner':state.status==='STOPPED'?'stopped':state.status==='FAILED'?'failed':state.status==='COMPLETED'?'completed':'incomplete',
-      word:state.status.charAt(0)+state.status.slice(1).toLowerCase(),rest:`· ${state.counts.saved} calls saved · ${state.counts.inFlight} in flight`,
-      failure:state.status==='FAILED'?'Processing did not finish. Saved values and decisions remain available; Retry continues failed or unfinished work.':undefined}}
-      extras={headerExtras} counts={{...model.counts,...page.reviewCounts}} running={state.status!=='COMPLETED'&&state.status!=='STOPPED'} readOnlyNote={readOnly?'Inspecting saved values':undefined}
-      actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?'No saved values to review':null}:null,
-        saveReview:page.reviewCounts.toCheck===0?finalizeLabel:null,list:focus}}
-      breakdown={`Results ${page.snapshotVersion} · decisions ${page.feedbackVersion} · ${page.total} retained values · ${page.reviewCounts.approved} approved · ${page.reviewCounts.edited} edited · ${page.reviewCounts.rejected} rejected · Recall is unmeasured`}
+  return <div ref={keyboardRoot} className="relative flex h-full min-h-0 flex-col"
+    onKeyDown={event=>{if(event.key==='Escape'&&menuOpen&&!event.defaultPrevented){event.preventDefault();setMenuOpen(false)}}}>
+    <ResultsHeader status={statusLine(state,model,article,Boolean(page.finalization))}
+      extras={headerExtras} counts={counts} running={active} readOnlyNote={readOnly?'Read-only: a saved review.':undefined}
+      actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?(active?'Available once a record is read':'Nothing to review here'):counts.toCheck===0?'Nothing left to check here':null}:null,
+        saveReview:canSave?'Save review':null,list:focus}}
+      breakdown={`${counts.approved} approved · ${counts.edited} edited · ${counts.rejected} rejected${page.finalization?' · review saved':''}`}
       chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen}
       onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onSchema={()=>setDetailsOpen(true)} onWhy={()=>setDetailsOpen(true)} onShowDetails={()=>setDetailsOpen(true)}
       onOneByOne={()=>{setFocus(true);openNext()}} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
-    <div className="shrink-0 space-y-2 border-b border-line p-3">
-      {detailsOpen&&<div className="space-y-2 text-secondary"><p>Saved input selection {state.selection.ordinal}. Earlier values retain their own producing schema and settings. Processing and review completion are separate.</p>
-        {state.failure&&<p>Recorded processing failure: {state.failure.code}</p>}</div>}
-      {menuOpen&&<div role="menu" className="flex flex-wrap gap-2"><Button role="menuitem" onClick={()=>exportSaved('xlsx')}>Export XLSX</Button><Button role="menuitem" onClick={()=>exportSaved('csv')}>Export CSV bundle</Button></div>}
-      {!readOnly&&<div className="flex flex-wrap gap-2">
-        {['QUEUED','RUNNING','PAUSING'].includes(state.status)&&<Button disabled={busy||state.status==='PAUSING'} onClick={()=>void command('pause')}>{state.status==='PAUSING'?'Saving in-flight work…':'Pause'}</Button>}
-        {['PAUSED','PAUSING','FAILED'].includes(state.status)&&<Button variant="positive" disabled={busy||Boolean(state.pendingSelection)} onClick={()=>void command(state.status==='FAILED'?'retry':'resume')}>{state.pendingResume?'Resume requested':state.status==='FAILED'?'Retry':'Resume'}</Button>}
-        {!terminal&&<Button variant="danger" disabled={busy} onClick={()=>void command('stop')}>Stop</Button>}
-        {!terminal&&<Button disabled={busy} onClick={()=>void command('editing').then(accepted=>{if(accepted)setEditing(true)})}>Change inputs</Button>}
+    {menuOpen&&<ResultsMenu items={[
+      {label:'Export XLSX',onSelect:()=>{setMenuOpen(false);exportSaved('xlsx')}},
+      {label:'Export CSV bundle',onSelect:()=>{setMenuOpen(false);exportSaved('csv')}},
+      ...(!readOnly&&!terminal?[{label:'Change inputs',disabled:busy?'Saving…':null,
+        onSelect:()=>{setMenuOpen(false);void command('editing').then(accepted=>{if(accepted)setEditing(true)})}}]:[]),
+    ]}/>}
+    {(detailsOpen||error||notice||state.pendingSelection||editing||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="shrink-0 space-y-2 border-b border-line p-3">
+      {detailsOpen&&<div className="space-y-1 text-secondary">
+        <p className="m-0">Inputs version {state.selection.ordinal}{state.selection.ordinal>1?'; earlier values keep the inputs they were read with':''}.</p>
+        {state.failure&&<p className="m-0">Processing failure: {state.failure.code}</p>}
+        <p className="m-0 text-ink-muted">Saved versions, the model calls and the corrections the model learns from are in the History tab.</p>
       </div>}
       {state.pendingSelection&&<div className="space-y-2 text-secondary"><p>Changes pending — apply or discard, then resume.</p><div className="flex gap-2">
         <Button variant="positive" disabled={!idle||busy||state.pendingSelection.id===state.selection.id} onClick={()=> {setBusy(true);void durableRequest(`${durableRoot(id)}/adopt`,{expectedVersion:state.controlVersion,selectionId:state.pendingSelection.id,reprocessValueIds:[...reprocess]}).then(()=>{setReprocess(new Set());saved()}).catch(e=>setError(e.message)).finally(()=>setBusy(false))}}>Apply changes</Button>
@@ -397,36 +451,27 @@ export function DurableResults({attempt,initialCut=null,document:currentDocument
       </div><details><summary className="cursor-pointer">Reprocess completed values (optional)</summary><p className="text-compact text-ink-muted">Selected values receive new model versions. Earlier versions and corrections remain saved.</p>
         {page.values.filter(v=>v.processing==='saved').map(v=><label key={v.id} className="flex gap-2"><input type="checkbox" checked={reprocess.has(v.id)} onChange={e=>setReprocess(previous=>{const next=new Set(previous);if(e.target.checked)next.add(v.id);else next.delete(v.id);return next})}/>{v.node.name} · {v.recordId.slice(0,8)}</label>)}
       </details></div>}
-      {editing&&<DurableInputs attempt={attempt} state={state} currentSchema={currentSchema} onSaved={saved} onEdited={refresh}/>}
+      {editing&&<DurableInputs attempt={attempt} state={state} currentSchema={currentSchema} onSaved={saved} onEdited={async()=>{await refresh()}}/>}
       {error&&<p role="alert" className="text-secondary text-danger">{error}</p>}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}
-      {loaded.state.sourceRevisionId!==documentRevisionId&&<p className="text-secondary">Review uses the Source Representation saved with this Extraction.</p>}
-      <p className="text-compact text-ink-muted">Selected {cut} · {page.total} retained values · saved input selection {state.selection.ordinal}. Recall is unmeasured.</p>
-      {page.finalization&&<p role="status" className="text-secondary">Finalized review · {cut}. Later work and decisions remain separate.</p>}
-      {(newerResults!==null||newerDecisions!==null)&&<div className="space-y-2"><p role="status" className="text-secondary">
-        Newer saved {[newerResults!==null&&`results ${newerResults}`,newerDecisions!==null&&`decisions ${newerDecisions}`].filter(Boolean).join(' and ')} exist. This view{finalizeLabel?' and its finalization stay':' stays'} on {cut}.</p>
-        <Button onClick={()=> {++readGenerations.current.snapshot;++selectedGeneration.current;setPage(loaded.page)}}>Show results {loaded.page.snapshotVersion} · decisions {loaded.page.feedbackVersion}</Button></div>}
-    </div>
-    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+      {state.sourceRevisionId!==documentRevisionId&&<p className="text-secondary">Review uses the Source Representation saved with this Extraction.</p>}
+      {!latest&&<p role="status" className="m-0 text-secondary">Showing saved results {page.snapshotVersion}{page.finalization?' · a saved review':''}.{' '}
+        <button type="button" className={linkClass} onClick={showLatest}>Show the latest results</button></p>}
+    </div>}
+    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-canvas p-2">
       {state.pendingSelection&&unfit>0&&<p className="m-0 text-secondary">{unfit} saved {unfit===1?'correction doesn’t':'corrections don’t'} fit the pending schema and won’t be shown to the model.{' '}
-        {onShowHistory&&<button type="button" className="cursor-pointer text-accent underline" onClick={onShowHistory}>See corrections</button>}</p>}
+        {onShowHistory&&<button type="button" className={linkClass} onClick={onShowHistory}>See corrections</button>}</p>}
       {historySlot&&createPortal(<div className="space-y-3 p-3">
         <ProjectFeedback projectId={state.projectId} target={id} selection={state.pendingSelection?.id} revision={`${state.selection.id}:${loaded.page.feedbackVersion}`} onIncompatible={setUnfit} initiallyOpen/>
-        <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} onSnapshot={(version,feedback)=>{void selectPage(`${durableRoot(id)}/values?snapshotVersion=${version}${feedback===undefined?'':`&feedbackVersion=${feedback}`}`);onShowResults?.()}}/>
+        <History key={`${id}:${state.snapshotVersion}:${state.selection.id}:${page.finalization?.id??''}`} id={id} shown={historyShown} onSnapshot={(version,feedback)=>{void selectPage({snapshotVersion:version,...(feedback===undefined?{}:{feedbackVersion:feedback})});onShowResults?.()}}/>
       </div>,historySlot)}
       {page.coverage?.historicalProposals&&Object.keys(page.coverage.historicalProposals).length>0&&<details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-secondary font-semibold">Remaining-source proposals need review</summary><pre className="whitespace-pre-wrap break-words text-compact">{JSON.stringify(page.coverage.historicalProposals,null,2)}</pre></details>}
-      {review&&<div className="space-y-2 border-b border-line pb-3">
-        {(review.version!==page.snapshotVersion||review.feedbackVersion!==page.feedbackVersion)&&<p role="status" className="text-secondary">Your open review stays on results {review.version} and decisions {review.feedbackVersion}. Select a value below to review its displayed version.</p>}
-        <ValueReview key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={attempt.strategy==='ARTICLE'} value={review.value} snapshotVersion={review.version} document={document} onSaved={saved}
-          onClose={closeReview} onEvidence={onEvidence} focus={focus} onFocus={()=>setFocus(true)} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} keyboardRoot={keyboardRoot}
-          menuOpen={menuOpen} detailsOpen={detailsOpen} onCloseOverlay={overlay=>overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly}/>
-      </div>}
-      {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values on this page. New saved work can be reviewed when it arrives.</p>}
-      {!focus&&<ReviewList model={model} article={attempt.strategy==='ARTICLE'} finding={page.total===0&&['QUEUED','RUNNING'].includes(state.status)} filter={filter}
+      {review&&(focus||!inline)&&<div className="space-y-2 border-b border-line pb-3">{valueReview}</div>}
+      {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">You’re caught up with the saved values. New ones can be reviewed as they arrive.</p>}
+      {!focus&&(article&&page.total===0&&active?<p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">Reading the document…</p>
+        :<ReviewList model={model} article={article} finding={!article&&page.total===0&&active&&!state.records} filter={filter}
           selectedKey={review?.value.id??null} isOpen={record=>!closedRecords.has(record.key!)}
-          onToggle={record=>setClosedRecords(previous=>{const next=new Set(previous);if(next.has(record.key!))next.delete(record.key!);else next.add(record.key!);return next})} renderRow={renderValue}/>}
-      {page.next&&<Button onClick={()=>void selectPage(`${durableRoot(id)}/values?${new URLSearchParams(Object.entries(page.next!).map(([k,v])=>[k,String(v)]))}`)}>Next saved page</Button>}
-      {finalizeLabel&&<Button onClick={finalize}>{finalizeLabel}</Button>}
+          onToggle={record=>setClosedRecords(previous=>{const next=new Set(previous);if(next.has(record.key!))next.delete(record.key!);else next.add(record.key!);return next})} renderRow={renderValue}/>)}
     </div>
   </div>
 }

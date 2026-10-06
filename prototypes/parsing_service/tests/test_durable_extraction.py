@@ -12,6 +12,7 @@ import pytest
 from kei_exp.kie.extract import calls, run
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract import retained
 from kei_exp.kie.extract.retained import publish_final, publish_values
 from tests.test_extract_grounded import CountingChat, WordCounter, honest, request as recipe_request
 from tests.test_extract_stages import SCHEMA, evidence, passages
@@ -148,6 +149,68 @@ def test_each_method_uses_call_checkpoints_and_retains_validated_values(tmp_path
     assert final=={"attemptId":lease.attempt,"generation":1,"selectionId":lease.state["selection"]["id"],"complete":True}
     assert finish(lease,chat,extract)["records"]==result["records"]
     assert len(chat.calls)==count
+
+
+def linked_while_running(lease):
+    """Each value's Evidence as published before, and with, the final publication."""
+    linked=lambda complete: {value["id"]:value["evidence"] for publication in lease.publications.values()
+        if publication["coverage"].get("processingComplete") is complete for value in publication["values"] if value["evidence"]}
+    return linked(False),linked(True)
+
+
+def test_unified_entry_publishes_its_final_evidence_before_the_run_finishes():
+    source=unified_evidence("1. Hill. Material: gold. Gilded. Find: bead (2)","2. Valley. Material: flint.")
+    request=unified_request()
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    finish(lease,CountingChat(Model(source)),lambda router,counter: run.dispatch(None,source,request,router,counter=counter))
+    running,final=linked_while_running(lease)
+    assert running and running.items() <= final.items()
+    # Shown, not yet settled: adopting revised inputs still re-reads a record the run had not finished (filter_evidence).
+    assert {value["grounding"] for publication in lease.publications.values() if publication["coverage"].get("processingComplete") is False
+            for value in publication["values"]} == {"provisional"}
+
+
+def test_a_record_shown_before_the_run_finished_is_read_again_after_adoption():
+    source=unified_evidence("first entry; second entry")
+    lease=MemoryLease({"recordDescription":"entry","schemaNodes":[]})
+    primary=[{"segment":"p1_s0","start":0,"end":12}]
+    record=retained.record_identity(lease.state["source"]["sourceRevisionId"],primary)
+    lease.historical={"manifest":{"coverage":{"reprocessValueIds":[]}},
+        "snapshot":{"values":[{"id":"v","recordId":record,"grounding":"provisional","evidence":[{"anchorId":"a_p1_s0"}]}],
+                    "coverage":{"completedScopes":{"unit":{"scope":primary,"primary":primary}}}}}
+    assert CapturePlanner(lease).filter_evidence(source).passages[0].text==source.passages[0].text
+
+
+def test_unified_planning_shows_discovery_progress_until_its_records_are_planned():
+    source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")
+    request=unified_request()
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    chat=CountingChat(Model(source))
+    extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter)
+    def plan():
+        counter=Counter();planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
+        try:
+            extract(Router(chat,chat,planner),counter)
+        except NeedsCall:
+            pass
+        return planner
+    waiting=plan()
+    assert waiting.discovery=={"found":[],"lines":[{"segment":"p1_s0","start":0,"end":24},{"segment":"p2_s0","start":0,"end":27}]}
+    finish(lease,chat,extract)
+    assert plan().discovery is None
+
+
+def test_article_grounding_batch_publishes_its_links_before_the_run_finishes():
+    source=evidence(passages(["1. Hill 1827.","2. Valley 1828."]))
+    request=run.ExtractRequest(schema=SCHEMA,options={"strategy":"article"})
+    def answer(system,user,schema):
+        if "### Claims" in user:
+            return {claim:shape["enum"][0] for claim,shape in schema["properties"].items()}
+        return {"site":"Hill","year":1827}
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    finish(lease,CountingChat(answer),lambda router,counter: run.dispatch(None,source,request,router,counter={"fields":counter,"reasoning":counter}))
+    running,final=linked_while_running(lease)
+    assert running and running.items() <= final.items()
 
 
 @pytest.mark.parametrize("complete", [True, False])

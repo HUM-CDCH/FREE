@@ -109,7 +109,7 @@ test('saved live review survives reload, rejects another owner and exports its f
     await page.getByRole('button',{name:/Edited title Corrected without Evidence/}).click()
     await expect(page.getByText('Edited · saved',{exact:true})).toHaveCount(0)
     await expect(page.getByRole('button',{name:'Undo',exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'Close value',exact:true}).click()
+    await page.getByRole('button',{name:/Edited title Corrected without Evidence/}).click()
     await page.getByRole('button',{name:'More result actions'}).click()
     const download=page.waitForEvent('download')
     await page.getByRole('menuitem',{name:'Export CSV bundle'}).click()
@@ -132,18 +132,19 @@ test('saved live review survives reload, rejects another owner and exports its f
     const ownState=await page.request.get(`/api/extractions/${id}/durable`)
     expect((await ownState.json()).extractionId).toBe(id)
     expect((await pool.query('SELECT count(*)::int AS n FROM extraction_runtime.correction WHERE "extractionId"=$1',[id])).rows[0].n).toBe(1)
-    await page.getByRole('button',{name:'Finalize results 1 · decisions 1',exact:true}).first().click()
-    await expect(page.getByRole('alert')).toContainText('Review each saved value')
+    // The review is saved by the researcher once nothing is left to check.
+    await expect(page.getByRole('button',{name:'Save review',exact:true})).toHaveCount(0)
     await page.getByRole('button',{name:/To check year 2026/}).click()
     await page.getByRole('button',{name:'Approve',exact:true}).click()
     await expect(page.getByRole('button',{name:/Approved year 2026/})).toBeVisible()
-    await page.getByRole('button',{name:'Finalize results 1 · decisions 2',exact:true}).first().click()
-    await expect(page.getByText('Finalized review · results 1 · decisions 2.',{exact:false})).toBeVisible()
+    await page.getByRole('button',{name:'Save review',exact:true}).click()
+    await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
     await page.reload()
     await page.locator('#rail-tab-results').click()
-    await expect(page.getByText('Finalized review · results 1 · decisions 2.',{exact:false})).toBeVisible()
-    await page.getByRole('button',{name:'Stop',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Resume',exact:true})).toHaveCount(0)
+    await expect(page.getByText(/1 approved · 1 edited · 0 rejected · review saved/)).toBeVisible()
+    await page.getByRole('button',{name:'■ Stop',exact:true}).click()
+    await expect(page.getByRole('button',{name:'▶ Run extraction',exact:true})).toBeVisible()
+    await expect(page.getByRole('button',{name:'▶ Resume extraction',exact:true})).toHaveCount(0)
     const stopped=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
     expect(stopped.status).toBe('STOPPED')
     expect((await page.request.post(`/api/extractions/${id}/durable/control`,{data:{id:randomUUID(),expectedVersion:stopped.controlVersion,action:'resume'},headers:{Origin:new URL(page.url()).origin}})).status()).toBe(409)
@@ -173,7 +174,7 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     await expect(page.getByRole('alert')).toContainText('Enter a value.')
     expect((await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction).toBeNull()
     await page.getByRole('button',{name:'Cancel',exact:true}).click()
-    await page.getByRole('button',{name:'Close value',exact:true}).click()
+    await page.getByRole('button',{name:/To check title Title/}).click()
     await page.getByRole('button',{name:/To check work/}).click()
     await page.getByRole('button',{name:'Edit',exact:true}).click()
     await page.getByRole('textbox',{name:'Reviewed value'}).fill('{"name":"Corrected book","included":false}')
@@ -192,12 +193,13 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     await page.getByRole('textbox',{name:'Reviewed value'}).fill('["Ada","Bea"]')
     await page.getByRole('button',{name:'Save edit',exact:true}).click()
     await expect.poll(()=>savedValue('names')).toEqual(['Ada','Bea'])
-    await page.getByRole('button',{name:'Change inputs',exact:true}).click()
+    await page.getByRole('button',{name:'More result actions'}).click()
+    await page.getByRole('menuitem',{name:'Change inputs'}).click()
     await page.getByRole('button',{name:'Save pending inputs',exact:true}).click()
     await page.locator('#rail-tab-history').click()
     await expect(page.getByText('Corrections for the pending inputs',{exact:false})).toBeVisible()
     await page.locator('#rail-tab-results').click()
-    await expect(page.getByRole('button',{name:'Resume',exact:true})).toBeDisabled()
+    await expect(page.getByText('Changes pending — apply or discard, then resume.',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Apply changes',exact:true}).click()
     await expect(page.getByText('Changes pending — apply or discard, then resume.',{exact:true})).toHaveCount(0)
     const head=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
@@ -211,7 +213,7 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     expect(retained.values.find((v:{id:string})=>v.id==='names').correction.decision.value).toEqual(['Ada','Bea'])
     await page.getByRole('button',{name:'All',exact:true}).click()
     await page.getByRole('button',{name:/Edited work/}).click()
-    await expect(page.getByText(`Producing schema ${work.schemaRevisionId.slice(0,8)}`,{exact:false})).toBeVisible()
+    await expect(page.getByText('Extracted value:',{exact:false})).toBeVisible()
     await page.screenshot({path:'test-results/durable-composite-review.png',fullPage:true})
   } finally {await fixture.close()}
 })
@@ -264,8 +266,9 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     const source=(await (await page.request.get(`/api/extractions/${id}/durable/source`)).json()).document
     const anchor=source.evidence_index.anchors.find((each:{producer_observations:unknown[]})=>each.producer_observations.length)
     const occurrence=anchor.producer_observations[0].occurrence_id
-    await review.getByRole('combobox',{name:'Link correction Evidence from this source'}).selectOption(JSON.stringify([anchor.anchor_id,occurrence]))
     await review.getByRole('button',{name:'Edit',exact:true}).click()
+    await review.getByText('Link Evidence for your edit (optional)').click()
+    await review.getByRole('combobox',{name:'Link correction Evidence from this source'}).selectOption(JSON.stringify([anchor.anchor_id,occurrence]))
     await review.getByRole('textbox',{name:'Reviewed value'}).fill('Corrected title 505')
     await review.getByRole('button',{name:'Save edit',exact:true}).click()
     const valueUrl=`/api/extractions/${id}/durable/values/${encodeURIComponent(valueId)}`
@@ -273,9 +276,8 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
     const retained=(await (await page.request.get(valueUrl)).json()).values[0]
     expect(retained.grounding).toBe('ungrounded')
     expect(retained.correction.decision.evidence).toEqual([{anchorId:anchor.anchor_id,occurrenceIds:[occurrence]}])
+    // The value's link opens it and shows its correction Evidence on the source.
     await page.reload();await page.locator('#rail-tab-results').click()
-    await expect(page.getByRole('button',{name:'Correction Evidence',exact:true})).toBeVisible()
-    await page.getByRole('button',{name:'Correction Evidence',exact:true}).click()
     await expect(page.locator('.parsed-evidence-highlight')).toHaveCount(1)
     await page.locator('#rail-tab-history').click()
     await expect(page.getByText('In use · Has evidence',{exact:true})).toBeVisible()
@@ -398,7 +400,8 @@ test('every native lifecycle shows retained review and running keyboard edits ke
       else await page.evaluate(route=>{window.history.pushState(null,'',route);window.dispatchEvent(new PopStateEvent('popstate'))},route)
       await page.locator('#rail-tab-results').click()
       const rail=page.getByRole('complementary',{name:'Evidence, schema and results'})
-      await expect(rail.getByText(status.charAt(0)+status.slice(1).toLowerCase(),{exact:true})).toBeVisible()
+      // A running Article reads the document; every other lifecycle is named as it is.
+      await expect(rail.getByText(status==='RUNNING'?'Reading the document':status.charAt(0)+status.slice(1).toLowerCase(),{exact:true})).toBeVisible()
       await expect(rail.getByText(`Retained ${status}`,{exact:false})).toBeVisible()
       await rail.getByRole('button',{name:`To check title Retained ${status}`}).click()
       await expect(rail.getByRole('button',{name:'Edit',exact:true})).toBeEnabled()
@@ -505,8 +508,9 @@ test('shared correction Evidence navigates Markdown UTF-8 spans and stable value
     await fixture.open();await page.locator('#rail-tab-results').click()
     for(const name of ['title','site']) {
       await page.getByRole('button',{name:new RegExp(`To check ${name} `)}).click()
-      await page.getByRole('combobox',{name:'Link correction Evidence from this source'}).selectOption(JSON.stringify([anchor.anchor_id,anchor.producer_observations[0].occurrence_id]))
       await page.getByRole('button',{name:'Edit',exact:true}).click()
+      await page.getByText('Link Evidence for your edit (optional)').click()
+      await page.getByRole('combobox',{name:'Link correction Evidence from this source'}).selectOption(JSON.stringify([anchor.anchor_id,anchor.producer_observations[0].occurrence_id]))
       await page.getByRole('textbox',{name:'Reviewed value'}).fill(`Corrected ${name}`)
       await page.getByRole('button',{name:'Save edit',exact:true}).click()
       await expect.poll(async()=>(await (await page.request.get(`/api/extractions/${id}/durable/values/${name}`)).json()).values[0].correction?.decision.value).toBe(`Corrected ${name}`)
@@ -527,8 +531,6 @@ test('shared correction Evidence navigates Markdown UTF-8 spans and stable value
     await expect(page.getByRole('region',{name:'Review site',exact:true})).toContainText('Corrected site')
     await page.getByRole('group',{name:'Document view'}).getByRole('button',{name:'Markdown',exact:true}).click()
     await expect(page.getByLabel('Parsed Markdown').getByRole('button')).toHaveText(passage)
-    await expect(page.getByRole('button',{name:'Correction Evidence',exact:true})).toBeVisible()
-    await expect(page.getByRole('button',{name:/Model Evidence/})).toHaveCount(0)
   } finally {await fixture.close()}
 })
 
@@ -544,7 +546,7 @@ test('retained Catalog review fits actual 344px and 264px rails and a narrow vie
     const assertGeometry=async()=>{
       expect(await panel.evaluate(element=>element.scrollWidth<=element.clientWidth+1)).toBe(true)
       const bounds=(await rail.boundingBox())!
-      for(const name of ['Retry','Stop','Change inputs']) {
+      for(const name of ['Run details','More result actions']) {
         const button=rail.getByRole('button',{name,exact:true});await expect(button).toBeVisible()
         const box=(await button.boundingBox())!
         expect(box.x).toBeGreaterThanOrEqual(bounds.x)
@@ -612,14 +614,11 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     await second.getByRole('button',{name:'Undo',exact:true}).click()
     await expect.poll(async()=>(await read())?.decision.value).toEqual({a:10,b:2})
     expect((await read()).revision).toBe(3)
-    await second.getByRole('button',{name:/Edited work/}).click()
-    await second.getByRole('button',{name:'Mark pending',exact:true}).click()
-    await expect.poll(async()=>(await read())?.decision.action).toBe('PENDING')
     const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
-    expect(history.corrections.map((correction:{revision:number})=>correction.revision)).toEqual([1,2,3,4])
+    expect(history.corrections.map((correction:{revision:number})=>correction.revision)).toEqual([1,2,3])
     await second.locator('#rail-tab-history').click()
-    // Corrections list newest first: revisions 4, 3, 2, 1.
-    const historical=await second.getByRole('link',{name:'Open in document',exact:true}).nth(1).getAttribute('href')
+    // Corrections list newest first: revisions 3, 2, 1.
+    const historical=await second.getByRole('link',{name:'Open in document',exact:true}).nth(0).getAttribute('href')
     await page.goto(historical!);await page.locator('#rail-tab-results').click()
     await expect(page.getByRole('region',{name:'Review work'})).toContainText('{"a":10,"b":2}')
     await expect(page.getByText(/Your open review stays/)).toHaveCount(0)
@@ -668,8 +667,8 @@ for(const source of ['same source','new source revision'] as const) {
         await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
         await page.locator('#rail-tab-results').click()
       }
-      await expect(page.getByText('Finalized review · results 1 · decisions 1. Later work and decisions remain separate.',{exact:true})).toBeVisible()
-      await expect(page.getByText('Newer saved results 2 exist.',{exact:false})).toBeVisible()
+      await expect(page.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+      await expect(page.getByRole('button',{name:'Show the latest results',exact:true})).toBeVisible()
       await page.getByRole('button',{name:'All',exact:true}).click()
       await expect(page.getByText('Finalized title',{exact:true})).toBeVisible()
       await expect(page.getByText('Later unfinalized title',{exact:true})).toHaveCount(0)
@@ -677,7 +676,7 @@ for(const source of ['same source','new source revision'] as const) {
       expect((await (await page.request.get(`/api/extractions/${current.id}/durable/values`)).json()).values[0].modelValue).toBe('Current attempt title')
       if(source==='new source revision') {
         await page.reload();await page.locator('#rail-tab-results').click()
-        await expect(page.getByText('Finalized review · results 1 · decisions 1. Later work and decisions remain separate.',{exact:true})).toBeVisible()
+        await expect(page.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
       }
     } finally {await fixture.close()}
   })
@@ -702,7 +701,7 @@ test('a late post-save page response keeps the newer field and its unsaved brows
     await review.getByRole('button',{name:'Edit',exact:true}).click()
     await review.getByRole('textbox',{name:'Reviewed value'}).fill('Keep this unsaved draft')
     held.resolve()
-    await expect(page.getByText('Selected results 1 · decisions 1',{exact:false})).toBeVisible()
+    await expect(page.getByText(/0 approved · 1 edited · 0 rejected/)).toBeVisible()
     await expect(review.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('Keep this unsaved draft')
     const saved=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()).values
     expect(saved.find((value:{id:string})=>value.id==='title').correction.decision.value).toBe('Saved title')
@@ -718,11 +717,12 @@ test('feedback-only lag names the older pair before browser finalization',async(
     expect((await page.request.post(`${root}/values/title`,{headers,data:{expectedRevision:0,snapshotVersion:1,action:'APPROVED'}})).ok()).toBe(true)
     await page.goto(`${fixture.url}?extractionId=${id}&snapshotVersion=1&feedbackVersion=1`)
     await page.locator('#rail-tab-results').click()
-    await expect(page.getByText('Selected results 1 · decisions 1',{exact:false})).toBeVisible()
+    await expect(page.getByRole('button',{name:/Approved title Original title/})).toBeVisible()
     expect((await page.request.post(`${root}/values/title`,{headers,data:{expectedRevision:1,snapshotVersion:1,action:'EDITED',value:'Newer decision'}})).ok()).toBe(true)
-    await expect(page.getByText('Newer saved decisions 2 exist.',{exact:false})).toBeVisible()
-    await page.getByRole('button',{name:'Finalize results 1 · decisions 1',exact:true}).first().click()
-    await expect(page.getByText('Finalized review · results 1 · decisions 1. Later work and decisions remain separate.',{exact:true})).toBeVisible()
+    // The linked cut stays put while newer decisions are saved elsewhere; saving the review names the cut shown.
+    await expect(page.getByText(/Showing saved results 1/)).toBeVisible()
+    await page.getByRole('button',{name:'Save review',exact:true}).click()
+    await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
     const older=(await (await page.request.get(`${root}/values?snapshotVersion=1&feedbackVersion=1`)).json())
     expect(older.finalization).toMatchObject({snapshotVersion:1,feedbackVersion:1})
     const live=(await (await page.request.get(`${root}/values`)).json())

@@ -124,7 +124,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, quo
               {!reviewable && <p className="m-0 text-secondary text-ink-muted">Not part of the review. It stays in the result and the export as extracted.</p>}
             </>
           )}
-          {row.retained && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
+          {row.retained?.attribution && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
           {editing ? (
             <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
               onTypedSave={onTypedEdit}

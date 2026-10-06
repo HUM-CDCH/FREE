@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { passesFilter, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
+import { isDecidable, passesFilter, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import { ApprovedGlyph, DisclosureGlyph, SpinnerGlyph } from './ui/icons'
 
 /** A record header's right-hand state (§3.1), as text and as the section's accessible name. */
@@ -7,9 +7,11 @@ function recordState(record: RailRecord): { text: string; busy: boolean; done: b
   if (record.state === 'queued') return { text: 'Queued', busy: false, done: false }
   if (record.state === 'reading') return { text: 'Reading…', busy: true, done: false }
   if (record.state === 'checking') return { text: `Checking ${record.rows.length} values`, busy: true, done: false }
-  return record.toCheck > 0 ? { text: `${record.toCheck} to check`, busy: false, done: false }
-    : record.retained ? {text:'saved values checked',busy:false,done:record.rows.every(row=>row.retained?.reviewable)}
-    : { text: 'all checked', busy: false, done: true }
+  if (record.toCheck > 0) return { text: `${record.toCheck} to check`, busy: false, done: false }
+  // Only a decision checks a value: a record of missing or unread values has nothing checked.
+  if (!record.rows.some((row) => isDecidable(row.kind)))
+    return { text: record.rows.every((row) => row.kind === 'missing') ? 'no values' : 'nothing to check', busy: false, done: false }
+  return { text: 'all checked', busy: false, done: true }
 }
 
 const section = 'overflow-hidden rounded-lg border border-line bg-surface'
@@ -63,7 +65,9 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
               className="flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-accent-ghost focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
               <DisclosureGlyph open={open} />
               <b className="min-w-10 truncate text-content text-ink">{record.label}</b>
-              <span className="min-w-0 truncate text-secondary text-ink-muted">Record {record.index + 1}{record.page === null ? '' : ` · p.${record.page}`}</span>
+              <span className="min-w-0 truncate text-secondary text-ink-muted">
+                {[record.label === `Record ${record.index + 1}` ? null : `Record ${record.index + 1}`, record.page === null ? null : `p.${record.page}`].filter(Boolean).join(' · ')}
+              </span>
               <span className="flex-1" />
               <span className={`flex shrink-0 items-center gap-1 text-compact tabular-nums ${state.busy || record.state === 'queued' ? 'font-medium text-ink-muted' : 'text-ink'}`}>
                 {state.busy && <SpinnerGlyph className="size-3.5 text-ink" />}{state.done && <ApprovedGlyph />}{state.text}

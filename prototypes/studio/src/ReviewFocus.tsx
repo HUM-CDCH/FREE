@@ -96,7 +96,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
         {position && <span className="text-compact text-ink-muted tabular-nums">{article ? `${position.at} of ${position.of}` : `Record ${position.record} of ${position.records} · ${position.at} of ${position.of} in this record`}</span>}
       </div>
       <div>
-        <p className="m-0 mb-1 font-mono text-secondary text-ink-faint">{article ? current.name : `${label} · ${recordLabel} › ${current.name}`}</p>
+        <p className="m-0 mb-1 font-mono text-secondary text-ink-faint">{article ? current.name : `${label === recordLabel ? label : `${label} · ${recordLabel}`} › ${current.name}`}</p>
         {editing ? (
           <ReviewedValueEditor node={node} initial={current.value} tall onCancel={onCancelEdit}
             onTypedSave={onTypedEdit}
