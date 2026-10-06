@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   acquirePlaywrightPortLeaseForTest,
   acquirePlaywrightProjectLeaseForTest,
+  projectLeasePortForTest,
   playwrightViteArgumentsForTest,
   recoverPlaywrightStackForTest,
   spawnSupervisedProcessForTest,
@@ -99,6 +100,13 @@ afterEach(async () => {
 })
 
 describe('Playwright stack leases', () => {
+  it('reserves project lease ports below every default dynamic client-port range', () => {
+    for (const project of ['free-studio-e2e', 'free-studio-recovery-e2e', 'free-durable-extraction-e2e', 'free-studio-service-e2e', 'liveux-browser-unified']) {
+      expect(projectLeasePortForTest(project)).toBeGreaterThanOrEqual(20_000)
+      expect(projectLeasePortForTest(project)).toBeLessThan(32_768)
+    }
+  })
+
   it('allows exactly one concurrent holder for the configured application port', async () => {
     const port = await unusedLoopbackPort()
     const attempts = await Promise.allSettled([
