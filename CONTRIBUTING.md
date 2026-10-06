@@ -3,6 +3,8 @@
 ## Workflow
 
 - Work on a branch, open a pull request, get one review, then merge.
+- Reviewers, human or agent, also check the diff against
+  [CODING_STANDARDS.md](CODING_STANDARDS.md).
 - Give each PR one coherent, testable review boundary. Use the smallest boundary
   that remains end-to-end complete; reviewability is not measured by elapsed
   time or line count. A larger PR is appropriate when splitting it would leave
