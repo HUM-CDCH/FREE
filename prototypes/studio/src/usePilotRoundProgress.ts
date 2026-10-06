@@ -4,6 +4,7 @@ import { batchExtractionProgress } from '../shared/batchExtraction.contract'
 
 export type PilotRoundProgress = {
   reviewed: number
+  /** The members a researcher can review: published, reviewable results. */
   total: number
   /** The next not-yet-reviewed member after the current document, wrapping
    *  around the round; `null` once every member is reviewed (or has no
@@ -39,7 +40,11 @@ export function usePilotRoundProgress(
     getBatchExtraction(projectContextId, batchExtractionId, controller.signal)
       .then((batch) => {
         if (controller.signal.aborted) return
-        const { reviewed, total } = batchExtractionProgress(batch)
+        // The round's denominator is every member a researcher can review —
+        // including a paused member whose saved values are still reviewable —
+        // not only the members a completed Extraction published.
+        const { reviewed } = batchExtractionProgress(batch)
+        const total = batch.members.filter((member) => member.reviewable).length
         const currentIndex = batch.members.findIndex(
           (member) => member.sourceDocumentId === currentSourceDocumentId,
         )

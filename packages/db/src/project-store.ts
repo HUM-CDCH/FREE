@@ -399,9 +399,9 @@ export const suggestWorkflowId = (batchSchemaSuggestionId: string, attempt: numb
 async function durableExtractionFacts(database: Database, where: { documentIds?: readonly string[]; batchIds?: readonly string[] }) {
   const rows = where.documentIds
     ? where.documentIds.length === 0 ? [] : await database.orm.public.Extraction.where((row) => row.sourceDocumentId.in([...where.documentIds!]))
-      .select('id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'batchExtractionId', 'createdAt').all()
+      .select('id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'batchExtractionId', 'createdAt').all()
     : (where.batchIds ?? []).length === 0 ? [] : await database.orm.public.Extraction.where((row) => row.batchExtractionId.in([...where.batchIds!]))
-      .select('id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'batchExtractionId', 'createdAt').all()
+      .select('id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'batchExtractionId', 'createdAt').all()
   if (rows.length === 0) return []
   const ids = rows.map((row) => row.id)
   const heads = new Map((await database.orm.extraction_runtime.Head.where((head) => head.id.in(ids)).select('id', 'acknowledgement', 'deleted').all())
@@ -1341,7 +1341,7 @@ export function createResearcherProjectStore(
           : await database.orm.public.SchemaRevision.where((revision) =>
               revision.extractionSchemaId.in(schemas.map((schema) => schema.id)),
             )
-              .select('extractionSchemaId', 'revisionNumber', 'stabilisedAt', 'createdAt')
+              .select('id', 'extractionSchemaId', 'revisionNumber', 'stabilisedAt', 'createdAt')
               .all()
       const suggestions = await database.orm.public.BatchSchemaSuggestion.where(
         (suggestion) => suggestion.projectContextId.in(projectIds),
@@ -1369,7 +1369,12 @@ export function createResearcherProjectStore(
       }
       const latestExtraction = new Map<
         string,
-        { sourceRepresentationRevisionId: string; createdAt: Date }
+        {
+          sourceRepresentationRevisionId: string
+          schemaRevisionId: string
+          createdAt: Date
+          reviewed: boolean
+        }
       >()
       const project = new Map(
         rows.map((row) => [
@@ -1379,10 +1384,13 @@ export function createResearcherProjectStore(
             extractionCount: 0,
             extractedDocuments: new Set<string>(),
             reviewedDocuments: new Set<string>(),
+            reviewedRevisionIds: new Set<string>(),
             staleSourceDocumentCount: 0,
             schemaDraftCount: 0,
             hasSchemaRevision: false,
             schemaStabilised: false,
+            currentRevisionId: null as string | null,
+            currentRevisionReviewed: false,
             hasReadySuggestion: false,
             lastActivityAt: row.createdAt,
             runningBatch: null as {
@@ -1404,6 +1412,11 @@ export function createResearcherProjectStore(
         state.sourceDocumentCount += 1
         bump(document.projectContextId, document.createdAt)
       }
+      // `durableExtractionFacts` already keeps published Extractions only; a
+      // native review is its latest cut being finalized, which it reports as
+      // `reviewedAt`.
+      const isReviewed = (extraction: (typeof extractions)[number]) =>
+        extraction.reviewedAt !== null
       for (const extraction of extractions) {
         const projectContextId = projectByDocument.get(
           extraction.sourceDocumentId,
@@ -1411,19 +1424,30 @@ export function createResearcherProjectStore(
         const state = projectContextId && project.get(projectContextId)
         if (!projectContextId || !state) continue
         state.extractionCount += 1
-        state.extractedDocuments.add(extraction.sourceDocumentId)
-        if (extraction.reviewedAt)
-          state.reviewedDocuments.add(extraction.sourceDocumentId)
         bump(projectContextId, extraction.createdAt)
-        bump(projectContextId, extraction.reviewedAt)
+        if (extraction.reviewedAt) bump(projectContextId, extraction.reviewedAt)
         const latest = latestExtraction.get(extraction.sourceDocumentId)
         if (!latest || extraction.createdAt >= latest.createdAt)
-          latestExtraction.set(extraction.sourceDocumentId, extraction)
+          latestExtraction.set(extraction.sourceDocumentId, {
+            sourceRepresentationRevisionId:
+              extraction.sourceRepresentationRevisionId,
+            schemaRevisionId: extraction.schemaRevisionId,
+            createdAt: extraction.createdAt,
+            reviewed: isReviewed(extraction),
+          })
       }
+      // A Source Document reads as reviewed only when its latest published
+      // Extraction is reviewed; an older review must not hide a newer,
+      // unreviewed run. Staleness follows that same latest Extraction.
       for (const [sourceDocumentId, latest] of latestExtraction) {
         const projectContextId = projectByDocument.get(sourceDocumentId)
         const state = projectContextId && project.get(projectContextId)
         if (!state) continue
+        state.extractedDocuments.add(sourceDocumentId)
+        if (latest.reviewed) {
+          state.reviewedDocuments.add(sourceDocumentId)
+          state.reviewedRevisionIds.add(latest.schemaRevisionId)
+        }
         const current = currentRepresentation.get(sourceDocumentId)
         if (current && current.id !== latest.sourceRepresentationRevisionId)
           state.staleSourceDocumentCount += 1
@@ -1442,7 +1466,13 @@ export function createResearcherProjectStore(
         const latest=schemaRevisions.filter(revision=>revision.extractionSchemaId===schema.id)
           .reduce<(typeof schemaRevisions)[number]|null>((current,revision)=>!current||revision.revisionNumber>current.revisionNumber?revision:current,null)
         const state=project.get(schema.projectContextId)
+        if(state&&latest)state.currentRevisionId=latest.id
         if(state&&latest?.stabilisedAt)state.schemaStabilised=true
+      }
+      for (const state of project.values()) {
+        state.currentRevisionReviewed =
+          state.currentRevisionId !== null &&
+          state.reviewedRevisionIds.has(state.currentRevisionId)
       }
       for (const suggestion of suggestions) {
         const state = project.get(suggestion.projectContextId)
@@ -1490,7 +1520,7 @@ export function createResearcherProjectStore(
           state.sourceDocumentCount === 0
             ? 'ingest'
             : state.hasSchemaRevision
-              ? state.reviewedDocuments.size > 0
+              ? state.currentRevisionReviewed
                 ? 'validate'
                 : 'extract'
               : state.hasReadySuggestion

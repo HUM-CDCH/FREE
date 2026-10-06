@@ -117,6 +117,10 @@ export function batchExtractionProgress(batch: BatchExtraction) {
     total: batch.members.length,
     extracted: extracted.length,
     succeeded: extracted.length,
+    // The extracted members a researcher can actually review. A failed member
+    // is not extracted, and an unreviewable result can never carry decisions,
+    // so completion is measured against this subset, never every member.
+    reviewable: extracted.length - unreviewable.length,
     pending: batch.members.filter(
       (member) =>
         member.executionStatus === 'QUEUED' ||

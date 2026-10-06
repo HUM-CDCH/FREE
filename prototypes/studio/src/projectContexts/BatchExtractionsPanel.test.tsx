@@ -163,7 +163,6 @@ function readySuggestion(overrides: Record<string, unknown> = {}) {
     executionStatus: 'COMPLETED',
     phase: 'READY',
     sourceKind: 'DOCUMENTS',
-    purpose: null,
     columnFieldMapping: null,
     projectSpreadsheetVersionId: null,
     proposal: suggestedDefinition,
@@ -568,6 +567,57 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /^Source 01\.pdf/ }))
     fireEvent.click(screen.getByRole('checkbox', { name: /^Source 04\.pdf/ }))
     expect(screen.getByText('3 selected')).toBeInTheDocument()
+    // Skipping the pilot would lead straight into the collection gate that
+    // refuses an unstabilised Revision, so it is not offered here.
+    expect(
+      screen.queryByText(/Skip — run the full collection/),
+    ).not.toBeInTheDocument()
+  })
+
+  it('offers skipping the pilot only when the collection run can start', async () => {
+    const manyDocuments = Array.from({ length: 6 }, (_, index) => ({
+      sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
+      name: `Source ${String(index + 1).padStart(2, '0')}.pdf`,
+      pageCount: 1,
+    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        const chosen = chosenSchemaRead(url, {
+          ...chosenRevision(),
+          stabilisedAt: '2026-08-14T10:00:00.000Z',
+        })
+        if (chosen) return chosen
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel(vi.fn(), null, manyDocuments)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pilot Extraction' }))
+    expect(
+      await screen.findByText(/Skip — run the full collection/),
+    ).toBeVisible()
   })
 
   it('disables Run for a collection-scale selection against an unstabilised Schema Revision, and enables it once stabilised', async () => {
@@ -839,6 +889,78 @@ describe('BatchExtractionsPanel', () => {
     expect(JSON.parse(String(open?.[1]?.body)).schemaRevisionId).toBe(
       '51000000-0000-4000-8004-000000000002',
     )
+  })
+
+  it('clears the batch approval when an in-place edit appends an unstabilised Revision', async () => {
+    const documents = Array.from({ length: 6 }, (_, index) => ({
+      sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
+      name: `Source ${String(index + 1).padStart(2, '0')}.pdf`,
+      pageCount: 1,
+    }))
+    const writes: Array<Record<string, unknown>> = []
+    const fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/api/schema-revisions' && init?.method === 'POST')
+          return appendChosenRevision(init, writes)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        const chosen = chosenSchemaRead(url, {
+          ...chosenRevision(),
+          stabilisedAt: '2026-08-14T10:00:00.000Z',
+        })
+        if (chosen) return chosen
+        throw new Error(`Unexpected request: ${url}`)
+      },
+    )
+    vi.stubGlobal('fetch', fetch)
+    renderPanel(vi.fn(), null, documents)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'New Batch Extraction' }),
+    )
+    expect(
+      await screen.findByText(/is approved for batch extraction/),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Run 6 Source Documents' }),
+    ).toBeEnabled()
+
+    const schema = await screen.findByLabelText('Extraction Schema fields')
+    fireEvent.click(within(schema).getByRole('button', { name: 'Edit place' }))
+    fireEvent.change(within(schema).getByPlaceholderText('field_name'), {
+      target: { value: 'location' },
+    })
+    fireEvent.click(within(schema).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(writes).toHaveLength(1))
+
+    expect(
+      await screen.findByText(/isn't approved for batch extraction yet/),
+    ).toBeVisible()
+    expect(
+      screen.queryByText(/is approved for batch extraction/),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Run 6 Source Documents' }),
+    ).toBeDisabled()
   })
 
   it('shows the saved advanced settings; a method_changed refusal opens them with a refresh and no run failure', async () => {
@@ -2595,6 +2717,66 @@ describe('BatchExtractionsPanel', () => {
     expect(
       fetch.mock.calls.some(
         ([url]) => String(url) === '/api/batch-extractions',
+      ),
+    ).toBe(false)
+  })
+
+  it('refuses a collection-scale suggested run until the fields are piloted', async () => {
+    const documents = Array.from(
+      { length: PILOT_BATCH_SELECTION_LIMIT + 1 },
+      (_, index) => ({
+        sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
+        name: `Source ${String(index + 1).padStart(2, '0')}.pdf`,
+        pageCount: 1,
+      }),
+    )
+    let suggestions: unknown[] = []
+    const fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: suggestions })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({ extractionSchemas: [] })
+        if (url === '/api/batch-schema-suggestions' && init?.method === 'POST') {
+          suggestions = [readySuggestion()]
+          return response({ batchSchemaSuggestion: suggestions[0] })
+        }
+        if (
+          url.startsWith(
+            `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/draft?`,
+          )
+        )
+          return response({ batchSchemaSuggestion: readySuggestion() })
+        throw new Error(`Unexpected request: ${url}`)
+      },
+    )
+    vi.stubGlobal('fetch', fetch)
+    renderPanel(vi.fn(), null, documents)
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() =>
+      expect(screen.getAllByRole('checkbox')).toHaveLength(
+        PILOT_BATCH_SELECTION_LIMIT + 1,
+      ),
+    )
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest common fields' }))
+
+    expect(await screen.findByText(/start unstabilised/)).toBeVisible()
+    expect(
+      screen.getByRole('button', {
+        name: `Run ${PILOT_BATCH_SELECTION_LIMIT + 1} Source Documents`,
+      }),
+    ).toBeDisabled()
+    expect(
+      fetch.mock.calls.some(
+        ([url, init]) =>
+          String(url).includes('/run?') && init?.method === 'POST',
       ),
     ).toBe(false)
   })

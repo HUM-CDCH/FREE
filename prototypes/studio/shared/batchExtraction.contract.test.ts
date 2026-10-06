@@ -152,6 +152,7 @@ describe('Batch Extraction contracts', () => {
       total: 6,
       extracted: 2,
       succeeded: 2,
+      reviewable: 2,
       pending: 2,
       failed: 1,
       reviewed: 1,

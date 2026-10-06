@@ -321,6 +321,13 @@ export function createResearcherApiHandlers(
           'The suggested fields are not ready to run.',
           { cause: error },
         )
+      if (error instanceof ExtractionError && error.code === 'schema_not_stabilised')
+        throw new ApiError(
+          409,
+          'schema_not_stabilised',
+          'Pilot the suggested fields on at most five Source Documents, review the results and approve the schema for batch extraction before running the full collection.',
+          { cause: error },
+        )
       throw persistenceUnavailable(error)
     }
     const suggestion = await store

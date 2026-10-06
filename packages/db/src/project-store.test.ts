@@ -61,6 +61,7 @@ function fakeDatabase(
 ) {
   const tables: Record<string, Row[]> = {
     Head: [],
+    Finalization: [],
     ArtifactReference: [],
     ResearcherAccount: [
       { id: RESEARCHER_A, email: 'researcher-a@example.org' },
@@ -735,6 +736,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
         sourceDocumentId: DOCUMENT,
         sourceRepresentationRevisionId: currentRepresentation,
         batchExtractionId: null,
+        schemaRevisionId: REVISION_1,
         createdAt: new Date('2026-08-03T10:00:00Z'),
       },
       // A durable Extraction that is still processing has not completed an extraction yet.
@@ -743,6 +745,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
         sourceDocumentId: DOCUMENT,
         sourceRepresentationRevisionId: representations[0].id,
         batchExtractionId: null,
+        schemaRevisionId: REVISION_1,
         createdAt: new Date('2026-08-03T11:00:00Z'),
       },
       // A public row without a live durable head is no Extraction a summary counts.
@@ -786,6 +789,27 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       new Date('2026-08-04T10:00:00Z'),
     )
 
+    // A newer unpublished-for-review Extraction supersedes the reviewed one:
+    // the Source Document no longer reads as reviewed.
+    database.tables.Extraction.push({
+      id: '51000000-0000-4000-8006-000000000003',
+      sourceDocumentId: DOCUMENT,
+      sourceRepresentationRevisionId: currentRepresentation,
+      schemaRevisionId: REVISION_1,
+      createdAt: new Date('2026-08-05T10:00:00Z'),
+    })
+    database.tables.Head.push({
+      id: '51000000-0000-4000-8006-000000000003',
+      acknowledgement: 'COMPLETED',
+      deleted: false,
+    })
+    const rerun = await store.listProjectContexts(20)
+    const rerunSummary = rerun.find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(rerunSummary?.phase, 'extract')
+    assert.equal(rerunSummary?.reviewedSourceDocumentCount, 0)
+
     // A newer current representation than the latest Extraction's pin is
     // exactly what makes the Source Document stale.
     representations.push({
@@ -801,6 +825,97 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
         .staleSourceDocumentCount,
       1,
     )
+  })
+
+  it('returns to extract when the current Schema Revision has no reviewed pilot', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const currentRepresentation =
+      database.tables.SourceRepresentationRevision[0].id as string
+    const extractionId = '51000000-0000-4000-8006-000000000011'
+    database.tables.Extraction = [
+      {
+        id: extractionId,
+        sourceDocumentId: DOCUMENT,
+        sourceRepresentationRevisionId: currentRepresentation,
+        schemaRevisionId: REVISION_1,
+        createdAt: new Date('2026-08-03T10:00:00Z'),
+      },
+    ]
+    // The pilot's review is a finalized native cut of a completed extraction.
+    database.tables.Head.push({
+      id: extractionId,
+      projectId: PROJECT,
+      sourceRevisionId: currentRepresentation,
+      snapshotVersion: 1,
+      acknowledgement: 'COMPLETED',
+      deleted: false,
+    })
+    database.tables.Finalization.push({
+      id: 'finalization-11',
+      extractionId,
+      snapshotVersion: 1,
+      createdAt: new Date('2026-08-04T10:00:00Z'),
+    })
+    assert.equal(
+      (await store.listProjectContexts(20)).find(
+        (item) => item.projectContextId === PROJECT,
+      )?.summary.phase,
+      'validate',
+    )
+    // Editing the schema appends a new, unstabilised Revision. The reviewed
+    // pilot belongs to the old Revision, so the Project returns to piloting.
+    database.tables.SchemaRevision.push({
+      id: '51000000-0000-4000-8004-000000000011',
+      extractionSchemaId: SCHEMA,
+      revisionNumber: 2,
+      origin: 'RESEARCHER_EDIT',
+      schemaTree: nodes('site'),
+      stabilisedAt: null,
+      createdAt: new Date('2026-08-05T10:00:00Z'),
+    })
+    const revised = await store.listProjectContexts(20)
+    const revisedSummary = revised.find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(revisedSummary?.phase, 'extract')
+    assert.equal(revisedSummary?.schemaStabilised, false)
+  })
+
+  it('counts a finalized native review as the latest reviewed Extraction', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const representation =
+      database.tables.SourceRepresentationRevision[0].id as string
+    const extractionId = '51000000-0000-4000-8006-000000000021'
+    database.tables.Extraction = [
+      {
+        id: extractionId,
+        sourceDocumentId: DOCUMENT,
+        sourceRepresentationRevisionId: representation,
+        schemaRevisionId: REVISION_1,
+        createdAt: new Date('2026-08-03T10:00:00Z'),
+      },
+    ]
+    database.tables.Head.push({
+      id: extractionId,
+      projectId: PROJECT,
+      sourceRevisionId: representation,
+      snapshotVersion: 1,
+      deleted: false,
+    })
+    database.tables.Finalization.push({
+      id: 'finalization-1',
+      extractionId,
+      snapshotVersion: 1,
+      createdAt: new Date('2026-08-04T10:00:00Z'),
+    })
+    const summary = (await store.listProjectContexts(20)).find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(summary?.phase, 'validate')
+    assert.equal(summary?.extractedSourceDocumentCount, 1)
+    assert.equal(summary?.reviewedSourceDocumentCount, 1)
   })
 
   it('reports the open Batch Extraction with member progress from its durable heads, without reading DBOS', async () => {
@@ -887,6 +1002,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
         id: '51000000-0000-4000-8006-000000000001',
         sourceDocumentId: DOCUMENT,
         sourceRepresentationRevisionId: database.tables.SourceRepresentationRevision[1].id,
+        schemaRevisionId: REVISION_1,
         batchExtractionId: null,
         createdAt: new Date('2026-08-03T10:00:00Z'),
       },

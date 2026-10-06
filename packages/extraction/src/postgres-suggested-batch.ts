@@ -19,7 +19,10 @@ import {
 import type { DurableBatchExtraction } from './postgres-batches.js'
 import { refuseRecordScope, storedRecordScope } from './record-scope.js'
 import { parseBatchSuggestionDefinition, recordScopeOf } from './schema.js'
-import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
+import {
+  BATCH_EXTRACTION_SELECTION_LIMIT,
+  PILOT_BATCH_SELECTION_LIMIT,
+} from './batch.js'
 import type {
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
@@ -80,7 +83,14 @@ export async function persistSuggestedBatch(
   // A malformed intent is refused before any lock. A batch has no recipe, so Catalog uses the generic settings.
   const method = canonicalIntent(input.method, input.strategy, null)
   if (method === null) throw new ExtractionError('invalid_request', 'The saved method does not fit this Extraction Strategy.')
-  let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid' | 'method-changed'
+  let status:
+    | 'created'
+    | 'replayed'
+    | 'missing'
+    | 'not-ready'
+    | 'invalid'
+    | 'method-changed'
+    | 'unstabilised'
   try {
     status = await withPoolClientTransaction(async ({ orm }, client) => {
       // Suggestion admission and source deletion lock the project before suggestions. Keep that order here.
@@ -162,7 +172,7 @@ export async function persistSuggestedBatch(
       const existing = await orm.public.SchemaRevision.where({
         extractionSchemaId,
       })
-        .select('id', 'recordScope', 'revisionNumber')
+        .select('id', 'recordScope', 'revisionNumber', 'stabilisedAt')
         .orderBy((revision) => revision.revisionNumber.desc())
         .first()
       // The suggested fields are saved with the scope of the strategy the researcher ran them as; a revision already
@@ -177,6 +187,12 @@ export async function persistSuggestedBatch(
       const schemaRevisionId =
         existing?.id ??
         stableUuid('confirmed-batch-schema-suggestion-revision', extractionSchemaId)
+      // The suggested fields feed the schema path, so a collection-scale
+      // confirmation obeys the same pilot gate as an ordinary Batch
+      // Extraction: a revision with no reviewed pilot and no stabilisation
+      // admits no run above the pilot limit, and this refusal writes nothing.
+      if (members.length > PILOT_BATCH_SELECTION_LIMIT && !existing?.stabilisedAt)
+        return 'unstabilised' as const
       if (!existing) {
         await orm.public.ExtractionSchema.create({
           id: extractionSchemaId,
@@ -227,6 +243,11 @@ export async function persistSuggestedBatch(
   }
   if (status === 'missing') return null
   if (status === 'method-changed') throw new ExtractionError('method_changed', METHOD_CHANGED_MESSAGE)
+  if (status === 'unstabilised')
+    throw new ExtractionError(
+      'schema_not_stabilised',
+      'Stabilise this Schema Revision before running a Batch Extraction against it.',
+    )
   if (status === 'not-ready' || status === 'invalid')
     throw new ExtractionError(
       'batch_not_ready',

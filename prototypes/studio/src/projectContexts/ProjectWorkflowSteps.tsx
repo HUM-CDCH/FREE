@@ -42,15 +42,26 @@ function ProjectWorkflowSteps({
   const currentPhaseIndex = phaseOrder.indexOf(summary.phase)
   // `validate` never advances to a further phase once reached, so "fully
   // reviewed" is its own done signal — otherwise a fully-validated project
-  // would sit forever on "current" with nothing to show for it.
+  // would sit forever on "current" with nothing to show for it. A Source
+  // Document changed since its latest Extraction is pending work too: the
+  // Home card already flags it, so the stepper must not claim everything is
+  // done while re-extraction is needed.
   const fullyValidated =
     summary.phase === 'validate' &&
+    summary.schemaStabilised &&
     summary.extractedSourceDocumentCount > 0 &&
-    summary.reviewedSourceDocumentCount === summary.extractedSourceDocumentCount
+    summary.reviewedSourceDocumentCount === summary.extractedSourceDocumentCount &&
+    summary.staleSourceDocumentCount === 0
 
   const statusForPhase = (index: number): StepStatus => {
     if (index < currentPhaseIndex) return 'done'
-    if (index === currentPhaseIndex) return fullyValidated ? 'done' : 'current'
+    if (index === currentPhaseIndex) {
+      // `validate` is the tail of the split extract phase: while Batch
+      // Extraction or its review is still pending, the Batch step is the one
+      // current position, so exactly one step reads as current.
+      if (summary.phase === 'validate') return fullyValidated ? 'done' : 'upcoming'
+      return 'current'
+    }
     return 'upcoming'
   }
 
@@ -63,8 +74,9 @@ function ProjectWorkflowSteps({
   // moment a researcher clicks "Stabilise schema", before any Batch
   // Extraction has actually run, so it must never mark "Batch Extraction"
   // done by itself (that previously left the stepper claiming batch work
-  // was finished when none had started). `fullyValidated` — every currently
-  // extracted document reviewed — is the closest available "done" signal;
+  // was finished when none had started). `fullyValidated` — the current
+  // Revision stabilised, every latest Extraction reviewed, and nothing
+  // changed since extraction — is the closest available "done" signal;
   // `runningBatch`, when present, surfaces real progress on the "current"
   // step instead of leaving it looking stalled.
   const pilotReviewed = currentPhaseIndex > extractPhaseIndex
@@ -98,7 +110,9 @@ function ProjectWorkflowSteps({
     summary.phase === 'extract'
       ? 'Pilot Extraction'
       : summary.phase === 'validate'
-        ? 'Batch Extraction'
+        ? summary.schemaStabilised
+          ? 'Batch Extraction'
+          : 'Approve for batch extraction'
         : phaseLabels[summary.phase]
   // Stays visible even once the researcher is already on the target tab —
   // it's a persistent "what's next" anchor, not a one-shot nudge that

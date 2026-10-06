@@ -30,6 +30,7 @@ import {
   type SchemaEditorController,
   type SchemaEditorSnapshot,
 } from '../currentSchemaRevision'
+import type { AcknowledgedSchemaRevision } from '../schemaSaveCoordinator'
 import { sameSchemaDefinition } from '../schemaDefinitionEquality'
 import {
   useDurableCurrentSchemaRevision,
@@ -234,6 +235,12 @@ export default function BatchExtractionsPanel({
     schemaRevisionId: string
   } | null>(null)
   const [chosenSchemaReload, setChosenSchemaReload] = useState(0)
+  // The Revision the embedded schema editor last acknowledged. An edit
+  // appends a new, unstabilised Revision; the loaded `chosenSchema` and the
+  // `schemaRevisionId` state stay on the Revision the editor opened with, so
+  // the approval banner and the collection gate must read this instead.
+  const [acknowledgedChosenRevision, setAcknowledgedChosenRevision] =
+    useState<{ key: string; revision: AcknowledgedSchemaRevision } | null>(null)
   const [exportCoverage, setExportCoverage] = useState<{
     batchExtractionId: string
     message: string
@@ -699,18 +706,18 @@ export default function BatchExtractionsPanel({
    *  (guided-workflow-phases). Requires at least one reviewed pilot
    *  Extraction — enforced server-side. */
   const stabiliseChosenSchema = async () => {
-    if (!chosenSchema || stabilisingChosenSchema) return
+    if (!chosenRevision || stabilisingChosenSchema) return
     setStabilisingChosenSchema(true)
     setStabiliseChosenSchemaError(null)
     try {
       await stabiliseSchemaRevision({
         projectContextId,
-        schemaRevisionId: chosenSchema.schemaRevisionId,
+        schemaRevisionId: chosenRevision.schemaRevisionId,
       })
       setRunFailure(null)
       setRunFailureCode(null)
       setChosenSchemaReload((value) => value + 1)
-      setStabiliseNudge(chosenSchema.schemaRevisionId)
+      setStabiliseNudge(chosenRevision.schemaRevisionId)
     } catch (error) {
       setStabiliseChosenSchemaError(
         failureText(error, 'This Schema Revision could not be stabilised.'),
@@ -845,13 +852,44 @@ export default function BatchExtractionsPanel({
   )
   // An existing schema's strategy is its saved Article/Catalog scope (the choice its editor saves next, once mounted);
   // a suggested schema's is chosen here and declared by the revision the suggestion saves.
+  // The effective Revision is the editor's acknowledged one when an edit has
+  // since appended a new Revision; that new Revision has no stabilisation, so
+  // the banner clears and the gate re-engages as soon as the edit saves.
+  // Keyed by the chosen Revision so switching schema starts fresh: an
+  // acknowledged Revision only speaks for the editor instance that saved it.
+  const chosenRevisionKey = `${projectContextId}:${schemaRevisionId}`
+  const acknowledgedForChosenRevision =
+    acknowledgedChosenRevision?.key === chosenRevisionKey
+      ? acknowledgedChosenRevision.revision
+      : null
+  const chosenRevision =
+    chosenSchema && chosenSchema.schemaRevisionId === schemaRevisionId
+      ? acknowledgedForChosenRevision &&
+        acknowledgedForChosenRevision.schemaRevisionId !== chosenSchema.schemaRevisionId
+        ? {
+            ...chosenSchema,
+            schemaRevisionId: acknowledgedForChosenRevision.schemaRevisionId,
+            revisionNumber: acknowledgedForChosenRevision.revisionNumber,
+            recordDescription: acknowledgedForChosenRevision.recordDescription,
+            recordScope: acknowledgedForChosenRevision.recordScope,
+            schemaNodes: acknowledgedForChosenRevision.schemaNodes,
+            stabilisedAt: null,
+          }
+        : chosenSchema
+      : null
   const chosenSchemaShown =
-    schemaRevisionId !== SUGGEST_SCHEMA && chosenSchema?.schemaRevisionId === schemaRevisionId
+    schemaRevisionId !== SUGGEST_SCHEMA && chosenRevision !== null
+  // "Skip the pilot" only makes sense when the collection run it leads to can
+  // actually start: the Revision is approved, or the whole project fits in a
+  // pilot. Otherwise the gate would refuse the run the button just promised.
+  const canSkipPilot =
+    chosenRevision?.stabilisedAt != null ||
+    sourceDocumentIds.length <= PILOT_BATCH_SELECTION_LIMIT
   // Only the chosen schema's own editor speaks for it (a replaced editor may still be registered for a render).
   const chosenEditor =
-    savedSchemaSnap?.extractionSchemaId === chosenSchema?.extractionSchemaId ? savedSchemaSnap : null
+    savedSchemaSnap?.extractionSchemaId === chosenRevision?.extractionSchemaId ? savedSchemaSnap : null
   const chosenRecordScope = chosenSchemaShown
-    ? chosenEditor ? chosenEditor.recordScope : chosenSchema.recordScope
+    ? chosenEditor ? chosenEditor.recordScope : chosenRevision.recordScope
     : null
   const selectedStrategy: ExtractionStrategy | null =
     schemaRevisionId === SUGGEST_SCHEMA
@@ -879,12 +917,13 @@ export default function BatchExtractionsPanel({
   // a pilot-sized selection is always runnable, but a collection-scale one
   // needs the chosen Schema Revision to already be stabilised — checked
   // client-side too so Run disables proactively instead of only failing
-  // after a round trip. Not applied to the schema-suggestion flow, which
-  // has no existing Schema Revision to check yet.
+  // after a round trip. A Schema Suggestion has no Revision yet, and the one
+  // its confirmation creates starts unstabilised, so a collection-scale
+  // suggestion is gated the same way until the researcher pilots it.
   const collectionScaleNeedsStabilisedSchema =
-    schemaRevisionId !== SUGGEST_SCHEMA &&
     selected.size > PILOT_BATCH_SELECTION_LIMIT &&
-    !(chosenSchema?.schemaRevisionId === schemaRevisionId && chosenSchema.stabilisedAt)
+    (schemaRevisionId === SUGGEST_SCHEMA ||
+      chosenRevision?.stabilisedAt == null)
   const canRun =
     validSelection &&
     !openingAnyBatch &&
@@ -1068,16 +1107,18 @@ export default function BatchExtractionsPanel({
                   catch a schema issue now than after running the whole
                   collection.
                 </p>
-                <button
-                  type="button"
-                  className="shrink-0 text-[11px] font-semibold text-accent underline decoration-dotted underline-offset-2 outline-none hover:no-underline"
-                  onClick={() => {
-                    setPreparingKind('batch')
-                    setSelected(new Set(sourceDocumentIds))
-                  }}
-                >
-                  Skip — run the full collection instead
-                </button>
+                {canSkipPilot && (
+                  <button
+                    type="button"
+                    className="shrink-0 text-[11px] font-semibold text-accent underline decoration-dotted underline-offset-2 outline-none hover:no-underline"
+                    onClick={() => {
+                      setPreparingKind('batch')
+                      setSelected(new Set(sourceDocumentIds))
+                    }}
+                  >
+                    Skip — run the full collection instead
+                  </button>
+                )}
               </div>
             )}
             {/* Chosen before the schema, not after: the pilot banner above
@@ -1146,9 +1187,9 @@ export default function BatchExtractionsPanel({
                           {alreadyReviewed.has(document.sourceDocumentId) && (
                             <span
                               className="shrink-0 rounded-full bg-green-soft px-1.5 py-0.5 text-[10px] font-semibold text-green"
-                              title="Already reviewed under this Schema Revision — this run will reuse that result instead of re-extracting it."
+                              title="This Source Document has a reviewed result under this Schema Revision. Re-running the exact same selection and method reuses it; a different selection extracts it again."
                             >
-                              Reuses reviewed result
+                              Reviewed under this Revision
                             </span>
                           )}
                         </span>
@@ -1277,20 +1318,21 @@ export default function BatchExtractionsPanel({
                 covers the way out; this only has something to add once the
                 schema is either approved or the selection has outgrown what
                 an unapproved schema is allowed to run. */}
-            {chosenSchema?.schemaRevisionId === schemaRevisionId &&
-              (chosenSchema.stabilisedAt ||
+            {chosenRevision &&
+              (chosenRevision.stabilisedAt ||
                 selected.size > PILOT_BATCH_SELECTION_LIMIT) && (
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-muted px-3 py-2">
                   <p className="text-[11px] leading-snug text-ink-muted">
-                    {chosenSchema.stabilisedAt
+                    {chosenRevision.stabilisedAt
                       ? 'This schema is approved for batch extraction — the full collection is unlocked.'
                       : `This schema isn't approved for batch extraction yet: a run over ${PILOT_BATCH_SELECTION_LIMIT} Source Documents needs an approved schema. Pilot it on ${PILOT_BATCH_SELECTION_LIMIT} or fewer documents, review the results, then approve it.`}
                   </p>
-                  {!chosenSchema.stabilisedAt && (
+                  {!chosenRevision.stabilisedAt && (
                     <Button
                       size="sm"
                       variant="secondary"
                       disabled={stabilisingChosenSchema}
+                      title={`Stabilising needs at least one reviewed pilot Batch Extraction under this Schema Revision on ${PILOT_BATCH_SELECTION_LIMIT} or fewer Source Documents.`}
                       onClick={() => void stabiliseChosenSchema()}
                     >
                       {stabilisingChosenSchema ? 'Approving…' : 'Approve for batch extraction'}
@@ -1298,22 +1340,40 @@ export default function BatchExtractionsPanel({
                   )}
                 </div>
               )}
+            {schemaRevisionId === SUGGEST_SCHEMA &&
+              selected.size > PILOT_BATCH_SELECTION_LIMIT && (
+                <div className="mb-3 rounded-md border border-line bg-surface-muted px-3 py-2">
+                  <p className="text-[11px] leading-snug text-ink-muted">
+                    These suggested fields start unstabilised, so they cannot
+                    run over {selected.size} Source Documents yet. Pilot them
+                    on {PILOT_BATCH_SELECTION_LIMIT} or fewer documents,
+                    review the results and approve the schema for batch
+                    extraction before running the full collection.
+                  </p>
+                </div>
+              )}
             {stabiliseChosenSchemaError && (
               <p className="mb-3 text-[11px] text-danger" role="alert">
                 {stabiliseChosenSchemaError}
               </p>
             )}
-            {chosenSchema?.schemaRevisionId === schemaRevisionId && (
+            {chosenRevision !== null && (
               <SavedSchemaEditor
-                key={chosenSchema.schemaRevisionId}
+                key={chosenRevision.extractionSchemaId}
                 projectContextId={projectContextId}
-                chosenSchema={chosenSchema}
+                chosenSchema={chosenRevision}
                 sourceDocumentName={
                   selectedSchema
-                    ? `${selectedSchema.name} · Schema Revision ${chosenSchema.revisionNumber}`
-                    : `Schema Revision ${chosenSchema.revisionNumber}`
+                    ? `${selectedSchema.name} · Schema Revision ${chosenRevision.revisionNumber}`
+                    : `Schema Revision ${chosenRevision.revisionNumber}`
                 }
                 registerController={setSavedSchemaController}
+                onAcknowledgedRevision={(revision) =>
+                  setAcknowledgedChosenRevision({
+                    key: chosenRevisionKey,
+                    revision,
+                  })
+                }
               />
             )}
             {schemaRevisionId === SUGGEST_SCHEMA && (
@@ -1477,11 +1537,25 @@ export default function BatchExtractionsPanel({
       {stabiliseNudge && (
         <GuidedNextStep
           title="Schema approved"
-          description="Batch Extraction is unlocked. Select all your Source Documents and run the full batch."
-          actionLabel="Run the full collection"
+          description={
+            sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT
+              ? `Batch Extraction is unlocked. Choose up to ${BATCH_EXTRACTION_SELECTION_LIMIT} Source Documents for the run.`
+              : 'Batch Extraction is unlocked. Select all your Source Documents and run the full batch.'
+          }
+          actionLabel={
+            sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT
+              ? 'Choose documents'
+              : 'Run the full collection'
+          }
           onAction={() => {
             setSchemaRevisionId(stabiliseNudge)
-            setSelected(new Set(sourceDocumentIds))
+            setSelected(
+              new Set(
+                sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT
+                  ? []
+                  : sourceDocumentIds,
+              ),
+            )
             setPreparingKind('batch')
             clearSuggestedFields()
             setRunFailure(null)
@@ -1505,11 +1579,15 @@ function SavedSchemaEditor({
   chosenSchema,
   sourceDocumentName,
   registerController,
+  onAcknowledgedRevision,
 }: {
   projectContextId: string
   chosenSchema: SchemaRevision
   sourceDocumentName: string
   registerController: (controller: SchemaEditorController | null) => void
+  /** Reports the Revision the editor last saved, so the caller's approval
+   *  banner and collection gate follow an edit's new Revision immediately. */
+  onAcknowledgedRevision?: (revision: AcknowledgedSchemaRevision) => void
 }) {
   const schema = useDurableCurrentSchemaRevision({
     projectContextId,
@@ -1521,6 +1599,14 @@ function SavedSchemaEditor({
     return () => registerController(null)
   }, [schema, registerController])
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
+  const acknowledgedRef = useRef(onAcknowledgedRevision)
+  useEffect(() => {
+    acknowledgedRef.current = onAcknowledgedRevision
+  })
+  const acknowledged = snap.save?.acknowledged
+  useEffect(() => {
+    if (acknowledged) acknowledgedRef.current?.(acknowledged)
+  }, [acknowledged])
   const failure =
     snap.save?.status === 'error'
       ? snap.save.error?.message ?? 'The schema could not be saved.'

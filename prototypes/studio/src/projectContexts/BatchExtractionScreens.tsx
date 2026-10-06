@@ -1,6 +1,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import type { ExportFormat } from 'extraction-result-export'
 import {
+  PILOT_BATCH_SELECTION_LIMIT,
   batchExtractionProgress,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
@@ -139,15 +140,10 @@ function selectionLine(batch: BatchExtraction): string {
   return `${count} Source Document${count === 1 ? '' : 's'} · ${strategy}`
 }
 
-/** The "Pilot" label's own threshold — smaller than the gate's
- *  `PILOT_BATCH_SELECTION_LIMIT` (which just caps how large a run may be
- *  without a stabilised schema). This only decides what a run is *called*
- *  in the history list, matching the 2-3 documents the pilot banner and
- *  "Pilot Extraction" button actually recommend. */
-const PILOT_LABEL_LIMIT = 3
-
 function isPilotRound(batch: BatchExtraction): boolean {
-  return batch.members.length <= PILOT_LABEL_LIMIT
+  // One limit decides what a pilot is, here as in the gate, the completion
+  // dialog and the review guidance.
+  return batch.members.length <= PILOT_BATCH_SELECTION_LIMIT
 }
 
 export function BatchExtractionHistory({
@@ -160,8 +156,8 @@ export function BatchExtractionHistory({
   if (batches.length === 0)
     return (
       <p className="py-6 text-center text-xs text-ink-muted">
-        No Batch Extractions yet. Start with "New Batch Extraction" above —
-        pick just 2-3 Source Documents for a first pilot run before
+        No Batch Extractions yet. Start with "Pilot Extraction" above — it
+        picks a small first selection so you can catch a schema issue before
         committing to the whole collection.
       </p>
     )
