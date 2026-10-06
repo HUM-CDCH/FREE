@@ -30,6 +30,8 @@ function currentSpreadsheet(
     revisionNumber: 1,
     originalFilename: 'gold.xlsx',
     columns,
+    rows: null,
+    exhaustive: true,
     createdAt: now,
     ...overrides,
   }

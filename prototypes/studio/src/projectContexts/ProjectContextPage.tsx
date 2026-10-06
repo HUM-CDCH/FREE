@@ -35,6 +35,7 @@ import { useProjectContexts } from './useProjectContexts'
 import { ProjectFeedback } from '../ProjectFeedback'
 import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import ProjectWorkflowSteps from './ProjectWorkflowSteps'
+import { EvaluationRoundsPanel } from './EvaluationRoundsPanel'
 
 export type ProjectContextPageProps = {
   projectContextId: string
@@ -921,6 +922,8 @@ export default function ProjectContextPage({
             }
           />
         )}
+
+        <EvaluationRoundsPanel projectContextId={projectContextId} />
 
         <div className="flex items-end border-b border-line">
           <div

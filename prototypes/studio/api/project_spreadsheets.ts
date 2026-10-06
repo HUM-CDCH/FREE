@@ -12,7 +12,7 @@ import {
   parseFormRequest,
   persistenceUnavailable,
 } from './_http.js'
-import { parseSpreadsheetColumns } from './_spreadsheet_schema.js'
+import { parseSpreadsheetRows } from './_spreadsheet_schema.js'
 
 const ROUTE = '/api/project-spreadsheets'
 
@@ -40,10 +40,11 @@ function projectId(url: URL): string {
 /**
  * The project's single shared spreadsheet slot: uploading appends a new
  * version (never replaces one), and `schema-suggestion`'s from-spreadsheet
- * flow (and, later, gold-standard-corpus population) reads whichever
- * version is current at the time — reused across actions rather than
- * uploaded fresh for each one (spreadsheet-schema-suggestion design.md,
- * "spreadsheet upload is the ingestion mechanism").
+ * flow reads the header names while the developer evaluation reads the answer
+ * rows — whichever version is current at the time, reused across actions
+ * rather than uploaded fresh for each one (spreadsheet-schema-suggestion
+ * design.md, "spreadsheet upload is the ingestion mechanism";
+ * iterative-extraction-evaluation design D1).
  */
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
@@ -59,13 +60,18 @@ export function createResearcherApiHandlers(
     if (!projectContextId.success)
       throw new ApiError(422, 'invalid_request', 'projectContextId is required.')
 
-    const columns = await parseSpreadsheetColumns(await file.arrayBuffer()).catch(
+    const parsed = await parseSpreadsheetRows(await file.arrayBuffer()).catch(
       (cause) => {
         throw new ApiError(400, 'invalid_request', 'The spreadsheet could not be read.', { cause })
       },
     )
     const appended = await store
-      .appendProjectSpreadsheetVersion(projectContextId.data, file.name, columns)
+      .appendProjectSpreadsheetVersion(
+        projectContextId.data,
+        file.name,
+        parsed.columns,
+        parsed.rows,
+      )
       .catch((cause) => {
         throw persistenceUnavailable(cause)
       })

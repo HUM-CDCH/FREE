@@ -1,0 +1,575 @@
+[
+  {
+    "id": "table.evaluationRound",
+    "label": "Create table \"evaluationRound\"",
+    "summary": "Creates table \"evaluationRound\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"evaluationRound\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"evaluationRound\"",
+        "sql": "CREATE TABLE \"public\".\"evaluationRound\" (\n  \"completedAt\" timestamptz(6),\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"documents\" jsonb NOT NULL,\n  \"failure\" jsonb,\n  \"id\" \"uuid\" NOT NULL,\n  \"label\" text NOT NULL,\n  \"metrics\" jsonb,\n  \"pins\" jsonb,\n  \"pipelineRunId\" \"uuid\" NOT NULL,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  \"projectSpreadsheetVersionId\" \"uuid\",\n  \"status\" text DEFAULT 'PENDING' NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"evaluationRound\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.evaluationRound.evaluationRound_projectContextId_pipelineRunId_label_key",
+    "label": "Add unique constraint on \"evaluationRound\" (projectContextId, pipelineRunId, label)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "evaluationRound_projectContextId_pipelineRunId_label_key",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"evaluationRound_projectContextId_pipelineRunId_label_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_projectContextId_pipelineRunId_label_key",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"evaluationRound_projectContextId_pipelineRunId_label_key\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRound\" ADD CONSTRAINT \"evaluationRound_projectContextId_pipelineRunId_label_key\" UNIQUE (\"projectContextId\", \"pipelineRunId\", \"label\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"evaluationRound_projectContextId_pipelineRunId_label_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_projectContextId_pipelineRunId_label_key",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_outcome_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_outcome_check\" on \"batchSchemaSuggestion\".\"outcome\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_outcome_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_outcome_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_outcome_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_outcome_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_outcome_check\" CHECK (\"outcome\" IN ('SUCCEEDED', 'FAILED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_outcome_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_outcome_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_phase_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_phase_check\" on \"batchSchemaSuggestion\".\"phase\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_phase_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_phase_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_phase_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_phase_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_phase_check\" CHECK (\"phase\" IN ('READY', 'HETEROGENEOUS'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_phase_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_phase_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_sourceKind_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_sourceKind_check\" on \"batchSchemaSuggestion\".\"sourceKind\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_sourceKind_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_sourceKind_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_sourceKind_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_sourceKind_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_sourceKind_check\" CHECK (\"sourceKind\" IN ('DOCUMENTS', 'SPREADSHEET'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_sourceKind_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_sourceKind_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.evaluationRound.evaluationRound_label_check",
+    "label": "Add check constraint \"evaluationRound_label_check\" on \"evaluationRound\".\"label\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "evaluationRound_label_check",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"evaluationRound_label_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_label_check",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"evaluationRound_label_check\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRound\" ADD CONSTRAINT \"evaluationRound_label_check\" CHECK (\"label\" IN ('PILOT_1', 'PILOT_2', 'BATCH'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"evaluationRound_label_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_label_check",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.evaluationRound.evaluationRound_status_check",
+    "label": "Add check constraint \"evaluationRound_status_check\" on \"evaluationRound\".\"status\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "evaluationRound_status_check",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"evaluationRound_status_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_status_check",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"evaluationRound_status_check\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRound\" ADD CONSTRAINT \"evaluationRound_status_check\" CHECK (\"status\" IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"evaluationRound_status_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_status_check",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.extraction.extraction_outcome_check",
+    "label": "Add check constraint \"extraction_outcome_check\" on \"extraction\".\"outcome\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "extraction_outcome_check",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_outcome_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_outcome_check",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"extraction_outcome_check\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD CONSTRAINT \"extraction_outcome_check\" CHECK (\"outcome\" IN ('SUCCEEDED', 'FAILED', 'CANCELLED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_outcome_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_outcome_check",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.schemaRevision.schemaRevision_origin_check",
+    "label": "Add check constraint \"schemaRevision_origin_check\" on \"schemaRevision\".\"origin\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "schemaRevision_origin_check",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"schemaRevision_origin_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_origin_check",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"schemaRevision_origin_check\"",
+        "sql": "ALTER TABLE \"public\".\"schemaRevision\" ADD CONSTRAINT \"schemaRevision_origin_check\" CHECK (\"origin\" IN ('SUGGESTION', 'RESEARCHER_EDIT', 'MODEL_EDIT'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"schemaRevision_origin_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_origin_check",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationRound.evaluationRound_projectContextId_createdAt_idx",
+    "label": "Create index \"evaluationRound_projectContextId_createdAt_idx\" on \"evaluationRound\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationRound_projectContextId_createdAt_idx",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationRound_projectContextId_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRound_projectContextId_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationRound_projectContextId_createdAt_idx\"",
+        "sql": "CREATE INDEX \"evaluationRound_projectContextId_createdAt_idx\" ON \"public\".\"evaluationRound\" (\"projectContextId\", \"createdAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationRound_projectContextId_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRound_projectContextId_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationRound.evaluationRound_projectSpreadsheetVersionId_idx",
+    "label": "Create index \"evaluationRound_projectSpreadsheetVersionId_idx\" on \"evaluationRound\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationRound_projectSpreadsheetVersionId_idx",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationRound_projectSpreadsheetVersionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRound_projectSpreadsheetVersionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationRound_projectSpreadsheetVersionId_idx\"",
+        "sql": "CREATE INDEX \"evaluationRound_projectSpreadsheetVersionId_idx\" ON \"public\".\"evaluationRound\" (\"projectSpreadsheetVersionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationRound_projectSpreadsheetVersionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRound_projectSpreadsheetVersionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationRound.evaluationRound_projectContextId_idx",
+    "label": "Create index \"evaluationRound_projectContextId_idx\" on \"evaluationRound\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationRound_projectContextId_idx",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationRound_projectContextId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRound_projectContextId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationRound_projectContextId_idx\"",
+        "sql": "CREATE INDEX \"evaluationRound_projectContextId_idx\" ON \"public\".\"evaluationRound\" (\"projectContextId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationRound_projectContextId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRound_projectContextId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.evaluationRound.evaluationRound_projectContextId_fkey",
+    "label": "Add foreign key \"evaluationRound_projectContextId_fkey\" on \"evaluationRound\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "evaluationRound_projectContextId_fkey",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"evaluationRound_projectContextId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_projectContextId_fkey",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"evaluationRound_projectContextId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRound\"\nADD CONSTRAINT \"evaluationRound_projectContextId_fkey\"\nFOREIGN KEY (\"projectContextId\")\nREFERENCES \"public\".\"projectContext\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"evaluationRound_projectContextId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_projectContextId_fkey",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.evaluationRound.evaluationRound_projectSpreadsheetVersionId_fkey",
+    "label": "Add foreign key \"evaluationRound_projectSpreadsheetVersionId_fkey\" on \"evaluationRound\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "evaluationRound_projectSpreadsheetVersionId_fkey",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"evaluationRound_projectSpreadsheetVersionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_projectSpreadsheetVersionId_fkey",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"evaluationRound_projectSpreadsheetVersionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRound\"\nADD CONSTRAINT \"evaluationRound_projectSpreadsheetVersionId_fkey\"\nFOREIGN KEY (\"projectSpreadsheetVersionId\")\nREFERENCES \"public\".\"projectSpreadsheetVersion\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"evaluationRound_projectSpreadsheetVersionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_projectSpreadsheetVersionId_fkey",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ]
+  }
+]

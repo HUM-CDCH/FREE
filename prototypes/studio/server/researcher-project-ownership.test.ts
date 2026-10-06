@@ -316,6 +316,10 @@ function twoAccountStoreFixture(): TwoAccountStores {
       findReprocessedSourceDocument: vi.fn(async () => null),
       reprocessSourceDocument: vi.fn(async () => null),
       researcherAccountId: accountId,
+      appendEvaluationRound: vi.fn(async () => null),
+      completeEvaluationRound: vi.fn(async () => null),
+      listEvaluationRounds: vi.fn(async () => null),
+      getEvaluationRound: vi.fn(async () => null),
       createProjectContext: vi.fn(async (name) => {
         const projectContextId =
           accountId === ids.accountA

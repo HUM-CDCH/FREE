@@ -510,6 +510,81 @@ function fakeDatabase(
   }
 }
 
+describe('ResearcherProjectStore developer evaluation rounds', () => {
+  const pipelineRunId = '51000000-0000-4000-8011-000000000001'
+
+  it('appends pending rounds, completes them, and lists newest first for the owner', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+
+    const pilot = await store.appendEvaluationRound(PROJECT, {
+      pipelineRunId,
+      label: 'PILOT_1',
+      documents: [{ sourceDocumentId: DOCUMENT, filename: 'Ellekilde.pdf' }],
+      pins: { schemaDigest: 'sha256:demo' },
+    })
+    assert.equal(pilot?.status, 'PENDING')
+    assert.equal(pilot?.label, 'PILOT_1')
+    assert.equal(pilot?.projectSpreadsheetVersionId, null)
+    assert.equal(pilot?.metrics, null)
+
+    const completed = await store.completeEvaluationRound(
+      PROJECT,
+      pilot!.evaluationRoundId,
+      { status: 'SUCCEEDED', metrics: { micro: { f1: 1 } } },
+    )
+    assert.equal(completed?.status, 'SUCCEEDED')
+    assert.deepEqual(completed?.metrics, { micro: { f1: 1 } })
+    assert.ok(completed?.completedAt instanceof Date)
+
+    await store.appendEvaluationRound(PROJECT, {
+      pipelineRunId,
+      label: 'BATCH',
+      documents: [],
+    })
+    const listed = await store.listEvaluationRounds(PROJECT, 10)
+    assert.deepEqual(listed?.map((round) => round.label), ['BATCH', 'PILOT_1'])
+
+    const read = await store.getEvaluationRound(PROJECT, pilot!.evaluationRoundId)
+    assert.equal(read?.evaluationRoundId, pilot!.evaluationRoundId)
+    assert.equal(await store.getEvaluationRound(OTHER_PROJECT, pilot!.evaluationRoundId), null)
+  })
+
+  it('answers null for a Project Context the account does not own', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_B, database as never)
+
+    assert.equal(
+      await store.appendEvaluationRound(PROJECT, {
+        pipelineRunId,
+        label: 'PILOT_1',
+        documents: [],
+      }),
+      null,
+    )
+    assert.equal(await store.listEvaluationRounds(PROJECT, 10), null)
+  })
+
+  it('appends a second run rather than overwriting the first', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const secondRunId = '51000000-0000-4000-8011-000000000002'
+
+    for (const label of ['PILOT_1', 'PILOT_2', 'BATCH'] as const) {
+      await store.appendEvaluationRound(PROJECT, { pipelineRunId, label, documents: [] })
+    }
+    await store.appendEvaluationRound(PROJECT, {
+      pipelineRunId: secondRunId,
+      label: 'PILOT_1',
+      documents: [],
+    })
+
+    const rounds = await store.listEvaluationRounds(PROJECT, 10)
+    assert.equal(rounds?.length, 4)
+    assert.equal(new Set(rounds?.map((round) => round.pipelineRunId)).size, 2)
+  })
+})
+
 describe('ResearcherProjectStore Project Context lifecycle', () => {
   it('creates a Project Context and answers its durable identity', async () => {
     const database = fakeDatabase()

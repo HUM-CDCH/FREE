@@ -44,6 +44,8 @@ describe('POST /api/project-spreadsheets', () => {
         revisionNumber: 1,
         originalFilename,
         columns,
+        rows: [],
+        exhaustive: true,
         createdAt: now,
       }),
     )
@@ -63,6 +65,7 @@ describe('POST /api/project-spreadsheets', () => {
       projectContextId,
       'gold.xlsx',
       [{ columnName: 'species' }],
+      [{ species: 'Salmon' }, { species: 'Cod' }],
     )
   })
 
@@ -106,6 +109,8 @@ describe('GET /api/project-spreadsheets', () => {
         revisionNumber: 2,
         originalFilename: 'gold-v2.xlsx',
         columns: [{ columnName: 'species', values: ['Trout'] }],
+        rows: null,
+        exhaustive: true,
         createdAt: now,
       }),
     )

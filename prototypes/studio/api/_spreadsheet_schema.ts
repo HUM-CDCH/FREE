@@ -14,6 +14,29 @@ export type SpreadsheetColumn = {
   columnName: string
 }
 
+/** The first worksheet of an uploaded workbook, or undefined for a workbook
+ *  with none. Loading never mutates the buffer. */
+async function firstWorksheet(
+  buffer: Buffer | ArrayBuffer,
+): Promise<ExcelJS.Worksheet | undefined> {
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(buffer as ArrayBuffer)
+  return workbook.worksheets[0]
+}
+
+/** The header row as ordered columns, skipping blank header cells. Shared so
+ *  the header-only and header-plus-rows readers agree on what a column is. */
+function headerColumns(
+  sheet: ExcelJS.Worksheet,
+): { index: number; column: SpreadsheetColumn }[] {
+  const headers: { index: number; column: SpreadsheetColumn }[] = []
+  sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, columnNumber) => {
+    const name = cell.text.trim()
+    if (name) headers.push({ index: columnNumber, column: { columnName: name } })
+  })
+  return headers
+}
+
 /** Reads the first worksheet of an uploaded spreadsheet: the first row is
  *  column headers. Only that header row is read — the cell values in the
  *  rows below it are never read or retained, so an upload carries column
@@ -22,17 +45,105 @@ export type SpreadsheetColumn = {
 export async function parseSpreadsheetColumns(
   buffer: Buffer | ArrayBuffer,
 ): Promise<SpreadsheetColumn[]> {
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(buffer as ArrayBuffer)
-  const sheet = workbook.worksheets[0]
-  if (!sheet) return []
+  const sheet = await firstWorksheet(buffer)
+  return sheet ? headerColumns(sheet).map((header) => header.column) : []
+}
 
-  const headers: SpreadsheetColumn[] = []
-  sheet.getRow(1).eachCell({ includeEmpty: false }, (cell) => {
-    const name = cell.text.trim()
-    if (name) headers.push({ columnName: name })
+/** One answer row, keyed by column name, with every cell as its displayed
+ *  text. A fully blank row is dropped; the file-name column stays in the row
+ *  and is removed by the caller that knows a row maps to a document. */
+export type SpreadsheetRow = Record<string, string>
+
+/** Reads the first worksheet's header row and its data rows. The header-only
+ *  `parseSpreadsheetColumns` path is unchanged: this reader exists for the
+ *  developer evaluation's gold corpus, which alone keeps the answer rows. */
+export async function parseSpreadsheetRows(
+  buffer: Buffer | ArrayBuffer,
+): Promise<{ columns: SpreadsheetColumn[]; rows: SpreadsheetRow[] }> {
+  const sheet = await firstWorksheet(buffer)
+  if (!sheet) return { columns: [], rows: [] }
+  const headers = headerColumns(sheet)
+  const columns = headers.map((header) => header.column)
+  if (headers.length === 0) return { columns, rows: [] }
+
+  const rows: SpreadsheetRow[] = []
+  sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber === 1) return
+    const record: SpreadsheetRow = {}
+    let populated = false
+    for (const header of headers) {
+      const text = row.getCell(header.index).text
+      record[header.column.columnName] = text
+      if (text.trim()) populated = true
+    }
+    if (populated) rows.push(record)
   })
-  return headers
+  return { columns, rows }
+}
+
+/** A file name's identity for matching: its base name without extension,
+ *  case-folded and whitespace-collapsed, so `sources/Beier1988 GAC.pdf` and a
+ *  Source Document named `Beier1988 GAC.pdf` resolve to the same document. */
+function documentKey(name: string): string {
+  const base = name.trim().replace(/^.*[\\/]/, '')
+  const stem = base.replace(/\.[^.]+$/, '')
+  return stem.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+export type GoldDocumentRows = {
+  sourceDocumentId: string
+  filename: string
+  /** Answer rows for this document, in sheet order, without the file-name
+   *  column, which identifies the document rather than becoming a field. */
+  rows: SpreadsheetRow[]
+}
+
+export type UnmatchedGoldRow = {
+  /** The row's file-name cell as written, or empty when the cell is blank. */
+  filename: string
+  /** The Project Context's Source Document names, for a corrective message. */
+  known: string[]
+}
+
+export type GoldRowMapping =
+  | { ok: true; documents: GoldDocumentRows[]; unmatched: UnmatchedGoldRow[] }
+  | { ok: false; reason: 'filename_column_missing' }
+
+/** Groups parsed answer rows by the Source Document their file-name cell
+ *  names. Returns every row that matches no document with the known names;
+ *  several rows for one document stay together in sheet order. */
+export function mapGoldRows(
+  parsed: { columns: readonly SpreadsheetColumn[]; rows: readonly SpreadsheetRow[] },
+  documents: readonly { sourceDocumentId: string; filename: string }[],
+): GoldRowMapping {
+  const filenameColumn = parsed.columns.find((column) =>
+    isGoldFilenameColumn(column.columnName),
+  )
+  if (!filenameColumn) return { ok: false, reason: 'filename_column_missing' }
+
+  const byKey = new Map(documents.map((document) => [documentKey(document.filename), document]))
+  const known = documents.map((document) => document.filename)
+  const groups = new Map<string, GoldDocumentRows>()
+  const unmatched: UnmatchedGoldRow[] = []
+  for (const row of parsed.rows) {
+    const filename = (row[filenameColumn.columnName] ?? '').trim()
+    const document = filename ? byKey.get(documentKey(filename)) : undefined
+    if (!document) {
+      unmatched.push({ filename, known })
+      continue
+    }
+    const answers = Object.fromEntries(
+      Object.entries(row).filter(([name]) => !isGoldFilenameColumn(name)),
+    )
+    const group = groups.get(document.sourceDocumentId) ?? {
+      sourceDocumentId: document.sourceDocumentId,
+      filename: document.filename,
+      rows: [],
+    }
+    group.rows.push(answers)
+    groups.set(document.sourceDocumentId, group)
+  }
+  return { ok: true, documents: [...groups.values()], unmatched }
 }
 
 export type SpreadsheetTemplateResult =

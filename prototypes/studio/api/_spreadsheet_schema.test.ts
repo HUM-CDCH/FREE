@@ -4,7 +4,9 @@ import { templateToNodes } from 'extraction/schema'
 import {
   buildSpreadsheetTemplate,
   columnFieldIds,
+  mapGoldRows,
   parseSpreadsheetColumns,
+  parseSpreadsheetRows,
 } from './_spreadsheet_schema.js'
 
 describe('parseSpreadsheetColumns', () => {
@@ -43,6 +45,114 @@ describe('parseSpreadsheetColumns', () => {
     workbook.addWorksheet('Sheet1')
     const buffer = await workbook.xlsx.writeBuffer()
     expect(await parseSpreadsheetColumns(buffer as unknown as ArrayBuffer)).toEqual([])
+  })
+})
+
+describe('parseSpreadsheetRows', () => {
+  it('keeps the header and each non-blank data row keyed by column name', async () => {
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.addRow(['filename', 'species', 'temperature'])
+    sheet.addRow(['doc1.pdf', 'Salmon', 4.2])
+    sheet.addRow(['doc1.pdf', 'Cod', null])
+    sheet.addRow([null, null, null])
+    const buffer = await workbook.xlsx.writeBuffer()
+
+    const parsed = await parseSpreadsheetRows(buffer as unknown as ArrayBuffer)
+
+    expect(parsed.columns).toEqual([
+      { columnName: 'filename' },
+      { columnName: 'species' },
+      { columnName: 'temperature' },
+    ])
+    expect(parsed.rows).toEqual([
+      { filename: 'doc1.pdf', species: 'Salmon', temperature: '4.2' },
+      { filename: 'doc1.pdf', species: 'Cod', temperature: '' },
+    ])
+  })
+
+  it('returns no rows when the workbook has no header row', async () => {
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.addRow([null, null])
+    sheet.addRow(['ignored', 'ignored'])
+    const buffer = await workbook.xlsx.writeBuffer()
+
+    expect(await parseSpreadsheetRows(buffer as unknown as ArrayBuffer)).toEqual({
+      columns: [],
+      rows: [],
+    })
+  })
+
+  it('returns nothing for a worksheet with no rows', async () => {
+    const workbook = new ExcelJS.Workbook()
+    workbook.addWorksheet('Sheet1')
+    const buffer = await workbook.xlsx.writeBuffer()
+    expect(await parseSpreadsheetRows(buffer as unknown as ArrayBuffer)).toEqual({
+      columns: [],
+      rows: [],
+    })
+  })
+})
+
+describe('mapGoldRows', () => {
+  const documents = [
+    { sourceDocumentId: 'doc-a', filename: 'Beier1988 GAC.pdf' },
+    { sourceDocumentId: 'doc-b', filename: 'Harvey 1990.pdf' },
+  ]
+
+  it('groups rows by matched document and reports the unmatched ones', () => {
+    const parsed = {
+      columns: [{ columnName: 'filename' }, { columnName: 'species' }],
+      rows: [
+        { filename: 'sources/Beier1988 GAC.pdf', species: 'Salmon' },
+        { filename: 'beier1988 gac', species: 'Cod' },
+        { filename: 'Harvey 1990.pdf', species: 'Trout' },
+        { filename: 'Unknown.pdf', species: 'Pike' },
+      ],
+    }
+
+    expect(mapGoldRows(parsed, documents)).toEqual({
+      ok: true,
+      documents: [
+        {
+          sourceDocumentId: 'doc-a',
+          filename: 'Beier1988 GAC.pdf',
+          rows: [{ species: 'Salmon' }, { species: 'Cod' }],
+        },
+        {
+          sourceDocumentId: 'doc-b',
+          filename: 'Harvey 1990.pdf',
+          rows: [{ species: 'Trout' }],
+        },
+      ],
+      unmatched: [
+        { filename: 'Unknown.pdf', known: ['Beier1988 GAC.pdf', 'Harvey 1990.pdf'] },
+      ],
+    })
+  })
+
+  it('reports a blank file-name cell as unmatched rather than mapping it', () => {
+    const parsed = {
+      columns: [{ columnName: 'filename' }, { columnName: 'species' }],
+      rows: [{ filename: '', species: 'Salmon' }],
+    }
+    expect(mapGoldRows(parsed, documents)).toEqual({
+      ok: true,
+      documents: [],
+      unmatched: [{ filename: '', known: ['Beier1988 GAC.pdf', 'Harvey 1990.pdf'] }],
+    })
+  })
+
+  it('reports a missing file-name column instead of mapping every row', () => {
+    const parsed = {
+      columns: [{ columnName: 'species' }],
+      rows: [{ species: 'Salmon' }],
+    }
+    expect(mapGoldRows(parsed, documents)).toEqual({
+      ok: false,
+      reason: 'filename_column_missing',
+    })
   })
 })
 

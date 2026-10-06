@@ -417,3 +417,60 @@ the named `providers`; it never starts a service, supplies credentials or
 touches PostgreSQL. Each cell's model calls are captured under the output, so an
 interrupted run resumes from the exact saved requests and the full phase only
 extracts the documents the pilot did not.
+
+### The fixed three-round pipeline
+
+`python -m experiments.extraction.iterative_eval pipeline CONFIG.json` runs the
+fixed developer loop the evaluation surface drives:
+
+1. `PILOT_1` extracts the first two documents in upload order, or the pair named
+   by `pilot_documents`.
+2. `PILOT_2` extracts the same two documents with `PILOT_1`'s shadow-review
+   differences carried as patterns-only guidance.
+3. `BATCH` extracts every document with `PILOT_2`'s differences as guidance.
+
+Each round writes `rounds/<label>/{metrics.json,report.md,status.json}` beside
+its resumable cells, and the manifest pins the schema, options, gold digests and
+the guidance digest each round used. Rounds run in order and a failed round is
+recorded rather than lost; completed cells are reused on resume, so an
+interrupted run continues where it stopped. Guidance is applied by the harness's
+own field-role wrapper (`GuidanceChat`); it never enters a durable admission or
+a product fingerprint.
+
+Metrics per round: micro, macro and per-field precision, recall and F1; presence
+and exact-cell accuracy; evidence-anchor coverage (the share of populated,
+grounding-eligible record leaves carrying a locatable anchor — coverage, not
+semantic correctness); and shadow-reviewer effort (`edited + rejected + added +
+deleted`, each count reported). Catalog records align to gold rows one-to-one
+and mutually by the record-identity field (`identity`, defaulting to
+`amino_acid_hydroxyproline_value` when present and to the first field
+otherwise); unmatched records are reported, never counted as correct. The
+`exhaustive` flag (default true) decides whether a prediction with no gold
+counterpart is a false positive or an unscored extra.
+
+### Running the watcher on a developer deployment
+
+The Spark deployment runs the evaluator as a profile-gated Compose service, so
+the production stack starts nothing extra unless an operator asks for it:
+
+```sh
+docker compose --profile eval up -d eval_watcher
+```
+
+The watcher polls every `FREE_EVAL_INTERVAL` seconds for a Project Context that
+has both a current `projectSpreadsheetVersion` with rows and at least one Source
+Document whose canonical run is on the host. It builds the Extraction Schema
+from the gold header columns (`FREE_EVAL_STRATEGY=article` by default), writes
+the stored gold rows back to a workbook, runs the fixed pipeline, and records one
+`EvaluationRound` per round — `PENDING` before the run, then `SUCCEEDED` or
+`FAILED` with its metrics and pins. A gold version that already has rounds is
+skipped, so restarting the watcher does not duplicate work, and a new gold
+upload is a new version evaluated on its own.
+
+Model endpoints default to the deployment's extraction server
+(`KEI_EXTRACT_URL`/`KEI_EXTRACT_MODEL`); `FREE_EVAL_FIELDS_URL`/`_MODEL` and
+`FREE_EVAL_REASONING_URL`/`_MODEL` point one role at a separate server. The
+watcher image is `Dockerfile.eval-watcher`: the parsing service plus its dev
+dependencies and the `experiments/` harness. The production image is untouched,
+no evaluation route is added to the Parsing Service, and Studio only reads the
+recorded rounds.

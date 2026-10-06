@@ -695,10 +695,72 @@ export type ProjectSpreadsheetVersionRecord = {
   projectContextId: string
   revisionNumber: number
   originalFilename: string
-  /** `SpreadsheetColumn[]`-shaped JSON: `{ columnName }[]` — header names
-   *  only; the upload never reads the rows below the header. */
+  /** `SpreadsheetColumn[]`-shaped JSON: `{ columnName }[]` — the header names
+   *  schema suggestion reads. */
   columns: unknown
+  /** `SpreadsheetRow[]`-shaped JSON: `{ [columnName]: string }[]` — the answer
+   *  rows the developer evaluation reads; null on versions uploaded before
+   *  rows were kept. */
+  rows: unknown
+  /** Whether the answers cover every scored document; an unmatched prediction
+   *  is a false positive when true and an unscored extra when false. */
+  exhaustive: boolean
   createdAt: Date
+}
+
+/** One developer-evaluation round's label: the two pilots and the batch. */
+export type EvaluationRoundLabel = 'PILOT_1' | 'PILOT_2' | 'BATCH'
+export type EvaluationRoundStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+
+/** One appended developer-evaluation round. The pipeline appends three per run
+ *  and never edits a finished one; `metrics` is the immutable result. */
+export type EvaluationRoundRecord = {
+  evaluationRoundId: string
+  projectContextId: string
+  projectSpreadsheetVersionId: string | null
+  pipelineRunId: string
+  label: EvaluationRoundLabel
+  status: EvaluationRoundStatus
+  documents: unknown
+  /** Schema, method, source-revision and read-cut pins the round used. */
+  pins: unknown
+  /** Value precision/recall/F1, evidence-anchor coverage and shadow effort. */
+  metrics: unknown
+  failure: unknown
+  createdAt: Date
+  completedAt: Date | null
+}
+
+type StoredEvaluationRound = {
+  id: string
+  projectContextId: string
+  projectSpreadsheetVersionId: string | null
+  pipelineRunId: string
+  label: EvaluationRoundLabel
+  status: EvaluationRoundStatus
+  documents: unknown
+  pins: unknown
+  metrics: unknown
+  failure: unknown
+  createdAt: Date
+  completedAt: Date | null
+}
+
+function evaluationRoundRecord(row: StoredEvaluationRound): EvaluationRoundRecord {
+  return {
+    evaluationRoundId: row.id,
+    projectContextId: row.projectContextId,
+    projectSpreadsheetVersionId: row.projectSpreadsheetVersionId,
+    pipelineRunId: row.pipelineRunId,
+    label: row.label,
+    status: row.status,
+    documents: row.documents,
+    pins: row.pins ?? null,
+    metrics: row.metrics ?? null,
+    failure: row.failure ?? null,
+    createdAt: row.createdAt,
+    completedAt: row.completedAt ?? null,
+  }
 }
 
 /** A field the researcher flagged as problematic on a Schema Revision. */
@@ -942,11 +1004,46 @@ export type ResearcherProjectStore = {
     originalFilename: string,
     /** `SpreadsheetColumn[]`-shaped JSON value. */
     columns: unknown,
+    /** `SpreadsheetRow[]`-shaped JSON value; null for a version that carries
+     *  headers alone. */
+    rows: unknown,
+    /** Defaults to true: an uploaded standard-answer sheet is exhaustive. */
+    exhaustive?: boolean,
   ): Promise<ProjectSpreadsheetVersionRecord | null>
   /** The most recently appended spreadsheet version for this project, or null when none has been uploaded. */
   getCurrentProjectSpreadsheet(
     projectContextId: string,
   ): Promise<ProjectSpreadsheetVersionRecord | null>
+  /** Appends one developer-evaluation round (PENDING); null when the account
+   *  does not own the Project Context. */
+  appendEvaluationRound(
+    projectContextId: string,
+    input: {
+      pipelineRunId: string
+      label: EvaluationRoundLabel
+      documents: unknown
+      projectSpreadsheetVersionId?: string | null
+      pins?: unknown
+    },
+  ): Promise<EvaluationRoundRecord | null>
+  /** Marks one round terminal; null when the account does not own the Project
+   *  Context or the round does not exist in it. */
+  completeEvaluationRound(
+    projectContextId: string,
+    evaluationRoundId: string,
+    result: { status: 'SUCCEEDED' | 'FAILED'; metrics?: unknown; failure?: unknown },
+  ): Promise<EvaluationRoundRecord | null>
+  /** The Project Context's evaluation rounds, newest first; null when the
+   *  account does not own it. */
+  listEvaluationRounds(
+    projectContextId: string,
+    limit: number,
+  ): Promise<EvaluationRoundRecord[] | null>
+  /** One round of an owned Project Context, or null. */
+  getEvaluationRound(
+    projectContextId: string,
+    evaluationRoundId: string,
+  ): Promise<EvaluationRoundRecord | null>
   /** Refuses (`'has_extractions'`) rather than cascading through an Extraction Schema's Schema Revisions when any of
    *  them has an Extraction — the cascade would silently delete Extraction rows with the schema. `force` skips that
    *  check, for a researcher who has explicitly confirmed they want the Extractions gone too. */
@@ -2055,7 +2152,7 @@ export function createResearcherProjectStore(
       return { status: 'created' as const, suggestion }
     },
     /** Appends a new version to the project's one shared spreadsheet slot; never replaces a prior version. */
-    async appendProjectSpreadsheetVersion(projectContextId, originalFilename, columns) {
+    async appendProjectSpreadsheetVersion(projectContextId, originalFilename, columns, rows, exhaustive = true) {
       if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
         return null
       return database.transaction(async ({ orm }) => {
@@ -2071,6 +2168,8 @@ export function createResearcherProjectStore(
           revisionNumber,
           originalFilename,
           columns,
+          rows,
+          exhaustive,
         })
         return {
           projectSpreadsheetVersionId: created.id,
@@ -2078,6 +2177,8 @@ export function createResearcherProjectStore(
           revisionNumber,
           originalFilename,
           columns,
+          rows,
+          exhaustive,
           createdAt: created.createdAt,
         }
       })
@@ -2088,7 +2189,7 @@ export function createResearcherProjectStore(
       const row = await database.orm.public.ProjectSpreadsheetVersion.where({
         projectContextId,
       })
-        .select('id', 'revisionNumber', 'originalFilename', 'columns', 'createdAt')
+        .select('id', 'revisionNumber', 'originalFilename', 'columns', 'rows', 'exhaustive', 'createdAt')
         .orderBy((version) => version.revisionNumber.desc())
         .first()
       if (!row) return null
@@ -2098,8 +2199,87 @@ export function createResearcherProjectStore(
         revisionNumber: row.revisionNumber,
         originalFilename: row.originalFilename,
         columns: row.columns,
+        rows: row.rows,
+        exhaustive: row.exhaustive,
         createdAt: row.createdAt,
       }
+    },
+    async appendEvaluationRound(projectContextId, input) {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
+        return null
+      const created = await database.orm.public.EvaluationRound.create({
+        projectContextId,
+        projectSpreadsheetVersionId: input.projectSpreadsheetVersionId ?? null,
+        pipelineRunId: input.pipelineRunId,
+        label: input.label,
+        status: 'PENDING',
+        documents: input.documents,
+        pins: input.pins ?? null,
+      })
+      return evaluationRoundRecord(created as StoredEvaluationRound)
+    },
+    async completeEvaluationRound(projectContextId, evaluationRoundId, result) {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
+        return null
+      const row = await database.orm.public.EvaluationRound.where({
+        id: evaluationRoundId,
+        projectContextId,
+      }).update({
+        status: result.status,
+        metrics: result.metrics ?? null,
+        failure: result.failure ?? null,
+        completedAt: new Date(),
+      })
+      return row ? evaluationRoundRecord(row as StoredEvaluationRound) : null
+    },
+    async listEvaluationRounds(projectContextId, limit) {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
+        return null
+      const rows = await database.orm.public.EvaluationRound.where({
+        projectContextId,
+      })
+        .select(
+          'id',
+          'projectContextId',
+          'projectSpreadsheetVersionId',
+          'pipelineRunId',
+          'label',
+          'status',
+          'documents',
+          'pins',
+          'metrics',
+          'failure',
+          'createdAt',
+          'completedAt',
+        )
+        .orderBy((round) => round.createdAt.desc())
+        .take(limit)
+        .all()
+      return rows.map((row) => evaluationRoundRecord(row as StoredEvaluationRound))
+    },
+    async getEvaluationRound(projectContextId, evaluationRoundId) {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId)))
+        return null
+      const row = await database.orm.public.EvaluationRound.where({
+        id: evaluationRoundId,
+        projectContextId,
+      })
+        .select(
+          'id',
+          'projectContextId',
+          'projectSpreadsheetVersionId',
+          'pipelineRunId',
+          'label',
+          'status',
+          'documents',
+          'pins',
+          'metrics',
+          'failure',
+          'createdAt',
+          'completedAt',
+        )
+        .first()
+      return row ? evaluationRoundRecord(row as StoredEvaluationRound) : null
     },
     async getBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
       if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId))) return null

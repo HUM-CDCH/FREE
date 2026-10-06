@@ -93,6 +93,43 @@ services:
       - parsing-models:/models
       - source-inbox:/app/source-inbox:ro
 
+  # Developer-only evaluation watcher. Opt in explicitly with
+  # `docker compose --profile eval up eval_watcher`; never started otherwise.
+  # It polls Project Contexts that have stored gold rows and an ingested
+  # document, runs the fixed pilot/pilot/batch pipeline over the parsing runs,
+  # and records EvaluationRound rows for the read-only Studio panel.
+  eval_watcher:
+    build:
+      context: prototypes/parsing_service
+      dockerfile: Dockerfile.eval-watcher
+    profiles: ["eval"]
+    init: true
+    environment:
+      # The application principal, the same one Studio migrates with: the
+      # watcher reads projects and writes only evaluationRound.
+      DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:-postgres}@db:5432/free"
+      KEI_RUNS: /app/runs
+      KEI_EXTRACT_URL: "${KEI_EXTRACT_URL:-http://extraction_model:8000/v1/chat/completions}"
+      KEI_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+      FREE_EVAL_FIELDS_URL: "${FREE_EVAL_FIELDS_URL:-}"
+      FREE_EVAL_FIELDS_MODEL: "${FREE_EVAL_FIELDS_MODEL:-}"
+      FREE_EVAL_REASONING_URL: "${FREE_EVAL_REASONING_URL:-}"
+      FREE_EVAL_REASONING_MODEL: "${FREE_EVAL_REASONING_MODEL:-}"
+      FREE_EVAL_ROOT: /app/eval-out
+      FREE_EVAL_STRATEGY: "${FREE_EVAL_STRATEGY:-article}"
+      FREE_EVAL_INTERVAL: "${FREE_EVAL_INTERVAL:-60}"
+      FREE_DEVELOPER_EVAL: "1"
+      HF_HOME: /models/huggingface
+    volumes:
+      - parsing-runs:/app/runs
+      - parsing-models:/models
+      - eval-out:/app/eval-out
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app
+
   studio:
     build:
       context: .
@@ -182,6 +219,7 @@ volumes:
   postgres-data:
   parsing-runs:
   parsing-models:
+  eval-out:
   studio-data:
   studio-config:
   studio-claude:

@@ -20,213 +20,223 @@ model ResearcherAccount {
 // Durable control and immutable call/review history belong to each Extraction.
 namespace extraction_runtime {
   model Protocol {
-    id Int @id
+    id      Int @id
     version Int
   }
 
   model Head {
-    id Uuid @id
-    projectId Uuid
-    sourceRevisionId Uuid
-    sourcePin Json
-    strategy String
-    selectionId Uuid
+    id                 Uuid                @id
+    projectId          Uuid
+    sourceRevisionId   Uuid
+    sourcePin          Json
+    strategy           String
+    selectionId        Uuid
     pendingSelectionId Uuid?
-    intent String
-    controlVersion Int
-    pendingResume Boolean
-    acknowledgement String
-    attemptId Uuid?
-    fence Int
-    leaseEpoch Int
-    leaseOwner Uuid?
-    leaseUntil Timestamptz6?
-    generation Int
-    snapshotVersion Int
-    deleted Boolean
-    selections Selection[]
-    attempts Attempt[]
-    commands Command[]
-    plans Plan[]
-    captures Capture[]
-    snapshots Snapshot[]
-    references ArtifactReference[]
-    finalizations Finalization[]
+    intent             String
+    controlVersion     Int
+    pendingResume      Boolean
+    acknowledgement    String
+    attemptId          Uuid?
+    fence              Int
+    leaseEpoch         Int
+    leaseOwner         Uuid?
+    leaseUntil         Timestamptz6?
+    generation         Int
+    snapshotVersion    Int
+    deleted            Boolean
+    selections         Selection[]
+    attempts           Attempt[]
+    commands           Command[]
+    plans              Plan[]
+    captures           Capture[]
+    snapshots          Snapshot[]
+    references         ArtifactReference[]
+    finalizations      Finalization[]
+
     @@index([projectId])
   }
 
   model Selection {
-    id Uuid @id
-    extractionId Uuid
-    ordinal Int
+    id               Uuid         @id
+    extractionId     Uuid
+    ordinal          Int
     schemaRevisionId Uuid
-    schemaHash String
-    schemaTree Json
-    method Json
-    resolved Json
-    digest String
-    createdAt Timestamptz6 @default(now())
-    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
-    effective Effective?
+    schemaHash       String
+    schemaTree       Json
+    method           Json
+    resolved         Json
+    digest           String
+    createdAt        Timestamptz6 @default(now())
+    head             Head         @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+    effective        Effective?
+
     @@unique([extractionId, ordinal])
     @@unique([id, extractionId])
   }
 
   model Effective {
-    id Uuid @id
+    id            Uuid      @id
     configuration Json
-    digest String
-    selection Selection @relation(fields: [id], references: [id], onDelete: Cascade)
+    digest        String
+    selection     Selection @relation(fields:[id], references:[id], onDelete: Cascade)
   }
 
   model Finalization {
-    id Uuid @id
-    extractionId Uuid
+    id              Uuid         @id
+    extractionId    Uuid
     snapshotVersion Int
     feedbackVersion Int
-    decisionDigest String
-    createdAt Timestamptz6 @default(now())
-    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    decisionDigest  String
+    createdAt       Timestamptz6 @default(now())
+    head            Head         @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+
     @@unique([extractionId, snapshotVersion, feedbackVersion])
   }
 
   model Attempt {
-    id Uuid @id
+    id           Uuid         @id
     extractionId Uuid
-    selectionId Uuid
-    fence Int
-    workflowId String @unique
-    outcome String?
-    failure Json?
-    createdAt Timestamptz6 @default(now())
-    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
-    dispatch Dispatch?
+    selectionId  Uuid
+    fence        Int
+    workflowId   String       @unique
+    outcome      String?
+    failure      Json?
+    createdAt    Timestamptz6 @default(now())
+    head         Head         @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+    dispatch     Dispatch?
+
     @@unique([extractionId, fence])
   }
 
   model Dispatch {
-    id Uuid @id
-    workflowId String @unique
-    received Boolean
-    attempt Attempt @relation(fields: [id], references: [id], onDelete: Cascade)
+    id         Uuid    @id
+    workflowId String  @unique
+    received   Boolean
+    attempt    Attempt @relation(fields:[id], references:[id], onDelete: Cascade)
   }
 
   model Command {
-    id Uuid @id
+    id           Uuid @id
     extractionId Uuid
-    payload Json
-    response Json
-    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    payload      Json
+    response     Json
+    head         Head @relation(fields:[extractionId], references:[id], onDelete: Cascade)
   }
 
   model Plan {
-    id Uuid @id
+    id           Uuid   @id
     extractionId Uuid
-    generation Int
-    stage String
-    digest String
-    manifest Json
-    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    generation   Int
+    stage        String
+    digest       String
+    manifest     Json
+    head         Head   @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+
     @@unique([extractionId, generation, stage])
   }
 
   model Capture {
-    id Uuid @id
-    extractionId Uuid
-    generation Int
-    unitKey String
-    selectionId Uuid
-    originalAttemptId Uuid
-    feedbackVersion Int
-    candidates Json
-    descriptor Json
+    id                   Uuid          @id
+    extractionId         Uuid
+    generation           Int
+    unitKey              String
+    selectionId          Uuid
+    originalAttemptId    Uuid
+    feedbackVersion      Int
+    candidates           Json
+    descriptor           Json
     reservationAttemptId Uuid
-    reservationEpoch Int
-    inFlight Boolean
-    invoked Boolean
-    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
-    input Input?
-    checkpoint Checkpoint?
-    failures CallFailure[]
+    reservationEpoch     Int
+    inFlight             Boolean
+    invoked              Boolean
+    head                 Head          @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+    input                Input?
+    checkpoint           Checkpoint?
+    failures             CallFailure[]
+
     @@unique([extractionId, generation, unitKey])
   }
 
   model Input {
-    id Uuid @id
-    digest String
+    id      Uuid    @id
+    digest  String
     request Json
-    capture Capture @relation(fields: [id], references: [id], onDelete: Cascade)
+    capture Capture @relation(fields:[id], references:[id], onDelete: Cascade)
   }
 
   model Checkpoint {
-    id Uuid @id
-    inputDigest String
+    id           Uuid    @id
+    inputDigest  String
     outputDigest String
-    output Json
-    capture Capture @relation(fields: [id], references: [id], onDelete: Cascade)
+    output       Json
+    capture      Capture @relation(fields:[id], references:[id], onDelete: Cascade)
   }
 
   // Failed returned replies remain diagnostic history. Only the same attempt
   // replays them; an authorized Retry invokes the existing Input unchanged.
   model CallFailure {
-    captureId Uuid
-    attemptId Uuid
-    inputDigest String
+    captureId    Uuid
+    attemptId    Uuid
+    inputDigest  String
     outputDigest String
-    output Json
+    output       Json
     // A bounded planner fallback may consume this reply within its attempt.
     // Historical failures keep their existing terminal policy.
-    recoverable Boolean @default(false)
-    capture Capture @relation(fields: [captureId], references: [id], onDelete: Cascade)
+    recoverable  Boolean @default(false)
+    capture      Capture @relation(fields:[captureId], references:[id], onDelete: Cascade)
+
     @@id([captureId, attemptId])
   }
 
   model Snapshot {
-    id Uuid @id
+    id           Uuid   @id
     extractionId Uuid
-    version Int
-    selectionId Uuid
-    digest String
-    values Json
-    coverage Json
-    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    version      Int
+    selectionId  Uuid
+    digest       String
+    values       Json
+    coverage     Json
+    head         Head   @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+
     @@unique([extractionId, version])
   }
 
   // The row lock on this head orders committed correction publications and
   // capture admissions. Sequence allocation or timestamps cannot do that.
   model FeedbackHead {
-    id Uuid @id
-    version Int
+    id          Uuid         @id
+    version     Int
     corrections Correction[]
   }
 
   model Correction {
-    id Uuid @id
-    projectId Uuid
-    extractionId Uuid
-    valueId String
-    revision Int
+    id              Uuid         @id
+    projectId       Uuid
+    extractionId    Uuid
+    valueId         String
+    revision        Int
     feedbackVersion Int
     snapshotVersion Int
-    selectionId Uuid
-    decision Json
-    candidate Json
-    included Boolean
-    createdAt Timestamptz6 @default(now())
-    feedback FeedbackHead @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    selectionId     Uuid
+    decision        Json
+    candidate       Json
+    included        Boolean
+    createdAt       Timestamptz6 @default(now())
+    feedback        FeedbackHead @relation(fields:[projectId], references:[id], onDelete: Cascade)
+
     @@unique([extractionId, valueId, revision])
     @@index([projectId, feedbackVersion])
   }
 
   model ArtifactReference {
-    id Uuid @id
+    id           Uuid   @id
     extractionId Uuid
-    reference String
-    digest String
-    generation String
-    kind String
-    head Head @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+    reference    String
+    digest       String
+    generation   String
+    kind         String
+    head         Head   @relation(fields:[extractionId], references:[id], onDelete: Cascade)
+
     @@index([reference])
   }
 }
@@ -269,6 +279,19 @@ enum SuggestionAttemptOutcome {
   FAILED
 }
 
+enum EvaluationRoundLabel {
+  PILOT_1
+  PILOT_2
+  BATCH
+}
+
+enum EvaluationRoundStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 model ProjectContext {
   researcherAccountId        Uuid
   id                         Uuid                        @id @default(uuid())
@@ -280,6 +303,7 @@ model ProjectContext {
   batchExtractions           BatchExtraction[]
   batchSchemaSuggestions     BatchSchemaSuggestion[]
   projectSpreadsheetVersions ProjectSpreadsheetVersion[]
+  evaluationRounds           EvaluationRound[]
 
   @@index([researcherAccountId])
 }
@@ -288,18 +312,51 @@ model ProjectContext {
 // new immutable version rather than replacing one, mirroring SchemaRevision.
 // A project shares this one spreadsheet across every schema-suggestion action
 // that wants it, instead of each action carrying its own one-off upload.
+// `columns` is the header row schema suggestion reads; `rows` is the answer
+// data the developer evaluation reads (null on versions uploaded before rows
+// were kept). `exhaustive` says whether the answers cover every scored
+// document, which decides whether an unmatched prediction is a false positive.
 model ProjectSpreadsheetVersion {
   id                     Uuid                    @id @default(uuid())
   projectContextId       Uuid
   revisionNumber         Int
   originalFilename       String
   columns                Json
+  rows                   Json?
+  exhaustive             Boolean                 @default(true)
   createdAt              Timestamptz6            @default(now())
   projectContext         ProjectContext          @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
   batchSchemaSuggestions BatchSchemaSuggestion[]
+  evaluationRounds       EvaluationRound[]
 
   @@unique([projectContextId, revisionNumber])
   @@index([projectContextId, createdAt])
+}
+
+// One developer-evaluation round: pilot-1 and pilot-2 over the same two
+// documents, then a batch over every uploaded document. The pipeline appends
+// three rows per run and never edits a finished one; `metrics` is the immutable
+// result the developer surface reads. Developer-only: the researcher product
+// never reads this model.
+model EvaluationRound {
+  id                          Uuid                       @id @default(uuid())
+  projectContextId            Uuid
+  projectSpreadsheetVersionId Uuid?
+  pipelineRunId               Uuid
+  label                       EvaluationRoundLabel
+  status                      EvaluationRoundStatus      @default(PENDING)
+  documents                   Json
+  pins                        Json?
+  metrics                     Json?
+  failure                     Json?
+  createdAt                   Timestamptz6               @default(now())
+  completedAt                 Timestamptz6?
+  projectContext              ProjectContext             @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
+  projectSpreadsheetVersion   ProjectSpreadsheetVersion? @relation(fields:[projectSpreadsheetVersionId], references:[id], onDelete: Restrict)
+
+  @@unique([projectContextId, pipelineRunId, label])
+  @@index([projectContextId, createdAt])
+  @@index([projectSpreadsheetVersionId])
 }
 
 model SourceDocument {
