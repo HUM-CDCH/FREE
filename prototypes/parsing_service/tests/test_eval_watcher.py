@@ -1,6 +1,8 @@
 """The developer evaluation watcher's pure decisions: gold columns -> schema, workbook, config."""
 from __future__ import annotations
 
+import json
+import uuid
 from pathlib import Path
 
 import pytest
@@ -73,6 +75,12 @@ def test_write_gold_workbook_strips_xml_illegal_characters(tmp_path: Path) -> No
     )
     gold = iterative_eval.load_gold(path)
     assert gold["documents"]["a"][0]["sample_name"] == ["collagen dissolved"]
+
+
+def test_json_dumps_serializes_uuids_as_strings() -> None:
+    identifier = uuid.uuid4()
+    payload = json.loads(eval_watcher._json_dumps({"sourceDocumentId": identifier}))
+    assert payload["sourceDocumentId"] == str(identifier)
 
 
 def test_pipeline_config_carries_runs_identity_and_exhaustiveness(tmp_path: Path) -> None:

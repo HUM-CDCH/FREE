@@ -31,6 +31,18 @@ def _cell_value(value):
     return _ILLEGAL_XML.sub(" ", value) if isinstance(value, str) else value
 
 
+def _json_dumps(value) -> str:
+    """JSON for a jsonb column: psycopg returns uuid and other DB-native values
+    as Python objects, so they become strings instead of failing serialization."""
+    return json.dumps(value, default=str, ensure_ascii=False)
+
+
+def _jsonb(value):
+    from psycopg.types.json import Jsonb
+
+    return Jsonb(value, dumps=_json_dumps)
+
+
 def _is_filename(column_name: str) -> bool:
     return column_name.strip().lower() == FILENAME_COLUMN
 
@@ -188,7 +200,7 @@ def _host_run_directories(documents) -> tuple[list[str], list[dict]]:
         if directory is None:
             continue
         directories.append(str(directory))
-        pinned.append({"sourceDocumentId": document["document_id"],
+        pinned.append({"sourceDocumentId": str(document["document_id"]),
                        "filename": document["original_name"] or run_id})
     return directories, pinned
 
@@ -198,8 +210,6 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
     """Run the fixed pipeline for one ready Project Context and record its three
     rounds. Rows start PENDING and end SUCCEEDED or FAILED, so an interrupted
     watcher leaves a visible PENDING marker instead of silence."""
-    from psycopg.types.json import Jsonb
-
     from .iterative_eval import run_pipeline
 
     work = eval_root / str(project["project_id"]) / str(project["version_id"])
@@ -223,7 +233,7 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
         round_ids[label] = str(uuid.uuid4())
         connection.execute(INSERT_ROUND, (
             round_ids[label], project["project_id"], project["version_id"], pipeline_run_id, label,
-            "PENDING", Jsonb(pinned), None, None, None, datetime.now(UTC), None))
+            "PENDING", _jsonb(pinned), None, None, None, datetime.now(UTC), None))
     connection.commit()
 
     try:
@@ -231,7 +241,7 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
     except Exception as error:  # noqa: BLE001 - a failed run is recorded, not lost
         for label in LABELS:
             connection.execute(FINISH_ROUND, ("FAILED", None,
-                                              Jsonb({"error_type": type(error).__name__, "error": str(error)}),
+                                              _jsonb({"error_type": type(error).__name__, "error": str(error)}),
                                               datetime.now(UTC), round_ids[label]))
         connection.commit()
         raise
@@ -245,8 +255,8 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
                 "request": manifest["request"], "guidanceSha256": status.get("guidance_sha256"),
                 "documents": status.get("documents")}
         connection.execute(FINISH_ROUND, (
-            status["status"], Jsonb(metrics) if metrics is not None else None,
-            Jsonb(failure) if failure else None, datetime.now(UTC), round_ids[label]))
+            status["status"], _jsonb(metrics) if metrics is not None else None,
+            _jsonb(failure) if failure else None, datetime.now(UTC), round_ids[label]))
     connection.commit()
     return pipeline_run_id
 
