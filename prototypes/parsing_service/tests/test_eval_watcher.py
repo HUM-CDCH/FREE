@@ -104,6 +104,16 @@ def test_pipeline_config_carries_runs_identity_and_exhaustiveness(tmp_path: Path
     assert "identity" not in eval_watcher.pipeline_config(
         eval_id="demo", schema_path="s", golden_path="g", documents=[], providers={}, output="o"
     )
+    bounded = eval_watcher.pipeline_config(
+        eval_id="demo",
+        schema_path="s",
+        golden_path="g",
+        documents=[],
+        providers={},
+        output="o",
+        options={"article": {"context": "bounded"}},
+    )
+    assert bounded["options"] == {"strategy": "article", "article": {"context": "bounded"}}
 
 
 def test_run_id_from_preprocess_reads_only_the_kei_run() -> None:
