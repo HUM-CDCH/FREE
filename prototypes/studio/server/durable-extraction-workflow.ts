@@ -1,7 +1,8 @@
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import { reconcileDurableAttempts, collectDeletedDurableGraphs, DURABLE_RECONCILE } from 'extraction/durable'
 import { KEI_APPLICATION, KEI_PRIORITY, KEI_QUEUE } from 'extraction/kei-handoff'
-import { studioDbos, STUDIO_APPLICATION, STUDIO_QUEUE, awaitWorkflowOutcome } from './dbos.js'
+import { studioDbos, STUDIO_APPLICATION, STUDIO_QUEUE } from './dbos.js'
+import { awaitWorkflowOutcome } from './workflowOutcome.js'
 
 /** The committed outbox remains authoritative if this low-latency wake fails. */
 export async function requestDurableReconciliation(identity:string):Promise<void> {

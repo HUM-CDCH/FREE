@@ -1,7 +1,8 @@
 import type { ResearcherProjectStore } from 'db'
 import type { IngestionOutcome } from '../../api/_ingestion_workflow.js'
 import { createSourceDocumentIngestion, type Dependencies } from '../../api/source_documents.js'
-import { awaitWorkflowOutcome, studioDbos } from '../../server/dbos.js'
+import { studioDbos } from '../../server/dbos.js'
+import { awaitWorkflowOutcome } from '../../server/workflowOutcome.js'
 import { uploadRequest } from './ingestion.js'
 
 /**

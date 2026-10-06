@@ -8,7 +8,8 @@ import {
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import { REPROCESS_TERMINAL_HEADER, sourceDocumentReprocessRequestSchema } from '../shared/sourceDocumentReprocess.contract.js'
-import { awaitWorkflowOutcome, STUDIO_QUEUE, studioDbos } from '../server/dbos.js'
+import { STUDIO_QUEUE, studioDbos } from '../server/dbos.js'
+import { awaitWorkflowOutcome } from '../server/workflowOutcome.js'
 import {
   ApiError,
   json,
