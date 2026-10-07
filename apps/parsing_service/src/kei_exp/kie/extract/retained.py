@@ -29,6 +29,11 @@ def discovering(router, found, lines):
         router.runtime.discovering(found, lines)
 
 
+def plan_execution(router, stage, execution):
+    if getattr(router,"runtime",None) is not None:
+        router.runtime.plan_execution(stage,execution)
+
+
 def plan_records(router, stage, scopes):
     if getattr(router,"runtime",None) is not None:
         router.runtime.plan_records(stage,scopes)

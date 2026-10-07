@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import pytest
 
-from kei_exp.kie.extract import calls, run
+from kei_exp.kie.extract import calls, run, unified
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract import retained
@@ -226,6 +226,52 @@ def test_a_planning_round_yields_at_most_chunks_page_windows_each_shown_with_its
         [set(starts[at:at+chunks]) for at in range(0,10,chunks)]
     assert all([found["segment"] for found in event["found"]]==starts[:len(event["found"])] for event in rounds)
     assert [len(event["found"]) for event in rounds]==list(range(0,10,chunks))
+
+
+@pytest.mark.parametrize("defaults,windows,overlap",[(1,None,1),(2,"page",3)])
+def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans(defaults,windows,overlap):
+    """The discovery windows and overlap a run read with stay auditable in the database (`publish_plan`)."""
+    source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")
+    request=unified_request(defaults=defaults)
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    result=finish(lease,CountingChat(Model(source)),lambda router,counter: run.dispatch(None,source,request,router,counter=counter))
+    kept=[plan["manifest"] for stage,plan in lease.plans.items() if stage.startswith("unified-execution:")]
+    assert kept==[lease.plans[f"unified-execution:{unified.digest(result['execution'])[:16]}"]["manifest"]]
+    kept=kept[0]
+    assert kept["units"]==[] and kept["execution"]==result["execution"]
+    assert (kept["execution"]["effective"].get("windows"),kept["execution"]["effective"]["overlap"])==(windows,overlap)
+    assert kept["execution"]["method"]=={"defaults":defaults}
+
+
+def test_a_paused_unified_run_plans_on_without_its_execution_record():
+    """The record is no gate: while the attempt does not run, planning goes on and the next running round keeps it."""
+    source=unified_evidence("1. Hill. Material: gold.")
+    request=unified_request(defaults=2)
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    lease.intent="PAUSE"
+    counter=Counter();planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
+    stages,call=[],lease.call
+    lease.call=lambda name,*args:(stages.append(args[1]) if name=="publish_plan" else None,call(name,*args))[1]
+    with pytest.raises(Boundary):
+        run.dispatch(None,source,request,Router(CountingChat(Model(source)),CountingChat(Model(source)),planner),counter=counter)
+    assert not any(stage.startswith("unified-execution") for stage in lease.plans)
+    assert stages[0].startswith("unified-execution:") and stages[1].startswith("call:")  # on to discovery's first call
+
+
+def test_a_changed_execution_record_adds_a_plan_instead_of_failing_the_attempt():
+    """A round resumed after its record changed (here the served context, so every stage budget) plans on: both
+    records stay, each under its own digest."""
+    source=unified_evidence("1. Hill. Material: gold.")
+    request=unified_request(defaults=2)
+    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
+    class Smaller(Counter):
+        context_tokens=32768
+    for counter in (Counter(),Smaller()):
+        planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
+        with pytest.raises(NeedsCall):
+            run.dispatch(None,source,request,Router(CountingChat(Model(source)),CountingChat(Model(source)),planner),counter=counter)
+    kept=[plan["manifest"]["execution"] for stage,plan in lease.plans.items() if stage.startswith("unified-execution:")]
+    assert sorted(each["effective"]["stages"]["discovery"]["input_tokens"] for each in kept)==[32768-4096,40000-4096]
 
 
 def test_article_grounding_batch_publishes_its_links_before_the_run_finishes():
