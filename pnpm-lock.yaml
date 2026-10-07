@@ -272,6 +272,9 @@ importers:
 
   packages/extraction-result-export:
     dependencies:
+      extraction:
+        specifier: workspace:*
+        version: link:../extraction
       write-excel-file:
         specifier: ^4.1.1
         version: 4.1.1

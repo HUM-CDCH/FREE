@@ -257,6 +257,7 @@ function RightRail({
           document={parsedDocument}
           documentRevisionId={sourceRepresentationId}
           currentSchema={currentSchemaRevision?.schemaRevisionId ?? null}
+          sourceDocumentName={sourceDocumentName}
           readOnly={inspection.readOnly}
           onEvidence={selectNativeEvidence}
           onResultPathChange={onResultPathChange}

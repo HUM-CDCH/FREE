@@ -1,7 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {readFile,writeFile} from 'node:fs/promises'
 import {expect,test,type Page} from '@playwright/test'
-import {strFromU8,unzipSync} from 'fflate'
 import {withPoolClientTransaction} from 'db'
 import {initializeDurableExtraction} from 'extraction/durable'
 import type {SchemaNode} from 'extraction/schema'
@@ -108,12 +107,14 @@ for(const method of methods) {
       await page.reload();await page.locator('#rail-tab-results').click()
       await expect(page.getByRole('button',{name:'Undo',exact:true})).toBeVisible()
       await page.getByRole('button',{name:'More result actions'}).click()
+      await page.getByRole('menuitem',{name:'Export…'}).click()
       const downloading=page.waitForEvent('download')
-      await page.getByRole('menuitem',{name:'Export CSV bundle'}).click()
-      const files=unzipSync(new Uint8Array(await readFile((await (await downloading).path())!)))
-      const exported=JSON.parse(strFromU8(files['snapshot.json']))
-      expect(exported.values.find((each:{id:string})=>each.id===value.id).correction.decision.value).toEqual(corrected)
-      expect(exported.history.captures.some((capture:{outputDigest:unknown})=>capture.outputDigest)).toBe(true)
+      await page.getByRole('button',{name:'CSV',exact:true}).click()
+      const csv=await readFile((await (await downloading).path())!,'utf8')
+      expect(csv.split('\r\n')[0]!.split(',')).toContain(value.node.name)
+      if(typeof corrected==='string')expect(csv).toContain(corrected)
+      // Saved model output stays in History, read through its own API, never through the export.
+      expect(after.captures.some((capture:{outputDigest:unknown})=>capture.outputDigest)).toBe(true)
       await page.screenshot({path:testInfo.outputPath(`native-${method}-retained.png`),fullPage:true})
     } finally {service.releaseExtraction();await service.close()}
   })
@@ -216,12 +217,13 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
     expect(retainedA.correction.included).toBe(false)
     await page.locator('#rail-tab-results').click()
     await page.getByRole('button',{name:'More result actions'}).click()
+    await page.getByRole('menuitem',{name:'Export…'}).click()
     const download=page.waitForEvent('download')
-    await page.getByRole('menuitem',{name:'Export CSV bundle'}).click()
-    const files=unzipSync(new Uint8Array(await readFile((await (await download).path())!)))
-    const exported=JSON.parse(strFromU8(files['snapshot.json']))
-    expect(exported.history.captures.find((each:{id:string})=>each.id===capture.id).request).toEqual(capture.request)
-    await writeFile(info.outputPath('guidance-export-snapshot.json'),JSON.stringify(exported,null,2))
+    await page.getByRole('button',{name:'CSV',exact:true}).click()
+    const rows=(await readFile((await (await download).path())!,'utf8')).split('\r\n')
+    expect(rows[0]!.split(',')).toContain(value.node.name)
+    // The producing request stays in History, read through its own API; the research table never carries it.
+    await writeFile(info.outputPath('guidance-history.json'),JSON.stringify(finished,null,2))
     await page.locator('#rail-tab-history').click()
     await page.getByRole('button',{name:'Use',exact:true}).click()
     await expect(page.getByRole('button',{name:'Stop using',exact:true})).toBeVisible()
@@ -334,10 +336,12 @@ for(const method of ['article','unified'] as const) {
       await page.locator('#rail-tab-results').click()
       await expect(page.getByText('Completed',{exact:true}).first()).toBeVisible()
       await page.getByRole('button',{name:'More result actions'}).click()
+      await page.getByRole('menuitem',{name:'Export…'}).click()
       const download=page.waitForEvent('download')
-      await page.getByRole('menuitem',{name:'Export CSV bundle'}).click()
-      const files=unzipSync(new Uint8Array(await readFile((await (await download).path())!)))
-      expect(JSON.parse(strFromU8(files['snapshot.json'])).history.captures).toEqual(history.captures)
+      await page.getByRole('button',{name:'CSV',exact:true}).click()
+      const rows=(await readFile((await (await download).path())!,'utf8')).split('\r\n')
+      expect(rows.length).toBeGreaterThan(1)
+      expect(rows[0]!.split(',')).toEqual(expect.arrayContaining(saved.values.filter((value:{processing:string})=>value.processing==='saved').map((value:{node:{name:string}})=>value.node.name)))
       await page.screenshot({path:info.outputPath(`live-${method}-retained.png`),fullPage:true})
     } finally {await service.close()}
   })

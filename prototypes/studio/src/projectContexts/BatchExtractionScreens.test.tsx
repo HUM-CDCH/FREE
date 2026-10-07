@@ -65,7 +65,7 @@ it('opens every retained member and keeps typed review on its member route', () 
   render(<BatchExtractionMembers batch={batch}
     pinnedSchemaFailure={null} hasSuccessfulResult coverageMessage={null} opening={false}
     canRunAgain={false} runAgainRefusal={null} runAgainMethod={null}
-    documentName={(id) => id} onExport={vi.fn()} onRetrySchema={vi.fn()} onRunAgain={vi.fn()}
+    documentName={(id) => id} exportSchemaNodes={[]} onExport={vi.fn()} onRetrySchema={vi.fn()} onRunAgain={vi.fn()}
     onOpenMember={onOpenMember} />)
   expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
   // Each member is reviewed through its own typed values; there is no batch-wide review grid.
