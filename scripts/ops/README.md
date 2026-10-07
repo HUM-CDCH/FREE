@@ -26,6 +26,8 @@ release only a commit already carrying this evidence. Wait for the trusted
 Every Compose rendering, build and startup receives revisions from the shared
 `scripts/build-revisions.json` contexts, using the launcher's existing Git
 revision contract. The host needs system Python and Git, with no Node runtime.
+For pre-manifest checkouts, bootstrap and rollback use the previous launcher's
+fixed root and Parsing Service contexts until source advances.
 Built application images must
 carry their expected context revision before any container stops. Running
 labels are checked again after startup. Unknown, mismatched and dirty built

@@ -31,7 +31,15 @@ def compose_environment():
     """
     names = ('FREE_REVISION_STUDIO', 'FREE_REVISION_PARSING')
     try:
-        contexts = json.loads((ROOT / 'scripts/build-revisions.json').read_text())
+        manifest = ROOT / 'scripts/build-revisions.json'
+        if not manifest.exists() and (ROOT / 'scripts/free.mjs').is_file():
+            # Bootstrap/rollback for the pre-manifest launcher. Its contexts
+            # were fixed to these paths; release checks that checkout before
+            # fetching the new verified source and its shared manifest.
+            contexts = {'FREE_REVISION_STUDIO': ['.'],
+                        'FREE_REVISION_PARSING': ['prototypes/parsing_service']}
+        else:
+            contexts = json.loads(manifest.read_text())
     except (OSError, ValueError):
         raise RuntimeError('Cannot read application build contexts.') from None
     if not isinstance(contexts, dict) or set(contexts) != set(names) or any(

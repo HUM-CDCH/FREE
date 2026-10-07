@@ -18,6 +18,7 @@ class ImageRevisions(unittest.TestCase):
             (root / 'scripts').mkdir()
             (root / 'prototypes/parsing_service').mkdir(parents=True)
             (root / 'scripts/build-revisions.json').write_text((Path(__file__).parent.parent / 'build-revisions.json').read_text())
+            (root / 'scripts/free.mjs').write_text('// legacy launcher')
             (root / 'prototypes/parsing_service/code.py').write_text('initial')
             git = ['git', '-C', directory]
             def run(*args):
@@ -34,6 +35,14 @@ class ImageRevisions(unittest.TestCase):
                 env = deploy.compose_environment()
                 self.assertEqual(env['FREE_REVISION_STUDIO'], studio)
                 self.assertEqual(env['FREE_REVISION_PARSING'], parsing)
+                # An installed helper can preflight the previous release before
+                # update_source brings in the shared manifest.
+                manifest = root / 'scripts/build-revisions.json'
+                manifest.rename(root / 'scripts/build-revisions.saved')
+                legacy = deploy.compose_environment()
+                self.assertEqual(legacy['FREE_REVISION_PARSING'], parsing)
+                self.assertEqual(legacy['FREE_REVISION_STUDIO'], studio + '-dirty')
+                (root / 'scripts/build-revisions.saved').rename(manifest)
                 (root / 'untracked.txt').write_text('operator note')
                 self.assertEqual(deploy.compose_environment(), env)
                 (root / 'prototypes/parsing_service/code.py').write_text('edited')
