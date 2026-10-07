@@ -148,7 +148,6 @@ covers the rest of local setup.
 
 The repository also works with coding agents. [AGENTS.md](AGENTS.md) is the
 entry point for Codex, Claude Code and other agents (`CLAUDE.md` points to it).
-Project skills live in `.agents/`, `.claude/` and `.codex/`.
 
 ## Documentation
 

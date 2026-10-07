@@ -42,3 +42,20 @@ eval-out/
 *.pem
 *.key
 *.crt
+
+# Personal agent and editor tooling stays local
+.agents/
+.claude/
+.codex/
+.gemini/
+.pi/
+.qlty/
+.vscode/
+.codegraph/
+.mcp.json
+opencode.jsonc
+qlty-rules/
+sgconfig.yml
+.semgrep.yaml
+skills-lock.json
+GEMINI.md
