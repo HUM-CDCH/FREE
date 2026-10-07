@@ -785,6 +785,22 @@ see a change to either.
   roll forward again. Roll back only to an image that knows the field, or
   reprocess the affected documents after the rollback.
 
+## Upgrade: blocks printed in several places
+
+Since `194dcc40`, a native or hybrid parse publishes every box of a block
+Docling merged across a column break (`boxes_pt` in the page file), and Studio
+marks each place. The native text rules (version 3) are part of the recipe
+fingerprint, so the first parse of each born-digital PDF after the upgrade
+runs again instead of reusing its earlier result; a hybrid one also runs OCR
+on its artwork again. Earlier results stay readable.
+
+- **Documents parsed before `194dcc40`** keep one box per block until they
+  are reprocessed.
+- **Rolling back below `194dcc40`.** Older Parsing Service images refuse a
+  page file carrying `boxes_pt`, so extraction over a document parsed after
+  the upgrade that has such a block fails until you roll forward again or
+  reprocess it.
+
 ## Cutover to durable execution (one-time, clean slate)
 
 This runbook moves a deployment from Procrastinate to DBOS once, before FREE
